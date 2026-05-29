@@ -137,15 +137,15 @@ export const layer = Layer.effect(
       ),
     )
 
-    const source = Flag.OPENCODE_MODELS_URL || "https://models.dev"
-    const filepath = path.join(
-      Global.Path.cache,
-      source === "https://models.dev" ? "models.json" : `models-${Hash.fast(source)}.json`,
-    )
+    const source = Flag.OPENCODE_MODELS_URL
+    const filepath = source
+      ? path.join(Global.Path.cache, `models-${Hash.fast(source)}.json`)
+      : undefined
     const ttl = Duration.minutes(5)
-    const lockKey = `models-dev:${filepath}`
+    const lockKey = `models-dev:${filepath ?? "local"}`
 
     const fresh = Effect.fnUntraced(function* () {
+      if (!filepath) return false
       const stat = yield* fs.stat(filepath).pipe(Effect.catch(() => Effect.succeed(undefined)))
       if (!stat) return false
       const mtime = Option.getOrElse(stat.mtime, () => new Date(0)).getTime()
@@ -153,6 +153,7 @@ export const layer = Layer.effect(
     })
 
     const fetchApi = Effect.fn("ModelsDev.fetchApi")(function* () {
+      if (!source) return yield* Effect.die(new Error("No remote models URL configured"))
       return yield* HttpClientRequest.get(`${source}/api.json`).pipe(
         HttpClientRequest.setHeader("User-Agent", USER_AGENT),
         http.execute,
@@ -161,7 +162,7 @@ export const layer = Layer.effect(
       )
     })
 
-    const loadFromDisk = fs.readJson(Flag.OPENCODE_MODELS_PATH ?? filepath).pipe(
+    const loadFromDisk = fs.readJson(Flag.OPENCODE_MODELS_PATH ?? (filepath ?? "")).pipe(
       Effect.catch(() => Effect.succeed(undefined)),
       Effect.map((v) => v as Record<string, Provider> | undefined),
     )
@@ -170,9 +171,17 @@ export const layer = Layer.effect(
       typeof OPENCODE_MODELS_DEV === "undefined" ? undefined : OPENCODE_MODELS_DEV,
     )
 
+    const loadLocalCatalog = Effect.tryPromise({
+      try: async () => {
+        const localFile = Bun.file(new URL("./models-local.json", import.meta.url))
+        return (await localFile.json()) as Record<string, Provider>
+      },
+      catch: () => undefined,
+    })
+
     const fetchAndWrite = Effect.fn("ModelsDev.fetchAndWrite")(function* () {
       const text = yield* fetchApi()
-      yield* fs.writeWithDirs(filepath, text)
+      if (filepath) yield* fs.writeWithDirs(filepath, text)
       return text
     })
 
@@ -181,15 +190,20 @@ export const layer = Layer.effect(
       if (fromDisk) return fromDisk
       const snapshot = yield* loadSnapshot
       if (snapshot) return snapshot
-      if (Flag.OPENCODE_DISABLE_MODELS_FETCH) return {}
-      // Flock is cross-process: concurrent opencode CLIs can race on this cache file.
-      const text = yield* Effect.scoped(
-        Effect.gen(function* () {
-          yield* Flock.effect(lockKey)
-          return yield* fetchAndWrite()
-        }),
-      )
-      return JSON.parse(text) as Record<string, Provider>
+      // If a remote URL is configured, fetch from it; otherwise use bundled catalog.
+      if (source && !Flag.OPENCODE_DISABLE_MODELS_FETCH) {
+        // Flock is cross-process: concurrent opencode CLIs can race on this cache file.
+        const text = yield* Effect.scoped(
+          Effect.gen(function* () {
+            yield* Flock.effect(lockKey)
+            return yield* fetchAndWrite()
+          }),
+        )
+        return JSON.parse(text) as Record<string, Provider>
+      }
+      const local = yield* loadLocalCatalog
+      if (local) return local
+      return {}
     }).pipe(Effect.withSpan("ModelsDev.populate"), Effect.orDie)
 
     const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(populate, Duration.infinity)
@@ -197,6 +211,7 @@ export const layer = Layer.effect(
     const get = (): Effect.Effect<Record<string, Provider>> => cachedGet
 
     const refresh = Effect.fn("ModelsDev.refresh")(function* (force = false) {
+      if (!source) return
       if (!force && (yield* fresh())) return
       yield* Effect.scoped(
         Effect.gen(function* () {
@@ -210,13 +225,13 @@ export const layer = Layer.effect(
         }),
       ).pipe(
         Effect.tapCause((cause) =>
-          Effect.logError("Failed to fetch models.dev").pipe(Effect.annotateLogs("cause", cause)),
+          Effect.logError("Failed to fetch models source").pipe(Effect.annotateLogs("cause", cause)),
         ),
         Effect.ignore,
       )
     })
 
-    if (!Flag.OPENCODE_DISABLE_MODELS_FETCH && !process.argv.includes("--get-yargs-completions")) {
+    if (source && !Flag.OPENCODE_DISABLE_MODELS_FETCH && !process.argv.includes("--get-yargs-completions")) {
       // Schedule.spaced runs the effect once, then waits between completions.
       yield* Effect.forkScoped(refresh().pipe(Effect.repeat(Schedule.spaced("60 minutes")), Effect.ignore))
     }

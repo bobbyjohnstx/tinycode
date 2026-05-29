@@ -1,0 +1,505 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1780008440178,
+  "projectRoot": "/Users/bjohns/projects/opencode",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "cd /Users/bjohns/projects/oh-my-tiny && npm run build 2>&1 | tail -20",
+    "testCommand": "npm test",
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "bun run --cwd packages/opencode --conditions=browser src/index.ts",
+      "dev:desktop": "bun --cwd packages/desktop dev",
+      "dev:web": "bun --cwd packages/app dev",
+      "dev:console": "ulimit -n 10240 2>/dev/null; bun run --cwd packages/console/app dev",
+      "dev:stats": "bun sst shell --stage=production -- bun run --cwd packages/stats/app dev",
+      "dev:storybook": "bun --cwd packages/storybook storybook",
+      "lint": "oxlint",
+      "typecheck": "bun turbo typecheck",
+      "upgrade-opentui": "bun run script/upgrade-opentui.ts",
+      "postinstall": "bun run --cwd packages/opencode fix-node-pty",
+      "prepare": "husky",
+      "random": "echo 'Random script'",
+      "sso": "aws sso login --sso-session=opencode --no-browser",
+      "test": "echo 'do not run tests from root' && exit 1"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": true,
+    "workspaces": [
+      "packages/*",
+      "packages/console/*",
+      "packages/stats/*",
+      "packages/sdk/js",
+      "packages/slack"
+    ],
+    "mainDirectories": [],
+    "gitBranches": {
+      "defaultBranch": "dev",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "github": {
+      "path": "github",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1780008440168,
+      "keyFiles": [
+        "README.md",
+        "action.yml",
+        "bun.lock",
+        "index.ts",
+        "package.json"
+      ]
+    },
+    "infra": {
+      "path": "infra",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1780008440169,
+      "keyFiles": [
+        "app.ts",
+        "console.ts",
+        "enterprise.ts",
+        "lake.ts",
+        "monitoring.ts"
+      ]
+    },
+    "nix": {
+      "path": "nix",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1780008440169,
+      "keyFiles": [
+        "desktop.nix",
+        "hashes.json",
+        "node_modules.nix",
+        "opencode.nix"
+      ]
+    },
+    "packages": {
+      "path": "packages",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1780008440172,
+      "keyFiles": []
+    },
+    "patches": {
+      "path": "patches",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1780008440172,
+      "keyFiles": [
+        "@ai-sdk%2Fxai@3.0.82.patch",
+        "@npmcli%2Fagent@4.0.0.patch",
+        "@silvia-odwyer%2Fphoton-node@0.3.4.patch",
+        "@standard-community%2Fstandard-openapi@0.2.9.patch",
+        "gcp-metadata@8.1.2.patch"
+      ]
+    },
+    "perf": {
+      "path": "perf",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1780008440172,
+      "keyFiles": [
+        "test-suite.md"
+      ]
+    },
+    "script": {
+      "path": "script",
+      "purpose": null,
+      "fileCount": 14,
+      "lastAccessed": 1780008440172,
+      "keyFiles": [
+        "beta.ts",
+        "changelog.ts",
+        "duplicate-pr.ts",
+        "format.ts",
+        "generate.ts"
+      ]
+    },
+    "sdks": {
+      "path": "sdks",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1780008440172,
+      "keyFiles": []
+    },
+    "specs": {
+      "path": "specs",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1780008440172,
+      "keyFiles": [
+        "project.md"
+      ]
+    },
+    "nix/scripts": {
+      "path": "nix/scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 2,
+      "lastAccessed": 1780008440173,
+      "keyFiles": [
+        "canonicalize-node-modules.ts",
+        "normalize-bun-binaries.ts"
+      ]
+    },
+    "packages/app": {
+      "path": "packages/app",
+      "purpose": "Application code",
+      "fileCount": 13,
+      "lastAccessed": 1780008440173,
+      "keyFiles": [
+        "AGENTS.md",
+        "README.md",
+        "bunfig.toml"
+      ]
+    },
+    "packages/docs": {
+      "path": "packages/docs",
+      "purpose": "Documentation",
+      "fileCount": 8,
+      "lastAccessed": 1780008440173,
+      "keyFiles": [
+        "LICENSE",
+        "README.md",
+        "development.mdx"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "packages/tinycode/src/provider/provider.ts",
+      "accessCount": 52,
+      "lastAccessed": 1780088409481,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/index.ts",
+      "accessCount": 30,
+      "lastAccessed": 1780090649838,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/config/config.ts",
+      "accessCount": 21,
+      "lastAccessed": 1780088844978,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/effect/app-runtime.ts",
+      "accessCount": 14,
+      "lastAccessed": 1780084812732,
+      "type": "file"
+    },
+    {
+      "path": "packages/core/src/models-dev.ts",
+      "accessCount": 9,
+      "lastAccessed": 1780085787946,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/account/account.ts",
+      "accessCount": 8,
+      "lastAccessed": 1780083379919,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/package.json",
+      "accessCount": 8,
+      "lastAccessed": 1780083879981,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/session/retry.ts",
+      "accessCount": 6,
+      "lastAccessed": 1780082277257,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/share/share-next.ts",
+      "accessCount": 4,
+      "lastAccessed": 1780082517090,
+      "type": "file"
+    },
+    {
+      "path": "packages/core/src/plugin/provider/index.ts",
+      "accessCount": 4,
+      "lastAccessed": 1780083942495,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/tui/app.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1780089053588,
+      "type": "file"
+    },
+    {
+      "path": "packages/opencode/src/cli/cmd/tui/routes/session/index.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1780008676541,
+      "type": "file"
+    },
+    {
+      "path": "turbo.json",
+      "accessCount": 3,
+      "lastAccessed": 1780079972506,
+      "type": "file"
+    },
+    {
+      "path": "CLAUDE.md",
+      "accessCount": 3,
+      "lastAccessed": 1780080001752,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/server/shared/ui.ts",
+      "accessCount": 3,
+      "lastAccessed": 1780082142302,
+      "type": "file"
+    },
+    {
+      "path": "packages/opencode/src/provider/provider.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780009120212,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 2,
+      "lastAccessed": 1780081061720,
+      "type": "file"
+    },
+    {
+      "path": "docs/architecture-current.md",
+      "accessCount": 2,
+      "lastAccessed": 1780081183038,
+      "type": "file"
+    },
+    {
+      "path": "docs/architecture-future.md",
+      "accessCount": 2,
+      "lastAccessed": 1780081183187,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/control-plane/workspace.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780081267023,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/auth/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780082050112,
+      "type": "file"
+    },
+    {
+      "path": "packages/core/src/plugin/provider/zenmux.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780082210199,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/sync/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780082517971,
+      "type": "file"
+    },
+    {
+      "path": "packages/core/src/plugin/provider/openai-compatible.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780083491192,
+      "type": "file"
+    },
+    {
+      "path": "AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1780008456148,
+      "type": "file"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "accessCount": 1,
+      "lastAccessed": 1780008459176,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 1,
+      "lastAccessed": 1780008459676,
+      "type": "file"
+    },
+    {
+      "path": "packages/app/src/pages/session/usage-exceeded-dialogs.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1780008633642,
+      "type": "file"
+    },
+    {
+      "path": "packages/opencode/src/session/retry.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780008641467,
+      "type": "file"
+    },
+    {
+      "path": "packages/app/src/components/dialog-usage-exceeded.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1780008641902,
+      "type": "file"
+    },
+    {
+      "path": "packages/opencode/src/cli/cmd/tui/component/prompt/index.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1780008650675,
+      "type": "file"
+    },
+    {
+      "path": "packages/opencode/src/cli/cmd/tui/component/bg-pulse.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1780008651171,
+      "type": "file"
+    },
+    {
+      "path": "packages/console/app/src/routes/zen/util/error.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780008663766,
+      "type": "file"
+    },
+    {
+      "path": "packages/console/app/src/routes/zen/util/ipRateLimiter.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780008664191,
+      "type": "file"
+    },
+    {
+      "path": "packages/console/app/src/routes/zen/util/trialLimiter.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780008667832,
+      "type": "file"
+    },
+    {
+      "path": "packages/console/core/src/subscription.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780008671894,
+      "type": "file"
+    },
+    {
+      "path": "install-local.sh",
+      "accessCount": 1,
+      "lastAccessed": 1780009587032,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/provider/auth.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080690100,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/server/server.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080692462,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/config/provider.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080697137,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/session/processor.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080698076,
+      "type": "file"
+    },
+    {
+      "path": "packages/core/src/catalog.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080708969,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/session/session.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080709614,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/session/llm.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080725834,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/run/otel.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080726244,
+      "type": "file"
+    },
+    {
+      "path": "packages/llm/package.json",
+      "accessCount": 1,
+      "lastAccessed": 1780080737715,
+      "type": "file"
+    },
+    {
+      "path": "packages/core/src/plugin/provider.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080756861,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/run.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080768884,
+      "type": "file"
+    },
+    {
+      "path": "packages/core/src/plugin/provider/opencode.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780080773335,
+      "type": "file"
+    },
+    {
+      "path": "memory/project_tinycode_context.md",
+      "accessCount": 1,
+      "lastAccessed": 1780081072709,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

@@ -3,7 +3,9 @@ import { useTheme } from "@opencode-ai/ui/theme/context"
 import { resolveThemeVariant } from "@opencode-ai/ui/theme/resolve"
 import type { HexColor } from "@opencode-ai/ui/theme/types"
 import { showToast } from "@opencode-ai/ui/toast"
-import type { FitAddon, Ghostty, Terminal as Term } from "ghostty-web"
+import type { Terminal as Term } from "@xterm/xterm"
+import type { FitAddon } from "@xterm/addon-fit"
+import "@xterm/xterm/css/xterm.css"
 import { type ComponentProps, createEffect, createMemo, onCleanup, onMount, splitProps } from "solid-js"
 import { SerializeAddon } from "@/addons/serialize"
 import { matchKeybind, parseKeybind } from "@/context/command"
@@ -28,12 +30,12 @@ export interface TerminalProps extends ComponentProps<"div"> {
   onConnectError?: (error: unknown) => void
 }
 
-let shared: Promise<{ mod: typeof import("ghostty-web"); ghostty: Ghostty }> | undefined
+let shared: Promise<{ Terminal: typeof Term; FitAddon: typeof FitAddon }> | undefined
 
-const loadGhostty = () => {
+const loadXterm = () => {
   if (shared) return shared
-  shared = import("ghostty-web")
-    .then(async (mod) => ({ mod, ghostty: await mod.Ghostty.load() }))
+  shared = Promise.all([import("@xterm/xterm"), import("@xterm/addon-fit")])
+    .then(([xterm, fit]) => ({ Terminal: xterm.Terminal, FitAddon: fit.FitAddon }))
     .catch((err) => {
       shared = undefined
       throw err
@@ -185,7 +187,6 @@ export const Terminal = (props: TerminalProps) => {
   const scrollY = typeof local.pty.scrollY === "number" ? local.pty.scrollY : undefined
   let ws: WebSocket | undefined
   let term: Term | undefined
-  let _ghostty: Ghostty
   let serializeAddon: SerializeAddon
   let fitAddon: FitAddon
   let handleResize: () => void
@@ -342,13 +343,10 @@ export const Terminal = (props: TerminalProps) => {
 
   onMount(() => {
     const run = async () => {
-      const loaded = await loadGhostty()
+      const loaded = await loadXterm()
       if (disposed) return
 
-      const mod = loaded.mod
-      const g = loaded.ghostty
-
-      const t = new mod.Terminal({
+      const t = new loaded.Terminal({
         cursorBlink: true,
         cursorStyle: "bar",
         cols: restoreSize?.cols,
@@ -359,14 +357,12 @@ export const Terminal = (props: TerminalProps) => {
         convertEol: false,
         theme: terminalColors(),
         scrollback: 10_000,
-        ghostty: g,
       })
       cleanups.push(() => t.dispose())
       if (disposed) {
         cleanup()
         return
       }
-      _ghostty = g
       term = t
       output = terminalWriter((data, done) =>
         t.write(data, () => {
@@ -389,7 +385,7 @@ export const Terminal = (props: TerminalProps) => {
         return matchKeybind(keybinds, event)
       })
 
-      const fit = new mod.FitAddon()
+      const fit = new loaded.FitAddon()
       const serializer = new SerializeAddon()
       cleanups.push(() => disposeIfDisposable(fit))
       t.loadAddon(serializer)

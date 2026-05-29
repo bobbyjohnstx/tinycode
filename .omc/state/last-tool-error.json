@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"ls /Users/bjohns/projects/oh-my-tiny/src/tools/ 2>/dev/null; echo \\\"---\\\"; ls /Users/bjohns/projects/oh-my-tiny/src/plugin/ 2>/dev/null\",\"description\":\"Check if tools/plugin dirs exist alr...",
+  "error": "Exit code 1\n---",
+  "timestamp": "2026-05-29T21:23:39.223Z",
+  "retry_count": 2
+}

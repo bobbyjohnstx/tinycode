@@ -1,11 +1,6 @@
-import { describe, test, expect, beforeAll, afterEach } from "bun:test"
-import { Terminal, Ghostty } from "ghostty-web"
+import { describe, test, expect, afterEach } from "bun:test"
+import { Terminal } from "@xterm/xterm"
 import { SerializeAddon } from "./serialize"
-
-let ghostty: Ghostty
-beforeAll(async () => {
-  ghostty = await Ghostty.load()
-})
 
 const terminals: Terminal[] = []
 
@@ -21,7 +16,7 @@ function createTerminal(cols = 80, rows = 24): { term: Terminal; addon: Serializ
   const container = document.createElement("div")
   document.body.appendChild(container)
 
-  const term = new Terminal({ cols, rows, ghostty })
+  const term = new Terminal({ cols, rows })
   const addon = new SerializeAddon()
   term.loadAddon(addon)
   term.open(container)

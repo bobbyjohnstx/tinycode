@@ -13,7 +13,20 @@
  * ```
  */
 
-import type { ITerminalAddon, ITerminalCore, IBufferRange } from "ghostty-web"
+import type { ITerminalAddon } from "@xterm/xterm"
+
+// ITerminalCore is an internal xterm.js type accessed via (terminal as any)._core
+type ITerminalCore = {
+  rows: number
+  cols: number
+  buffer: unknown
+}
+
+// IBufferRange matches xterm.js internal structure
+type IBufferRange = {
+  start: { x: number; y: number }
+  end: { x: number; y: number }
+}
 
 // ============================================================================
 // Buffer Types (matching ghostty-web internal interfaces)
@@ -508,8 +521,8 @@ export class SerializeAddon implements ITerminalAddon {
   /**
    * Activate the addon (called by Terminal.loadAddon)
    */
-  public activate(terminal: ITerminalCore): void {
-    this._terminal = terminal
+  public activate(terminal: unknown): void {
+    this._terminal = terminal as ITerminalCore
   }
 
   /**

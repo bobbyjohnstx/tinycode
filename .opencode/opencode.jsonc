@@ -2,7 +2,13 @@
   "$schema": "https://opencode.ai/config.json",
   "provider": {},
   "permission": {},
-  "mcp": {},
+  "plugin": ["../oh-my-tiny"],
+  "mcp": {
+    "oh-my-tiny": {
+      "type": "local",
+      "command": ["node", "../oh-my-tiny/dist/mcp/server.js"]
+    }
+  },
   "tools": {
     "github-triage": false,
     "github-pr-search": false,
