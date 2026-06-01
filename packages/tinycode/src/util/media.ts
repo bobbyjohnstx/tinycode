@@ -1,4 +1,34 @@
+import { execSync } from "child_process"
+import { writeFileSync, unlinkSync } from "fs"
+import { tmpdir } from "os"
+import { join } from "path"
+
 const startsWith = (bytes: Uint8Array, prefix: number[]) => prefix.every((value, index) => bytes[index] === value)
+
+/** Extract text from a PDF file using pdftotext (poppler). Returns null if unavailable or extraction fails. */
+export function pdfFileToText(filepath: string): string | null {
+  try {
+    const out = execSync(`pdftotext "${filepath.replace(/"/g, '\\"')}" -`, {
+      encoding: "utf-8",
+      timeout: 30_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim()
+    return out.length > 0 ? out : null
+  } catch {
+    return null
+  }
+}
+
+/** Extract text from PDF bytes by writing a temp file. Returns null if unavailable or extraction fails. */
+export function pdfBytesToText(bytes: Uint8Array): string | null {
+  const tmp = join(tmpdir(), `tc-pdf-${Date.now()}.pdf`)
+  try {
+    writeFileSync(tmp, bytes)
+    return pdfFileToText(tmp)
+  } finally {
+    try { unlinkSync(tmp) } catch { /* ignore */ }
+  }
+}
 
 export function isPdfAttachment(mime: string) {
   return mime === "application/pdf"

@@ -4,7 +4,7 @@ import { Parser } from "htmlparser2"
 import * as Tool from "./tool"
 import TurndownService from "turndown"
 import DESCRIPTION from "./webfetch.txt"
-import { isImageAttachment } from "@/util/media"
+import { isImageAttachment, isPdfAttachment, pdfBytesToText } from "@/util/media"
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024 // 5MB
 const DEFAULT_TIMEOUT = 30 * 1000 // 30 seconds
@@ -107,19 +107,29 @@ export const WebFetchTool = Tool.define(
           const mime = contentType.split(";")[0]?.trim().toLowerCase() || ""
           const title = `${params.url} (${contentType})`
 
+          if (isPdfAttachment(mime)) {
+            // Try text extraction first — works with any model including local LLMs
+            const bytes = new Uint8Array(arrayBuffer)
+            const text = pdfBytesToText(bytes)
+            if (text) {
+              return { title, output: text, metadata: {} }
+            }
+            // Fall back to base64 attachment for vision-capable models
+            return {
+              title,
+              output: "PDF fetched successfully (sent as attachment)",
+              metadata: {},
+              attachments: [{ type: "file" as const, mime, url: `data:${mime};base64,${Buffer.from(arrayBuffer).toString("base64")}` }],
+            }
+          }
+
           if (isImageAttachment(mime)) {
             const base64Content = Buffer.from(arrayBuffer).toString("base64")
             return {
               title,
               output: "Image fetched successfully",
               metadata: {},
-              attachments: [
-                {
-                  type: "file" as const,
-                  mime,
-                  url: `data:${mime};base64,${base64Content}`,
-                },
-              ],
+              attachments: [{ type: "file" as const, mime, url: `data:${mime};base64,${base64Content}` }],
             }
           }
 

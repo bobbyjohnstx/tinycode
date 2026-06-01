@@ -8,7 +8,7 @@ import DESCRIPTION from "./read.txt"
 import { InstanceState } from "@/effect/instance-state"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import { Instruction } from "../session/instruction"
-import { isPdfAttachment, sniffAttachmentMime } from "@/util/media"
+import { isPdfAttachment, pdfFileToText, sniffAttachmentMime } from "@/util/media"
 import { Reference } from "@/reference/reference"
 
 const DEFAULT_READ_LIMIT = 2000
@@ -267,24 +267,46 @@ export const ReadTool = Tool.define(
       const mime = sniffAttachmentMime(sample, AppFileSystem.mimeType(filepath))
       const isImage = SUPPORTED_IMAGE_MIMES.has(mime)
 
-      if (isImage || isPdfAttachment(mime)) {
+      if (isPdfAttachment(mime)) {
+        // Try text extraction first — works with any model including local LLMs
+        const text = pdfFileToText(filepath)
+        if (text) {
+          const lines = text.split("\n")
+          const truncated = lines.length > DEFAULT_READ_LIMIT
+          const sliced = lines.slice(0, DEFAULT_READ_LIMIT)
+          const output = [
+            `<path>${filepath}</path>`,
+            `<type>pdf</type>`,
+            "<content>\n",
+            sliced.map((line, i) => `${i + 1}: ${line}`).join("\n"),
+            truncated ? `\n\n(Showing ${sliced.length} of ${lines.length} lines. Use offset parameter to read more.)` : "",
+            "\n</content>",
+          ].join("\n")
+          return {
+            title,
+            output,
+            metadata: { preview: sliced.slice(0, 3).join(" "), truncated, loaded: loaded.map((item) => item.filepath) },
+          }
+        }
+        // Fall back to base64 attachment for vision-capable models
         const bytes = yield* fs.readFile(filepath)
-        const msg = isPdfAttachment(mime) ? "PDF read successfully" : "Image read successfully"
+        const msg = "PDF read successfully (sent as attachment)"
         return {
           title,
           output: msg,
-          metadata: {
-            preview: msg,
-            truncated: false,
-            loaded: loaded.map((item) => item.filepath),
-          },
-          attachments: [
-            {
-              type: "file" as const,
-              mime,
-              url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`,
-            },
-          ],
+          metadata: { preview: msg, truncated: false, loaded: loaded.map((item) => item.filepath) },
+          attachments: [{ type: "file" as const, mime, url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}` }],
+        }
+      }
+
+      if (isImage) {
+        const bytes = yield* fs.readFile(filepath)
+        const msg = "Image read successfully"
+        return {
+          title,
+          output: msg,
+          metadata: { preview: msg, truncated: false, loaded: loaded.map((item) => item.filepath) },
+          attachments: [{ type: "file" as const, mime, url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}` }],
         }
       }
 
