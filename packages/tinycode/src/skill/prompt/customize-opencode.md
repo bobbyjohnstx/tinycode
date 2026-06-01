@@ -227,10 +227,16 @@ file, `disable: true` in frontmatter.
 
 ### Built-in agents
 
-opencode ships with `build`, `plan`, `general`, `explore`, plus optionally
-`scout` (gated on `OPENCODE_EXPERIMENTAL_SCOUT`). Hidden internal agents:
+tinycode ships with `build`, `plan`, `general`, `explore`, and `scout`. Hidden internal agents:
 `compaction`, `title`, `summary`. To override a built-in's fields, define the
 same key in `agent: { <name>: { ... } }`.
+
+Built-in agent roles:
+- `build` — default coding agent, has all tools
+- `plan` — read-only planning mode, no edit tools
+- `general` — fast general-purpose subagent, short-to-medium answers
+- `explore` — read-only codebase search inside the workspace
+- `scout` — read-only research agent for external repos and docs; can clone git repositories into a managed cache and inspect dependency source
 
 ## Plugins
 
