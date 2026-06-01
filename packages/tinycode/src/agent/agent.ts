@@ -222,7 +222,7 @@ export const layer = Layer.effect(
               }),
               user,
             ),
-            description: `External research specialist. Use this to clone and inspect dependency repos, read library source code, fetch docs, or investigate any git repository (GitHub, Gitea, GitLab, or self-hosted). To inspect oh-my-tiny, point it at /Users/bjohns/projects/oh-my-tiny directly. Never modifies the workspace.`,
+            description: `External research specialist. Use this to clone and inspect dependency repos, read library source code, fetch docs, or investigate any git repository (GitHub, Gitea, GitLab, or self-hosted). Never modifies the workspace.`,
             prompt: PROMPT_SCOUT,
             options: {},
             mode: "subagent" as const,
