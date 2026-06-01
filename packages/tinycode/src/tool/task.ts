@@ -32,7 +32,7 @@ const BACKGROUND_DESCRIPTION = [
 ].join("\n")
 
 const BaseParameterFields = {
-  description: Schema.String.annotate({ description: "A short (3-5 words) description of the task" }),
+  description: Schema.optional(Schema.String).annotate({ description: "A short (3-5 words) description of the task" }),
   prompt: Schema.String.annotate({ description: "The task for the agent to perform" }),
   subagent_type: Schema.String.annotate({ description: "The type of specialized agent to use for this task" }),
   task_id: Schema.optional(Schema.String).annotate({
@@ -121,7 +121,7 @@ export const TaskTool = Tool.define(
           patterns: [params.subagent_type],
           always: ["*"],
           metadata: {
-            description: params.description,
+            description: (params.description ?? params.subagent_type),
             subagent_type: params.subagent_type,
           },
         })
@@ -143,7 +143,7 @@ export const TaskTool = Tool.define(
         session ??
         (yield* sessions.create({
           parentID: ctx.sessionID,
-          title: params.description + ` (@${next.name} subagent)`,
+          title: (params.description ?? params.subagent_type) + ` (@${next.name} subagent)`,
           permission: [
             ...deriveSubagentSessionPermission({
               parentSessionPermission: parent.permission ?? [],
@@ -173,7 +173,7 @@ export const TaskTool = Tool.define(
       }
 
       yield* ctx.metadata({
-        title: params.description,
+        title: (params.description ?? params.subagent_type),
         metadata,
       })
 
@@ -215,7 +215,7 @@ export const TaskTool = Tool.define(
                 synthetic: true,
                 text: backgroundMessage({
                   sessionID: nextSession.id,
-                  description: params.description,
+                  description: (params.description ?? params.subagent_type),
                   state,
                   text,
                 }),
@@ -234,7 +234,7 @@ export const TaskTool = Tool.define(
         const info = yield* background.start({
           id: nextSession.id,
           type: id,
-          title: params.description,
+          title: (params.description ?? params.subagent_type),
           metadata,
           run: runTask().pipe(
             Effect.tap((text) => inject("completed", text).pipe(Effect.ignore)),
@@ -248,7 +248,7 @@ export const TaskTool = Tool.define(
         })
 
         return {
-          title: params.description,
+          title: (params.description ?? params.subagent_type),
           metadata: {
             ...metadata,
             jobId: info.id,
@@ -272,7 +272,7 @@ export const TaskTool = Tool.define(
           Effect.gen(function* () {
             const text = yield* runTask()
             return {
-              title: params.description,
+              title: (params.description ?? params.subagent_type),
               metadata,
               output: output(nextSession.id, text),
             }
