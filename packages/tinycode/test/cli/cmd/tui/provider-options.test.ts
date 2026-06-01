@@ -11,7 +11,8 @@ describe("providerOptions", () => {
   })
 
   test("does not use Other as the generic provider category", () => {
-    expect(providerOptions([{ id: "mistral", name: "Mistral" }])[0]?.category).toBe("Providers")
+    // Non-priority providers (like mistral) go to "Cloud" section
+    expect(providerOptions([{ id: "mistral", name: "Mistral" }])[0]?.category).toBe("Cloud")
   })
 
   test("does not collide with a configured provider named other", () => {
