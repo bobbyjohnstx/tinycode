@@ -460,13 +460,17 @@ export const layer = Layer.effect(
                   name: "vllm",
                 },
               },
-              // LAN Model-as-a-Service (LiteMaaS or any OpenAI-compatible MaaS)
+              // LAN Model-as-a-Service — auto-discovered when env vars are set:
+              //   TINYCODE_MAAS_HOST=https://your-maas-server
+              //   TINYCODE_MAAS_API_KEY=your-api-key
+              // Supports LiteMaaS, LiteLLM, and any OpenAI-compatible MaaS
               // https://github.com/rh-aiservices-bu/litemaas
-              // Change baseURL to your MaaS server address
+              // Or configure manually (overrides auto-discovery):
               maas: {
                 npm: "@ai-sdk/openai-compatible",
+                env: ["TINYCODE_MAAS_API_KEY"],
                 options: {
-                  baseURL: "http://maas-server:8080/v1",
+                  baseURL: "http://maas-server/v1",
                   name: "maas",
                 },
               },

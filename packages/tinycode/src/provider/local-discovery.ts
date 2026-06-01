@@ -165,19 +165,80 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
       )
     }
 
+    // Probe a LiteMaaS/LiteLLM or any OpenAI-compatible MaaS server.
+    // Requires TINYCODE_MAAS_HOST and TINYCODE_MAAS_API_KEY env vars.
+    // Filters out embedding models (ids containing "embed").
+    function probeMaas(baseURL: string, apiKey: string): Effect.Effect<Info | null> {
+      return HttpClientRequest.get(`${baseURL}/v1/models`).pipe(
+        HttpClientRequest.setHeader("Authorization", `Bearer ${apiKey}`),
+        httpClient.execute,
+        Effect.timeout(PROBE_TIMEOUT_MS),
+        Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(VllmModelsResponse)(res)),
+        Effect.map((data) => {
+          const ids = data.data
+            .map((m) => m.id)
+            .filter((id) => id.length > 0 && !id.toLowerCase().includes("embed"))
+          if (ids.length === 0) return null
+          log.info("maas discovered", { host: baseURL, count: ids.length, models: ids.slice(0, 5) })
+          const models: Record<string, Model> = {}
+          for (const id of ids) {
+            models[id] = {
+              id: ModelID.make(id),
+              providerID: ProviderID.make("maas"),
+              name: id,
+              family: "",
+              api: { id, url: `${baseURL}/v1`, npm: "@ai-sdk/openai-compatible" },
+              status: "active",
+              headers: { Authorization: `Bearer ${apiKey}` },
+              options: { apiKey },
+              cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+              limit: { context: 0, output: 0 },
+              capabilities: {
+                temperature: true, reasoning: false, attachment: false, toolcall: true,
+                input: { text: true, audio: false, image: false, video: false, pdf: false },
+                output: { text: true, audio: false, image: false, video: false, pdf: false },
+                interleaved: false,
+              },
+              release_date: "",
+              variants: {},
+            }
+          }
+          return {
+            id: ProviderID.make("maas"),
+            name: "MaaS",
+            source: "custom" as const,
+            env: [],
+            options: { baseURL: `${baseURL}/v1`, apiKey },
+            models,
+          }
+        }),
+        Effect.catchAll((err) => {
+          log.info("maas not available", { baseURL, error: String(err) })
+          return Effect.succeed(null)
+        }),
+      )
+    }
+
     function runDiscovery(): Effect.Effect<void> {
       const ollamaHost = process.env["TINYCODE_OLLAMA_HOST"] ?? "http://localhost:11434"
       const vllmHost = process.env["TINYCODE_VLLM_HOST"] ?? "http://localhost:8000"
+      const maasHost = process.env["TINYCODE_MAAS_HOST"]
+      const maasKey = process.env["TINYCODE_MAAS_API_KEY"]
 
       return Effect.gen(function* () {
-        const [ollamaResult, vllmResult] = yield* Effect.all(
-          [probeOllama(ollamaHost), probeVllm(vllmHost)],
-          { concurrency: 2 },
-        )
+        const probes: Effect.Effect<Info | null>[] = [
+          probeOllama(ollamaHost),
+          probeVllm(vllmHost),
+        ]
+        if (maasHost && maasKey) probes.push(probeMaas(maasHost, maasKey))
+
+        const results = yield* Effect.all(probes, { concurrency: probes.length })
+        const [ollamaResult, vllmResult, maasResult] = results
 
         const next: Record<string, Info> = {}
         if (ollamaResult) next["ollama"] = ollamaResult
         if (vllmResult) next["vllm"] = vllmResult
+        if (maasResult) next["maas"] = maasResult
 
         yield* Ref.set(discovered, next)
       })
