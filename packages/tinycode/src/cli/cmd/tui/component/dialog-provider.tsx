@@ -17,12 +17,15 @@ import { useConnected } from "./use-connected"
 import { useBindings } from "../keymap"
 
 const PROVIDER_PRIORITY: Record<string, number> = {
-  opencode: 0,
-  "opencode-go": 1,
-  openai: 2,
-  "github-copilot": 3,
+  // Local / LAN — primary focus
+  ollama: 0,
+  vllm: 1,
+  maas: 2,
+  "openai-compatible": 3,
+  // Cloud API providers
   anthropic: 4,
-  google: 5,
+  openai: 5,
+  google: 6,
 }
 
 const CUSTOM_PROVIDER_OPTION_VALUE = "__opencode_custom_provider__"
@@ -55,12 +58,15 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
         value: provider.id,
         providerID: provider.id,
         description: {
-          opencode: "(Recommended)",
+          ollama: "(local — auto-discovered)",
+          vllm: "(local — auto-discovered)",
+          maas: "(LAN — set TINYCODE_MAAS_HOST + TINYCODE_MAAS_API_KEY)",
+          "openai-compatible": "(any OpenAI-compatible endpoint)",
           anthropic: "(API key)",
-          openai: "(ChatGPT Plus/Pro or API key)",
-          "opencode-go": "Low cost subscription for everyone",
+          openai: "(API key)",
+          google: "(API key)",
         }[provider.id],
-        category: provider.id in PROVIDER_PRIORITY ? "Popular" : "Providers",
+        category: provider.id in PROVIDER_PRIORITY ? "Local / LAN" : "Cloud",
       })),
     ),
     {

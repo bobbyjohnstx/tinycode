@@ -35,5 +35,11 @@
     "name": "OpenAI Compatible (Ollama/vLLM)",
     "env": [],
     "models": {}
+  },
+  "maas": {
+    "id": "maas",
+    "name": "MaaS (LiteMaaS/LiteLLM)",
+    "env": ["TINYCODE_MAAS_API_KEY"],
+    "models": {}
   }
 }
