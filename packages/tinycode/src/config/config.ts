@@ -445,6 +445,7 @@ export const layer = Layer.effect(
         if (!existsSync(file)) {
           const defaultConfig = {
             provider: {
+              // Local inference — auto-discovered, no config needed
               ollama: {
                 npm: "@ai-sdk/openai-compatible",
                 options: {
@@ -457,6 +458,16 @@ export const layer = Layer.effect(
                 options: {
                   baseURL: "http://localhost:8000/v1",
                   name: "vllm",
+                },
+              },
+              // LAN Model-as-a-Service (LiteMaaS or any OpenAI-compatible MaaS)
+              // https://github.com/rh-aiservices-bu/litemaas
+              // Change baseURL to your MaaS server address
+              maas: {
+                npm: "@ai-sdk/openai-compatible",
+                options: {
+                  baseURL: "http://maas-server:8080/v1",
+                  name: "maas",
                 },
               },
             },
