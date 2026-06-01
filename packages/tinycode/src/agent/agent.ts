@@ -88,8 +88,6 @@ export const layer = Layer.effect(
     const plugin = yield* Plugin.Service
     const skill = yield* Skill.Service
     const provider = yield* Provider.Service
-    const flags = yield* RuntimeFlags.Service
-
     const state = yield* InstanceState.make<State>(
       Effect.fn("Agent.state")(function* (ctx) {
         const cfg = yield* config.get()
@@ -204,36 +202,32 @@ export const layer = Layer.effect(
             mode: "subagent",
             native: true,
           },
-          ...(flags.experimentalScout
-            ? {
-                scout: {
-                  name: "scout",
-                  permission: Permission.merge(
-                    defaults,
-                    Permission.fromConfig({
-                      "*": "deny",
-                      grep: "allow",
-                      glob: "allow",
-                      webfetch: "allow",
-                      websearch: "allow",
-                      read: "allow",
-                      repo_clone: "allow",
-                      repo_overview: "allow",
-                      external_directory: {
-                        ...readonlyExternalDirectory,
-                        [path.join(Global.Path.repos, "*")]: "allow",
-                      },
-                    }),
-                    user,
-                  ),
-                  description: `Docs and dependency-source specialist. Use this when you need to inspect external documentation, clone dependency repositories into the managed cache, and research library implementation details without modifying the user's workspace.`,
-                  prompt: PROMPT_SCOUT,
-                  options: {},
-                  mode: "subagent" as const,
-                  native: true,
+          scout: {
+            name: "scout",
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({
+                "*": "deny",
+                grep: "allow",
+                glob: "allow",
+                webfetch: "allow",
+                websearch: "allow",
+                read: "allow",
+                repo_clone: "allow",
+                repo_overview: "allow",
+                external_directory: {
+                  ...readonlyExternalDirectory,
+                  [path.join(Global.Path.repos, "*")]: "allow",
                 },
-              }
-            : {}),
+              }),
+              user,
+            ),
+            description: `Docs and dependency-source specialist. Use this when you need to inspect external documentation, clone dependency repositories into the managed cache, and research library implementation details without modifying the user's workspace.`,
+            prompt: PROMPT_SCOUT,
+            options: {},
+            mode: "subagent" as const,
+            native: true,
+          },
           compaction: {
             name: "compaction",
             mode: "primary",
