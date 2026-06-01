@@ -3,12 +3,7 @@
   "provider": {},
   "permission": {},
   "plugin": ["../oh-my-tiny"],
-  "mcp": {
-    "oh-my-tiny": {
-      "type": "local",
-      "command": ["node", "../oh-my-tiny/dist/mcp/server.js"]
-    }
-  },
+  "mcp": {},
   "tools": {
     "github-triage": false,
     "github-pr-search": false,
