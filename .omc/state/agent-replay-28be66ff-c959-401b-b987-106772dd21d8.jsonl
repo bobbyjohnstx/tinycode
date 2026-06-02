@@ -1,9 +1,0 @@
-{"t":0,"agent":"a88bc09","agent_type":"architect","event":"agent_start","parent_mode":"none"}
-{"t":0,"agent":"a88bc09","agent_type":"architect","event":"agent_stop","success":true,"duration_ms":226008}
-{"t":0,"agent":"a068988","agent_type":"planner","event":"agent_start","parent_mode":"none"}
-{"t":0,"agent":"a068988","agent_type":"planner","event":"agent_stop","success":true,"duration_ms":171604}
-{"t":0,"agent":"system","event":"skill_invoked","skill_name":"oh-my-claudecode:ultrawork"}
-{"t":0,"agent":"a745abd","agent_type":"executor","event":"agent_start","parent_mode":"none"}
-{"t":0,"agent":"a745abd","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":100425}
-{"t":0,"agent":"a9f106b","agent_type":"executor","event":"agent_start","parent_mode":"none"}
-{"t":0,"agent":"a9f106b","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":173803}

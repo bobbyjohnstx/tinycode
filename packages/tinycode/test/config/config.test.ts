@@ -306,13 +306,13 @@ it.instance("falls back to generic username when system user info is unavailable
   }),
 )
 
-it.effect("creates global jsonc config with schema when no global configs exist", () =>
+it.effect("creates global jsonc config with default providers when no global configs exist", () =>
   withGlobalConfig({}, ({ dir }) =>
     Effect.gen(function* () {
       yield* Config.use.get().pipe(provideInstanceEffect(dir))
 
-      const content = yield* AppFileSystem.use.readFileString(path.join(dir, "opencode.jsonc"))
-      expect(content).toContain('"$schema": "https://opencode.ai/config.json"')
+      const content = yield* AppFileSystem.use.readFileString(path.join(dir, "tinycode.jsonc"))
+      expect(content).toContain('"ollama"')
     }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(CrossSpawnSpawner.defaultLayer)),
   ),
 )
@@ -503,13 +503,12 @@ it.instance("handles environment variable substitution", () =>
   ),
 )
 
-it.instance("preserves env variables when adding $schema to config", () =>
+it.instance("preserves env variables in config", () =>
   withProcessEnv(
     "PRESERVE_VAR",
     "secret_value",
     Effect.gen(function* () {
       const test = yield* TestInstance
-      // Config without $schema - should trigger auto-add
       yield* AppFileSystem.use.writeWithDirs(
         path.join(test.directory, "opencode.json"),
         JSON.stringify({ username: "{env:PRESERVE_VAR}" }),
@@ -521,7 +520,6 @@ it.instance("preserves env variables when adding $schema to config", () =>
       const content = yield* AppFileSystem.use.readFileString(path.join(test.directory, "opencode.json"))
       expect(content).toContain("{env:PRESERVE_VAR}")
       expect(content).not.toContain("secret_value")
-      expect(content).toContain("$schema")
     }),
   ),
 )

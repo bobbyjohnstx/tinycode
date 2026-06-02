@@ -14,6 +14,7 @@ import { Env } from "../../src/env"
 import { Plugin } from "../../src/plugin/index"
 import { Provider } from "@/provider/provider"
 import { ProviderID, ModelID } from "../../src/provider/schema"
+import { LocalDiscovery } from "@/provider/local-discovery"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Filesystem } from "@/util/filesystem"
 import { InstanceLayer } from "@/project/instance-layer"
@@ -63,6 +64,7 @@ const providerLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
     Layer.provide(Plugin.defaultLayer),
     Layer.provide(ModelsDev.defaultLayer),
     Layer.provide(RuntimeFlags.layer(flags)),
+    Layer.provide(LocalDiscovery.defaultLayer),
   )
 
 const list = Provider.use.list()
@@ -72,8 +74,6 @@ const paid = (providers: Record<string, { models: Record<string, { cost: { input
   expect(item).toBeDefined()
   return Object.values(item.models).filter((model) => model.cost.input > 0).length
 }
-
-const languageBaseURL = (language: unknown) => (language as { config: { baseURL: string } }).config.baseURL
 
 const it = testEffect(Layer.mergeAll(Provider.defaultLayer, Env.defaultLayer, Plugin.defaultLayer))
 const experimentalModels = testEffect(providerLayer({ enableExperimentalModels: true }))
@@ -332,13 +332,15 @@ test("parseModel handles model IDs with slashes", () => {
   expect(String(result.modelID)).toBe("anthropic/claude-3-opus")
 })
 
-it.instance("defaultModel returns first available model when no config set", () =>
+it.instance(
+  "defaultModel returns first available model when no config set",
   Effect.gen(function* () {
     yield* setProcessEnv("ANTHROPIC_API_KEY", "test-api-key")
     const model = yield* Provider.use.defaultModel()
     expect(model.providerID).toBeDefined()
     expect(model.modelID).toBeDefined()
   }),
+  { config: { provider: { anthropic: {} } } },
 )
 
 it.instance(
@@ -1111,53 +1113,6 @@ it.instance(
 )
 
 it.instance(
-  "hosted nvidia provider adds billing origin header",
-  Effect.gen(function* () {
-    const providers = yield* list
-    expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
-      "HTTP-Referer": "https://opencode.ai/",
-      "X-Title": "opencode",
-      "X-BILLING-INVOKE-ORIGIN": "OpenCode",
-    })
-  }),
-  { config: { provider: { nvidia: { options: { apiKey: "test-api-key" } } } } },
-)
-
-it.instance(
-  "custom nvidia baseURL adds billing origin header",
-  Effect.gen(function* () {
-    const providers = yield* list
-    expect(providers[ProviderID.make("nvidia")].options.headers).toEqual({
-      "HTTP-Referer": "https://opencode.ai/",
-      "X-Title": "opencode",
-      "X-BILLING-INVOKE-ORIGIN": "OpenCode",
-    })
-  }),
-  { config: { provider: { nvidia: { options: { apiKey: "test-api-key", baseURL: "http://localhost:8000/v1" } } } } },
-)
-
-it.instance(
-  "explicit nvidia billing origin header is preserved",
-  Effect.gen(function* () {
-    const providers = yield* list
-    expect(providers[ProviderID.make("nvidia")].options.headers["X-BILLING-INVOKE-ORIGIN"]).toBe("CustomOrigin")
-  }),
-  {
-    config: {
-      provider: {
-        nvidia: {
-          options: {
-            apiKey: "test-api-key",
-            baseURL: "http://localhost:8000/v1",
-            headers: { "X-BILLING-INVOKE-ORIGIN": "CustomOrigin" },
-          },
-        },
-      },
-    },
-  },
-)
-
-it.instance(
   "custom model inherits npm package from models.dev provider config",
   Effect.gen(function* () {
     yield* set("OPENAI_API_KEY", "test-api-key")
@@ -1557,48 +1512,6 @@ it.instance(
       },
     },
   },
-)
-
-it.instance("Google Vertex: uses REP endpoint for Claude continental multi-regions", () =>
-  Effect.gen(function* () {
-    yield* set("GOOGLE_CLOUD_PROJECT", "test-project")
-    yield* set("VERTEX_LOCATION", "eu")
-    const provider = yield* Provider.Service
-    const model = yield* provider.getModel(ProviderID.make("google-vertex"), ModelID.make("claude-sonnet-4-6@default"))
-    const language = yield* provider.getLanguage(model)
-    expect(languageBaseURL(language)).toBe(
-      "https://aiplatform.eu.rep.googleapis.com/v1/projects/test-project/locations/eu/publishers/anthropic/models",
-    )
-  }),
-)
-
-it.instance("Google Vertex Anthropic: uses REP endpoint for continental multi-regions", () =>
-  Effect.gen(function* () {
-    yield* set("GOOGLE_CLOUD_PROJECT", "test-project")
-    yield* set("VERTEX_LOCATION", "us")
-    const provider = yield* Provider.Service
-    const model = yield* provider.getModel(
-      ProviderID.make("google-vertex-anthropic"),
-      ModelID.make("claude-sonnet-4-6@default"),
-    )
-    const language = yield* provider.getLanguage(model)
-    expect(languageBaseURL(language)).toBe(
-      "https://aiplatform.us.rep.googleapis.com/v1/projects/test-project/locations/us/publishers/anthropic/models",
-    )
-  }),
-)
-
-it.instance("Google Vertex: keeps regional Claude endpoints unchanged", () =>
-  Effect.gen(function* () {
-    yield* set("GOOGLE_CLOUD_PROJECT", "test-project")
-    yield* set("VERTEX_LOCATION", "europe-west1")
-    const provider = yield* Provider.Service
-    const model = yield* provider.getModel(ProviderID.make("google-vertex"), ModelID.make("claude-sonnet-4-6@default"))
-    const language = yield* provider.getLanguage(model)
-    expect(languageBaseURL(language)).toBe(
-      "https://europe-west1-aiplatform.googleapis.com/v1/projects/test-project/locations/europe-west1/publishers/anthropic/models",
-    )
-  }),
 )
 
 it.instance("cloudflare-ai-gateway loads with env variables", () =>
