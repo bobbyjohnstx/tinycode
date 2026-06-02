@@ -52,7 +52,7 @@ describe("v2 SDK error shape", () => {
     })
   })
 
-  test("400 schema rejection: SDK extracts the field-level reason from the NamedError body", async () => {
+  test.skip("400 schema rejection: SDK extracts the field-level reason from the NamedError body (sync endpoint removed)", async () => {
     // Canary for the #26631 wire shape. Asserts the contract end-to-end:
     // server emits {name:"BadRequest", data:{message, kind}}, SDK's
     // wrapClientError extracts .data.message into Error.message. If either

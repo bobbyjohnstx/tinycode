@@ -55,7 +55,7 @@ it.instance("returns default native agents when no config", () =>
     expect(names).toContain("plan")
     expect(names).toContain("general")
     expect(names).toContain("explore")
-    expect(names).not.toContain("scout")
+    expect(names).toContain("scout")
     expect(names).toContain("compaction")
     expect(names).toContain("title")
     expect(names).toContain("summary")

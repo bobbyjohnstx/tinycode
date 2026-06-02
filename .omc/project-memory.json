@@ -27,7 +27,7 @@
   },
   "build": {
     "buildCommand": null,
-    "testCommand": "/Users/bjohns/.bun/bin/bun test --cwd packages/tinycode 2>&1 | grep -E \"^\\(fail\\)\" | sort | uniq",
+    "testCommand": "/Users/bjohns/.bun/bin/bun test --cwd packages/tinycode 2>&1 | grep -E \"pass|fail|Tests\" | tail -3",
     "lintCommand": "npm run lint",
     "devCommand": "npm run dev",
     "scripts": {
@@ -131,6 +131,61 @@
       ]
     }
   },
-  "hotPaths": [],
+  "hotPaths": [
+    {
+      "path": "packages/tinycode/test/provider/provider.test.ts",
+      "accessCount": 10,
+      "lastAccessed": 1780433573131,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/test/session/retry.test.ts",
+      "accessCount": 8,
+      "lastAccessed": 1780433125242,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/test/session/llm-native-recorded.test.ts",
+      "accessCount": 5,
+      "lastAccessed": 1780433337549,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/test/cli/help/__snapshots__/help-snapshots.test.ts.snap",
+      "accessCount": 3,
+      "lastAccessed": 1780434495132,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/test/agent/agent.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780435234974,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/test/server/sdk-error-shape.test.ts",
+      "accessCount": 2,
+      "lastAccessed": 1780435272445,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/test/lib/cli-process.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780432877501,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/test/cli/smokes/read-only.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780432916084,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/test/tool/parameters.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780435222258,
+      "type": "file"
+    }
+  ],
   "userDirectives": []
 }

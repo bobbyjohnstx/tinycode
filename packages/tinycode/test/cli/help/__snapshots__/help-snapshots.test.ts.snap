@@ -1,37 +1,17 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode acp --help 1`] = `
-"opencode acp
 
-start ACP (Agent Client Protocol) server
-
-Options:
-  -h, --help         show help                                                             [boolean]
-  -v, --version      show version number                                                   [boolean]
-      --print-logs   print logs to stderr                                                  [boolean]
-      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure         run without external plugins                                          [boolean]
-      --port         port to listen on                                         [number] [default: 0]
-      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
-      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
-                                                                          [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
-      --cors         additional domains to allow for CORS                      [array] [default: []]
-      --cwd          working directory [string] [default: "<HOME>"]"
-`;
-
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp --help 1`] = `
-"opencode mcp
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode mcp --help 1`] = `
+"tinycode mcp
 
 manage MCP (Model Context Protocol) servers
 
 Commands:
-  opencode mcp add            add an MCP server
-  opencode mcp list           list MCP servers and their status                        [aliases: ls]
-  opencode mcp auth [name]    authenticate with an OAuth-enabled MCP server
-  opencode mcp logout [name]  remove OAuth credentials for an MCP server
-  opencode mcp debug <name>   debug OAuth connection for an MCP server
+  tinycode mcp add            add an MCP server
+  tinycode mcp list           list MCP servers and their status                        [aliases: ls]
+  tinycode mcp auth [name]    authenticate with an OAuth-enabled MCP server
+  tinycode mcp logout [name]  remove OAuth credentials for an MCP server
+  tinycode mcp debug <name>   debug OAuth connection for an MCP server
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -41,8 +21,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode attach --help 1`] = `
-"opencode attach <url>
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode attach --help 1`] = `
+"tinycode attach <url>
 
 attach to a running opencode server
 
@@ -63,8 +43,8 @@ Options:
   -u, --username    basic auth username (defaults to OPENCODE_SERVER_USERNAME or 'opencode')[string]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode run --help 1`] = `
-"opencode run [message..]
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode run --help 1`] = `
+"tinycode run [message..]
 
 run opencode with a message
 
@@ -115,25 +95,25 @@ Options:
                                       message to run it immediately       [boolean] [default: false]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode debug --help 1`] = `
-"opencode debug
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode debug --help 1`] = `
+"tinycode debug
 
 debugging and troubleshooting tools
 
 Commands:
-  opencode debug config        show resolved configuration
-  opencode debug lsp           LSP debugging utilities
-  opencode debug rg            ripgrep debugging utilities
-  opencode debug file          file system debugging utilities
-  opencode debug scrap         list all known projects
-  opencode debug skill         list all available skills
-  opencode debug snapshot      snapshot debugging utilities
-  opencode debug startup       print startup timing
-  opencode debug agent <name>  show agent configuration details
-  opencode debug v2            debug v2 catalog and built-in plugins
-  opencode debug info          show debug information
-  opencode debug paths         show global paths (data, config, cache, state)
-  opencode debug wait          wait indefinitely (for debugging)
+  tinycode debug config        show resolved configuration
+  tinycode debug lsp           LSP debugging utilities
+  tinycode debug rg            ripgrep debugging utilities
+  tinycode debug file          file system debugging utilities
+  tinycode debug scrap         list all known projects
+  tinycode debug skill         list all available skills
+  tinycode debug snapshot      snapshot debugging utilities
+  tinycode debug startup       print startup timing
+  tinycode debug agent <name>  show agent configuration details
+  tinycode debug v2            debug v2 catalog and built-in plugins
+  tinycode debug info          show debug information
+  tinycode debug paths         show global paths (data, config, cache, state)
+  tinycode debug wait          wait indefinitely (for debugging)
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -143,15 +123,15 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers --help 1`] = `
-"opencode providers
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode providers --help 1`] = `
+"tinycode providers
 
 manage AI providers and credentials
 
 Commands:
-  opencode providers list         list providers and credentials                       [aliases: ls]
-  opencode providers login [url]  log in to a provider
-  opencode providers logout       log out from a configured provider
+  tinycode providers list         list providers and credentials                       [aliases: ls]
+  tinycode providers login [url]  log in to a provider
+  tinycode providers logout       log out from a configured provider
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -161,14 +141,14 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode agent --help 1`] = `
-"opencode agent
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode agent --help 1`] = `
+"tinycode agent
 
 manage agents
 
 Commands:
-  opencode agent create  create a new agent
-  opencode agent list    list all available agents
+  tinycode agent create  create a new agent
+  tinycode agent list    list all available agents
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -178,8 +158,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode upgrade --help 1`] = `
-"opencode upgrade [target]
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode upgrade --help 1`] = `
+"tinycode upgrade [target]
 
 upgrade opencode to the latest or a specific version
 
@@ -196,8 +176,8 @@ Options:
                           [string] [choices: "curl", "npm", "pnpm", "bun", "brew", "choco", "scoop"]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode uninstall --help 1`] = `
-"opencode uninstall
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode uninstall --help 1`] = `
+"tinycode uninstall
 
 uninstall opencode and remove all related files
 
@@ -213,8 +193,8 @@ Options:
   -f, --force        skip confirmation prompts                            [boolean] [default: false]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode serve --help 1`] = `
-"opencode serve
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode serve --help 1`] = `
+"tinycode serve
 
 starts a headless opencode server
 
@@ -233,8 +213,8 @@ Options:
       --cors         additional domains to allow for CORS                      [array] [default: []]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode web --help 1`] = `
-"opencode web
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode web --help 1`] = `
+"tinycode web
 
 start opencode server and open web interface
 
@@ -253,8 +233,8 @@ Options:
       --cors         additional domains to allow for CORS                      [array] [default: []]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode models --help 1`] = `
-"opencode models [provider]
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode models --help 1`] = `
+"tinycode models [provider]
 
 list all available models
 
@@ -271,8 +251,8 @@ Options:
       --refresh     refresh the models cache from models.dev                               [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode stats --help 1`] = `
-"opencode stats
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode stats --help 1`] = `
+"tinycode stats
 
 show token usage and cost statistics
 
@@ -289,8 +269,8 @@ Options:
       --project     filter by project (default: all projects, empty string: current project)[string]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode export --help 1`] = `
-"opencode export [sessionID]
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode export --help 1`] = `
+"tinycode export [sessionID]
 
 export session data as JSON
 
@@ -306,8 +286,8 @@ Options:
       --sanitize    redact sensitive transcript and file data                              [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode import --help 1`] = `
-"opencode import <file>
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode import --help 1`] = `
+"tinycode import <file>
 
 import session data from JSON file or URL
 
@@ -322,14 +302,14 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode github --help 1`] = `
-"opencode github
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode github --help 1`] = `
+"tinycode github
 
 manage GitHub agent
 
 Commands:
-  opencode github install  install the GitHub agent
-  opencode github run      run the GitHub agent
+  tinycode github install  install the GitHub agent
+  tinycode github run      run the GitHub agent
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -339,8 +319,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode pr --help 1`] = `
-"opencode pr <number>
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode pr --help 1`] = `
+"tinycode pr <number>
 
 fetch and checkout a GitHub PR branch, then run opencode
 
@@ -355,14 +335,14 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode session --help 1`] = `
-"opencode session
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode session --help 1`] = `
+"tinycode session
 
 manage sessions
 
 Commands:
-  opencode session list                list sessions
-  opencode session delete <sessionID>  delete a session
+  tinycode session list                list sessions
+  tinycode session delete <sessionID>  delete a session
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -372,8 +352,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode plugin --help 1`] = `
-"opencode plugin <module>
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode plugin --help 1`] = `
+"tinycode plugin <module>
 
 install plugin and update config
 
@@ -390,15 +370,15 @@ Options:
   -f, --force       replace existing plugin version                       [boolean] [default: false]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode db --help 1`] = `
-"opencode db
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode db --help 1`] = `
+"tinycode db
 
 database tools
 
 Commands:
-  opencode db [query]     open an interactive sqlite3 shell or run a query                 [default]
-  opencode db path        print the database path
-  opencode db migrate     migrate JSON data to SQLite (merges with existing data)
+  tinycode db [query]     open an interactive sqlite3 shell or run a query                 [default]
+  tinycode db path        print the database path
+  tinycode db migrate     migrate JSON data to SQLite (merges with existing data)
 
 Positionals:
   query  SQL query to execute                                                               [string]
@@ -412,8 +392,8 @@ Options:
       --format      Output format                 [string] [choices: "json", "tsv"] [default: "tsv"]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp list --help 1`] = `
-"opencode mcp list
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode mcp list --help 1`] = `
+"tinycode mcp list
 
 list MCP servers and their status
 
@@ -425,8 +405,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp add --help 1`] = `
-"opencode mcp add
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode mcp add --help 1`] = `
+"tinycode mcp add
 
 add an MCP server
 
@@ -438,13 +418,13 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp auth --help 1`] = `
-"opencode mcp auth [name]
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode mcp auth --help 1`] = `
+"tinycode mcp auth [name]
 
 authenticate with an OAuth-enabled MCP server
 
 Commands:
-  opencode mcp auth list  list OAuth-capable MCP servers and their auth status         [aliases: ls]
+  tinycode mcp auth list  list OAuth-capable MCP servers and their auth status         [aliases: ls]
 
 Positionals:
   name  name of the MCP server                                                              [string]
@@ -457,8 +437,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode mcp logout --help 1`] = `
-"opencode mcp logout [name]
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode mcp logout --help 1`] = `
+"tinycode mcp logout [name]
 
 remove OAuth credentials for an MCP server
 
@@ -473,8 +453,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers list --help 1`] = `
-"opencode providers list
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode providers list --help 1`] = `
+"tinycode providers list
 
 list providers and credentials
 
@@ -486,13 +466,13 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers login --help 1`] = `
-"opencode providers login [url]
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode providers login --help 1`] = `
+"tinycode providers login [url]
 
 log in to a provider
 
 Positionals:
-  url  opencode auth provider                                                               [string]
+  url  tinycode auth provider                                                               [string]
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -504,8 +484,8 @@ Options:
   -m, --method      login method label (skips method selection)                             [string]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode providers logout --help 1`] = `
-"opencode providers logout
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode providers logout --help 1`] = `
+"tinycode providers logout
 
 log out from a configured provider
 
@@ -517,8 +497,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode agent create --help 1`] = `
-"opencode agent create
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode agent create --help 1`] = `
+"tinycode agent create
 
 create a new agent
 
@@ -537,8 +517,8 @@ Options:
   -m, --model                 model to use in the format of provider/model                  [string]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode agent list --help 1`] = `
-"opencode agent list
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode agent list --help 1`] = `
+"tinycode agent list
 
 list all available agents
 
@@ -550,8 +530,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode session list --help 1`] = `
-"opencode session list
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode session list --help 1`] = `
+"tinycode session list
 
 list sessions
 
@@ -565,8 +545,8 @@ Options:
       --format      output format             [string] [choices: "table", "json"] [default: "table"]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode session delete --help 1`] = `
-"opencode session delete <sessionID>
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode session delete --help 1`] = `
+"tinycode session delete <sessionID>
 
 delete a session
 
@@ -581,8 +561,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode github install --help 1`] = `
-"opencode github install
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode github install --help 1`] = `
+"tinycode github install
 
 install the GitHub agent
 
@@ -594,8 +574,8 @@ Options:
       --pure        run without external plugins                                           [boolean]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode github run --help 1`] = `
-"opencode github run
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode github run --help 1`] = `
+"tinycode github run
 
 run the GitHub agent
 
@@ -609,8 +589,8 @@ Options:
       --token       GitHub personal access token (github_pat_********)                      [string]"
 `;
 
-exports[`opencode CLI help-text snapshots every documented command emits stable help text: opencode db path --help 1`] = `
-"opencode db path
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode db path --help 1`] = `
+"tinycode db path
 
 print the database path
 
