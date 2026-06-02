@@ -27,7 +27,7 @@
   },
   "build": {
     "buildCommand": null,
-    "testCommand": "/Users/bjohns/.bun/bin/bun test --cwd packages/tinycode 2>&1 | grep -E \"pass|fail|Tests\" | tail -3",
+    "testCommand": "/Users/bjohns/.bun/bin/bun test --cwd packages/tinycode 2>&1 | grep -E \"pass|fail|snap\" | tail -3",
     "lintCommand": "npm run lint",
     "devCommand": "npm run dev",
     "scripts": {
@@ -151,6 +151,12 @@
       "type": "file"
     },
     {
+      "path": "packages/tinycode/test/lib/cli-process.ts",
+      "accessCount": 4,
+      "lastAccessed": 1780438106188,
+      "type": "file"
+    },
+    {
       "path": "packages/tinycode/test/cli/help/__snapshots__/help-snapshots.test.ts.snap",
       "accessCount": 3,
       "lastAccessed": 1780434495132,
@@ -166,12 +172,6 @@
       "path": "packages/tinycode/test/server/sdk-error-shape.test.ts",
       "accessCount": 2,
       "lastAccessed": 1780435272445,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/lib/cli-process.ts",
-      "accessCount": 1,
-      "lastAccessed": 1780432877501,
       "type": "file"
     },
     {

@@ -1,5 +1,56 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
+exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode acp --help 1`] = `
+"Performing one time database migration, may take a few minutes...
+sqlite-migration:done
+Database migration complete.
+⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+
+Commands:
+  tinycode completion          generate shell completion script
+  tinycode mcp                 manage MCP (Model Context Protocol) servers
+  tinycode [project]           start opencode tui                                          [default]
+  tinycode attach <url>        attach to a running tinycode server
+  tinycode run [message..]     run opencode with a message
+  tinycode debug               debugging and troubleshooting tools
+  tinycode providers           manage AI providers and credentials                   [aliases: auth]
+  tinycode agent               manage agents
+  tinycode uninstall           uninstall opencode and remove all related files
+  tinycode serve               starts a headless opencode server
+  tinycode web                 start opencode server and open web interface
+  tinycode models [provider]   list all available models
+  tinycode export [sessionID]  export session data as JSON
+  tinycode import <file>       import session data from JSON file or URL
+  tinycode session             manage sessions
+  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
+  tinycode db                  database tools
+
+Positionals:
+  project  path to start opencode in                                                        [string]
+
+Options:
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
+                                                                [string] [default: "opencode.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+  -m, --model        model to use in the format of provider/model                           [string]
+  -c, --continue     continue the last session                                             [boolean]
+  -s, --session      session id to continue                                                 [string]
+      --fork         fork the session when continuing (use with --continue or --session)   [boolean]
+      --prompt       prompt to use                                                          [string]
+      --agent        agent to use                                                           [string]"
+`;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode mcp --help 1`] = `
 "tinycode mcp
@@ -24,7 +75,7 @@ Options:
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode attach --help 1`] = `
 "tinycode attach <url>
 
-attach to a running opencode server
+attach to a running tinycode server
 
 Positionals:
   url  http://localhost:4096                                                     [string] [required]
@@ -70,7 +121,7 @@ Options:
   -f, --file                          file(s) to attach to message                           [array]
       --title                         title for the session (uses truncated prompt if no value
                                       provided)                                             [string]
-      --attach                        attach to a running opencode server (e.g.,
+      --attach                        attach to a running tinycode server (e.g.,
                                       http://localhost:4096)                                [string]
   -p, --password                      basic auth password (defaults to OPENCODE_SERVER_PASSWORD)
                                                                                             [string]
@@ -159,21 +210,55 @@ Options:
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode upgrade --help 1`] = `
-"tinycode upgrade [target]
+"Performing one time database migration, may take a few minutes...
+sqlite-migration:done
+Database migration complete.
+⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
-upgrade opencode to the latest or a specific version
+Commands:
+  tinycode completion          generate shell completion script
+  tinycode mcp                 manage MCP (Model Context Protocol) servers
+  tinycode [project]           start opencode tui                                          [default]
+  tinycode attach <url>        attach to a running tinycode server
+  tinycode run [message..]     run opencode with a message
+  tinycode debug               debugging and troubleshooting tools
+  tinycode providers           manage AI providers and credentials                   [aliases: auth]
+  tinycode agent               manage agents
+  tinycode uninstall           uninstall opencode and remove all related files
+  tinycode serve               starts a headless opencode server
+  tinycode web                 start opencode server and open web interface
+  tinycode models [provider]   list all available models
+  tinycode export [sessionID]  export session data as JSON
+  tinycode import <file>       import session data from JSON file or URL
+  tinycode session             manage sessions
+  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
+  tinycode db                  database tools
 
 Positionals:
-  target  version to upgrade to, for ex '0.1.48' or 'v0.1.48'                               [string]
+  project  path to start opencode in                                                        [string]
 
 Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-  -m, --method      installation method to use
-                          [string] [choices: "curl", "npm", "pnpm", "bun", "brew", "choco", "scoop"]"
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
+                                                                [string] [default: "opencode.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+  -m, --model        model to use in the format of provider/model                           [string]
+  -c, --continue     continue the last session                                             [boolean]
+  -s, --session      session id to continue                                                 [string]
+      --fork         fork the session when continuing (use with --continue or --session)   [boolean]
+      --prompt       prompt to use                                                          [string]
+      --agent        agent to use                                                           [string]"
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode uninstall --help 1`] = `
@@ -252,21 +337,55 @@ Options:
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode stats --help 1`] = `
-"tinycode stats
+"Performing one time database migration, may take a few minutes...
+sqlite-migration:done
+Database migration complete.
+⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
-show token usage and cost statistics
+Commands:
+  tinycode completion          generate shell completion script
+  tinycode mcp                 manage MCP (Model Context Protocol) servers
+  tinycode [project]           start opencode tui                                          [default]
+  tinycode attach <url>        attach to a running tinycode server
+  tinycode run [message..]     run opencode with a message
+  tinycode debug               debugging and troubleshooting tools
+  tinycode providers           manage AI providers and credentials                   [aliases: auth]
+  tinycode agent               manage agents
+  tinycode uninstall           uninstall opencode and remove all related files
+  tinycode serve               starts a headless opencode server
+  tinycode web                 start opencode server and open web interface
+  tinycode models [provider]   list all available models
+  tinycode export [sessionID]  export session data as JSON
+  tinycode import <file>       import session data from JSON file or URL
+  tinycode session             manage sessions
+  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
+  tinycode db                  database tools
+
+Positionals:
+  project  path to start opencode in                                                        [string]
 
 Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-      --days        show stats for the last N days (default: all time)                      [number]
-      --tools       number of tools to show (default: all)                                  [number]
-      --models      show model statistics (default: hidden). Pass a number to show top N, otherwise
-                    shows all
-      --project     filter by project (default: all projects, empty string: current project)[string]"
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
+                                                                [string] [default: "opencode.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+  -m, --model        model to use in the format of provider/model                           [string]
+  -c, --continue     continue the last session                                             [boolean]
+  -s, --session      session id to continue                                                 [string]
+      --fork         fork the session when continuing (use with --continue or --session)   [boolean]
+      --prompt       prompt to use                                                          [string]
+      --agent        agent to use                                                           [string]"
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode export --help 1`] = `
@@ -303,36 +422,107 @@ Options:
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode github --help 1`] = `
-"tinycode github
-
-manage GitHub agent
+"Performing one time database migration, may take a few minutes...
+sqlite-migration:done
+Database migration complete.
+⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
-  tinycode github install  install the GitHub agent
-  tinycode github run      run the GitHub agent
+  tinycode completion          generate shell completion script
+  tinycode mcp                 manage MCP (Model Context Protocol) servers
+  tinycode [project]           start opencode tui                                          [default]
+  tinycode attach <url>        attach to a running tinycode server
+  tinycode run [message..]     run opencode with a message
+  tinycode debug               debugging and troubleshooting tools
+  tinycode providers           manage AI providers and credentials                   [aliases: auth]
+  tinycode agent               manage agents
+  tinycode uninstall           uninstall opencode and remove all related files
+  tinycode serve               starts a headless opencode server
+  tinycode web                 start opencode server and open web interface
+  tinycode models [provider]   list all available models
+  tinycode export [sessionID]  export session data as JSON
+  tinycode import <file>       import session data from JSON file or URL
+  tinycode session             manage sessions
+  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
+  tinycode db                  database tools
+
+Positionals:
+  project  path to start opencode in                                                        [string]
 
 Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
+                                                                [string] [default: "opencode.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+  -m, --model        model to use in the format of provider/model                           [string]
+  -c, --continue     continue the last session                                             [boolean]
+  -s, --session      session id to continue                                                 [string]
+      --fork         fork the session when continuing (use with --continue or --session)   [boolean]
+      --prompt       prompt to use                                                          [string]
+      --agent        agent to use                                                           [string]"
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode pr --help 1`] = `
-"tinycode pr <number>
+"Performing one time database migration, may take a few minutes...
+sqlite-migration:done
+Database migration complete.
+⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
-fetch and checkout a GitHub PR branch, then run opencode
+Commands:
+  tinycode completion          generate shell completion script
+  tinycode mcp                 manage MCP (Model Context Protocol) servers
+  tinycode [project]           start opencode tui                                          [default]
+  tinycode attach <url>        attach to a running tinycode server
+  tinycode run [message..]     run opencode with a message
+  tinycode debug               debugging and troubleshooting tools
+  tinycode providers           manage AI providers and credentials                   [aliases: auth]
+  tinycode agent               manage agents
+  tinycode uninstall           uninstall opencode and remove all related files
+  tinycode serve               starts a headless opencode server
+  tinycode web                 start opencode server and open web interface
+  tinycode models [provider]   list all available models
+  tinycode export [sessionID]  export session data as JSON
+  tinycode import <file>       import session data from JSON file or URL
+  tinycode session             manage sessions
+  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
+  tinycode db                  database tools
 
 Positionals:
-  number  PR number to checkout                                                  [number] [required]
+  project  path to start opencode in                                                        [string]
 
 Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
+                                                                [string] [default: "opencode.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+  -m, --model        model to use in the format of provider/model                           [string]
+  -c, --continue     continue the last session                                             [boolean]
+  -s, --session      session id to continue                                                 [string]
+      --fork         fork the session when continuing (use with --continue or --session)   [boolean]
+      --prompt       prompt to use                                                          [string]
+      --agent        agent to use                                                           [string]"
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode session --help 1`] = `
@@ -472,7 +662,7 @@ exports[`tinycode CLI help-text snapshots every documented command emits stable 
 log in to a provider
 
 Positionals:
-  url  tinycode auth provider                                                               [string]
+  url  opencode auth provider                                                               [string]
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -562,31 +752,107 @@ Options:
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode github install --help 1`] = `
-"tinycode github install
+"Performing one time database migration, may take a few minutes...
+sqlite-migration:done
+Database migration complete.
+⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
-install the GitHub agent
+Commands:
+  tinycode completion          generate shell completion script
+  tinycode mcp                 manage MCP (Model Context Protocol) servers
+  tinycode [project]           start opencode tui                                          [default]
+  tinycode attach <url>        attach to a running tinycode server
+  tinycode run [message..]     run opencode with a message
+  tinycode debug               debugging and troubleshooting tools
+  tinycode providers           manage AI providers and credentials                   [aliases: auth]
+  tinycode agent               manage agents
+  tinycode uninstall           uninstall opencode and remove all related files
+  tinycode serve               starts a headless opencode server
+  tinycode web                 start opencode server and open web interface
+  tinycode models [provider]   list all available models
+  tinycode export [sessionID]  export session data as JSON
+  tinycode import <file>       import session data from JSON file or URL
+  tinycode session             manage sessions
+  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
+  tinycode db                  database tools
+
+Positionals:
+  project  path to start opencode in                                                        [string]
 
 Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]"
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
+                                                                [string] [default: "opencode.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+  -m, --model        model to use in the format of provider/model                           [string]
+  -c, --continue     continue the last session                                             [boolean]
+  -s, --session      session id to continue                                                 [string]
+      --fork         fork the session when continuing (use with --continue or --session)   [boolean]
+      --prompt       prompt to use                                                          [string]
+      --agent        agent to use                                                           [string]"
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode github run --help 1`] = `
-"tinycode github run
+"Performing one time database migration, may take a few minutes...
+sqlite-migration:done
+Database migration complete.
+⠀                                ▄     
+█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
+▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
-run the GitHub agent
+Commands:
+  tinycode completion          generate shell completion script
+  tinycode mcp                 manage MCP (Model Context Protocol) servers
+  tinycode [project]           start opencode tui                                          [default]
+  tinycode attach <url>        attach to a running tinycode server
+  tinycode run [message..]     run opencode with a message
+  tinycode debug               debugging and troubleshooting tools
+  tinycode providers           manage AI providers and credentials                   [aliases: auth]
+  tinycode agent               manage agents
+  tinycode uninstall           uninstall opencode and remove all related files
+  tinycode serve               starts a headless opencode server
+  tinycode web                 start opencode server and open web interface
+  tinycode models [provider]   list all available models
+  tinycode export [sessionID]  export session data as JSON
+  tinycode import <file>       import session data from JSON file or URL
+  tinycode session             manage sessions
+  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
+  tinycode db                  database tools
+
+Positionals:
+  project  path to start opencode in                                                        [string]
 
 Options:
-  -h, --help        show help                                                              [boolean]
-  -v, --version     show version number                                                    [boolean]
-      --print-logs  print logs to stderr                                                   [boolean]
-      --log-level   log level                   [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
-      --pure        run without external plugins                                           [boolean]
-      --event       GitHub mock event to run the agent for                                  [string]
-      --token       GitHub personal access token (github_pat_********)                      [string]"
+  -h, --help         show help                                                             [boolean]
+  -v, --version      show version number                                                   [boolean]
+      --print-logs   print logs to stderr                                                  [boolean]
+      --log-level    log level                  [string] [choices: "DEBUG", "INFO", "WARN", "ERROR"]
+      --pure         run without external plugins                                          [boolean]
+      --port         port to listen on                                         [number] [default: 0]
+      --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
+      --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
+                                                                          [boolean] [default: false]
+      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
+                                                                [string] [default: "opencode.local"]
+      --cors         additional domains to allow for CORS                      [array] [default: []]
+  -m, --model        model to use in the format of provider/model                           [string]
+  -c, --continue     continue the last session                                             [boolean]
+  -s, --session      session id to continue                                                 [string]
+      --fork         fork the session when continuing (use with --continue or --session)   [boolean]
+      --prompt       prompt to use                                                          [string]
+      --agent        agent to use                                                           [string]"
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode db path --help 1`] = `
