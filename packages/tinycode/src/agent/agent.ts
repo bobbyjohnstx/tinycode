@@ -311,19 +311,23 @@ export const layer = Layer.effect(
         // Frontmatter fields: mode, steps, description, permission (indented key: value map).
         // Body below the closing --- is used as the agent system prompt.
         // Entries here do NOT override built-in agents or cfg.agent entries.
-        const mdAgents = yield* Effect.promise(async () => {
+        const mdAgents = yield* Effect.sync(() => {
           const result: Record<string, Partial<Info> & { prompt: string }> = {}
           const agentDir = path.join(ctx.worktree, ".opencode", "agent")
           let files: string[]
           try {
-            const all = await fsNode.promises.readdir(agentDir)
-            files = all.filter((f) => f.endsWith(".md"))
+            files = fsNode.readdirSync(agentDir).filter((f) => f.endsWith(".md"))
           } catch {
             return result
           }
           for (const file of files) {
             const name = file.replace(/\.md$/, "")
-            const content = await fsNode.promises.readFile(path.join(agentDir, file), "utf-8")
+            let content: string
+            try {
+              content = fsNode.readFileSync(path.join(agentDir, file), "utf-8")
+            } catch {
+              continue
+            }
             const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(content)
             if (!match) continue
             const [, front, body] = match
