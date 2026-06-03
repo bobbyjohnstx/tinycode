@@ -9,8 +9,4 @@
       "command": ["node", "/Users/bjohns/projects/tinycode/node_modules/oh-my-tiny/dist/mcp/server.js"]
     }
   },
-  "tools": {
-    "github-triage": false,
-    "github-pr-search": false,
-  },
 }
