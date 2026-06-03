@@ -7,7 +7,7 @@ import type { Info, Model } from "./provider"
 
 const log = Log.create({ service: "local-discovery" })
 
-const PROBE_TIMEOUT_MS = 2_000
+const PROBE_TIMEOUT = Duration.millis(2_000)
 const POLL_INTERVAL = Duration.seconds(30)
 
 // --- Ollama response schema ---
@@ -132,7 +132,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
     function probeOllama(baseURL: string): Effect.Effect<Info | null> {
       return HttpClientRequest.get(`${baseURL}/api/tags`).pipe(
         httpClient.execute,
-        Effect.timeout(PROBE_TIMEOUT_MS),
+        Effect.timeout(PROBE_TIMEOUT),
         Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(OllamaTagsResponse)(res)),
         Effect.map((data) => {
           const names = data.models.map((m) => m.name).filter((n) => n.length > 0)
@@ -150,7 +150,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
     function probeVllm(baseURL: string): Effect.Effect<Info | null> {
       return HttpClientRequest.get(`${baseURL}/v1/models`).pipe(
         httpClient.execute,
-        Effect.timeout(PROBE_TIMEOUT_MS),
+        Effect.timeout(PROBE_TIMEOUT),
         Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(VllmModelsResponse)(res)),
         Effect.map((data) => {
           const ids = data.data.map((m) => m.id).filter((id) => id.length > 0)
@@ -172,7 +172,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
       return HttpClientRequest.get(`${baseURL}/v1/models`).pipe(
         HttpClientRequest.setHeader("Authorization", `Bearer ${apiKey}`),
         httpClient.execute,
-        Effect.timeout(PROBE_TIMEOUT_MS),
+        Effect.timeout(PROBE_TIMEOUT),
         Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(VllmModelsResponse)(res)),
         Effect.map((data) => {
           const ids = data.data
@@ -220,9 +220,10 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
     }
 
     function runDiscovery(): Effect.Effect<void> {
-      const ollamaHost = process.env["TINYCODE_OLLAMA_HOST"] ?? "http://localhost:11434"
-      const vllmHost = process.env["TINYCODE_VLLM_HOST"] ?? "http://localhost:8000"
-      const maasHost = process.env["TINYCODE_MAAS_HOST"]
+      // Strip trailing slashes — a common user mistake that produces double-slash URLs
+      const ollamaHost = (process.env["TINYCODE_OLLAMA_HOST"] ?? "http://localhost:11434").replace(/\/+$/, "")
+      const vllmHost = (process.env["TINYCODE_VLLM_HOST"] ?? "http://localhost:8000").replace(/\/+$/, "")
+      const maasHost = process.env["TINYCODE_MAAS_HOST"]?.replace(/\/+$/, "")
       const maasKey = process.env["TINYCODE_MAAS_API_KEY"]
 
       return Effect.gen(function* () {

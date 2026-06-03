@@ -16,17 +16,19 @@ import { isConsoleManagedProvider } from "@tui/util/provider-origin"
 import { useConnected } from "./use-connected"
 import { useBindings } from "../keymap"
 
+// Controls sort order (lower = appears first in the list)
 const PROVIDER_PRIORITY: Record<string, number> = {
-  // Local / LAN — primary focus
   ollama: 0,
   vllm: 1,
   maas: 2,
   "openai-compatible": 3,
-  // Cloud API providers
   anthropic: 4,
   openai: 5,
   google: 6,
 }
+
+// Controls which section providers appear in
+const LOCAL_PROVIDERS = new Set(["ollama", "vllm", "maas", "openai-compatible"])
 
 const CUSTOM_PROVIDER_OPTION_VALUE = "__opencode_custom_provider__"
 const CUSTOM_PROVIDER_ID = /^[a-z0-9][a-z0-9-_]*$/
@@ -66,7 +68,7 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
           openai: "(API key)",
           google: "(API key)",
         }[provider.id],
-        category: provider.id in PROVIDER_PRIORITY ? "Local / LAN" : "Cloud",
+        category: LOCAL_PROVIDERS.has(provider.id) ? "Local / LAN" : "Cloud",
       })),
     ),
     {

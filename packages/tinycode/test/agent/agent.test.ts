@@ -730,3 +730,19 @@ it.instance(
     },
   },
 )
+
+// Test 9: Scout available without experimental flag (regression guard)
+it.instance("scout agent is available without the experimentalScout flag", () =>
+  Effect.gen(function* () {
+    const agents = yield* load((svc) => svc.list())
+    const names = agents.map((a) => a.name)
+    expect(names).toContain("scout")
+
+    const scout = yield* load((svc) => svc.get("scout"))
+    expect(scout).toBeDefined()
+    expect(scout?.mode).toBe("subagent")
+    expect(evalPerm(scout, "repo_clone")).toBe("allow")
+    expect(evalPerm(scout, "repo_overview")).toBe("allow")
+    expect(evalPerm(scout, "edit")).toBe("deny")
+  }),
+)

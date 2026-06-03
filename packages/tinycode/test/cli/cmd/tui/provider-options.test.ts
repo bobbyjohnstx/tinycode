@@ -20,6 +20,26 @@ describe("providerOptions", () => {
     expect(new Set(values).size).toBe(values.length)
   })
 
+  // Test 10: Local / LAN category assignment for local providers
+  test("assigns 'Local / LAN' category to ollama, vllm, and maas", () => {
+    const opts = providerOptions([
+      { id: "ollama", name: "Ollama" },
+      { id: "vllm", name: "vLLM" },
+      { id: "maas", name: "MaaS" },
+      { id: "anthropic", name: "Anthropic" },
+      { id: "openai", name: "OpenAI" },
+    ])
+    const byId = Object.fromEntries(
+      opts.filter((o): o is typeof o & { type: "provider"; providerID: string } => o.type === "provider")
+        .map((o) => [o.providerID, o])
+    )
+    expect(byId["ollama"]?.category).toBe("Local / LAN")
+    expect(byId["vllm"]?.category).toBe("Local / LAN")
+    expect(byId["maas"]?.category).toBe("Local / LAN")
+    expect(byId["anthropic"]?.category).toBe("Cloud")
+    expect(byId["openai"]?.category).toBe("Cloud")
+  })
+
   test("normalizes and validates custom provider ids", () => {
     expect(normalizeCustomProviderID("  custom-provider  ")).toBe("custom-provider")
     expect(normalizeCustomProviderID("custom_provider")).toBe("custom_provider")
