@@ -2,12 +2,11 @@
   "$schema": "https://opencode.ai/config.json",
   "provider": {},
   "permission": {},
-  "plugin": ["/Users/bjohns/projects/tinycode/node_modules/oh-my-tiny"],
+  "plugin": [],
   "mcp": {
     "oh-my-tiny": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["/Users/bjohns/projects/tinycode/node_modules/oh-my-tiny/dist/mcp/server.js"]
+      "type": "local",
+      "command": ["node", "/Users/bjohns/projects/tinycode/node_modules/oh-my-tiny/dist/mcp/server.js"]
     }
   },
   "tools": {
