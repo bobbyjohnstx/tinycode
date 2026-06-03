@@ -18,6 +18,7 @@ import { Permission } from "@/permission"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@opencode-ai/core/global"
 import path from "path"
+import fsNode from "fs"
 import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
 import { Effect, Context, Layer, Schema } from "effect"
@@ -315,13 +316,14 @@ export const layer = Layer.effect(
           const agentDir = path.join(ctx.worktree, ".opencode", "agent")
           let files: string[]
           try {
-            files = await Array.fromAsync(new Bun.Glob("*.md").scan({ cwd: agentDir }))
+            const all = await fsNode.promises.readdir(agentDir)
+            files = all.filter((f) => f.endsWith(".md"))
           } catch {
             return result
           }
           for (const file of files) {
             const name = file.replace(/\.md$/, "")
-            const content = await Bun.file(path.join(agentDir, file)).text()
+            const content = await fsNode.promises.readFile(path.join(agentDir, file), "utf-8")
             const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(content)
             if (!match) continue
             const [, front, body] = match
