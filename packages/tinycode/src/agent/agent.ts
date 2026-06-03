@@ -306,23 +306,6 @@ export const layer = Layer.effect(
           item.permission = Permission.merge(item.permission, Permission.fromConfig(value.permission ?? {}))
         }
 
-        // TODO: re-enable .md agent loading after hang is diagnosed
-        const _mdAgents = {}
-        for (const [name, info] of Object.entries(_mdAgents) as [string, Partial<Info> & { prompt?: string; permission?: Record<string, string> }][]) {
-          if (agents[name]) continue
-          const permConfig = info.permission ?? {}
-          agents[name] = {
-            name,
-            mode: (info.mode ?? "subagent") as Info["mode"],
-            permission: Permission.merge(defaults, Permission.fromConfig(permConfig), user),
-            options: {},
-            native: false,
-            ...(info.prompt ? { prompt: info.prompt } : {}),
-            ...(info.description ? { description: info.description } : {}),
-            ...(info.steps !== undefined ? { steps: info.steps } : {}),
-          }
-        }
-
         // Ensure Truncate.GLOB is allowed unless explicitly configured
         for (const name in agents) {
           const agent = agents[name]
