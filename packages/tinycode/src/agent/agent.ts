@@ -18,7 +18,6 @@ import { Permission } from "@/permission"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@opencode-ai/core/global"
 import path from "path"
-import fsNode from "fs"
 import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
 import { Effect, Context, Layer, Schema } from "effect"
@@ -307,54 +306,11 @@ export const layer = Layer.effect(
           item.permission = Permission.merge(item.permission, Permission.fromConfig(value.permission ?? {}))
         }
 
-        // Load custom agents from .opencode/agent/*.md files in the project worktree.
-        // Frontmatter fields: mode, steps, description, permission (indented key: value map).
-        // Body below the closing --- is used as the agent system prompt.
-        // Entries here do NOT override built-in agents or cfg.agent entries.
-        const mdAgents = yield* Effect.sync(() => {
-          const result: Record<string, Partial<Info> & { prompt: string }> = {}
-          const agentDir = path.join(ctx.worktree, ".opencode", "agent")
-          let files: string[]
-          try {
-            files = fsNode.readdirSync(agentDir).filter((f) => f.endsWith(".md"))
-          } catch {
-            return result
-          }
-          for (const file of files) {
-            const name = file.replace(/\.md$/, "")
-            let content: string
-            try {
-              content = fsNode.readFileSync(path.join(agentDir, file), "utf-8")
-            } catch {
-              continue
-            }
-            const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(content)
-            if (!match) continue
-            const [, front, body] = match
-            const parsed: Record<string, any> = {}
-            for (const line of front.split("\n")) {
-              const kv = /^(\w+):\s*(.*)$/.exec(line)
-              if (!kv) continue
-              if (kv[1] === "mode") parsed.mode = kv[2].trim()
-              if (kv[1] === "steps") parsed.steps = parseInt(kv[2].trim(), 10)
-              if (kv[1] === "description") parsed.description = kv[2].trim()
-            }
-            const permBlock = /permission:\n((?:[ \t]+\S[^\n]*\n?)+)/.exec(front)
-            if (permBlock) {
-              const permission: Record<string, string> = {}
-              for (const line of permBlock[1].split("\n")) {
-                const m = /^\s+(\w+):\s*(\w+)/.exec(line)
-                if (m) permission[m[1]] = m[2]
-              }
-              parsed.permission = permission
-            }
-            result[name] = { ...parsed, prompt: body.trim() }
-          }
-          return result
-        })
-        for (const [name, info] of Object.entries(mdAgents)) {
+        // TODO: re-enable .md agent loading after hang is diagnosed
+        const _mdAgents = {}
+        for (const [name, info] of Object.entries(_mdAgents) as [string, Partial<Info> & { prompt?: string; permission?: Record<string, string> }][]) {
           if (agents[name]) continue
-          const permConfig = (info as any).permission ?? {}
+          const permConfig = info.permission ?? {}
           agents[name] = {
             name,
             mode: (info.mode ?? "subagent") as Info["mode"],
