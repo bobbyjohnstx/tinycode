@@ -40,7 +40,7 @@ type TuiAttentionHost = TuiAttention & {
 
 const log = Log.create({ service: "tui.attention" })
 
-const DEFAULT_TITLE = "opencode"
+const DEFAULT_TITLE = "tinycode"
 const DEFAULT_PACK_ID = "opencode.default"
 const KV_SOUND_PACK = "attention_sound_pack"
 const TITLE_LIMIT = 80

@@ -1,13 +1,13 @@
 <!--
   Built-in skill. Name and description are registered in code at
-  packages/opencode/src/skill/index.ts (see CUSTOMIZE_OPENCODE_SKILL_NAME
+  packages/tinycode/src/skill/index.ts (see CUSTOMIZE_OPENCODE_SKILL_NAME
   and CUSTOMIZE_OPENCODE_SKILL_DESCRIPTION). The body below becomes the
   skill's content.
 -->
 
-# Customizing opencode
+# Customizing tinycode
 
-opencode validates its own config strictly and refuses to start when a field
+tinycode validates its own config strictly and refuses to start when a field
 is wrong. The shapes below cover the common surface area, but they are a
 **summary, not the source of truth**.
 
@@ -20,18 +20,18 @@ defaults, and descriptions — lives in the published JSON Schema:
 
 If a field is not documented in this skill, or you need to confirm an exact
 shape before writing config, **fetch that URL and read the schema directly**
-rather than guessing. opencode hard-fails on invalid config, so the cost of a
+rather than guessing. tinycode hard-fails on invalid config, so the cost of a
 wrong shape is a broken startup.
 
-Independently, every `opencode.json` should declare
+Independently, every `tinycode.json` should declare
 `"$schema": "https://opencode.ai/config.json"` so the user's editor catches
-mistakes as they type.
+mistakes as they type. (The old `opencode.json` filename still works too.)
 
 ## Applying changes
 
-Config is loaded once when opencode starts and is not hot-reloaded. After
-saving changes to `opencode.json`, an agent file, a skill, a plugin, or any
-other config-time file, **tell the user to quit and restart opencode** for
+Config is loaded once when tinycode starts and is not hot-reloaded. After
+saving changes to `tinycode.json`, an agent file, a skill, a plugin, or any
+other config-time file, **tell the user to quit and restart tinycode** for
 the changes to take effect. The running session will keep using the
 already-loaded config until then.
 
@@ -39,24 +39,24 @@ already-loaded config until then.
 
 | Scope                         | Path                                                                                                                      |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Project config                | `./opencode.json`, `./opencode.jsonc`, or `.opencode/opencode.json` (opencode walks up from the cwd to the worktree root) |
-| Global config                 | `~/.config/opencode/opencode.json` (NOT `~/.opencode/`)                                                                   |
+| Project config                | `./tinycode.json`, `./tinycode.jsonc`, or `.opencode/tinycode.json` (tinycode walks up from the cwd to the worktree root) |
+| Global config                 | `~/.config/tinycode/tinycode.json` (NOT `~/.opencode/`)                                                                   |
 | Project agents                | `.opencode/agent/<name>.md` or `.opencode/agents/<name>.md`                                                               |
-| Global agents                 | `~/.config/opencode/agent(s)/<name>.md`                                                                                   |
+| Global agents                 | `~/.config/tinycode/agent(s)/<name>.md`                                                                                   |
 | Project skills                | `.opencode/skill(s)/<name>/SKILL.md`                                                                                      |
-| Global skills                 | `~/.config/opencode/skill(s)/<name>/SKILL.md`                                                                             |
+| Global skills                 | `~/.config/tinycode/skill(s)/<name>/SKILL.md`                                                                             |
 | External skills (auto-loaded) | `~/.claude/skills/<name>/SKILL.md`, `~/.agents/skills/<name>/SKILL.md`                                                    |
 
 Configs from each scope are deep-merged. Project overrides global. Unknown
-top-level keys in `opencode.json` are rejected with `ConfigInvalidError`.
+top-level keys in `tinycode.json` are rejected with `ConfigInvalidError`.
 
-## opencode.json
+## tinycode.json
 
 Every field is optional.
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://opencode.ai/config.json",  // tinycode.json (or opencode.json — both still work)
   "username": "string",
   "model": "provider/model-id",
   "small_model": "provider/model-id",
@@ -143,7 +143,7 @@ Shape notes worth being explicit about:
 
 ## Skills
 
-opencode's skill loader scans for `**/SKILL.md` inside skill directories. The
+tinycode's skill loader scans for `**/SKILL.md` inside skill directories. The
 file is named `SKILL.md` exactly, and lives in its own folder named after the
 skill:
 
@@ -176,11 +176,11 @@ skills).
 
 Two ways to define an agent. Use the file form for anything non-trivial.
 
-### Inline (in `opencode.json`)
+### Inline (in `tinycode.json`)
 
 ```json
 {
-  "agent": {
+  "agent": {  // in tinycode.json
     "my-reviewer": {
       "description": "Reviews PRs for style violations.",
       "mode": "subagent",
@@ -244,7 +244,7 @@ Built-in agent roles:
 
 ```json
 "plugin": [
-  "opencode-gemini-auth",            // npm spec, latest
+  "opencode-gemini-auth",            // npm spec, latest (plugin package names unchanged)
   "opencode-foo@1.2.3",              // npm spec, pinned
   "./local-plugin.ts",               // file path, relative to the declaring config
   "file:///abs/path/plugin.js",      // file URL
@@ -354,10 +354,10 @@ the `plan` agent's permission ruleset (`edit: deny *`).
 
 ## Escape hatches
 
-When a user's config is broken and opencode won't start, these env vars help:
+When a user's config is broken and tinycode won't start, these env vars help:
 
-- `OPENCODE_DISABLE_PROJECT_CONFIG=1`: skip the project's local `opencode.json`
-  and start from globals only. Run from the project directory, opencode loads,
+- `OPENCODE_DISABLE_PROJECT_CONFIG=1`: skip the project's local `tinycode.json`
+  and start from globals only. Run from the project directory, tinycode loads,
   the user edits the broken file, then they restart without the flag.
 - `OPENCODE_CONFIG=/path/to/file.json`: load an additional explicit config.
 - `OPENCODE_CONFIG_CONTENT='{"$schema":"https://opencode.ai/config.json"}'`:
@@ -375,9 +375,9 @@ When a user's config is broken and opencode won't start, these env vars help:
   `https://opencode.ai/config.json` and read the schema rather than guessing.
 - Preserve `$schema` and any existing fields the user did not ask to change.
 - For agent, skill, and plugin definitions, prefer creating new files in the
-  correct location over inlining everything in `opencode.json`.
+  correct location over inlining everything in `tinycode.json`.
 - If the user's existing config is malformed, point them at the env-var escape
-  hatches above so they can edit from inside opencode without breaking their
+  hatches above so they can edit from inside tinycode without breaking their
   session.
-- After saving any config change, remind the user to quit and restart opencode
+- After saving any config change, remind the user to quit and restart tinycode
   — running sessions keep using the already-loaded config.

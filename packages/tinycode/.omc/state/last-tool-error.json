@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd /Users/bjohns/projects/oh-my-tiny && npm publish 2>&1\",\"description\":\"Publish oh-my-tiny to Gitea npm registry\"}",
+  "error": "Exit code 1\nnpm warn gitignore-fallback No .npmignore file found, using .gitignore for file exclusion. Consider creating a .npmignore file to explicitly control published files.\nnpm warn publish npm auto-corrected some errors in your package.json when publishing.  Please run \"npm pkg fix\" to address these errors.\nnpm warn publish errors corrected:\nnpm warn publish \"bin[omt-team]\" script name dist/team/coordinator.js was invalid and removed\nnpm notice\nnpm notice 📦  oh-my-tiny@0.1.0\nnpm notice Ta...",
+  "timestamp": "2026-06-03T18:43:11.536Z",
+  "retry_count": 4
+}
