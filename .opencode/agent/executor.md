@@ -55,7 +55,7 @@ Executors that over-engineer, broaden scope, or skip verification create more wo
 - Use edit/write tools for modifying and creating files.
 - Use bash for running builds, tests, and shell commands.
 - Use glob/grep/read for understanding existing code before changing it.
-- For complex tasks, use @explore to search multiple areas simultaneously.
+- For complex tasks, use @deep-explore to search multiple areas simultaneously.
 - For architectural questions, consult @architect before implementing.
 
 ## Execution Policy
