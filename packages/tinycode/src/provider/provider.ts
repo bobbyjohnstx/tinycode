@@ -835,7 +835,17 @@ export const layer = Layer.effect(
       }),
     )
 
-    const list = Effect.fn("Provider.list")(() => InstanceState.use(state, (s) => s.providers))
+    // list() merges fresh local-discovery results on every call so that providers
+    // discovered after state init (e.g. MaaS, Ollama) are always returned.
+    const list = Effect.fn("Provider.list")(function* () {
+      const providers = yield* InstanceState.use(state, (s) => s.providers)
+      const freshLocal = yield* localDiscovery.get()
+      for (const [id, info] of Object.entries(freshLocal)) {
+        const providerID = ProviderID.make(id)
+        if (!providers[providerID]) providers[providerID] = info
+      }
+      return providers
+    })
 
     async function resolveSDK(model: Model, s: State, envs: Record<string, string | undefined>) {
       try {

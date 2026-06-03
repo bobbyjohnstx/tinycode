@@ -129,6 +129,7 @@ export const layer = Layer.effect(
           build: {
             name: "build",
             description: "The default agent. Executes tools based on configured permissions.",
+            color: "#ff0000",
             options: {},
             permission: Permission.merge(
               defaults,
