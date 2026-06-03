@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"/Users/bjohns/.bun/bin/bun test --cwd packages/tinycode test/cli/cmd/tui/provider-options.test.ts 2>&1\",\"description\":\"Get full provider-options test error\"}",
+  "error": "Exit code 1\nbun test v1.3.14 (0d9b296a)\n\ntest/cli/cmd/tui/provider-options.test.ts:\n34 |         .map((o) => [o.providerID, o])\n35 |     )\n36 |     expect(byId[\"ollama\"]?.category).toBe(\"Local / LAN\")\n37 |     expect(byId[\"vllm\"]?.category).toBe(\"Local / LAN\")\n38 |     expect(byId[\"maas\"]?.category).toBe(\"Local / LAN\")\n39 |     expect(byId[\"anthropic\"]?.category).toBe(\"Cloud\")\n                                             ^\nerror: expect(received).toBe(expected)\n\nExpected: \"Cloud\"\nReceived: \"Loca...",
+  "timestamp": "2026-06-03T02:39:33.713Z",
+  "retry_count": 2
+}

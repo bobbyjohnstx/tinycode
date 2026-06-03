@@ -1,1 +1,7 @@
 {"t":0,"agent":"ac74302","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a58464e","agent_type":"architect","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a5cfdc5","agent_type":"debugger","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a697e7f","agent_type":"test-engineer","event":"agent_start","parent_mode":"none"}
+{"t":0,"agent":"a5cfdc5","agent_type":"debugger","event":"agent_stop","success":true,"duration_ms":96383}
+{"t":0,"agent":"a697e7f","agent_type":"test-engineer","event":"agent_stop","success":true,"duration_ms":85711}
+{"t":0,"agent":"a58464e","agent_type":"architect","event":"agent_stop","success":true,"duration_ms":164565}
