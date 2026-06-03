@@ -95,7 +95,7 @@ export const Definitions = {
   session_compact: keybind("<leader>c", "Compact the session"),
   session_toggle_timestamps: keybind("none", "Toggle message timestamps"),
   session_toggle_generic_tool_output: keybind("none", "Toggle generic tool output"),
-  session_child_first: keybind("<leader>down", "Go to first child session"),
+  session_child_first: keybind("<leader>j", "Go to first child session"),
   session_child_cycle: keybind("right", "Go to next child session"),
   session_child_cycle_reverse: keybind("left", "Go to previous child session"),
   session_parent: keybind("up", "Go to parent session"),
