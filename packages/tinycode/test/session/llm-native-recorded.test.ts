@@ -18,6 +18,7 @@ import { LLMEvent, LLMResponse } from "@opencode-ai/llm"
 import { LLMClient, RequestExecutor, WebSocketExecutor } from "@opencode-ai/llm/route"
 import { Env } from "@/env"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { LocalDiscovery } from "@/provider/local-discovery"
 import type { Agent } from "../../src/agent/agent"
 import { LLM } from "../../src/session/llm"
 import { MessageV2 } from "../../src/session/message-v2"
@@ -251,6 +252,7 @@ function recordedNativeLLMLayer(scenario: RecordedScenario) {
     Layer.provide(Plugin.defaultLayer),
     Layer.provide(ModelsDev.defaultLayer),
     Layer.provide(RuntimeFlags.defaultLayer),
+    Layer.provide(LocalDiscovery.defaultLayer),
   )
   // Only the HTTP client is recorded; RequestExecutor and the opencode LLM stack remain real.
   const recordedClient = LLMClient.layer.pipe(
