@@ -306,6 +306,61 @@ export const layer = Layer.effect(
           item.permission = Permission.merge(item.permission, Permission.fromConfig(value.permission ?? {}))
         }
 
+        // Load custom agents from .opencode/agent/*.md files in the project worktree.
+        // Frontmatter fields: mode, steps, description, permission (indented key: value map).
+        // Body below the closing --- is used as the agent system prompt.
+        // Entries here do NOT override built-in agents or cfg.agent entries.
+        const mdAgents = yield* Effect.promise(async () => {
+          const result: Record<string, Partial<Info> & { prompt: string }> = {}
+          const agentDir = path.join(ctx.worktree, ".opencode", "agent")
+          let files: string[]
+          try {
+            files = await Array.fromAsync(new Bun.Glob("*.md").scan({ cwd: agentDir }))
+          } catch {
+            return result
+          }
+          for (const file of files) {
+            const name = file.replace(/\.md$/, "")
+            const content = await Bun.file(path.join(agentDir, file)).text()
+            const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(content)
+            if (!match) continue
+            const [, front, body] = match
+            const parsed: Record<string, any> = {}
+            for (const line of front.split("\n")) {
+              const kv = /^(\w+):\s*(.*)$/.exec(line)
+              if (!kv) continue
+              if (kv[1] === "mode") parsed.mode = kv[2].trim()
+              if (kv[1] === "steps") parsed.steps = parseInt(kv[2].trim(), 10)
+              if (kv[1] === "description") parsed.description = kv[2].trim()
+            }
+            const permBlock = /permission:\n((?:[ \t]+\S[^\n]*\n?)+)/.exec(front)
+            if (permBlock) {
+              const permission: Record<string, string> = {}
+              for (const line of permBlock[1].split("\n")) {
+                const m = /^\s+(\w+):\s*(\w+)/.exec(line)
+                if (m) permission[m[1]] = m[2]
+              }
+              parsed.permission = permission
+            }
+            result[name] = { ...parsed, prompt: body.trim() }
+          }
+          return result
+        })
+        for (const [name, info] of Object.entries(mdAgents)) {
+          if (agents[name]) continue
+          const permConfig = (info as any).permission ?? {}
+          agents[name] = {
+            name,
+            mode: (info.mode ?? "subagent") as Info["mode"],
+            permission: Permission.merge(defaults, Permission.fromConfig(permConfig), user),
+            options: {},
+            native: false,
+            ...(info.prompt ? { prompt: info.prompt } : {}),
+            ...(info.description ? { description: info.description } : {}),
+            ...(info.steps !== undefined ? { steps: info.steps } : {}),
+          }
+        }
+
         // Ensure Truncate.GLOB is allowed unless explicitly configured
         for (const name in agents) {
           const agent = agents[name]

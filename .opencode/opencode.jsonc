@@ -2,8 +2,14 @@
   "$schema": "https://opencode.ai/config.json",
   "provider": {},
   "permission": {},
-  "plugin": ["oh-my-tiny"],
-  "mcp": {},
+  "plugin": ["/Users/bjohns/projects/tinycode/node_modules/oh-my-tiny"],
+  "mcp": {
+    "oh-my-tiny": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/Users/bjohns/projects/tinycode/node_modules/oh-my-tiny/dist/mcp/server.js"]
+    }
+  },
   "tools": {
     "github-triage": false,
     "github-pr-search": false,
