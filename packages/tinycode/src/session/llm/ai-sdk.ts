@@ -13,6 +13,10 @@ export function adapterState() {
     reasoning: 0,
     currentTextID: undefined as string | undefined,
     currentReasoningID: undefined as string | undefined,
+    // Some models (e.g. qwen3) emit tool_calls:[] on every chunk, which causes
+    // the AI SDK to fire reasoning-end after every reasoning-delta. We buffer
+    // the end and suppress it if another reasoning-start immediately follows.
+    pendingReasoningEndID: undefined as string | undefined,
     toolNames: {} as Record<string, string>,
   }
 }
@@ -70,14 +74,21 @@ export function toLLMEvents(
       return Effect.succeed([LLMEvent.stepStart({ index: state.step })])
 
     case "finish-step":
-      return Effect.sync(() => [
-        LLMEvent.stepFinish({
-          index: state.step++,
-          reason: finishReason(event.finishReason),
-          usage: usage(event.usage),
-          providerMetadata: providerMetadata(event.providerMetadata),
-        }),
-      ])
+      return Effect.sync(() => {
+        const pre = state.pendingReasoningEndID
+          ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })]
+          : []
+        state.pendingReasoningEndID = undefined
+        return [
+          ...pre,
+          LLMEvent.stepFinish({
+            index: state.step++,
+            reason: finishReason(event.finishReason),
+            usage: usage(event.usage),
+            providerMetadata: providerMetadata(event.providerMetadata),
+          }),
+        ]
+      })
 
     case "finish":
       return Effect.sync(() => {
@@ -96,8 +107,14 @@ export function toLLMEvents(
 
     case "text-start":
       return Effect.sync(() => {
+        // Flush any buffered reasoning-end before text begins
+        const pre = state.pendingReasoningEndID
+          ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })]
+          : []
+        state.pendingReasoningEndID = undefined
         state.currentTextID = currentTextID(state, event.id)
         return [
+          ...pre,
           LLMEvent.textStart({
             id: state.currentTextID,
             providerMetadata: providerMetadata(event.providerMetadata),
@@ -128,6 +145,13 @@ export function toLLMEvents(
 
     case "reasoning-start":
       return Effect.sync(() => {
+        if (state.pendingReasoningEndID) {
+          // Coalesce: a reasoning-end was buffered but more reasoning follows immediately.
+          // Resume the same block instead of starting a new one.
+          state.currentReasoningID = state.pendingReasoningEndID
+          state.pendingReasoningEndID = undefined
+          return []
+        }
         state.currentReasoningID = currentReasoningID(state, event.id)
         return [
           LLMEvent.reasoningStart({
@@ -150,18 +174,20 @@ export function toLLMEvents(
       return Effect.sync(() => {
         const id = currentReasoningID(state, event.id)
         state.currentReasoningID = undefined
-        return [
-          LLMEvent.reasoningEnd({
-            id,
-            providerMetadata: providerMetadata(event.providerMetadata),
-          }),
-        ]
+        // Buffer the end — suppress it if reasoning-start immediately follows
+        state.pendingReasoningEndID = id
+        return []
       })
 
     case "tool-input-start":
       return Effect.sync(() => {
+        const pre = state.pendingReasoningEndID
+          ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })]
+          : []
+        state.pendingReasoningEndID = undefined
         state.toolNames[event.id] = event.toolName
         return [
+          ...pre,
           LLMEvent.toolInputStart({
             id: event.id,
             name: event.toolName,

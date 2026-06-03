@@ -707,16 +707,22 @@ export const layer = Layer.effect(
           })
         }
 
+        // MaaS: pick up TINYCODE_MAAS_HOST as baseURL even when local-discovery hasn't run yet
+        const maasProviderID = ProviderID.make("maas")
+        const maasHost = process.env["TINYCODE_MAAS_HOST"]?.replace(/\/+$/, "")
+        if (maasHost && providers[maasProviderID]) {
+          mergeProvider(maasProviderID, { options: { baseURL: `${maasHost}/v1` } })
+        }
+
         // load apikeys
         const auths = yield* auth.all().pipe(Effect.orDie)
         for (const [id, provider] of Object.entries(auths)) {
           const providerID = ProviderID.make(id)
           if (disabled.has(providerID)) continue
           if (provider.type === "api") {
-            mergeProvider(providerID, {
-              source: "api",
-              key: provider.key,
-            })
+            const patch: Partial<Info> = { source: "api", key: provider.key }
+            if (provider.metadata?.["baseURL"]) patch.options = { baseURL: provider.metadata["baseURL"] }
+            mergeProvider(providerID, patch)
           }
         }
 
@@ -842,7 +848,14 @@ export const layer = Layer.effect(
       const freshLocal = yield* localDiscovery.get()
       for (const [id, info] of Object.entries(freshLocal)) {
         const providerID = ProviderID.make(id)
-        if (!providers[providerID]) providers[providerID] = info
+        if (!providers[providerID]) {
+          providers[providerID] = info
+        } else {
+          // Merge newly-discovered models into the existing provider entry without overwriting
+          for (const [modelID, model] of Object.entries(info.models)) {
+            if (!providers[providerID].models[modelID]) providers[providerID].models[modelID] = model
+          }
+        }
       }
       return providers
     })

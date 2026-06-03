@@ -226,6 +226,23 @@ export function createDialogProviderOptions() {
                 if (!value) return
                 metadata = value
               }
+              // For providers that need a custom base URL, ask for it before the API key
+              if (providerID === "maas" || providerID === "openai-compatible") {
+                const urlValue = await new Promise<string | null>((resolve) => {
+                  dialog.replace(
+                    () => (
+                      <DialogPrompt
+                        title="Server URL"
+                        placeholder="https://your-server/v1"
+                        onConfirm={(value) => resolve(value)}
+                      />
+                    ),
+                    () => resolve(null),
+                  )
+                })
+                if (urlValue === null) return
+                if (urlValue) metadata = { ...metadata, baseURL: urlValue }
+              }
               return dialog.replace(() => (
                 <ApiMethod providerID={providerID} title={method.label} metadata={metadata} />
               ))
