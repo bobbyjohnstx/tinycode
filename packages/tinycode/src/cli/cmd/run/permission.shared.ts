@@ -116,6 +116,16 @@ export function permissionInfo(request: PermissionRequest): PermissionInfo {
     }
   }
 
+  if (request.permission === "guardrail") {
+    const meta = dict(request.metadata)
+    const command = text(meta.command)
+    return {
+      icon: "!",
+      title: "Destructive action",
+      lines: [command],
+    }
+  }
+
   return {
     icon: "⚙",
     title: `Call tool ${request.permission}`,

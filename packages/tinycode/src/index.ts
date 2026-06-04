@@ -6,6 +6,7 @@ import * as Log from "@opencode-ai/core/util/log"
 import { ProvidersCommand } from "./cli/cmd/providers"
 import { AgentCommand } from "./cli/cmd/agent"
 import { UninstallCommand } from "./cli/cmd/uninstall"
+import { SetupCommand } from "./cli/cmd/setup"
 import { ModelsCommand } from "./cli/cmd/models"
 import { UI } from "./cli/ui"
 import { InstallationVersion, InstallationChannel } from "@opencode-ai/core/installation/version"
@@ -161,6 +162,7 @@ const cli = yargs(args)
   .command(ProvidersCommand)
   .command(AgentCommand)
   .command(UninstallCommand)
+  .command(SetupCommand)
   .command(ServeCommand)
   .command(WebCommand)
   .command(ModelsCommand)

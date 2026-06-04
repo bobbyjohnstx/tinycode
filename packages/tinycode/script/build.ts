@@ -78,6 +78,57 @@ const createEmbeddedWebUIBundle = async () => {
   ].join("\n")
 }
 
+const createEmbeddedAssetsBundle = async () => {
+  console.log(`Building embedded assets bundle (agents + skills)`)
+  const agentDir = path.join(dir, ".opencode/agent")
+  const skillsDir = path.join(dir, ".opencode/skills")
+
+  // Collect agent .md files
+  const agentFiles: string[] = (await fs.promises.readdir(agentDir).catch(() => [] as string[]))
+    .filter((f) => f.endsWith(".md"))
+
+  // Collect skill SKILL.md files
+  const skillDirEntries = await fs.promises
+    .readdir(skillsDir, { withFileTypes: true })
+    .catch(() => [] as fs.Dirent[])
+  const skillFiles: { name: string; file: string }[] = []
+  for (const entry of skillDirEntries) {
+    if (!entry.isDirectory()) continue
+    const skillMd = path.join(skillsDir, entry.name, "SKILL.md")
+    const exists = await fs.promises
+      .access(skillMd)
+      .then(() => true)
+      .catch(() => false)
+    if (exists) skillFiles.push({ name: entry.name, file: skillMd })
+  }
+
+  const agentImports = agentFiles.map((f, i) => {
+    const spec = path.relative(dir, path.join(agentDir, f)).replaceAll("\\", "/")
+    return `import agent_${i} from ${JSON.stringify(spec.startsWith(".") ? spec : "./" + spec)} with { type: "text" };`
+  })
+  const agentEntries = agentFiles.map((f, i) => `  ${JSON.stringify(f)}: agent_${i},`)
+
+  const skillImports = skillFiles.map((s, i) => {
+    const spec = path.relative(dir, s.file).replaceAll("\\", "/")
+    return `import skill_${i} from ${JSON.stringify(spec.startsWith(".") ? spec : "./" + spec)} with { type: "text" };`
+  })
+  const skillEntries = skillFiles.map((s, i) => `  ${JSON.stringify(s.name)}: skill_${i},`)
+
+  return [
+    `// Auto-generated embedded assets — do not edit`,
+    ...agentImports,
+    ...skillImports,
+    `export const AGENT_FILES: Record<string, string> = {`,
+    ...agentEntries,
+    `}`,
+    `export const SKILL_FILES: Record<string, string> = {`,
+    ...skillEntries,
+    `}`,
+  ].join("\n")
+}
+
+const embeddedAssetsMap = await createEmbeddedAssetsBundle()
+
 const embeddedFileMap = skipEmbedWebUi ? null : await createEmbeddedWebUIBundle()
 
 const allTargets: {
@@ -213,8 +264,17 @@ for (const item of targets) {
       execArgv: [`--user-agent=tinycode/${Script.version}`, "--use-system-ca", "--"],
       windows: {},
     },
-    files: embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {},
-    entrypoints: ["./src/index.ts", parserWorker, workerPath, ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : [])],
+    files: {
+      ...(embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {}),
+      "opencode-assets.gen.ts": embeddedAssetsMap,
+    },
+    entrypoints: [
+      "./src/index.ts",
+      parserWorker,
+      workerPath,
+      ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : []),
+      "opencode-assets.gen.ts",
+    ],
     define: {
       OPENCODE_VERSION: `'${Script.version}'`,
       OPENCODE_MIGRATIONS: JSON.stringify(migrations),

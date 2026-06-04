@@ -27,6 +27,22 @@ export { Parameters } from "./shell/prompt"
 
 const MAX_METADATA_LENGTH = 30_000
 const CWD = new Set(["cd", "chdir", "popd", "pushd", "push-location", "set-location"])
+
+const DESTRUCTIVE_COMMANDS = new Map<string, (args: string[]) => string | null>([
+  ["rm", (args) => args.some((a) => !a.startsWith("-") || a.includes("r") || a.includes("f")) ? `rm ${args.join(" ")}` : null],
+  ["rmdir", (args) => `rmdir ${args.join(" ")}`],
+  ["git", (args) => {
+    const sub = args[0]
+    if (sub === "reset" && args.includes("--hard")) return `git reset --hard`
+    if (sub === "push" && (args.includes("--force") || args.includes("-f"))) return `git push --force`
+    if (sub === "branch" && args.includes("-D")) return `git branch -D ${args.slice(args.indexOf("-D") + 1).join(" ")}`
+    if (sub === "clean" && args.includes("-f")) return `git clean -f`
+    if (sub === "checkout" && args.includes("--")) return `git checkout -- (file restore)`
+    return null
+  }],
+])
+
+const SECRETS_PATTERNS = /\.(env|pem|key|p12|pfx|cert|credentials)$|\.env\.|\/credentials|\/secrets?\b/i
 const FILES = new Set([
   ...CWD,
   "rm",
@@ -75,6 +91,7 @@ type Scan = {
   dirs: Set<string>
   patterns: Set<string>
   always: Set<string>
+  guardrails: Set<string>
 }
 
 type Chunk = {
@@ -264,6 +281,15 @@ const parse = Effect.fn("ShellTool.parse")(function* (command: string, ps: boole
 })
 
 const ask = Effect.fn("ShellTool.ask")(function* (ctx: Tool.Context, scan: Scan) {
+  if (scan.guardrails.size > 0) {
+    yield* ctx.ask({
+      permission: "guardrail",
+      patterns: ["*"],
+      always: ["*"],
+      metadata: { command: Array.from(scan.guardrails).join(", ") },
+    })
+  }
+
   if (scan.dirs.size > 0) {
     const globs = Array.from(scan.dirs).map((dir) => {
       if (process.platform === "win32") return AppFileSystem.normalizePathPattern(path.join(dir, "*"))
@@ -382,6 +408,7 @@ export const ShellTool = Tool.define(
         dirs: new Set<string>(),
         patterns: new Set<string>(),
         always: new Set<string>(),
+        guardrails: new Set<string>(),
       }
       const shellKind = ShellID.toKind(Shell.name(shell))
 
@@ -403,6 +430,26 @@ export const ShellTool = Tool.define(
         if (tokens.length && (!cmd || !CWD.has(cmd))) {
           scan.patterns.add(source(node))
           scan.always.add(BashArity.prefix(tokens).join(" ") + " *")
+        }
+
+        // Guardrails: detect destructive commands
+        if (cmd) {
+          const handler = DESTRUCTIVE_COMMANDS.get(cmd)
+          if (handler) {
+            const args = tokens.slice(1)
+            const description = handler(args)
+            if (description) scan.guardrails.add(description)
+          }
+
+          // Guardrails: detect secrets file reads
+          const READ_CMDS = new Set(["cat", "head", "tail", "grep"])
+          if (READ_CMDS.has(cmd)) {
+            for (const arg of tokens.slice(1)) {
+              if (!arg.startsWith("-") && SECRETS_PATTERNS.test(arg)) {
+                scan.guardrails.add(`${cmd} ${arg}`)
+              }
+            }
+          }
         }
       }
 
