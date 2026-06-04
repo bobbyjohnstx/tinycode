@@ -5,7 +5,7 @@
     "": {
       "name": "opencode",
       "dependencies": {
-        "oh-my-tiny": "/tmp/oh-my-tiny-0.1.0.tgz",
+        "oh-my-tiny": "/tmp/oh-my-tiny-0.1.1.tgz",
         "@opencode-ai/plugin": "workspace:*",
         "@opencode-ai/script": "workspace:*",
         "@opencode-ai/sdk": "workspace:*",
@@ -2707,7 +2707,7 @@
 
     "object-keys": ["object-keys@1.1.1", "", {}, "sha512-NuAESUOUMrlIXOfHKzD6bpPu3tYt3xvjNdRIQ+FeT0lNb4K8WR70CaDxhuNguS2XG+GjkyMwOzsN5ZktImfhLA=="],
 
-    "oh-my-tiny": ["oh-my-tiny@/tmp/oh-my-tiny-0.1.0.tgz", { "dependencies": { "@ast-grep/napi": "^0.31.0", "@modelcontextprotocol/sdk": "^1.26.0", "@opencode-ai/plugin": "1.15.11", "vscode-languageserver-protocol": "^3.17.5", "zod": "^3.23.8" }, "bin": { "omt-team": "./dist/team/coordinator.js" } }, "sha512-IWLjnluDOLpuMbZq7WtrSFEJoCtdrZX14x7e71fMoCH99ykSeYjlFHMpu5qpZqOYJvzEEPCkqJwPXGI047HC0g=="],
+    "oh-my-tiny": ["oh-my-tiny@/tmp/oh-my-tiny-0.1.1.tgz", { "dependencies": { "@ast-grep/napi": "^0.31.0", "@modelcontextprotocol/sdk": "^1.26.0", "@opencode-ai/plugin": "1.15.11", "vscode-languageserver-protocol": "^3.17.5", "zod": "^3.23.8" }, "bin": { "omt-team": "./dist/team/coordinator.js" } }, "sha512-DI92yMvxbjpTydKsm6JbVo6mHsqCSGbT8HV9Y6TXc+g4VoEHwkenySdqctfNzDkuRudlui27AxHdOJA+SkMgVA=="],
 
     "ohash": ["ohash@2.0.11", "", {}, "sha512-RdR9FQrFwNBNXAr4GixM8YaRZRJ5PUWbKYbE5eOsrwAjJW0q2REGcf79oYPsLyskQCZG1PLN+S/K1V00joZAoQ=="],
 
