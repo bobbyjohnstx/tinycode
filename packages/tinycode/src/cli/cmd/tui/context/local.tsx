@@ -173,12 +173,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
         if (sync.data.config.model) {
           const { providerID, modelID } = parseModel(sync.data.config.model)
-          if (isModelValid({ providerID, modelID })) {
-            return {
-              providerID,
-              modelID,
-            }
-          }
+          // Trust config.model explicitly — skip discovery-dependent validation.
+          // Local providers (Ollama) may not be in the list yet at first render.
+          return { providerID, modelID }
         }
 
         for (const item of modelStore.recent) {

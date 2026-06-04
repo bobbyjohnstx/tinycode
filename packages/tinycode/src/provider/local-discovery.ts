@@ -245,11 +245,8 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
       })
     }
 
-    // Run first discovery synchronously so providers are available immediately,
-    // then poll every 30 seconds in the background for changes.
-    yield* runDiscovery()
-    yield* Effect.sleep(POLL_INTERVAL).pipe(
-      Effect.andThen(runDiscovery()),
+    // Run discovery in the background — forked so startup never hangs.
+    yield* runDiscovery().pipe(
       Effect.repeat(Schedule.fixed(POLL_INTERVAL)),
       Effect.forkScoped,
     )
