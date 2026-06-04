@@ -3,10 +3,5 @@
   "provider": {},
   "permission": {},
   "plugin": [],
-  "mcp": {
-    "oh-my-tiny": {
-      "type": "local",
-      "command": ["node", "/Users/bjohns/projects/tinycode/node_modules/oh-my-tiny/dist/mcp/server.js"]
-    }
-  },
+  "mcp": {},
 }
