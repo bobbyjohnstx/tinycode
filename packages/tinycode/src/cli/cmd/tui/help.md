@@ -123,5 +123,42 @@ The steps setting in .opencode/agent/deep-explore.md controls depth:
 - Large context (llama-scout-17b): 80-100 steps
 See docs/DEEP-EXPLORE-GUIDE.md for the full lookup table.
 
+## Tips & Techniques
+
+### Context window management
+- Run /compact before large tasks — don't wait for auto-compaction
+- Split long tasks across multiple sessions; each starts with fresh context
+- Use @executor for scoped implementation — smaller footprint than @build
+- Prefer lsp_document_symbols over reading whole files — structure without token cost
+
+### Agent selection
+- @architect for analysis — read-only, zero risk of unwanted edits
+- @debugger for root cause → @executor for the fix (two-agent pattern beats one long session)
+- @general auto-fans out subtasks in parallel — good for "audit all X" requests
+- @explore before @executor — let explore do the reading, executor just writes
+
+### Prompting local models
+- Be explicit about output format: "list the files", "respond in JSON", "one sentence per item"
+- End prompts with a stop condition: "stop when complete, don't ask what's next"
+- Avoid open-ended questions — local models ramble and waste context
+- State the constraint when needed: "be concise, this model has a small context window"
+
+### Skills
+- /work-loop for iterative tasks: failing tests, debug loops, multi-step refactors
+- /plan before any multi-file change — forces structure before the model starts editing
+- /cancel immediately when the model goes off-track — stops before it exhausts context
+
+### Air-gapped / local environments
+- Set OPENCODE_DISABLE_LSP_DOWNLOAD=1 in .env — prevents hang on LSP binary fetch
+- Pull all Ollama models in advance: ollama pull qwen2.5 llama3.2 gemma4
+- config.json model setting is more reliable than TUI selection for cold starts
+- Use MaaS for complex reasoning; Ollama for sensitive code that stays fully local
+
+### Multi-agent teams (/team)
+- Use for genuinely parallel workloads — not for sequential steps
+- Workers don't share memory; each is an independent session with full tool access
+- 2-3 workers is the practical limit for local 8B models (context × workers)
+- See script/team.ts for invocation; docs/DEEP-EXPLORE-GUIDE.md for agent depth tuning
+
 ## Getting Help
 Type a question in the prompt — tinycode's AI knows its own features.
