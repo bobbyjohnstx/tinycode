@@ -140,7 +140,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
           log.info("ollama discovered", { count: names.length, models: names.slice(0, 5) })
           return makeOllamaProvider(baseURL, names)
         }),
-        Effect.catchAll((err) => {
+        Effect.catch((err) => {
           log.info("ollama not available", { baseURL, error: String(err) })
           return Effect.succeed(null)
         }),
@@ -158,7 +158,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
           log.info("vllm discovered", { count: ids.length, models: ids.slice(0, 5) })
           return makeVllmProvider(baseURL, ids)
         }),
-        Effect.catchAll((err) => {
+        Effect.catch((err) => {
           log.info("vllm not available", { baseURL, error: String(err) })
           return Effect.succeed(null)
         }),
@@ -212,7 +212,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
             models,
           }
         }),
-        Effect.catchAll((err) => {
+        Effect.catch((err) => {
           log.info("maas not available", { baseURL, error: String(err) })
           return Effect.succeed(null)
         }),
