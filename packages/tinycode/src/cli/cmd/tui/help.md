@@ -9,7 +9,7 @@ Type `@agent-name` to invoke a specialized subagent:
 | Agent | Role |
 |-------|------|
 | @explore | Fast codebase search (grep, glob, file reading) |
-| @deep-explore | LSP+AST aware search — finds symbols, references, call graphs |
+| @deep-explore | LSP+AST aware search — finds symbols, references, call graphs. Steps limit controls depth (see docs/DEEP-EXPLORE-GUIDE.md) |
 | @scout | External research — clone repos, read library docs |
 | @architect | Read-only code analysis and architectural guidance (never modifies files) |
 | @debugger | Root-cause analysis and bug fixing |
@@ -94,6 +94,34 @@ tinycode asks for approval before:
 
 Configure via the "permission" key in config.json:
 { "permission": { "guardrail": "allow" } }
+
+## Deep-Explore Tips
+
+### Split technique for large codebases
+A single @deep-explore session on a large project covers ~20-70% of the codebase depending
+on the model's context window. For comprehensive architecture docs, split into two sessions:
+
+Session 1 — Structure:
+  @deep-explore Map every top-level directory in src/ — list what each contains and its
+  purpose in one sentence. Cover ALL directories, not just the obvious ones.
+
+Session 2 — Patterns:
+  @deep-explore Identify the key design patterns: how services are defined, how dependency
+  injection works, how errors are handled, how data flows from user input to LLM to tools.
+  Read actual code examples for each pattern.
+
+Then combine:
+  @writer Combine these two exploration results into a complete ARCHITECTURE.md:
+  [paste session 1 output]
+  ---
+  [paste session 2 output]
+
+### Steps by model
+The steps setting in .opencode/agent/deep-explore.md controls depth:
+- Local 8B models (llama3.2, qwen2.5): 30-35 steps (context fills before steps exhaust)
+- Mid models (gemma4:27b, qwen3-14b): 50-60 steps
+- Large context (llama-scout-17b): 80-100 steps
+See docs/DEEP-EXPLORE-GUIDE.md for the full lookup table.
 
 ## Getting Help
 Type a question in the prompt — tinycode's AI knows its own features.

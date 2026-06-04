@@ -1,7 +1,7 @@
 ---
 description: Codebase search specialist — find files, code patterns, and relationships (READ-ONLY)
 mode: subagent
-steps: 20
+steps: 50
 permission:
   edit: deny
   bash: deny
