@@ -32,6 +32,19 @@ function View(props: { api: TuiPluginApi; hidden: boolean; show: boolean; connec
   )
 }
 
+function FirstTimeTips(props: { api: TuiPluginApi }) {
+  const theme = () => props.api.theme.current
+
+  return (
+    <box width="100%" maxWidth={75} alignItems="center" paddingTop={3} flexShrink={1} gap={1}>
+      <text fg={theme().warning}>● Getting Started</text>
+      <text fg={theme().textMuted}>Type @ to mention files or agents</text>
+      <text fg={theme().textMuted}>Start with / for commands, ctrl+p for palette</text>
+      <text fg={theme().textMuted}>Press tab to switch agents, F1 for help</text>
+    </box>
+  )
+}
+
 const tui: TuiPlugin = async (api) => {
   api.slots.register({
     order: 100,
@@ -44,8 +57,18 @@ const tui: TuiPlugin = async (api) => {
             (item) => item.id !== "opencode" || Object.values(item.models).some((model) => model.cost?.input !== 0),
           ),
         )
+        const showFirstTimeTips = createMemo(() => first() && connected() && !hidden())
         const show = createMemo(() => (!first() || !connected()) && !hidden())
-        return <View api={api} hidden={hidden()} show={show()} connected={connected()} />
+        return (
+          <>
+            <Show when={showFirstTimeTips()}>
+              <FirstTimeTips api={api} />
+            </Show>
+            <Show when={!showFirstTimeTips()}>
+              <View api={api} hidden={hidden()} show={show()} connected={connected()} />
+            </Show>
+          </>
+        )
       },
     },
   })

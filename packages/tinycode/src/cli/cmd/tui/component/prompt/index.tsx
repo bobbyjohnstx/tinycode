@@ -1449,7 +1449,7 @@ export function Prompt(props: PromptProps) {
       status().type !== "idle"
         ? (local.agent.list().find((a) => a.name === lastUserMessage()?.agent) ?? local.agent.current())
         : local.agent.current()
-    const color = agent ? local.agent.color(agent.name) : theme.border
+    const color = status().type === "retry" ? theme.error : (agent ? local.agent.color(agent.name) : theme.border)
     return {
       frames: createFrames({
         color,
@@ -1703,10 +1703,10 @@ export function Prompt(props: PromptProps) {
                     })()}
                   </box>
                 </box>
-                <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
+                <text fg={store.interrupt > 0 ? theme.warning : theme.text}>
                   esc{" "}
-                  <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>
-                    {store.interrupt > 0 ? "again to interrupt" : "interrupt"}
+                  <span style={{ fg: store.interrupt > 0 ? theme.warning : theme.textMuted }}>
+                    {store.interrupt > 0 ? <b>again to interrupt</b> : "interrupt"}
                   </span>
                 </text>
               </box>

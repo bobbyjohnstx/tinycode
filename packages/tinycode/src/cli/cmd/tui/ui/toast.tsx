@@ -18,7 +18,7 @@ export function Toast() {
   const dimensions = useTerminalDimensions()
 
   return (
-    <Show when={toast.currentToast}>
+    <Show when={toast.currentToast()}>
       {(current) => (
         <box
           position="absolute"
@@ -52,19 +52,31 @@ export function Toast() {
 
 function init() {
   const [store, setStore] = createStore({
-    currentToast: null as ToastOptions | null,
+    queue: [] as ToastOptions[],
   })
 
   let timeoutHandle: NodeJS.Timeout | null = null
 
+  function showNext() {
+    if (store.queue.length === 0) return
+    const current = store.queue[0]
+    if (timeoutHandle) clearTimeout(timeoutHandle)
+    timeoutHandle = setTimeout(() => {
+      setStore("queue", (queue) => queue.slice(1))
+      showNext()
+    }, current.duration).unref()
+  }
+
   const toast = {
     show(options: ToastInput) {
       const toastOptions = decodeToastOptions(options)
-      setStore("currentToast", toastOptions)
-      if (timeoutHandle) clearTimeout(timeoutHandle)
-      timeoutHandle = setTimeout(() => {
-        setStore("currentToast", null)
-      }, toastOptions.duration).unref()
+      setStore("queue", (queue) => {
+        const newQueue = [...queue, toastOptions]
+        return newQueue.length > 5 ? newQueue.slice(-5) : newQueue
+      })
+      if (store.queue.length === 1) {
+        showNext()
+      }
     },
     error: (err: any) => {
       if (err instanceof Error)
@@ -77,8 +89,8 @@ function init() {
         message: "An unknown error has occurred",
       })
     },
-    get currentToast(): ToastOptions | null {
-      return store.currentToast
+    currentToast(): ToastOptions | null {
+      return store.queue[0] ?? null
     },
   }
   return toast

@@ -1,5 +1,5 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
-import { createMemo, For, type Accessor } from "solid-js"
+import { createMemo, createSignal, onCleanup, For, type Accessor } from "solid-js"
 import { DEFAULT_THEMES, useTheme } from "@tui/context/theme"
 import { useCommandShortcut } from "../../keymap"
 
@@ -96,7 +96,14 @@ function configShortcut(api: TuiPluginApi, command: string): TipShortcut {
 
 export function Tips(props: { api: TuiPluginApi; connected?: boolean }) {
   const theme = useTheme().theme
-  const tipOffset = Math.random()
+  const [tipOffset, setTipOffset] = createSignal(Math.floor(Math.random() * 1000))
+
+  const timer = setInterval(() => {
+    setTipOffset((prev) => prev + 1)
+  }, 30000)
+
+  onCleanup(() => clearInterval(timer))
+
   const shortcuts: Shortcuts = {
     agentCycle: useCommandShortcut("agent.cycle"),
     childFirst: configShortcut(props.api, "session.child.first"),
@@ -138,7 +145,7 @@ export function Tips(props: { api: TuiPluginApi; connected?: boolean }) {
       const value = typeof item === "string" ? item : item(shortcuts)
       return value ? [value] : []
     })
-    return tips[Math.floor(tipOffset * tips.length)] ?? NO_MODELS_TIP
+    return tips[tipOffset() % tips.length] ?? NO_MODELS_TIP
   }, NO_MODELS_TIP)
   // Solid can expose a memo's initial value while a pure computation is pending.
   const parts = createMemo(() => {
@@ -270,6 +277,7 @@ const TIPS: Tip[] = [
   "Use {highlight}/review{/highlight} to review uncommitted changes, branches, or PRs",
   (shortcuts) => `Use ${commandText("/help", shortcuts.helpShow())} to show the help dialog`,
   "Use {highlight}/rename{/highlight} to rename the current session",
+  "Using a 256-color terminal? Try the {highlight}system{/highlight} theme for best color compatibility",
   ...(process.platform === "win32"
     ? ([(shortcuts) => press(shortcuts.inputUndo(), "to undo changes in your prompt")] satisfies Tip[])
     : ([

@@ -33,6 +33,8 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
         paddingLeft={2}
         paddingRight={2}
         position={props.overlay ? "absolute" : "relative"}
+        border={["left"]}
+        borderColor={theme.border}
       >
         <scrollbox
           flexGrow={1}
@@ -54,7 +56,10 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
             >
               <box paddingRight={1}>
                 <text fg={theme.text}>
-                  <b>{session()!.title}</b>
+                  <b>{(() => {
+                    const title = session()!.title
+                    return title.length > 36 ? title.slice(0, 33) + "..." : title
+                  })()}</b>
                 </text>
                 <Show when={InstallationChannel !== "latest"}>
                   <text fg={theme.textMuted}>{props.sessionID}</text>

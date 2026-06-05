@@ -55,6 +55,27 @@ function Version(props: { api: TuiPluginApi }) {
   )
 }
 
+function Model(props: { api: TuiPluginApi }) {
+  const theme = () => props.api.theme.current
+  const model = createMemo(() => {
+    const config = props.api.state.config
+    const modelStr = config.model
+    if (!modelStr) return undefined
+    const parts = modelStr.split("/")
+    return parts.length > 1 ? parts.slice(1).join("/") : parts[0]
+  })
+
+  return (
+    <Show when={model()}>
+      {(m) => (
+        <box flexShrink={0}>
+          <text fg={theme().text}>{m()}</text>
+        </box>
+      )}
+    </Show>
+  )
+}
+
 function View(props: { api: TuiPluginApi }) {
   return (
     <box
@@ -70,6 +91,7 @@ function View(props: { api: TuiPluginApi }) {
       <Directory api={props.api} />
       <Mcp api={props.api} />
       <box flexGrow={1} />
+      <Model api={props.api} />
       <Version api={props.api} />
     </box>
   )

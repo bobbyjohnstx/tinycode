@@ -23,58 +23,231 @@
     "darkRemoved": "#F26D78",
     "darkAccent": "#E6B450",
     "darkError": "#D95757",
-    "darkIndentActive": "#6C7380"
+    "darkIndentActive": "#6C7380",
+    "lightBg": "#FAFAFA",
+    "lightBgAlt": "#F3F4F5",
+    "lightLine": "#E7E8E9",
+    "lightPanel": "#FFFFFF",
+    "lightFg": "#575F66",
+    "lightFgMuted": "#828C99",
+    "lightGutter": "#8A9199",
+    "lightTag": "#55B4D4",
+    "lightFunc": "#F2AE49",
+    "lightEntity": "#399EE6",
+    "lightString": "#86B300",
+    "lightRegexp": "#4CBF99",
+    "lightMarkup": "#F07171",
+    "lightKeyword": "#FA8D3E",
+    "lightSpecial": "#E6BA7E",
+    "lightComment": "#ABB0B6",
+    "lightConstant": "#A37ACC",
+    "lightOperator": "#ED9366",
+    "lightAdded": "#7FD962",
+    "lightRemoved": "#F26D78",
+    "lightAccent": "#FF9940",
+    "lightError": "#F51818",
+    "lightIndentActive": "#8A9199"
   },
   "theme": {
-    "primary": "darkEntity",
-    "secondary": "darkConstant",
-    "accent": "darkAccent",
-    "error": "darkError",
-    "warning": "darkSpecial",
-    "success": "darkAdded",
-    "info": "darkTag",
-    "text": "darkFg",
-    "textMuted": "darkFgMuted",
-    "background": "darkBg",
-    "backgroundPanel": "darkPanel",
-    "backgroundElement": "darkBgAlt",
-    "border": "darkGutter",
-    "borderActive": "darkIndentActive",
-    "borderSubtle": "darkLine",
-    "diffAdded": "darkAdded",
-    "diffRemoved": "darkRemoved",
-    "diffContext": "darkComment",
-    "diffHunkHeader": "darkComment",
-    "diffHighlightAdded": "darkString",
-    "diffHighlightRemoved": "darkMarkup",
-    "diffAddedBg": "#20303b",
-    "diffRemovedBg": "#37222c",
-    "diffContextBg": "darkPanel",
-    "diffLineNumber": "diffContext",
-    "diffAddedLineNumberBg": "#1b2b34",
-    "diffRemovedLineNumberBg": "#2d1f26",
-    "markdownText": "darkFg",
-    "markdownHeading": "darkConstant",
-    "markdownLink": "darkEntity",
-    "markdownLinkText": "darkTag",
-    "markdownCode": "darkString",
-    "markdownBlockQuote": "darkSpecial",
-    "markdownEmph": "darkSpecial",
-    "markdownStrong": "darkFunc",
-    "markdownHorizontalRule": "darkFgMuted",
-    "markdownListItem": "darkEntity",
-    "markdownListEnumeration": "darkTag",
-    "markdownImage": "darkEntity",
-    "markdownImageText": "darkTag",
-    "markdownCodeBlock": "darkFg",
-    "syntaxComment": "darkComment",
-    "syntaxKeyword": "darkKeyword",
-    "syntaxFunction": "darkFunc",
-    "syntaxVariable": "darkEntity",
-    "syntaxString": "darkString",
-    "syntaxNumber": "darkConstant",
-    "syntaxType": "darkSpecial",
-    "syntaxOperator": "darkOperator",
-    "syntaxPunctuation": "darkFg"
+    "primary": {
+      "dark": "darkEntity",
+      "light": "lightEntity"
+    },
+    "secondary": {
+      "dark": "darkConstant",
+      "light": "lightConstant"
+    },
+    "accent": {
+      "dark": "darkAccent",
+      "light": "lightAccent"
+    },
+    "error": {
+      "dark": "darkError",
+      "light": "lightError"
+    },
+    "warning": {
+      "dark": "darkSpecial",
+      "light": "lightSpecial"
+    },
+    "success": {
+      "dark": "darkAdded",
+      "light": "lightAdded"
+    },
+    "info": {
+      "dark": "darkTag",
+      "light": "lightTag"
+    },
+    "text": {
+      "dark": "darkFg",
+      "light": "lightFg"
+    },
+    "textMuted": {
+      "dark": "darkFgMuted",
+      "light": "lightFgMuted"
+    },
+    "background": {
+      "dark": "darkBg",
+      "light": "lightBg"
+    },
+    "backgroundPanel": {
+      "dark": "darkPanel",
+      "light": "lightPanel"
+    },
+    "backgroundElement": {
+      "dark": "darkBgAlt",
+      "light": "lightBgAlt"
+    },
+    "border": {
+      "dark": "darkGutter",
+      "light": "lightGutter"
+    },
+    "borderActive": {
+      "dark": "darkIndentActive",
+      "light": "lightIndentActive"
+    },
+    "borderSubtle": {
+      "dark": "darkLine",
+      "light": "lightLine"
+    },
+    "diffAdded": {
+      "dark": "darkAdded",
+      "light": "lightAdded"
+    },
+    "diffRemoved": {
+      "dark": "darkRemoved",
+      "light": "lightRemoved"
+    },
+    "diffContext": {
+      "dark": "darkComment",
+      "light": "lightComment"
+    },
+    "diffHunkHeader": {
+      "dark": "darkComment",
+      "light": "lightComment"
+    },
+    "diffHighlightAdded": {
+      "dark": "darkString",
+      "light": "lightString"
+    },
+    "diffHighlightRemoved": {
+      "dark": "darkMarkup",
+      "light": "lightMarkup"
+    },
+    "diffAddedBg": {
+      "dark": "#20303b",
+      "light": "#d4edda"
+    },
+    "diffRemovedBg": {
+      "dark": "#37222c",
+      "light": "#f8d7da"
+    },
+    "diffContextBg": {
+      "dark": "darkPanel",
+      "light": "lightPanel"
+    },
+    "diffLineNumber": {
+      "dark": "darkComment",
+      "light": "lightComment"
+    },
+    "diffAddedLineNumberBg": {
+      "dark": "#1b2b34",
+      "light": "#c4ddc9"
+    },
+    "diffRemovedLineNumberBg": {
+      "dark": "#2d1f26",
+      "light": "#ecc7ca"
+    },
+    "markdownText": {
+      "dark": "darkFg",
+      "light": "lightFg"
+    },
+    "markdownHeading": {
+      "dark": "darkConstant",
+      "light": "lightConstant"
+    },
+    "markdownLink": {
+      "dark": "darkEntity",
+      "light": "lightEntity"
+    },
+    "markdownLinkText": {
+      "dark": "darkTag",
+      "light": "lightTag"
+    },
+    "markdownCode": {
+      "dark": "darkString",
+      "light": "lightString"
+    },
+    "markdownBlockQuote": {
+      "dark": "darkSpecial",
+      "light": "lightSpecial"
+    },
+    "markdownEmph": {
+      "dark": "darkSpecial",
+      "light": "lightSpecial"
+    },
+    "markdownStrong": {
+      "dark": "darkFunc",
+      "light": "lightFunc"
+    },
+    "markdownHorizontalRule": {
+      "dark": "darkFgMuted",
+      "light": "lightFgMuted"
+    },
+    "markdownListItem": {
+      "dark": "darkEntity",
+      "light": "lightEntity"
+    },
+    "markdownListEnumeration": {
+      "dark": "darkTag",
+      "light": "lightTag"
+    },
+    "markdownImage": {
+      "dark": "darkEntity",
+      "light": "lightEntity"
+    },
+    "markdownImageText": {
+      "dark": "darkTag",
+      "light": "lightTag"
+    },
+    "markdownCodeBlock": {
+      "dark": "darkFg",
+      "light": "lightFg"
+    },
+    "syntaxComment": {
+      "dark": "darkComment",
+      "light": "lightComment"
+    },
+    "syntaxKeyword": {
+      "dark": "darkKeyword",
+      "light": "lightKeyword"
+    },
+    "syntaxFunction": {
+      "dark": "darkFunc",
+      "light": "lightFunc"
+    },
+    "syntaxVariable": {
+      "dark": "darkEntity",
+      "light": "lightEntity"
+    },
+    "syntaxString": {
+      "dark": "darkString",
+      "light": "lightString"
+    },
+    "syntaxNumber": {
+      "dark": "darkConstant",
+      "light": "lightConstant"
+    },
+    "syntaxType": {
+      "dark": "darkSpecial",
+      "light": "lightSpecial"
+    },
+    "syntaxOperator": {
+      "dark": "darkOperator",
+      "light": "lightOperator"
+    },
+    "syntaxPunctuation": {
+      "dark": "darkFg",
+      "light": "lightFg"
+    }
   }
 }
