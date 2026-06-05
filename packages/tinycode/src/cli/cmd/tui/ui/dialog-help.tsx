@@ -10,7 +10,7 @@ import HELP_CONTENT from "../help.md" with { type: "text" }
 
 export function DialogHelp() {
   const dialog = useDialog()
-  const { theme } = useTheme()
+  const { theme, syntax } = useTheme()
   const tuiConfig = useTuiConfig()
   const dimensions = useTerminalDimensions()
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
@@ -67,13 +67,13 @@ export function DialogHelp() {
         paddingLeft={1}
         paddingRight={1}
       >
-        <text fg={theme.textMuted}>{HELP_CONTENT}</text>
+        <markdown
+          content={HELP_CONTENT}
+          syntaxStyle={syntax()}
+          fg={theme.textMuted}
+          bg={theme.background}
+        />
       </scrollbox>
-      <box flexDirection="row" justifyContent="flex-end" paddingBottom={1}>
-        <box paddingLeft={3} paddingRight={3} backgroundColor={theme.primary} onMouseUp={() => dialog.clear()}>
-          <text fg={theme.selectedListItemText}>ok</text>
-        </box>
-      </box>
     </box>
   )
 }

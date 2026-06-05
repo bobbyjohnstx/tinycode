@@ -37,12 +37,14 @@ Type `/skill-name` or use `/skills` to pick from the list:
 ## Key Keybindings
 | Key | Action |
 |-----|--------|
-| ctrl+p | Toggle plan mode |
-| ctrl+x j | Switch to first child subagent session |
-| ctrl+c | Cancel current operation |
-| esc | Close dialog / go back |
-| ctrl+r | New session |
-| ctrl+f | Search sessions |
+| ctrl+p | Open command palette |
+| ctrl+x j | View first child subagent session |
+| ctrl+x n | New session |
+| ctrl+x l | List sessions |
+| ctrl+r | Rename current session |
+| esc | Interrupt session / close dialog (press twice to interrupt) |
+| F1 | Open help |
+| tab | Switch agents |
 
 ## Connecting Providers
 Type `/connect` to open the provider connection dialog.

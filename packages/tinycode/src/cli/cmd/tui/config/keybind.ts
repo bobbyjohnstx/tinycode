@@ -57,7 +57,7 @@ export const Definitions = {
   app_toggle_paste_summary: keybind("none", "Toggle paste summary"),
   app_toggle_session_directory_filter: keybind("none", "Toggle session directory filtering"),
   command_list: keybind("ctrl+p", "List available commands"),
-  help_show: keybind("none", "Open help dialog"),
+  help_show: keybind("f1", "Open help dialog"),
   docs_open: keybind("none", "Open documentation"),
   diff_close: keybind("escape,q", "Close diff viewer"),
   diff_toggle: keybind("enter,space", "Toggle diff viewer item"),
@@ -81,7 +81,7 @@ export const Definitions = {
   scrollbar_toggle: keybind("none", "Toggle session scrollbar"),
   status_view: keybind("<leader>s", "View status"),
 
-  session_export: keybind("<leader>x", "Export session to editor"),
+  session_export: keybind("<leader>x", "Export session transcript"),
   session_copy: keybind("none", "Copy session transcript"),
   session_new: keybind("<leader>n", "Create a new session"),
   session_list: keybind("<leader>l", "List all sessions"),
@@ -98,7 +98,7 @@ export const Definitions = {
   session_child_first: keybind("<leader>j", "Go to first child session"),
   session_child_cycle: keybind("right", "Go to next child session"),
   session_child_cycle_reverse: keybind("left", "Go to previous child session"),
-  session_parent: keybind("up", "Go to parent session"),
+  session_parent: keybind("up,<leader>k", "Go to parent session"),
   session_pin_toggle: keybind("ctrl+f", "Pin or unpin session in the session list"),
   session_quick_switch_1: keybind("<leader>1", "Switch to session in quick slot 1"),
   session_quick_switch_2: keybind("<leader>2", "Switch to session in quick slot 2"),
@@ -214,7 +214,7 @@ export const Definitions = {
 
   terminal_suspend: keybind("ctrl+z", "Suspend terminal"),
   terminal_title_toggle: keybind("none", "Toggle terminal title"),
-  tips_toggle: keybind("<leader>h", "Toggle tips on home screen"),
+  tips_toggle: keybind("<leader>i", "Toggle tips on home screen"),
   plugin_manager: keybind("none", "Open plugin manager dialog"),
   plugin_install: keybind("none", "Install plugin"),
 
