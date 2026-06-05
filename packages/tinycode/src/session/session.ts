@@ -498,7 +498,7 @@ export interface Interface {
   ) => Effect.Effect<Option.Option<MessageV2.WithParts>, NotFound>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/Session") {}
+export class Service extends Context.Service<Service, Interface>()("@tinycode/Session") {}
 
 export const use = serviceUse(Service)
 

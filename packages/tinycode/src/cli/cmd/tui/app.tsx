@@ -109,7 +109,7 @@ const appBindingCommands = [
   "variant.list",
   "provider.connect",
   "console.org.switch",
-  "opencode.status",
+  "tinycode.status",
   "theme.switch",
   "theme.switch_mode",
   "theme.mode.lock",
@@ -753,7 +753,7 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
           ]
         : []),
       {
-        name: "opencode.status",
+        name: "tinycode.status",
         title: "View status",
         slashName: "status",
         run: () => {

@@ -120,7 +120,7 @@ export interface Interface {
   >
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/Pty") {}
+export class Service extends Context.Service<Service, Interface>()("@tinycode/Pty") {}
 
 export const layer = Layer.effect(
   Service,

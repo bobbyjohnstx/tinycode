@@ -120,7 +120,7 @@ export interface Interface {
   readonly get: () => Effect.Effect<Record<string, Info>>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/LocalDiscovery") {}
+export class Service extends Context.Service<Service, Interface>()("@tinycode/LocalDiscovery") {}
 
 export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.effect(
   Service,

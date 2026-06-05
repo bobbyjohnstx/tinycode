@@ -166,9 +166,9 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
   return withRunSpan(
     "RunInteractive.session",
     {
-      "opencode.mode": input.resolveSession ? "local" : "attach",
-      "opencode.initial_input": !!input.initialInput,
-      "opencode.demo": input.demo,
+      "tinycode.mode": input.resolveSession ? "local" : "attach",
+      "tinycode.initial_input": !!input.initialInput,
+      "tinycode.demo": input.demo,
     },
     async (span) => {
       const start = performance.now()
@@ -206,12 +206,12 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
         agent: ctx.agent,
       }
       setRunSpanAttributes(span, {
-        "opencode.directory": ctx.directory,
-        "opencode.resume": ctx.resume === true,
-        "opencode.agent.name": state.agent,
-        "opencode.model.provider": state.model?.providerID,
-        "opencode.model.id": state.model?.modelID,
-        "opencode.model.variant": state.activeVariant,
+        "tinycode.directory": ctx.directory,
+        "tinycode.resume": ctx.resume === true,
+        "tinycode.agent.name": state.agent,
+        "tinycode.model.provider": state.model?.providerID,
+        "tinycode.model.id": state.model?.modelID,
+        "tinycode.model.variant": state.activeVariant,
         "session.id": state.sessionID || undefined,
       })
       const ensureSession = () => {
@@ -228,7 +228,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
           state.sessionTitle = next.sessionTitle ?? state.sessionTitle
           state.agent = next.agent
           setRunSpanAttributes(span, {
-            "opencode.agent.name": state.agent,
+            "tinycode.agent.name": state.agent,
             "session.id": state.sessionID,
           })
         })
@@ -286,7 +286,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
           state.activeVariant = cycleVariant(state.activeVariant, state.variants)
           saveVariant(state.model, state.activeVariant)
           setRunSpanAttributes(span, {
-            "opencode.model.variant": state.activeVariant,
+            "tinycode.model.variant": state.activeVariant,
           })
           return {
             status: state.activeVariant ? `variant ${state.activeVariant}` : "variant default",
@@ -322,9 +322,9 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
           }
 
           setRunSpanAttributes(span, {
-            "opencode.model.provider": model.providerID,
-            "opencode.model.id": model.modelID,
-            "opencode.model.variant": state.activeVariant,
+            "tinycode.model.provider": model.providerID,
+            "tinycode.model.id": model.modelID,
+            "tinycode.model.variant": state.activeVariant,
           })
           return {
             modelLabel: formatModelLabel(model, state.activeVariant, state.providers),
@@ -349,7 +349,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
           state.activeVariant = variant
           saveVariant(state.model, state.activeVariant)
           setRunSpanAttributes(span, {
-            "opencode.model.variant": state.activeVariant,
+            "tinycode.model.variant": state.activeVariant,
           })
           return {
             status: state.activeVariant ? `variant ${state.activeVariant}` : "variant default",
@@ -450,7 +450,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
         if (next !== state.activeVariant) {
           state.activeVariant = next
           setRunSpanAttributes(span, {
-            "opencode.model.variant": state.activeVariant,
+            "tinycode.model.variant": state.activeVariant,
           })
         }
 
@@ -562,10 +562,10 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
                       })
                     : undefined
                   setRunSpanAttributes(span, {
-                    "opencode.agent.name": state.agent,
-                    "opencode.model.provider": state.model?.providerID,
-                    "opencode.model.id": state.model?.modelID,
-                    "opencode.model.variant": state.activeVariant,
+                    "tinycode.agent.name": state.agent,
+                    "tinycode.model.provider": state.model?.providerID,
+                    "tinycode.model.id": state.model?.modelID,
+                    "tinycode.model.variant": state.activeVariant,
                     "session.id": state.sessionID,
                   })
                   log?.write("session.new", {
@@ -624,24 +624,24 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
             return withRunSpan(
               "RunInteractive.turn",
               {
-                "opencode.agent.name": state.agent,
-                "opencode.model.provider": state.model?.providerID,
-                "opencode.model.id": state.model?.modelID,
-                "opencode.model.variant": state.activeVariant,
-                "opencode.prompt.chars": prompt.text.length,
-                "opencode.prompt.parts": prompt.parts.length,
-                "opencode.prompt.include_files": includeFiles,
-                "opencode.prompt.file_parts": includeFiles ? input.files.length : 0,
+                "tinycode.agent.name": state.agent,
+                "tinycode.model.provider": state.model?.providerID,
+                "tinycode.model.id": state.model?.modelID,
+                "tinycode.model.variant": state.activeVariant,
+                "tinycode.prompt.chars": prompt.text.length,
+                "tinycode.prompt.parts": prompt.parts.length,
+                "tinycode.prompt.include_files": includeFiles,
+                "tinycode.prompt.file_parts": includeFiles ? input.files.length : 0,
                 "session.id": state.sessionID || undefined,
               },
               async (span) => {
                 try {
                   const next = await ensureStream()
                   setRunSpanAttributes(span, {
-                    "opencode.agent.name": state.agent,
-                    "opencode.model.provider": state.model?.providerID,
-                    "opencode.model.id": state.model?.modelID,
-                    "opencode.model.variant": state.activeVariant,
+                    "tinycode.agent.name": state.agent,
+                    "tinycode.model.provider": state.model?.providerID,
+                    "tinycode.model.id": state.model?.modelID,
+                    "tinycode.model.variant": state.activeVariant,
                     "session.id": state.sessionID || undefined,
                   })
                   await next.handle.runPromptTurn({
@@ -712,9 +712,9 @@ export async function runInteractiveLocalMode(input: RunLocalInput): Promise<voi
   return withRunSpan(
     "RunInteractive.localMode",
     {
-      "opencode.directory": input.directory,
-      "opencode.initial_input": !!input.initialInput,
-      "opencode.demo": input.demo,
+      "tinycode.directory": input.directory,
+      "tinycode.initial_input": !!input.initialInput,
+      "tinycode.demo": input.demo,
     },
     async () => {
       const sdk = createOpencodeClient({
@@ -773,8 +773,8 @@ export async function runInteractiveMode(input: RunInput & { createSession?: Cre
   return withRunSpan(
     "RunInteractive.attachMode",
     {
-      "opencode.directory": input.directory,
-      "opencode.initial_input": !!input.initialInput,
+      "tinycode.directory": input.directory,
+      "tinycode.initial_input": !!input.initialInput,
       "session.id": input.sessionID,
     },
     async () =>
