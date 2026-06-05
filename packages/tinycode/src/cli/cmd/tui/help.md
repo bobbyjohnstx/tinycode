@@ -6,16 +6,16 @@ Local-LLM-first AI coding assistant. Runs in your terminal against Ollama, vLLM,
 ## Agents
 Type `@agent-name` to invoke a specialized subagent:
 
-| Agent | Role |
-|-------|------|
-| @explore | Fast codebase search (grep, glob, file reading) |
-| @deep-explore | LSP+AST aware search — finds symbols, references, call graphs. Steps limit controls depth (see docs/DEEP-EXPLORE-GUIDE.md) |
-| @scout | External research — clone repos, read library docs |
-| @architect | Read-only code analysis and architectural guidance (never modifies files) |
-| @debugger | Root-cause analysis and bug fixing |
-| @executor | Implement a scoped task precisely — smallest viable diff |
-| @planner | Structured planning interview — writes plans to .omc/plans/ |
-| @general | General-purpose assistant for questions and parallel tasks |
+| Agent           | Role |
+|-----------------|------|
+| @explore        | Fast codebase search (grep, glob, file reading) |
+| @deep-explore   | LSP+AST aware search — symbols, references, call graphs (see docs/DEEP-EXPLORE-GUIDE.md) |
+| @scout          | External research — clone repos, read library docs |
+| @architect      | Read-only code analysis and architectural guidance (never modifies files) |
+| @debugger       | Root-cause analysis and bug fixing |
+| @executor       | Implement a scoped task precisely — smallest viable diff |
+| @planner        | Structured planning interview — writes plans to .omc/plans/ |
+| @general        | General-purpose assistant for questions and parallel tasks |
 
 Primary agent modes (switch in the agent bar):
 - build — default, full tool access (read/write/edit/bash)
