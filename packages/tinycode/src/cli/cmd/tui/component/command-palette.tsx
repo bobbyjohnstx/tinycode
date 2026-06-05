@@ -6,7 +6,7 @@ import {
   formatKeyBindings,
   type OpenTuiKeymap,
   useKeymapSelector,
-  useOpencodeKeymap,
+  useTinycodeKeymap,
 } from "../keymap"
 import { useTuiConfig } from "../context/tui-config"
 
@@ -25,7 +25,7 @@ function isSuggestedPaletteCommand(entry: PaletteCommandEntry) {
 
 export function CommandPaletteDialog() {
   const config = useTuiConfig()
-  const keymap = useOpencodeKeymap()
+  const keymap = useTinycodeKeymap()
   const entries = useKeymapSelector((keymap: OpenTuiKeymap) => {
     const query = {
       namespace: "palette",

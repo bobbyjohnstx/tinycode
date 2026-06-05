@@ -14,14 +14,14 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Glob } from "@opencode-ai/core/util/glob"
 import * as Log from "@opencode-ai/core/util/log"
 import { Discovery } from "./discovery"
-import CUSTOMIZE_OPENCODE_SKILL_BODY from "./prompt/customize-tinycode.md" with { type: "text" }
+import CUSTOMIZE_TINYCODE_SKILL_BODY from "./prompt/customize-tinycode.md" with { type: "text" }
 import { isRecord } from "@/util/record"
 
 const log = Log.create({ service: "skill" })
 const CLAUDE_EXTERNAL_DIR = ".claude"
 const AGENTS_EXTERNAL_DIR = ".agents"
 const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
-const OPENCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
+const TINYCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
 const SKILL_PATTERN = "**/SKILL.md"
 
 // Built-in skill that ships with tinycode. The model's intuition for what a
@@ -29,8 +29,8 @@ const SKILL_PATTERN = "**/SKILL.md"
 // invalid config, so users hit cryptic startup errors. Loading this skill
 // when the model is asked to touch tinycode's own config files gives it the
 // actual schemas instead of guesses.
-const CUSTOMIZE_OPENCODE_SKILL_NAME = "customize-tinycode"
-const CUSTOMIZE_OPENCODE_SKILL_DESCRIPTION =
+const CUSTOMIZE_TINYCODE_SKILL_NAME = "customize-tinycode"
+const CUSTOMIZE_TINYCODE_SKILL_DESCRIPTION =
   "Use ONLY when the user is editing or creating tinycode's own configuration: tinycode.json, tinycode.jsonc, opencode.json, opencode.jsonc, files under .tinycode/ or .opencode/, or files under ~/.config/tinycode/. Also use when creating or fixing tinycode agents, subagents, skills, plugins, MCP servers, or permission rules. Do not use for the user's own application code, or for any project that is not configuring tinycode itself."
 
 export const Info = Schema.Struct({
@@ -203,7 +203,7 @@ const discoverSkills = Effect.fnUntraced(function* (
 
   const configDirs = yield* config.directories()
   for (const dir of configDirs) {
-    yield* scan(state, dir, OPENCODE_SKILL_PATTERN)
+    yield* scan(state, dir, TINYCODE_SKILL_PATTERN)
   }
 
   const cfg = yield* config.get()
@@ -270,11 +270,11 @@ export const layer = Layer.effect(
         const s: State = { skills: {}, dirs: new Set() }
         // Register the built-in skill BEFORE disk discovery so a user-disk
         // skill with the same name can override it.
-        s.skills[CUSTOMIZE_OPENCODE_SKILL_NAME] = {
-          name: CUSTOMIZE_OPENCODE_SKILL_NAME,
-          description: CUSTOMIZE_OPENCODE_SKILL_DESCRIPTION,
+        s.skills[CUSTOMIZE_TINYCODE_SKILL_NAME] = {
+          name: CUSTOMIZE_TINYCODE_SKILL_NAME,
+          description: CUSTOMIZE_TINYCODE_SKILL_DESCRIPTION,
           location: "<built-in>",
-          content: CUSTOMIZE_OPENCODE_SKILL_BODY,
+          content: CUSTOMIZE_TINYCODE_SKILL_BODY,
         }
         yield* loadSkills(s, yield* InstanceState.get(discovered), bus)
         return s

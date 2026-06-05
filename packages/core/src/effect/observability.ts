@@ -45,7 +45,7 @@ export function resource(): { serviceName: string; serviceVersion: string; attri
     attributes: {
       ...attributes,
       "deployment.environment.name": InstallationChannel,
-      "tinycode.client": Flag.OPENCODE_CLIENT,
+      "tinycode.client": Flag.TINYCODE_CLIENT,
       "tinycode.process_role": processMetadata.processRole,
       "tinycode.run_id": processMetadata.runID,
       "service.instance.id": processID,

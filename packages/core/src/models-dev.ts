@@ -12,7 +12,7 @@ import { EventV2 } from "./event"
 export const CatalogModelStatus = Schema.Literals(["alpha", "beta", "deprecated"])
 export type CatalogModelStatus = typeof CatalogModelStatus.Type
 
-const USER_AGENT = `tinycode/${InstallationChannel}/${InstallationVersion}/${Flag.OPENCODE_CLIENT}`
+const USER_AGENT = `tinycode/${InstallationChannel}/${InstallationVersion}/${Flag.TINYCODE_CLIENT}`
 
 const CostTier = Schema.Struct({
   input: Schema.Finite,
@@ -113,7 +113,7 @@ export const Event = {
   }),
 }
 
-declare const OPENCODE_MODELS_DEV: Record<string, Provider> | undefined
+declare const TINYCODE_MODELS_DEV: Record<string, Provider> | undefined
 
 export interface Interface {
   readonly get: () => Effect.Effect<Record<string, Provider>>
@@ -137,7 +137,7 @@ export const layer = Layer.effect(
       ),
     )
 
-    const source = Flag.OPENCODE_MODELS_URL
+    const source = Flag.TINYCODE_MODELS_URL
     const filepath = source
       ? path.join(Global.Path.cache, `models-${Hash.fast(source)}.json`)
       : undefined
@@ -162,13 +162,13 @@ export const layer = Layer.effect(
       )
     })
 
-    const loadFromDisk = fs.readJson(Flag.OPENCODE_MODELS_PATH ?? (filepath ?? "")).pipe(
+    const loadFromDisk = fs.readJson(Flag.TINYCODE_MODELS_PATH ?? (filepath ?? "")).pipe(
       Effect.catch(() => Effect.succeed(undefined)),
       Effect.map((v) => v as Record<string, Provider> | undefined),
     )
 
     const loadSnapshot = Effect.sync(() =>
-      typeof OPENCODE_MODELS_DEV === "undefined" ? undefined : OPENCODE_MODELS_DEV,
+      typeof TINYCODE_MODELS_DEV === "undefined" ? undefined : TINYCODE_MODELS_DEV,
     )
 
     const loadLocalCatalog = Effect.tryPromise({
@@ -191,7 +191,7 @@ export const layer = Layer.effect(
       const snapshot = yield* loadSnapshot
       if (snapshot) return snapshot
       // If a remote URL is configured, fetch from it; otherwise use bundled catalog.
-      if (source && !Flag.OPENCODE_DISABLE_MODELS_FETCH) {
+      if (source && !Flag.TINYCODE_DISABLE_MODELS_FETCH) {
         // Flock is cross-process: concurrent opencode CLIs can race on this cache file.
         const text = yield* Effect.scoped(
           Effect.gen(function* () {
@@ -231,7 +231,7 @@ export const layer = Layer.effect(
       )
     })
 
-    if (source && !Flag.OPENCODE_DISABLE_MODELS_FETCH && !process.argv.includes("--get-yargs-completions")) {
+    if (source && !Flag.TINYCODE_DISABLE_MODELS_FETCH && !process.argv.includes("--get-yargs-completions")) {
       // Schedule.spaced runs the effect once, then waits between completions.
       yield* Effect.forkScoped(refresh().pipe(Effect.repeat(Schedule.spaced("60 minutes")), Effect.ignore))
     }

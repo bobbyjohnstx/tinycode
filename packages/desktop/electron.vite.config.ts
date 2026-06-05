@@ -6,9 +6,9 @@ import * as fs from "node:fs/promises"
 const TINYCODE_SERVER_DIST = "../tinycode/dist/node"
 
 const channel = (() => {
-  const raw = process.env.OPENCODE_CHANNEL
+  const raw = process.env.TINYCODE_CHANNEL
   if (raw === "dev" || raw === "beta" || raw === "prod") return raw
-  if (process.env.OPENCODE_CHANNEL === "latest") return "prod"
+  if (process.env.TINYCODE_CHANNEL === "latest") return "prod"
   return "dev"
 })()
 
@@ -34,7 +34,7 @@ const sentry =
 export default defineConfig({
   main: {
     define: {
-      "import.meta.env.OPENCODE_CHANNEL": JSON.stringify(channel),
+      "import.meta.env.TINYCODE_CHANNEL": JSON.stringify(channel),
     },
     build: {
       rollupOptions: {

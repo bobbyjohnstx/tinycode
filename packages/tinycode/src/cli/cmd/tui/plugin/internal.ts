@@ -37,6 +37,6 @@ export function internalTuiPlugins(flags: Pick<RuntimeFlags.Info, "experimentalE
     WhichKey,
     DiffViewer,
     ...(flags.experimentalEventSystem ? [SessionV2Debug] : []),
-    ...(Flag.OPENCODE_EXPERIMENTAL_SESSION_SWITCHER ? [SessionSwitcher] : []),
+    ...(Flag.TINYCODE_EXPERIMENTAL_SESSION_SWITCHER ? [SessionSwitcher] : []),
   ]
 }

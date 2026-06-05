@@ -86,7 +86,7 @@ const cli = yargs(args)
   })
   .middleware(async (opts) => {
     if (opts.pure) {
-      process.env.OPENCODE_PURE = "1"
+      process.env.TINYCODE_PURE = "1"
     }
 
     await Log.init({
@@ -105,7 +105,7 @@ const cli = yargs(args)
 
     process.env.AGENT = "1"
     process.env.OPENCODE = "1"
-    process.env.OPENCODE_PID = String(process.pid)
+    process.env.TINYCODE_PID = String(process.pid)
 
     Log.Default.info("tinycode", {
       version: InstallationVersion,

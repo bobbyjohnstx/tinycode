@@ -12,13 +12,13 @@ import { useTuiConfig } from "./context/tui-config"
 import { TuiKeybind } from "./config/keybind"
 
 export const LEADER_TOKEN = "leader"
-export const OPENCODE_BASE_MODE = "base"
+export const TINYCODE_BASE_MODE = "base"
 export const COMMAND_PALETTE_COMMAND = "command.palette.show"
 
-const OPENCODE_MODE_KEY = "tinycode.mode"
+const TINYCODE_MODE_KEY = "tinycode.mode"
 
 export const OpencodeKeymapProvider = KeymapProvider
-export const useOpencodeKeymap = useKeymap
+export const useTinycodeKeymap = useKeymap
 
 export { useBindings, useKeymapSelector }
 
@@ -39,11 +39,11 @@ function isVisiblePaletteCommand(command: Command) {
 }
 
 export function createOpencodeModeStack(keymap: OpenTuiKeymap) {
-  keymap.setData(OPENCODE_MODE_KEY, OPENCODE_BASE_MODE)
+  keymap.setData(TINYCODE_MODE_KEY, TINYCODE_BASE_MODE)
 
   const offFields = keymap.registerLayerFields({
     mode(value, ctx) {
-      ctx.require(OPENCODE_MODE_KEY, value)
+      ctx.require(TINYCODE_MODE_KEY, value)
     },
   })
 
@@ -51,12 +51,12 @@ export function createOpencodeModeStack(keymap: OpenTuiKeymap) {
   let disposed = false
 
   const update = () => {
-    keymap.setData(OPENCODE_MODE_KEY, stack.at(-1)?.mode ?? OPENCODE_BASE_MODE)
+    keymap.setData(TINYCODE_MODE_KEY, stack.at(-1)?.mode ?? TINYCODE_BASE_MODE)
   }
 
   const stackApi = {
     current() {
-      return stack.at(-1)?.mode ?? OPENCODE_BASE_MODE
+      return stack.at(-1)?.mode ?? TINYCODE_BASE_MODE
     },
     push(mode: string) {
       if (disposed) return () => {}
@@ -78,7 +78,7 @@ export function createOpencodeModeStack(keymap: OpenTuiKeymap) {
       disposed = true
       stack.length = 0
       offFields()
-      keymap.setData(OPENCODE_MODE_KEY, undefined)
+      keymap.setData(TINYCODE_MODE_KEY, undefined)
       modeStacks.delete(keymap)
     },
   }
@@ -88,7 +88,7 @@ export function createOpencodeModeStack(keymap: OpenTuiKeymap) {
 }
 
 export function useOpencodeModeStack() {
-  return getOpencodeModeStack(useOpencodeKeymap())
+  return getOpencodeModeStack(useTinycodeKeymap())
 }
 
 export function getOpencodeModeStack(keymap: OpenTuiKeymap) {
@@ -241,7 +241,7 @@ export function useLeaderActive(): Accessor<boolean> {
 }
 
 export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
-  const keymap = useOpencodeKeymap()
+  const keymap = useTinycodeKeymap()
   const entries = useKeymapSelector((keymap: OpenTuiKeymap) =>
     keymap.getCommandEntries({
       visibility: "reachable",

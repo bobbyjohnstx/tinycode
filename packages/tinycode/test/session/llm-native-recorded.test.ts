@@ -75,7 +75,7 @@ const recordOpenAIOAuth = (() => {
 })()
 
 function decodeRecordOpenAIOAuth() {
-  const value = process.env.OPENCODE_RECORD_OPENAI_AUTH
+  const value = process.env.TINYCODE_RECORD_OPENAI_AUTH
   if (!value) return undefined
   try {
     const auth = Option.getOrUndefined(decodeAuth(JSON.parse(value)))

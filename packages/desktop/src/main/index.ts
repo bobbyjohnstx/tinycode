@@ -49,7 +49,7 @@ const APP_IDS: Record<string, string> = {
   beta: "ai.tinycode.desktop.beta",
   prod: "ai.tinycode.desktop",
 }
-const TEST_ONBOARDING = process.env.OPENCODE_TEST_ONBOARDING === "1"
+const TEST_ONBOARDING = process.env.TINYCODE_TEST_ONBOARDING === "1"
 const jsCallStackFeature = "DocumentPolicyIncludeJSCallStacksInCrashReports"
 
 let logger: ReturnType<typeof initLogging>
@@ -117,7 +117,7 @@ const main = Effect.gen(function* () {
     process.chdir(homedir())
   } catch {}
 
-  process.env.OPENCODE_DISABLE_EMBEDDED_WEB_UI = "true"
+  process.env.TINYCODE_DISABLE_EMBEDDED_WEB_UI = "true"
 
   const appId = app.isPackaged ? APP_IDS[CHANNEL] : "ai.tinycode.desktop.dev"
   const onboardingTestRoot = ((): string | undefined => {
@@ -128,7 +128,7 @@ const main = Effect.gen(function* () {
     ;["data", "config", "cache", "state", "desktop", "session"].forEach((dir) =>
       mkdirSync(join(root, dir), { recursive: true }),
     )
-    process.env.OPENCODE_DB = ":memory:"
+    process.env.TINYCODE_DB = ":memory:"
     process.env.XDG_DATA_HOME = join(root, "data")
     process.env.XDG_CONFIG_HOME = join(root, "config")
     process.env.XDG_CACHE_HOME = join(root, "cache")
@@ -276,7 +276,7 @@ const main = Effect.gen(function* () {
   )
 
   const needsMigration = ((): boolean => {
-    if (process.env.OPENCODE_DB === ":memory:") return false
+    if (process.env.TINYCODE_DB === ":memory:") return false
 
     const xdg = process.env.XDG_DATA_HOME
     const base = xdg && xdg.length > 0 ? xdg : join(homedir(), ".local", "share")
@@ -285,7 +285,7 @@ const main = Effect.gen(function* () {
   let overlay: BrowserWindow | null = null
 
   const port = yield* Effect.gen(function* () {
-    const fromEnv = process.env.OPENCODE_PORT
+    const fromEnv = process.env.TINYCODE_PORT
     if (fromEnv) {
       const parsed = Number.parseInt(fromEnv, 10)
       if (!Number.isNaN(parsed)) return parsed
