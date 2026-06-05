@@ -17,7 +17,7 @@ export const exerciseDataDirectory = path.join(exerciseGlobalRoot, "data", "open
 const preserveExerciseDatabase = !!process.env.TINYCODE_HTTPAPI_EXERCISE_DB
 export const exerciseDatabasePath =
   process.env.TINYCODE_HTTPAPI_EXERCISE_DB ??
-  path.join(process.env.TMPDIR ?? "/tmp", `opencode-httpapi-exercise-${process.pid}.db`)
+  path.join(process.env.TMPDIR ?? "/tmp", `tinycode-httpapi-exercise-${process.pid}.db`)
 process.env.TINYCODE_DB = exerciseDatabasePath
 Flag.TINYCODE_DB = exerciseDatabasePath
 

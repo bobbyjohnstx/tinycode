@@ -8,14 +8,14 @@ import { Global } from "@opencode-ai/core/global"
 import * as Log from "@opencode-ai/core/util/log"
 import { NamedError } from "@opencode-ai/core/util/error"
 import path from "path"
-import { readFileSync, readdirSync, existsSync } from "fs"
+import { readFileSync, readdirSync, existsSync, renameSync } from "fs"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { InstallationChannel } from "@opencode-ai/core/installation/version"
 import { EffectBridge } from "@/effect/bridge"
 import { init } from "#db"
 import { Effect, Schema } from "effect"
 
-declare const OPENCODE_MIGRATIONS: { sql: string; timestamp: number; name: string }[] | undefined
+declare const TINYCODE_MIGRATIONS: { sql: string; timestamp: number; name: string }[] | undefined
 
 export const NotFoundError = NamedError.create("NotFoundError", {
   message: Schema.String,
@@ -28,11 +28,25 @@ type DatabaseFlags = Pick<RuntimeFlags.Info, "disableChannelDb" | "skipMigration
 const readRuntimeFlags = () =>
   Effect.runSync(RuntimeFlags.Service.useSync((flags) => flags).pipe(Effect.provide(RuntimeFlags.defaultLayer)))
 
+function migrateDbFile(newPath: string, oldPath: string) {
+  if (existsSync(newPath) || !existsSync(oldPath)) return
+  log.info("migrating database", { from: oldPath, to: newPath })
+  renameSync(oldPath, newPath)
+  for (const ext of ["-wal", "-shm"]) {
+    if (existsSync(oldPath + ext)) renameSync(oldPath + ext, newPath + ext)
+  }
+}
+
 export function getChannelPath(flags: Pick<DatabaseFlags, "disableChannelDb"> = readRuntimeFlags()) {
-  if (["latest", "beta", "prod"].includes(InstallationChannel) || flags.disableChannelDb)
-    return path.join(Global.Path.data, "opencode.db")
+  if (["latest", "beta", "prod"].includes(InstallationChannel) || flags.disableChannelDb) {
+    const newPath = path.join(Global.Path.data, "tinycode.db")
+    migrateDbFile(newPath, path.join(Global.Path.data, "opencode.db"))
+    return newPath
+  }
   const safe = InstallationChannel.replace(/[^a-zA-Z0-9._-]/g, "-")
-  return path.join(Global.Path.data, `opencode-${safe}.db`)
+  const newPath = path.join(Global.Path.data, `tinycode-${safe}.db`)
+  migrateDbFile(newPath, path.join(Global.Path.data, `opencode-${safe}.db`))
+  return newPath
 }
 
 export const getPath = (flags?: Pick<DatabaseFlags, "disableChannelDb">) => {
@@ -110,13 +124,13 @@ export const Client = Object.assign(
 
     // Apply schema migrations
     const entries =
-      typeof OPENCODE_MIGRATIONS !== "undefined"
-        ? OPENCODE_MIGRATIONS
+      typeof TINYCODE_MIGRATIONS !== "undefined"
+        ? TINYCODE_MIGRATIONS
         : migrations(path.join(import.meta.dirname, "../../migration"))
     if (entries.length > 0) {
       log.info("applying migrations", {
         count: entries.length,
-        mode: typeof OPENCODE_MIGRATIONS !== "undefined" ? "bundled" : "dev",
+        mode: typeof TINYCODE_MIGRATIONS !== "undefined" ? "bundled" : "dev",
       })
       if (flags.skipMigrations) {
         for (const item of entries) {
