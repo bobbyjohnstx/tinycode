@@ -140,9 +140,9 @@ async function showRemovalSummary(targets: RemovalTargets, method: InstallationM
       pnpm: "pnpm uninstall -g opencode-ai",
       bun: "bun remove -g opencode-ai",
       yarn: "yarn global remove opencode-ai",
-      brew: "brew uninstall opencode",
-      choco: "choco uninstall opencode",
-      scoop: "scoop uninstall opencode",
+      brew: "brew uninstall tinycode",
+      choco: "choco uninstall tinycode",
+      scoop: "scoop uninstall tinycode",
     }
     prompts.log.info(`  ✓ Package: ${cmds[method] || method}`)
   }
@@ -273,7 +273,7 @@ async function getShellConfigFile(): Promise<string | null> {
     if (!exists) continue
 
     const content = await Filesystem.readText(file).catch(() => "")
-    if (content.includes("# opencode") || content.includes(".opencode/bin")) {
+    if (content.includes("# tinycode") || content.includes(".opencode/bin")) {
       return file
     }
   }
@@ -291,7 +291,7 @@ async function cleanShellConfig(file: string) {
   for (const line of lines) {
     const trimmed = line.trim()
 
-    if (trimmed === "# opencode") {
+    if (trimmed === "# tinycode") {
       skip = true
       continue
     }

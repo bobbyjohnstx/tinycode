@@ -155,7 +155,7 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     })
   }
 
-  const opencodeProjectID = input.model.providerID.startsWith("opencode")
+  const tinycodeProjectID = input.model.providerID.startsWith("opencode")
     ? (yield* InstanceState.context).project.id
     : undefined
 
@@ -168,7 +168,7 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     headers: {
       ...(input.model.providerID.startsWith("opencode")
         ? {
-            ...(opencodeProjectID ? { "x-tinycode-project": opencodeProjectID } : {}),
+            ...(tinycodeProjectID ? { "x-tinycode-project": tinycodeProjectID } : {}),
             "x-tinycode-session": input.sessionID,
             "x-tinycode-request": input.user.id,
             "x-tinycode-client": input.flags.client,

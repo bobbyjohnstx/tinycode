@@ -681,7 +681,7 @@ export const McpDebugCommand = effectCmd({
             params: {
               protocolVersion: "2024-11-05",
               capabilities: {},
-              clientInfo: { name: "opencode-debug", version: InstallationVersion },
+              clientInfo: { name: "tinycode-debug", version: InstallationVersion },
             },
             id: 1,
           }),
@@ -724,7 +724,7 @@ export const McpDebugCommand = effectCmd({
 
           try {
             const client = new Client({
-              name: "opencode-debug",
+              name: "tinycode-debug",
               version: InstallationVersion,
             })
             await client.connect(transport)

@@ -192,7 +192,7 @@ export const layer = Layer.effect(
       if (snapshot) return snapshot
       // If a remote URL is configured, fetch from it; otherwise use bundled catalog.
       if (source && !Flag.TINYCODE_DISABLE_MODELS_FETCH) {
-        // Flock is cross-process: concurrent opencode CLIs can race on this cache file.
+        // Flock is cross-process: concurrent tinycode CLIs can race on this cache file.
         const text = yield* Effect.scoped(
           Effect.gen(function* () {
             yield* Flock.effect(lockKey)
