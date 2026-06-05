@@ -4,10 +4,8 @@
   "version": "1.15.12",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://opencode.ai",
   "author": {
-    "name": "OpenCode",
-    "email": "hello@opencode.ai"
+    "name": "TinyCode"
   },
   "scripts": {
     "typecheck": "tsgo -b",

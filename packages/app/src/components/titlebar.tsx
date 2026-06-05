@@ -650,7 +650,7 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
                         </Tooltip>
                       </div>
                     </Show>
-                    <div id="opencode-titlebar-left" class="flex items-center gap-3 min-w-0 px-2" />
+                    <div id="tinycode-titlebar-left" class="flex items-center gap-3 min-w-0 px-2" />
                     <ChannelIndicator />
                   </div>
                 </div>
@@ -659,7 +659,7 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
 
             <div class="min-w-0 flex items-center justify-center pointer-events-none">
               <div
-                id="opencode-titlebar-center"
+                id="tinycode-titlebar-center"
                 class="pointer-events-auto min-w-0 flex justify-center w-fit max-w-full"
               />
             </div>
@@ -672,7 +672,7 @@ export function Titlebar(props: { update?: TitlebarUpdate }) {
               data-tauri-drag-region
               onMouseDown={drag}
             >
-              <div id="opencode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
+              <div id="tinycode-titlebar-right" class="flex items-center gap-1 shrink-0 justify-end" />
               <Show when={windows()}>
                 {!tauriApi() && <div class="shrink-0" style={{ width: windowsControlsWidth() }} />}
                 <div data-tauri-decorum-tb class="flex flex-row" />
@@ -709,7 +709,7 @@ function TitlebarV2Right(props: { state: TitlebarV2RightState }) {
           <StatusPopoverV2 scope="server" />
         </Tooltip>
       </Show>
-      <div id="opencode-titlebar-right" class="flex shrink-0 items-center justify-end gap-0" />
+      <div id="tinycode-titlebar-right" class="flex shrink-0 items-center justify-end gap-0" />
     </div>
   )
 }

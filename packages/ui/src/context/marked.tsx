@@ -6,9 +6,9 @@ import { bundledLanguages, type BundledLanguage } from "shiki"
 import { createSimpleContext } from "./helper"
 import { getSharedHighlighter, registerCustomTheme, ThemeRegistrationResolved } from "@pierre/diffs"
 
-registerCustomTheme("OpenCode", () => {
+registerCustomTheme("TinyCode", () => {
   return Promise.resolve({
-    name: "OpenCode",
+    name: "TinyCode",
     colors: {
       "editor.background": "var(--color-background-stronger)",
       "editor.foreground": "var(--text-base)",
@@ -484,7 +484,7 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
       markedShiki({
         async highlight(code, lang) {
           const highlighter = await getSharedHighlighter({
-            themes: ["OpenCode"],
+            themes: ["TinyCode"],
             langs: [],
             preferredHighlighter: "shiki-wasm",
           })
@@ -496,7 +496,7 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
           }
           return highlighter.codeToHtml(code, {
             lang: lang || "text",
-            theme: "OpenCode",
+            theme: "TinyCode",
             tabindex: false,
           })
         },

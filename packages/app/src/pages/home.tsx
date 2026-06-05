@@ -213,7 +213,7 @@ function HomeDesign() {
         clearNotifications={clearNotifications}
         unseenCount={unseenCount}
         openSettings={openSettings}
-        openHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
+        openHelp={() => platform.openLink("")}
         language={language}
       />
 
