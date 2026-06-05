@@ -12,15 +12,16 @@ Database migration complete.
 Commands:
   tinycode completion          generate shell completion script
   tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start opencode tui                                          [default]
+  tinycode [project]           start tinycode tui                                          [default]
   tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run opencode with a message
+  tinycode run [message..]     run tinycode with a message
   tinycode debug               debugging and troubleshooting tools
   tinycode providers           manage AI providers and credentials                   [aliases: auth]
   tinycode agent               manage agents
-  tinycode uninstall           uninstall opencode and remove all related files
-  tinycode serve               starts a headless opencode server
-  tinycode web                 start opencode server and open web interface
+  tinycode uninstall           uninstall tinycode and remove all related files
+  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode serve               starts a headless tinycode server
+  tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data as JSON
   tinycode import <file>       import session data from JSON file or URL
@@ -29,7 +30,7 @@ Commands:
   tinycode db                  database tools
 
 Positionals:
-  project  path to start opencode in                                                        [string]
+  project  path to start tinycode in                                                        [string]
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -41,8 +42,8 @@ Options:
       --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
                                                                           [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
+      --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
+                                                                [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]
   -m, --model        model to use in the format of provider/model                           [string]
   -c, --continue     continue the last session                                             [boolean]
@@ -90,14 +91,14 @@ Options:
   -c, --continue    continue the last session                                              [boolean]
   -s, --session     session id to continue                                                  [string]
       --fork        fork the session when continuing (use with --continue or --session)    [boolean]
-  -p, --password    basic auth password (defaults to OPENCODE_SERVER_PASSWORD)              [string]
-  -u, --username    basic auth username (defaults to OPENCODE_SERVER_USERNAME or 'opencode')[string]"
+  -p, --password    basic auth password (defaults to TINYCODE_SERVER_PASSWORD)              [string]
+  -u, --username    basic auth username (defaults to TINYCODE_SERVER_USERNAME or 'tinycode')[string]"
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode run --help 1`] = `
 "tinycode run [message..]
 
-run opencode with a message
+run tinycode with a message
 
 Positionals:
   message  message to send                                                     [array] [default: []]
@@ -123,10 +124,10 @@ Options:
                                       provided)                                             [string]
       --attach                        attach to a running tinycode server (e.g.,
                                       http://localhost:4096)                                [string]
-  -p, --password                      basic auth password (defaults to OPENCODE_SERVER_PASSWORD)
+  -p, --password                      basic auth password (defaults to TINYCODE_SERVER_PASSWORD)
                                                                                             [string]
-  -u, --username                      basic auth username (defaults to OPENCODE_SERVER_USERNAME or
-                                      'opencode')                                           [string]
+  -u, --username                      basic auth username (defaults to TINYCODE_SERVER_USERNAME or
+                                      'tinycode')                                           [string]
       --dir                           directory to run in, path on remote server if attaching
                                                                                             [string]
       --port                          port for the local server (defaults to random port if no value
@@ -221,15 +222,16 @@ Database migration complete.
 Commands:
   tinycode completion          generate shell completion script
   tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start opencode tui                                          [default]
+  tinycode [project]           start tinycode tui                                          [default]
   tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run opencode with a message
+  tinycode run [message..]     run tinycode with a message
   tinycode debug               debugging and troubleshooting tools
   tinycode providers           manage AI providers and credentials                   [aliases: auth]
   tinycode agent               manage agents
-  tinycode uninstall           uninstall opencode and remove all related files
-  tinycode serve               starts a headless opencode server
-  tinycode web                 start opencode server and open web interface
+  tinycode uninstall           uninstall tinycode and remove all related files
+  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode serve               starts a headless tinycode server
+  tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data as JSON
   tinycode import <file>       import session data from JSON file or URL
@@ -238,7 +240,7 @@ Commands:
   tinycode db                  database tools
 
 Positionals:
-  project  path to start opencode in                                                        [string]
+  project  path to start tinycode in                                                        [string]
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -250,8 +252,8 @@ Options:
       --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
                                                                           [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
+      --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
+                                                                [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]
   -m, --model        model to use in the format of provider/model                           [string]
   -c, --continue     continue the last session                                             [boolean]
@@ -264,7 +266,7 @@ Options:
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode uninstall --help 1`] = `
 "tinycode uninstall
 
-uninstall opencode and remove all related files
+uninstall tinycode and remove all related files
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -281,7 +283,7 @@ Options:
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode serve --help 1`] = `
 "tinycode serve
 
-starts a headless opencode server
+starts a headless tinycode server
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -293,15 +295,15 @@ Options:
       --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
                                                                           [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
+      --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
+                                                                [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]"
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode web --help 1`] = `
 "tinycode web
 
-start opencode server and open web interface
+start tinycode server and open web interface
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -313,8 +315,8 @@ Options:
       --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
                                                                           [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
+      --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
+                                                                [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]"
 `;
 
@@ -348,15 +350,16 @@ Database migration complete.
 Commands:
   tinycode completion          generate shell completion script
   tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start opencode tui                                          [default]
+  tinycode [project]           start tinycode tui                                          [default]
   tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run opencode with a message
+  tinycode run [message..]     run tinycode with a message
   tinycode debug               debugging and troubleshooting tools
   tinycode providers           manage AI providers and credentials                   [aliases: auth]
   tinycode agent               manage agents
-  tinycode uninstall           uninstall opencode and remove all related files
-  tinycode serve               starts a headless opencode server
-  tinycode web                 start opencode server and open web interface
+  tinycode uninstall           uninstall tinycode and remove all related files
+  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode serve               starts a headless tinycode server
+  tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data as JSON
   tinycode import <file>       import session data from JSON file or URL
@@ -365,7 +368,7 @@ Commands:
   tinycode db                  database tools
 
 Positionals:
-  project  path to start opencode in                                                        [string]
+  project  path to start tinycode in                                                        [string]
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -377,8 +380,8 @@ Options:
       --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
                                                                           [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
+      --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
+                                                                [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]
   -m, --model        model to use in the format of provider/model                           [string]
   -c, --continue     continue the last session                                             [boolean]
@@ -433,15 +436,16 @@ Database migration complete.
 Commands:
   tinycode completion          generate shell completion script
   tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start opencode tui                                          [default]
+  tinycode [project]           start tinycode tui                                          [default]
   tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run opencode with a message
+  tinycode run [message..]     run tinycode with a message
   tinycode debug               debugging and troubleshooting tools
   tinycode providers           manage AI providers and credentials                   [aliases: auth]
   tinycode agent               manage agents
-  tinycode uninstall           uninstall opencode and remove all related files
-  tinycode serve               starts a headless opencode server
-  tinycode web                 start opencode server and open web interface
+  tinycode uninstall           uninstall tinycode and remove all related files
+  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode serve               starts a headless tinycode server
+  tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data as JSON
   tinycode import <file>       import session data from JSON file or URL
@@ -450,7 +454,7 @@ Commands:
   tinycode db                  database tools
 
 Positionals:
-  project  path to start opencode in                                                        [string]
+  project  path to start tinycode in                                                        [string]
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -462,8 +466,8 @@ Options:
       --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
                                                                           [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
+      --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
+                                                                [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]
   -m, --model        model to use in the format of provider/model                           [string]
   -c, --continue     continue the last session                                             [boolean]
@@ -485,15 +489,16 @@ Database migration complete.
 Commands:
   tinycode completion          generate shell completion script
   tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start opencode tui                                          [default]
+  tinycode [project]           start tinycode tui                                          [default]
   tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run opencode with a message
+  tinycode run [message..]     run tinycode with a message
   tinycode debug               debugging and troubleshooting tools
   tinycode providers           manage AI providers and credentials                   [aliases: auth]
   tinycode agent               manage agents
-  tinycode uninstall           uninstall opencode and remove all related files
-  tinycode serve               starts a headless opencode server
-  tinycode web                 start opencode server and open web interface
+  tinycode uninstall           uninstall tinycode and remove all related files
+  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode serve               starts a headless tinycode server
+  tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data as JSON
   tinycode import <file>       import session data from JSON file or URL
@@ -502,7 +507,7 @@ Commands:
   tinycode db                  database tools
 
 Positionals:
-  project  path to start opencode in                                                        [string]
+  project  path to start tinycode in                                                        [string]
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -514,8 +519,8 @@ Options:
       --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
                                                                           [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
+      --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
+                                                                [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]
   -m, --model        model to use in the format of provider/model                           [string]
   -c, --continue     continue the last session                                             [boolean]
@@ -662,7 +667,7 @@ exports[`tinycode CLI help-text snapshots every documented command emits stable 
 log in to a provider
 
 Positionals:
-  url  opencode auth provider                                                               [string]
+  url  tinycode auth provider                                                               [string]
 
 Options:
   -h, --help        show help                                                              [boolean]
@@ -763,15 +768,16 @@ Database migration complete.
 Commands:
   tinycode completion          generate shell completion script
   tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start opencode tui                                          [default]
+  tinycode [project]           start tinycode tui                                          [default]
   tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run opencode with a message
+  tinycode run [message..]     run tinycode with a message
   tinycode debug               debugging and troubleshooting tools
   tinycode providers           manage AI providers and credentials                   [aliases: auth]
   tinycode agent               manage agents
-  tinycode uninstall           uninstall opencode and remove all related files
-  tinycode serve               starts a headless opencode server
-  tinycode web                 start opencode server and open web interface
+  tinycode uninstall           uninstall tinycode and remove all related files
+  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode serve               starts a headless tinycode server
+  tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data as JSON
   tinycode import <file>       import session data from JSON file or URL
@@ -780,7 +786,7 @@ Commands:
   tinycode db                  database tools
 
 Positionals:
-  project  path to start opencode in                                                        [string]
+  project  path to start tinycode in                                                        [string]
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -792,8 +798,8 @@ Options:
       --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
                                                                           [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
+      --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
+                                                                [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]
   -m, --model        model to use in the format of provider/model                           [string]
   -c, --continue     continue the last session                                             [boolean]
@@ -815,15 +821,16 @@ Database migration complete.
 Commands:
   tinycode completion          generate shell completion script
   tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start opencode tui                                          [default]
+  tinycode [project]           start tinycode tui                                          [default]
   tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run opencode with a message
+  tinycode run [message..]     run tinycode with a message
   tinycode debug               debugging and troubleshooting tools
   tinycode providers           manage AI providers and credentials                   [aliases: auth]
   tinycode agent               manage agents
-  tinycode uninstall           uninstall opencode and remove all related files
-  tinycode serve               starts a headless opencode server
-  tinycode web                 start opencode server and open web interface
+  tinycode uninstall           uninstall tinycode and remove all related files
+  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode serve               starts a headless tinycode server
+  tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data as JSON
   tinycode import <file>       import session data from JSON file or URL
@@ -832,7 +839,7 @@ Commands:
   tinycode db                  database tools
 
 Positionals:
-  project  path to start opencode in                                                        [string]
+  project  path to start tinycode in                                                        [string]
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -844,8 +851,8 @@ Options:
       --hostname     hostname to listen on                           [string] [default: "127.0.0.1"]
       --mdns         enable mDNS service discovery (defaults hostname to 0.0.0.0)
                                                                           [boolean] [default: false]
-      --mdns-domain  custom domain name for mDNS service (default: opencode.local)
-                                                                [string] [default: "opencode.local"]
+      --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
+                                                                [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]
   -m, --model        model to use in the format of provider/model                           [string]
   -c, --continue     continue the last session                                             [boolean]
