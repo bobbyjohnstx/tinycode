@@ -61,7 +61,7 @@ export const workspaceRoutingLayer = Layer.effect(
             )
           : undefined
         const directory =
-          session?.directory || url.searchParams.get("directory") || request.headers["x-opencode-directory"] || process.cwd()
+          session?.directory || url.searchParams.get("directory") || request.headers["x-tinycode-directory"] || process.cwd()
         return yield* effect.pipe(
           Effect.provideService(
             WorkspaceRouteContext,

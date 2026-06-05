@@ -1,7 +1,7 @@
 import * as Log from "@opencode-ai/core/util/log"
 import { Effect } from "effect"
 
-export const HEADER = "x-opencode-sync"
+export const HEADER = "x-tinycode-sync"
 export type State = Record<string, number>
 const log = Log.create({ service: "fence" })
 

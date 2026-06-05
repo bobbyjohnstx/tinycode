@@ -34,7 +34,7 @@ const readEvent = (reader: ReadableStreamDefaultReader<Uint8Array>) =>
 const openEventStream = (directory: string) =>
   Effect.gen(function* () {
     const response = yield* Effect.promise(async () =>
-      Server.Default().app.request(EventPaths.event, { headers: { "x-opencode-directory": directory } }),
+      Server.Default().app.request(EventPaths.event, { headers: { "x-tinycode-directory": directory } }),
     )
     if (!response.body) return yield* Effect.die("missing SSE response body")
     const reader = response.body.getReader()

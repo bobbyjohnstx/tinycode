@@ -583,7 +583,7 @@ export const layer = Layer.effect(
           if (value.type === "wellknown") {
             const url = key.replace(/\/+$/, "")
             authEnv[value.key] = value.token
-            const wellknownURL = `${url}/.well-known/opencode`
+            const wellknownURL = `${url}/.well-known/tinycode`
             log.debug("fetching remote config", { url: wellknownURL })
             const wellknown = yield* fetchRemoteJson(wellknownURL, undefined, WellKnownConfig)
             const remote = yield* Effect.promise(() =>

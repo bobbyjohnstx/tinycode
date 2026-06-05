@@ -481,7 +481,7 @@ export const Terminal = (props: TerminalProps) => {
             { ptyID: id, directory },
             {
               throwOnError: false,
-              headers: { "x-opencode-ticket": "1" },
+              headers: { "x-tinycode-ticket": "1" },
             },
           )
           .catch((err: unknown) => {
