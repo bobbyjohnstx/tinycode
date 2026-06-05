@@ -80,8 +80,8 @@ const createEmbeddedWebUIBundle = async () => {
 
 const createEmbeddedAssetsBundle = async () => {
   console.log(`Building embedded assets bundle (agents + skills)`)
-  const agentDir = path.join(dir, ".opencode/agent")
-  const skillsDir = path.join(dir, ".opencode/skills")
+  const agentDir = path.join(dir, ".tinycode/agent")
+  const skillsDir = path.join(dir, ".tinycode/skills")
 
   // Collect agent .md files
   const agentFiles: string[] = (await fs.promises.readdir(agentDir).catch(() => [] as string[]))

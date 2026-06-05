@@ -96,7 +96,7 @@ describe("tinycode CLI help-text snapshots", () => {
   // versus ~1 minute if we serialized.
   cliIt.live(
     "every documented command emits stable help text",
-    ({ opencode }) =>
+    ({ tinycode }) =>
       Effect.gen(function* () {
         const argvs: Array<readonly string[]> = [...TOP_LEVEL.map((c) => [c] as const), ...SUBCOMMANDS]
 
@@ -108,7 +108,7 @@ describe("tinycode CLI help-text snapshots", () => {
           argvs,
           (argv) =>
             Effect.gen(function* () {
-              const result = yield* opencode.spawn([...argv, "--help"], { env: SNAPSHOT_ENV })
+              const result = yield* tinycode.spawn([...argv, "--help"], { env: SNAPSHOT_ENV })
               if (result.exitCode !== 0) {
                 return yield* Effect.fail(`tinycode ${argv.join(" ")}: exit ${result.exitCode}`)
               }

@@ -63,8 +63,8 @@ export const SetupCommand = {
       try {
         const sourceAgentDir =
           InstallationChannel === "local"
-            ? path.resolve(import.meta.dirname, "../../../../.opencode/agent/")
-            : path.resolve(import.meta.dirname, "../../../../.opencode/agent/")
+            ? path.resolve(import.meta.dirname, "../../../../.tinycode/agent/")
+            : path.resolve(import.meta.dirname, "../../../../.tinycode/agent/")
 
         const files = await fsNode.promises.readdir(sourceAgentDir).catch(() => [] as string[])
         let copied = 0
@@ -89,8 +89,8 @@ export const SetupCommand = {
       try {
         const sourceSkillsDir =
           InstallationChannel === "local"
-            ? path.resolve(import.meta.dirname, "../../../../.opencode/skills/")
-            : path.resolve(import.meta.dirname, "../../../../.opencode/skills/")
+            ? path.resolve(import.meta.dirname, "../../../../.tinycode/skills/")
+            : path.resolve(import.meta.dirname, "../../../../.tinycode/skills/")
 
         const entries = await fsNode.promises
           .readdir(sourceSkillsDir, { withFileTypes: true })

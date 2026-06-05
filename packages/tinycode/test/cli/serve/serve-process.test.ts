@@ -15,9 +15,9 @@ describe("tinycode serve (subprocess)", () => {
   // If this fails, all other serve tests likely will too — debug here first.
   cliIt.live(
     "starts, binds a port, and serves /global/health",
-    ({ opencode }) =>
+    ({ tinycode }) =>
       Effect.gen(function* () {
-        const server = yield* opencode.serve()
+        const server = yield* tinycode.serve()
         expect(server.port).toBeGreaterThan(0)
         expect(server.url).toMatch(/^http:\/\//)
 
@@ -38,12 +38,12 @@ describe("tinycode serve (subprocess)", () => {
   // to wire the finalizer) would leak processes on every test run.
   cliIt.live(
     "kills the subprocess on scope close",
-    ({ opencode }) =>
+    ({ tinycode }) =>
       Effect.gen(function* () {
         // Inner scope so we can observe `.exited` resolving after it closes.
         const exitedPromise = yield* Effect.scoped(
           Effect.gen(function* () {
-            const server = yield* opencode.serve()
+            const server = yield* tinycode.serve()
             // Capture the Promise, not the resolved value — scope closes after
             // this gen returns, at which point the finalizer kills the child.
             return server.exited

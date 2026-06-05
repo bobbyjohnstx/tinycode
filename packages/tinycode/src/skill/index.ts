@@ -31,7 +31,7 @@ const SKILL_PATTERN = "**/SKILL.md"
 // actual schemas instead of guesses.
 const CUSTOMIZE_TINYCODE_SKILL_NAME = "customize-tinycode"
 const CUSTOMIZE_TINYCODE_SKILL_DESCRIPTION =
-  "Use ONLY when the user is editing or creating tinycode's own configuration: tinycode.json, tinycode.jsonc, opencode.json, opencode.jsonc, files under .tinycode/ or .opencode/, or files under ~/.config/tinycode/. Also use when creating or fixing tinycode agents, subagents, skills, plugins, MCP servers, or permission rules. Do not use for the user's own application code, or for any project that is not configuring tinycode itself."
+  "Use ONLY when the user is editing or creating tinycode's own configuration: tinycode.json, tinycode.jsonc, files under .tinycode/ or files under ~/.config/tinycode/. Also use when creating or fixing tinycode agents, subagents, skills, plugins, MCP servers, or permission rules. Do not use for the user's own application code, or for any project that is not configuring tinycode itself."
 
 export const Info = Schema.Struct({
   name: Schema.String,

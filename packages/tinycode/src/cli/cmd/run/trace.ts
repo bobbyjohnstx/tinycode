@@ -1,6 +1,6 @@
 // Dev-only JSONL event trace for direct interactive mode.
 //
-// Enable with OPENCODE_DIRECT_TRACE=1. Writes one JSON line per event to
+// Enable with TINYCODE_DIRECT_TRACE=1. Writes one JSON line per event to
 // ~/.local/share/tinycode/log/direct/<timestamp>-<pid>.jsonl. Also writes
 // a latest.json pointer so you can quickly find the most recent trace.
 //

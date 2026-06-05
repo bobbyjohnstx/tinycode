@@ -11,7 +11,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "bin": {
-    "opencode": "./bin/opencode"
+    "tinycode": "./bin/tinycode"
   },
   "exports": {
     "./*": "./src/*.ts"

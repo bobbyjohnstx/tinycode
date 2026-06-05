@@ -7,7 +7,7 @@ type InstallationMethod = "curl" | "npm" | "yarn" | "pnpm" | "bun" | "brew" | "s
 
 async function detectInstallationMethod(): Promise<InstallationMethod> {
   const exec = process.execPath.toLowerCase()
-  if (exec.includes(".opencode/bin") || exec.includes(".local/bin")) return "curl"
+  if (exec.includes(".tinycode/bin") || exec.includes(".local/bin")) return "curl"
   return "unknown"
 }
 import fs from "fs/promises"
@@ -222,7 +222,7 @@ async function executeUninstall(method: InstallationMethod, targets: RemovalTarg
     prompts.log.info(`  rm "${targets.binary}"`)
 
     const binDir = path.dirname(targets.binary)
-    if (binDir.includes(".opencode")) {
+    if (binDir.includes(".tinycode")) {
       prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
     }
   }
@@ -236,7 +236,7 @@ async function executeUninstall(method: InstallationMethod, targets: RemovalTarg
   }
 
   UI.empty()
-  prompts.log.success("Thank you for using OpenCode!")
+  prompts.log.success("Thank you for using tinycode!")
 }
 
 async function getShellConfigFile(): Promise<string | null> {
@@ -273,7 +273,7 @@ async function getShellConfigFile(): Promise<string | null> {
     if (!exists) continue
 
     const content = await Filesystem.readText(file).catch(() => "")
-    if (content.includes("# tinycode") || content.includes(".opencode/bin")) {
+    if (content.includes("# tinycode") || content.includes(".tinycode/bin")) {
       return file
     }
   }
@@ -298,14 +298,14 @@ async function cleanShellConfig(file: string) {
 
     if (skip) {
       skip = false
-      if (trimmed.includes(".opencode/bin") || trimmed.includes("fish_add_path")) {
+      if (trimmed.includes(".tinycode/bin") || trimmed.includes("fish_add_path")) {
         continue
       }
     }
 
     if (
-      (trimmed.startsWith("export PATH=") && trimmed.includes(".opencode/bin")) ||
-      (trimmed.startsWith("fish_add_path") && trimmed.includes(".opencode"))
+      (trimmed.startsWith("export PATH=") && trimmed.includes(".tinycode/bin")) ||
+      (trimmed.startsWith("fish_add_path") && trimmed.includes(".tinycode"))
     ) {
       continue
     }

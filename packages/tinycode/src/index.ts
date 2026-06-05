@@ -34,7 +34,6 @@ import { Heap } from "./cli/heap"
 import { drizzle } from "drizzle-orm/bun-sqlite"
 import { ensureProcessMetadata } from "@opencode-ai/core/util/tinycode-process"
 import { isRecord } from "@/util/record"
-import * as ConfigMigration from "@/config/migration"
 import { Effect } from "effect"
 
 const processMetadata = ensureProcessMetadata("main")
@@ -101,10 +100,8 @@ const cli = yargs(args)
 
     Heap.start()
 
-    await Effect.runPromise(ConfigMigration.migrateConfig)
-
     process.env.AGENT = "1"
-    process.env.OPENCODE = "1"
+    process.env.TINYCODE = "1"
     process.env.TINYCODE_PID = String(process.pid)
 
     Log.Default.info("tinycode", {

@@ -197,7 +197,7 @@ export async function checkPluginCompatibility(target: string, tinycodeVersion: 
   if (!hit) return
   const engines = hit.json.engines
   if (!isRecord(engines)) return
-  const range = engines.tinycode ?? engines.opencode
+  const range = engines.tinycode
   if (typeof range !== "string") return
   if (!semver.satisfies(tinycodeVersion, range)) {
     throw new Error(`Plugin requires tinycode ${range} but running ${tinycodeVersion}`)
