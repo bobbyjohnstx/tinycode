@@ -1,7 +1,7 @@
 import { Context, Duration, Effect, Layer, Ref, Schedule } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { Schema } from "effect"
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@/core/util/log"
 import { ModelID, ProviderID } from "./schema"
 import type { Info, Model } from "./provider"
 

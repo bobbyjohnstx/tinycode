@@ -1,7 +1,7 @@
 import type { Argv } from "yargs"
 import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
-import { Global } from "@opencode-ai/core/global"
+import { Global } from "@/core/global"
 
 type InstallationMethod = "curl" | "npm" | "yarn" | "pnpm" | "bun" | "brew" | "scoop" | "choco" | "unknown"
 

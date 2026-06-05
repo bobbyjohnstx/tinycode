@@ -1,6 +1,6 @@
 import { NodeFileSystem } from "@effect/platform-node"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
-import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { AppFileSystem } from "@/core/filesystem"
+import { ModelsDev } from "@/core/models-dev"
 import { HttpRecorder, Redactor } from "@opencode-ai/http-recorder"
 import { describe, expect, test } from "bun:test"
 import { tool, type ModelMessage, type JSONValue } from "ai"

@@ -1,4 +1,4 @@
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@/core/util/log"
 import { Effect } from "effect"
 
 export const HEADER = "x-tinycode-sync"

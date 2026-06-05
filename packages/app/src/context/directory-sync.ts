@@ -1,7 +1,7 @@
 import { batch, createMemo } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
-import { Binary } from "@opencode-ai/core/util/binary"
-import { retry } from "@opencode-ai/core/util/retry"
+import { Binary } from "tinycode/core/util/binary"
+import { retry } from "tinycode/core/util/retry"
 import {
   clearSessionPrefetch,
   getSessionPrefetch,

@@ -1,4 +1,4 @@
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { AppFileSystem } from "@/core/filesystem"
 import { Effect } from "effect"
 import { HttpClient, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createHash } from "node:crypto"

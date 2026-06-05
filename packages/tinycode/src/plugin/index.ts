@@ -7,12 +7,12 @@ import type {
 } from "@opencode-ai/plugin"
 import { Config } from "@/config/config"
 import { Bus } from "../bus"
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@/core/util/log"
 import { createOpencodeClient } from "@opencode-ai/sdk"
 import { ServerAuth } from "@/server/auth"
 import { CodexAuthPlugin } from "./openai/codex"
 import { Session } from "@/session/session"
-import { NamedError } from "@opencode-ai/core/util/error"
+import { NamedError } from "@/core/util/error"
 import { CopilotAuthPlugin } from "./github-copilot/copilot"
 import { gitlabAuthPlugin as GitlabAuthPlugin } from "opencode-gitlab-auth"
 import { PoeAuthPlugin } from "opencode-poe-auth"
@@ -27,7 +27,7 @@ import { errorMessage } from "@/util/error"
 import { PluginLoader } from "./loader"
 import { parsePluginSpecifier, readPluginId, readV1Plugin, resolvePluginId } from "./shared"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { InstallationChannel } from "@opencode-ai/core/installation/version"
+import { InstallationChannel } from "@/core/installation/version"
 
 const log = Log.create({ service: "plugin" })
 

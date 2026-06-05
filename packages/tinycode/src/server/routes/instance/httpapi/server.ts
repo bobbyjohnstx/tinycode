@@ -9,14 +9,14 @@ import {
   HttpServerResponse,
 } from "effect/unstable/http"
 import * as Socket from "effect/unstable/socket/Socket"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { AppFileSystem } from "@/core/filesystem"
 import { Account } from "@/account/account"
 import { Agent } from "@/agent/agent"
 import { Auth } from "@/auth"
 import { Bus } from "@/bus"
 import { Config } from "@/config/config"
 import { Command } from "@/command"
-import * as Observability from "@opencode-ai/core/effect/observability"
+import * as Observability from "@/core/effect/observability"
 import { File } from "@/file"
 import { FileWatcher } from "@/file/watcher"
 import { Ripgrep } from "@/file/ripgrep"
@@ -29,7 +29,7 @@ import { InstanceLayer } from "@/project/instance-layer"
 import { Plugin } from "@/plugin"
 import { Project } from "@/project/project"
 import { ProviderAuth } from "@/provider/auth"
-import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { ModelsDev } from "@/core/models-dev"
 import { Provider } from "@/provider/provider"
 import { Pty } from "@/pty"
 import { PtyTicket } from "@/pty/ticket"
@@ -42,7 +42,6 @@ import { SessionRunState } from "@/session/run-state"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
-import { EventV2Bridge } from "@/event-v2-bridge"
 import { Skill } from "@/skill"
 import { Snapshot } from "@/snapshot"
 import { SyncEvent } from "@/sync"
@@ -82,7 +81,7 @@ import { v2Handlers } from "./handlers/v2"
 import { instanceContextLayer } from "./middleware/instance-context"
 import { workspaceRoutingLayer } from "./middleware/workspace-routing"
 import { disposeMiddleware } from "./lifecycle"
-import { memoMap } from "@opencode-ai/core/effect/memo-map"
+import { memoMap } from "@/core/effect/memo-map"
 import { compressionLayer } from "./middleware/compression"
 import { corsVaryFix } from "./middleware/cors-vary"
 import { errorLayer } from "./middleware/error"
@@ -215,7 +214,6 @@ export function createRoutes(
       SessionSummary.defaultLayer,
       Snapshot.defaultLayer,
       SyncEvent.defaultLayer,
-      EventV2Bridge.defaultLayer,
       Skill.defaultLayer,
       Todo.defaultLayer,
       ToolRegistry.defaultLayer,

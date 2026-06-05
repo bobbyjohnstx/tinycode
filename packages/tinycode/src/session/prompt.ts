@@ -2,7 +2,7 @@ import path from "path"
 import os from "os"
 import { SessionID, MessageID, PartID } from "./schema"
 import { MessageV2 } from "./message-v2"
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@/core/util/log"
 import { SessionRevert } from "./revert"
 import * as Session from "./session"
 import { Agent } from "../agent/agent"
@@ -21,14 +21,14 @@ import { MCP } from "../mcp"
 import { LSP } from "@/lsp/lsp"
 import { ulid } from "ulid"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
-import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { CrossSpawnSpawner } from "@/core/cross-spawn-spawner"
 import * as Stream from "effect/Stream"
 import { Command } from "../command"
 import { pathToFileURL, fileURLToPath } from "url"
 import { Config } from "@/config/config"
 import { ConfigMarkdown } from "@/config/markdown"
 import { SessionSummary } from "./summary"
-import { NamedError } from "@opencode-ai/core/util/error"
+import { NamedError } from "@/core/util/error"
 import { SessionProcessor } from "./processor"
 import { Tool } from "@/tool/tool"
 import { Permission } from "@/permission"
@@ -36,24 +36,19 @@ import { SessionStatus } from "./status"
 import { LLM } from "./llm"
 import { Shell } from "@/shell/shell"
 import { ShellID } from "@/tool/shell/id"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { AppFileSystem } from "@/core/filesystem"
 import { Truncate } from "@/tool/truncate"
 import { Image } from "@/image/image"
 import { decodeDataUrl } from "@/util/data-url"
 import { Process } from "@/util/process"
 import { Cause, Effect, Exit, Latch, Layer, Option, Scope, Context, Schema, Types } from "effect"
-import * as EffectLogger from "@opencode-ai/core/effect/logger"
+import * as EffectLogger from "@/core/effect/logger"
 import { InstanceState } from "@/effect/instance-state"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
 import { SessionRunState } from "./run-state"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { EventV2Bridge } from "@/event-v2-bridge"
-import { SessionEvent } from "@opencode-ai/core/session-event"
-import { ModelV2 } from "@opencode-ai/core/model"
-import { ProviderV2 } from "@opencode-ai/core/provider"
-import { AgentAttachment, FileAttachment, ReferenceAttachment, Source } from "@opencode-ai/core/session-prompt"
+import { AgentAttachment, FileAttachment, ReferenceAttachment, Source } from "@/core/session-prompt"
 import { Reference } from "@/reference/reference"
-import * as DateTime from "effect/DateTime"
 import { eq } from "@/storage/db"
 import * as Database from "@/storage/db"
 import { SessionTable } from "./session.sql"
@@ -127,7 +122,6 @@ export const layer = Layer.effect(
     const sys = yield* SystemPrompt.Service
     const llm = yield* LLM.Service
     const references = yield* Reference.Service
-    const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
     const ops = Effect.fn("SessionPrompt.ops")(function* () {
       return {
@@ -561,14 +555,6 @@ export const layer = Layer.effect(
               },
             }
             yield* sessions.updatePart(part)
-            if (flags.experimentalEventSystem) {
-              yield* events.publish(SessionEvent.Shell.Started, {
-                sessionID: input.sessionID,
-                timestamp: DateTime.makeUnsafe(started),
-                callID: part.callID,
-                command: input.command,
-              })
-            }
             return { msg, part, cwd: ctx.directory }
           }).pipe(Effect.ensuring(markReady))
 
@@ -584,14 +570,6 @@ export const layer = Layer.effect(
                 output += "\n\n" + ["<metadata>", "User aborted the command", "</metadata>"].join("\n")
               }
               const completed = Date.now()
-              if (flags.experimentalEventSystem) {
-                yield* events.publish(SessionEvent.Shell.Ended, {
-                  sessionID: input.sessionID,
-                  timestamp: DateTime.makeUnsafe(completed),
-                  callID: part.callID,
-                  output,
-                })
-              }
               if (!msg.time.completed) {
                 msg.time.completed = completed
                 yield* sessions.updateMessage(msg)
@@ -701,13 +679,6 @@ export const layer = Layer.effect(
         throw error
       }
 
-      const current = Database.use((db) =>
-        db
-          .select({ agent: SessionTable.agent, model: SessionTable.model })
-          .from(SessionTable)
-          .where(eq(SessionTable.id, input.sessionID))
-          .get(),
-      )
       const model = input.model ?? ag.model ?? (yield* currentModel(input.sessionID))
       const same = ag.model && model.providerID === ag.model.providerID && model.modelID === ag.model.modelID
       const full =
@@ -732,29 +703,6 @@ export const layer = Layer.effect(
         },
         system: input.system,
         format: input.format,
-      }
-
-      if (current?.agent !== info.agent) {
-        yield* events.publish(SessionEvent.AgentSwitched, {
-          sessionID: input.sessionID,
-          timestamp: DateTime.makeUnsafe(info.time.created),
-          agent: info.agent,
-        })
-      }
-      if (
-        current?.model?.providerID !== info.model.providerID ||
-        current.model.id !== info.model.modelID ||
-        (current.model.variant === "default" ? undefined : current.model.variant) !== info.model.variant
-      ) {
-        yield* events.publish(SessionEvent.ModelSwitched, {
-          sessionID: input.sessionID,
-          timestamp: DateTime.makeUnsafe(info.time.created),
-          model: {
-            id: ModelV2.ID.make(info.model.modelID),
-            providerID: ProviderV2.ID.make(info.model.providerID),
-            variant: ModelV2.VariantID.make(info.model.variant ?? "default"),
-          },
-        })
       }
 
       yield* Effect.addFinalizer(() => instruction.clear(info.id))
@@ -1185,30 +1133,6 @@ export const layer = Layer.effect(
           synthetic: [] as string[],
         },
       )
-      // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
-      if (flags.experimentalEventSystem) {
-        yield* events.publish(SessionEvent.Prompted, {
-          sessionID: input.sessionID,
-          timestamp: DateTime.makeUnsafe(info.time.created),
-          prompt: {
-            text: nextPrompt.text.join("\n"),
-            files: nextPrompt.files,
-            agents: nextPrompt.agents,
-            references: nextPrompt.references,
-          },
-        })
-      }
-      for (const text of nextPrompt.synthetic) {
-        // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
-        if (flags.experimentalEventSystem) {
-          yield* events.publish(SessionEvent.Synthetic, {
-            sessionID: input.sessionID,
-            timestamp: DateTime.makeUnsafe(info.time.created),
-            text,
-          })
-        }
-      }
-
       return { info, parts }
     }, Effect.scoped)
 
@@ -1661,7 +1585,6 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Image.defaultLayer),
     Layer.provide(
       Layer.mergeAll(
-        EventV2Bridge.defaultLayer,
         Agent.defaultLayer,
         SystemPrompt.defaultLayer,
         LLM.defaultLayer,

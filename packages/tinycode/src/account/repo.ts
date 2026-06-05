@@ -1,5 +1,5 @@
 import { Effect, Layer, Option, Context } from "effect"
-import { serviceUse } from "@opencode-ai/core/effect/service-use"
+import { serviceUse } from "@/core/effect/service-use"
 
 import { AccountTable } from "./account.sql"
 import { AccessToken, AccountID, AccountRepoError, Info, OrgID, RefreshToken } from "./schema"

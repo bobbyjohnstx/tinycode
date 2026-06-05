@@ -14,7 +14,7 @@ import {
 import path from "path"
 import { fileURLToPath } from "url"
 import { TuiConfig } from "@/cli/cmd/tui/config/tui"
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@/core/util/log"
 import { errorData, errorMessage } from "@/util/error"
 import { isRecord } from "@/util/record"
 import { resolveAttentionSoundPaths } from "../config/tui-schema"
@@ -30,11 +30,11 @@ import { PluginLoader } from "@/plugin/loader"
 import { PluginMeta } from "@/plugin/meta"
 import { installPlugin as installModulePlugin, patchPluginConfig, readPluginManifest } from "@/plugin/install"
 import { hasTheme, upsertTheme } from "../context/theme"
-import { Global } from "@opencode-ai/core/global"
+import { Global } from "@/core/global"
 import { Filesystem } from "@/util/filesystem"
 import { Process } from "@/util/process"
-import { Flock } from "@opencode-ai/core/util/flock"
-import { Flag } from "@opencode-ai/core/flag/flag"
+import { Flock } from "@/core/util/flock"
+import { Flag } from "@/core/flag/flag"
 import { internalTuiPlugins, type InternalTuiPlugin } from "./internal"
 import { setupSlots, Slot as View } from "./slots"
 import type { HostPluginApi, HostSlots } from "./slots"
@@ -1096,7 +1096,7 @@ async function load(input: { api: Api; config: TuiConfig.Resolved; dispose?: () 
       log.info("skipping external tui plugins in pure mode", { count: config.plugin_origins.length })
     }
 
-    for (const item of internalTuiPlugins(flags)) {
+    for (const item of internalTuiPlugins()) {
       log.info("loading internal tui plugin", { id: item.id })
       const entry = loadInternalPlugin(item)
       const meta = createMeta(entry.source, entry.spec, entry.target, undefined, entry.id)

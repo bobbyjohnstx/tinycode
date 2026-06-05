@@ -9,7 +9,7 @@ import { Agent } from "../../src/agent/agent"
 import { LLM } from "../../src/session/llm"
 import { SessionCompaction } from "../../src/session/compaction"
 import { Token } from "@/util/token"
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@/core/util/log"
 import { Permission } from "../../src/permission"
 import { Plugin } from "../../src/plugin"
 import { provideTmpdirInstance, TestInstance } from "../fixture/fixture"
@@ -18,18 +18,16 @@ import { MessageV2 } from "../../src/session/message-v2"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import { SessionStatus } from "../../src/session/status"
 import { SessionSummary } from "../../src/session/summary"
-import { SessionV2 } from "../../src/v2/session"
 import { ModelID, ProviderID } from "../../src/provider/schema"
 import type { Provider } from "@/provider/provider"
 import * as SessionProcessorModule from "../../src/session/processor"
 import { Snapshot } from "../../src/snapshot"
 import { ProviderTest } from "../fake/provider"
 import { testEffect } from "../lib/effect"
-import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { CrossSpawnSpawner } from "@/core/cross-spawn-spawner"
 import { TestConfig } from "../fixture/config"
 import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { EventV2Bridge } from "@/event-v2-bridge"
 import { LLMEvent, Usage } from "@opencode-ai/llm"
 
 void Log.init({ print: false })
@@ -232,8 +230,7 @@ const deps = Layer.mergeAll(
   Bus.layer,
   Config.defaultLayer,
   SyncEvent.defaultLayer,
-  RuntimeFlags.layer({ experimentalEventSystem: true }),
-  EventV2Bridge.defaultLayer,
+  RuntimeFlags.defaultLayer,
 )
 
 const env = Layer.mergeAll(
@@ -266,7 +263,6 @@ function compactionProcessLayer(options?: CompactionProcessOptions) {
     ? SessionProcessorModule.SessionProcessor.layer.pipe(
         Layer.provide(summary),
         Layer.provide(Image.defaultLayer),
-        Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
         Layer.provide(status),
       )
     : layer(options?.result ?? "continue")
@@ -282,8 +278,7 @@ function compactionProcessLayer(options?: CompactionProcessOptions) {
     Layer.provide(bus),
     Layer.provide(options?.config ?? Config.defaultLayer),
     Layer.provide(SyncEvent.defaultLayer),
-    Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
-    Layer.provide(EventV2Bridge.defaultLayer),
+    Layer.provide(RuntimeFlags.defaultLayer),
   )
 }
 
@@ -586,14 +581,6 @@ describe("session.compaction.create", () => {
           overflow: true,
         })
 
-        const v2 = yield* SessionV2.Service.use((svc) => svc.messages({ sessionID: info.id })).pipe(
-          Effect.provide(SessionV2.defaultLayer),
-        )
-        expect(v2.at(-1)).toMatchObject({
-          type: "compaction",
-          reason: "auto",
-          summary: "",
-        })
       }),
     ),
   )

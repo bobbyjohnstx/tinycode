@@ -47,7 +47,6 @@ export class Service extends ConfigService.Service<Service>()("@tinycode/Runtime
   experimentalLspTool: enabledByExperimental("TINYCODE_EXPERIMENTAL_LSP_TOOL"),
   experimentalOxfmt: enabledByExperimental("TINYCODE_EXPERIMENTAL_OXFMT"),
   experimentalPlanMode: enabledByExperimental("TINYCODE_EXPERIMENTAL_PLAN_MODE"),
-  experimentalEventSystem: enabledByExperimental("TINYCODE_EXPERIMENTAL_EVENT_SYSTEM"),
   experimentalWorkspaces: enabledByExperimental("TINYCODE_EXPERIMENTAL_WORKSPACES"),
   experimentalIconDiscovery: enabledByExperimental("TINYCODE_EXPERIMENTAL_ICON_DISCOVERY"),
   acpNext: bool("TINYCODE_ACP_NEXT"),

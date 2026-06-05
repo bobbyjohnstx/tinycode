@@ -80,7 +80,7 @@ delete process.env["TINYCODE_SERVER_USERNAME"]
 process.env["TINYCODE_DB"] = ":memory:"
 
 // Now safe to import from src/
-const { Log } = await import("@opencode-ai/core/util/log")
+const { Log } = await import("@/core/util/log")
 const { initProjectors } = await import("../src/server/projectors")
 
 void Log.init({

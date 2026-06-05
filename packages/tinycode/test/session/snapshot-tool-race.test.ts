@@ -22,7 +22,7 @@ import { SessionPrompt } from "../../src/session/prompt"
 import { SessionRevert } from "../../src/session/revert"
 import { SessionSummary } from "../../src/session/summary"
 import { MessageV2 } from "../../src/session/message-v2"
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@/core/util/log"
 import { provideTmpdirServer } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { TestLLMServer } from "../lib/llm-server"
@@ -54,15 +54,14 @@ import { SessionStatus } from "../../src/session/status"
 import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "@/tool/registry"
 import { Truncate } from "@/tool/truncate"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
-import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { AppFileSystem } from "@/core/filesystem"
+import { CrossSpawnSpawner } from "@/core/cross-spawn-spawner"
 import { Ripgrep } from "../../src/file/ripgrep"
 import { Format } from "../../src/format"
 import { Reference } from "../../src/reference/reference"
 import { RepositoryCache } from "../../src/reference/repository-cache"
 import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { EventV2Bridge } from "@/event-v2-bridge"
 
 void Log.init({ print: false })
 
@@ -131,7 +130,6 @@ function makeHttp() {
     BackgroundJob.defaultLayer,
     status,
     SyncEvent.defaultLayer,
-    EventV2Bridge.defaultLayer,
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
@@ -144,7 +142,7 @@ function makeHttp() {
     Layer.provide(Reference.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
-    Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
+    Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
     Layer.provideMerge(deps),
@@ -153,11 +151,11 @@ function makeHttp() {
   const proc = SessionProcessor.layer.pipe(
     Layer.provide(SessionSummary.defaultLayer),
     Layer.provide(Image.defaultLayer),
-    Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
+    Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provideMerge(deps),
   )
   const compact = SessionCompaction.layer.pipe(
-    Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
+    Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provideMerge(proc),
     Layer.provideMerge(deps),
   )
@@ -176,7 +174,7 @@ function makeHttp() {
       Layer.provideMerge(trunc),
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(SystemPrompt.defaultLayer),
-      Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
+      Layer.provide(RuntimeFlags.defaultLayer),
       Layer.provideMerge(deps),
     ),
   )

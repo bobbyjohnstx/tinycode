@@ -5,7 +5,7 @@ import { SessionID, MessageID, PartID } from "./schema"
 import { Provider } from "@/provider/provider"
 import { MessageV2 } from "./message-v2"
 import { Token } from "@/util/token"
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@/core/util/log"
 import { SessionProcessor } from "./processor"
 import { Agent } from "@/agent/agent"
 import { Plugin } from "@/plugin"
@@ -13,13 +13,10 @@ import { Config } from "@/config/config"
 import { NotFoundError } from "@/storage/storage"
 import { ModelID, ProviderID } from "@/provider/schema"
 import { Effect, Layer, Context, Schema } from "effect"
-import * as DateTime from "effect/DateTime"
 import { InstanceState } from "@/effect/instance-state"
 import { isOverflow as overflow, usable } from "./overflow"
-import { serviceUse } from "@opencode-ai/core/effect/service-use"
+import { serviceUse } from "@/core/effect/service-use"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { EventV2Bridge } from "@/event-v2-bridge"
-import { SessionEvent } from "@opencode-ai/core/session-event"
 
 const log = Log.create({ service: "session.compaction" })
 
@@ -219,7 +216,6 @@ export const layer = Layer.effect(
     const plugin = yield* Plugin.Service
     const processors = yield* SessionProcessor.Service
     const provider = yield* Provider.Service
-    const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
 
     const isOverflow = Effect.fn("SessionCompaction.isOverflow")(function* (input: {
@@ -560,22 +556,6 @@ export const layer = Layer.effect(
 
       if (processor.message.error) return "stop"
       if (result === "continue") {
-        const summary = summaryText(
-          (yield* session.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)).find(
-            (item) => item.info.id === msg.id,
-          ) ?? {
-            info: msg,
-            parts: [],
-          },
-        )
-        if (flags.experimentalEventSystem) {
-          yield* events.publish(SessionEvent.Compaction.Ended, {
-            sessionID: input.sessionID,
-            timestamp: DateTime.makeUnsafe(Date.now()),
-            text: summary ?? "",
-            include: selected.tail_start_id,
-          })
-        }
         yield* bus.publish(Event.Compacted, { sessionID: input.sessionID })
       }
       return result
@@ -604,13 +584,6 @@ export const layer = Layer.effect(
         auto: input.auto,
         overflow: input.overflow,
       })
-      if (flags.experimentalEventSystem) {
-        yield* events.publish(SessionEvent.Compaction.Started, {
-          sessionID: input.sessionID,
-          timestamp: DateTime.makeUnsafe(Date.now()),
-          reason: input.auto ? "auto" : "manual",
-        })
-      }
     })
 
     return Service.of({
@@ -632,7 +605,6 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Bus.layer),
     Layer.provide(Config.defaultLayer),
     Layer.provide(RuntimeFlags.defaultLayer),
-    Layer.provide(EventV2Bridge.defaultLayer),
   ),
 )
 

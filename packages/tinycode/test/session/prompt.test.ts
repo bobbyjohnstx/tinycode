@@ -4,7 +4,7 @@ import { expect } from "bun:test"
 import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
 import path from "path"
 import { fileURLToPath, pathToFileURL } from "url"
-import { NamedError } from "@opencode-ai/core/util/error"
+import { NamedError } from "@/core/util/error"
 import { Agent as AgentSvc } from "../../src/agent/agent"
 import { BackgroundJob } from "@/background/job"
 import { Bus } from "../../src/bus"
@@ -25,7 +25,7 @@ import { Session } from "@/session/session"
 import { SessionMessageTable } from "../../src/session/session.sql"
 import { LLM } from "../../src/session/llm"
 import { MessageV2 } from "../../src/session/message-v2"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { AppFileSystem } from "@/core/filesystem"
 import { SessionCompaction } from "../../src/session/compaction"
 import { SessionSummary } from "../../src/session/summary"
 import { Instruction } from "../../src/session/instruction"
@@ -35,15 +35,14 @@ import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import { SessionStatus } from "../../src/session/status"
-import { SessionV2 } from "../../src/v2/session"
 import { Skill } from "../../src/skill"
 import { SystemPrompt } from "../../src/session/system"
 import { Shell } from "../../src/shell/shell"
 import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "@/tool/registry"
 import { Truncate } from "@/tool/truncate"
-import * as Log from "@opencode-ai/core/util/log"
-import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import * as Log from "@/core/util/log"
+import { CrossSpawnSpawner } from "@/core/cross-spawn-spawner"
 import * as Database from "../../src/storage/db"
 import { Ripgrep } from "../../src/file/ripgrep"
 import { Format } from "../../src/format"
@@ -54,7 +53,6 @@ import { awaitWithTimeout, pollWithTimeout, testEffect } from "../lib/effect"
 import { reply, TestLLMServer } from "../lib/llm-server"
 import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { EventV2Bridge } from "@/event-v2-bridge"
 
 void Log.init({ print: false })
 
@@ -182,7 +180,6 @@ function makePrompt(input?: { processor?: "blocking" }) {
     BackgroundJob.defaultLayer,
     status,
     SyncEvent.defaultLayer,
-    EventV2Bridge.defaultLayer,
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
@@ -195,7 +192,7 @@ function makePrompt(input?: { processor?: "blocking" }) {
     Layer.provide(Reference.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
-    Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
+    Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
     Layer.provideMerge(deps),
@@ -207,11 +204,11 @@ function makePrompt(input?: { processor?: "blocking" }) {
       : SessionProcessor.layer.pipe(
           Layer.provide(summary),
           Layer.provide(Image.defaultLayer),
-          Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
+          Layer.provide(RuntimeFlags.defaultLayer),
           Layer.provideMerge(deps),
         )
   const compact = SessionCompaction.layer.pipe(
-    Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
+    Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provideMerge(proc),
     Layer.provideMerge(deps),
   )
@@ -227,7 +224,7 @@ function makePrompt(input?: { processor?: "blocking" }) {
     Layer.provideMerge(trunc),
     Layer.provide(Instruction.defaultLayer),
     Layer.provide(SystemPrompt.defaultLayer),
-    Layer.provide(RuntimeFlags.layer({ experimentalEventSystem: true })),
+    Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provideMerge(deps),
     Layer.provide(summary),
   )
@@ -512,7 +509,7 @@ it.instance("loop calls LLM and returns assistant message", () =>
 )
 
 noLLMServer.instance(
-  "prompt emits v2 prompted and synthetic events",
+  "prompt persists user message with created timestamp",
   () =>
     Effect.gen(function* () {
       const prompt = yield* SessionPrompt.Service
@@ -524,7 +521,7 @@ noLLMServer.instance(
         agent: "build",
         noReply: true,
         parts: [
-          { type: "text", text: "hello v2" },
+          { type: "text", text: "hello" },
           {
             type: "file",
             mime: "text/plain",
@@ -534,20 +531,10 @@ noLLMServer.instance(
         ],
       })
 
-      const messages = yield* SessionV2.Service.use((session) => session.messages({ sessionID: chat.id })).pipe(
-        Effect.provide(SessionV2.layer),
-      )
       const row = Database.use((db) =>
         db.select().from(SessionMessageTable).where(Database.eq(SessionMessageTable.session_id, chat.id)).get(),
       )
-      expect(messages.find((message) => message.type === "user")).toMatchObject({ type: "user", text: "hello v2" })
       expect(typeof row?.data.time.created).toBe("number")
-      expect(messages).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ type: "synthetic", text: expect.stringContaining("Called the Read tool") }),
-          expect.objectContaining({ type: "synthetic", text: "note content" }),
-        ]),
-      )
     }),
   { config: cfg },
 )

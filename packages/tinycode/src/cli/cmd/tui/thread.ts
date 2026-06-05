@@ -4,7 +4,7 @@ import { type rpc } from "./worker"
 import path from "path"
 import { fileURLToPath } from "url"
 import { UI } from "@/cli/ui"
-import * as Log from "@opencode-ai/core/util/log"
+import * as Log from "@/core/util/log"
 import { errorMessage } from "@/util/error"
 import { withTimeout } from "@/util/timeout"
 import { withNetworkOptions, resolveNetworkOptionsNoConfig } from "@/cli/network"
@@ -19,7 +19,7 @@ import {
   TINYCODE_RUN_ID,
   ensureRunID,
   sanitizedProcessEnv,
-} from "@opencode-ai/core/util/tinycode-process"
+} from "@/core/util/tinycode-process"
 import { validateSession } from "./validate-session"
 
 declare global {

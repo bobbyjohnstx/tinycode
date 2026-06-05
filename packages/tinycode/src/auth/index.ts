@@ -1,8 +1,8 @@
 import path from "path"
 import { Effect, Layer, Record, Result, Schema, Context } from "effect"
-import { NonNegativeInt } from "@opencode-ai/core/schema"
-import { Global } from "@opencode-ai/core/global"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { NonNegativeInt } from "@/core/schema"
+import { Global } from "@/core/global"
+import { AppFileSystem } from "@/core/filesystem"
 
 export const OAUTH_DUMMY_KEY = "tinycode-oauth-dummy-key"
 

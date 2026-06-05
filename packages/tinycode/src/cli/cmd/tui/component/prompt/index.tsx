@@ -57,7 +57,7 @@ import {
 } from "../dialog-workspace-create"
 import { DialogWorkspaceUnavailable } from "../dialog-workspace-unavailable"
 import { useArgs } from "@tui/context/args"
-import { Flag } from "@opencode-ai/core/flag/flag"
+import { Flag } from "@/core/flag/flag"
 import { type WorkspaceStatus } from "../workspace-label"
 import { TINYCODE_BASE_MODE, useBindings, useCommandShortcut, useLeaderActive, useTinycodeKeymap } from "../../keymap"
 import { useTuiConfig } from "../../context/tui-config"

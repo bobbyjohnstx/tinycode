@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test"
 import { setTimeout as sleep } from "node:timers/promises"
 import { Effect, Layer } from "effect"
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
-import { EffectFlock } from "@opencode-ai/core/util/effect-flock"
+import { AppFileSystem } from "@/core/filesystem"
+import { EffectFlock } from "@/core/util/effect-flock"
 import { McpAuth } from "../../src/mcp/auth"
 
 function authFile() {

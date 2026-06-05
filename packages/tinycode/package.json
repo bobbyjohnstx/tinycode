@@ -22,7 +22,8 @@
     "tinycode": "./bin/tinycode"
   },
   "exports": {
-    "./*": "./src/*.ts"
+    "./*": "./src/*.ts",
+    "./core/*": "./src/core/*.ts"
   },
   "imports": {
     "#db": {
@@ -39,7 +40,6 @@
   "devDependencies": {
     "@babel/core": "7.28.4",
     "@octokit/webhooks-types": "7.6.1",
-    "@opencode-ai/core": "workspace:*",
     "@opencode-ai/http-recorder": "workspace:*",
     "@opencode-ai/script": "workspace:*",
     "@parcel/watcher-darwin-arm64": "2.5.1",
@@ -57,6 +57,7 @@
     "@types/cross-spawn": "catalog:",
     "@types/mime-types": "3.0.1",
     "@types/npm-package-arg": "6.1.4",
+    "@types/npmcli__arborist": "6.3.3",
     "@types/semver": "^7.5.8",
     "@types/turndown": "5.0.5",
     "@types/which": "3.0.4",
@@ -73,6 +74,7 @@
     "@actions/core": "1.11.1",
     "@actions/github": "6.0.1",
     "@agentclientprotocol/sdk": "0.21.0",
+    "@aws-sdk/credential-providers": "3.993.0",
     "@ai-sdk/alibaba": "1.0.17",
     "@ai-sdk/amazon-bedrock": "4.0.107",
     "@ai-sdk/anthropic": "3.0.71",
@@ -89,6 +91,7 @@
     "@ai-sdk/openai-compatible": "2.0.41",
     "@ai-sdk/perplexity": "3.0.26",
     "@ai-sdk/provider": "3.0.8",
+    "@ai-sdk/provider-utils": "4.0.23",
     "@ai-sdk/togetherai": "2.0.41",
     "@ai-sdk/vercel": "2.0.39",
     "@ai-sdk/xai": "3.0.82",
@@ -97,6 +100,8 @@
     "@effect/platform-node": "catalog:",
     "@lydell/node-pty": "catalog:",
     "@modelcontextprotocol/sdk": "1.27.1",
+    "@npmcli/arborist": "9.4.0",
+    "@npmcli/config": "10.8.1",
     "@octokit/graphql": "9.0.2",
     "@octokit/rest": "catalog:",
     "@openauthjs/openauth": "catalog:",
@@ -136,6 +141,7 @@
     "fuzzysort": "3.1.0",
     "gitlab-ai-provider": "6.8.0",
     "glob": "13.0.5",
+    "google-auth-library": "10.5.0",
     "gray-matter": "4.0.3",
     "htmlparser2": "8.0.2",
     "ignore": "7.0.5",

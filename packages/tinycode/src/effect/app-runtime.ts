@@ -1,8 +1,8 @@
 import { Layer, ManagedRuntime } from "effect"
 import { attach } from "./run-service"
-import * as Observability from "@opencode-ai/core/effect/observability"
+import * as Observability from "@/core/effect/observability"
 
-import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import { AppFileSystem } from "@/core/filesystem"
 import { Bus } from "@/bus"
 import { Auth } from "@/auth"
 import { Account } from "@/account/account"
@@ -14,7 +14,7 @@ import { FileWatcher } from "@/file/watcher"
 import { Storage } from "@/storage/storage"
 import { Snapshot } from "@/snapshot"
 import { Plugin } from "@/plugin"
-import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { ModelsDev } from "@/core/models-dev"
 import { Provider } from "@/provider/provider"
 import { ProviderAuth } from "@/provider/auth"
 import { LocalDiscovery } from "@/provider/local-discovery"
@@ -49,11 +49,10 @@ import { Worktree } from "@/worktree"
 import { Pty } from "@/pty"
 import { PtyTicket } from "@/pty/ticket"
 import { SyncEvent } from "@/sync"
-import { Npm } from "@opencode-ai/core/npm"
-import { memoMap } from "@opencode-ai/core/effect/memo-map"
+import { Npm } from "@/core/npm"
+import { memoMap } from "@/core/effect/memo-map"
 import { DataMigration } from "@/data-migration"
 import { BackgroundJob } from "@/background/job"
-import { EventV2Bridge } from "@/event-v2-bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 
 export const AppLayer = Layer.mergeAll(
@@ -106,7 +105,6 @@ export const AppLayer = Layer.mergeAll(
   Pty.defaultLayer,
   PtyTicket.defaultLayer,
   SyncEvent.defaultLayer,
-  EventV2Bridge.defaultLayer,
   DataMigration.defaultLayer,
 ).pipe(Layer.provideMerge(InstanceLayer.layer), Layer.provideMerge(Observability.layer))
 

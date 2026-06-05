@@ -41,8 +41,8 @@
   },
   "dependencies": {
     "@kobalte/core": "catalog:",
-    "@opencode-ai/core": "workspace:*",
     "@opencode-ai/sdk": "workspace:*",
+    "tinycode": "workspace:*",
     "@opencode-ai/ui": "workspace:*",
     "@xterm/xterm": "^5.5.0",
     "@xterm/addon-fit": "^0.10.0",

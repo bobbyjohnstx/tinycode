@@ -1,6 +1,6 @@
 import { Provider } from "@/provider/provider"
-import { serviceUse } from "@opencode-ai/core/effect/service-use"
-import * as Log from "@opencode-ai/core/util/log"
+import { serviceUse } from "@/core/effect/service-use"
+import * as Log from "@/core/util/log"
 import { Context, Effect, Layer } from "effect"
 import * as Stream from "effect/Stream"
 import { streamText, wrapLanguageModel, type ModelMessage, type Tool } from "ai"

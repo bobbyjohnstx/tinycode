@@ -1,5 +1,5 @@
 import { Effect, Layer, Option, Context } from "effect"
-import { serviceUse } from "@opencode-ai/core/effect/service-use"
+import { serviceUse } from "@/core/effect/service-use"
 
 import type {
   AccountError,

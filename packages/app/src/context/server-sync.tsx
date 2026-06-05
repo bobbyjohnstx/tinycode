@@ -1,6 +1,6 @@
 import type { Config, OpencodeClient, Path, Project, ProviderAuthResponse, Todo } from "@opencode-ai/sdk/v2/client"
 import { showToast } from "@opencode-ai/ui/toast"
-import { getFilename } from "@opencode-ai/core/util/path"
+import { getFilename } from "tinycode/core/util/path"
 import { batch, createContext, getOwner, onCleanup, onMount, type ParentProps, untrack, useContext } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useLanguage } from "@/context/language"
@@ -31,7 +31,7 @@ import { PathKey } from "@/utils/path-key"
 import { createDirSyncContext } from "./directory-sync"
 import { createSimpleContext, NormalizedProviderListResponse } from "@opencode-ai/ui/context"
 import { createRefCountMap } from "@/utils/refcount"
-import { retry } from "@opencode-ai/core/util/retry"
+import { retry } from "tinycode/core/util/retry"
 
 type GlobalStore = {
   ready: boolean

@@ -1,8 +1,8 @@
 import type { Argv } from "yargs"
 import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
-import { Global } from "@opencode-ai/core/global"
-import { InstallationChannel } from "@opencode-ai/core/installation/version"
+import { Global } from "@/core/global"
+import { InstallationChannel } from "@/core/installation/version"
 import fsNode from "fs"
 import path from "path"
 
