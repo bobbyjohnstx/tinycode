@@ -265,15 +265,15 @@ for (const item of targets) {
       windows: {},
     },
     files: {
-      ...(embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {}),
-      "opencode-assets.gen.ts": embeddedAssetsMap,
+      ...(embeddedFileMap ? { "tinycode-web-ui.gen.ts": embeddedFileMap } : {}),
+      "tinycode-assets.gen.ts": embeddedAssetsMap,
     },
     entrypoints: [
       "./src/index.ts",
       parserWorker,
       workerPath,
-      ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : []),
-      "opencode-assets.gen.ts",
+      ...(embeddedFileMap ? ["tinycode-web-ui.gen.ts"] : []),
+      "tinycode-assets.gen.ts",
     ],
     define: {
       TINYCODE_VERSION: `'${Script.version}'`,

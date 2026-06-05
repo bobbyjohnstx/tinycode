@@ -9,7 +9,7 @@ import { ServerAuth } from "@/server/auth"
 import { writeHeapSnapshot } from "node:v8"
 import { Heap } from "@/cli/heap"
 import { AppRuntime } from "@/effect/app-runtime"
-import { ensureProcessMetadata } from "@opencode-ai/core/util/opencode-process"
+import { ensureProcessMetadata } from "@opencode-ai/core/util/tinycode-process"
 import { Effect } from "effect"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
 

@@ -8,7 +8,7 @@ import { Process } from "@/util/process"
 
 const log = Log.create({ service: "config" })
 
-const MANAGED_PLIST_DOMAIN = "ai.opencode.managed"
+const MANAGED_PLIST_DOMAIN = "ai.tinycode.managed"
 
 // Keys injected by macOS/MDM into the managed plist that are not OpenCode config
 const PLIST_META = new Set([

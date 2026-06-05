@@ -19,7 +19,7 @@ import {
   TINYCODE_RUN_ID,
   ensureRunID,
   sanitizedProcessEnv,
-} from "@opencode-ai/core/util/opencode-process"
+} from "@opencode-ai/core/util/tinycode-process"
 import { validateSession } from "./validate-session"
 
 declare global {
