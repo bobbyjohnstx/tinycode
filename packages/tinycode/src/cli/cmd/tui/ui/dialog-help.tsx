@@ -16,6 +16,8 @@ export function DialogHelp() {
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
   const maxHeight = createMemo(() => Math.max(10, Math.floor(dimensions().height * 0.75)))
 
+  dialog.setSize("full")
+
   let scroll: ScrollBoxRenderable | undefined
 
   useBindings(() => ({

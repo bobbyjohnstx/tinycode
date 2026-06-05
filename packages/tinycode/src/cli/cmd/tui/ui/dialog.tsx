@@ -10,7 +10,7 @@ import { useBindings, useOpencodeModeStack } from "../keymap"
 
 export function Dialog(
   props: ParentProps<{
-    size?: "medium" | "large" | "xlarge"
+    size?: "medium" | "large" | "xlarge" | "full" | "full"
     onClose: () => void
   }>,
 ) {
@@ -20,6 +20,7 @@ export function Dialog(
 
   let dismiss = false
   const width = () => {
+    if (props.size === "full") return Math.floor(dimensions().width * 0.75)
     if (props.size === "xlarge") return 116
     if (props.size === "large") return 88
     return 60
@@ -69,7 +70,7 @@ function init() {
       element: JSX.Element
       onClose?: () => void
     }[],
-    size: "medium" as "medium" | "large" | "xlarge",
+    size: "medium" as "medium" | "large" | "xlarge" | "full",
   })
 
   const renderer = useRenderer()
@@ -166,7 +167,7 @@ function init() {
     get size() {
       return store.size
     },
-    setSize(size: "medium" | "large" | "xlarge") {
+    setSize(size: "medium" | "large" | "xlarge" | "full") {
       setStore("size", size)
     },
   }
