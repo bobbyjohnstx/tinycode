@@ -56,7 +56,7 @@ function extractLineRange(input: string) {
 
 export type AutocompleteRef = {
   onInput: (value: string) => void
-  visible: false | "@" | "/"
+  visible: false | "@" | "/" | "/ask"
 }
 
 export type AutocompleteOption = {
@@ -143,7 +143,8 @@ export function Autocomplete(props: {
     // Track props.value to make memo reactive to text changes
     props.value // <- there surely is a better way to do this, like making .input() reactive
 
-    return props.input().getTextRange(store.index + 1, props.input().cursorOffset)
+    const start = store.visible === "/ask" ? store.index : store.index + 1
+    return props.input().getTextRange(start, props.input().cursorOffset)
   })
 
   // filter() reads reactive props.value plus non-reactive cursor/text state.
@@ -505,23 +506,21 @@ export function Autocomplete(props: {
     return options
   })
 
-  const agents = createMemo(() => {
-    const agents = sync.data.agent
-    return agents
+  const askAgents = createMemo((): AutocompleteOption[] => {
+    return sync.data.agent
       .filter((agent) => !agent.hidden && agent.mode !== "primary")
       .map(
         (agent): AutocompleteOption => ({
-          display: "@" + agent.name,
+          display: agent.name,
+          description: agent.description,
           onSelect: () => {
-            insertPart(agent.name, {
-              type: "agent",
-              name: agent.name,
-              source: {
-                start: 0,
-                end: 0,
-                value: "",
-              },
-            })
+            const input = props.input()
+            const cursor = input.logicalCursor
+            input.deleteRange(0, 0, cursor.row, cursor.col)
+            const text = "/ask " + agent.name + " "
+            input.insertText(text)
+            input.cursorOffset = Bun.stringWidth(text)
+            hide()
           },
         }),
       )
@@ -575,7 +574,7 @@ export function Autocomplete(props: {
     const filesValue = files()
     const referenceFilesValue = referenceFiles()
     const referenceSearchValue = referenceSearch()
-    const agentsValue = agents()
+    const askAgentsValue = askAgents()
     const referenceAliasesValue = referenceAliases()
     const commandsValue = commands()
 
@@ -583,8 +582,10 @@ export function Autocomplete(props: {
       store.visible === "@"
         ? referenceSearchValue
           ? referenceFilesValue || []
-          : [...referenceAliasesValue, ...agentsValue, ...(filesValue || []), ...mcpResources()]
-        : [...commandsValue]
+          : [...referenceAliasesValue, ...(filesValue || []), ...mcpResources()]
+        : store.visible === "/ask"
+          ? [...askAgentsValue]
+          : [...commandsValue]
 
     const searchValue = search()
 
@@ -733,7 +734,7 @@ export function Autocomplete(props: {
     ]),
   }))
 
-  function show(mode: "@" | "/") {
+  function show(mode: "@" | "/" | "/ask") {
     setStore({
       visible: mode,
       index: props.input().cursorOffset,
@@ -745,7 +746,13 @@ export function Autocomplete(props: {
     if (store.visible === "/" && !text.endsWith(" ") && text.startsWith("/")) {
       const cursor = props.input().logicalCursor
       props.input().deleteRange(0, 0, cursor.row, cursor.col)
-      // Sync the prompt store immediately since onContentChange is async
+      props.setPrompt((draft) => {
+        draft.input = props.input().plainText
+      })
+    }
+    if (store.visible === "/ask" && !text.startsWith("/ask ")) {
+      const cursor = props.input().logicalCursor
+      props.input().deleteRange(0, 0, cursor.row, cursor.col)
       props.setPrompt((draft) => {
         draft.input = props.input().plainText
       })
@@ -768,6 +775,12 @@ export function Autocomplete(props: {
       },
       onInput(value) {
         if (store.visible) {
+          if (store.visible === "/ask") {
+            if (!value.startsWith("/ask ") || value.match(/^\/ask\s+\S+\s/)) {
+              hide()
+            }
+            return
+          }
           if (
             // Typed text before the trigger
             props.input().cursorOffset <= store.index ||
@@ -776,6 +789,13 @@ export function Autocomplete(props: {
             // "/<command>" is not the sole content
             (store.visible === "/" && value.match(/^\S+\s+\S+\s*$/))
           ) {
+            // Transition from "/" to "/ask" mode when user selects or types /ask
+            if (store.visible === "/" && value.match(/^\/ask\s$/)) {
+              const askOffset = "/ask ".length
+              show("/ask")
+              setStore("index", askOffset)
+              return
+            }
             hide()
           }
           return
@@ -784,6 +804,14 @@ export function Autocomplete(props: {
         // Check if autocomplete should reopen (e.g., after backspace deleted a space)
         const offset = props.input().cursorOffset
         if (offset === 0) return
+
+        // Check for "/ask " - reopen in agent mode
+        if (value.startsWith("/ask ") && !value.match(/^\/ask\s+\S+\s/)) {
+          const askOffset = "/ask ".length
+          show("/ask")
+          setStore("index", askOffset)
+          return
+        }
 
         // Check for "/" at position 0 - reopen slash commands
         if (value.startsWith("/") && !value.slice(0, offset).match(/\s/)) {

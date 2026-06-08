@@ -214,11 +214,7 @@ export const layer = Layer.effect(
             : path.resolve(ctx.worktree, name)
 
           const info = yield* fsys.stat(filepath).pipe(Effect.option)
-          if (Option.isNone(info)) {
-            const found = yield* agents.get(name)
-            if (found) parts.push({ type: "agent", name: found.name })
-            return
-          }
+          if (Option.isNone(info)) return
           const stat = info.value
           parts.push({
             type: "file",
@@ -1171,6 +1167,7 @@ export const layer = Layer.effect(
         const slog = elog.with({ sessionID })
         let structured: unknown
         let step = 0
+        let emptyResponseNudges = 0
         const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
 
         while (true) {
@@ -1209,6 +1206,31 @@ export const layer = Layer.effect(
                 tool: orphan.tool,
                 callID: orphan.callID,
               })
+            }
+            const hasAssistantText = lastAssistantMsg?.parts.some(
+              (part) => part.type === "text" && part.text.trim().length > 0,
+            ) ?? false
+            if (!hasAssistantText && emptyResponseNudges < 1) {
+              emptyResponseNudges++
+              yield* slog.info("empty response after tool results, nudging model")
+              const nudgeMsg: MessageV2.User = {
+                id: MessageID.ascending(),
+                sessionID,
+                role: "user",
+                time: { created: Date.now() },
+                agent: lastUser.agent,
+                model: lastUser.model,
+              }
+              yield* sessions.updateMessage(nudgeMsg)
+              yield* sessions.updatePart({
+                id: PartID.ascending(),
+                messageID: nudgeMsg.id,
+                sessionID,
+                type: "text",
+                text: "Please analyze and respond to the tool results above.",
+                synthetic: true,
+              } satisfies MessageV2.TextPart)
+              continue
             }
             yield* slog.info("exiting loop")
             break
@@ -1444,10 +1466,17 @@ export const layer = Layer.effect(
         yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: error.toObject() })
         throw error
       }
-      const agentName = cmd.agent ?? input.agent
-
       const raw = input.arguments.match(argsRegex) ?? []
       const args = raw.map((arg) => arg.replace(quoteTrimRegex, ""))
+      const askAgent = cmd.name === Command.Default.ASK ? args[0] : undefined
+      if (cmd.name === Command.Default.ASK && !askAgent) {
+        const available = (yield* agents.list()).filter((a) => !a.hidden && a.mode !== "primary").map((a) => a.name)
+        const hint = available.length ? ` Available agents: ${available.join(", ")}` : ""
+        const error = new NamedError.Unknown({ message: `Usage: /ask <agent> <prompt>.${hint}` })
+        yield* bus.publish(Session.Event.Error, { sessionID: input.sessionID, error: error.toObject() })
+        throw error
+      }
+      const agentName = askAgent ?? cmd.agent ?? input.agent
       const templateCommand = yield* Effect.promise(async () => cmd.template)
 
       const placeholders = templateCommand.match(placeholderRegex) ?? []

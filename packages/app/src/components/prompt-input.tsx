@@ -270,7 +270,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   )
 
   const [store, setStore] = createStore<{
-    popover: "at" | "slash" | null
+    popover: "at" | "slash" | "ask" | null
     historyIndex: number
     savedPrompt: PromptHistoryEntry | null
     placeholder: number
@@ -610,16 +610,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     onKeyDown: atOnKeyDown,
   } = useFilteredList<AtOption>({
     items: async (query) => {
-      const agents = agentList()
       const open = recent()
       const seen = new Set(open)
       const pinned: AtOption[] = open.map((path) => ({ type: "file", path, display: path, recent: true }))
-      if (!query.trim()) return [...agents, ...pinned]
+      if (!query.trim()) return [...pinned]
       const paths = await files.searchFilesAndDirectories(query)
       const fileOptions: AtOption[] = paths
         .filter((path) => !seen.has(path))
         .map((path) => ({ type: "file", path, display: path }))
-      return [...agents, ...pinned, ...fileOptions]
+      return [...pinned, ...fileOptions]
     },
     key: atKey,
     filterKeys: ["display"],
@@ -694,6 +693,28 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     onSelect: handleSlashSelect,
   })
 
+  const handleAskSelect = (option: AtOption | undefined) => {
+    if (!option || option.type !== "agent") return
+    closePopover()
+    const text = `/ask ${option.name} `
+    setEditorText(text)
+    prompt.set([{ type: "text", content: text, start: 0, end: text.length }, ...imageAttachments()], text.length)
+    focusEditorEnd()
+  }
+
+  const {
+    flat: askFlat,
+    active: askActive,
+    setActive: setAskActive,
+    onInput: askOnInput,
+    onKeyDown: askOnKeyDown,
+  } = useFilteredList<AtOption>({
+    items: () => agentList(),
+    key: atKey,
+    filterKeys: ["display"],
+    onSelect: handleAskSelect,
+  })
+
   const createPill = (part: FileAttachmentPart | AgentPart) => {
     const pill = document.createElement("span")
     pill.textContent = part.content
@@ -760,6 +781,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       const active = atActive()
       const item = items.find((entry) => atKey(entry) === active) ?? items[0]
       handleAtSelect(item)
+      return
+    }
+
+    if (store.popover === "ask") {
+      const items = askFlat()
+      if (items.length === 0) return
+      const active = askActive()
+      const item = items.find((entry) => atKey(entry) === active) ?? items[0]
+      handleAskSelect(item)
       return
     }
 
@@ -908,8 +938,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     if (!shellMode) {
       const atMatch = rawText.substring(0, cursorPosition).match(/@(\S*)$/)
       const slashMatch = rawText.match(/^\/(\S*)$/)
+      const askMatch = rawText.match(/^\/ask\s+(\S*)$/)
 
-      if (atMatch) {
+      if (askMatch) {
+        askOnInput(askMatch[1])
+        setStore("popover", "ask")
+      } else if (atMatch) {
         atOnInput(atMatch[1])
         setStore("popover", "at")
       } else if (slashMatch) {
@@ -1234,6 +1268,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
           event.preventDefault()
           return
         }
+        if (store.popover === "ask") {
+          askOnKeyDown(event)
+          event.preventDefault()
+          return
+        }
         if (store.popover === "slash") {
           slashOnKeyDown(event)
         }
@@ -1446,6 +1485,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         atKey={atKey}
         setAtActive={setAtActive}
         onAtSelect={handleAtSelect}
+        askFlat={askFlat()}
+        askActive={askActive() ?? undefined}
+        setAskActive={setAskActive}
+        onAskSelect={handleAskSelect}
         slashFlat={slashFlat()}
         slashActive={slashActive() ?? undefined}
         setSlashActive={setSlashActive}

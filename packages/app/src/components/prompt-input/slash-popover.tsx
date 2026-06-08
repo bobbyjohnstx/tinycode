@@ -18,13 +18,17 @@ export interface SlashCommand {
 }
 
 type PromptPopoverProps = {
-  popover: "at" | "slash" | null
+  popover: "at" | "slash" | "ask" | null
   setSlashPopoverRef: (el: HTMLDivElement) => void
   atFlat: AtOption[]
   atActive?: string
   atKey: (item: AtOption) => string
   setAtActive: (id: string) => void
   onAtSelect: (item: AtOption) => void
+  askFlat: AtOption[]
+  askActive?: string
+  setAskActive: (id: string) => void
+  onAskSelect: (item: AtOption) => void
   slashFlat: SlashCommand[]
   slashActive?: string
   setSlashActive: (id: string) => void
@@ -87,6 +91,29 @@ export const PromptPopover: Component<PromptPopoverProps> = (props) => {
                           <span class="text-text-strong whitespace-nowrap">{filename}</span>
                         </Show>
                       </div>
+                    </button>
+                  )
+                }}
+              </For>
+            </Show>
+          </Match>
+          <Match when={props.popover === "ask"}>
+            <Show
+              when={props.askFlat.length > 0}
+              fallback={<div class="text-text-weak px-2 py-1">{props.t("prompt.popover.emptyResults")}</div>}
+            >
+              <For each={props.askFlat.slice(0, 10)}>
+                {(item) => {
+                  const key = props.atKey(item)
+                  return (
+                    <button
+                      class="w-full flex items-center gap-x-2 rounded-md px-2 py-0.5"
+                      classList={{ "bg-surface-raised-base-hover": props.askActive === key }}
+                      onClick={() => props.onAskSelect(item)}
+                      onMouseEnter={() => props.setAskActive(key)}
+                    >
+                      <Icon name="brain" size="small" class="text-icon-info-active shrink-0" />
+                      <span class="text-14-regular text-text-strong whitespace-nowrap">{item.type === "agent" ? item.name : item.display}</span>
                     </button>
                   )
                 }}
