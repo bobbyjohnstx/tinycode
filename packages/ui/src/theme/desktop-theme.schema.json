@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://opencode.ai/desktop-theme.json",
+  "$id": "https://tinycode.dev/desktop-theme.json",
   "title": "TinyCode Desktop Theme",
   "description": "A theme definition for the TinyCode desktop application",
   "type": "object",
