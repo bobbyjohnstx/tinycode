@@ -6,11 +6,26 @@ Local-LLM-first AI coding assistant. Runs in your terminal against Ollama, vLLM,
 ## Agents
 Type `/ask <agent> <prompt>` to invoke a specialized subagent:
 
+### Built-in
 | Agent   | Role |
 |---------|------|
 | explore | Fast codebase search (grep, glob, file reading, bash). Specify thoroughness: "quick", "medium", or "very thorough". |
 | scout   | External research — clone repos, read library docs, fetch URLs. Never modifies workspace. |
 | general | General-purpose agent for research and multi-step tasks. Fans out work in parallel. |
+
+### oh-my-tiny agents (via omt plugin)
+| Agent      | Role |
+|------------|------|
+| architect  | Strategic architecture advisor — analyze code, diagnose bugs, provide guidance (READ-ONLY) |
+| critic     | Quality gate — thorough multi-perspective review of plans and code (READ-ONLY) |
+| debugger   | Root-cause analysis, regression isolation, stack trace analysis |
+| designer   | UI/UX designer-developer — production-grade interfaces |
+| executor   | Focused task executor — implement code changes precisely as specified |
+| explore    | Codebase search specialist — find files, code patterns, relationships (READ-ONLY) |
+| planner    | Strategic planning — interview, gather requirements, produce work plans |
+| qa-tester  | Interactive CLI testing — spin up services, verify behavior via tmux |
+| verifier   | Evidence-based verification — confirm completion with fresh test output (READ-ONLY) |
+| writer     | Technical documentation — README, API docs, architecture docs, comments |
 
 Primary agent modes (switch with tab or `<leader>a`):
 - build — default, full tool access (read/write/edit/bash)
