@@ -70,7 +70,7 @@ const scenarios: Scenario[] = [
     .seeded(() =>
       Effect.promise(() =>
         Bun.write(
-          path.join(exerciseConfigDirectory, "opencode.jsonc"),
+          path.join(exerciseConfigDirectory, "tinycode.jsonc"),
           JSON.stringify({ username: "httpapi-global" }, null, 2),
         ),
       ),
@@ -83,7 +83,7 @@ const scenarios: Scenario[] = [
           object(body)
           check(body.username === "httpapi-global", "global config update should return patched config")
           const text = yield* Effect.promise(() =>
-            Bun.file(path.join(exerciseConfigDirectory, "opencode.jsonc")).text(),
+            Bun.file(path.join(exerciseConfigDirectory, "tinycode.jsonc")).text(),
           )
           check(text.includes('"username": "httpapi-global"'), "global config update should write isolated config file")
         }),
@@ -457,7 +457,7 @@ const scenarios: Scenario[] = [
   http.protected
     .get("/experimental/tool", "tool.list")
     .at((ctx) => ({
-      path: `/experimental/tool?${new URLSearchParams({ provider: "opencode", model: "test" })}`,
+      path: `/experimental/tool?${new URLSearchParams({ provider: "tinycode", model: "test" })}`,
       headers: ctx.headers(),
     }))
     .json(200, array, "status"),

@@ -144,7 +144,7 @@ describe("tool.registry", () => {
       const build = yield* agent.get("build")
       if (!build) throw new Error("build agent not found")
       const task = (yield* registry.tools({
-        providerID: ProviderID.opencode,
+        providerID: ProviderID.tinycode,
         modelID: ModelID.make("test"),
         agent: build,
       })).find((tool) => tool.id === "task")
@@ -157,8 +157,8 @@ describe("tool.registry", () => {
   it.instance("loads tools from .tinycode/tool (singular)", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const opencode = path.join(test.directory, ".tinycode")
-      const tool = path.join(opencode, "tool")
+      const tinycode = path.join(test.directory, ".tinycode")
+      const tool = path.join(tinycode, "tool")
       yield* Effect.promise(() => fs.mkdir(tool, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(
@@ -245,7 +245,7 @@ describe("tool.registry", () => {
   )
 
   // Same regression, plugin entry point. The original reports (#27451, #27630)
-  // came in through `plugin.list()` — `oh-my-opencode` was registering a tool
+  // came in through `plugin.list()` — `oh-my-tinycode` was registering a tool
   // with `args: undefined` and crashing every message submit. The file-scan
   // and plugin-list loops both funnel through `fromPlugin`, but covering both
   // entry points means a future refactor that splits them won't silently lose
@@ -262,8 +262,8 @@ describe("tool.registry", () => {
   it.instance("loads tools from .tinycode/tools (plural)", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const opencode = path.join(test.directory, ".tinycode")
-      const tools = path.join(opencode, "tools")
+      const tinycode = path.join(test.directory, ".tinycode")
+      const tools = path.join(tinycode, "tools")
       yield* Effect.promise(() => fs.mkdir(tools, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(
@@ -322,7 +322,7 @@ describe("tool.registry", () => {
 
       const agents = yield* Agent.Service
       const promptTools = yield* registry.tools({
-        providerID: ProviderID.opencode,
+        providerID: ProviderID.tinycode,
         modelID: ModelID.make("test"),
         agent: yield* agents.defaultInfo(),
       })
@@ -342,13 +342,13 @@ describe("tool.registry", () => {
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
-        const opencode = path.join(test.directory, ".tinycode")
-        const customTools = path.join(opencode, "tools")
-        const plugin = path.join(opencode, "node_modules", "@opencode-ai", "plugin")
+        const tinycode = path.join(test.directory, ".tinycode")
+        const customTools = path.join(tinycode, "tools")
+        const plugin = path.join(tinycode, "node_modules", "@tinycode", "plugin")
         yield* Effect.promise(() => fs.mkdir(path.join(plugin, "dist"), { recursive: true }))
         yield* Effect.promise(() => fs.mkdir(customTools, { recursive: true }))
         yield* Effect.promise(() =>
-          fs.cp(path.dirname(fileURLToPath(import.meta.resolve("zod"))), path.join(opencode, "node_modules", "zod"), {
+          fs.cp(path.dirname(fileURLToPath(import.meta.resolve("zod"))), path.join(tinycode, "node_modules", "zod"), {
             dereference: true,
             recursive: true,
           }),
@@ -484,12 +484,12 @@ describe("tool.registry", () => {
   it.instance("loads tools with external dependencies without crashing", () =>
     Effect.gen(function* () {
       const test = yield* TestInstance
-      const opencode = path.join(test.directory, ".tinycode")
-      const tools = path.join(opencode, "tools")
+      const tinycode = path.join(test.directory, ".tinycode")
+      const tools = path.join(tinycode, "tools")
       yield* Effect.promise(() => fs.mkdir(tools, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(
-          path.join(opencode, "package.json"),
+          path.join(tinycode, "package.json"),
           JSON.stringify({
             name: "custom-tools",
             dependencies: {
@@ -501,7 +501,7 @@ describe("tool.registry", () => {
       )
       yield* Effect.promise(() =>
         Bun.write(
-          path.join(opencode, "package-lock.json"),
+          path.join(tinycode, "package-lock.json"),
           JSON.stringify({
             name: "custom-tools",
             lockfileVersion: 3,
@@ -517,7 +517,7 @@ describe("tool.registry", () => {
         ),
       )
 
-      const cowsay = path.join(opencode, "node_modules", "cowsay")
+      const cowsay = path.join(tinycode, "node_modules", "cowsay")
       yield* Effect.promise(() => fs.mkdir(cowsay, { recursive: true }))
       yield* Effect.promise(() =>
         Bun.write(

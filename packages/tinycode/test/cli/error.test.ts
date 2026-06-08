@@ -13,9 +13,9 @@ describe("cli.error", () => {
       },
       {
         tag: "ConfigDirectoryTypoError",
-        data: { path: "/tmp/tinycode.jsonc", dir: ".tinycode", suggestion: "opencode" },
+        data: { path: "/tmp/tinycode.jsonc", dir: ".tinycode", suggestion: "tinycode" },
         expected:
-          'Directory ".tinycode" in /tmp/tinycode.jsonc is not valid. Rename the directory to "opencode" or remove it. This is a common typo.',
+          'Directory ".tinycode" in /tmp/tinycode.jsonc is not valid. Rename the directory to "tinycode" or remove it. This is a common typo.',
       },
       {
         tag: "ConfigFrontmatterError",
@@ -73,7 +73,7 @@ describe("cli.error", () => {
     const expected = [
       "Model not found: anthropic/claude-sonet-4",
       "Did you mean: claude-sonnet-4",
-      "Try: `opencode models` to list available models",
+      "Try: `tinycode models` to list available models",
       "Or check your config (tinycode.json) provider/model names",
     ].join("\n")
 

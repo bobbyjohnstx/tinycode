@@ -23,7 +23,7 @@ export const DialogSelectProvider: Component = () => {
     if (id === "anthropic") return language.t("dialog.provider.anthropic.note")
     if (id === "openai") return language.t("dialog.provider.openai.note")
     if (id.startsWith("github-copilot")) return language.t("dialog.provider.copilot.note")
-    if (id === "opencode-go") return language.t("dialog.provider.opencodeGo.tagline")
+    if (id === "tinycode-go") return language.t("dialog.provider.tinycodeGo.tagline")
   }
 
   return (
@@ -65,17 +65,17 @@ export const DialogSelectProvider: Component = () => {
           <div class="px-1.25 w-full flex items-center gap-x-3">
             <ProviderIcon data-slot="list-item-extra-icon" id={i.id} />
             <span>{i.name}</span>
-            <Show when={i.id === "opencode"}>
-              <div class="text-14-regular text-text-weak">{language.t("dialog.provider.opencode.tagline")}</div>
+            <Show when={i.id === "tinycode"}>
+              <div class="text-14-regular text-text-weak">{language.t("dialog.provider.tinycode.tagline")}</div>
             </Show>
             <Show when={i.id === CUSTOM_ID}>
               <Tag>{language.t("settings.providers.tag.custom")}</Tag>
             </Show>
-            <Show when={i.id === "opencode"}>
+            <Show when={i.id === "tinycode"}>
               <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
             </Show>
             <Show when={note(i.id)}>{(value) => <div class="text-14-regular text-text-weak">{value()}</div>}</Show>
-            <Show when={i.id === "opencode-go"}>
+            <Show when={i.id === "tinycode-go"}>
               <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
             </Show>
           </div>

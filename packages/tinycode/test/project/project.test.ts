@@ -132,8 +132,8 @@ describe("Project.fromDirectory", () => {
       expect(project.vcs).toBe("git")
       expect(project.worktree).toBe(tmp)
 
-      const opencodeFile = path.join(tmp, ".git", "opencode")
-      expect(yield* Effect.promise(() => Bun.file(opencodeFile).exists())).toBe(false)
+      const tinycodeFile = path.join(tmp, ".git", "tinycode")
+      expect(yield* Effect.promise(() => Bun.file(tinycodeFile).exists())).toBe(false)
     }),
   )
 
@@ -349,7 +349,7 @@ describe("Project.fromDirectory with worktrees", () => {
 
       expect(wt.id).toBe(main.id)
 
-      const cache = path.join(tmp, ".git", "opencode")
+      const cache = path.join(tmp, ".git", "tinycode")
       const exists = yield* Effect.promise(() => Bun.file(cache).exists())
       expect(exists).toBe(true)
     }),
@@ -744,8 +744,8 @@ describe("Project.fromDirectory with bare repos", () => {
       expect(project.id).not.toBe(ProjectID.global)
       expect(project.worktree).toBe(worktreePath)
 
-      const correctCache = path.join(barePath, "opencode")
-      const wrongCache = path.join(parentDir, ".git", "opencode")
+      const correctCache = path.join(barePath, "tinycode")
+      const wrongCache = path.join(parentDir, ".git", "tinycode")
 
       expect(yield* Effect.promise(() => Bun.file(correctCache).exists())).toBe(true)
       expect(yield* Effect.promise(() => Bun.file(wrongCache).exists())).toBe(false)
@@ -778,9 +778,9 @@ describe("Project.fromDirectory with bare repos", () => {
 
       expect(projA.id).not.toBe(projB.id)
 
-      const cacheA = path.join(bareA, "opencode")
-      const cacheB = path.join(bareB, "opencode")
-      const wrongCache = path.join(parentDir, ".git", "opencode")
+      const cacheA = path.join(bareA, "tinycode")
+      const cacheB = path.join(bareB, "tinycode")
+      const wrongCache = path.join(parentDir, ".git", "tinycode")
 
       expect(yield* Effect.promise(() => Bun.file(cacheA).exists())).toBe(true)
       expect(yield* Effect.promise(() => Bun.file(cacheB).exists())).toBe(true)
@@ -807,7 +807,7 @@ describe("Project.fromDirectory with bare repos", () => {
       expect(project.id).not.toBe(ProjectID.global)
       expect(project.worktree).toBe(worktreePath)
 
-      const correctCache = path.join(barePath, "opencode")
+      const correctCache = path.join(barePath, "tinycode")
       expect(yield* Effect.promise(() => Bun.file(correctCache).exists())).toBe(true)
     }),
   )

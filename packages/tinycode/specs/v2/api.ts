@@ -3,11 +3,11 @@
 import { OpenCode } from "@/core"
 import { ReadTool } from "@/core/tools"
 
-const opencode = OpenCode.make({})
+const tc = OpenCode.make({})
 
-opencode.tool.add(ReadTool)
+tc.tool.add(ReadTool)
 
-opencode.tool.add({
+tc.tool.add({
   name: "bash",
   schema: {
     type: "object",
@@ -22,13 +22,13 @@ opencode.tool.add({
   execute(input, ctx) {},
 })
 
-opencode.auth.add({
+tc.auth.add({
   provider: "openai",
   type: "api",
   value: process.env.OPENAI_API_KEY,
 })
 
-opencode.agent.add({
+tc.agent.add({
   name: "build",
   permissions: [],
   model: {
@@ -38,20 +38,20 @@ opencode.agent.add({
   },
 })
 
-const sessionID = await opencode.session.create({
+const sessionID = await tc.session.create({
   agent: "build",
 })
 
-opencode.subscribe((event) => {
+tc.subscribe((event) => {
   console.log(event)
 })
 
-await opencode.session.prompt({
+await tc.session.prompt({
   sessionID,
   text: "hey what is up",
 })
 
-await opencode.session.prompt({
+await tc.session.prompt({
   sessionID,
   text: "what is up with this",
   files: [
@@ -62,6 +62,6 @@ await opencode.session.prompt({
   ],
 })
 
-await opencode.session.wait()
+await tc.session.wait()
 
-console.log(await opencode.session.messages(sessionID))
+console.log(await tc.session.messages(sessionID))

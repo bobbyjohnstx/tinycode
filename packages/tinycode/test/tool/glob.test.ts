@@ -148,13 +148,13 @@ describe("tool.glob", () => {
       Effect.gen(function* () {
         yield* TestInstance
         const fs = yield* AppFileSystem.Service
-        const cache = path.join(Global.Path.repos, "github.com", "opencode-glob-reference", "repo")
+        const cache = path.join(Global.Path.repos, "github.com", "tinycode-glob-reference", "repo")
         yield* fs.remove(cache, { recursive: true }).pipe(Effect.ignore)
         yield* Effect.addFinalizer(() => fs.remove(cache, { recursive: true }).pipe(Effect.ignore))
 
         const source = yield* tmpdirScoped({ git: true })
         const remoteRoot = yield* tmpdirScoped()
-        const remoteDir = path.join(remoteRoot, "opencode-glob-reference")
+        const remoteDir = path.join(remoteRoot, "tinycode-glob-reference")
         const remoteRepo = path.join(remoteDir, "repo.git")
         yield* fs.writeWithDirs(path.join(source, "src", "index.ts"), "export const value = 1\n")
         yield* git(source, ["add", "."])
@@ -177,7 +177,7 @@ describe("tool.glob", () => {
     {
       config: {
         reference: {
-          docs: "opencode-glob-reference/repo",
+          docs: "tinycode-glob-reference/repo",
         },
       },
     },

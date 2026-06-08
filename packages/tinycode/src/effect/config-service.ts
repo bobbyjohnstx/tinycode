@@ -31,7 +31,7 @@ export type ServiceClass<Self, Id extends string, Service> = Context.ServiceClas
  *   "@tinycode/ServerAuthConfig",
  *   {
  *     password: Config.string("TINYCODE_SERVER_PASSWORD").pipe(Config.option),
- *     username: Config.string("TINYCODE_SERVER_USERNAME").pipe(Config.withDefault("opencode")),
+ *     username: Config.string("TINYCODE_SERVER_USERNAME").pipe(Config.withDefault("tinycode")),
  *   },
  * ) {}
  *

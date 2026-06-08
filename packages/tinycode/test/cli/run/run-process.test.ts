@@ -1,4 +1,4 @@
-// Subprocess integration tests for `opencode run` (non-interactive mode).
+// Subprocess integration tests for `tinycode run` (non-interactive mode).
 // These exercise the real CLI binary against a TestLLMServer running in the
 // same process. See `test/lib/cli-process.ts` for the harness — each test uses
 // `tinycode.run(message, opts?)` to spawn `bun src/index.ts run ...` with
@@ -42,7 +42,7 @@ describe("tinycode run (non-interactive subprocess)", () => {
   )
 
   // Locks in the current behavior: when the LLM stream errors mid-response
-  // (the prompt was accepted, then the upstream provider failed), opencode
+  // (the prompt was accepted, then the upstream provider failed), tinycode
   // emits a session.error event and the process exits 0 today.
   //
   // This is debatable — a future cleanup might flip it to exit 1. If you're

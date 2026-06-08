@@ -491,9 +491,9 @@ description: A skill in the .agents/skills directory.
 `,
               ),
               Bun.write(
-                path.join(dir, ".tinycode", "skill", "opencode-skill", "SKILL.md"),
+                path.join(dir, ".tinycode", "skill", "tinycode-skill", "SKILL.md"),
                 `---
-name: opencode-skill
+name: tinycode-skill
 description: A skill in the .tinycode/skill directory.
 ---
 
@@ -505,7 +505,7 @@ description: A skill in the .tinycode/skill directory.
 
           const skill = yield* Skill.Service
           const list = (yield* skill.all()).filter((s) => s.location !== "<built-in>")
-          expect(list.map((s) => s.name)).toEqual(["opencode-skill"])
+          expect(list.map((s) => s.name)).toEqual(["tinycode-skill"])
         }),
       { git: true },
     ),
@@ -540,7 +540,7 @@ description: A skill in the .agents/skills directory.
               Bun.write(
                 path.join(dir, ".tinycode", "skill", "agent-skill", "SKILL.md"),
                 `---
-name: opencode-skill
+name: tinycode-skill
 description: A skill in the .tinycode/skill directory.
 ---
 
@@ -550,7 +550,7 @@ description: A skill in the .tinycode/skill directory.
               Bun.write(
                 path.join(dir, ".tinycode", "skills", "agent-skill", "SKILL.md"),
                 `---
-name: opencode-skill
+name: tinycode-skill
 description: A skill in the .tinycode/skills directory.
 ---
 

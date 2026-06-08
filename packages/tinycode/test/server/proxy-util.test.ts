@@ -65,7 +65,7 @@ describe("ProxyUtil", () => {
       expect(result.get("content-type")).toBe("application/json")
     })
 
-    test("strips opencode-specific headers", () => {
+    test("strips tinycode-specific headers", () => {
       const req = new Request("http://localhost", {
         headers: {
           "x-tinycode-directory": "/home/user/project",

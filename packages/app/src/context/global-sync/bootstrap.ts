@@ -97,7 +97,7 @@ export const loadProjectsQuery = (sdk: OpencodeClient) =>
         sdk.project.list().then((x) => {
           return (x.data ?? [])
             .filter((p) => !!p?.id)
-            .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
+            .filter((p) => !!p.worktree && !p.worktree.includes("tinycode-test"))
             .slice()
             .sort((a, b) => cmp(a.id, b.id))
         }),

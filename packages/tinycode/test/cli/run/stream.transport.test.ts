@@ -155,7 +155,7 @@ function ok<T>(data: T) {
   return Promise.resolve({
     data,
     error: undefined,
-    request: new Request("https://opencode.test"),
+    request: new Request("https://tinycode.test"),
     response: new Response(),
   })
 }

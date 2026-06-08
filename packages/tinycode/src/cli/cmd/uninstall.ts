@@ -136,10 +136,10 @@ async function showRemovalSummary(targets: RemovalTargets, method: InstallationM
 
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string> = {
-      npm: "npm uninstall -g opencode-ai",
-      pnpm: "pnpm uninstall -g opencode-ai",
-      bun: "bun remove -g opencode-ai",
-      yarn: "yarn global remove opencode-ai",
+      npm: "npm uninstall -g tinycode",
+      pnpm: "pnpm uninstall -g tinycode",
+      bun: "bun remove -g tinycode",
+      yarn: "yarn global remove tinycode",
       brew: "brew uninstall tinycode",
       choco: "choco uninstall tinycode",
       scoop: "scoop uninstall tinycode",
@@ -187,19 +187,19 @@ async function executeUninstall(method: InstallationMethod, targets: RemovalTarg
 
   if (method !== "curl" && method !== "unknown") {
     const cmds: Record<string, string[]> = {
-      npm: ["npm", "uninstall", "-g", "opencode-ai"],
-      pnpm: ["pnpm", "uninstall", "-g", "opencode-ai"],
-      bun: ["bun", "remove", "-g", "opencode-ai"],
-      yarn: ["yarn", "global", "remove", "opencode-ai"],
-      brew: ["brew", "uninstall", "opencode"],
-      choco: ["choco", "uninstall", "opencode"],
-      scoop: ["scoop", "uninstall", "opencode"],
+      npm: ["npm", "uninstall", "-g", "tinycode"],
+      pnpm: ["pnpm", "uninstall", "-g", "tinycode"],
+      bun: ["bun", "remove", "-g", "tinycode"],
+      yarn: ["yarn", "global", "remove", "tinycode"],
+      brew: ["brew", "uninstall", "tinycode"],
+      choco: ["choco", "uninstall", "tinycode"],
+      scoop: ["scoop", "uninstall", "tinycode"],
     }
 
     const cmd = cmds[method]
     if (cmd) {
       spinner.start(`Running ${cmd.join(" ")}...`)
-      const result = await Process.run(method === "choco" ? ["choco", "uninstall", "opencode", "-y", "-r"] : cmd, {
+      const result = await Process.run(method === "choco" ? ["choco", "uninstall", "tinycode", "-y", "-r"] : cmd, {
         nothrow: true,
       })
       if (result.code !== 0) {

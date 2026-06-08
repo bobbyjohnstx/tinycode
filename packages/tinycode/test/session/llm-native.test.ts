@@ -354,7 +354,7 @@ describe("session.llm-native.request", () => {
     const compatible = LLMNative.model({
       model: {
         ...baseModel,
-        providerID: ProviderID.make("opencode"),
+        providerID: ProviderID.make("tinycode"),
         api: { ...baseModel.api, url: "https://ai.example.test/v1", npm: "@ai-sdk/openai-compatible" },
       },
       apiKey: "test-key",
@@ -388,8 +388,8 @@ describe("session.llm-native.request", () => {
     })
     expect(
       LLMNativeRuntime.status({
-        model: { ...baseModel, providerID: ProviderID.make("opencode") },
-        provider: { ...providerInfo, id: ProviderID.make("opencode") },
+        model: { ...baseModel, providerID: ProviderID.make("tinycode") },
+        provider: { ...providerInfo, id: ProviderID.make("tinycode") },
         auth: undefined,
       }),
     ).toMatchObject({
@@ -400,10 +400,10 @@ describe("session.llm-native.request", () => {
       LLMNativeRuntime.status({
         model: {
           ...baseModel,
-          providerID: ProviderID.make("opencode"),
+          providerID: ProviderID.make("tinycode"),
           api: { ...baseModel.api, npm: "@ai-sdk/openai-compatible" },
         },
-        provider: { ...providerInfo, id: ProviderID.make("opencode") },
+        provider: { ...providerInfo, id: ProviderID.make("tinycode") },
         auth: undefined,
       }),
     ).toMatchObject({
@@ -416,7 +416,7 @@ describe("session.llm-native.request", () => {
         provider: { ...providerInfo, id: ProviderID.make("google") },
         auth: undefined,
       }),
-    ).toEqual({ type: "unsupported", reason: "provider is not openai, opencode, or anthropic" })
+    ).toEqual({ type: "unsupported", reason: "provider is not openai, tinycode, or anthropic" })
     expect(
       LLMNativeRuntime.status({
         model: baseModel,
@@ -469,13 +469,13 @@ describe("session.llm-native.request", () => {
     ).toMatchObject({ type: "supported", apiKey: "test-anthropic-key" })
   })
 
-  test("prefers console provider api key over stored opencode auth", () => {
+  test("prefers console provider api key over stored tinycode auth", () => {
     expect(
       LLMNativeRuntime.status({
-        model: { ...baseModel, providerID: ProviderID.make("opencode") },
+        model: { ...baseModel, providerID: ProviderID.make("tinycode") },
         provider: {
           ...providerInfo,
-          id: ProviderID.make("opencode"),
+          id: ProviderID.make("tinycode"),
           options: { apiKey: "console-token" },
           key: "zen-token",
         },

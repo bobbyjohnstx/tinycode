@@ -144,7 +144,7 @@ export function buildAuthorizeUrl(
 ): string {
   // `plan=generic` opts the consent screen into xAI's generic OAuth plan tier;
   // without it, accounts.x.ai rejects loopback OAuth from non-allowlisted
-  // clients. `referrer=opencode` lets xAI attribute opencode-originated
+  // clients. `referrer=tinycode` lets xAI attribute tinycode-originated
   // logins in their OAuth server logs (best-effort attribution while we
   // continue to reuse the Grok-CLI client_id).
   const params = new URLSearchParams({
@@ -157,7 +157,7 @@ export function buildAuthorizeUrl(
     state,
     nonce,
     plan: "generic",
-    referrer: "opencode",
+    referrer: "tinycode",
   })
   return `${options.authorizeUrl ?? AUTHORIZE_URL}?${params.toString()}`
 }

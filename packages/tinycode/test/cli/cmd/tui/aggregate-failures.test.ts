@@ -44,7 +44,7 @@ describe("aggregateFailures", () => {
 
   test("formats structured config errors hidden inside SDK error causes", () => {
     const configError = new ConfigError.InvalidError({
-      path: "/tmp/opencode.json",
+      path: "/tmp/tinycode.json",
       issues: [{ message: "Expected object", path: ["provider", "anthropic", "options"] }],
     })
     const err = aggregateFailures([
@@ -61,7 +61,7 @@ describe("aggregateFailures", () => {
       },
     ])
 
-    expect(err!.message).toContain("config.get: Configuration is invalid at /tmp/opencode.json")
+    expect(err!.message).toContain("config.get: Configuration is invalid at /tmp/tinycode.json")
     expect(err!.message).toContain("Expected object provider.anthropic.options")
   })
 

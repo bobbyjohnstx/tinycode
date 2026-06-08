@@ -8,8 +8,8 @@
 // diff tells you exactly which command(s) changed.
 //
 // Snapshots are taken at COLUMNS=120 so wrapping is stable across
-// terminal sizes. The default opencode tui command is excluded —
-// `opencode --help` includes an ASCII banner that pulls in the install
+// terminal sizes. The default tinycode tui command is excluded —
+// `tinycode --help` includes an ASCII banner that pulls in the install
 // version (changes per release), so we'd snapshot a moving target.
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
@@ -38,10 +38,10 @@ function normalize(text: string): string {
   })
 }
 
-// Top-level commands. Order matches what `opencode --help` prints today;
+// Top-level commands. Order matches what `tinycode --help` prints today;
 // keep it in that order so the snapshot file reads as a table of contents.
 // `completion` is intentionally excluded — it's a yargs built-in that emits
-// top-level help on `--help` and exits 1; not a real opencode command.
+// top-level help on `--help` and exits 1; not a real tinycode command.
 const TOP_LEVEL = [
   "acp",
   "mcp",

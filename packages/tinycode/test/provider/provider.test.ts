@@ -1023,7 +1023,7 @@ it.instance("ModelNotFoundError suggests catalog models for unloaded providers",
   Effect.gen(function* () {
     yield* remove("OPENCODE_API_KEY")
     const error = yield* Provider.use
-      .getModel(ProviderID.opencode, ModelID.make("claude-haiku-fake-model"))
+      .getModel(ProviderID.tinycode, ModelID.make("claude-haiku-fake-model"))
       .pipe(Effect.flip)
     if (!Provider.ModelNotFoundError.isInstance(error)) throw error
     expect(error.suggestions ?? []).toContain("claude-haiku-4-5")
@@ -1527,12 +1527,12 @@ it.instance(
     expect(providers[ProviderID.make("cloudflare-ai-gateway")]).toBeDefined()
     expect(providers[ProviderID.make("cloudflare-ai-gateway")].options.metadata).toEqual({
       invoked_by: "test",
-      project: "opencode",
+      project: "tinycode",
     })
   }),
   {
     config: {
-      provider: { "cloudflare-ai-gateway": { options: { metadata: { invoked_by: "test", project: "opencode" } } } },
+      provider: { "cloudflare-ai-gateway": { options: { metadata: { invoked_by: "test", project: "tinycode" } } } },
     },
   },
 )

@@ -170,7 +170,7 @@ describe("tool.grep", () => {
 
       yield* TestInstance
       const tmp = yield* Effect.acquireRelease(
-        Effect.promise(() => fs.mkdtemp(path.join(os.tmpdir(), "opencode-grep-alias-"))),
+        Effect.promise(() => fs.mkdtemp(path.join(os.tmpdir(), "tinycode-grep-alias-"))),
         (dir) => Effect.promise(() => fs.rm(dir, { recursive: true, force: true })),
       )
       const real = path.join(tmp, "real")
@@ -219,13 +219,13 @@ describe("tool.grep", () => {
       Effect.gen(function* () {
         yield* TestInstance
         const appfs = yield* AppFileSystem.Service
-        const cache = path.join(Global.Path.repos, "github.com", "opencode-grep-reference", "repo")
+        const cache = path.join(Global.Path.repos, "github.com", "tinycode-grep-reference", "repo")
         yield* appfs.remove(cache, { recursive: true }).pipe(Effect.ignore)
         yield* Effect.addFinalizer(() => appfs.remove(cache, { recursive: true }).pipe(Effect.ignore))
 
         const source = yield* tmpdirScoped({ git: true })
         const remoteRoot = yield* tmpdirScoped()
-        const remoteDir = path.join(remoteRoot, "opencode-grep-reference")
+        const remoteDir = path.join(remoteRoot, "tinycode-grep-reference")
         const remoteRepo = path.join(remoteDir, "repo.git")
         yield* appfs.writeWithDirs(path.join(source, "src", "notes.md"), "needle\n")
         yield* git(source, ["add", "."])
@@ -256,7 +256,7 @@ describe("tool.grep", () => {
     {
       config: {
         reference: {
-          docs: "opencode-grep-reference/repo",
+          docs: "tinycode-grep-reference/repo",
         },
       },
     },

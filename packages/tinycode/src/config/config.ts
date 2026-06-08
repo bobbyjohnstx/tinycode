@@ -630,7 +630,7 @@ export const layer = Layer.effect(
           for (const file of yield* ConfigPaths.files("tinycode", ctx.directory, ctx.worktree).pipe(Effect.orDie)) {
             yield* merge(file, yield* loadFile(file, authEnv), "local")
           }
-          for (const file of yield* ConfigPaths.files("opencode", ctx.directory, ctx.worktree).pipe(Effect.orDie)) {
+          for (const file of yield* ConfigPaths.files("tinycode", ctx.directory, ctx.worktree).pipe(Effect.orDie)) {
             yield* merge(file, yield* loadFile(file, authEnv), "local")
           }
         }

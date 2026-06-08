@@ -53,7 +53,7 @@ describe("Session.Info", () => {
       projectID,
       workspaceID,
       directory: "/tmp/proj",
-      path: "packages/opencode",
+      path: "packages/tinycode",
       parentID: sessionIDChild,
       summary: {
         additions: 10,
@@ -234,11 +234,11 @@ describe("SessionStatus.Info", () => {
       message: "transient",
       action: {
         reason: "free_tier_limit",
-        provider: "opencode",
+        provider: "tinycode",
         title: "Free limit reached",
         message: "Subscribe to OpenCode Go.",
         label: "subscribe",
-        link: "https://opencode.ai/go",
+        link: "https://tinycode.dev/go",
       },
       next: 500,
     }

@@ -1,8 +1,8 @@
 import type { GlobalEvent } from "@tinycode/sdk/v2"
 import type { EventSource } from "../../src/cli/cmd/tui/context/sdk"
 
-export const worktree = "/tmp/opencode"
-export const directory = `${worktree}/packages/opencode`
+export const worktree = "/tmp/tinycode"
+export const directory = `${worktree}/packages/tinycode`
 
 export function json(data: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(data), {

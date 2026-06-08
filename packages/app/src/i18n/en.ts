@@ -101,9 +101,9 @@ export const dict = {
   "dialog.provider.group.popular": "Popular",
   "dialog.provider.group.other": "Other",
   "dialog.provider.tag.recommended": "Recommended",
-  "dialog.provider.opencode.note": "Curated models including Claude, GPT, Gemini and more",
-  "dialog.provider.opencode.tagline": "Reliable optimized models",
-  "dialog.provider.opencodeGo.tagline": "Low cost subscription for everyone",
+  "dialog.provider.tinycode.note": "Curated models including Claude, GPT, Gemini and more",
+  "dialog.provider.tinycode.tagline": "Reliable optimized models",
+  "dialog.provider.tinycodeGo.tagline": "Low cost subscription for everyone",
   "dialog.provider.anthropic.note": "Direct access to Claude models, including Pro and Max",
   "dialog.provider.copilot.note": "AI models for coding assistance via GitHub Copilot",
   "dialog.provider.openai.note": "GPT models for fast, capable general AI tasks",
@@ -135,13 +135,13 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API key",
   "provider.connect.apiKey.placeholder": "API key",
   "provider.connect.apiKey.required": "API key is required",
-  "provider.connect.opencodeZen.line1":
+  "provider.connect.tinycodeZen.line1":
     "OpenCode Zen gives you access to a curated set of reliable optimized models for coding agents.",
-  "provider.connect.opencodeZen.line2":
+  "provider.connect.tinycodeZen.line2":
     "With a single API key you'll get access to models such as Claude, GPT, Gemini, GLM and more.",
-  "provider.connect.opencodeZen.visit.prefix": "Visit ",
-  "provider.connect.opencodeZen.visit.link": "opencode.ai/zen",
-  "provider.connect.opencodeZen.visit.suffix": " to collect your API key.",
+  "provider.connect.tinycodeZen.visit.prefix": "Visit ",
+  "provider.connect.tinycodeZen.visit.link": "tinycode.dev/zen",
+  "provider.connect.tinycodeZen.visit.suffix": " to collect your API key.",
   "provider.connect.oauth.code.visit.prefix": "Visit ",
   "provider.connect.oauth.code.visit.link": "this link",
   "provider.connect.oauth.code.visit.suffix":

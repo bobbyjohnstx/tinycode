@@ -115,7 +115,7 @@ const RECORDED_SCENARIOS = [
     modelID: "gpt-4.1-mini",
     cassette: "session/native-openai-tool-loop",
     protocol: "openai-responses",
-    tags: ["opencode", "native", "tool-loop"],
+    tags: ["tinycode", "native", "tool-loop"],
     canRecord: () => Boolean(envValue("TINYCODE_RECORD_OPENAI_API_KEY", "OPENAI_API_KEY")),
     config: (model) =>
       providerConfig({
@@ -138,7 +138,7 @@ const RECORDED_SCENARIOS = [
     modelID: "gpt-5.5",
     cassette: "session/native-openai-oauth-tool-loop",
     protocol: "openai-responses",
-    tags: ["opencode", "native", "oauth", "tool-loop"],
+    tags: ["tinycode", "native", "oauth", "tool-loop"],
     canRecord: () => recordOpenAIOAuth() !== undefined,
     recordAuth: recordOpenAIOAuth,
     replayAuth: replayOpenAIOAuth,
@@ -161,7 +161,7 @@ const RECORDED_SCENARIOS = [
     modelID: "claude-haiku-4-5-20251001",
     cassette: "session/native-anthropic-tool-loop",
     protocol: "anthropic-messages",
-    tags: ["opencode", "native", "tool-loop"],
+    tags: ["tinycode", "native", "tool-loop"],
     canRecord: () => Boolean(envValue("TINYCODE_RECORD_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY")),
     config: (model) =>
       providerConfig({
@@ -254,7 +254,7 @@ function recordedNativeLLMLayer(scenario: RecordedScenario) {
     Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provide(LocalDiscovery.defaultLayer),
   )
-  // Only the HTTP client is recorded; RequestExecutor and the opencode LLM stack remain real.
+  // Only the HTTP client is recorded; RequestExecutor and the tinycode LLM stack remain real.
   const recordedClient = LLMClient.layer.pipe(
     Layer.provide(Layer.mergeAll(RequestExecutor.layer, WebSocketExecutor.layer)),
     Layer.provide(
@@ -290,8 +290,8 @@ function recordedNativeLLMLayer(scenario: RecordedScenario) {
 const writeConfig = (directory: string, scenario: RecordedScenario, model: ModelsDev.Provider["models"][string]) =>
   Effect.promise(() =>
     Bun.write(
-      path.join(directory, "opencode.json"),
-      JSON.stringify({ $schema: "https://opencode.ai/config.json", ...scenario.config(model) }),
+      path.join(directory, "tinycode.json"),
+      JSON.stringify({ $schema: "https://tinycode.dev/config.json", ...scenario.config(model) }),
     ),
   )
 

@@ -63,10 +63,10 @@ function model(input: {
 }) {
   return {
     id: input.id,
-    providerID: "opencode",
+    providerID: "tinycode",
     api: {
-      id: "opencode",
-      url: "https://opencode.ai",
+      id: "tinycode",
+      url: "https://tinycode.dev",
       npm: "@ai-sdk/openai-compatible",
     },
     name: input.name,
@@ -113,8 +113,8 @@ function model(input: {
 
 function provider() {
   return {
-    id: "opencode",
-    name: "opencode",
+    id: "tinycode",
+    name: "tinycode",
     source: "api",
     env: [],
     options: {},
@@ -372,7 +372,7 @@ test("direct footer shows subagent indicator while prompt is running", async () 
           subagent={subagents}
           theme={RUN_THEME_FALLBACK}
           keybinds={keybinds}
-          agent="opencode"
+          agent="tinycode"
           onSubmit={() => true}
           onPermissionReply={() => {}}
           onQuestionReply={() => {}}
@@ -452,7 +452,7 @@ test("direct question body separates single-select checkmark from label", async 
 
 test("direct model panel renders current model selector", async () => {
   const [providers] = createSignal<RunProvider[] | undefined>([provider()])
-  const [current] = createSignal<RunInput["model"]>({ providerID: "opencode", modelID: "gpt-5" })
+  const [current] = createSignal<RunInput["model"]>({ providerID: "tinycode", modelID: "gpt-5" })
 
   const app = await testRender(
     () => (
@@ -478,7 +478,7 @@ test("direct model panel renders current model selector", async () => {
 
     expect(frame).toContain("Select model")
     expect(frame).toContain("Search")
-    expect(frame).toContain("opencode")
+    expect(frame).toContain("tinycode")
     expect(frame).toContain("GPT-5")
     expect(frame).toContain("current")
     expect(frame).toContain("GPT Free")

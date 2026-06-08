@@ -5,14 +5,14 @@ import path from "path"
 const preserveExerciseGlobalRoot = !!process.env.TINYCODE_HTTPAPI_EXERCISE_GLOBAL
 export const exerciseGlobalRoot =
   process.env.TINYCODE_HTTPAPI_EXERCISE_GLOBAL ??
-  path.join(process.env.TMPDIR ?? "/tmp", `opencode-httpapi-global-${process.pid}`)
+  path.join(process.env.TMPDIR ?? "/tmp", `tinycode-httpapi-global-${process.pid}`)
 process.env.XDG_DATA_HOME = path.join(exerciseGlobalRoot, "data")
 process.env.XDG_CONFIG_HOME = path.join(exerciseGlobalRoot, "config")
 process.env.XDG_STATE_HOME = path.join(exerciseGlobalRoot, "state")
 process.env.XDG_CACHE_HOME = path.join(exerciseGlobalRoot, "cache")
 process.env.TINYCODE_DISABLE_SHARE = "true"
-export const exerciseConfigDirectory = path.join(exerciseGlobalRoot, "config", "opencode")
-export const exerciseDataDirectory = path.join(exerciseGlobalRoot, "data", "opencode")
+export const exerciseConfigDirectory = path.join(exerciseGlobalRoot, "config", "tinycode")
+export const exerciseDataDirectory = path.join(exerciseGlobalRoot, "data", "tinycode")
 
 const preserveExerciseDatabase = !!process.env.TINYCODE_HTTPAPI_EXERCISE_DB
 export const exerciseDatabasePath =
