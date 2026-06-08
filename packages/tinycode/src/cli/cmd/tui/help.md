@@ -4,50 +4,96 @@
 Local-LLM-first AI coding assistant. Runs in your terminal against Ollama, vLLM, MaaS, or cloud API providers.
 
 ## Agents
-Type `@agent-name` to invoke a specialized subagent:
+Type `/ask <agent> <prompt>` to invoke a specialized subagent:
 
-| Agent           | Role |
-|-----------------|------|
-| @explore        | Fast codebase search (grep, glob, file reading) |
-| @deep-explore   | LSP+AST aware search — symbols, references, call graphs (see docs/DEEP-EXPLORE-GUIDE.md) |
-| @scout          | External research — clone repos, read library docs |
-| @architect      | Read-only code analysis and architectural guidance (never modifies files) |
-| @debugger       | Root-cause analysis and bug fixing |
-| @executor       | Implement a scoped task precisely — smallest viable diff |
-| @planner        | Structured planning interview — writes plans to .omc/plans/ |
-| @general        | General-purpose assistant for questions and parallel tasks |
+| Agent   | Role |
+|---------|------|
+| explore | Fast codebase search (grep, glob, file reading, bash). Specify thoroughness: "quick", "medium", or "very thorough". |
+| scout   | External research — clone repos, read library docs, fetch URLs. Never modifies workspace. |
+| general | General-purpose agent for research and multi-step tasks. Fans out work in parallel. |
 
-Primary agent modes (switch in the agent bar):
+Primary agent modes (switch with tab or `<leader>a`):
 - build — default, full tool access (read/write/edit/bash)
-- plan — planning mode, disables all edit tools
+- plan — planning mode, edit tools disabled; writes plans to .tinycode/plans/
 
-## Skills
-Type `/skill-name` or use `/skills` to pick from the list:
+Custom agents can be defined in config under the `agent` key or generated via the command palette.
 
-| Skill | Purpose |
-|-------|---------|
-| /work-loop | Iterate on a task until complete — read, act, verify, repeat |
-| /plan | Strategic planning protocol before implementing |
-| /wiki | Knowledge base — store and retrieve project notes |
-| /deepinit | Deep codebase initialization and analysis |
-| /cancel | Cancel the current operation |
-| /team | Launch a multi-agent team for parallel work |
-| /improve-codebase-architecture | Architecture review and deepening opportunities |
+## Slash Commands
+Type `/` to open autocomplete and pick from available commands:
+
+| Command              | Description |
+|----------------------|-------------|
+| /init                | Guided AGENTS.md setup for the current project |
+| /review              | Review changes (commit, branch, or PR); defaults to uncommitted |
+| /ask \<agent\> \<prompt\> | Invoke a subagent — see agent list above |
+| /compact, /summarize | Compact the session (summarize context to free space) |
+| /rename              | Rename the current session |
+| /undo                | Revert to the previous user message |
+| /redo                | Restore a reverted message |
+| /timeline            | Jump to a message in the timeline |
+| /fork                | Fork the session from a selected message |
+| /export              | Export the session transcript to a file |
+| /copy                | Copy the session transcript to clipboard |
+| /share               | Share the session (generates a URL) |
+| /timestamps          | Toggle message timestamps |
+| /thinking            | Toggle thinking block visibility |
+
+MCP prompts and local skills also appear as slash commands.
+
+## @ File References
+Type `@` to reference files. The autocomplete shows:
+- Files in the current project (fuzzy-matched, frecency-sorted)
+- Named references configured under the `reference` key (e.g. `@my-lib/src/index.ts`)
+- MCP resources exposed by connected servers
+
+Append `#<line>` or `#<start>-<end>` to reference a line range: `@src/main.ts#10-25`
+
+`@` references files only. To invoke an agent, use `/ask <agent>`.
 
 ## Key Keybindings
-| Key | Action |
-|-----|--------|
-| ctrl+p | Open command palette |
-| ctrl+x j | View first child subagent session |
-| ctrl+x n | New session |
-| ctrl+x l | List sessions |
-| ctrl+r | Rename current session |
-| esc | Interrupt session / close dialog (press twice to interrupt) |
-| F1 | Open help |
-| tab | Switch agents |
+Leader key defaults to `ctrl+x`. All `<leader>` bindings require pressing the leader first.
+
+| Key              | Action |
+|------------------|--------|
+| ctrl+p           | Open command palette |
+| f1               | Open help |
+| escape           | Interrupt current session / close dialog |
+| tab              | Cycle to next agent |
+| shift+tab        | Cycle to previous agent |
+| return           | Submit prompt |
+| shift+return     | Insert newline |
+| \<leader\>n      | New session |
+| \<leader\>l      | List sessions |
+| \<leader\>g      | Session timeline (jump to message) |
+| \<leader\>c      | Compact session |
+| ctrl+r           | Rename session |
+| \<leader\>j      | Go to first child (subagent) session |
+| \<leader\>k      | Go to parent session |
+| \<leader\>u      | Undo last message |
+| \<leader\>r      | Redo undone message |
+| \<leader\>y      | Copy last assistant message |
+| \<leader\>x      | Export session transcript |
+| \<leader\>a      | List agents |
+| \<leader\>m      | List models |
+| \<leader\>b      | Toggle sidebar |
+| \<leader\>t      | Switch theme |
+| \<leader\>e      | Open external editor |
+| \<leader\>s      | View status |
+| \<leader\>h      | Toggle code block concealment |
+| f2               | Cycle to next recently used model |
+| shift+f2         | Cycle to previous recently used model |
+| ctrl+t           | Cycle model variants |
+| pageup           | Scroll messages up one page |
+| pagedown         | Scroll messages down one page |
+| ctrl+g / home    | Jump to first message |
+| end              | Jump to last message |
+| ctrl+alt+k       | Toggle which-key panel (shows all bindings) |
+| ctrl+c           | Clear input / exit |
+
+All keybindings can be overridden in `tui.json` under the `keybinds` key.
 
 ## Connecting Providers
-Type `/connect` to open the provider connection dialog.
+Open the model picker with `<leader>m` to select a model and connect providers.
 
 Local providers (auto-discovered):
 - Ollama: runs on localhost:11434 — just start `ollama serve`
@@ -55,38 +101,74 @@ Local providers (auto-discovered):
 - MaaS: set TINYCODE_MAAS_HOST + TINYCODE_MAAS_API_KEY env vars
 
 Cloud providers (API key required):
-- Anthropic, OpenAI, Google — enter API key in /connect dialog
+- Anthropic, OpenAI, Google — enter API key via the model picker
 
-Config file (~/.config/tinycode/config.json):
+## Configuration
+Config merges from: `~/.config/tinycode/` (global) → `.tinycode/` (project)
+
+Key config fields in `config.json`:
+```json
 {
   "model": "ollama/llama3.2",
+  "small_model": "ollama/llama3.2",
+  "default_agent": "build",
   "provider": {
-    "maas": {
+    "my-server": {
       "npm": "@ai-sdk/openai-compatible",
       "options": { "baseURL": "https://your-server/v1", "apiKey": "your-key" }
     }
+  },
+  "mcp": {
+    "my-server": { "type": "stdio", "command": "npx", "args": ["-y", "my-mcp-server"] }
+  },
+  "lsp": true,
+  "skills": { "paths": ["~/my-skills"] },
+  "permission": { "guardrail": "allow" },
+  "instructions": ["Always use TypeScript strict mode"],
+  "reference": {
+    "my-lib": { "type": "local", "path": "/path/to/my-lib" }
   }
 }
+```
 
-## Multi-Agent Teams
-Launch a team of parallel workers:
-  bun script/team.ts --team my-team --workers 3 --task "Audit all files for X"
+- `model` — default model (e.g. "maas/qwen3-14b", "ollama/llama3.2")
+- `small_model` — model for lightweight tasks like title generation
+- `default_agent` — which primary agent to start with (default: build)
+- `provider` — custom/MaaS provider definitions
+- `mcp` — MCP server configurations
+- `lsp` — enable language servers (true/false or per-language config)
+- `skills.paths` — additional directories to load skills from
+- `permission` — tool permission rules (allow/ask/deny per tool type)
+- `instructions` — extra system prompt instructions appended to all agents
+- `reference` — named external directories or git repos for `@alias` autocomplete
+- `command` — custom slash commands with template strings
+- `agent` — per-agent overrides (model, prompt, steps, temperature, etc.)
 
-Or from the TUI, invoke `/team` and describe your task.
+TUI-specific settings (theme, keybinds, layout) go in `tui.json`, not `config.json`.
 
-## Configuration
-Config merges from: ~/.config/tinycode/ (global) -> .opencode/ (project)
+## MCP Support
+tinycode supports the Model Context Protocol for connecting external tools and data sources.
 
-Key config options:
-- model — default model (e.g. "maas/qwen3-14b", "ollama/llama3.2")
-- lsp — enable language servers (true/false or per-server config)
-- skills.paths — additional skill directories
-- permission — tool permission rules (allow/ask/deny per tool type)
+Configure MCP servers in config.json under the `mcp` key:
+```json
+{
+  "mcp": {
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+    }
+  }
+}
+```
+
+MCP tools become available to agents automatically. MCP prompts appear as slash commands. MCP resources appear in `@` autocomplete.
 
 ## LSP Support
-Set "lsp": true in config.json. Supported servers: typescript, pyright, gopls,
+Set `"lsp": true` in config.json. Supported servers: typescript, pyright, gopls,
 rust-analyzer, clangd, bash, yaml, dockerfile, and more.
 Install language servers via npm/brew/cargo as needed.
+Set TINYCODE_DISABLE_LSP_DOWNLOAD=1 to prevent automatic binary downloads (air-gapped environments).
 
 ## Permissions & Guardrails
 tinycode asks for approval before:
@@ -94,50 +176,28 @@ tinycode asks for approval before:
 - Reading secrets files (.env, *.key, *.pem)
 - Accessing files outside the project directory
 
-Configure via the "permission" key in config.json:
+Configure via the `permission` key in config.json:
+```json
 { "permission": { "guardrail": "allow" } }
+```
 
-## Deep-Explore Tips
-
-### Split technique for large codebases
-A single @deep-explore session on a large project covers ~20-70% of the codebase depending
-on the model's context window. For comprehensive architecture docs, split into two sessions:
-
-Session 1 — Structure:
-  @deep-explore Map every top-level directory in src/ — list what each contains and its
-  purpose in one sentence. Cover ALL directories, not just the obvious ones.
-
-Session 2 — Patterns:
-  @deep-explore Identify the key design patterns: how services are defined, how dependency
-  injection works, how errors are handled, how data flows from user input to LLM to tools.
-  Read actual code examples for each pattern.
-
-Then combine:
-  @writer Combine these two exploration results into a complete ARCHITECTURE.md:
-  [paste session 1 output]
-  ---
-  [paste session 2 output]
-
-### Steps by model
-The steps setting in .opencode/agent/deep-explore.md controls depth:
-- Local 8B models (llama3.2, qwen2.5): 30-35 steps (context fills before steps exhaust)
-- Mid models (gemma4:27b, qwen3-14b): 50-60 steps
-- Large context (llama-scout-17b): 80-100 steps
-See docs/DEEP-EXPLORE-GUIDE.md for the full lookup table.
+## Skills
+Skills are slash commands backed by prompt templates. They appear in `/` autocomplete.
+Load additional skills by setting `skills.paths` in config.json.
+Skills can be local (`.tinycode/skills/`) or global (`~/.config/tinycode/skills/`).
 
 ## Tips & Techniques
 
 ### Context window management
-- Run /compact before large tasks — don't wait for auto-compaction
+- Use /compact before large tasks — don't wait for auto-compaction
 - Split long tasks across multiple sessions; each starts with fresh context
-- Use @executor for scoped implementation — smaller footprint than @build
+- Use /ask explore before /ask general — let explore do the reading, general just orchestrates
 - Prefer lsp_document_symbols over reading whole files — structure without token cost
 
 ### Agent selection
-- @architect for analysis — read-only, zero risk of unwanted edits
-- @debugger for root cause → @executor for the fix (two-agent pattern beats one long session)
-- @general auto-fans out subtasks in parallel — good for "audit all X" requests
-- @explore before @executor — let explore do the reading, executor just writes
+- /ask explore for codebase search — read-only, fast, no risk of edits
+- /ask scout to research external repos or library docs without cloning into your workspace
+- /ask general to fan out parallel subtasks ("audit all X" requests)
 
 ### Prompting local models
 - Be explicit about output format: "list the files", "respond in JSON", "one sentence per item"
@@ -145,22 +205,15 @@ See docs/DEEP-EXPLORE-GUIDE.md for the full lookup table.
 - Avoid open-ended questions — local models ramble and waste context
 - State the constraint when needed: "be concise, this model has a small context window"
 
-### Skills
-- /work-loop for iterative tasks: failing tests, debug loops, multi-step refactors
-- /plan before any multi-file change — forces structure before the model starts editing
-- /cancel immediately when the model goes off-track — stops before it exhausts context
-
 ### Air-gapped / local environments
-- Set OPENCODE_DISABLE_LSP_DOWNLOAD=1 in .env — prevents hang on LSP binary fetch
-- Pull all Ollama models in advance: ollama pull qwen2.5 llama3.2 gemma4
+- Set TINYCODE_DISABLE_LSP_DOWNLOAD=1 — prevents hang on LSP binary fetch
+- Pull all Ollama models in advance: ollama pull qwen2.5 llama3.2
 - config.json model setting is more reliable than TUI selection for cold starts
 - Use MaaS for complex reasoning; Ollama for sensitive code that stays fully local
 
-### Multi-agent teams (/team)
-- Use for genuinely parallel workloads — not for sequential steps
-- Workers don't share memory; each is an independent session with full tool access
-- 2-3 workers is the practical limit for local 8B models (context × workers)
-- See script/team.ts for invocation; docs/DEEP-EXPLORE-GUIDE.md for agent depth tuning
+### Which-key
+Press `ctrl+alt+k` to open the which-key panel — shows all registered keybindings grouped
+by category. Use `ctrl+alt+left/right` to navigate groups.
 
 ## Getting Help
 Type a question in the prompt — tinycode's AI knows its own features.
