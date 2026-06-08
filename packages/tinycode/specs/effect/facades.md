@@ -1,6 +1,6 @@
 # Facade removal checklist
 
-Concrete inventory of the remaining `makeRuntime(...)`-backed facades in `packages/opencode`.
+Concrete inventory of the remaining `makeRuntime(...)`-backed facades in `packages/tinycode`.
 
 Current status on this branch:
 

@@ -16,7 +16,7 @@ is wrong. The shapes below cover the common surface area, but they are a
 The authoritative list of every config option — with field types, enums,
 defaults, and descriptions — lives in the published JSON Schema:
 
-**<https://opencode.ai/config.json>**
+**<https://tinycode.ai/config.json>**
 
 If a field is not documented in this skill, or you need to confirm an exact
 shape before writing config, **fetch that URL and read the schema directly**
@@ -24,8 +24,8 @@ rather than guessing. tinycode hard-fails on invalid config, so the cost of a
 wrong shape is a broken startup.
 
 Independently, every `tinycode.json` should declare
-`"$schema": "https://opencode.ai/config.json"` so the user's editor catches
-mistakes as they type. (The old `opencode.json` filename still works too.)
+`"$schema": "https://tinycode.ai/config.json"` so the user's editor catches
+mistakes as they type. (The old `tinycode.json` filename still works too.)
 
 ## Applying changes
 
@@ -39,11 +39,11 @@ already-loaded config until then.
 
 | Scope                         | Path                                                                                                                      |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Project config                | `./tinycode.json`, `./tinycode.jsonc`, or `.opencode/tinycode.json` (tinycode walks up from the cwd to the worktree root) |
-| Global config                 | `~/.config/tinycode/tinycode.json` (NOT `~/.opencode/`)                                                                   |
-| Project agents                | `.opencode/agent/<name>.md` or `.opencode/agents/<name>.md`                                                               |
+| Project config                | `./tinycode.json`, `./tinycode.jsonc`, or `.tinycode/tinycode.json` (tinycode walks up from the cwd to the worktree root) |
+| Global config                 | `~/.config/tinycode/tinycode.json` (NOT `~/.tinycode/`)                                                                   |
+| Project agents                | `.tinycode/agent/<name>.md` or `.tinycode/agents/<name>.md`                                                               |
 | Global agents                 | `~/.config/tinycode/agent(s)/<name>.md`                                                                                   |
-| Project skills                | `.opencode/skill(s)/<name>/SKILL.md`                                                                                      |
+| Project skills                | `.tinycode/skill(s)/<name>/SKILL.md`                                                                                      |
 | Global skills                 | `~/.config/tinycode/skill(s)/<name>/SKILL.md`                                                                             |
 | External skills (auto-loaded) | `~/.claude/skills/<name>/SKILL.md`, `~/.agents/skills/<name>/SKILL.md`                                                    |
 
@@ -56,7 +56,7 @@ Every field is optional.
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",  // tinycode.json (or opencode.json — both still work)
+  "$schema": "https://tinycode.ai/config.json",  // tinycode.json (or tinycode.json — both still work)
   "username": "string",
   "model": "provider/model-id",
   "small_model": "provider/model-id",
@@ -69,7 +69,7 @@ Every field is optional.
   "instructions": ["AGENTS.md", "docs/style.md"],
 
   "skills": {
-    "paths": [".opencode/skills", "/abs/path/to/skills"],
+    "paths": [".tinycode/skills", "/abs/path/to/skills"],
     "urls": ["https://example.com/.well-known/skills/"]
   },
 
@@ -107,10 +107,10 @@ Every field is optional.
   },
 
   "plugin": [
-    "opencode-gemini-auth",
-    "opencode-foo@1.2.3",
+    "tinycode-gemini-auth",
+    "tinycode-foo@1.2.3",
     "./local-plugin.ts",
-    ["opencode-bar", { "option": "value" }]
+    ["tinycode-bar", { "option": "value" }]
   ],
 
   "permission": {
@@ -148,7 +148,7 @@ file is named `SKILL.md` exactly, and lives in its own folder named after the
 skill:
 
 ```
-.opencode/skills/my-skill/SKILL.md
+.tinycode/skills/my-skill/SKILL.md
 ```
 
 Frontmatter:
@@ -195,7 +195,7 @@ Two ways to define an agent. Use the file form for anything non-trivial.
 ### File
 
 ```
-.opencode/agent/my-reviewer.md      OR     .opencode/agents/my-reviewer.md
+.tinycode/agent/my-reviewer.md      OR     .tinycode/agents/my-reviewer.md
 ```
 
 ```markdown
@@ -244,16 +244,16 @@ Built-in agent roles:
 
 ```json
 "plugin": [
-  "opencode-gemini-auth",            // npm spec, latest (plugin package names unchanged)
-  "opencode-foo@1.2.3",              // npm spec, pinned
+  "tinycode-gemini-auth",            // npm spec, latest (plugin package names unchanged)
+  "tinycode-foo@1.2.3",              // npm spec, pinned
   "./local-plugin.ts",               // file path, relative to the declaring config
   "file:///abs/path/plugin.js",      // file URL
-  ["opencode-bar", { "key": "val" }] // tuple form with options
+  ["tinycode-bar", { "key": "val" }] // tuple form with options
 ]
 ```
 
 Auto-discovered plugins (no config entry needed): any `*.ts` or `*.js` file in
-`.opencode/plugin/` or `.opencode/plugins/`.
+`.tinycode/plugin/` or `.tinycode/plugins/`.
 
 A plugin module exports `default` (or any named export) of type
 `Plugin = (input: PluginInput, options?) => Promise<Hooks>`. The export is a
@@ -261,7 +261,7 @@ function, not a plain object literal, and the function returns an object
 (return `{}` if there is nothing to register).
 
 ```ts
-import type { Plugin } from "@opencode-ai/plugin"
+import type { Plugin } from "@tinycode-ai/plugin"
 
 export default (async ({ client, project, directory, $ }) => {
   return {
@@ -334,7 +334,7 @@ Actions: `"allow"`, `"ask"`, `"deny"`.
 
 Per-tool value forms: `"allow"` shorthand (treated as `{"*": "allow"}`), or an
 object `{ pattern: action }`. Within an object, **insertion order matters**.
-opencode evaluates the LAST matching rule, so put broad rules first and narrow
+tinycode evaluates the LAST matching rule, so put broad rules first and narrow
 rules last.
 
 `permission: "allow"` (a string at the top level) is shorthand for "allow
@@ -356,23 +356,23 @@ the `plan` agent's permission ruleset (`edit: deny *`).
 
 When a user's config is broken and tinycode won't start, these env vars help:
 
-- `OPENCODE_DISABLE_PROJECT_CONFIG=1`: skip the project's local `tinycode.json`
+- `TINYCODE_DISABLE_PROJECT_CONFIG=1`: skip the project's local `tinycode.json`
   and start from globals only. Run from the project directory, tinycode loads,
   the user edits the broken file, then they restart without the flag.
-- `OPENCODE_CONFIG=/path/to/file.json`: load an additional explicit config.
-- `OPENCODE_CONFIG_CONTENT='{"$schema":"https://opencode.ai/config.json"}'`:
+- `TINYCODE_CONFIG=/path/to/file.json`: load an additional explicit config.
+- `TINYCODE_CONFIG_CONTENT='{"$schema":"https://tinycode.ai/config.json"}'`:
   inject inline JSON as a final local-scope merge.
-- `OPENCODE_DISABLE_DEFAULT_PLUGINS=1`: skip default plugins.
-- `OPENCODE_PURE=1`: skip external plugins entirely.
-- `OPENCODE_DISABLE_EXTERNAL_SKILLS=1`,
-  `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1`: skip the external skill scans under
+- `TINYCODE_DISABLE_DEFAULT_PLUGINS=1`: skip default plugins.
+- `TINYCODE_PURE=1`: skip external plugins entirely.
+- `TINYCODE_DISABLE_EXTERNAL_SKILLS=1`,
+  `TINYCODE_DISABLE_CLAUDE_CODE_SKILLS=1`: skip the external skill scans under
   `~/.claude/` and `~/.agents/`.
 
 ## When proposing edits
 
 - Validate against the schema before writing. If you are unsure of a field's
   exact shape, or the field is not covered in this skill, fetch
-  `https://opencode.ai/config.json` and read the schema rather than guessing.
+  `https://tinycode.ai/config.json` and read the schema rather than guessing.
 - Preserve `$schema` and any existing fields the user did not ask to change.
 - For agent, skill, and plugin definitions, prefer creating new files in the
   correct location over inlining everything in `tinycode.json`.

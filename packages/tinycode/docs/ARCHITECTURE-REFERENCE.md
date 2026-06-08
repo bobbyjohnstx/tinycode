@@ -19,13 +19,13 @@ tinycode is a local-LLM-first AI coding assistant delivered as a Terminal UI (TU
 packages/
 ├── tinycode/          ← Core server, TUI, CLI, all business logic
 ├── core/              ← Shared utilities: models, permissions, git, npm config
-│                        Imported as @opencode-ai/core/...
+│                        Imported as @tinycode-ai/core/...
 ├── app/               ← SolidJS + TailwindCSS v4 web UI
 ├── desktop/           ← Electron shell wrapping packages/app
-├── plugin/            ← Plugin SDK (@opencode-ai/plugin)
+├── plugin/            ← Plugin SDK (@tinycode-ai/plugin)
 ├── sdk/js/            ← Auto-generated JS SDK (from OpenAPI spec)
-├── llm/               ← @opencode-ai/llm — native LLM client
-├── script/            ← @opencode-ai/script — build/publish tooling
+├── llm/               ← @tinycode-ai/llm — native LLM client
+├── script/            ← @tinycode-ai/script — build/publish tooling
 ├── ui/                ← Shared UI component library
 └── effect-drizzle-sqlite/ ← Effect-integrated SQLite/Drizzle layer
 ```
@@ -61,7 +61,7 @@ src/
 │   ├── agent.ts       ← Agent config schema + .md file loader
 │   ├── permission.ts  ← Permission config schema
 │   ├── mcp.ts         ← MCP server config schema
-│   ├── migration.ts   ← ~/.config/opencode → ~/.config/tinycode migration
+│   ├── migration.ts   ← ~/.config/tinycode → ~/.config/tinycode migration
 │   └── ...
 ├── control-plane/     ← Workspace context management
 ├── effect/            ← Effect runtime extensions
@@ -150,7 +150,7 @@ All server-side code uses Effect v4 for dependency injection, typed errors, and 
 
 ```typescript
 // Service definition
-export class Service extends Context.Service<Service, Interface>()("@opencode/Agent") {}
+export class Service extends Context.Service<Service, Interface>()("@tinycode/Agent") {}
 
 // Implementation via Layer
 export const layer = Layer.effect(Service, Effect.gen(function* () {
@@ -160,7 +160,7 @@ export const layer = Layer.effect(Service, Effect.gen(function* () {
 }))
 ```
 
-> **Important**: All service Context tags use `@opencode/` prefix (not `@tinycode/`). This is legacy naming from the upstream fork — it is not a bug.
+> **Important**: All service Context tags use `@tinycode/` prefix (not `@tinycode/`). This is legacy naming from the upstream fork — it is not a bug.
 
 ### Per-directory Instance State
 
@@ -221,14 +221,14 @@ Config merges in order (later overrides earlier):
 
 ```
 ~/.config/tinycode/config.json
-~/.config/tinycode/opencode.json  (compat)
-~/.config/tinycode/opencode.jsonc (compat)
+~/.config/tinycode/tinycode.json  (compat)
+~/.config/tinycode/tinycode.jsonc (compat)
 ~/.config/tinycode/tinycode.json
 ~/.config/tinycode/tinycode.jsonc
-{project}/.opencode/tinycode.json
-{project}/.opencode/tinycode.jsonc
-{project}/.opencode/opencode.json
-{project}/.opencode/opencode.jsonc
+{project}/.tinycode/tinycode.json
+{project}/.tinycode/tinycode.jsonc
+{project}/.tinycode/tinycode.json
+{project}/.tinycode/tinycode.jsonc
 ```
 
 Global agents: `~/.config/tinycode/agent/*.md`  
@@ -238,7 +238,7 @@ Global skills: `~/.config/tinycode/skills/` (via `skills.paths` config)
 
 ## Data Persistence
 
-SQLite database at `~/.local/share/tinycode/opencode-{mode}.db` (legacy `opencode` name from upstream).
+SQLite database at `~/.local/share/tinycode/tinycode-{mode}.db` (legacy `tinycode` name from upstream).
 
 Schema defined in `src/storage/schema.sql.ts` via Drizzle ORM. Migrations in `migration/` (managed by Drizzle Kit).
 
@@ -277,7 +277,7 @@ Native agents (hardcoded in `src/agent/agent.ts`):
 
 Custom agents loaded from:
 - `~/.config/tinycode/agent/*.md` (global)
-- `{project}/.opencode/agent/*.md` (project-local)
+- `{project}/.tinycode/agent/*.md` (project-local)
 
 Frontmatter fields: `mode`, `steps`, `description`, `permission`, `model`, `temperature`, `color`
 
