@@ -18,7 +18,6 @@ import CUSTOMIZE_TINYCODE_SKILL_BODY from "./prompt/customize-tinycode.md" with 
 import { isRecord } from "@/util/record"
 
 const log = Log.create({ service: "skill" })
-const CLAUDE_EXTERNAL_DIR = ".claude"
 const AGENTS_EXTERNAL_DIR = ".agents"
 const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
 const TINYCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
