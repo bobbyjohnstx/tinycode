@@ -1,5 +1,5 @@
 {
-  "name": "@opencode-ai/app",
+  "name": "@tinycode/app",
   "version": "1.15.12",
   "description": "",
   "type": "module",
@@ -41,9 +41,9 @@
   },
   "dependencies": {
     "@kobalte/core": "catalog:",
-    "@opencode-ai/sdk": "workspace:*",
+    "@tinycode/sdk": "workspace:*",
     "tinycode": "workspace:*",
-    "@opencode-ai/ui": "workspace:*",
+    "@tinycode/ui": "workspace:*",
     "@xterm/xterm": "^5.5.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-webgl": "^0.18.0",

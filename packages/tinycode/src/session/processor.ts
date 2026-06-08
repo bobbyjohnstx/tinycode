@@ -21,7 +21,7 @@ import { Question } from "@/question"
 import { errorMessage } from "@/util/error"
 import * as Log from "@/core/util/log"
 import { isRecord } from "@/util/record"
-import { Usage, type LLMEvent } from "@opencode-ai/llm"
+import { Usage, type LLMEvent } from "@tinycode/llm"
 
 const DOOM_LOOP_THRESHOLD = 3
 const log = Log.create({ service: "session.processor" })

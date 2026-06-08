@@ -22,7 +22,7 @@ import * as Log from "@/core/util/log"
 import { ConfigVariable } from "@/config/variable"
 import { Npm } from "@/core/npm"
 import type { DeepMutable } from "@/core/schema"
-import type { TuiAttentionSoundName } from "@opencode-ai/plugin/tui"
+import type { TuiAttentionSoundName } from "@tinycode/plugin/tui"
 import { FormatError, FormatUnknownError } from "@/cli/error"
 
 const log = Log.create({ service: "tui.config" })
@@ -275,7 +275,7 @@ export const layer = Layer.effect(
           .install(dir, {
             add: [
               {
-                name: "@opencode-ai/plugin",
+                name: "@tinycode/plugin",
                 version: InstallationLocal ? undefined : InstallationVersion,
               },
             ],

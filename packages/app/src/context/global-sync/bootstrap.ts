@@ -8,8 +8,8 @@ import type {
   QuestionRequest,
   Session,
   Todo,
-} from "@opencode-ai/sdk/v2/client"
-import { showToast } from "@opencode-ai/ui/toast"
+} from "@tinycode/sdk/v2/client"
+import { showToast } from "@tinycode/ui/toast"
 import { getFilename } from "tinycode/core/util/path"
 import { retry } from "tinycode/core/util/retry"
 import { batch } from "solid-js"
@@ -19,7 +19,7 @@ import { cmp, normalizeAgentList, normalizeProviderList } from "./utils"
 import { formatServerError } from "@/utils/server-errors"
 import { QueryClient, queryOptions } from "@tanstack/solid-query"
 import { loadMcpQuery } from "../server-sync"
-import { NormalizedProviderListResponse } from "@opencode-ai/ui/context"
+import { NormalizedProviderListResponse } from "@tinycode/ui/context"
 
 type GlobalStore = {
   ready: boolean

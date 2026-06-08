@@ -12,7 +12,7 @@ import WhichKey from "../feature-plugins/system/which-key"
 import DiffViewer from "../feature-plugins/system/diff-viewer"
 import SessionSwitcher from "../feature-plugins/session"
 import { Flag } from "@/core/flag/flag"
-import type { TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui"
+import type { TuiPlugin, TuiPluginModule } from "@tinycode/plugin/tui"
 
 export type InternalTuiPlugin = Omit<TuiPluginModule, "id"> & {
   id: string

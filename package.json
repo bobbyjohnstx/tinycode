@@ -95,9 +95,9 @@
     "turbo": "2.8.13"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "workspace:*",
-    "@opencode-ai/script": "workspace:*",
-    "@opencode-ai/sdk": "workspace:*",
+    "@tinycode/plugin": "workspace:*",
+    "@tinycode/script": "workspace:*",
+    "@tinycode/sdk": "workspace:*",
     "typescript": "catalog:"
   },
   "license": "MIT",

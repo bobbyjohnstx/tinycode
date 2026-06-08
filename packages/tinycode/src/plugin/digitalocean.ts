@@ -1,5 +1,5 @@
-import type { Hooks, PluginInput } from "@opencode-ai/plugin"
-import type { Model } from "@opencode-ai/sdk/v2"
+import type { Hooks, PluginInput } from "@tinycode/plugin"
+import type { Model } from "@tinycode/sdk/v2"
 import * as Log from "@/core/util/log"
 import { InstallationVersion } from "@/core/installation/version"
 import { createServer } from "http"

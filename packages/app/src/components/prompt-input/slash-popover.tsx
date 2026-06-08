@@ -1,6 +1,6 @@
 import { Component, For, Match, Show, Switch } from "solid-js"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import { Icon } from "@opencode-ai/ui/icon"
+import { FileIcon } from "@tinycode/ui/file-icon"
+import { Icon } from "@tinycode/ui/icon"
 import { getDirectory, getFilename } from "tinycode/core/util/path"
 
 export type AtOption =

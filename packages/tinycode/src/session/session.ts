@@ -5,7 +5,7 @@ import { BackgroundJob } from "@/background/job"
 import { BusEvent } from "@/bus/bus-event"
 import { Bus } from "@/bus"
 import { Decimal } from "decimal.js"
-import type { ProviderMetadata, Usage } from "@opencode-ai/llm"
+import type { ProviderMetadata, Usage } from "@tinycode/llm"
 import { InstallationVersion } from "@/core/installation/version"
 
 import { Database } from "@/storage/db"

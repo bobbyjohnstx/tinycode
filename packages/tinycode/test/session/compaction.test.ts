@@ -28,7 +28,7 @@ import { CrossSpawnSpawner } from "@/core/cross-spawn-spawner"
 import { TestConfig } from "../fixture/config"
 import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { LLMEvent, Usage } from "@opencode-ai/llm"
+import { LLMEvent, Usage } from "@tinycode/llm"
 
 void Log.init({ print: false })
 

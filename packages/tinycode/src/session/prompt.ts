@@ -55,7 +55,7 @@ import { SessionTable } from "./session.sql"
 import { referencePromptMetadata, referenceTextPart } from "./prompt/reference"
 import { SessionReminders } from "./reminders"
 import { SessionTools } from "./tools"
-import { LLMEvent } from "@opencode-ai/llm"
+import { LLMEvent } from "@tinycode/llm"
 
 // @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false

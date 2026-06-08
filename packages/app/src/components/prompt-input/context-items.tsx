@@ -1,7 +1,7 @@
 import { Component, For, Show } from "solid-js"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { FileIcon } from "@tinycode/ui/file-icon"
+import { IconButton } from "@tinycode/ui/icon-button"
+import { Tooltip } from "@tinycode/ui/tooltip"
 import { getDirectory, getFilename, getFilenameTruncated } from "tinycode/core/util/path"
 import type { ContextItem } from "@/context/prompt"
 

@@ -1,5 +1,5 @@
-import type { Message, Session } from "@opencode-ai/sdk/v2/client"
-import { showToast } from "@opencode-ai/ui/toast"
+import type { Message, Session } from "@tinycode/sdk/v2/client"
+import { showToast } from "@tinycode/ui/toast"
 import { base64Encode } from "tinycode/core/util/encode"
 import { Binary } from "tinycode/core/util/binary"
 import { useNavigate, useParams } from "@solidjs/router"

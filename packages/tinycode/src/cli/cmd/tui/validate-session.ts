@@ -1,4 +1,4 @@
-import { createOpencodeClient } from "@opencode-ai/sdk/v2"
+import { createOpencodeClient } from "@tinycode/sdk/v2"
 import { SessionID } from "@/session/schema"
 import { Schema } from "effect"
 
