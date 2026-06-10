@@ -43,12 +43,13 @@ export const resolveNetworkOptions = Effect.fn("Cli.resolveNetworkOptions")(func
 
 export function resolveNetworkOptionsNoConfig(args: NetworkOptions, config?: Config.Info) {
   const portExplicitlySet = process.argv.includes("--port")
+  const envPort = process.env.TINYCODE_PORT ? parseInt(process.env.TINYCODE_PORT, 10) : undefined
   const hostnameExplicitlySet = process.argv.includes("--hostname")
   const mdnsExplicitlySet = process.argv.includes("--mdns")
   const mdnsDomainExplicitlySet = process.argv.includes("--mdns-domain")
   const mdns = mdnsExplicitlySet ? args.mdns : (config?.server?.mdns ?? args.mdns)
   const mdnsDomain = mdnsDomainExplicitlySet ? args["mdns-domain"] : (config?.server?.mdnsDomain ?? args["mdns-domain"])
-  const port = portExplicitlySet ? args.port : (config?.server?.port ?? args.port)
+  const port = portExplicitlySet ? args.port : (envPort ?? config?.server?.port ?? args.port)
   const hostname = hostnameExplicitlySet
     ? args.hostname
     : mdns && !config?.server?.hostname

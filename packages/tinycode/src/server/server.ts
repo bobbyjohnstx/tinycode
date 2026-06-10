@@ -203,7 +203,7 @@ function serverLayer(opts: { port: number; hostname: string }) {
   }) as typeof server.close
 
   return Layer.mergeAll(
-    NodeHttpServer.layer(() => server, { port: opts.port, host: opts.hostname, gracefulShutdownTimeout: "1 second" }),
+    NodeHttpServer.layer(() => server, { port: opts.port, host: opts.hostname, gracefulShutdownTimeout: "25 seconds" }),
     Layer.succeed(ListenerServerService)(
       ListenerServerService.of({
         closeAll: Effect.sync(() => {
