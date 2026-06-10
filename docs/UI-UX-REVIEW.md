@@ -72,12 +72,12 @@ Arrow keys work because child view has no prompt, but this is non-obvious and un
 ### 7. "OpenCode" branding remnants (user-visible)
 | Location | Text | File:Line |
 |----------|------|-----------|
-| Docs command | Opens `https://opencode.ai/docs` | `app.tsx:805` |
+| Docs command | Opens `https://tinycode.dev/docs` | `app.tsx:805` |
 | Update dialog | "Successfully updated to OpenCode v..." | `app.tsx:1045` |
 | Plugin routes | Terminal title "OC \|" (should be "TC") | `app.tsx:476` |
 | Sidebar footer | Renders "Open" "Code" as product name | `sidebar/footer.tsx:70-72` |
 | Sidebar tip | "OpenCode includes free models..." | `sidebar/footer.tsx:52` |
-| Retry dialog | Links to `opencode.ai/go` | `dialog-retry-action.tsx:10` |
+| Retry dialog | Links to `tinycode.dev/go` | `dialog-retry-action.tsx:10` |
 
 ### 8. No help keybinding
 `help_show` defaults to `"none"` — no keyboard shortcut to open help. Must type `/help` or find it via `ctrl+p` command palette.

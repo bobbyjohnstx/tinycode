@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cat packages/tinycode/.tinycode/agent/*.md 2>/dev/null | head -5; echo \\\"---\\\"; ls packages/tinycode/.tinycode/ 2>/dev/null\",\"description\":\"Check .tinycode config dir\"}",
-  "error": "Exit code 1\n(eval):1: no matches found: packages/tinycode/.tinycode/agent/*.md\n---",
-  "timestamp": "2026-06-08T15:58:06.272Z",
-  "retry_count": 2
-}

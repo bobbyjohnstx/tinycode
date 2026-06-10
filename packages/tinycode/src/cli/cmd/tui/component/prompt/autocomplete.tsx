@@ -507,12 +507,12 @@ export function Autocomplete(props: {
   })
 
   const askAgents = createMemo((): AutocompleteOption[] => {
-    return sync.data.agent
-      .filter((agent) => !agent.hidden && agent.mode !== "primary")
-      .map(
-        (agent): AutocompleteOption => ({
-          display: agent.name,
-          description: agent.description,
+    const agents = sync.data.agent.filter((agent) => !agent.hidden && agent.mode !== "primary")
+    const max = agents.reduce((m, a) => Math.max(m, a.name.length), 0)
+    return agents.map(
+      (agent): AutocompleteOption => ({
+        display: agent.name.padEnd(max + 2),
+        description: agent.description,
           onSelect: () => {
             const input = props.input()
             const cursor = input.logicalCursor

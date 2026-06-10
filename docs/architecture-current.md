@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Tinycode is a fork of opencode — a Bun monorepo managed by Turborepo. Its core value is a local AI coding assistant that exposes an HTTP API server, a terminal UI (TUI), and a web UI, all wired to a session engine that orchestrates LLM calls and agent tools. The codebase carries significant upstream coupling to the opencode.ai cloud platform: account auth, model catalog fetching, a paid-model gate, web UI proxying, and a private terminal widget dependency all reach out to external services at runtime. Understanding and isolating these dependencies is essential before any refactor aimed at self-contained or simplified deployment.
+Tinycode is a fork of opencode — a Bun monorepo managed by Turborepo. Its core value is a local AI coding assistant that exposes an HTTP API server, a terminal UI (TUI), and a web UI, all wired to a session engine that orchestrates LLM calls and agent tools. The codebase carries significant upstream coupling to the tinycode.dev cloud platform: account auth, model catalog fetching, a paid-model gate, web UI proxying, and a private terminal widget dependency all reach out to external services at runtime. Understanding and isolating these dependencies is essential before any refactor aimed at self-contained or simplified deployment.
 
 ---
 
@@ -17,17 +17,17 @@ The repository uses Bun workspaces with Turborepo for task orchestration. All pa
 | Package | Purpose |
 |---|---|
 | `tinycode` | Core server, CLI, TUI, session engine, provider abstraction, and agent tools. Renamed from `opencode` in this fork. |
-| `core` | Shared utilities: account definitions, agent definitions, model catalog, provider plugins, git utilities, npm config, filesystem helpers. Imported as `@opencode-ai/core/...`. |
-| `app` | SolidJS + TailwindCSS v4 web UI. Connects to the API server. Uses the private `ghostty-web` terminal widget from `github:anomalyco/ghostty-web#main`. |
+| `core` | Shared utilities: account definitions, agent definitions, model catalog, provider plugins, git utilities, npm config, filesystem helpers. Imported as `@tinycode/core/...`. |
+| `app` | SolidJS + TailwindCSS v4 web UI. Connects to the API server. Uses the private `ghostty-web` terminal widget from `github:bobbyjohnstx/ghostty-web#main`. |
 | `desktop` | Electron wrapper around `packages/app`. |
 | `llm` | Low-level LLM protocol implementations: Anthropic messages, OpenAI chat/responses, Bedrock converse, Gemini. |
 | `ui` | Shared SolidJS UI component library. |
-| `plugin` | Public plugin API SDK (`@opencode-ai/plugin`). |
+| `plugin` | Public plugin API SDK (`@tinycode/plugin`). |
 | `effect-drizzle-sqlite` | Effect wrapper for Drizzle ORM + SQLite. |
 | `enterprise` | Enterprise web app (Cloudflare Workers, Nitro SSR, org management). |
-| `console` | Admin/console web app for opencode.ai. |
+| `console` | Admin/console web app for tinycode.dev. |
 | `stats` | Stats dashboard app. |
-| `web` | Astro documentation site (opencode.ai public docs). |
+| `web` | Astro documentation site (tinycode.dev public docs). |
 | `docs` | OpenAPI spec and docs content. |
 | `sdk/js` | Auto-generated JavaScript SDK from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/build.ts`. |
 | `function` | Cloudflare Workers functions (GitHub app auth, webhooks). |
@@ -196,17 +196,17 @@ All network calls made at runtime to services outside the local machine:
 | Service | URL | Source Location | Purpose |
 |---|---|---|---|
 | models.dev | `https://models.dev/api.json` | `core/src/models-dev.ts:140` | Remote model catalog; fetched every 5 minutes |
-| opencode.ai console | `https://console.opencode.ai` | `tinycode/src/cli/cmd/account.ts:18` | Account login, org management |
-| opencode.ai API | `https://api.opencode.ai` | `tinycode/src/cli/cmd/github.ts:363,745` | GitHub app auth, API gateway |
-| opencode.ai app | `https://app.opencode.ai` | `tinycode/src/server/shared/ui.ts:9` | Upstream web UI proxy fallback |
-| opencode.ai install | `https://opencode.ai/install` | `tinycode/src/installation/index.ts:154` | Self-upgrade binary download |
-| opencode.ai Go | `https://opencode.ai/go` | `tinycode/src/session/retry.ts:10` | Paid tier upsell on rate-limit errors |
-| opencode.ai auth | `https://opencode.ai/auth` | `tinycode/src/cli/cmd/providers.ts:464` | API key creation flow |
-| opencode.ai config schema | `https://opencode.ai/config.json`, `https://opencode.ai/tui.json` | `tinycode/src/config/config.ts:429-579` | JSON schema references for config validation |
-| anomalyco GitHub releases | `anomalyco/opencode`, `anomalyco/tap` | `tinycode/src/installation/index.ts:264,290` | Homebrew tap, GitHub releases for self-upgrade |
+| tinycode.dev console | `https://console.tinycode.dev` | `tinycode/src/cli/cmd/account.ts:18` | Account login, org management |
+| tinycode.dev API | `https://api.tinycode.dev` | `tinycode/src/cli/cmd/github.ts:363,745` | GitHub app auth, API gateway |
+| tinycode.dev app | `https://app.tinycode.dev` | `tinycode/src/server/shared/ui.ts:9` | Upstream web UI proxy fallback |
+| tinycode.dev install | `https://tinycode.dev/install` | `tinycode/src/installation/index.ts:154` | Self-upgrade binary download |
+| tinycode.dev Go | `https://tinycode.dev/go` | `tinycode/src/session/retry.ts:10` | Paid tier upsell on rate-limit errors |
+| tinycode.dev auth | `https://tinycode.dev/auth` | `tinycode/src/cli/cmd/providers.ts:464` | API key creation flow |
+| tinycode.dev config schema | `https://tinycode.dev/config.json`, `https://tinycode.dev/tui.json` | `tinycode/src/config/config.ts:429-579` | JSON schema references for config validation |
+| bobbyjohnstx GitHub releases | `bobbyjohnstx/tinycode`, `bobbyjohnstx/homebrew-tap` | `tinycode/src/installation/index.ts:264,290` | Homebrew tap, GitHub releases for self-upgrade |
 | OpenTelemetry collector | OTLP HTTP (configurable) | `tinycode/src/cli/cmd/run/otel.ts` | Optional distributed tracing |
 | Sentry | Sentry DSN (via `@sentry/solid`) | `packages/app/src/app.tsx` | Error reporting from the web UI |
-| ghostty-web | `github:anomalyco/ghostty-web#main` | `packages/app/package.json` | Terminal emulator widget (private repo) |
+| ghostty-web | `github:bobbyjohnstx/ghostty-web#main` | `packages/app/package.json` | Terminal emulator widget (private repo) |
 
 ---
 
@@ -280,7 +280,7 @@ Infrastructure modules: `infra/app.ts`, `infra/lake.ts`, `infra/stats.ts`, `infr
 
 ## Barriers to Simple Deployment
 
-The following ten issues make it non-trivial to run tinycode in a fully self-contained or simplified environment. Each represents a coupling point to the upstream opencode.ai platform or an external service.
+The following ten issues make it non-trivial to run tinycode in a fully self-contained or simplified environment. Each represents a coupling point to the upstream tinycode.dev platform or an external service.
 
 ### 1. SST Cloud Infrastructure
 
@@ -300,11 +300,11 @@ Multiple code paths in `packages/tinycode/src/account/` and the CLI commands che
 
 ### 5. Web UI Upstream Proxy
 
-When the embedded web UI build is absent, `packages/tinycode/src/server/shared/ui.ts` proxies requests to `https://app.opencode.ai`. This means a server started without a built `packages/app` will silently serve the upstream production UI rather than a local build, which can cause version mismatches.
+When the embedded web UI build is absent, `packages/tinycode/src/server/shared/ui.ts` proxies requests to `https://app.tinycode.dev`. This means a server started without a built `packages/app` will silently serve the upstream production UI rather than a local build, which can cause version mismatches.
 
 ### 6. ghostty-web Private Dependency
 
-`packages/app/package.json` declares `"ghostty-web": "github:anomalyco/ghostty-web#main"`. This is a private repository under the `anomalyco` GitHub organization. Installing dependencies without access to this repo will fail. Any fork or CI environment needs either access credentials or a replacement for this terminal widget.
+`packages/app/package.json` declares `"ghostty-web": "github:bobbyjohnstx/ghostty-web#main"`. This is a private repository under the `bobbyjohnstx` GitHub organization. Installing dependencies without access to this repo will fail. Any fork or CI environment needs either access credentials or a replacement for this terminal widget.
 
 ### 7. 32 Bundled Provider Plugins
 
@@ -316,8 +316,8 @@ When the embedded web UI build is absent, `packages/tinycode/src/server/shared/u
 
 ### 9. Share System
 
-`packages/tinycode/src/share/share-next.ts` uploads session data to the opencode.ai remote server using an account access token. This is an opt-in feature per config, but the code path is present and active in the codebase.
+`packages/tinycode/src/share/share-next.ts` uploads session data to the tinycode.dev remote server using an account access token. This is an opt-in feature per config, but the code path is present and active in the codebase.
 
 ### 10. Multi-Device Sync System
 
-`packages/tinycode/src/sync/` implements event replay and synchronization across devices via the opencode.ai backend. Like the share system, this creates a runtime dependency on the cloud platform that must be stubbed or removed for a fully isolated deployment.
+`packages/tinycode/src/sync/` implements event replay and synchronization across devices via the tinycode.dev backend. Like the share system, this creates a runtime dependency on the cloud platform that must be stubbed or removed for a fully isolated deployment.

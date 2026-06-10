@@ -4,7 +4,7 @@
 
 tinycode is a refactored fork of opencode focused on one goal: a local-LLM-first AI coding assistant that runs entirely without cloud dependencies. The refactor strips every piece of opencode's cloud infrastructure — account systems, telemetry, enterprise auth, cloud sync, remote model discovery — and replaces it with a lean, self-contained tool that works air-gapped on a developer's machine or LAN.
 
-The primary inference target is Ollama and vLLM running on localhost or LAN. OpenAI, Anthropic, and Google remain available as cloud fallbacks, accessed via API key only — no proprietary auth flows, no OAuth, no traffic to `opencode.ai`, `anomalyco`, or any external service by default.
+The primary inference target is Ollama and vLLM running on localhost or LAN. OpenAI, Anthropic, and Google remain available as cloud fallbacks, accessed via API key only — no proprietary auth flows, no OAuth, no traffic to `tinycode.dev`, `bobbyjohnstx`, or any external service by default.
 
 The result is a single binary (or `bun run`) that a developer can drop onto a machine, point at a running Ollama instance, and use immediately.
 
@@ -68,36 +68,36 @@ The Effect framework, SQLite storage, TUI, HTTP server, web UI (`packages/app`),
 | `src/cli/cmd/account.ts` | Console login command |
 | `src/cli/cmd/github.ts` | GitHub App integration |
 | `src/cli/cmd/stats.ts` | Stats dashboard command |
-| `src/cli/cmd/upgrade.ts` | Self-upgrade from `opencode.ai` |
+| `src/cli/cmd/upgrade.ts` | Self-upgrade from `tinycode.dev` |
 | `src/cli/cmd/pr.ts` | GitHub PR integration |
-| `src/installation/` | Auto-update from `opencode.ai`/`anomalyco` |
+| `src/installation/` | Auto-update from `tinycode.dev`/`bobbyjohnstx` |
 | `src/acp/` | Cloud-based agent orchestration (replaced by `oh-my-tiny`) |
 | `src/acp-next/` | Cloud-based agent orchestration (replaced by `oh-my-tiny`) |
 
 ### Gut (Remove Cloud Code, Keep Local Functionality)
 
 **`src/session/retry.ts`**
-- Remove `GO_UPSELL_URL` and all `opencode.ai/go` references
+- Remove `GO_UPSELL_URL` and all `tinycode.dev/go` references
 - Remove free-tier limit error handling
 - Keep generic retry/backoff logic
 
 **`src/config/config.ts`**
-- Remove `$schema: "https://opencode.ai/config.json"` auto-injection (currently lines 429–466, 579)
+- Remove `$schema: "https://tinycode.dev/config.json"` auto-injection (currently lines 429–466, 579)
 - Remove remote config fetching
 - Remove `enterprise` config field
 - Change default config directory: `~/.config/opencode/` → `~/.config/tinycode/`
 
 **`src/server/shared/ui.ts`**
-- Remove `UI_UPSTREAM = "https://app.opencode.ai"` proxy fallback
+- Remove `UI_UPSTREAM = "https://app.tinycode.dev"` proxy fallback
 - Require embedded UI or local dev server — no silent remote proxy
 
 **`src/provider/provider.ts`**
 - Remove `opencode` custom provider (currently lines 178–200)
-- Remove `HTTP-Referer: "https://opencode.ai/"` request headers
+- Remove `HTTP-Referer: "https://tinycode.dev/"` request headers
 - Trim `BUNDLED_PROVIDERS` from 24 entries down to 4 (see Provider Simplification below)
 
 **`src/cli/cmd/tui/config/tui-migrate.ts`**
-- Remove `TUI_SCHEMA_URL = "https://opencode.ai/tui.json"` reference
+- Remove `TUI_SCHEMA_URL = "https://tinycode.dev/tui.json"` reference
 
 **`src/auth/index.ts`** (rewrite)
 - Remove OAuth flow entirely
@@ -225,7 +225,7 @@ The default `tinycode.json` config pre-configures local inference. Users do not 
 }
 ```
 
-Config schema reference changes from `https://opencode.ai/config.json` to a local `tinycode-config-schema.json` bundled with the binary.
+Config schema reference changes from `https://tinycode.dev/config.json` to a local `tinycode-config-schema.json` bundled with the binary.
 
 Config directory: `~/.config/tinycode/` (previously `~/.config/opencode/`).
 
@@ -235,7 +235,7 @@ Config directory: `~/.config/tinycode/` (previously `~/.config/opencode/`).
 
 **Replace `ghostty-web` with `xterm.js`**
 
-`ghostty-web` is a private dependency hosted in the `anomalyco` org. It is replaced with `xterm.js` (open source, MIT licensed, `@xterm/xterm` on npm). The terminal emulation interface is the same; the swap is contained to the terminal component.
+`ghostty-web` is a private dependency hosted in the `bobbyjohnstx` org. It is replaced with `xterm.js` (open source, MIT licensed, `@xterm/xterm` on npm). The terminal emulation interface is the same; the swap is contained to the terminal component.
 
 **Remove Sentry**
 
@@ -336,7 +336,7 @@ CMD ["bun", "run", "--cwd", "packages/tinycode", "src/index.ts", "serve", "--hos
 | Bundle model catalog locally (`models-local.json`) | Air-gapped, fast startup, no DNS at boot | Must update catalog manually; new cloud model IDs not auto-discovered |
 | Use `@ai-sdk/openai-compatible` for local LLMs | Single integration covers Ollama and vLLM without custom code | Some Ollama-specific parameters (`keep_alive`, `num_ctx`) require explicit options passthrough |
 | Remove 27 provider plugins | Smaller dependency tree, faster builds, no unused auth code | Users wanting Azure, Bedrock, or other cloud providers must add `@ai-sdk/*` packages and configure manually |
-| Replace `ghostty-web` with `xterm.js` | Eliminates private `anomalyco` dependency; fully open source | Potential terminal rendering differences for edge cases |
+| Replace `ghostty-web` with `xterm.js` | Eliminates private `bobbyjohnstx` dependency; fully open source | Potential terminal rendering differences for edge cases |
 | Remove account and OAuth system | Eliminates all cloud auth dependency; simpler code path | No multi-device session sync; no session sharing |
 | Keep Effect framework | Avoids months-long rewrite of server, session, and tool layers | Effect is a heavy dependency; a ground-up rewrite would produce a leaner binary |
 | Local LLM discovery via polling (30-second interval) | Simple, reliable, works air-gapped, no persistent connections | 30-second delay before a newly started inference server appears in the provider list |

@@ -88,6 +88,13 @@ const TRACE_IN = 200
 const GLOW_OUT = 1600
 const PEAK = RGBA.fromInts(255, 255, 255)
 
+const MATRIX_STAGGER = 48
+const MATRIX_DROP = 400
+const MATRIX_BLOCK = "█▀▄▌▐▒▓░"
+const MATRIX_HEAD = RGBA.fromInts(255, 85, 60)
+const MATRIX_TRAIL = RGBA.fromInts(140, 14, 10)
+const MATRIX_DIM = RGBA.fromInts(40, 3, 2)
+
 type Ring = {
   x: number
   y: number
@@ -562,6 +569,38 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
   const [now, setNow] = createSignal(0)
   let box: BoxRenderable | undefined
   let timer: ReturnType<typeof setInterval> | undefined
+  let introAt: number | undefined
+  const INTRO_END = (ctx.FULL[0]?.length ?? 0) * MATRIX_STAGGER + MATRIX_DROP
+
+  function matrixEl(col: number, row: number, t: number): JSX.Element | null {
+    if (introAt === undefined) return null
+    const elapsed = t - introAt
+    if (elapsed >= INTRO_END) return null
+
+    const colDelay = col * MATRIX_STAGGER
+    const colElapsed = Math.max(0, elapsed - colDelay)
+    if (colElapsed <= 0) return <text fg={MATRIX_DIM} selectable={false}>{" "}</text>
+
+    const rows = ctx.FULL.length
+    const dropPos = (colElapsed / MATRIX_DROP) * (rows + 1) - 1
+    if (dropPos >= rows) return null
+
+    if (dropPos < row) return <text fg={MATRIX_DIM} selectable={false}>{" "}</text>
+
+    const n = noise(col * 3.8 + 0.5, row * 2.9 + 0.3, Math.floor(t / 90) * 0.001)
+    const char = MATRIX_BLOCK[Math.floor(n * MATRIX_BLOCK.length)] ?? "█"
+
+    if (Math.abs(dropPos - (row + 0.4)) < 0.9) {
+      return <text fg={MATRIX_HEAD} selectable={false}>{char}</text>
+    }
+
+    const dist = dropPos - row - 1
+    const dimT = Math.min(1, dist / Math.max(1, rows - 1))
+    const fg = tint(MATRIX_TRAIL, MATRIX_DIM, dimT * 0.8)
+    const n2 = noise(col * 2.1 + 0.7, row * 1.5 + 0.2, Math.floor(t / 140) * 0.001)
+    const char2 = MATRIX_BLOCK[Math.floor(n2 * MATRIX_BLOCK.length)] ?? "█"
+    return <text fg={fg} selectable={false}>{char2}</text>
+  }
 
   const stop = () => {
     if (!timer) return
@@ -589,6 +628,7 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
     if (!live) setRelease(undefined)
     if (live || hold() || release() || glow()) return
     if (props.idle) return
+    if (introAt !== undefined && performance.now() - introAt < INTRO_END) return
     stop()
   }
 
@@ -602,9 +642,10 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
   })
 
   onMount(() => {
-    if (!props.idle) return
-    setNow(performance.now())
+    introAt = performance.now()
+    setNow(introAt)
     start()
+    if (props.idle) return
   })
 
   const hit = (x: number, y: number) => {
@@ -691,6 +732,9 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
     const attrs = bold ? TextAttributes.BOLD : undefined
 
     return Array.from(line).map((char, i) => {
+      const mEl = matrixEl(off + i, y, frame.t)
+      if (mEl !== null) return mEl
+
       if (char === " ") {
         return (
           <text fg={ink} attributes={attrs} selectable={false}>

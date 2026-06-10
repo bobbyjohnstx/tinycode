@@ -55,7 +55,7 @@ Bun monorepo with Turborepo. Key packages:
 | `packages/core` | Shared utilities, models, permissions |
 | `packages/app` | SolidJS web UI |
 | `packages/desktop` | Electron desktop app |
-| `packages/plugin` | Plugin SDK (`@opencode-ai/plugin`) |
+| `packages/plugin` | Plugin SDK (`@tinycode/plugin`) |
 | `packages/sdk/js` | Auto-generated JS SDK |
 
 See [CLAUDE.md](CLAUDE.md) for development guidance and [AGENTS.md](AGENTS.md) for coding style.

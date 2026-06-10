@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1780424582727,
+  "lastScanned": 1780938982240,
   "projectRoot": "/Users/bjohns/projects/tinycode",
   "techStack": {
     "languages": [
@@ -27,7 +27,7 @@
   },
   "build": {
     "buildCommand": null,
-    "testCommand": "cd /Users/bjohns/projects/tinycode/packages/tinycode && /Users/bjohns/.bun/bin/bun test --timeout 30000 2>&1 | grep '(fail)' | head -35",
+    "testCommand": "cd /Users/bjohns/projects/tinycode/packages/tinycode && ~/.bun/bin/bun test --timeout 30000 test/session/prompt.test.ts 2>&1",
     "lintCommand": "npm run lint",
     "devCommand": "npm run dev",
     "scripts": {
@@ -68,36 +68,35 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 4,
-      "lastAccessed": 1780424582718,
+      "lastAccessed": 1780938982230,
       "keyFiles": [
+        "DEEP-EXPLORE-GUIDE.md",
+        "UI-UX-REVIEW.md",
         "architecture-current.md",
-        "architecture-future.md",
-        "omt-integration-plan.md",
-        "refactor-plan.md"
+        "architecture-future.md"
       ]
     },
     "memory": {
       "path": "memory",
       "purpose": null,
-      "fileCount": 2,
-      "lastAccessed": 1780424582718,
+      "fileCount": 1,
+      "lastAccessed": 1780938982232,
       "keyFiles": [
-        "debug_provider_list_500.md",
         "project_tinycode_context.md"
       ]
     },
     "packages": {
       "path": "packages",
       "purpose": null,
-      "fileCount": 0,
-      "lastAccessed": 1780424582720,
+      "fileCount": 1,
+      "lastAccessed": 1780938982233,
       "keyFiles": []
     },
     "patches": {
       "path": "patches",
       "purpose": null,
       "fileCount": 8,
-      "lastAccessed": 1780424582720,
+      "lastAccessed": 1780938982233,
       "keyFiles": [
         "@ai-sdk%2Fxai@3.0.82.patch",
         "@npmcli%2Fagent@4.0.0.patch",
@@ -109,21 +108,21 @@
     "script": {
       "path": "script",
       "purpose": null,
-      "fileCount": 14,
-      "lastAccessed": 1780424582720,
+      "fileCount": 6,
+      "lastAccessed": 1780938982234,
       "keyFiles": [
-        "beta.ts",
-        "changelog.ts",
-        "duplicate-pr.ts",
         "format.ts",
-        "generate.ts"
+        "generate.ts",
+        "hooks",
+        "team.ts",
+        "upgrade-opentui.ts"
       ]
     },
     "packages/app": {
       "path": "packages/app",
       "purpose": "Application code",
       "fileCount": 13,
-      "lastAccessed": 1780424582720,
+      "lastAccessed": 1780938982236,
       "keyFiles": [
         "AGENTS.md",
         "README.md",
@@ -133,303 +132,303 @@
   },
   "hotPaths": [
     {
-      "path": "packages/tinycode/test/provider/local-discovery.test.ts",
+      "path": "packages/tinycode/src/session/prompt.ts",
+      "accessCount": 20,
+      "lastAccessed": 1780953286138,
+      "type": "file"
+    },
+    {
+      "path": "packages/app/src/components/prompt-input.tsx",
+      "accessCount": 14,
+      "lastAccessed": 1780953275909,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/command/index.ts",
+      "accessCount": 14,
+      "lastAccessed": 1780954728713,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/tui/help.md",
+      "accessCount": 13,
+      "lastAccessed": 1780955869912,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/tui/component/prompt/autocomplete.tsx",
       "accessCount": 12,
-      "lastAccessed": 1780455437413,
+      "lastAccessed": 1780954734895,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/test/provider/provider.test.ts",
-      "accessCount": 11,
-      "lastAccessed": 1780453573587,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/storage/db.test.ts",
-      "accessCount": 11,
-      "lastAccessed": 1780685223662,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/session/llm-native-recorded.test.ts",
-      "accessCount": 9,
-      "lastAccessed": 1780445349076,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/session/retry.test.ts",
-      "accessCount": 8,
-      "lastAccessed": 1780433125242,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/agent/agent.test.ts",
-      "accessCount": 8,
-      "lastAccessed": 1780454290899,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/provider/local-discovery.ts",
-      "accessCount": 8,
-      "lastAccessed": 1780683591323,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/config/migration.ts",
-      "accessCount": 8,
-      "lastAccessed": 1780684954879,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/storage/db.ts",
-      "accessCount": 8,
-      "lastAccessed": 1780685129154,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/cli/cmd/tui/config/tui-migrate.ts",
-      "accessCount": 8,
-      "lastAccessed": 1780685138598,
-      "type": "file"
-    },
-    {
-      "path": "packages/core/src/project.ts",
-      "accessCount": 7,
-      "lastAccessed": 1780685067020,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/index.ts",
-      "accessCount": 7,
-      "lastAccessed": 1780685099902,
+      "path": "packages/tinycode/src/cli/cmd/tui/component/prompt/index.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1780952235363,
       "type": "file"
     },
     {
       "path": "packages/tinycode/src/agent/agent.ts",
-      "accessCount": 6,
-      "lastAccessed": 1780685018062,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/cli/cmd/mcp.ts",
-      "accessCount": 6,
-      "lastAccessed": 1780685029141,
-      "type": "file"
-    },
-    {
-      "path": "packages/core/src/models-dev.ts",
       "accessCount": 5,
-      "lastAccessed": 1780681542886,
+      "lastAccessed": 1780954721243,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/src/provider/provider.ts",
+      "path": "packages/llm/example/call-sites.md",
       "accessCount": 5,
-      "lastAccessed": 1780683591044,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/plugin/shared.ts",
-      "accessCount": 5,
-      "lastAccessed": 1780685090444,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/lib/cli-process.ts",
-      "accessCount": 5,
-      "lastAccessed": 1780685263016,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/cli/cmd/tui/provider-options.test.ts",
-      "accessCount": 4,
-      "lastAccessed": 1780454296645,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/cli/help/__snapshots__/help-snapshots.test.ts.snap",
-      "accessCount": 3,
-      "lastAccessed": 1780434495132,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/util/media.ts",
-      "accessCount": 3,
-      "lastAccessed": 1780453594967,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/tool/read.ts",
-      "accessCount": 3,
-      "lastAccessed": 1780453611107,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/config/migration.test.ts",
-      "accessCount": 3,
-      "lastAccessed": 1780454188914,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/cli/cmd/tui/component/dialog-provider.tsx",
-      "accessCount": 3,
-      "lastAccessed": 1780454400751,
-      "type": "file"
-    },
-    {
-      "path": "packages/sdk/js/src/error-interceptor.ts",
-      "accessCount": 3,
-      "lastAccessed": 1780681493868,
+      "lastAccessed": 1780955924475,
       "type": "file"
     },
     {
       "path": "packages/tinycode/src/tool/task.ts",
+      "accessCount": 4,
+      "lastAccessed": 1780952185302,
+      "type": "file"
+    },
+    {
+      "path": "packages/app/src/components/prompt-input/slash-popover.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1780953268341,
+      "type": "file"
+    },
+    {
+      "path": "packages/llm/README.md",
+      "accessCount": 4,
+      "lastAccessed": 1780955885720,
+      "type": "file"
+    },
+    {
+      "path": "packages/llm/AGENTS.md",
+      "accessCount": 4,
+      "lastAccessed": 1780955903214,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/session/processor.ts",
       "accessCount": 3,
-      "lastAccessed": 1780685151103,
+      "lastAccessed": 1780947112025,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/test/server/sdk-error-shape.test.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780435272445,
+      "path": "packages/tinycode/test/AGENTS.md",
+      "accessCount": 3,
+      "lastAccessed": 1780955978472,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/test/provider/tinycode.test.ts",
+      "path": "packages/tinycode/src/session/message-v2.ts",
       "accessCount": 2,
-      "lastAccessed": 1780453589820,
+      "lastAccessed": 1780952200769,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/test/cli/task-schema.test.ts",
+      "path": "packages/tinycode/src/config/markdown.ts",
       "accessCount": 2,
-      "lastAccessed": 1780453590157,
+      "lastAccessed": 1780952204009,
       "type": "file"
     },
     {
-      "path": "packages/core/test/models.test.ts",
+      "path": "packages/app/src/utils/prompt.ts",
       "accessCount": 2,
-      "lastAccessed": 1780453605440,
+      "lastAccessed": 1780952221747,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/drizzle.config.ts",
+      "path": "packages/tinycode/src/cli/cmd/prompt-display.ts",
       "accessCount": 2,
-      "lastAccessed": 1780680525781,
+      "lastAccessed": 1780952221789,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/src/mcp/index.ts",
+      "path": "packages/app/src/context/prompt.tsx",
       "accessCount": 2,
-      "lastAccessed": 1780681462807,
+      "lastAccessed": 1780952221910,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/src/lsp/server.ts",
+      "path": "packages/effect-drizzle-sqlite/AGENTS.md",
       "accessCount": 2,
-      "lastAccessed": 1780681478630,
+      "lastAccessed": 1780955875212,
+      "type": "file"
+    },
+    {
+      "path": "packages/app/AGENTS.md",
+      "accessCount": 2,
+      "lastAccessed": 1780955936082,
+      "type": "file"
+    },
+    {
+      "path": "packages/app/README.md",
+      "accessCount": 2,
+      "lastAccessed": 1780955938574,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/core/plugin.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780939473185,
+      "type": "file"
+    },
+    {
+      "path": "packages/plugin/package.json",
+      "accessCount": 1,
+      "lastAccessed": 1780939473459,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/plugin/loader.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780939495158,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/plugin/index.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780939495188,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/plugin/shared.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780939498432,
+      "type": "file"
+    },
+    {
+      "path": "packages/plugin/src/index.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780939549297,
+      "type": "file"
+    },
+    {
+      "path": "packages/plugin/src/tool.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780939636243,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/config/plugin.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780939683387,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/session/tools.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780941011499,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/tool/registry.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780941017816,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/session/llm.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780946928295,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/session/schema.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780946928805,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/session-ses_1574.md",
+      "accessCount": 1,
+      "lastAccessed": 1780948131282,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/core/session-prompt.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780952174902,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/tui/attach.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780952177119,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/tui/attention.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780952177512,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/tui/context/prompt.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1780952184961,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/tui/app.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1780952185357,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/cli/cmd/tui/component/prompt/part.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780952204452,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/server/routes/instance/httpapi/handlers/session.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780952217997,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/config/command.ts",
+      "accessCount": 1,
+      "lastAccessed": 1780952218530,
       "type": "file"
     },
     {
       "path": "packages/tinycode/src/cli/cmd/tui/thread.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780681479003,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/cli/cmd/run.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780681479430,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/cli/cmd/run/runtime.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780681479974,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/cli/cmd/run/demo.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780681491696,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/plugin/xai.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780681520528,
-      "type": "file"
-    },
-    {
-      "path": "packages/sdk/js/src/process.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780681540208,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/tool/shell/id.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780681541559,
-      "type": "file"
-    },
-    {
-      "path": "packages/core/src/plugin.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780681544691,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/session/llm/native-runtime.ts",
-      "accessCount": 2,
-      "lastAccessed": 1780681545681,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/cli/smokes/read-only.test.ts",
       "accessCount": 1,
-      "lastAccessed": 1780432916084,
+      "lastAccessed": 1780952230600,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/test/tool/parameters.test.ts",
+      "path": "packages/tinycode/src/command/template/initialize.txt",
       "accessCount": 1,
-      "lastAccessed": 1780435222258,
+      "lastAccessed": 1780952582227,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/test/tool/task.test.ts",
+      "path": "packages/tinycode/src/cli/cmd/tui/keymap.tsx",
       "accessCount": 1,
-      "lastAccessed": 1780453574086,
+      "lastAccessed": 1780954721934,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/test/tool/read.test.ts",
+      "path": "packages/tinycode/src/cli/cmd/tui/config/keybind.ts",
       "accessCount": 1,
-      "lastAccessed": 1780453574554,
+      "lastAccessed": 1780954733859,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/test/tool/webfetch.test.ts",
+      "path": "packages/tinycode/src/cli/cmd/tui/routes/session/index.tsx",
       "accessCount": 1,
-      "lastAccessed": 1780453574968,
+      "lastAccessed": 1780954734542,
       "type": "file"
     },
     {
-      "path": "packages/tinycode/src/tool/webfetch.ts",
+      "path": "packages/tinycode/src/config/config.ts",
       "accessCount": 1,
-      "lastAccessed": 1780453611513,
+      "lastAccessed": 1780954742045,
       "type": "file"
     },
     {
-      "path": "packages/core/src/models-local.json",
+      "path": "packages/tinycode/src/cli/cmd/tui/routes/home.tsx",
       "accessCount": 1,
-      "lastAccessed": 1780453628112,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/test/util/media.test.ts",
-      "accessCount": 1,
-      "lastAccessed": 1780454157665,
+      "lastAccessed": 1780954742915,
       "type": "file"
     }
   ],
