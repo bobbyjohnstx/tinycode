@@ -449,14 +449,14 @@ export const layer = Layer.effect(
               ollama: {
                 npm: "@ai-sdk/openai-compatible",
                 options: {
-                  baseURL: "http://localhost:11434/v1",
+                  baseURL: `${(process.env["TINYCODE_OLLAMA_HOST"] ?? "http://localhost:11434").replace(/\/+$/, "")}/v1`,
                   name: "ollama",
                 },
               },
               vllm: {
                 npm: "@ai-sdk/openai-compatible",
                 options: {
-                  baseURL: "http://localhost:8000/v1",
+                  baseURL: `${(process.env["TINYCODE_VLLM_HOST"] ?? "http://localhost:8000").replace(/\/+$/, "")}/v1`,
                   name: "vllm",
                 },
               },
