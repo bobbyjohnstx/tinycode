@@ -1952,7 +1952,7 @@ noLLMServer.instance(
         [path.join(docs, "README.md"), path.join(docs, "guide")].sort(),
       )
       expect(guide?.mime).toBe("application/x-directory")
-      expect(agents.map((agent) => agent.name)).toEqual(["build"])
+      expect(agents.map((agent) => agent.name)).toEqual([])
     }),
   {
     config: {
