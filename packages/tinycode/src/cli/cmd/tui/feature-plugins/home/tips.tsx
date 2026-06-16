@@ -38,7 +38,7 @@ function FirstTimeTips(props: { api: TuiPluginApi }) {
   return (
     <box width="100%" maxWidth={75} alignItems="center" paddingTop={3} flexShrink={1} gap={1}>
       <text fg={theme().warning}>● Getting Started</text>
-      <text fg={theme().textMuted}>Type @ to mention files or agents</text>
+      <text fg={theme().textMuted}>Type @ to attach files, /ask to invoke agents</text>
       <text fg={theme().textMuted}>Start with / for commands, ctrl+p for palette</text>
       <text fg={theme().textMuted}>Press tab to switch agents, F1 for help</text>
     </box>

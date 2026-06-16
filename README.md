@@ -62,17 +62,31 @@ See [CLAUDE.md](CLAUDE.md) for development guidance and [AGENTS.md](AGENTS.md) f
 
 ## Agents
 
-Type `@` in the prompt to invoke a subagent:
+Type `/ask <agent> <prompt>` to invoke a subagent. Tab or `<leader>a` switches the primary agent (build/plan).
+
+### Built-in agents
 
 | Agent | Role |
 |---|---|
-| `@explore` | Fast codebase search (grep/glob) |
-| `@deep-explore` | LSP+AST aware search (symbols, references) |
-| `@scout` | External research (clone repos, read docs) |
-| `@architect` | Read-only code analysis and architectural guidance |
-| `@debugger` | Root-cause analysis and bug fixing |
-| `@executor` | Precise implementation of scoped tasks |
-| `@general` | General-purpose assistant |
+| `explore` | Fast codebase search (grep/glob) |
+| `scout` | External research — clone repos, read docs. Never modifies workspace. |
+| `general` | General-purpose agent, fans out work in parallel |
+
+### oh-my-tiny agents (via omt plugin)
+
+| Agent | Role |
+|---|---|
+| `architect` | Read-only code analysis and architectural guidance |
+| `critic` | Quality gate — multi-perspective review of plans and code |
+| `debugger` | Root-cause analysis and bug fixing |
+| `designer` | UI/UX designer-developer for production-grade interfaces |
+| `executor` | Focused implementation of scoped tasks |
+| `planner` | Strategic planning — gather requirements, produce work plans |
+| `qa-tester` | Interactive CLI testing via tmux |
+| `verifier` | Evidence-based verification of completion |
+| `writer` | Technical documentation |
+
+`@` references files only. To invoke an agent, use `/ask <agent>`.
 
 ## Skills
 
@@ -88,7 +102,7 @@ Type `/` to see available slash commands. Skills (marked `:skill`) inject specia
 
 ## oh-my-tiny
 
-[oh-my-tiny](https://localhost:3000/bjohns/oh-my-tiny) is a companion tool providing extended orchestration. It runs as an MCP server providing state management, wiki, LSP, and AST grep tools. Configured in `.opencode/opencode.jsonc`.
+oh-my-tiny is a companion plugin providing extended orchestration tools built in to tinycode. It adds notepad, wiki, project memory, state management, and AST grep tools — all stored under `.tinycode/` in the project directory. The omt agents (architect, debugger, executor, etc.) are available via `/ask <agent>` once the plugin is active.
 
 ## Building
 

@@ -206,7 +206,7 @@ const TIPS: Tip[] = [
   (shortcuts) => press(shortcuts.inputClear(), "when typing to clear the input field"),
   (shortcuts) => press(shortcuts.sessionInterrupt(), "to stop the AI mid-response"),
   "Switch to {highlight}Plan{/highlight} agent to get suggestions without making actual changes",
-  "Use {highlight}@agent-name{/highlight} in prompts to invoke specialized subagents",
+  "Use {highlight}/ask agent-name{/highlight} to invoke a specialized subagent",
   (shortcuts) => {
     const items = [
       shortcuts.sessionParent(),
