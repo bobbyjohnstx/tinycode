@@ -21,11 +21,13 @@ Use exactly one tool per message. Example sequence:
 
 # bash tool
 
-To run shell commands, use the bash tool with a `command` field:
-- List files: command = "ls"
-- Delete file: command = "rm filename.md"
-- Run tests: command = "bun test"
-- Git status: command = "git status"
+To run shell commands, use the bash tool with a `command` field and a `description` field (a short label for what the command does):
+- List files: command = "ls", description = "List files in current directory"
+- Delete file: command = "rm filename.md", description = "Delete filename.md"
+- Run tests: command = "bun test", description = "Run test suite"
+- Git status: command = "git status", description = "Show working tree status"
+
+Always include both `command` and `description` when using the bash tool.
 
 # Output format
 
