@@ -475,7 +475,7 @@ export const ShellTool = Tool.define(
         cwd: string
         env: NodeJS.ProcessEnv
         timeout: number
-        description: string
+        description: string | undefined
       },
       ctx: Tool.Context,
     ) {
@@ -630,7 +630,7 @@ export const ShellTool = Tool.define(
         output += "\n\n<shell_metadata>\n" + meta.join("\n") + "\n</shell_metadata>"
       }
       return {
-        title: input.description,
+        title: input.description ?? input.command,
         metadata: {
           output: last || preview(output),
           exit: code,

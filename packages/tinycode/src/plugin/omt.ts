@@ -12,15 +12,6 @@ export const OmtPlugin: PluginInstance = async (input) => {
   return {
     tool: createTools(dir),
 
-    // Auto-approve omt_* tool calls -- they only read/write local .tinycode/ files
-    "permission.ask": async (input: any, output: any) => {
-      const title = input.title ?? ""
-      const pattern = Array.isArray(input.pattern) ? input.pattern.join(" ") : (input.pattern ?? "")
-      if (title.startsWith("omt_") || pattern.startsWith("omt_")) {
-        output.status = "allow"
-      }
-    },
-
     // Inject notepad priority context and project memory into every system prompt
     "experimental.chat.system.transform": async (_input: any, output: any) => {
       try {
