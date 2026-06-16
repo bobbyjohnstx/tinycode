@@ -208,28 +208,17 @@ function build(input: SplashWriterInput, kind: "entry" | "exit", ctx: Scrollback
   if (kind === "entry") {
     const rightShadow = color(input.theme.rightShadow, fallback(240, "#475569"))
 
-    for (let i = 0; i < logo.left.length; i += 1) {
-      const leftText = logo.left[i] ?? ""
-      const rightText = logo.right[i] ?? ""
-
-      draw(lines, leftText, {
-        left: 0,
-        top: i,
-        fg: left,
-        shadow: leftShadow,
-      })
-      draw(lines, rightText, {
-        left: leftText.length + 1,
-        top: i,
-        fg: right,
-        shadow: rightShadow,
-      })
+    for (let i = 0; i < logo.rows.length; i += 1) {
+      const row = logo.rows[i] ?? ""
+      const split = logo.splitCols[i] ?? row.length
+      draw(lines, row.slice(0, split), { left: 0, top: i, fg: left, shadow: leftShadow })
+      draw(lines, row.slice(split), { left: split, top: i, fg: right, shadow: rightShadow })
     }
 
-    height = logo.left.length
+    height = logo.rows.length
 
     if (input.showSession !== false) {
-      const top = logo.left.length + 1
+      const top = logo.rows.length + 1
       const label = "Session".padEnd(10, " ")
       push(lines, 0, top, label, left, undefined, TextAttributes.DIM)
       push(lines, label.length, top, meta.title, right, undefined, TextAttributes.BOLD)
@@ -238,7 +227,8 @@ function build(input: SplashWriterInput, kind: "entry" | "exit", ctx: Scrollback
   }
 
   if (kind === "exit") {
-    const mark = go.right.slice(1)
+    // Use the "tiny" side (left of splitCol) from the first 3 rows as the exit mark
+    const mark = go.rows.slice(0, 3).map((row, i) => row.slice(0, go.splitCols[i] ?? row.length))
     const top = 1
     const body_left = (mark[0]?.length ?? 0) + 2
     const session = "Session  "

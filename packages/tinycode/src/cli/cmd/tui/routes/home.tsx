@@ -11,6 +11,8 @@ import { TuiPluginRuntime } from "@/cli/cmd/tui/plugin/runtime"
 import { useEditorContext } from "@tui/context/editor"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTuiConfig } from "../context/tui-config"
+import { useExit } from "../context/exit"
+import * as UI from "@/cli/ui"
 
 let once = false
 const placeholder = {
@@ -21,6 +23,8 @@ const placeholder = {
 export function Home() {
   const sync = useSync()
   const route = useRouteData("home")
+  const exit = useExit()
+  createEffect(() => exit.message.set(UI.logo("  ")))
   const promptRef = usePromptRef()
   const [ref, setRef] = createSignal<PromptRef | undefined>()
   const args = useArgs()

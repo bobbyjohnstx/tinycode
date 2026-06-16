@@ -322,6 +322,9 @@ function createTuiLifecycle(input: {
 
   const exit = createExit(async (reason, message) => {
     exiting = true
+    // Capture before cleanup/destroy — renderer.destroy() disposes the SolidJS tree
+    // which runs createEffect cleanups that clear exit.message.
+    const text = message()
     await cleanup()
     if (!input.renderer.isDestroyed) {
       input.renderer.setTerminalTitle("")
@@ -332,7 +335,6 @@ function createTuiLifecycle(input: {
       const formatted = FormatError(reason) ?? FormatUnknownError(reason)
       if (formatted) process.stderr.write(formatted + "\n")
     }
-    const text = message()
     if (text) process.stdout.write(text + "\n")
     completeExit()
   })

@@ -21,41 +21,79 @@ export const Splash = (props: Pick<ComponentProps<"svg">, "ref" | "class">) => {
       ref={props.ref}
       data-component="logo-splash"
       classList={{ [props.class ?? ""]: !!props.class }}
-      viewBox="0 0 80 100"
+      viewBox="0 0 40 80"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path d="M60 80H20V40H60V80Z" fill="var(--icon-base)" />
-      <path d="M60 20H20V80H60V20ZM80 100H0V0H80V100Z" fill="var(--icon-strong-base)" />
+      <path
+        d="M30 4 L10 76"
+        stroke="var(--icon-strong-base)"
+        stroke-width="8"
+        stroke-linecap="round"
+      />
     </svg>
   )
 }
 
+// Diagonal split wordmark: "tiny" top-left (muted), ╲ separator, "code" bottom-right (strong).
+// Pixel grid: each letter is 3×3 units, stroke width 2, gap 1.
 export const Logo = (props: { class?: string }) => {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 234 42"
+      viewBox="0 0 280 80"
+      width="280"
+      height="80"
       fill="none"
       classList={{ [props.class ?? ""]: !!props.class }}
     >
-      <g>
-        <path d="M18 30H6V18H18V30Z" fill="var(--icon-weak-base)" />
-        <path d="M18 12H6V30H18V12ZM24 36H0V6H24V36Z" fill="var(--icon-base)" />
-        <path d="M48 30H36V18H48V30Z" fill="var(--icon-weak-base)" />
-        <path d="M36 30H48V12H36V30ZM54 36H36V42H30V6H54V36Z" fill="var(--icon-base)" />
-        <path d="M84 24V30H66V24H84Z" fill="var(--icon-weak-base)" />
-        <path d="M84 24H66V30H84V36H60V6H84V24ZM66 18H78V12H66V18Z" fill="var(--icon-base)" />
-        <path d="M108 36H96V18H108V36Z" fill="var(--icon-weak-base)" />
-        <path d="M108 12H96V36H90V6H108V12ZM114 36H108V12H114V36Z" fill="var(--icon-base)" />
-        <path d="M144 30H126V18H144V30Z" fill="var(--icon-weak-base)" />
-        <path d="M144 12H126V30H144V36H120V6H144V12Z" fill="var(--icon-strong-base)" />
-        <path d="M168 30H156V18H168V30Z" fill="var(--icon-weak-base)" />
-        <path d="M168 12H156V30H168V12ZM174 36H150V6H174V36Z" fill="var(--icon-strong-base)" />
-        <path d="M198 30H186V18H198V30Z" fill="var(--icon-weak-base)" />
-        <path d="M198 12H186V30H198V12ZM204 36H180V6H198V0H204V36Z" fill="var(--icon-strong-base)" />
-        <path d="M234 24V30H216V24H234Z" fill="var(--icon-weak-base)" />
-        <path d="M216 12V18H228V12H216ZM234 24H216V30H234V36H210V6H234V24Z" fill="var(--icon-strong-base)" />
+      {/* tiny — muted, top-left */}
+      <g fill="var(--icon-weak-base)">
+        {/* t */}
+        <rect x="2" y="4" width="14" height="4" />
+        <rect x="7" y="4" width="4" height="24" />
+        {/* i */}
+        <rect x="22" y="4" width="4" height="4" />
+        <rect x="22" y="12" width="4" height="16" />
+        {/* n */}
+        <rect x="32" y="4" width="4" height="24" />
+        <rect x="32" y="4" width="16" height="4" />
+        <rect x="44" y="4" width="4" height="24" />
+        {/* y */}
+        <rect x="54" y="4" width="4" height="14" />
+        <rect x="64" y="4" width="4" height="14" />
+        <rect x="54" y="14" width="14" height="4" />
+        <rect x="59" y="18" width="4" height="10" />
+      </g>
+      {/* diagonal slash */}
+      <line
+        x1="82" y1="2"
+        x2="118" y2="78"
+        stroke="var(--icon-strong-base)"
+        stroke-width="3"
+        stroke-linecap="round"
+      />
+      {/* code — strong, bottom-right */}
+      <g fill="var(--icon-strong-base)">
+        {/* c */}
+        <rect x="126" y="28" width="16" height="4" />
+        <rect x="126" y="28" width="4" height="24" />
+        <rect x="126" y="48" width="16" height="4" />
+        {/* o */}
+        <rect x="148" y="28" width="16" height="4" />
+        <rect x="148" y="28" width="4" height="24" />
+        <rect x="160" y="28" width="4" height="24" />
+        <rect x="148" y="48" width="16" height="4" />
+        {/* d */}
+        <rect x="170" y="16" width="4" height="36" />
+        <rect x="170" y="28" width="12" height="4" />
+        <rect x="178" y="28" width="4" height="24" />
+        <rect x="170" y="48" width="12" height="4" />
+        {/* e */}
+        <rect x="190" y="28" width="16" height="4" />
+        <rect x="190" y="28" width="4" height="24" />
+        <rect x="190" y="38" width="14" height="4" />
+        <rect x="190" y="48" width="16" height="4" />
       </g>
     </svg>
   )

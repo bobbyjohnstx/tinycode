@@ -3,10 +3,11 @@ import { Schema } from "effect"
 import { logo as glyphs } from "./logo"
 
 const wordmark = [
-  `⠀                                ▄     `,
-  `█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█`,
-  `█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀`,
-  `▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀`,
+  `▀█▀ ▄_ █▀▀▄ █__█╲`,
+  `_█_ █_ █__█ _▀▀█  ╲`,
+  `_▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█`,
+  `                      ╲  █___ █__█ █__█ █^^^`,
+  `                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀`,
 ]
 
 export class CancelledError extends Schema.TaggedErrorClass<CancelledError>()("UICancelledError", {}) {}
@@ -68,7 +69,6 @@ export function logo(pad?: string) {
     shadow: "\x1b[38;5;238m",
     bg: "\x1b[48;5;238m",
   }
-  const gap = " "
   const draw = (line: string, fg: string, shadow: string, bg: string) => {
     const parts: string[] = []
     for (const char of line) {
@@ -92,12 +92,11 @@ export function logo(pad?: string) {
     }
     return parts.join("")
   }
-  glyphs.left.forEach((row, index) => {
+  glyphs.rows.forEach((row, index) => {
     if (pad) result.push(pad)
-    result.push(draw(row, left.fg, left.shadow, left.bg))
-    result.push(gap)
-    const other = glyphs.right[index] ?? ""
-    result.push(draw(other, right.fg, right.shadow, right.bg))
+    const split = glyphs.splitCols[index] ?? row.length
+    result.push(draw(row.slice(0, split), left.fg, left.shadow, left.bg))
+    result.push(draw(row.slice(split), right.fg, right.shadow, right.bg))
     result.push(EOL)
   })
   return result.join("").trimEnd()

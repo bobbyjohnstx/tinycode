@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1780938982240,
+  "lastScanned": 1781286654561,
   "projectRoot": "/Users/bjohns/projects/tinycode",
   "techStack": {
     "languages": [
@@ -27,7 +27,7 @@
   },
   "build": {
     "buildCommand": null,
-    "testCommand": "cd /Users/bjohns/projects/tinycode/packages/tinycode && ~/.bun/bin/bun test --timeout 30000 test/session/prompt.test.ts 2>&1",
+    "testCommand": "npm test",
     "lintCommand": "npm run lint",
     "devCommand": "npm run dev",
     "scripts": {
@@ -57,10 +57,7 @@
     "mainDirectories": [
       "docs"
     ],
-    "gitBranches": {
-      "defaultBranch": "dev",
-      "branchingStrategy": null
-    }
+    "gitBranches": null
   },
   "customNotes": [],
   "directoryMap": {
@@ -68,7 +65,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 4,
-      "lastAccessed": 1780938982230,
+      "lastAccessed": 1781286654552,
       "keyFiles": [
         "DEEP-EXPLORE-GUIDE.md",
         "UI-UX-REVIEW.md",
@@ -80,7 +77,7 @@
       "path": "memory",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1780938982232,
+      "lastAccessed": 1781286654552,
       "keyFiles": [
         "project_tinycode_context.md"
       ]
@@ -89,14 +86,14 @@
       "path": "packages",
       "purpose": null,
       "fileCount": 1,
-      "lastAccessed": 1780938982233,
+      "lastAccessed": 1781286654552,
       "keyFiles": []
     },
     "patches": {
       "path": "patches",
       "purpose": null,
       "fileCount": 8,
-      "lastAccessed": 1780938982233,
+      "lastAccessed": 1781286654554,
       "keyFiles": [
         "@ai-sdk%2Fxai@3.0.82.patch",
         "@npmcli%2Fagent@4.0.0.patch",
@@ -109,7 +106,7 @@
       "path": "script",
       "purpose": null,
       "fileCount": 6,
-      "lastAccessed": 1780938982234,
+      "lastAccessed": 1781286654554,
       "keyFiles": [
         "format.ts",
         "generate.ts",
@@ -122,7 +119,7 @@
       "path": "packages/app",
       "purpose": "Application code",
       "fileCount": 13,
-      "lastAccessed": 1780938982236,
+      "lastAccessed": 1781286654555,
       "keyFiles": [
         "AGENTS.md",
         "README.md",
@@ -201,6 +198,12 @@
       "path": "packages/llm/AGENTS.md",
       "accessCount": 4,
       "lastAccessed": 1780955903214,
+      "type": "file"
+    },
+    {
+      "path": "packages/tinycode/src/config/config.ts",
+      "accessCount": 4,
+      "lastAccessed": 1781122534851,
       "type": "file"
     },
     {
@@ -417,12 +420,6 @@
       "path": "packages/tinycode/src/cli/cmd/tui/routes/session/index.tsx",
       "accessCount": 1,
       "lastAccessed": 1780954734542,
-      "type": "file"
-    },
-    {
-      "path": "packages/tinycode/src/config/config.ts",
-      "accessCount": 1,
-      "lastAccessed": 1780954742045,
       "type": "file"
     },
     {

@@ -4,10 +4,9 @@ import { For, createMemo, createSignal, onCleanup, onMount, type JSX } from "sol
 import { useTheme, tint } from "@tui/context/theme"
 import { go, logo } from "@/cli/logo"
 
-export type LogoShape = {
-  left: string[]
-  right: string[]
-}
+export type LogoShape =
+  | { left: string[]; right: string[] }
+  | { rows: string[]; splitCols: number[] }
 
 type ShimmerConfig = {
   period: number
@@ -53,8 +52,8 @@ const shimmerConfig: ShimmerConfig = {
   ambientWidth: 0.34,
   shadowMix: 0.1,
   primaryMix: 0.3,
-  originX: 4.5,
-  originY: 13.5,
+  originX: 20.5,
+  originY: 4.0,
 }
 
 // Shadow markers (rendered chars in parens):
@@ -303,14 +302,19 @@ type LogoContext = {
 }
 
 function build(shape: LogoShape): LogoContext {
+  if ("rows" in shape) {
+    const FULL = shape.rows
+    const maxWidth = FULL.reduce((m, r) => Math.max(m, r.length), 0)
+    const SPAN = Math.hypot(maxWidth, FULL.length * 2) * 0.94
+    return { LEFT: -1, FULL, SPAN, MAP: mapGlyphs(FULL), shape }
+  }
   const LEFT = shape.left[0]?.length ?? 0
-  const FULL = shape.left.map((line, i) => line + " ".repeat(GAP) + shape.right[i])
+  const FULL = shape.left.map((line, i) => line + " ".repeat(GAP) + (shape.right[i] ?? ""))
   const SPAN = Math.hypot(FULL[0]?.length ?? 0, FULL.length * 2) * 0.94
   return { LEFT, FULL, SPAN, MAP: mapGlyphs(FULL), shape }
 }
 
 const DEFAULT = build(logo)
-const GO = build(go)
 
 function shimmer(x: number, y: number, frame: Frame, ctx: LogoContext) {
   return frame.list.reduce((best, item) => {
@@ -525,7 +529,7 @@ type IdleState = {
 
 function buildIdleState(t: number, ctx: LogoContext): IdleState {
   const cfg = shimmerConfig
-  const w = ctx.FULL[0]?.length ?? 1
+  const w = ctx.FULL.reduce((m, r) => Math.max(m, r.length), 1)
   const h = ctx.FULL.length * 2
   const corners: [number, number][] = [
     [0, 0],
@@ -560,6 +564,8 @@ function buildIdleState(t: number, ctx: LogoContext): IdleState {
 
 export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = {}) {
   const ctx = props.shape ? build(props.shape) : DEFAULT
+  const rowsShape = "rows" in ctx.shape ? ctx.shape : null
+  const classicShape = "left" in ctx.shape ? ctx.shape : null
   const { theme } = useTheme()
   const renderer = useRenderer()
   const [rings, setRings] = createSignal<Ring[]>([])
@@ -721,17 +727,21 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
   const renderLine = (
     line: string,
     y: number,
-    ink: RGBA,
-    bold: boolean,
+    baseInk: RGBA,
+    baseBold: boolean,
     off: number,
     frame: Frame,
     dusk: Frame,
     state: IdleState | undefined,
+    rightInk?: RGBA,
+    splitCol?: number,
   ): JSX.Element[] => {
-    const shadow = tint(theme.background, ink, 0.25)
-    const attrs = bold ? TextAttributes.BOLD : undefined
-
     return Array.from(line).map((char, i) => {
+      const isRight = splitCol !== undefined && (off + i) >= splitCol
+      const ink = isRight ? (rightInk ?? baseInk) : baseInk
+      const bold = isRight || baseBold
+      const attrs = bold ? TextAttributes.BOLD : undefined
+      const shadow = tint(theme.background, ink, 0.25)
       const mEl = matrixEl(off + i, y, frame.t)
       if (mEl !== null) return mEl
 
@@ -892,32 +902,53 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
         position="absolute"
         top={0}
         left={0}
-        width={ctx.FULL[0]?.length ?? 0}
+        width={ctx.FULL.reduce((m, r) => Math.max(m, r.length), 0)}
         height={ctx.FULL.length}
         zIndex={1}
         onMouse={mouse}
       />
-      <For each={ctx.shape.left}>
-        {(line, index) => (
-          <box flexDirection="row" gap={1}>
-            <box flexDirection="row">
-              {renderLine(line, index(), props.ink ?? theme.textMuted, !!props.ink, 0, frame(), dusk(), idleState())}
-            </box>
+      {rowsShape ? (
+        <For each={rowsShape.rows}>
+          {(line, index) => (
             <box flexDirection="row">
               {renderLine(
-                ctx.shape.right[index()],
+                line,
                 index(),
-                props.ink ?? theme.text,
-                true,
-                ctx.LEFT + GAP,
+                props.ink ?? theme.textMuted,
+                !!props.ink,
+                0,
                 frame(),
                 dusk(),
                 idleState(),
+                props.ink ?? theme.text,
+                rowsShape.splitCols[index()],
               )}
             </box>
-          </box>
-        )}
-      </For>
+          )}
+        </For>
+      ) : classicShape ? (
+        <For each={classicShape.left}>
+          {(line, index) => (
+            <box flexDirection="row" gap={1}>
+              <box flexDirection="row">
+                {renderLine(line, index(), props.ink ?? theme.textMuted, !!props.ink, 0, frame(), dusk(), idleState())}
+              </box>
+              <box flexDirection="row">
+                {renderLine(
+                  classicShape.right[index()] ?? "",
+                  index(),
+                  props.ink ?? theme.text,
+                  true,
+                  ctx.LEFT + GAP,
+                  frame(),
+                  dusk(),
+                  idleState(),
+                )}
+              </box>
+            </box>
+          )}
+        </For>
+      ) : null}
     </box>
   )
 }

@@ -2,6 +2,8 @@ import { AppFileSystem } from "@/core/filesystem"
 import { Effect } from "effect"
 import { HttpClient, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createHash } from "node:crypto"
+import { join, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 
 let embeddedUIPromise: Promise<Record<string, string> | null> | undefined
 
@@ -52,6 +54,30 @@ export function serveEmbeddedUIEffect(
   )
 }
 
+// Resolve the packages/app/dist directory relative to this file's location.
+// In dev (bun run from source) this path is valid when the app has been built.
+const DEV_DIST_DIR = resolve(fileURLToPath(import.meta.url), "../../../../../app/dist")
+
+function serveDistFileEffect(
+  requestPath: string,
+  fs: AppFileSystem.Interface,
+) {
+  const relative = requestPath.replace(/^\//, "") || "index.html"
+  const primary = join(DEV_DIST_DIR, relative)
+  const fallback = join(DEV_DIST_DIR, "index.html")
+  return fs.readFile(primary).pipe(
+    Effect.map((body) => embeddedUIResponse(primary, body)),
+    Effect.catchReason("PlatformError", "NotFound", () =>
+      primary === fallback
+        ? Effect.succeed(notFound())
+        : fs.readFile(fallback).pipe(
+            Effect.map((body) => embeddedUIResponse(fallback, body)),
+            Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(notFound())),
+          ),
+    ),
+  )
+}
+
 export function serveUIEffect(
   request: HttpServerRequest.HttpServerRequest,
   services: { fs: AppFileSystem.Interface; client: HttpClient.HttpClient; disableEmbeddedWebUi: boolean },
@@ -62,9 +88,6 @@ export function serveUIEffect(
 
     if (embeddedWebUI) return yield* serveEmbeddedUIEffect(path, services.fs, embeddedWebUI)
 
-    return HttpServerResponse.text(
-      "Web UI not built. Run: bun run --cwd packages/app build",
-      { status: 404 },
-    )
+    return yield* serveDistFileEffect(path, services.fs)
   })
 }
