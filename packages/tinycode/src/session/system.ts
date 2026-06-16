@@ -11,24 +11,44 @@ import PROMPT_KIMI from "./prompt/kimi.txt"
 
 import PROMPT_CODEX from "./prompt/codex.txt"
 import PROMPT_TRINITY from "./prompt/trinity.txt"
+import PROMPT_LOCAL_SMALL from "./prompt/local-small.txt"
+import PROMPT_LOCAL_MEDIUM from "./prompt/local-medium.txt"
+import PROMPT_LOCAL_LARGE from "./prompt/local-large.txt"
 import type { Provider } from "@/provider/provider"
 import type { Agent } from "@/agent/agent"
 import { Permission } from "@/permission"
 import { Skill } from "@/skill"
 
+// Local/self-hosted providers that benefit from simplified prompts
+const LOCAL_PROVIDERS = new Set(["ollama", "maas", "vllm", "lmstudio", "openai-compatible"])
+
+// Extract parameter count in billions from model ID strings like "qwen3-14b", "llama3.1:8b"
+function modelSizeB(model: Provider.Model): number | undefined {
+  const m = /[:\-_v](\d+)b\b/i.exec(model.api.id) ?? /^(\d+)b\b/i.exec(model.api.id)
+  return m ? parseInt(m[1], 10) : undefined
+}
+
 export function provider(model: Provider.Model) {
+  // Cloud model prompts keyed by well-known model ID substrings
   if (model.api.id.includes("gpt-4") || model.api.id.includes("o1") || model.api.id.includes("o3"))
     return [PROMPT_BEAST]
   if (model.api.id.includes("gpt")) {
-    if (model.api.id.includes("codex")) {
-      return [PROMPT_CODEX]
-    }
+    if (model.api.id.includes("codex")) return [PROMPT_CODEX]
     return [PROMPT_GPT]
   }
   if (model.api.id.includes("gemini-")) return [PROMPT_GEMINI]
   if (model.api.id.includes("claude")) return [PROMPT_ANTHROPIC]
   if (model.api.id.toLowerCase().includes("trinity")) return [PROMPT_TRINITY]
   if (model.api.id.toLowerCase().includes("kimi")) return [PROMPT_KIMI]
+
+  // Local / self-hosted models: pick prompt by parameter count
+  if (LOCAL_PROVIDERS.has(model.providerID)) {
+    const size = modelSizeB(model)
+    if (size !== undefined && size <= 9) return [PROMPT_LOCAL_SMALL]
+    if (size !== undefined && size >= 25) return [PROMPT_LOCAL_LARGE]
+    return [PROMPT_LOCAL_MEDIUM]   // 10B–24B, or unknown size
+  }
+
   return [PROMPT_DEFAULT]
 }
 
