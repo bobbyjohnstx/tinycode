@@ -4,10 +4,11 @@ exports[`tinycode CLI help-text snapshots every documented command emits stable 
 "Performing one time database migration, may take a few minutes...
 sqlite-migration:done
 Database migration complete.
-⠀                                ▄     
-█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
-█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
-▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+▀█▀ ▄_ █▀▀▄ █__█╲
+_█_ █_ █__█ _▀▀█  ╲
+_▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+                      ╲  █___ █__█ █__█ █^^^
+                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
   tinycode completion          generate shell completion script
@@ -214,10 +215,11 @@ exports[`tinycode CLI help-text snapshots every documented command emits stable 
 "Performing one time database migration, may take a few minutes...
 sqlite-migration:done
 Database migration complete.
-⠀                                ▄     
-█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
-█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
-▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+▀█▀ ▄_ █▀▀▄ █__█╲
+_█_ █_ █__█ _▀▀█  ╲
+_▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+                      ╲  █___ █__█ █__█ █^^^
+                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
   tinycode completion          generate shell completion script
@@ -342,10 +344,11 @@ exports[`tinycode CLI help-text snapshots every documented command emits stable 
 "Performing one time database migration, may take a few minutes...
 sqlite-migration:done
 Database migration complete.
-⠀                                ▄     
-█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
-█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
-▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+▀█▀ ▄_ █▀▀▄ █__█╲
+_█_ █_ █__█ _▀▀█  ╲
+_▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+                      ╲  █___ █__█ █__█ █^^^
+                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
   tinycode completion          generate shell completion script
@@ -428,10 +431,11 @@ exports[`tinycode CLI help-text snapshots every documented command emits stable 
 "Performing one time database migration, may take a few minutes...
 sqlite-migration:done
 Database migration complete.
-⠀                                ▄     
-█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
-█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
-▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+▀█▀ ▄_ █▀▀▄ █__█╲
+_█_ █_ █__█ _▀▀█  ╲
+_▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+                      ╲  █___ █__█ █__█ █^^^
+                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
   tinycode completion          generate shell completion script
@@ -481,10 +485,11 @@ exports[`tinycode CLI help-text snapshots every documented command emits stable 
 "Performing one time database migration, may take a few minutes...
 sqlite-migration:done
 Database migration complete.
-⠀                                ▄     
-█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
-█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
-▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+▀█▀ ▄_ █▀▀▄ █__█╲
+_█_ █_ █__█ _▀▀█  ╲
+_▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+                      ╲  █___ █__█ █__█ █^^^
+                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
   tinycode completion          generate shell completion script
@@ -760,10 +765,11 @@ exports[`tinycode CLI help-text snapshots every documented command emits stable 
 "Performing one time database migration, may take a few minutes...
 sqlite-migration:done
 Database migration complete.
-⠀                                ▄     
-█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
-█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
-▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+▀█▀ ▄_ █▀▀▄ █__█╲
+_█_ █_ █__█ _▀▀█  ╲
+_▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+                      ╲  █___ █__█ █__█ █^^^
+                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
   tinycode completion          generate shell completion script
@@ -813,10 +819,11 @@ exports[`tinycode CLI help-text snapshots every documented command emits stable 
 "Performing one time database migration, may take a few minutes...
 sqlite-migration:done
 Database migration complete.
-⠀                                ▄     
-█▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█
-█  █ █  █ █▀▀▀ █  █ █    █  █ █  █ █▀▀▀
-▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+▀█▀ ▄_ █▀▀▄ █__█╲
+_█_ █_ █__█ _▀▀█  ╲
+_▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+                      ╲  █___ █__█ █__█ █^^^
+                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
   tinycode completion          generate shell completion script
