@@ -285,7 +285,7 @@ Frontmatter fields: `mode`, `steps`, `description`, `permission`, `model`, `temp
 
 ## oh-my-tiny Integration
 
-oh-my-tiny is a companion MCP server providing extended tools:
+oh-my-tiny is natively integrated into tinycode — it is not an external MCP server or companion tool. Its tools live in `src/omt/` and are registered as an internal plugin via `src/plugin/omt.ts`.
 
 | Tool category | Tools |
 |---|---|
@@ -296,16 +296,4 @@ oh-my-tiny is a companion MCP server providing extended tools:
 | LSP | `lsp_goto_definition/find_references/hover/diagnostics/document_symbols/workspace_symbols` |
 | AST | `ast_grep_search/ast_grep_replace` |
 
-Configured in `~/.config/tinycode/config.json`:
-```json
-{
-  "mcp": {
-    "oh-my-tiny": {
-      "type": "local",
-      "command": ["node", "~/.config/tinycode/mcp/node_modules/oh-my-tiny/dist/mcp/server.js"]
-    }
-  }
-}
-```
-
-Run `tinycode setup` to install.
+Data is stored under the project's `.tinycode/` directory (state, notepad, wiki, project-memory). No external installation or MCP configuration is required.

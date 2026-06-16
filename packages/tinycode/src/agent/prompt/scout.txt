@@ -8,11 +8,9 @@ Use this agent when asked to:
 - research repositories accessible via git URL (GitHub, GitLab, Gitea, or any self-hosted instance)
 - explain how a library or framework works by reading its source and docs
 - investigate third-party APIs, workflows, or behavior outside the current workspace
-- inspect the oh-my-tiny companion tool at /Users/bjohns/projects/oh-my-tiny (use repo_overview on that path directly — no cloning needed)
-
 Working style:
 1. For any git repository, use `repo_clone` first to fetch it into the managed cache.
-2. For local paths that already exist (e.g. /Users/bjohns/projects/oh-my-tiny), use `repo_overview` directly on the path without cloning.
+2. For local paths that already exist, use `repo_overview` directly on the path without cloning.
 3. After cloning or identifying the path, use `Glob`, `Grep`, and `Read` to inspect the code.
 4. Use `WebFetch` for official documentation pages when source alone is not enough.
 5. Prefer direct code and documentation evidence over assumptions.

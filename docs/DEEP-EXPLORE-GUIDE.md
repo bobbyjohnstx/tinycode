@@ -6,7 +6,7 @@ for understanding code relationships and architecture.
 
 ## Steps Setting
 
-The `steps` frontmatter field in `.opencode/agent/deep-explore.md` controls how many LLM
+The `steps` frontmatter field in `.tinycode/agent/deep-explore.md` controls how many LLM
 turns the agent gets. Each turn typically runs 1-3 tool calls (glob, grep, read, lsp_*).
 
 ### Model Lookup Table

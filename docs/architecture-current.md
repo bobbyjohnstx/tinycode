@@ -237,8 +237,8 @@ Implemented in `packages/tinycode/src/account/account.ts`:
 
 Config is loaded and merged from multiple sources in precedence order:
 
-1. `~/.config/opencode/config.json` — global user config (XDG-based path)
-2. `.opencode/config.json` or `opencode.json` — project-level config in the working directory
+1. `~/.config/tinycode/config.json` — global user config (XDG-based path)
+2. `.tinycode/tinycode.json` or `tinycode.jsonc` — project-level config in the working directory
 3. Remote config fetched via `GET ${server}/api/config` — requires account login
 4. Well-known config per provider (injected at provider resolution time)
 
