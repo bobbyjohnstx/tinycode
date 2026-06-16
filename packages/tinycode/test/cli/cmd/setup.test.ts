@@ -6,7 +6,7 @@
  * not reached in the scenarios we test).
  */
 
-import { describe, it, expect, beforeEach } from "bun:test"
+import { describe, it, expect } from "bun:test"
 import fsNode from "fs"
 import path from "path"
 import os from "os"
@@ -43,18 +43,11 @@ async function createDirectories(configDir: string) {
  * Build the default config object the same way setup.ts does.
  */
 function buildDefaultConfig(configDir: string): object {
-  const mcpDir = path.join(configDir, "mcp")
   const skillsDir = path.join(configDir, "skills")
   return {
     lsp: true,
     skills: {
       paths: [skillsDir],
-    },
-    mcp: {
-      "oh-my-tiny": {
-        type: "local",
-        command: ["node", path.join(mcpDir, "node_modules/oh-my-tiny/dist/mcp/server.js")],
-      },
     },
   }
 }
@@ -119,7 +112,7 @@ describe("setup – createDirectories", () => {
     try {
       await createDirectories(tmp)
       // second call must not throw
-      await expect(createDirectories(tmp)).resolves.toBeDefined()
+      expect(await createDirectories(tmp)).toBeDefined()
     } finally {
       await rmrf(tmp)
     }
@@ -223,7 +216,6 @@ describe("setup – default config.json generation", () => {
 
       expect(parsed).toHaveProperty("lsp")
       expect(parsed).toHaveProperty("skills")
-      expect(parsed).toHaveProperty("mcp")
     } finally {
       await rmrf(tmp)
     }
@@ -239,22 +231,6 @@ describe("setup – default config.json generation", () => {
 
       expect(Array.isArray(parsed.skills?.paths)).toBe(true)
       expect(parsed.skills.paths[0]).toContain("skills")
-    } finally {
-      await rmrf(tmp)
-    }
-  })
-
-  it("config.json contains an oh-my-tiny mcp entry", async () => {
-    const tmp = await makeTmpDir()
-    try {
-      await writeDefaultConfig(tmp, false)
-
-      const raw = await fsNode.promises.readFile(path.join(tmp, "config.json"), "utf8")
-      const parsed = JSON.parse(raw)
-
-      expect(parsed.mcp).toHaveProperty("oh-my-tiny")
-      expect(parsed.mcp["oh-my-tiny"].type).toBe("local")
-      expect(Array.isArray(parsed.mcp["oh-my-tiny"].command)).toBe(true)
     } finally {
       await rmrf(tmp)
     }

@@ -8,7 +8,6 @@ import path from "path"
 
 interface SetupArgs {
   force: boolean
-  skipMcp: boolean
 }
 
 export const SetupCommand = {
@@ -20,11 +19,6 @@ export const SetupCommand = {
         alias: "f",
         type: "boolean",
         describe: "overwrite existing config.json",
-        default: false,
-      })
-      .option("skip-mcp", {
-        type: "boolean",
-        describe: "skip installing MCP servers",
         default: false,
       }),
 
@@ -121,55 +115,7 @@ export const SetupCommand = {
       }
     }
 
-    // Step 4: Install oh-my-tiny MCP server
-    if (!args.skipMcp) {
-      const spinner = prompts.spinner()
-      spinner.start("Installing oh-my-tiny MCP server...")
-      try {
-        // Create package.json if it doesn't exist
-        const pkgJson = path.join(mcpDir, "package.json")
-        const pkgExists = await fsNode.promises
-          .access(pkgJson)
-          .then(() => true)
-          .catch(() => false)
-        if (!pkgExists) {
-          await fsNode.promises.writeFile(pkgJson, "{}\n", "utf8")
-        }
-
-        // Create .npmrc pointing at Gitea registry
-        const npmrc = path.join(mcpDir, ".npmrc")
-        await fsNode.promises.writeFile(
-          npmrc,
-          "//localhost:3000/api/packages/bjohns/npm/:_authToken=c0112b78b112703d8b5fb740f99b6cc3f4f57215\n",
-          "utf8",
-        )
-
-        const proc = Bun.spawn(
-          ["npm", "install", "oh-my-tiny", "--registry", "http://localhost:3000/api/packages/bjohns/npm/"],
-          {
-            cwd: mcpDir,
-            stdout: "pipe",
-            stderr: "pipe",
-          },
-        )
-
-        await proc.exited
-        if (proc.exitCode !== 0) {
-          const stderr = await new Response(proc.stderr).text()
-          spinner.stop("Failed to install oh-my-tiny", 1)
-          prompts.log.warn(stderr.trim() || "npm install exited with code " + proc.exitCode)
-        } else {
-          spinner.stop("Installed oh-my-tiny MCP server")
-        }
-      } catch (e: any) {
-        spinner.stop("Failed to install MCP server", 1)
-        prompts.log.warn(e.message)
-      }
-    } else {
-      prompts.log.step("Skipping MCP install (--skip-mcp)")
-    }
-
-    // Step 5: Copy help.md if it exists
+    // Step 4: Copy help.md if it exists
     {
       const helpSrc = path.resolve(import.meta.dirname, "../tui/help.md")
       const helpDest = path.join(configDir, "help.md")
@@ -190,7 +136,7 @@ export const SetupCommand = {
       }
     }
 
-    // Step 6: Write default config.json if absent (or --force)
+    // Step 5: Write default config.json if absent (or --force)
     {
       const configFile = path.join(configDir, "config.json")
       const configExists = await fsNode.promises
@@ -206,12 +152,6 @@ export const SetupCommand = {
             lsp: true,
             skills: {
               paths: [skillsDir],
-            },
-            mcp: {
-              "oh-my-tiny": {
-                type: "local",
-                command: ["node", path.join(mcpDir, "node_modules/oh-my-tiny/dist/mcp/server.js")],
-              },
             },
           }
           await fsNode.promises.writeFile(configFile, JSON.stringify(defaultConfig, null, 2) + "\n", "utf8")
