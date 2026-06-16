@@ -1,8 +1,6 @@
 /**
- * Persistence helpers for omt tools (merged from oh-my-tiny)
- *
+ * Persistence helpers for omt tools.
  * Handles all .tinycode/ file I/O for state, notepad, project-memory, and wiki.
- * Falls back to reading from .omc/ for backward compatibility.
  * No Effect dependency -- pure Node.js fs.
  */
 
@@ -25,14 +23,8 @@ function dataDir(projectRoot: string): string {
   return join(projectRoot, ".tinycode")
 }
 
-function legacyDir(projectRoot: string): string {
-  return join(projectRoot, ".omc")
-}
-
 function ensureDir(p: string): void {
-  if (!existsSync(p)) {
-    mkdirSync(p, { recursive: true })
-  }
+  if (!existsSync(p)) mkdirSync(p, { recursive: true })
 }
 
 type JsonReadResult =
@@ -55,54 +47,16 @@ function safeWriteJson(filePath: string, data: unknown): void {
   renameSync(tmp, filePath)
 }
 
-/** Read from .tinycode/ first, fall back to .omc/ */
-function resolveReadPath(projectRoot: string, relativePath: string): string | null {
-  const primary = join(dataDir(projectRoot), relativePath)
-  if (existsSync(primary)) return primary
-  const fallback = join(legacyDir(projectRoot), relativePath)
-  if (existsSync(fallback)) return fallback
-  return null
-}
-
-/** Read a file from .tinycode/ first, fall back to .omc/ */
-function readWithFallback(projectRoot: string, relativePath: string): string | null {
-  const resolved = resolveReadPath(projectRoot, relativePath)
-  if (!resolved) return null
-  try {
-    return readFileSync(resolved, "utf-8")
-  } catch {
-    return null
-  }
-}
-
-/** Read JSON from .tinycode/ first, fall back to .omc/ */
-function readJsonWithFallback(projectRoot: string, relativePath: string): JsonReadResult {
-  const resolved = resolveReadPath(projectRoot, relativePath)
-  if (!resolved) return { ok: false, reason: "missing" }
-  return safeReadJson(resolved)
-}
-
 // ============================================================================
 // State management
 // ============================================================================
-
-function stateRelDir(): string {
-  return "state"
-}
 
 export function stateFilePath(stateDir: string, mode: string): string {
   return join(stateDir, `${mode}-state.json`)
 }
 
 export function readState(stateDir: string, mode: string): unknown {
-  const p = stateFilePath(stateDir, mode)
-  const result = safeReadJson(p)
-  return result.ok ? result.data : null
-}
-
-/** Read state with .tinycode/ -> .omc/ fallback */
-export function readStateWithFallback(projectRoot: string, mode: string): unknown {
-  const result = readJsonWithFallback(projectRoot, join(stateRelDir(), `${mode}-state.json`))
+  const result = safeReadJson(stateFilePath(stateDir, mode))
   return result.ok ? result.data : null
 }
 
@@ -136,13 +90,8 @@ export function listActiveStates(stateDir: string): string[] {
   }
 }
 
-/** List active states with .tinycode/ -> .omc/ fallback */
-export function listActiveStatesWithFallback(projectRoot: string): string[] {
-  const primary = join(dataDir(projectRoot), stateRelDir())
-  if (existsSync(primary)) return listActiveStates(primary)
-  const fallback = join(legacyDir(projectRoot), stateRelDir())
-  if (existsSync(fallback)) return listActiveStates(fallback)
-  return []
+export function getStateDir(projectRoot: string): string {
+  return join(dataDir(projectRoot), "state")
 }
 
 // ============================================================================
@@ -157,7 +106,6 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
-// Boundary pattern that only matches the exact known section headers, not arbitrary ## in user content
 const SECTION_BOUNDARIES = [PRIORITY_HEADER, WORKING_MEMORY_HEADER, MANUAL_HEADER]
   .map(escapeRegex)
   .join("|")
@@ -188,11 +136,6 @@ function initNotepadIfNeeded(projectRoot: string): void {
   }
 }
 
-function readNotepadRaw(projectRoot: string): string | null {
-  // Try .tinycode/ first, fall back to .omc/
-  return readWithFallback(projectRoot, "notepad.md")
-}
-
 function extractSection(content: string, header: string): string | null {
   const pattern = new RegExp(`${escapeRegex(header)}\\n([\\s\\S]*?)(?=\\n(?:${SECTION_BOUNDARIES})|$)`)
   const match = content.match(pattern)
@@ -210,16 +153,13 @@ function replaceSection(content: string, header: string, newContent: string): st
 }
 
 export function readNotepad(projectRoot: string, section?: string): string {
-  const content = readNotepadRaw(projectRoot)
+  const p = getNotepadPath(projectRoot)
+  const content = existsSync(p) ? readFileSync(p, "utf-8") : null
   const sec = section || "all"
 
-  if (!content) {
-    return "Notepad does not exist. Use notepad_write_* tools to create it."
-  }
+  if (!content) return "Notepad does not exist. Use notepad_write_* tools to create it."
 
-  if (sec === "all") {
-    return `## Notepad\n\nPath: ${getNotepadPath(projectRoot)}\n\n${content}`
-  }
+  if (sec === "all") return `## Notepad\n\nPath: ${p}\n\n${content}`
 
   const headerMap: Record<string, string> = {
     priority: PRIORITY_HEADER,
@@ -321,14 +261,9 @@ export function getNotepadStats(projectRoot: string): {
   workingMemoryEntries: number
   oldestEntry: string | null
 } {
-  // Check .tinycode/ first, then .omc/
-  const primary = getNotepadPath(projectRoot)
-  const fallbackPath = join(legacyDir(projectRoot), "notepad.md")
-  const p = existsSync(primary) ? primary : existsSync(fallbackPath) ? fallbackPath : null
+  const p = getNotepadPath(projectRoot)
+  if (!existsSync(p)) return { exists: false, totalSize: 0, prioritySize: 0, workingMemoryEntries: 0, oldestEntry: null }
 
-  if (!p) {
-    return { exists: false, totalSize: 0, prioritySize: 0, workingMemoryEntries: 0, oldestEntry: null }
-  }
   const content = readFileSync(p, "utf-8")
   const priority = extractSection(content, PRIORITY_HEADER) || ""
   const working = extractSection(content, WORKING_MEMORY_HEADER) || ""
@@ -358,13 +293,11 @@ function getProjectMemoryPath(projectRoot: string): string {
 }
 
 export function readProjectMemory(projectRoot: string, section?: string): unknown {
-  // Try .tinycode/ first, fall back to .omc/
-  const result = readJsonWithFallback(projectRoot, "project-memory.json")
+  const result = safeReadJson(getProjectMemoryPath(projectRoot))
   if (!result.ok) return null
   try {
     const memory = result.data as Record<string, unknown>
     if (!section || section === "all") return memory
-
     const sectionMap: Record<string, string> = {
       techStack: "techStack",
       build: "build",
@@ -373,18 +306,13 @@ export function readProjectMemory(projectRoot: string, section?: string): unknow
       notes: "customNotes",
       directives: "userDirectives",
     }
-    const key = sectionMap[section] || section
-    return memory[key] ?? null
+    return memory[sectionMap[section] ?? section] ?? null
   } catch {
     return null
   }
 }
 
-export function writeProjectMemory(
-  projectRoot: string,
-  memory: Record<string, unknown>,
-  merge = false,
-): void {
+export function writeProjectMemory(projectRoot: string, memory: Record<string, unknown>, merge = false): void {
   const p = getProjectMemoryPath(projectRoot)
   ensureDir(dirname(p))
 
@@ -393,11 +321,8 @@ export function writeProjectMemory(
     try {
       const existing = JSON.parse(readFileSync(p, "utf-8")) as Record<string, unknown>
       finalMemory = { ...existing, ...memory }
-      // Preserve user-contributed arrays from existing if not in incoming
       for (const key of ["customNotes", "userDirectives", "hotPaths"]) {
-        if (!(key in memory) && key in existing) {
-          finalMemory[key] = existing[key]
-        }
+        if (!(key in memory) && key in existing) finalMemory[key] = existing[key]
       }
     } catch {
       // use incoming as-is
@@ -411,23 +336,14 @@ export function writeProjectMemory(
   safeWriteJson(p, finalMemory)
 }
 
-export function addProjectMemoryNote(
-  projectRoot: string,
-  category: string,
-  content: string,
-): void {
+export function addProjectMemoryNote(projectRoot: string, category: string, content: string): void {
   const existing = (readProjectMemory(projectRoot) as Record<string, unknown> | null) || {}
   const notes = Array.isArray(existing.customNotes) ? [...existing.customNotes] : []
   notes.push({ category, content, timestamp: Date.now() })
   writeProjectMemory(projectRoot, { ...existing, customNotes: notes }, false)
 }
 
-export function addProjectMemoryDirective(
-  projectRoot: string,
-  directive: string,
-  priority = "normal",
-  context = "",
-): void {
+export function addProjectMemoryDirective(projectRoot: string, directive: string, priority = "normal", context = ""): void {
   const existing = (readProjectMemory(projectRoot) as Record<string, unknown> | null) || {}
   const directives = Array.isArray(existing.userDirectives) ? [...existing.userDirectives] : []
   directives.push({ directive, priority, context, timestamp: Date.now(), source: "explicit" })
@@ -440,15 +356,6 @@ export function addProjectMemoryDirective(
 
 function getWikiDir(projectRoot: string): string {
   return join(dataDir(projectRoot), "wiki")
-}
-
-/** Get the wiki dir, checking .tinycode/ first then .omc/ for reads */
-function getWikiDirForRead(projectRoot: string): string | null {
-  const primary = getWikiDir(projectRoot)
-  if (existsSync(primary)) return primary
-  const fallback = join(legacyDir(projectRoot), "wiki")
-  if (existsSync(fallback)) return fallback
-  return null
 }
 
 function ensureWikiDir(projectRoot: string): string {
@@ -472,7 +379,6 @@ function parseYamlArray(val: unknown): string[] {
   if (!val) return []
   if (Array.isArray(val)) return val.map(String)
   if (typeof val === "string") {
-    // inline array: [a, b, c]
     const m = val.match(/^\[(.*)\]$/)
     if (m) return m[1].split(",").map((s) => s.trim()).filter(Boolean)
     return val ? [val] : []
@@ -487,39 +393,26 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
   const list: string[] = []
 
   for (const rawLine of yaml.split("\n")) {
-    const line = rawLine
-
-    // List item
-    if (/^\s+-\s+(.*)/.test(line) && inList) {
-      const m = line.match(/^\s+-\s+(.*)/)
+    if (/^\s+-\s+(.*)/.test(rawLine) && inList) {
+      const m = rawLine.match(/^\s+-\s+(.*)/)
       if (m) list.push(m[1].trim())
       continue
     }
-
-    // Flush list
     if (inList) {
       result[currentKey] = list.splice(0)
       inList = false
     }
-
-    // Key-value
-    const kv = line.match(/^(\w+):\s*(.*)/)
+    const kv = rawLine.match(/^(\w+):\s*(.*)/)
     if (!kv) continue
     const [, key, value] = kv
     currentKey = key
-
     if (value.trim() === "") {
-      // Possible list follows
       inList = true
     } else {
       result[key] = value.trim().replace(/^["']|["']$/g, "")
     }
   }
-
-  if (inList && currentKey) {
-    result[currentKey] = list
-  }
-
+  if (inList && currentKey) result[currentKey] = list
   return result
 }
 
@@ -527,7 +420,6 @@ function parseFrontmatter(raw: string): { frontmatter: WikiFrontmatter; content:
   const normalized = raw.replace(/\r\n/g, "\n")
   const match = normalized.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
   if (!match) return null
-
   try {
     const fm = parseSimpleYaml(match[1])
     return {
@@ -566,28 +458,18 @@ function serializePage(frontmatter: WikiFrontmatter, content: string): string {
 }
 
 export function titleToSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80) + ".md"
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) + ".md"
 }
 
 export function listWikiPages(projectRoot: string): string {
-  const wikiDir = getWikiDirForRead(projectRoot)
-  if (!wikiDir) return "Wiki is empty. Use wiki_add or wiki_ingest to create pages."
+  const wikiDir = getWikiDir(projectRoot)
+  if (!existsSync(wikiDir)) return "Wiki is empty. Use wiki_add or wiki_ingest to create pages."
 
-  // Try index.md first
   const indexPath = join(wikiDir, "index.md")
   if (existsSync(indexPath)) {
-    try {
-      return readFileSync(indexPath, "utf-8")
-    } catch {
-      // fall through
-    }
+    try { return readFileSync(indexPath, "utf-8") } catch { /* fall through */ }
   }
 
-  // Fallback: list files
   try {
     const reserved = new Set(["index.md", "log.md", "environment.md"])
     const pages = readdirSync(wikiDir).filter((f) => f.endsWith(".md") && !reserved.has(f))
@@ -600,18 +482,12 @@ export function listWikiPages(projectRoot: string): string {
 
 export function readWikiPage(projectRoot: string, page: string): { found: boolean; text: string } {
   const filename = page.endsWith(".md") ? page : `${page}.md`
-  const wikiDir = getWikiDirForRead(projectRoot)
-  if (!wikiDir) return { found: false, text: `Wiki page not found: ${filename}` }
+  const wikiDir = getWikiDir(projectRoot)
+  if (!existsSync(wikiDir)) return { found: false, text: `Wiki page not found: ${filename}` }
 
   const filePath = join(wikiDir, filename)
-
-  if (!filePath.startsWith(wikiDir + sep)) {
-    return { found: false, text: `Invalid page path: ${filename}` }
-  }
-
-  if (!existsSync(filePath)) {
-    return { found: false, text: `Wiki page not found: ${filename}` }
-  }
+  if (!filePath.startsWith(wikiDir + sep)) return { found: false, text: `Invalid page path: ${filename}` }
+  if (!existsSync(filePath)) return { found: false, text: `Wiki page not found: ${filename}` }
 
   try {
     const raw = readFileSync(filePath, "utf-8")
@@ -634,15 +510,9 @@ export function readWikiPage(projectRoot: string, page: string): { found: boolea
   }
 }
 
-export function queryWikiPages(
-  projectRoot: string,
-  query: string,
-  tags?: string[],
-  category?: string,
-  limit = 20,
-): string {
-  const wikiDir = getWikiDirForRead(projectRoot)
-  if (!wikiDir) return `No wiki pages match "${query}".`
+export function queryWikiPages(projectRoot: string, query: string, tags?: string[], category?: string, limit = 20): string {
+  const wikiDir = getWikiDir(projectRoot)
+  if (!existsSync(wikiDir)) return `No wiki pages match "${query}".`
 
   const reserved = new Set(["index.md", "log.md", "environment.md"])
   let files: string[]
@@ -654,13 +524,7 @@ export function queryWikiPages(
 
   const queryTokens = query.toLowerCase().split(/\s+/).filter(Boolean)
 
-  interface Match {
-    filename: string
-    fm: WikiFrontmatter
-    score: number
-    snippet: string
-  }
-
+  interface Match { filename: string; fm: WikiFrontmatter; score: number; snippet: string }
   const matches: Match[] = []
 
   for (const file of files) {
@@ -668,46 +532,30 @@ export function queryWikiPages(
       const raw = readFileSync(join(wikiDir, file), "utf-8")
       const parsed = parseFrontmatter(raw)
       if (!parsed) continue
-
       const { frontmatter: fm, content } = parsed
-
-      // Category filter
       if (category && fm.category !== category) continue
+      if (tags && tags.length > 0 && !tags.some((t) => fm.tags.includes(t))) continue
 
-      // Tag filter (OR)
-      if (tags && tags.length > 0) {
-        const hasTag = tags.some((t) => fm.tags.includes(t))
-        if (!hasTag) continue
-      }
-
-      // Score: title + tags + content
+      let score = 0
       const titleText = fm.title.toLowerCase()
       const tagText = fm.tags.join(" ").toLowerCase()
       const bodyText = content.toLowerCase()
-
-      let score = 0
       for (const token of queryTokens) {
         if (titleText.includes(token)) score += 3
         if (tagText.includes(token)) score += 2
         if (bodyText.includes(token)) score += 1
       }
-
       if (score === 0) continue
 
-      // Snippet: first matching line
       const lines = content.split("\n")
       const snippetLine = lines.find((l) => queryTokens.some((t) => l.toLowerCase().includes(t)))
       const snippet = snippetLine ? snippetLine.trim().slice(0, 120) : content.trim().slice(0, 120)
-
       matches.push({ filename: file, fm, score, snippet })
-    } catch {
-      // skip
-    }
+    } catch { /* skip */ }
   }
 
   matches.sort((a, b) => b.score - a.score)
   const top = matches.slice(0, limit)
-
   if (top.length === 0) return `No wiki pages match "${query}".`
 
   const results = top.map((m, i) =>
@@ -715,29 +563,21 @@ export function queryWikiPages(
     `**File:** ${m.filename} | **Tags:** ${m.fm.tags.join(", ")} | **Score:** ${m.score}\n` +
     `**Snippet:** ${m.snippet}`
   )
-
   return `## Wiki Query: "${query}"\n\n${top.length} results:\n\n${results.join("\n\n")}`
 }
 
 export function ingestWikiPage(
-  projectRoot: string,
-  title: string,
-  content: string,
-  tags: string[],
-  category: string,
-  confidence = "medium",
-  sources: string[] = [],
+  projectRoot: string, title: string, content: string,
+  tags: string[], category: string, confidence = "medium", sources: string[] = [],
 ): { created: string[]; updated: string[]; totalAffected: number } {
   const wikiDir = ensureWikiDir(projectRoot)
   const slug = titleToSlug(title)
   const filePath = join(wikiDir, slug)
   const now = new Date().toISOString()
-
   const created: string[] = []
   const updated: string[] = []
 
   if (existsSync(filePath)) {
-    // Merge: append to existing content
     const raw = readFileSync(filePath, "utf-8")
     const parsed = parseFrontmatter(raw)
     if (parsed) {
@@ -745,36 +585,19 @@ export function ingestWikiPage(
       fm.updated = now
       fm.tags = [...new Set([...fm.tags, ...tags])]
       if (sources.length > 0) fm.sources = [...new Set([...fm.sources, ...sources])]
-
-      const separator = `\n\n---\n*Updated ${now.slice(0, 10)}*\n\n`
-      const merged = existing.trimEnd() + separator + content
-      writeFileSync(filePath, serializePage(fm, merged), "utf-8")
+      writeFileSync(filePath, serializePage(fm, existing.trimEnd() + `\n\n---\n*Updated ${now.slice(0, 10)}*\n\n` + content), "utf-8")
       updated.push(slug)
     } else {
-      // Can't parse frontmatter -- append raw
-      const raw2 = readFileSync(filePath, "utf-8")
-      writeFileSync(filePath, raw2.trimEnd() + "\n\n" + content, "utf-8")
+      writeFileSync(filePath, raw.trimEnd() + "\n\n" + content, "utf-8")
       updated.push(slug)
     }
   } else {
-    // Create new page
-    const fm: WikiFrontmatter = {
-      title,
-      tags,
-      created: now,
-      updated: now,
-      sources,
-      links: [],
-      category,
-      confidence,
-    }
+    const fm: WikiFrontmatter = { title, tags, created: now, updated: now, sources, links: [], category, confidence }
     writeFileSync(filePath, serializePage(fm, content), "utf-8")
     created.push(slug)
   }
 
-  // Update index
   updateWikiIndex(projectRoot)
-
   return { created, updated, totalAffected: created.length + updated.length }
 }
 
@@ -782,8 +605,7 @@ export function deleteWikiPage(projectRoot: string, page: string): boolean {
   const filename = page.endsWith(".md") ? page : `${page}.md`
   const wikiDir = getWikiDir(projectRoot)
   const filePath = join(wikiDir, filename)
-  if (!filePath.startsWith(wikiDir + sep)) return false
-  if (!existsSync(filePath)) return false
+  if (!filePath.startsWith(wikiDir + sep) || !existsSync(filePath)) return false
   try {
     unlinkSync(filePath)
     updateWikiIndex(projectRoot)
@@ -800,46 +622,28 @@ function updateWikiIndex(projectRoot: string): void {
   try {
     const files = readdirSync(wikiDir).filter((f) => f.endsWith(".md") && !reserved.has(f))
     const entries: string[] = []
-
     for (const file of files.sort()) {
       try {
         const raw = readFileSync(join(wikiDir, file), "utf-8")
         const parsed = parseFrontmatter(raw)
-        if (parsed) {
-          const { frontmatter: fm } = parsed
-          entries.push(`- **[${fm.title}](${file})** (${fm.category}) -- *${fm.tags.slice(0, 3).join(", ")}*`)
-        } else {
-          entries.push(`- ${file}`)
-        }
+        entries.push(parsed
+          ? `- **[${parsed.frontmatter.title}](${file})** (${parsed.frontmatter.category}) -- *${parsed.frontmatter.tags.slice(0, 3).join(", ")}*`
+          : `- ${file}`)
       } catch {
         entries.push(`- ${file}`)
       }
     }
-
     const index = `# Wiki Index\n\n*${files.length} pages -- last updated ${new Date().toISOString().slice(0, 10)}*\n\n${entries.join("\n")}\n`
     writeFileSync(join(wikiDir, "index.md"), index, "utf-8")
-  } catch {
-    // best effort
-  }
+  } catch { /* best effort */ }
 }
 
-export function appendWikiLog(
-  projectRoot: string,
-  operation: string,
-  pagesAffected: string[],
-  summary: string,
-): void {
+export function appendWikiLog(projectRoot: string, operation: string, pagesAffected: string[], summary: string): void {
   const logPath = join(getWikiDir(projectRoot), "log.md")
   const entry = `\n## ${new Date().toISOString()}\n- **Operation:** ${operation}\n- **Pages:** ${pagesAffected.join(", ")}\n- **Summary:** ${summary}\n`
   try {
     ensureDir(dirname(logPath))
-    if (existsSync(logPath)) {
-      const existing = readFileSync(logPath, "utf-8")
-      writeFileSync(logPath, existing + entry, "utf-8")
-    } else {
-      writeFileSync(logPath, `# Wiki Log\n${entry}`, "utf-8")
-    }
-  } catch {
-    // best effort
-  }
+    const existing = existsSync(logPath) ? readFileSync(logPath, "utf-8") : `# Wiki Log\n`
+    writeFileSync(logPath, existing + entry, "utf-8")
+  } catch { /* best effort */ }
 }

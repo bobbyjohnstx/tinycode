@@ -8,10 +8,11 @@ import { readFileSync, writeFileSync } from "fs"
 import { execSync } from "child_process"
 import { homedir } from "os"
 import {
+  readState,
   writeState,
   clearState,
-  readStateWithFallback,
-  listActiveStatesWithFallback,
+  listActiveStates,
+  getStateDir,
   readNotepad,
   writeNotepadPriority,
   appendNotepadWorking,
@@ -84,8 +85,7 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
-        // Try .tinycode/state/ first, fall back to .omc/state/
-        const data = readStateWithFallback(root, args.mode)
+        const data = readState(getStateDir(root), args.mode)
         if (data === null) return `No state found for mode: ${args.mode}`
         return `## State for ${args.mode}\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``
       },
@@ -111,7 +111,7 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
-        const sd = join(root, ".tinycode", "state")
+        const sd = getStateDir(root)
         const built: Record<string, unknown> = {}
         if (args.active !== undefined) built.active = args.active
         if (args.iteration !== undefined) built.iteration = args.iteration
@@ -141,7 +141,7 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
-        const sd = join(root, ".tinycode", "state")
+        const sd = getStateDir(root)
         const cleared = clearState(sd, args.mode)
         return cleared ? `Successfully cleared state for mode: ${args.mode}` : `No state found to clear for mode: ${args.mode}`
       },
@@ -153,8 +153,7 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
-        // Check .tinycode/state/ first, fall back to .omc/state/
-        const active = listActiveStatesWithFallback(root)
+        const active = listActiveStates(getStateDir(root))
         if (active.length === 0) return "## Active Modes\n\nNo modes are currently active."
         return `## Active Modes (${active.length})\n\n${active.map((m) => `- **${m}**`).join("\n")}`
       },
@@ -170,16 +169,16 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
+        const sd = getStateDir(root)
         if (args.mode) {
-          const data = readStateWithFallback(root, args.mode)
+          const data = readState(sd, args.mode)
           const active = data !== null && typeof data === "object" && (data as Record<string, unknown>).active === true
           const preview = data ? JSON.stringify(data, null, 2).slice(0, 500) : "No state file"
           return `## Status: ${args.mode}\n\n- **Active:** ${active ? "Yes" : "No"}\n\n\`\`\`json\n${preview}\n\`\`\``
         }
-        // Check .tinycode/ first, fall back to .omc/
         const lines = ["## All Mode Statuses\n"]
         for (const m of STATE_MODES) {
-          const data = readStateWithFallback(root, m)
+          const data = readState(sd, m)
           const active = data !== null && typeof data === "object" && (data as Record<string, unknown>).active === true
           lines.push(`${active ? "[ACTIVE]" : "[INACTIVE]"} **${m}**`)
         }
