@@ -445,6 +445,19 @@ export const ProvidersLoginCommand = effectCmd({
       )
     }
 
+    // Check if provider env vars are already set
+    const providerInfo = providers[provider]
+    if (providerInfo?.env) {
+      for (const envVar of providerInfo.env) {
+        if (process.env[envVar]) {
+          yield* Prompt.log.warn(
+            `Detected ${envVar} in environment. This will be used automatically — storing a separate credential is optional.`,
+          )
+          break
+        }
+      }
+    }
+
     const key = yield* Prompt.password({
       message: "Enter your API key",
       validate: (x) => (x && x.length > 0 ? undefined : "Required"),

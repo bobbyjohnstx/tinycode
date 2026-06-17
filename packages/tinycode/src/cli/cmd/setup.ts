@@ -38,9 +38,9 @@ export const SetupCommand = {
       const spinner = prompts.spinner()
       spinner.start("Creating directories...")
       try {
-        await fsNode.promises.mkdir(agentDir, { recursive: true })
-        await fsNode.promises.mkdir(skillsDir, { recursive: true })
-        await fsNode.promises.mkdir(mcpDir, { recursive: true })
+        await fsNode.promises.mkdir(agentDir, { recursive: true, mode: 0o700 })
+        await fsNode.promises.mkdir(skillsDir, { recursive: true, mode: 0o700 })
+        await fsNode.promises.mkdir(mcpDir, { recursive: true, mode: 0o700 })
         spinner.stop("Directories created")
       } catch (e: any) {
         spinner.stop("Failed to create directories", 1)
@@ -104,7 +104,7 @@ export const SetupCommand = {
             .catch(() => false)
           if (!exists) continue
 
-          await fsNode.promises.mkdir(destSkillDir, { recursive: true })
+          await fsNode.promises.mkdir(destSkillDir, { recursive: true, mode: 0o700 })
           await fsNode.promises.copyFile(srcSkillMd, destSkillMd)
           copied++
         }
@@ -154,7 +154,10 @@ export const SetupCommand = {
               paths: [skillsDir],
             },
           }
-          await fsNode.promises.writeFile(configFile, JSON.stringify(defaultConfig, null, 2) + "\n", "utf8")
+          await fsNode.promises.writeFile(configFile, JSON.stringify(defaultConfig, null, 2) + "\n", {
+            encoding: "utf8",
+            mode: 0o600,
+          })
           spinner.stop("Config written")
         } catch (e: any) {
           spinner.stop("Failed to write config.json", 1)

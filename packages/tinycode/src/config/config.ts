@@ -477,7 +477,7 @@ export const layer = Layer.effect(
             },
           }
           yield* fs
-            .writeWithDirs(file, JSON.stringify(defaultConfig, null, 2))
+            .writeWithDirs(file, JSON.stringify(defaultConfig, null, 2), 0o600)
             .pipe(Effect.catch(() => Effect.void))
         }
       }

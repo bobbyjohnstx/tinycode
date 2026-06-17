@@ -32,13 +32,13 @@ export const Path = paths
 Flock.setGlobal({ state })
 
 await Promise.all([
-  fs.mkdir(Path.data, { recursive: true }),
-  fs.mkdir(Path.config, { recursive: true }),
-  fs.mkdir(Path.state, { recursive: true }),
-  fs.mkdir(Path.tmp, { recursive: true }),
-  fs.mkdir(Path.log, { recursive: true }),
-  fs.mkdir(Path.bin, { recursive: true }),
-  fs.mkdir(Path.repos, { recursive: true }),
+  fs.mkdir(Path.data, { recursive: true, mode: 0o700 }),
+  fs.mkdir(Path.config, { recursive: true, mode: 0o700 }),
+  fs.mkdir(Path.state, { recursive: true, mode: 0o700 }),
+  fs.mkdir(Path.tmp, { recursive: true, mode: 0o700 }),
+  fs.mkdir(Path.log, { recursive: true, mode: 0o700 }),
+  fs.mkdir(Path.bin, { recursive: true, mode: 0o700 }),
+  fs.mkdir(Path.repos, { recursive: true, mode: 0o700 }),
 ])
 
 export class Service extends Context.Service<Service, Interface>()("@tinycode/Global") {}
