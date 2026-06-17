@@ -142,7 +142,7 @@ type CustomDep = {
   get: (key: string) => Effect.Effect<string | undefined>
 }
 
-function custom(dep: CustomDep): Record<string, CustomLoader> {
+function custom(_dep: CustomDep): Record<string, CustomLoader> {
   return {
     anthropic: () =>
       Effect.succeed({

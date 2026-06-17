@@ -35,7 +35,6 @@ import { Heap } from "./cli/heap"
 import { drizzle } from "drizzle-orm/bun-sqlite"
 import { ensureProcessMetadata } from "@/core/util/tinycode-process"
 import { isRecord } from "@/util/record"
-import { Effect } from "effect"
 
 const processMetadata = ensureProcessMetadata("main")
 
