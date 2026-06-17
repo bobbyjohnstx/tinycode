@@ -5,9 +5,13 @@ import { Global } from "@/core/global"
 import { InstallationChannel } from "@/core/installation/version"
 import fsNode from "fs"
 import path from "path"
+import os from "os"
 
 interface SetupArgs {
   force: boolean
+  "non-interactive": boolean
+  provider?: string
+  "api-key"?: string
 }
 
 export const SetupCommand = {
@@ -20,12 +24,29 @@ export const SetupCommand = {
         type: "boolean",
         describe: "overwrite existing config.json",
         default: false,
+      })
+      .option("non-interactive", {
+        type: "boolean",
+        describe: "skip all prompts (for CI/containers)",
+        default: false,
+      })
+      .option("provider", {
+        type: "string",
+        describe: "provider id to configure (used with --non-interactive)",
+      })
+      .option("api-key", {
+        type: "string",
+        describe: "API key for the provider (used with --non-interactive)",
       }),
 
   handler: async (args: SetupArgs) => {
-    UI.empty()
-    UI.println(UI.logo("  "))
-    UI.empty()
+    const nonInteractive = args["non-interactive"]
+
+    if (!nonInteractive) {
+      UI.empty()
+      UI.println(UI.logo("  "))
+      UI.empty()
+    }
     prompts.intro("Setup Tinycode")
 
     const configDir = Global.Path.config
@@ -137,38 +158,94 @@ export const SetupCommand = {
     }
 
     // Step 5: Write default config.json if absent (or --force)
-    {
-      const configFile = path.join(configDir, "config.json")
-      const configExists = await fsNode.promises
-        .access(configFile)
-        .then(() => true)
-        .catch(() => false)
+    const configFile = path.join(configDir, "config.json")
+    const configExists = await fsNode.promises
+      .access(configFile)
+      .then(() => true)
+      .catch(() => false)
 
-      if (!configExists || args.force) {
-        const spinner = prompts.spinner()
-        spinner.start(configExists ? "Overwriting config.json (--force)..." : "Writing default config.json...")
-        try {
-          const defaultConfig = {
-            lsp: true,
-            skills: {
-              paths: [skillsDir],
-            },
-          }
-          await fsNode.promises.writeFile(configFile, JSON.stringify(defaultConfig, null, 2) + "\n", {
-            encoding: "utf8",
-            mode: 0o600,
-          })
-          spinner.stop("Config written")
-        } catch (e: any) {
-          spinner.stop("Failed to write config.json", 1)
-          prompts.log.error(e.message)
+    if (!configExists || args.force) {
+      const spinner = prompts.spinner()
+      spinner.start(configExists ? "Overwriting config.json (--force)..." : "Writing default config.json...")
+      try {
+        const defaultConfig = {
+          lsp: true,
+          skills: {
+            paths: [skillsDir],
+          },
         }
-      } else {
-        prompts.log.step("Config already exists, skipping (use --force to overwrite)")
+        await fsNode.promises.writeFile(configFile, JSON.stringify(defaultConfig, null, 2) + "\n", {
+          encoding: "utf8",
+          mode: 0o600,
+        })
+        spinner.stop("Config written")
+      } catch (e: any) {
+        spinner.stop("Failed to write config.json", 1)
+        prompts.log.error(e.message)
+      }
+    } else {
+      prompts.log.step("Config already exists, skipping (use --force to overwrite)")
+    }
+
+    // Non-interactive provider setup
+    const authFile = path.join(Global.Path.data, "auth.json")
+    if (nonInteractive && args.provider) {
+      const apiKey = args["api-key"] || process.env[`${args.provider.toUpperCase()}_API_KEY`]
+      if (!apiKey) {
+        prompts.log.error(
+          `No API key provided. Use --api-key or set ${args.provider.toUpperCase()}_API_KEY environment variable.`,
+        )
+        process.exitCode = 1
+        return
+      }
+      try {
+        let authData: Record<string, unknown> = {}
+        try {
+          const existing = await fsNode.promises.readFile(authFile, "utf8")
+          authData = JSON.parse(existing)
+        } catch {}
+        authData[args.provider] = { type: "api", key: apiKey }
+        await fsNode.promises.writeFile(authFile, JSON.stringify(authData, null, 2), {
+          encoding: "utf8",
+          mode: 0o600,
+        })
+        prompts.log.success(`Configured provider: ${args.provider}`)
+      } catch (e: any) {
+        prompts.log.error(`Failed to configure provider: ${e.message}`)
+        process.exitCode = 1
+        return
       }
     }
 
+    // Interactive onboarding wizard (first run only, when no config existed)
+    if (!nonInteractive && !configExists) {
+      const shouldSetupProvider = await prompts.confirm({
+        message: "Would you like to set up an AI provider now?",
+      })
+      if (shouldSetupProvider === true) {
+        prompts.log.info("Run `tinycode providers login` to add an AI provider.")
+      }
+    }
+
+    // Post-setup guidance
     UI.empty()
+    const homedir = os.homedir()
+    const displayConfigDir = configDir.startsWith(homedir) ? configDir.replace(homedir, "~") : configDir
+
+    const hasAuth = await fsNode.promises
+      .access(authFile)
+      .then(() => true)
+      .catch(() => false)
+
+    if (!hasAuth && !(nonInteractive && args.provider)) {
+      prompts.log.message("Next steps:")
+      prompts.log.step("Run `tinycode providers login` to add an AI provider")
+    }
+    if (!configExists || args.force) {
+      prompts.log.step(`Edit \`${path.join(displayConfigDir, "tinycode.json")}\` to customize`)
+    }
+    prompts.log.step("Run `tinycode` to start a session")
+
     prompts.outro("Setup complete")
   },
 }
