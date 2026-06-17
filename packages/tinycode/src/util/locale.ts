@@ -1,3 +1,5 @@
+import stripAnsi from "strip-ansi"
+
 export function titlecase(str: string) {
   return str.replace(/\b\w/g, (c) => c.toUpperCase())
 }
@@ -56,6 +58,42 @@ export function duration(input: number) {
   const hours = Math.floor(input / 3600000)
   const days = Math.floor((input % 3600000) / 86400000)
   return `${days}d ${hours}h`
+}
+
+/**
+ * Returns the visible width of a string, accounting for ANSI escape codes
+ * and wide Unicode characters (CJK, emoji).
+ */
+export function visibleWidth(str: string): number {
+  return Bun.stringWidth(str)
+}
+
+/**
+ * Truncate a string to fit within `maxWidth` visible columns,
+ * appending an ellipsis if truncated. ANSI escape codes are stripped
+ * for measurement but the returned string preserves them where possible.
+ */
+export function truncateToWidth(str: string, maxWidth: number): string {
+  if (maxWidth <= 0) return ""
+  const w = visibleWidth(str)
+  if (w <= maxWidth) return str
+
+  const stripped = stripAnsi(str)
+  const ellipsis = "…"
+  const ellipsisWidth = 1
+  const targetWidth = maxWidth - ellipsisWidth
+  if (targetWidth <= 0) return ellipsis.slice(0, maxWidth)
+
+  let result = ""
+  let currentWidth = 0
+  for (const ch of stripped) {
+    const charWidth = Bun.stringWidth(ch)
+    if (currentWidth + charWidth > targetWidth) break
+    result += ch
+    currentWidth += charWidth
+  }
+
+  return result + ellipsis
 }
 
 export function truncate(str: string, len: number): string {
