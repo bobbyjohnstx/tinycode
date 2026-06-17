@@ -4,6 +4,7 @@ import { Schema } from "effect"
 import * as Log from "@/core/util/log"
 import { ModelID, ProviderID } from "./schema"
 import type { Info, Model } from "./provider"
+import { rewriteLocalhostURL } from "@/util/container"
 
 const log = Log.create({ service: "local-discovery" })
 
@@ -221,8 +222,15 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
 
     function runDiscovery(): Effect.Effect<void> {
       // Strip trailing slashes — a common user mistake that produces double-slash URLs
-      const ollamaHost = (process.env["TINYCODE_OLLAMA_HOST"] ?? "http://localhost:11434").replace(/\/+$/, "")
-      const vllmHost = (process.env["TINYCODE_VLLM_HOST"] ?? "http://localhost:8000").replace(/\/+$/, "")
+      const ollamaHostEnv = process.env["TINYCODE_OLLAMA_HOST"]
+      const vllmHostEnv = process.env["TINYCODE_VLLM_HOST"]
+      // Only rewrite to container hostname if the user didn't explicitly set the host
+      const ollamaHost = ollamaHostEnv
+        ? ollamaHostEnv.replace(/\/+$/, "")
+        : rewriteLocalhostURL("http://localhost:11434")
+      const vllmHost = vllmHostEnv
+        ? vllmHostEnv.replace(/\/+$/, "")
+        : rewriteLocalhostURL("http://localhost:8000")
       const maasHost = process.env["TINYCODE_MAAS_HOST"]?.replace(/\/+$/, "")
       const maasKey = process.env["TINYCODE_MAAS_API_KEY"]
 

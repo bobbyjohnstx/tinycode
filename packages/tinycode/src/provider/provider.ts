@@ -917,6 +917,12 @@ export const layer = Layer.effect(
         delete options["chunkTimeout"]
         delete options["headerTimeout"]
 
+        const tlsSkip = options["tlsRejectUnauthorized"] === false
+        delete options["tlsRejectUnauthorized"]
+        if (tlsSkip) {
+          console.error(`Warning: TLS certificate verification disabled for provider ${model.providerID}`)
+        }
+
         options["fetch"] = async (input: any, init?: BunFetchRequestInit) => {
           const fetchFn = customFetch ?? fetch
           const opts = init ?? {}
@@ -948,14 +954,41 @@ export const layer = Layer.effect(
             }
           }
 
-          const res = await fetchFn(input, {
-            ...opts,
-            // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
-            timeout: false,
-          }).finally(() => headerTimeoutCtl?.clear())
+          // Scoped TLS skip: temporarily disable NODE_TLS_REJECT_UNAUTHORIZED for this fetch
+          const prevTLS = process.env.NODE_TLS_REJECT_UNAUTHORIZED
+          if (tlsSkip) process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+          try {
+            const res = await fetchFn(input, {
+              ...opts,
+              // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
+              timeout: false,
+            }).finally(() => headerTimeoutCtl?.clear())
 
-          if (!chunkAbortCtl) return res
-          return wrapSSE(res, chunkTimeout, chunkAbortCtl)
+            if (!chunkAbortCtl) return res
+            return wrapSSE(res, chunkTimeout, chunkAbortCtl)
+          } catch (err: any) {
+            const msg = String(err?.message ?? err ?? "")
+            const tlsErrors = [
+              "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+              "CERT_HAS_EXPIRED",
+              "SELF_SIGNED_CERT_IN_CHAIN",
+              "DEPTH_ZERO_SELF_SIGNED_CERT",
+            ]
+            if (tlsErrors.some((e) => msg.includes(e))) {
+              const recovery = [
+                `TLS certificate error: ${msg}`,
+                `To skip verification for this provider, add "tlsRejectUnauthorized": false to its options in tinycode.json`,
+                `Or install the CA certificate on this system.`,
+              ].join("\n")
+              throw new Error(recovery)
+            }
+            throw err
+          } finally {
+            if (tlsSkip) {
+              if (prevTLS === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
+              else process.env.NODE_TLS_REJECT_UNAUTHORIZED = prevTLS
+            }
+          }
         }
 
         const bundledLoader = BUNDLED_PROVIDERS[model.api.npm]

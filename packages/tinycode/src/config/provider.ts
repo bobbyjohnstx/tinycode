@@ -109,6 +109,10 @@ export const Info = Schema.Struct({
           description:
             "Timeout in milliseconds between streamed SSE chunks for this provider. If no chunk arrives within this window, the request is aborted.",
         }),
+        tlsRejectUnauthorized: Schema.optional(Schema.Boolean).annotate({
+          description:
+            "Set to false to skip TLS certificate verification for this provider. Use for self-signed certificates. Defaults to true.",
+        }),
       }),
       [Schema.Record(Schema.String, Schema.Any)],
     ),
