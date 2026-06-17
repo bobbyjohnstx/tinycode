@@ -8,6 +8,10 @@ import { Hash } from "./util/hash"
 import { AppFileSystem } from "./filesystem"
 import { InstallationChannel, InstallationVersion } from "./installation/version"
 import { EventV2 } from "./event"
+import { FALLBACK_CATALOG } from "./models-fallback"
+import * as Log from "./util/log"
+
+const log = Log.create({ service: "models-dev" })
 
 export const CatalogModelStatus = Schema.Literals(["alpha", "beta", "deprecated"])
 export type CatalogModelStatus = typeof CatalogModelStatus.Type
@@ -203,7 +207,8 @@ export const layer = Layer.effect(
       }
       const local = yield* loadLocalCatalog
       if (local) return local
-      return {}
+      log.warn("Using bundled fallback model catalog -- models.dev unreachable")
+      return FALLBACK_CATALOG
     }).pipe(Effect.withSpan("ModelsDev.populate"), Effect.orDie)
 
     const [cachedGet, invalidate] = yield* Effect.cachedInvalidateWithTTL(populate, Duration.infinity)

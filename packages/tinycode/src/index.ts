@@ -7,6 +7,7 @@ import { ProvidersCommand } from "./cli/cmd/providers"
 import { AgentCommand } from "./cli/cmd/agent"
 import { UninstallCommand } from "./cli/cmd/uninstall"
 import { SetupCommand } from "./cli/cmd/setup"
+import { StatusCommand } from "./cli/cmd/status"
 import { ModelsCommand } from "./cli/cmd/models"
 import { UI } from "./cli/ui"
 import { InstallationVersion, InstallationChannel } from "@/core/installation/version"
@@ -160,6 +161,7 @@ const cli = yargs(args)
   .command(AgentCommand)
   .command(UninstallCommand)
   .command(SetupCommand)
+  .command(StatusCommand)
   .command(ServeCommand)
   .command(WebCommand)
   .command(ModelsCommand)

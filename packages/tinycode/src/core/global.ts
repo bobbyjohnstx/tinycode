@@ -5,6 +5,7 @@ import os from "os"
 import { Context, Effect, Layer } from "effect"
 import { Flock } from "./util/flock"
 import { Flag } from "./flag/flag"
+import { runMigrations } from "../config/migrate"
 
 const app = "tinycode"
 const data = path.join(xdgData!, app)
@@ -30,6 +31,9 @@ const paths = {
 export const Path = paths
 
 Flock.setGlobal({ state })
+
+// Run legacy config migrations before creating directories
+await runMigrations().catch(() => {})
 
 await Promise.all([
   fs.mkdir(Path.data, { recursive: true, mode: 0o700 }),
