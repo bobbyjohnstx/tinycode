@@ -598,6 +598,11 @@ export const Terminal = (props: TerminalProps) => {
           socket.removeEventListener("close", handleClose)
           if (disposed) return
           if (event.code === 1000) return
+          // 4404 = server closed because the PTY session ended; treat as gone
+          if (event.code === 4404) {
+            fail(new Error("PTY session ended"))
+            return
+          }
           retry(new Error(language.t("terminal.connectionLost.abnormalClose", { code: event.code })))
         }
 

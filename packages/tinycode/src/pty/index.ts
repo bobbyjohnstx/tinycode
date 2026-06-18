@@ -135,7 +135,7 @@ export const layer = Layer.effect(
       } catch {}
       for (const [sub, ws] of session.subscribers.entries()) {
         try {
-          if (sock(ws) === sub) ws.close()
+          if (sock(ws) === sub) ws.close(4404, "session not found")
         } catch {}
       }
       session.subscribers.clear()
