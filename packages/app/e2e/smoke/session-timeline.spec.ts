@@ -202,7 +202,7 @@ async function expectCanScrollToStart(
   let current = await timelineState(page)
   let unchangedAtTop = 0
 
-  for (let attempt = 0; attempt < 600; attempt++) {
+  for (let attempt = 0; attempt < 1200; attempt++) {
     collectSeen(current, seenParts, seenMessages)
     samples.push(sampleTraversal(current, seenParts.size, seenMessages.size))
     expectNoSmokeErrors(errors, current.errorToasts, current.forbiddenText)
@@ -222,12 +222,15 @@ async function expectCanScrollToStart(
 
     const before = current
     const changed = await scrollTimelineUp(page, current)
+    await waitForTimelineStable(page)
     current = await timelineState(page)
     if (!changed && current.signature === before.signature && current.scrollTop <= 1) unchangedAtTop++
     else unchangedAtTop = 0
     if (unchangedAtTop >= 2) break
   }
 
+  await waitForTimelineStable(page)
+  current = await timelineState(page)
   collectSeen(current, seenParts, seenMessages)
   samples.push(sampleTraversal(current, seenParts.size, seenMessages.size))
   expectCompleteScroll(current, expectedPartIDs, expectedMessageIDs, seenParts, seenMessages, samples)
@@ -275,7 +278,7 @@ async function scrollTimelineUp(page: Page, before: SmokeState) {
         }
 
         scroller.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: -1, deltaMode: 0 }))
-        scroller.scrollTop = Math.max(0, scroller.scrollTop - Math.max(80, Math.round(scroller.clientHeight * 0.45)))
+        scroller.scrollTop = Math.max(0, scroller.scrollTop - Math.max(60, Math.round(scroller.clientHeight * 0.25)))
 
         const read = () => (window as SmokeWindow).__timelineSmokeState?.().signature ?? ""
         let frames = 0
@@ -290,12 +293,12 @@ async function scrollTimelineUp(page: Page, before: SmokeState) {
             stableFrames = 0
             last = current
           }
-          if (changed && stableFrames >= 2) {
+          if (changed && stableFrames >= 5) {
             resolve(true)
             return
           }
           frames++
-          if (frames >= 30) {
+          if (frames >= 60) {
             resolve(changed)
             return
           }
