@@ -130,8 +130,8 @@ test.describe("smoke: home session list", () => {
     await expect(sessionRows).toHaveCount(4)
 
     // Verify "Today" and "Yesterday" group headers are visible
-    await expect(page.getByText("Today")).toBeVisible()
-    await expect(page.getByText("Yesterday")).toBeVisible()
+    await expect(page.getByText("Today", { exact: true })).toBeVisible()
+    await expect(page.getByText("Yesterday", { exact: true })).toBeVisible()
 
     // Verify sessions appear in expected order (most recent first within each group)
     const sessionTexts = await sessionRows.allTextContents()

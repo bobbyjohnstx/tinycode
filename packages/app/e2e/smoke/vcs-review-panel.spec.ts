@@ -151,8 +151,16 @@ test.describe("smoke: vcs review panel", () => {
   test("VCS diff panel renders file changes via mobile Changes tab", async ({ page }) => {
     const errors = trackPageErrors(page)
 
-    // Override /vcs/status and /vcs/diff BEFORE mockOpenCodeServer
-    // so they take priority over the default empty-list routes
+    await mockOpenCodeServer(page, {
+      directory,
+      project: project(),
+      provider: provider(),
+      sessions: [session()],
+      pageMessages: () => ({ items: messages() }),
+    })
+
+    // Override /vcs/status and /vcs/diff AFTER mockOpenCodeServer so these routes
+    // take priority (Playwright evaluates routes in LIFO order — last registered wins)
     await page.route("**/vcs/status", (route) =>
       route.fulfill({
         status: 200,
@@ -192,14 +200,6 @@ test.describe("smoke: vcs review panel", () => {
       }),
     )
 
-    await mockOpenCodeServer(page, {
-      directory,
-      project: project(),
-      provider: provider(),
-      sessions: [session()],
-      pageMessages: () => ({ items: messages() }),
-    })
-
     await configurePage(page)
     await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
     await expect(page.getByRole("heading", { name: "VCS test session" })).toBeVisible()
@@ -209,9 +209,11 @@ test.describe("smoke: vcs review panel", () => {
     await expect(changesTab).toBeVisible({ timeout: 10_000 })
     await changesTab.click()
 
-    // Wait for file names to appear in the review panel
-    await expect(page.getByText("src/existing.ts")).toBeVisible({ timeout: 10_000 })
-    await expect(page.getByText("src/new-file.ts")).toBeVisible({ timeout: 10_000 })
+    // Wait for file names to appear in the review panel.
+    // The path is rendered split across two spans (directory + filename), so match
+    // the filename portion which appears in its own element.
+    await expect(page.getByText("existing.ts").first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText("new-file.ts").first()).toBeVisible({ timeout: 10_000 })
 
     // Verify no console errors
     expect(errors).toEqual([])
