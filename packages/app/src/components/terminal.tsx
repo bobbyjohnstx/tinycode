@@ -378,11 +378,13 @@ export const Terminal = (props: TerminalProps) => {
           return true
         }
 
-        // allow for toggle terminal keybinds in parent
         const config = settings.keybinds.get(TOGGLE_TERMINAL_ID) ?? DEFAULT_TOGGLE_TERMINAL_KEYBIND
         const keybinds = parseKeybind(config)
 
-        return matchKeybind(keybinds, event)
+        // return false to block the toggle keybind from reaching xterm (parent handles it)
+        // return true for everything else so xterm processes normal input
+        if (matchKeybind(keybinds, event)) return false
+        return true
       })
 
       const fit = new loaded.FitAddon()
