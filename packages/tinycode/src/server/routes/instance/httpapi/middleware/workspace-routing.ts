@@ -60,8 +60,12 @@ export const workspaceRoutingLayer = Layer.effect(
               Effect.catchDefect(() => Effect.succeed(undefined)),
             )
           : undefined
+        const rawDir = request.headers["x-tinycode-directory"]
         const directory =
-          session?.directory || url.searchParams.get("directory") || request.headers["x-tinycode-directory"] || process.cwd()
+          session?.directory ||
+          url.searchParams.get("directory") ||
+          (rawDir ? decodeURIComponent(rawDir) : undefined) ||
+          process.cwd()
         return yield* effect.pipe(
           Effect.provideService(
             WorkspaceRouteContext,
