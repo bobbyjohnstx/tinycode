@@ -77,8 +77,7 @@ Both models consistently produce these errors in architecture docs regardless of
 
 1. **Service naming**: Write `@tinycode/Foo` but actual code uses `@tinycode/...` (legacy naming from upstream fork)
 2. **`export namespace` claim**: Both claim it's avoided, but `src/plugin/loader.ts:14` uses it
-3. **Missing sibling packages**: Never mention `packages/app`, `packages/core`, `packages/desktop`, etc.
+3. **Missing sibling packages**: Never mention `packages/app`, `packages/desktop`, etc.
 4. **`src/storage/` vs `src/sync/`**: Confusion about which is the persistence layer (`src/storage/` is correct)
 
-Use `/Users/bjohns/projects/tinycode/packages/tinycode/docs/ARCHITECTURE-REFERENCE.md` as
-the verified ground truth to compare model output against.
+Use `docs/architecture.md` as the verified ground truth to compare model output against.

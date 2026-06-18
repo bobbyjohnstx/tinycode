@@ -55,9 +55,6 @@ The heart of the project. Contains the HTTP API server, all business logic, and 
 - **Storage** (`src/storage/`): SQLite via Drizzle ORM. DB schema in `schema.sql.ts`.
 - **MCP** (`src/mcp/`): Model Context Protocol client integration.
 
-### `packages/core` — Shared utilities
-Shared across multiple packages: agent definitions, models, permissions, git utilities, npm config, etc. Imported as `@tinycode/core/...`.
-
 ### `packages/app` — Web UI
 SolidJS + TailwindCSS v4 web app. Connects to the tinycode API server. Used by both the browser experience and the desktop app.
 
@@ -73,10 +70,10 @@ Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/
 ## Key Patterns
 
 - **Effect framework**: Server-side code uses the [Effect](https://effect.website) library extensively for typed errors, dependency injection via `Context.Service`, and resource management via `Layer`/`Scope`.
-- **Event bus** (`src/bus.ts`): Internal pub/sub used to stream events from the session processor to the TUI and web clients via SSE.
+- **Event bus** (`src/bus/`): Internal pub/sub (Effect PubSub) used to stream events from the session processor to the TUI and web clients via SSE.
 - **Dual runtime**: `src/storage/db.ts` and `src/pty/` use conditional imports (`#db`, `#pty`) to swap Bun vs Node implementations.
 - **`bun dev` = `tinycode`**: During development, `bun dev` from the repo root is equivalent to the `tinycode` CLI.
-- **Local LLMs first**: The primary use case is local LLM inference via Ollama or any OpenAI-compatible endpoint. Configure via `~/.tinycode/config.json`.
+- **Local LLMs first**: The primary use case is local LLM inference via Ollama or any OpenAI-compatible endpoint. Configure via `~/.config/tinycode/config.json`.
 - **oh-my-tiny**: Companion tool at `../oh-my-tiny/` for extended agent orchestration capabilities.
 - **Style guide**: See [AGENTS.md](./AGENTS.md) for coding style rules (destructuring, control flow, Drizzle schema conventions, etc.).
 - **Pass model on Task calls**: `haiku`, `sonnet`, `opus`.

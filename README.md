@@ -51,12 +51,13 @@ Bun monorepo with Turborepo. Key packages:
 
 | Package | Description |
 |---|---|
-| `packages/tinycode` | Core server, HTTP API, TUI, session processor |
-| `packages/core` | Shared utilities, models, permissions |
-| `packages/app` | SolidJS web UI |
+| `packages/tinycode` | Core server, HTTP API, TUI, session processor, provider abstraction, tools, plugins |
+| `packages/app` | SolidJS + TailwindCSS v4 web UI |
 | `packages/desktop` | Electron desktop app |
+| `packages/llm` | LLM protocol implementations (Anthropic, OpenAI, Bedrock, Gemini) |
+| `packages/ui` | Shared SolidJS component library (icons, themes, i18n) |
 | `packages/plugin` | Plugin SDK (`@tinycode/plugin`) |
-| `packages/sdk/js` | Auto-generated JS SDK |
+| `packages/sdk/js` | Auto-generated TypeScript SDK |
 
 See [CLAUDE.md](CLAUDE.md) for development guidance and [AGENTS.md](AGENTS.md) for coding style.
 
