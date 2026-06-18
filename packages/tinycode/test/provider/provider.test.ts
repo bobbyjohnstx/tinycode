@@ -1021,7 +1021,7 @@ it.instance("ModelNotFoundError for provider includes suggestions", () =>
 
 it.instance("ModelNotFoundError suggests catalog models for unloaded providers", () =>
   Effect.gen(function* () {
-    yield* remove("OPENCODE_API_KEY")
+    yield* remove("TINYCODE_API_KEY")
     const error = yield* Provider.use
       .getModel(ProviderID.tinycode, ModelID.make("claude-haiku-fake-model"))
       .pipe(Effect.flip)

@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-tinycode is a refactored fork of opencode focused on one goal: a local-LLM-first AI coding assistant that runs entirely without cloud dependencies. The refactor strips every piece of opencode's cloud infrastructure — account systems, telemetry, enterprise auth, cloud sync, remote model discovery — and replaces it with a lean, self-contained tool that works air-gapped on a developer's machine or LAN.
+tinycode is a refactored fork of tinycode focused on one goal: a local-LLM-first AI coding assistant that runs entirely without cloud dependencies. The refactor strips every piece of tinycode's cloud infrastructure — account systems, telemetry, enterprise auth, cloud sync, remote model discovery — and replaces it with a lean, self-contained tool that works air-gapped on a developer's machine or LAN.
 
 The primary inference target is Ollama and vLLM running on localhost or LAN. OpenAI, Anthropic, and Google remain available as cloud fallbacks, accessed via API key only — no proprietary auth flows, no OAuth, no traffic to `tinycode.dev`, `bobbyjohnstx`, or any external service by default.
 
@@ -85,14 +85,14 @@ The Effect framework, SQLite storage, TUI, HTTP server, web UI (`packages/app`),
 - Remove `$schema: "https://tinycode.dev/config.json"` auto-injection (currently lines 429–466, 579)
 - Remove remote config fetching
 - Remove `enterprise` config field
-- Change default config directory: `~/.config/opencode/` → `~/.config/tinycode/`
+- Change default config directory: `~/.config/tinycode/` → `~/.config/tinycode/`
 
 **`src/server/shared/ui.ts`**
 - Remove `UI_UPSTREAM = "https://app.tinycode.dev"` proxy fallback
 - Require embedded UI or local dev server — no silent remote proxy
 
 **`src/provider/provider.ts`**
-- Remove `opencode` custom provider (currently lines 178–200)
+- Remove `tinycode` custom provider (currently lines 178–200)
 - Remove `HTTP-Referer: "https://tinycode.dev/"` request headers
 - Trim `BUNDLED_PROVIDERS` from 24 entries down to 4 (see Provider Simplification below)
 
@@ -117,7 +117,7 @@ The Effect framework, SQLite storage, TUI, HTTP server, web UI (`packages/app`),
 | `@ai-sdk/anthropic` | Anthropic API |
 | `@ai-sdk/google` | Google Gemini API |
 
-**Removed providers:** bedrock, azure, vertex, copilot, gitlab, groq, mistral, cerebras, cohere, deepinfra, togetherai, openrouter, nvidia, xai, perplexity, alibaba, vercel, sap, zenmux, llmgateway, venice, kilo, and the proprietary `opencode` provider.
+**Removed providers:** bedrock, azure, vertex, copilot, gitlab, groq, mistral, cerebras, cohere, deepinfra, togetherai, openrouter, nvidia, xai, perplexity, alibaba, vercel, sap, zenmux, llmgateway, venice, kilo, and the proprietary `tinycode` provider.
 
 Users who need Azure or Bedrock can add the relevant `@ai-sdk/*` package manually — the provider plugin interface (`packages/plugin`) remains available for this.
 
@@ -141,12 +141,12 @@ Users who need Azure or Bedrock can add the relevant `@ai-sdk/*` package manuall
 - `google.ts`
 - `dynamic.ts`
 
-**Remove:** all 27 others — `alibaba.ts`, `amazon-bedrock.ts`, `azure.ts`, `cerebras.ts`, `cloudflare-ai-gateway.ts`, `cloudflare-workers-ai.ts`, `cohere.ts`, `deepinfra.ts`, `gateway.ts`, `github-copilot.ts`, `gitlab.ts`, `google-vertex.ts`, `groq.ts`, `kilo.ts`, `llmgateway.ts`, `mistral.ts`, `nvidia.ts`, `opencode.ts`, `openrouter.ts`, `perplexity.ts`, `sap-ai-core.ts`, `togetherai.ts`, `venice.ts`, `vercel.ts`, `zenmux.ts`, and any remaining cloud-specific plugins.
+**Remove:** all 27 others — `alibaba.ts`, `amazon-bedrock.ts`, `azure.ts`, `cerebras.ts`, `cloudflare-ai-gateway.ts`, `cloudflare-workers-ai.ts`, `cohere.ts`, `deepinfra.ts`, `gateway.ts`, `github-copilot.ts`, `gitlab.ts`, `google-vertex.ts`, `groq.ts`, `kilo.ts`, `llmgateway.ts`, `mistral.ts`, `nvidia.ts`, `tinycode.ts`, `openrouter.ts`, `perplexity.ts`, `sap-ai-core.ts`, `togetherai.ts`, `venice.ts`, `vercel.ts`, `zenmux.ts`, and any remaining cloud-specific plugins.
 
 ### `src/models-dev.ts` — Local-First Model Catalog
 
 - Change default model source from `https://models.dev/api.json` to a bundled local file: `packages/core/src/models-local.json`
-- Network fetch remains available opt-in via the `OPENCODE_MODELS_URL` environment variable
+- Network fetch remains available opt-in via the `TINYCODE_MODELS_URL` environment variable
 - Bundled catalog covers: Ollama/vLLM (via `openai-compatible`), OpenAI, Anthropic, Google
 
 ---
@@ -227,7 +227,7 @@ The default `tinycode.json` config pre-configures local inference. Users do not 
 
 Config schema reference changes from `https://tinycode.dev/config.json` to a local `tinycode-config-schema.json` bundled with the binary.
 
-Config directory: `~/.config/tinycode/` (previously `~/.config/opencode/`).
+Config directory: `~/.config/tinycode/` (previously `~/.config/tinycode/`).
 
 ---
 

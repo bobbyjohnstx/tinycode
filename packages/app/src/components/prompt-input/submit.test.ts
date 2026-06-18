@@ -64,7 +64,7 @@ beforeAll(async () => {
   }))
 
   mock.module("@tinycode/sdk/v2/client", () => ({
-    createOpencodeClient: (input: { directory: string }) => {
+    createTinycodeClient: (input: { directory: string }) => {
       createdClients.push(input.directory)
       return clientFor(input.directory)
     },

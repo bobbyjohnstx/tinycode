@@ -62,7 +62,7 @@ export const UninstallCommand = {
     UI.empty()
     UI.println(UI.logo("  "))
     UI.empty()
-    prompts.intro("Uninstall OpenCode")
+    prompts.intro("Uninstall tinycode")
 
     const method = await detectInstallationMethod()
     prompts.log.info(`Installation method: ${method}`)

@@ -6,7 +6,7 @@
     "provider": "openai",
     "protocol": "openai-responses",
     "route": "openai-responses",
-    "tags": ["opencode", "native", "oauth", "tool-loop"]
+    "tags": ["tinycode", "native", "oauth", "tool-loop"]
   },
   "interactions": [
     {

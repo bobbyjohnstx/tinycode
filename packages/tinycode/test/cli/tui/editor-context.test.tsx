@@ -8,11 +8,11 @@ import { tmpdir } from "../../fixture/fixture"
 import { FakeWebSocket } from "../../lib/websocket"
 
 const originalClaudePort = process.env.CLAUDE_CODE_SSE_PORT
-const originalOpencodePort = process.env.TINYCODE_EDITOR_SSE_PORT
+const originalTinycodePort = process.env.TINYCODE_EDITOR_SSE_PORT
 
 afterEach(() => {
   process.env.CLAUDE_CODE_SSE_PORT = originalClaudePort
-  process.env.TINYCODE_EDITOR_SSE_PORT = originalOpencodePort
+  process.env.TINYCODE_EDITOR_SSE_PORT = originalTinycodePort
 })
 
 function nextTick() {
@@ -272,7 +272,7 @@ test("useEditorContext preserves selection for the next reconnect when requested
   mounted.dispose()
 })
 
-test("useEditorContext connects with OPENCODE_EDITOR_SSE_PORT", async () => {
+test("useEditorContext connects with TINYCODE_EDITOR_SSE_PORT", async () => {
   await using tmp = await tmpdir()
   process.env.CLAUDE_CODE_SSE_PORT = undefined
   process.env.TINYCODE_EDITOR_SSE_PORT = "4020"

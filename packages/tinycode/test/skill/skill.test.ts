@@ -440,7 +440,7 @@ name: tinycode-skill
 description: A skill in the .tinycode/skill directory.
 ---
 
-# OpenCode Skill
+# tinycode Skill
 `,
               ),
             ]),
@@ -477,7 +477,7 @@ name: tinycode-skill
 description: A skill in the .tinycode/skill directory.
 ---
 
-# OpenCode Skill
+# tinycode Skill
 `,
               ),
               Bun.write(
@@ -487,7 +487,7 @@ name: tinycode-skill
 description: A skill in the .tinycode/skills directory.
 ---
 
-# OpenCode Skill
+# tinycode Skill
 `,
               ),
             ]),

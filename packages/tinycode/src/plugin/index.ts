@@ -8,7 +8,7 @@ import type {
 import { Config } from "@/config/config"
 import { Bus } from "../bus"
 import * as Log from "@/core/util/log"
-import { createOpencodeClient } from "@tinycode/sdk"
+import { createTinycodeClient } from "@tinycode/sdk"
 import { ServerAuth } from "@/server/auth"
 import { CodexAuthPlugin } from "./openai/codex"
 import { Session } from "@/session/session"
@@ -138,7 +138,7 @@ export const layer = Layer.effect(
 
         const { Server } = yield* Effect.promise(() => import("../server/server"))
 
-        const client = createOpencodeClient({
+        const client = createTinycodeClient({
           baseUrl: "http://localhost:4096",
           directory: ctx.directory,
           headers: ServerAuth.headers(),

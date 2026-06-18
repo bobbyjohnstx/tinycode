@@ -17,7 +17,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { Locale } from "@/util/locale"
 import type { PromptInfo } from "./history"
 import { useFrecency } from "./frecency"
-import { useBindings, useCommandSlashes, useOpencodeModeStack } from "../../keymap"
+import { useBindings, useCommandSlashes, useTinycodeModeStack } from "../../keymap"
 import { Reference } from "@/reference/reference"
 import { ConfigReference } from "@/config/reference"
 import { displayCharAt, mentionTriggerIndex } from "@/cli/cmd/prompt-display"
@@ -87,7 +87,7 @@ export function Autocomplete(props: {
   const sync = useSync()
   const project = useProject()
   const slashes = useCommandSlashes()
-  const modeStack = useOpencodeModeStack()
+  const modeStack = useTinycodeModeStack()
   const { theme } = useTheme()
   const dimensions = useTerminalDimensions()
   const frecency = useFrecency()

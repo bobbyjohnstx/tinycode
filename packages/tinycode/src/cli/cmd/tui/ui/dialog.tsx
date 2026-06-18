@@ -6,7 +6,7 @@ import { createStore } from "solid-js/store"
 import { useToast } from "./toast"
 import { Flag } from "@/core/flag/flag"
 import * as Selection from "@tui/util/selection"
-import { useBindings, useOpencodeModeStack } from "../keymap"
+import { useBindings, useTinycodeModeStack } from "../keymap"
 
 export function Dialog(
   props: ParentProps<{
@@ -74,7 +74,7 @@ function init() {
   })
 
   const renderer = useRenderer()
-  const modeStack = useOpencodeModeStack()
+  const modeStack = useTinycodeModeStack()
 
   createEffect(() => {
     if (store.stack.length === 0) return

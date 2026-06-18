@@ -17,13 +17,13 @@ export const COMMAND_PALETTE_COMMAND = "command.palette.show"
 
 const TINYCODE_MODE_KEY = "tinycode.mode"
 
-export const OpencodeKeymapProvider = KeymapProvider
+export const TinycodeKeymapProvider = KeymapProvider
 export const useTinycodeKeymap = useKeymap
 
 export { useBindings, useKeymapSelector }
 
 export type OpenTuiKeymap = ReturnType<typeof useKeymap>
-type OpencodeModeStack = ReturnType<typeof createOpencodeModeStack>
+type TinycodeModeStack = ReturnType<typeof createTinycodeModeStack>
 type CommandSlashEntry = {
   display: string
   description?: string
@@ -32,13 +32,13 @@ type CommandSlashEntry = {
 }
 type Command = ReturnType<OpenTuiKeymap["getCommands"]>[number]
 
-const modeStacks = new WeakMap<OpenTuiKeymap, OpencodeModeStack>()
+const modeStacks = new WeakMap<OpenTuiKeymap, TinycodeModeStack>()
 
 function isVisiblePaletteCommand(command: Command) {
   return command.hidden !== true && command.name !== COMMAND_PALETTE_COMMAND
 }
 
-export function createOpencodeModeStack(keymap: OpenTuiKeymap) {
+export function createTinycodeModeStack(keymap: OpenTuiKeymap) {
   keymap.setData(TINYCODE_MODE_KEY, TINYCODE_BASE_MODE)
 
   const offFields = keymap.registerLayerFields({
@@ -87,13 +87,13 @@ export function createOpencodeModeStack(keymap: OpenTuiKeymap) {
   return stackApi
 }
 
-export function useOpencodeModeStack() {
-  return getOpencodeModeStack(useTinycodeKeymap())
+export function useTinycodeModeStack() {
+  return getTinycodeModeStack(useTinycodeKeymap())
 }
 
-export function getOpencodeModeStack(keymap: OpenTuiKeymap) {
+export function getTinycodeModeStack(keymap: OpenTuiKeymap) {
   const value = modeStacks.get(keymap)
-  if (!value) throw new Error("Opencode mode stack is not registered for this keymap")
+  if (!value) throw new Error("Tinycode mode stack is not registered for this keymap")
   return value
 }
 
@@ -193,12 +193,12 @@ export function formatKeyBindings(
   return formatCommandBindingsExtra(bindings, formatOptions(config))
 }
 
-export function registerOpencodeKeymap(
+export function registerTinycodeKeymap(
   keymap: OpenTuiKeymap,
   renderer: CliRenderer,
   config: Pick<TuiConfig.Resolved, "keybinds" | "leader_timeout">,
 ) {
-  const modeStack = createOpencodeModeStack(keymap)
+  const modeStack = createTinycodeModeStack(keymap)
   const offCommaBindings = addons.registerCommaBindings(keymap)
   const offAliasExpander = registerKeyAliases(keymap)
   const offBaseLayout = addons.registerBaseLayoutFallback(keymap)

@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 import { trackPageErrors } from "../utils/errors"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTinycodeServer } from "../utils/mock-server"
 
-const directory = "C:/OpenCode/ModelPickerProject"
+const directory = "C:/tinycode/ModelPickerProject"
 const projectID = "proj_model"
 const sessionID = "ses_model_1"
 const userMessageID = "msg_user_model"
@@ -19,7 +19,7 @@ function twoProviderFixture() {
     all: [
       {
         id: "tinycode",
-        name: "OpenCode",
+        name: "tinycode",
         models: {
           // cost.input > 0 ensures providers.paid() returns non-empty, enabling ModelSelectorPopover
           "claude-sonnet-4-5": {
@@ -154,7 +154,7 @@ async function configurePage(page: Page) {
 }
 
 async function setupModelPickerTest(page: Page, providerFixture: ReturnType<typeof twoProviderFixture>) {
-  await mockOpenCodeServer(page, {
+  await mockTinycodeServer(page, {
     directory,
     project: project(),
     provider: providerFixture,
@@ -198,8 +198,8 @@ test.describe("smoke: model-picker", () => {
     await expect(page.getByText("Claude Opus 4.6").first()).toBeVisible()
 
     // Verify provider group label is visible — use exact text to avoid matching
-    // "Free models provided by OpenCode" which also contains "OpenCode"
-    await expect(page.getByText("OpenCode", { exact: true })).toBeVisible()
+    // "Free models provided by tinycode" which also contains "tinycode"
+    await expect(page.getByText("tinycode", { exact: true })).toBeVisible()
 
     // Verify no console errors
     expect(errors).toEqual([])

@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Tinycode is a fork of opencode — a Bun monorepo managed by Turborepo. Its core value is a local AI coding assistant that exposes an HTTP API server, a terminal UI (TUI), and a web UI, all wired to a session engine that orchestrates LLM calls and agent tools. The codebase carries significant upstream coupling to the tinycode.dev cloud platform: account auth, model catalog fetching, a paid-model gate, web UI proxying, and a private terminal widget dependency all reach out to external services at runtime. Understanding and isolating these dependencies is essential before any refactor aimed at self-contained or simplified deployment.
+Tinycode is a fork of tinycode — a Bun monorepo managed by Turborepo. Its core value is a local AI coding assistant that exposes an HTTP API server, a terminal UI (TUI), and a web UI, all wired to a session engine that orchestrates LLM calls and agent tools. The codebase carries significant upstream coupling to the tinycode.dev cloud platform: account auth, model catalog fetching, a paid-model gate, web UI proxying, and a private terminal widget dependency all reach out to external services at runtime. Understanding and isolating these dependencies is essential before any refactor aimed at self-contained or simplified deployment.
 
 ---
 
@@ -16,7 +16,7 @@ The repository uses Bun workspaces with Turborepo for task orchestration. All pa
 
 | Package | Purpose |
 |---|---|
-| `tinycode` | Core server, CLI, TUI, session engine, provider abstraction, and agent tools. Renamed from `opencode` in this fork. |
+| `tinycode` | Core server, CLI, TUI, session engine, provider abstraction, and agent tools. Renamed from `tinycode` in this fork. |
 | `core` | Shared utilities: account definitions, agent definitions, model catalog, provider plugins, git utilities, npm config, filesystem helpers. Imported as `@tinycode/core/...`. |
 | `app` | SolidJS + TailwindCSS v4 web UI. Connects to the API server. Uses the private `ghostty-web` terminal widget from `github:bobbyjohnstx/ghostty-web#main`. |
 | `desktop` | Electron wrapper around `packages/app`. |
@@ -63,7 +63,7 @@ The following describes what happens from CLI invocation through to an LLM respo
 
 - REST endpoints and SSE/WebSocket for real-time event streaming.
 - Optional mDNS advertisement via `bonjour-service` (see `src/server/mdns.ts`).
-- Optional basic auth via `OPENCODE_SERVER_PASSWORD` / `OPENCODE_SERVER_USERNAME` environment variables.
+- Optional basic auth via `TINYCODE_SERVER_PASSWORD` / `TINYCODE_SERVER_USERNAME` environment variables.
 
 ### 4. Session
 
@@ -216,7 +216,7 @@ All network calls made at runtime to services outside the local machine:
 
 Implemented in `packages/tinycode/src/account/account.ts`:
 
-1. `POST ${server}/auth/device/code` with `client_id: "opencode-cli"` — initiates device code flow.
+1. `POST ${server}/auth/device/code` with `client_id: "tinycode-cli"` — initiates device code flow.
 2. Poll `POST ${server}/auth/device/token` until token is granted.
 3. Fetch user info, organization memberships, and remote config from the account server.
 4. Persist all results in SQLite via `AccountRepo`.
@@ -292,11 +292,11 @@ Multiple code paths in `packages/tinycode/src/account/` and the CLI commands che
 
 ### 3. models.dev Remote Catalog
 
-`packages/core/src/models-dev.ts` fetches `https://models.dev/api.json` every 5 minutes. If this request fails or is unavailable, no models are discoverable by default. Two environment variables can override this behavior: `OPENCODE_MODELS_URL` (alternative URL) and `OPENCODE_MODELS_PATH` (local file path). These escape hatches exist but are not prominently documented.
+`packages/core/src/models-dev.ts` fetches `https://models.dev/api.json` every 5 minutes. If this request fails or is unavailable, no models are discoverable by default. Two environment variables can override this behavior: `TINYCODE_MODELS_URL` (alternative URL) and `TINYCODE_MODELS_PATH` (local file path). These escape hatches exist but are not prominently documented.
 
-### 4. opencode Provider Plugin (Paid Model Gate)
+### 4. tinycode Provider Plugin (Paid Model Gate)
 
-`packages/core/src/plugin/provider/opencode.ts` implements a provider plugin that gates access to paid/managed models behind account authentication. Without a valid account token, these models are unavailable regardless of other configuration.
+`packages/core/src/plugin/provider/tinycode.ts` implements a provider plugin that gates access to paid/managed models behind account authentication. Without a valid account token, these models are unavailable regardless of other configuration.
 
 ### 5. Web UI Upstream Proxy
 
@@ -312,7 +312,7 @@ When the embedded web UI build is absent, `packages/tinycode/src/server/shared/u
 
 ### 8. Sentry Error Reporting
 
-`packages/app/src/app.tsx` initializes Sentry via `@sentry/solid`. In production builds, crash reports are sent to Anthropic/opencode's Sentry project. This is a data exfiltration concern for forks and must be explicitly disabled or reconfigured.
+`packages/app/src/app.tsx` initializes Sentry via `@sentry/solid`. In production builds, crash reports are sent to Anthropic/tinycode's Sentry project. This is a data exfiltration concern for forks and must be explicitly disabled or reconfigured.
 
 ### 9. Share System
 

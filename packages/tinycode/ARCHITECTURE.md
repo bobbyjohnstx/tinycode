@@ -1,4 +1,4 @@
-# Architecture: Tinycode (Opencode)
+# Architecture: Tinycode (tinycode)
 
 ## 1. Overview
 Tinycode is an AI-powered development environment designed to integrate LLM capabilities directly into the software engineering workflow. The project provides a high-performance, extensible system featuring a Text User Interface (TUI), Language Server Protocol (LSP) integration, and a sophisticated plugin architecture. Its primary goals are to provide seamless AI-driven code manipulation, robust project orchestration, and a highly stable runtime for complex, concurrent operations.

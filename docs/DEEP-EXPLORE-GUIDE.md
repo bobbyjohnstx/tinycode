@@ -75,7 +75,7 @@ input to LLM to tool execution and back. Read actual code examples for each patt
 
 Both models consistently produce these errors in architecture docs regardless of step count:
 
-1. **Service naming**: Write `@tinycode/Foo` but actual code uses `@opencode/...` (legacy naming from upstream fork)
+1. **Service naming**: Write `@tinycode/Foo` but actual code uses `@tinycode/...` (legacy naming from upstream fork)
 2. **`export namespace` claim**: Both claim it's avoided, but `src/plugin/loader.ts:14` uses it
 3. **Missing sibling packages**: Never mention `packages/app`, `packages/core`, `packages/desktop`, etc.
 4. **`src/storage/` vs `src/sync/`**: Confusion about which is the persistence layer (`src/storage/` is correct)

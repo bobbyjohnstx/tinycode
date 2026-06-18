@@ -429,7 +429,7 @@ async function highlightCodeBlocks(html: string): Promise<string> {
   if (matches.length === 0) return html
 
   const highlighter = await getSharedHighlighter({
-    themes: ["OpenCode"],
+    themes: ["tinycode"],
     langs: [],
     preferredHighlighter: "shiki-wasm",
   })
@@ -454,7 +454,7 @@ async function highlightCodeBlocks(html: string): Promise<string> {
 
     const highlighted = highlighter.codeToHtml(code, {
       lang: language,
-      theme: "OpenCode",
+      theme: "tinycode",
       tabindex: false,
     })
     result = result.replace(fullMatch, () => highlighted)

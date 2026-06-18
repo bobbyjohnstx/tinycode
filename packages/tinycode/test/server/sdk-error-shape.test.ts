@@ -8,7 +8,7 @@
  * extracted from the response body, plus `.status` and `.body` attached.
  */
 import { afterEach, describe, expect, test } from "bun:test"
-import { createOpencodeClient } from "@tinycode/sdk/v2"
+import { createTinycodeClient } from "@tinycode/sdk/v2"
 import { Server } from "../../src/server/server"
 import * as Log from "@/core/util/log"
 import { disposeAllInstances, tmpdir } from "../fixture/fixture"
@@ -22,7 +22,7 @@ afterEach(async () => {
 })
 
 function client(directory: string) {
-  return createOpencodeClient({
+  return createTinycodeClient({
     baseUrl: "http://test",
     directory,
     fetch: ((req: Request) => Server.Default().app.fetch(req)) as unknown as typeof fetch,

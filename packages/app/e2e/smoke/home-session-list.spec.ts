@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 import { trackPageErrors } from "../utils/errors"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTinycodeServer } from "../utils/mock-server"
 
-const directory = "C:/OpenCode/HomeListProject"
+const directory = "C:/tinycode/HomeListProject"
 const projectID = "proj_home_list"
 
 function base64Encode(value: string) {
@@ -14,7 +14,7 @@ function provider() {
     all: [
       {
         id: "tinycode",
-        name: "OpenCode",
+        name: "tinycode",
         models: {
           "claude-sonnet-4-5": { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", limit: { context: 200_000 } },
         },
@@ -109,7 +109,7 @@ test.describe("smoke: home session list", () => {
       },
     ]
 
-    await mockOpenCodeServer(page, {
+    await mockTinycodeServer(page, {
       directory,
       project: project(),
       provider: provider(),
@@ -176,7 +176,7 @@ test.describe("smoke: home session list", () => {
 
     const model = { providerID: "tinycode", modelID: "claude-sonnet-4-5", variant: "max" }
 
-    await mockOpenCodeServer(page, {
+    await mockTinycodeServer(page, {
       directory,
       project: project(),
       provider: provider(),

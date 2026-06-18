@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 import { trackPageErrors } from "../utils/errors"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTinycodeServer } from "../utils/mock-server"
 
-const directory = "C:/OpenCode/VCSProject"
+const directory = "C:/tinycode/VCSProject"
 const projectID = "proj_vcs"
 const sessionID = "ses_vcs_1"
 const userMessageID = "msg_user_vcs"
@@ -19,7 +19,7 @@ function provider() {
     all: [
       {
         id: "tinycode",
-        name: "OpenCode",
+        name: "tinycode",
         models: {
           "claude-sonnet-4-5": { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", limit: { context: 200_000 } },
         },
@@ -151,7 +151,7 @@ test.describe("smoke: vcs review panel", () => {
   test("VCS diff panel renders file changes via mobile Changes tab", async ({ page }) => {
     const errors = trackPageErrors(page)
 
-    await mockOpenCodeServer(page, {
+    await mockTinycodeServer(page, {
       directory,
       project: project(),
       provider: provider(),
@@ -159,7 +159,7 @@ test.describe("smoke: vcs review panel", () => {
       pageMessages: () => ({ items: messages() }),
     })
 
-    // Override /vcs/status and /vcs/diff AFTER mockOpenCodeServer so these routes
+    // Override /vcs/status and /vcs/diff AFTER mockTinycodeServer so these routes
     // take priority (Playwright evaluates routes in LIFO order — last registered wins)
     await page.route("**/vcs/status", (route) =>
       route.fulfill({

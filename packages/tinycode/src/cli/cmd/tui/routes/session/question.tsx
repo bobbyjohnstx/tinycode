@@ -7,7 +7,7 @@ import type { QuestionAnswer, QuestionRequest } from "@tinycode/sdk/v2"
 import { useSDK } from "../../context/sdk"
 import { SplitBorder } from "../../component/border"
 import { useTuiConfig } from "../../context/tui-config"
-import { useBindings, useOpencodeModeStack } from "../../keymap"
+import { useBindings, useTinycodeModeStack } from "../../keymap"
 
 const QUESTION_MODE = "question"
 
@@ -16,7 +16,7 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
   const { theme } = useTheme()
   const renderer = useRenderer()
   const tuiConfig = useTuiConfig()
-  const modeStack = useOpencodeModeStack()
+  const modeStack = useTinycodeModeStack()
 
   const questions = createMemo(() => props.request.questions)
   const single = createMemo(() => questions().length === 1 && questions()[0]?.multiple !== true)

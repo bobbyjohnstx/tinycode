@@ -13,7 +13,7 @@
 //         → OpenTUI split-footer renderer writes to terminal
 import type { KeyEvent, Renderable } from "@opentui/core"
 import type { Binding } from "@opentui/keymap"
-import type { OpencodeClient, PermissionRequest, QuestionRequest, ToolPart } from "@tinycode/sdk/v2"
+import type { TinycodeClient, PermissionRequest, QuestionRequest, ToolPart } from "@tinycode/sdk/v2"
 
 export type RunFilePart = {
   type: "file"
@@ -22,14 +22,14 @@ export type RunFilePart = {
   mime: string
 }
 
-type PromptModel = Parameters<OpencodeClient["session"]["prompt"]>[0]["model"]
-type PromptInput = Parameters<OpencodeClient["session"]["prompt"]>[0]
+type PromptModel = Parameters<TinycodeClient["session"]["prompt"]>[0]["model"]
+type PromptInput = Parameters<TinycodeClient["session"]["prompt"]>[0]
 
 export type RunPromptPart = NonNullable<PromptInput["parts"]>[number]
 
-export type RunCommand = NonNullable<Awaited<ReturnType<OpencodeClient["command"]["list"]>>["data"]>[number]
+export type RunCommand = NonNullable<Awaited<ReturnType<TinycodeClient["command"]["list"]>>["data"]>[number]
 
-export type RunProvider = NonNullable<Awaited<ReturnType<OpencodeClient["provider"]["list"]>>["data"]>["all"][number]
+export type RunProvider = NonNullable<Awaited<ReturnType<TinycodeClient["provider"]["list"]>>["data"]>["all"][number]
 
 export type RunPrompt = {
   text: string
@@ -41,14 +41,14 @@ export type RunPrompt = {
   }
 }
 
-export type RunAgent = NonNullable<Awaited<ReturnType<OpencodeClient["app"]["agents"]>>["data"]>[number]
+export type RunAgent = NonNullable<Awaited<ReturnType<TinycodeClient["app"]["agents"]>>["data"]>[number]
 
-type RunResourceMap = NonNullable<Awaited<ReturnType<OpencodeClient["experimental"]["resource"]["list"]>>["data"]>
+type RunResourceMap = NonNullable<Awaited<ReturnType<TinycodeClient["experimental"]["resource"]["list"]>>["data"]>
 
 export type RunResource = RunResourceMap[string]
 
 export type RunInput = {
-  sdk: OpencodeClient
+  sdk: TinycodeClient
   directory: string
   sessionID: string
   sessionTitle?: string
@@ -259,11 +259,11 @@ export type FooterEvent =
       state: FooterSubagentState
     }
 
-export type PermissionReply = Parameters<OpencodeClient["permission"]["reply"]>[0]
+export type PermissionReply = Parameters<TinycodeClient["permission"]["reply"]>[0]
 
-export type QuestionReply = Parameters<OpencodeClient["question"]["reply"]>[0]
+export type QuestionReply = Parameters<TinycodeClient["question"]["reply"]>[0]
 
-export type QuestionReject = Parameters<OpencodeClient["question"]["reject"]>[0]
+export type QuestionReject = Parameters<TinycodeClient["question"]["reject"]>[0]
 
 type FooterBinding = Binding<Renderable, KeyEvent>
 

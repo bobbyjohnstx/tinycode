@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 import { trackPageErrors } from "../utils/errors"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTinycodeServer } from "../utils/mock-server"
 
-const directory = "C:/OpenCode/PermissionProject"
+const directory = "C:/tinycode/PermissionProject"
 const projectID = "proj_perm"
 const sessionID = "ses_perm_1"
 const userMessageID = "msg_user_perm"
@@ -24,7 +24,7 @@ function provider() {
     all: [
       {
         id: "tinycode",
-        name: "OpenCode",
+        name: "tinycode",
         models: {
           "claude-sonnet-4-5": { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", limit: { context: 200_000 } },
         },
@@ -144,7 +144,7 @@ test.describe("flows: permission dock", () => {
     const errors = trackPageErrors(page)
     const events: EventPayload[] = []
 
-    await mockOpenCodeServer(page, {
+    await mockTinycodeServer(page, {
       directory,
       project: project(),
       provider: provider(),
@@ -188,7 +188,7 @@ test.describe("flows: permission dock", () => {
     const errors = trackPageErrors(page)
     const events: EventPayload[] = []
 
-    await mockOpenCodeServer(page, {
+    await mockTinycodeServer(page, {
       directory,
       project: project(),
       provider: provider(),

@@ -236,7 +236,7 @@ describe("SessionStatus.Info", () => {
         reason: "free_tier_limit",
         provider: "tinycode",
         title: "Free limit reached",
-        message: "Subscribe to OpenCode Go.",
+        message: "Subscribe to tinycode Go.",
         label: "subscribe",
         link: "https://tinycode.dev/go",
       },

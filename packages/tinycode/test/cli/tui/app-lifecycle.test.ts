@@ -152,9 +152,9 @@ test("SIGHUP exits after ready and removes its listener", async () => {
 })
 
 test("plugin, audio, and keymap cleanup run exactly once", async () => {
-  const originalRegister = TuiKeymap.registerOpencodeKeymap
+  const originalRegister = TuiKeymap.registerTinycodeKeymap
   let unregisterKeymapCalls = 0
-  const registerKeymap = spyOn(TuiKeymap, "registerOpencodeKeymap").mockImplementation((...args) => {
+  const registerKeymap = spyOn(TuiKeymap, "registerTinycodeKeymap").mockImplementation((...args) => {
     const unregister = originalRegister(...args)
     return () => {
       unregisterKeymapCalls++

@@ -579,7 +579,7 @@ const accountTokenIt = configIt({
     config: () =>
       Effect.succeed(
         Option.some({
-          provider: { tinycode: { options: { apiKey: "{env:OPENCODE_CONSOLE_TOKEN}" } } },
+          provider: { tinycode: { options: { apiKey: "{env:TINYCODE_CONSOLE_TOKEN}" } } },
         }),
       ),
     token: () => Effect.succeed(Option.some(AccessToken.make("st_test_token"))),
@@ -1884,7 +1884,7 @@ test("parseManagedPlist strips MDM metadata keys", async () => {
     ConfigParse.jsonc(
       await ConfigManaged.parseManagedPlist(
         JSON.stringify({
-          PayloadDisplayName: "OpenCode Managed",
+          PayloadDisplayName: "tinycode Managed",
           PayloadIdentifier: "ai.tinycode.managed.test",
           PayloadType: "ai.tinycode.managed",
           PayloadUUID: "AAAA-BBBB-CCCC",

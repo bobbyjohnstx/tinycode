@@ -19,7 +19,7 @@ export type TuiOptions = {
   config?: Config
 }
 
-export async function createOpencodeServer(options?: ServerOptions) {
+export async function createTinycodeServer(options?: ServerOptions) {
   options = Object.assign(
     {
       hostname: "127.0.0.1",
@@ -99,7 +99,7 @@ export async function createOpencodeServer(options?: ServerOptions) {
   }
 }
 
-export function createOpencodeTui(options?: TuiOptions) {
+export function createTinycodeTui(options?: TuiOptions) {
   const args = []
 
   if (options?.project) {

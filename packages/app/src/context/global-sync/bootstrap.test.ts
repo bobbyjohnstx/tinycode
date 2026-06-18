@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { createStore } from "solid-js/store"
 import { QueryClient } from "@tanstack/solid-query"
-import type { Config, OpencodeClient, Project } from "@tinycode/sdk/v2/client"
+import type { Config, TinycodeClient, Project } from "@tinycode/sdk/v2/client"
 import type { NormalizedProviderListResponse } from "@tinycode/ui/context"
 import { bootstrapDirectory } from "./bootstrap"
 import type { State, VcsCache } from "./types"
@@ -72,7 +72,7 @@ describe("bootstrapDirectory", () => {
           },
         },
         provider: { list: async () => ({ data: { all: [], connected: [], default: {} } }) },
-      } as unknown as OpencodeClient,
+      } as unknown as TinycodeClient,
       store,
       setStore,
       vcsCache: { setStore() {} } as unknown as VcsCache,

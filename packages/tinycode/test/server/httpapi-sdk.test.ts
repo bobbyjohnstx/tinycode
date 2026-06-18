@@ -6,7 +6,7 @@ import { ChildProcessSpawner } from "effect/unstable/process"
 import { AppFileSystem } from "@/core/filesystem"
 import { CrossSpawnSpawner } from "@/core/cross-spawn-spawner"
 import { Flag } from "@/core/flag/flag"
-import { createOpencodeClient } from "@tinycode/sdk/v2"
+import { createTinycodeClient } from "@tinycode/sdk/v2"
 import { validateSession } from "../../src/cli/cmd/tui/validate-session"
 import { InstanceBootstrap } from "../../src/project/bootstrap-service"
 import { InstanceStore } from "../../src/project/instance-store"
@@ -40,7 +40,7 @@ const original = {
 }
 
 type ServerPath = "default" | "raw"
-type Sdk = ReturnType<typeof createOpencodeClient>
+type Sdk = ReturnType<typeof createTinycodeClient>
 type SdkResult = { response: Response; data?: unknown; error?: unknown }
 type Captured = { status: number; data?: unknown; error?: unknown }
 type ProjectFixture = { sdk: Sdk; directory: string }
@@ -79,7 +79,7 @@ function client(
   directory?: string,
   input?: { password?: string; username?: string; headers?: Record<string, string> },
 ) {
-  return createOpencodeClient({
+  return createTinycodeClient({
     baseUrl: "http://localhost",
     directory,
     headers: input?.headers,

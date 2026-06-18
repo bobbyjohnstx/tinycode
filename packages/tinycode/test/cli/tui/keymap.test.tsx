@@ -5,10 +5,10 @@ import { expect, test } from "bun:test"
 import { onCleanup } from "solid-js"
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
 import {
-  getOpencodeModeStack,
+  getTinycodeModeStack,
   TINYCODE_BASE_MODE,
-  OpencodeKeymapProvider,
-  registerOpencodeKeymap,
+  TinycodeKeymapProvider,
+  registerTinycodeKeymap,
 } from "@/cli/cmd/tui/keymap"
 
 test("legacy page key aliases compile as page keys", async () => {
@@ -23,7 +23,7 @@ test("legacy page key aliases compile as page keys", async () => {
         messages_page_down: "pgdown",
       },
     })
-    const offKeymap = registerOpencodeKeymap(keymap, renderer, config)
+    const offKeymap = registerTinycodeKeymap(keymap, renderer, config)
     const offLayer = keymap.registerLayer({
       bindings: config.keybinds.gather("session", ["session.page.up", "session.page.down"]),
     })
@@ -41,9 +41,9 @@ test("legacy page key aliases compile as page keys", async () => {
     })
 
     return (
-      <OpencodeKeymapProvider keymap={keymap}>
+      <TinycodeKeymapProvider keymap={keymap}>
         <box />
-      </OpencodeKeymapProvider>
+      </TinycodeKeymapProvider>
     )
   }
 
@@ -65,7 +65,7 @@ test("mode-less bindings stay active when tinycode mode changes", async () => {
     const renderer = useRenderer()
     const keymap = createDefaultOpenTuiKeymap(renderer)
     const config = createTuiResolvedConfig()
-    const offKeymap = registerOpencodeKeymap(keymap, renderer, config)
+    const offKeymap = registerTinycodeKeymap(keymap, renderer, config)
     const offGlobal = keymap.registerLayer({
       commands: [
         { name: "session.list", run() {} },
@@ -97,10 +97,10 @@ test("mode-less bindings stay active when tinycode mode changes", async () => {
       )
 
     counts.base = activeCounts()
-    const popQuestion = getOpencodeModeStack(keymap).push("question")
+    const popQuestion = getTinycodeModeStack(keymap).push("question")
     counts.question = activeCounts()
     popQuestion()
-    const popAutocomplete = getOpencodeModeStack(keymap).push("autocomplete")
+    const popAutocomplete = getTinycodeModeStack(keymap).push("autocomplete")
     counts.autocomplete = activeCounts()
     popAutocomplete()
 
@@ -111,9 +111,9 @@ test("mode-less bindings stay active when tinycode mode changes", async () => {
     })
 
     return (
-      <OpencodeKeymapProvider keymap={keymap}>
+      <TinycodeKeymapProvider keymap={keymap}>
         <box />
-      </OpencodeKeymapProvider>
+      </TinycodeKeymapProvider>
     )
   }
 

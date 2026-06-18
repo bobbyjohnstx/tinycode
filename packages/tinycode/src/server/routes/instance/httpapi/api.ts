@@ -45,7 +45,7 @@ export const InstanceHttpApi = HttpApi.make("tinycode-instance")
   .addHttpApi(TuiApi)
   .middleware(SchemaErrorMiddleware)
 
-export const OpenCodeHttpApi = HttpApi.make("tinycode")
+export const TinycodeHttpApi = HttpApi.make("tinycode")
   .addHttpApi(RootHttpApi)
   .addHttpApi(EventApi)
   .addHttpApi(InstanceHttpApi)

@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 import { trackPageErrors } from "../utils/errors"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockTinycodeServer } from "../utils/mock-server"
 
-const directory = "C:/OpenCode/StreamingProject"
+const directory = "C:/tinycode/StreamingProject"
 const projectID = "proj_stream"
 
 type EventPayload = {
@@ -19,7 +19,7 @@ function provider() {
     all: [
       {
         id: "tinycode",
-        name: "OpenCode",
+        name: "tinycode",
         models: {
           "claude-sonnet-4-5": { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", limit: { context: 200_000 } },
         },
@@ -108,7 +108,7 @@ test.describe("flows: new-session streaming", () => {
 
     let newSessionCreated = false
 
-    await mockOpenCodeServer(page, {
+    await mockTinycodeServer(page, {
       directory,
       project: project(),
       provider: provider(),
@@ -305,7 +305,7 @@ test.describe("flows: new-session streaming", () => {
       time: { created: 1700000000000, updated: 1700000000000 },
     }
 
-    await mockOpenCodeServer(page, {
+    await mockTinycodeServer(page, {
       directory,
       project: project(),
       provider: provider(),

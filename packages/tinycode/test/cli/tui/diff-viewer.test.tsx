@@ -9,7 +9,7 @@ import type { TuiPluginApi, TuiPluginMeta, TuiRouteCurrent, TuiRouteDefinition }
 import { KVProvider } from "../../../src/cli/cmd/tui/context/kv"
 import { ThemeProvider } from "../../../src/cli/cmd/tui/context/theme"
 import { TuiConfigProvider } from "../../../src/cli/cmd/tui/context/tui-config"
-import { OpencodeKeymapProvider } from "../../../src/cli/cmd/tui/keymap"
+import { TinycodeKeymapProvider } from "../../../src/cli/cmd/tui/keymap"
 import diffViewerPlugin from "../../../src/cli/cmd/tui/feature-plugins/system/diff-viewer"
 import { createTuiPluginApi } from "../../fixture/tui-plugin"
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
@@ -60,7 +60,7 @@ test("closing the diff viewer returns to the route it opened from", async () => 
     commands.get("diff.open")?.run?.({} as never)
 
     return (
-      <OpencodeKeymapProvider keymap={keymap}>
+      <TinycodeKeymapProvider keymap={keymap}>
         <TuiConfigProvider config={createTuiResolvedConfig()}>
           <KVProvider>
             <ThemeProvider mode="dark">
@@ -68,7 +68,7 @@ test("closing the diff viewer returns to the route it opened from", async () => 
             </ThemeProvider>
           </KVProvider>
         </TuiConfigProvider>
-      </OpencodeKeymapProvider>
+      </TinycodeKeymapProvider>
     )
   }
 

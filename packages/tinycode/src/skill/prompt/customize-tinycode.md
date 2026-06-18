@@ -1,7 +1,7 @@
 <!--
   Built-in skill. Name and description are registered in code at
-  packages/tinycode/src/skill/index.ts (see CUSTOMIZE_OPENCODE_SKILL_NAME
-  and CUSTOMIZE_OPENCODE_SKILL_DESCRIPTION). The body below becomes the
+  packages/tinycode/src/skill/index.ts (see CUSTOMIZE_TINYCODE_SKILL_NAME
+  and CUSTOMIZE_TINYCODE_SKILL_DESCRIPTION). The body below becomes the
   skill's content.
 -->
 

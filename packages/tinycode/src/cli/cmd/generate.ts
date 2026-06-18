@@ -16,9 +16,9 @@ export const GenerateCommand = {
           {
             lang: "js",
             source: [
-              `import { createOpencodeClient } from "@tinycode/sdk`,
+              `import { createTinycodeClient } from "@tinycode/sdk`,
               ``,
-              `const client = createOpencodeClient()`,
+              `const client = createTinycodeClient()`,
               `await client.${operation.operationId}({`,
               `  ...`,
               `})`,

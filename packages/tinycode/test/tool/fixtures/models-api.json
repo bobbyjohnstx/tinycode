@@ -28000,12 +28000,12 @@
       }
     }
   },
-  "opencode-go": {
-    "id": "opencode-go",
-    "env": ["OPENCODE_API_KEY"],
+  "tinycode-go": {
+    "id": "tinycode-go",
+    "env": ["TINYCODE_API_KEY"],
     "npm": "@ai-sdk/openai-compatible",
     "api": "https://tinycode.dev/zen/go/v1",
-    "name": "OpenCode Go",
+    "name": "tinycode Go",
     "doc": "https://tinycode.dev/docs/zen",
     "models": {
       "minimax-m2.7": {
@@ -57810,12 +57810,12 @@
       }
     }
   },
-  "opencode": {
-    "id": "opencode",
-    "env": ["OPENCODE_API_KEY"],
+  "tinycode": {
+    "id": "tinycode",
+    "env": ["TINYCODE_API_KEY"],
     "npm": "@ai-sdk/openai-compatible",
     "api": "https://tinycode.dev/zen/v1",
-    "name": "OpenCode Zen",
+    "name": "tinycode Zen",
     "doc": "https://tinycode.dev/docs/zen",
     "models": {
       "minimax-m2.7": {

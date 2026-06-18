@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-The tinycode TUI is well-engineered underneath — the rendering stack (SolidJS + opentui), theme system (33 themes), diff viewer, and plugin architecture are all production-quality. However, the user-facing layer has **critical discoverability and accuracy problems** that actively mislead first-time users. The top issues are: help.md documents wrong keybindings, the which-key discoverability panel is disabled by default, and "OpenCode" branding still appears in multiple places.
+The tinycode TUI is well-engineered underneath — the rendering stack (SolidJS + opentui), theme system (33 themes), diff viewer, and plugin architecture are all production-quality. However, the user-facing layer has **critical discoverability and accuracy problems** that actively mislead first-time users. The top issues are: help.md documents wrong keybindings, the which-key discoverability panel is disabled by default, and "tinycode" branding still appears in multiple places.
 
 ---
 
@@ -69,14 +69,14 @@ Arrow keys work because child view has no prompt, but this is non-obvious and un
 
 **Files:** `keybind.ts:98-101`, `subagent-footer.tsx:96-128`, `index.tsx:444-449`
 
-### 7. "OpenCode" branding remnants (user-visible)
+### 7. "tinycode" branding remnants (user-visible)
 | Location | Text | File:Line |
 |----------|------|-----------|
 | Docs command | Opens `https://tinycode.dev/docs` | `app.tsx:805` |
-| Update dialog | "Successfully updated to OpenCode v..." | `app.tsx:1045` |
+| Update dialog | "Successfully updated to tinycode v..." | `app.tsx:1045` |
 | Plugin routes | Terminal title "OC \|" (should be "TC") | `app.tsx:476` |
 | Sidebar footer | Renders "Open" "Code" as product name | `sidebar/footer.tsx:70-72` |
-| Sidebar tip | "OpenCode includes free models..." | `sidebar/footer.tsx:52` |
+| Sidebar tip | "tinycode includes free models..." | `sidebar/footer.tsx:52` |
 | Retry dialog | Links to `tinycode.dev/go` | `dialog-retry-action.tsx:10` |
 
 ### 8. No help keybinding
@@ -163,11 +163,11 @@ Themes assume true color (24-bit RGB). 256-color terminals get approximate match
 | `src/cli/cmd/tui/help.md` | Help content (currently wrong) |
 | `src/cli/cmd/tui/ui/dialog-help.tsx` | Help dialog renderer |
 | `src/cli/cmd/tui/feature-plugins/system/which-key.tsx` | Keybinding discoverability panel |
-| `src/cli/cmd/tui/app.tsx` | Main TUI app, routes, OpenCode branding |
+| `src/cli/cmd/tui/app.tsx` | Main TUI app, routes, tinycode branding |
 | `src/cli/cmd/tui/routes/session/index.tsx` | Session view, subagent nav |
 | `src/cli/cmd/tui/routes/session/sidebar.tsx` | Sidebar layout and footer |
 | `src/cli/cmd/tui/routes/session/subagent-footer.tsx` | Subagent navigation UI |
 | `src/cli/cmd/tui/component/prompt/index.tsx` | Prompt area, spinner, metadata |
 | `src/cli/cmd/tui/config/tui-schema.ts` | Leader key timeout config |
-| `src/cli/cmd/tui/component/dialog-retry-action.tsx` | OpenCode Go upsell link |
-| `src/cli/cmd/tui/feature-plugins/sidebar/footer.tsx` | "OpenCode" sidebar branding |
+| `src/cli/cmd/tui/component/dialog-retry-action.tsx` | tinycode Go upsell link |
+| `src/cli/cmd/tui/feature-plugins/sidebar/footer.tsx` | "tinycode" sidebar branding |

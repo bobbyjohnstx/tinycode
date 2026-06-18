@@ -16,7 +16,7 @@
 // Today only `tinycode.run` is fully wired. The shape supports adding more
 // builders (`tinycode.serve(opts)`, `tinycode.acp(opts)`, `tinycode.auth(...)`)
 // without changing the fixture. Long-lived commands like `serve` will need a
-// different return shape — see the TODO at the bottom of OpencodeCli.
+// different return shape — see the TODO at the bottom of TinycodeCli.
 import { test, type TestOptions } from "bun:test"
 import { AppFileSystem } from "@/core/filesystem"
 import { AppProcess } from "@/core/process"
@@ -144,7 +144,7 @@ export type AcpHandle = {
   readonly exited: Promise<number>
 }
 
-export type OpencodeCli = {
+export type TinycodeCli = {
   // High-level: run a single prompt against the test model. Short-lived.
   readonly run: (message: string, opts?: RunOpts) => Effect.Effect<RunResult>
   // Spawn `tinycode serve` and wait until it's listening. Long-lived: the
@@ -170,7 +170,7 @@ export type OpencodeCli = {
 export type CliFixture = {
   readonly llm: TestLLMServer["Service"]
   readonly home: string
-  readonly tinycode: OpencodeCli
+  readonly tinycode: TinycodeCli
 }
 
 // Provisions a TestLLMServer + tmpdir + spawn helper and invokes fn. Cleans
@@ -403,7 +403,7 @@ export function withCliFixture<A, E>(
       } satisfies AcpHandle
     })
 
-    const tinycode: OpencodeCli = { run, serve, acp, spawn, expectExit, parseJsonEvents }
+    const tinycode: TinycodeCli = { run, serve, acp, spawn, expectExit, parseJsonEvents }
 
     return yield* fn({ llm, home, tinycode })
     // FetchHttpClient is provided so test bodies can `yield* HttpClient.HttpClient`

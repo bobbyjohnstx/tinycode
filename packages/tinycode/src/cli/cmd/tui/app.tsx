@@ -71,8 +71,8 @@ import { CommandPaletteDialog } from "./component/command-palette"
 import {
   COMMAND_PALETTE_COMMAND,
   TINYCODE_BASE_MODE,
-  OpencodeKeymapProvider,
-  registerOpencodeKeymap,
+  TinycodeKeymapProvider,
+  registerTinycodeKeymap,
   useBindings,
   useTinycodeKeymap,
 } from "./keymap"
@@ -202,7 +202,7 @@ export function tui(input: TuiInput): TuiHandle {
 
   const renderer = input.renderer
   const keymap = createDefaultOpenTuiKeymap(renderer)
-  const unregisterKeymap = registerOpencodeKeymap(keymap, renderer, input.config)
+  const unregisterKeymap = registerTinycodeKeymap(keymap, renderer, input.config)
   const lifecycle = createTuiLifecycle({
     renderer,
     unguard,
@@ -230,7 +230,7 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
       <ErrorBoundary
         fallback={(error, reset) => <ErrorComponent error={error} reset={reset} exit={input.exit} mode={mode} />}
       >
-        <OpencodeKeymapProvider keymap={input.keymap}>
+        <TinycodeKeymapProvider keymap={input.keymap}>
           <ArgsProvider {...input.args}>
             <ExitProvider exit={input.exit}>
               <KVProvider>
@@ -283,7 +283,7 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
               </KVProvider>
             </ExitProvider>
           </ArgsProvider>
-        </OpencodeKeymapProvider>
+        </TinycodeKeymapProvider>
       </ErrorBoundary>
     )
   }, renderer)

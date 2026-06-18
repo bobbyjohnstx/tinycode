@@ -54,10 +54,10 @@ export const ModelsCommand = effectCmd({
     }
 
     const ids = Object.keys(providers).sort((a, b) => {
-      const aIsOpencode = a.startsWith("tinycode")
-      const bIsOpencode = b.startsWith("tinycode")
-      if (aIsOpencode && !bIsOpencode) return -1
-      if (!aIsOpencode && bIsOpencode) return 1
+      const aIsTinycode = a.startsWith("tinycode")
+      const bIsTinycode = b.startsWith("tinycode")
+      if (aIsTinycode && !bIsTinycode) return -1
+      if (!aIsTinycode && bIsTinycode) return 1
       return a.localeCompare(b)
     })
 
