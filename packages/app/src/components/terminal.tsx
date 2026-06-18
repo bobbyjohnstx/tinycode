@@ -349,8 +349,8 @@ export const Terminal = (props: TerminalProps) => {
       const t = new loaded.Terminal({
         cursorBlink: true,
         cursorStyle: "bar",
-        cols: restoreSize?.cols,
-        rows: restoreSize?.rows,
+        cols: restoreSize?.cols ?? 80,
+        rows: restoreSize?.rows ?? 24,
         fontSize: 14,
         fontFamily: terminalFontFamily(settings.appearance.terminalFont()),
         allowTransparency: false,
