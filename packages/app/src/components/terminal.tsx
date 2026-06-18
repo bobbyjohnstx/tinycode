@@ -152,7 +152,7 @@ const persistTerminal = (input: {
     cursor: input.cursor,
     rows: input.term.rows,
     cols: input.term.cols,
-    scrollY: input.term.getViewportY(),
+    scrollY: input.term.buffer?.active?.viewportY ?? 0,
   })
 }
 
@@ -424,10 +424,10 @@ export const Terminal = (props: TerminalProps) => {
       cleanups.push(() => disposeIfDisposable(onKey))
 
       const startResize = () => {
-        fit.observeResize()
         handleResize = scheduleFit
         window.addEventListener("resize", handleResize)
         cleanups.push(() => window.removeEventListener("resize", handleResize))
+        scheduleFit()
       }
 
       const write = (data: string) =>
