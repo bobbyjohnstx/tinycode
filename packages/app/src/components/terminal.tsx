@@ -427,7 +427,6 @@ export const Terminal = (props: TerminalProps) => {
         handleResize = scheduleFit
         window.addEventListener("resize", handleResize)
         cleanups.push(() => window.removeEventListener("resize", handleResize))
-        scheduleFit()
       }
 
       const write = (data: string) =>
