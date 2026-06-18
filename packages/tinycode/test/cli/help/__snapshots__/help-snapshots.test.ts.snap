@@ -21,6 +21,7 @@ Commands:
   tinycode agent               manage agents
   tinycode uninstall           uninstall tinycode and remove all related files
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
@@ -232,6 +233,7 @@ Commands:
   tinycode agent               manage agents
   tinycode uninstall           uninstall tinycode and remove all related files
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
@@ -361,6 +363,7 @@ Commands:
   tinycode agent               manage agents
   tinycode uninstall           uninstall tinycode and remove all related files
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
@@ -448,6 +451,7 @@ Commands:
   tinycode agent               manage agents
   tinycode uninstall           uninstall tinycode and remove all related files
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
@@ -502,6 +506,7 @@ Commands:
   tinycode agent               manage agents
   tinycode uninstall           uninstall tinycode and remove all related files
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
@@ -782,6 +787,7 @@ Commands:
   tinycode agent               manage agents
   tinycode uninstall           uninstall tinycode and remove all related files
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
@@ -836,6 +842,7 @@ Commands:
   tinycode agent               manage agents
   tinycode uninstall           uninstall tinycode and remove all related files
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
