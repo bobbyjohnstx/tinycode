@@ -80,7 +80,7 @@ Current agent prompts across the three sources:
 
 | Source | Word range | Purpose |
 |--------|-----------|---------|
-| `~/.claude/agents/` | 456–2462 | Full-featured for Opus/Sonnet (default tier source) |
+| `.tinycode/agent/` (default) | 456–2462 | Full-featured for large models (default tier source) |
 | `.tinycode/agent/` (omt) | 227–373 | Already near compact size (compact tier reference) |
 | `src/agent/prompt/` (native) | 75–356 | Built-in agents, already minimal |
 

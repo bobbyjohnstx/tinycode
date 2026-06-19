@@ -76,4 +76,4 @@ Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/
 - **Local LLMs first**: The primary use case is local LLM inference via Ollama or any OpenAI-compatible endpoint. Configure via `~/.config/tinycode/config.json`.
 - **oh-my-tiny**: Companion tool at `../oh-my-tiny/` for extended agent orchestration capabilities.
 - **Style guide**: See [AGENTS.md](./AGENTS.md) for coding style rules (destructuring, control flow, Drizzle schema conventions, etc.).
-- **Pass model on Task calls**: `haiku`, `sonnet`, `opus`.
+- **Pass model on Task calls**: Use the model configured for the session, not hardcoded model names.
