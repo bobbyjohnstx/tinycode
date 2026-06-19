@@ -114,6 +114,9 @@ export const PromptPopover: Component<PromptPopoverProps> = (props) => {
                     >
                       <Icon name="brain" size="small" class="text-icon-info-active shrink-0" />
                       <span class="text-14-regular text-text-strong whitespace-nowrap">{item.type === "agent" ? item.name : item.display}</span>
+                      <Show when={item.type === "agent" && item.display !== item.name}>
+                        <span class="text-14-regular text-text-weak truncate">{item.display}</span>
+                      </Show>
                     </button>
                   )
                 }}

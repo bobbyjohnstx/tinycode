@@ -23,7 +23,7 @@ import { Skill } from "@/skill"
 const LOCAL_PROVIDERS = new Set(["ollama", "maas", "vllm", "lmstudio", "openai-compatible"])
 
 // Extract parameter count in billions from model ID strings like "qwen3-14b", "llama3.1:8b"
-function modelSizeB(model: Provider.Model): number | undefined {
+export function modelSizeB(model: Provider.Model): number | undefined {
   const m = /[:\-_v](\d+)b\b/i.exec(model.api.id) ?? /^(\d+)b\b/i.exec(model.api.id)
   return m ? parseInt(m[1], 10) : undefined
 }

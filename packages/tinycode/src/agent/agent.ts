@@ -26,6 +26,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { type DeepMutable } from "@/core/schema"
+import { modelSizeB } from "@/session/system"
 
 export const Info = Schema.Struct({
   name: Schema.String,
@@ -57,7 +58,7 @@ const GeneratedAgent = Schema.Struct({
 })
 
 export interface Interface {
-  readonly get: (agent: string) => Effect.Effect<Info>
+  readonly get: (agent: string, model?: Provider.Model) => Effect.Effect<Info>
   readonly list: () => Effect.Effect<Info[]>
   readonly defaultInfo: () => Effect.Effect<Info>
   readonly defaultAgent: () => Effect.Effect<string>
@@ -323,7 +324,14 @@ export const layer = Layer.effect(
           )
         }
 
-        const get = Effect.fnUntraced(function* (agent: string) {
+        const get = Effect.fnUntraced(function* (agent: string, model?: Provider.Model) {
+          if (model) {
+            const size = modelSizeB(model)
+            if (size !== undefined && size <= 9) {
+              const compact = agents[`${agent}.compact`]
+              if (compact) return compact
+            }
+          }
           return agents[agent]
         })
 
@@ -336,7 +344,7 @@ export const layer = Layer.effect(
               [(x) => (cfg.default_agent ? x.name === cfg.default_agent : x.name === "build"), "desc"],
               [(x) => x.name, "asc"],
             ),
-          )
+          ).filter((a) => !a.name.includes(".compact"))
         })
 
         const defaultInfo = Effect.fnUntraced(function* () {
@@ -367,8 +375,8 @@ export const layer = Layer.effect(
     )
 
     return Service.of({
-      get: Effect.fn("Agent.get")(function* (agent: string) {
-        return yield* InstanceState.useEffect(state, (s) => s.get(agent))
+      get: Effect.fn("Agent.get")(function* (agent: string, model?: Provider.Model) {
+        return yield* InstanceState.useEffect(state, (s) => s.get(agent, model))
       }),
       list: Effect.fn("Agent.list")(function* () {
         return yield* InstanceState.useEffect(state, (s) => s.list())

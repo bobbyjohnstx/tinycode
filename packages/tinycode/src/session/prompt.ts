@@ -348,7 +348,7 @@ export const layer = Layer.effect(
         { args: taskArgs },
       )
 
-      const taskAgent = yield* agents.get(task.agent)
+      const taskAgent = yield* agents.get(task.agent, taskModel)
       if (!taskAgent) {
         const available = (yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)
         const hint = available.length ? ` Available agents: ${available.join(", ")}` : ""
@@ -1524,9 +1524,9 @@ export const layer = Layer.effect(
         return yield* currentModel(input.sessionID)
       })
 
-      yield* getModel(taskModel.providerID, taskModel.modelID, input.sessionID)
+      const resolvedTaskModel = yield* getModel(taskModel.providerID, taskModel.modelID, input.sessionID)
 
-      const agent = agentName ? yield* agents.get(agentName) : yield* agents.defaultInfo()
+      const agent = agentName ? yield* agents.get(agentName, resolvedTaskModel) : yield* agents.defaultInfo()
       if (!agent) {
         const available = (yield* agents.list()).filter((a) => !a.hidden).map((a) => a.name)
         const hint = available.length ? ` Available agents: ${available.join(", ")}` : ""
@@ -1542,7 +1542,10 @@ export const layer = Layer.effect(
             {
               type: "subtask" as const,
               agent: agent.name,
-              description: cmd.description ?? "",
+              description:
+                cmd.name === Command.Default.ASK
+                  ? (templateParts.find((y) => y.type === "text")?.text ?? cmd.description ?? "")
+                  : (cmd.description ?? ""),
               command: input.command,
               model: { providerID: taskModel.providerID, modelID: taskModel.modelID },
               prompt: templateParts.find((y) => y.type === "text")?.text ?? "",
