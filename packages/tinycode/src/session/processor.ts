@@ -23,7 +23,6 @@ import * as Log from "@/core/util/log"
 import { isRecord } from "@/util/record"
 import { Usage, type LLMEvent } from "@tinycode/llm"
 
-const DOOM_LOOP_THRESHOLD = 3
 const log = Log.create({ service: "session.processor" })
 
 export type Result = "compact" | "stop" | "continue"
@@ -354,10 +353,11 @@ export const layer = Layer.effect(
             }))
 
             const parts = MessageV2.parts(ctx.assistantMessage.id)
-            const recentParts = parts.slice(-DOOM_LOOP_THRESHOLD)
+            const threshold = (yield* config.get()).experimental?.doom_loop_threshold ?? 3
+            const recentParts = parts.slice(-threshold)
 
             if (
-              recentParts.length !== DOOM_LOOP_THRESHOLD ||
+              recentParts.length !== threshold ||
               !recentParts.every(
                 (part) =>
                   part.type === "tool" &&
@@ -366,8 +366,9 @@ export const layer = Layer.effect(
                   JSON.stringify(part.state.input) === JSON.stringify(input),
               )
             ) {
-              return
-            }
+                return
+              }
+
 
             const agent = yield* agents.get(ctx.assistantMessage.agent)
             yield* permission.ask({
