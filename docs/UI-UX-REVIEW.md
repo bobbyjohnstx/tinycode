@@ -1,7 +1,7 @@
 # tinycode TUI — UI/UX Review
 
-> Combined findings from OMC architect, critic, and designer reviews.
-> Use this document to drive planning with the OMC planner.
+> Combined findings from architect, critic, and designer agent reviews.
+> Use this document to drive planning with the planner agent.
 
 ---
 

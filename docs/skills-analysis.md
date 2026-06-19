@@ -1,8 +1,8 @@
-# OMC Skills Analysis for Tinycode
+# Skills Analysis for Tinycode
 
-Analysis of oh-my-claudecode (OMC) skills, patterns, and infrastructure worth adopting into tinycode.
+Analysis of skills, patterns, and infrastructure worth adopting into tinycode.
 
-Skills and agents have already been selectively copied from OMC into tinycode and oh-my-tiny, but skills were not included. This document captures which skills and patterns are worth bringing over.
+Skills and agents have already been selectively adopted into tinycode and oh-my-tiny, but some skills were not included. This document captures which skills and patterns are worth bringing over.
 
 ---
 
@@ -10,7 +10,7 @@ Skills and agents have already been selectively copied from OMC into tinycode an
 
 ### `ralplan` (plan) — Consensus Planning Loop
 
-The single most valuable skill in OMC. Implements a Planner → Architect → Critic consensus loop (up to 5 iterations) that stress-tests plans from multiple perspectives before execution begins.
+Implements a Planner → Architect → Critic consensus loop (up to 5 iterations) that stress-tests plans from multiple perspectives before execution begins.
 
 - **Short mode**: Fast single-pass planning
 - **Deliberate mode**: Adds pre-mortem (3 failure scenarios) + expanded test plan (unit/integration/e2e/observability)
@@ -249,7 +249,7 @@ Parallel candidates ranked by benchmark, best confirmed on merge. Safer than seq
 
 ### 6. Session-Scoped State Isolation
 
-All persistent state under `.omc/state/sessions/{sessionId}/`. Parallel Claude Code sessions get independent state trees. Cancel clears only one session's files.
+All persistent state under `.tinycode/state/sessions/{sessionId}/`. Parallel sessions get independent state trees. Cancel clears only one session's files.
 
 ### 7. Consensus Loop (Planner → Architect → Critic)
 
@@ -262,7 +262,7 @@ Three perspectives prevent single-perspective blindness:
 
 ### 8. Separate Authoring and Review Passes
 
-Never self-approve in the same context. Writer pass creates/revises content; reviewer/verifier pass evaluates it in a separate lane. This is enforced as a system rule in OMC's CLAUDE.md.
+Never self-approve in the same context. Writer pass creates/revises content; reviewer/verifier pass evaluates it in a separate lane.
 
 ---
 
@@ -299,9 +299,7 @@ Never self-approve in the same context. Writer pass creates/revises content; rev
 
 ## Source Reference
 
-Each OMC skill typically has:
+Each skill typically has:
 
 - `SKILL.md` — Skill definition with trigger patterns, phases, and instructions
 - Supporting files (templates, schemas, examples) vary by skill
-
-The OMC project README and CLAUDE.md contain the full agent catalog, tool inventory, and execution protocols that complement these skills.
