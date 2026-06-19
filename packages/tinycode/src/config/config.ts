@@ -298,6 +298,9 @@ export const Info = Schema.Struct({
       continue_loop_on_deny: Schema.optional(Schema.Boolean).annotate({
         description: "Continue the agent loop when a tool call is denied",
       }),
+      doom_loop_threshold: Schema.optional(PositiveInt).annotate({
+        description: "Number of identical consecutive tool calls before triggering doom-loop protection (default: 3)",
+      }),
       mcp_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for model context protocol (MCP) requests",
       }),
