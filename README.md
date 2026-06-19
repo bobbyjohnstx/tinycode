@@ -126,6 +126,47 @@ bun ./packages/tinycode/script/build.ts --single
 # Output: packages/tinycode/dist/tinycode-darwin-arm64/bin/tinycode
 ```
 
+## Remote Installation
+
+The recommended way to install on a remote server is to clone directly from your Gitea or GitHub remote and run `bun install`. If you need to transfer via zip instead:
+
+```bash
+zip -r tinycode.zip . \
+  --exclude "*/node_modules/*" \
+  --exclude ".git/*" \
+  --exclude "*/dist/*"
+```
+
+| Exclusion | Why |
+|-----------|-----|
+| `*/node_modules/*` | npm dependencies — restored by `bun install` on the target |
+| `.git/*` | Git history — not needed to run the server |
+| `*/dist/*` | Built binaries and web UI assets — regenerated at runtime |
+
+On the target server after unzipping:
+
+```bash
+# Install Bun (if not already installed)
+curl -fsSL https://bun.sh/install | bash
+
+# Install dependencies
+bun install
+
+# Run headless server, bound to all interfaces for remote access
+bun dev serve --hostname 0.0.0.0
+
+# Or set in ~/.config/tinycode/config.json:
+# { "server": { "hostname": "0.0.0.0" } }
+```
+
+Set `TINYCODE_SERVER_PASSWORD` before starting — without it the server is unsecured. Open port 4096 in the firewall:
+
+```bash
+sudo firewall-cmd --add-port=4096/tcp --permanent && sudo firewall-cmd --reload
+```
+
+Access the web UI at `http://<server-ip>:4096`.
+
 ## License
 
 MIT
