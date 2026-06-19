@@ -1645,6 +1645,7 @@ export type Agent = {
     providerID: string
   }
   variant?: string
+  compact?: boolean
   prompt?: string
   options: {
     [key: string]: unknown

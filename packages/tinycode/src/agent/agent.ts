@@ -27,6 +27,7 @@ import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { type DeepMutable } from "@/core/schema"
 import { modelSizeB } from "@/session/system"
+import { ConfigAgent } from "@/config/agent"
 
 export const Info = Schema.Struct({
   name: Schema.String,
@@ -45,6 +46,7 @@ export const Info = Schema.Struct({
     }),
   ),
   variant: Schema.optional(Schema.String),
+  compact: Schema.optional(Schema.Boolean),
   prompt: Schema.optional(Schema.String),
   options: Schema.Record(Schema.String, Schema.Unknown),
   steps: Schema.optional(Schema.Finite),
@@ -279,6 +281,26 @@ export const layer = Layer.effect(
           },
         }
 
+        // Load bundled default agents shipped with tinycode. These are lowest
+        // priority — project and global config agents override them.
+        const bundledDir = path.join(import.meta.dir, "defaults")
+        const bundled = yield* Effect.promise(() => ConfigAgent.load(bundledDir))
+        for (const [key, value] of Object.entries(bundled)) {
+          if (agents[key]) continue // never override native agents
+          agents[key] = {
+            name: key,
+            mode: value.mode ?? "all",
+            permission: Permission.merge(defaults, Permission.fromConfig(value.permission ?? {}), user),
+            options: value.options ?? {},
+            native: false,
+            prompt: value.prompt,
+            description: value.description,
+            steps: value.steps,
+            color: value.color,
+            hidden: value.hidden,
+          }
+        }
+
         for (const [key, value] of Object.entries(cfg.agent ?? {})) {
           if (value.disable) {
             delete agents[key]
@@ -329,10 +351,12 @@ export const layer = Layer.effect(
             const size = modelSizeB(model)
             if (size !== undefined && size <= 9) {
               const compact = agents[`${agent}.compact`]
-              if (compact) return compact
+              if (compact) return { ...compact, compact: true }
             }
           }
-          return agents[agent]
+          const result = agents[agent]
+          if (result) return { ...result, compact: false }
+          return result
         })
 
         const list = Effect.fnUntraced(function* () {

@@ -1604,6 +1604,7 @@ export type Agent = {
     providerID: string
   }
   prompt?: string
+  compact?: boolean
   tools: {
     [key: string]: boolean
   }
