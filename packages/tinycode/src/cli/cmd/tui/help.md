@@ -13,19 +13,28 @@ Type `/ask <agent> <prompt>` to invoke a specialized subagent:
 | scout   | External research — clone repos, read library docs, fetch URLs. Never modifies workspace. |
 | general | General-purpose agent for research and multi-step tasks. Fans out work in parallel. |
 
-### oh-my-tiny agents (via omt plugin)
-| Agent      | Role |
-|------------|------|
-| architect  | Strategic architecture advisor — analyze code, diagnose bugs, provide guidance (READ-ONLY) |
-| critic     | Quality gate — thorough multi-perspective review of plans and code (READ-ONLY) |
-| debugger   | Root-cause analysis, regression isolation, stack trace analysis |
-| designer   | UI/UX designer-developer — production-grade interfaces |
-| executor   | Focused task executor — implement code changes precisely as specified |
-| explore    | Codebase search specialist — find files, code patterns, relationships (READ-ONLY) |
-| planner    | Strategic planning — interview, gather requirements, produce work plans |
-| qa-tester  | Interactive CLI testing — spin up services, verify behavior via tmux |
-| verifier   | Evidence-based verification — confirm completion with fresh test output (READ-ONLY) |
-| writer     | Technical documentation — README, API docs, architecture docs, comments |
+### Custom agents (`.tinycode/agent/`)
+| Agent               | Role |
+|---------------------|------|
+| agent-reviewer      | Validates agent prompt definitions against the style guide |
+| analyst             | Pre-planning requirements analysis — catches gaps before planning |
+| architect           | Read-only code analysis and architectural guidance |
+| code-reviewer       | Severity-rated code review with SOLID principle checks (READ-ONLY) |
+| code-simplifier     | Simplifies recently modified code without changing behavior |
+| critic              | Quality gate — multi-perspective review of plans and code (READ-ONLY) |
+| debugger            | Root-cause analysis, regression isolation, stack trace analysis |
+| designer            | UI/UX designer-developer — production-grade interfaces |
+| document-specialist | External documentation and reference specialist |
+| executor            | Focused task executor — implement code changes precisely as specified |
+| git-master          | Git expert for atomic commits, rebasing, and history management |
+| planner             | Strategic planning — interview, gather requirements, produce work plans |
+| qa-tester           | Interactive CLI testing — spin up services, verify behavior via tmux |
+| scientist           | Data analysis and research — hypothesis-driven, evidence required |
+| security-reviewer   | Security vulnerability detection (OWASP Top 10, secrets, CVEs) (READ-ONLY) |
+| test-engineer       | Test strategy, integration/e2e coverage, TDD workflows |
+| tracer              | Evidence-driven causal tracing with competing hypotheses (READ-ONLY) |
+| verifier            | Evidence-based verification — confirm completion with fresh test output (READ-ONLY) |
+| writer              | Technical documentation — README, API docs, architecture docs, comments |
 
 Primary agent modes (switch with tab or `<leader>a`):
 - build — default, full tool access (read/write/edit/bash)

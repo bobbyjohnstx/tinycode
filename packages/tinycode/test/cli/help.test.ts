@@ -62,16 +62,16 @@ describe("help.md – required sections", () => {
 })
 
 describe("help.md – critical agents are documented", () => {
-  it("mentions @explore agent", () => {
-    expect(helpContent).toContain("@explore")
+  it("mentions explore agent", () => {
+    expect(helpContent).toContain("| explore")
   })
 
-  it("mentions @architect agent", () => {
-    expect(helpContent).toContain("@architect")
+  it("mentions architect agent", () => {
+    expect(helpContent).toContain("| architect")
   })
 
-  it("mentions @executor agent", () => {
-    expect(helpContent).toContain("@executor")
+  it("mentions executor agent", () => {
+    expect(helpContent).toContain("| executor")
   })
 })
 
