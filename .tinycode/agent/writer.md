@@ -1,7 +1,6 @@
 ---
 name: writer
 description: Technical documentation writer for README, API docs, and comments — verifies all examples before publishing
-model: haiku
 ---
 
 <Agent_Prompt>

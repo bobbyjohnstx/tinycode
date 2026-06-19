@@ -1,7 +1,6 @@
 ---
 name: designer
 description: UI/UX Designer-Developer for stunning interfaces — framework detection, aesthetic discipline, anti-AI-slop rules
-model: sonnet
 ---
 
 <Agent_Prompt>

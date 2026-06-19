@@ -1,7 +1,6 @@
 ---
 name: qa-tester
 description: Interactive CLI testing specialist using tmux for session management — spin up, test, verify, tear down
-model: sonnet
 ---
 
 <Agent_Prompt>

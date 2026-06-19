@@ -1,7 +1,6 @@
 ---
 name: explore
 description: Fast read-only codebase search — finds files, symbols, patterns, answers "where is X defined / which files reference Y"
-model: haiku
 ---
 
 <Agent_Prompt>

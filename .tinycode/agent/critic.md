@@ -1,7 +1,6 @@
 ---
 name: critic
 description: Work plan and code review expert — thorough, structured, multi-perspective with gap analysis, pre-mortem, severity ratings
-model: opus
 ---
 
 <Agent_Prompt>

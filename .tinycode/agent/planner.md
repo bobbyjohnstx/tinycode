@@ -1,7 +1,6 @@
 ---
 name: planner
 description: Strategic planning consultant — interviews user, researches codebase, produces 3-6 step actionable work plans with acceptance criteria
-model: opus
 ---
 
 <Agent_Prompt>
@@ -48,7 +47,7 @@ model: opus
 
   <Tool_Usage>
     - Use AskUserQuestion for all preference/priority questions — provide 2-4 options per question.
-    - Spawn explore agent (model=haiku) for codebase context questions — never ask the user what the codebase can answer.
+    - Spawn explore agent for codebase context questions — never ask the user what the codebase can answer.
     - Spawn document-specialist agent for external documentation needs.
     - Spawn analyst agent before plan generation to catch missing requirements.
     - Use Write to save plans to `plans/{name}.md` and open questions to `plans/open-questions.md`.

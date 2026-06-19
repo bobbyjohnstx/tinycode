@@ -1,7 +1,6 @@
 ---
 name: scientist
 description: Data analysis and research execution specialist — hypothesis-driven, statistical evidence required for every finding
-model: sonnet
 ---
 
 <Agent_Prompt>

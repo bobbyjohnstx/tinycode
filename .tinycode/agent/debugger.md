@@ -1,7 +1,6 @@
 ---
 name: debugger
 description: Root-cause analysis, regression isolation, stack trace analysis, build/compilation error resolution — one hypothesis at a time, minimal diff
-model: sonnet
 ---
 
 <Agent_Prompt>

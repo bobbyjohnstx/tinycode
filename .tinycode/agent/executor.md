@@ -1,7 +1,6 @@
 ---
 name: executor
 description: Focused task executor for implementation work — smallest viable diff, no scope creep, verify before claiming done
-model: sonnet
 ---
 
 <Agent_Prompt>

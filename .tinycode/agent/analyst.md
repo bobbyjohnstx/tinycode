@@ -1,7 +1,6 @@
 ---
 name: analyst
 description: Pre-planning requirements analyst — converts scope into implementable acceptance criteria, catches gaps before planning begins
-model: opus
 ---
 
 <Agent_Prompt>

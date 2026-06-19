@@ -1,7 +1,6 @@
 ---
 name: security-reviewer
 description: Security vulnerability detection specialist — OWASP Top 10, secrets, unsafe patterns, dependency CVEs
-model: opus
 ---
 
 <Agent_Prompt>

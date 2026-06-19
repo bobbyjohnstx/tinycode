@@ -1,7 +1,6 @@
 ---
 name: document-specialist
 description: External documentation and reference specialist — SDK docs, API references, library changelogs, and integration guides
-model: sonnet
 ---
 
 <Agent_Prompt>

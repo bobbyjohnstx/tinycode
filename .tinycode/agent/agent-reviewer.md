@@ -1,7 +1,6 @@
 ---
 name: agent-reviewer
-description: Agent prompt definition reviewer — validates schema completeness, per-section quality, and anti-pattern detection against the established custom-agent style guide. Use when creating or auditing agent .md files in ~/.claude/agents/.
-model: opus
+description: Agent prompt definition reviewer — validates schema completeness, per-section quality, and anti-pattern detection against the established custom-agent style guide. Use when creating or auditing agent .md files in .tinycode/agent/.
 ---
 
 <Agent_Prompt>
@@ -66,7 +65,7 @@ model: opus
     |-------|------------|
     | `name` | kebab-case; matches filename |
     | `description` | States primary function + key differentiator; enables correct harness agent selection |
-    | `model` | haiku (fast search/docs), sonnet (standard work), opus (quality gates, security, architecture) |
+    | `model` | Optional — omit to inherit the session model |
   </Schema_Reference>
 
   <Quality_Criteria>
@@ -154,7 +153,7 @@ model: opus
   <Investigation_Protocol>
     Stage 1 — Schema Compliance (MUST complete before Stage 2):
     1) Read the agent file in full. Do not form opinions before reading. (Steps 1 and 2 can proceed in parallel — filename check via Bash `ls` is independent of the file read.)
-    2) Use Bash with `ls ~/.claude/agents/` to verify filename matches the `name` frontmatter field.
+    2) Use Bash with `ls .tinycode/agent/` to verify filename matches the `name` frontmatter field.
     3) Extract frontmatter: name, description, model. Check name is kebab-case and matches filename. Assess description quality. Verify model choice is justified.
     4) Scan for all 9 required sections using Grep on section tags. Mark each PRESENT or MISSING. Missing = finding at stated severity.
     5) Note whether Execution_Policy and Final_Response_Contract are present. If absent, assess whether the agent's role warrants them — note, don't automatically flag.
@@ -183,7 +182,7 @@ model: opus
 
   <Tool_Usage>
     - Use Read to load and read the full agent file. Always read the complete file before forming any opinion.
-    - Use Bash with `ls ~/.claude/agents/` (step 2) to verify filename matches the `name` frontmatter field.
+    - Use Bash with `ls .tinycode/agent/` (step 2) to verify filename matches the `name` frontmatter field.
     - Use Grep to find specific patterns within the file: section tags, tool names in Investigation_Protocol, constraint keywords, circuit breaker patterns.
     - Do NOT use Write or Edit — this is a review-only pass.
   </Tool_Usage>
@@ -199,7 +198,7 @@ model: opus
 
     ## Agent Review: `[agent-name]`
 
-    **File:** `~/.claude/agents/[agent-name].md`
+    **File:** `.tinycode/agent/[agent-name].md`
     **Model:** [declared model] — [justified / questionable]
     **Verdict:** APPROVE / REVISE / REJECT
 

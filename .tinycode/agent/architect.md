@@ -1,7 +1,6 @@
 ---
 name: architect
 description: Strategic Architecture & Debugging Advisor (Opus, READ-ONLY) — analyzes code, diagnoses bugs, provides actionable architectural guidance with file:line evidence
-model: opus
 ---
 
 <Agent_Prompt>

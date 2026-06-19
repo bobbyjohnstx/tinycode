@@ -1,7 +1,6 @@
 ---
 name: code-simplifier
 description: Simplifies and refines recently modified code for clarity, consistency, and maintainability while preserving all functionality
-model: sonnet
 ---
 
 <Agent_Prompt>
