@@ -377,9 +377,18 @@ export const layer = Layer.effect(
       }
 
       const agent = yield* agents.get("compaction")
-      const model = agent.model
-        ? yield* provider.getModel(agent.model.providerID, agent.model.modelID).pipe(Effect.orDie)
-        : yield* provider.getModel(userMessage.model.providerID, userMessage.model.modelID).pipe(Effect.orDie)
+      // Compaction prefers small_model (fast, low context cost) then the
+      // compaction agent's own model override, then falls back to the session
+      // model. Using a small model for summarisation avoids consuming the
+      // primary model's context budget and prevents compaction loops on
+      // models with small context windows (e.g. Qwen3-30B at 8k tokens).
+      const model = yield* Effect.gen(function* () {
+        if (agent.model)
+          return yield* provider.getModel(agent.model.providerID, agent.model.modelID).pipe(Effect.orDie)
+        const small = yield* provider.getSmallModel(userMessage.model.providerID)
+        if (small) return small
+        return yield* provider.getModel(userMessage.model.providerID, userMessage.model.modelID).pipe(Effect.orDie)
+      })
       const cfg = yield* config.get()
       const history = compactionPart && messages.at(-1)?.info.id === input.parentID ? messages.slice(0, -1) : messages
       const prior = completedCompactions(history)
