@@ -5,6 +5,7 @@ import * as Log from "@/core/util/log"
 import { ModelID, ProviderID } from "./schema"
 import type { Info, Model } from "./provider"
 import { rewriteLocalhostURL } from "@/util/container"
+import { readFileSync } from "fs"
 
 const log = Log.create({ service: "local-discovery" })
 
@@ -25,10 +26,40 @@ const OllamaTagsResponse = Schema.Struct({
 
 const VllmModel = Schema.Struct({
   id: Schema.String,
+  max_model_len: Schema.optional(Schema.Number),
 })
 
 const VllmModelsResponse = Schema.Struct({
   data: Schema.Array(VllmModel),
+})
+
+// --- Kubernetes API schemas ---
+
+const K8sServicePort = Schema.Struct({
+  name: Schema.optional(Schema.String),
+  port: Schema.Number,
+  protocol: Schema.optional(Schema.String),
+})
+
+const K8sServiceSpec = Schema.Struct({
+  clusterIP: Schema.optional(Schema.String),
+  ports: Schema.optional(Schema.Array(K8sServicePort)),
+})
+
+const K8sObjectMeta = Schema.Struct({
+  name: Schema.String,
+  namespace: Schema.optional(Schema.String),
+  labels: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  annotations: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+})
+
+const K8sService = Schema.Struct({
+  metadata: K8sObjectMeta,
+  spec: K8sServiceSpec,
+})
+
+const K8sServiceList = Schema.Struct({
+  items: Schema.Array(K8sService),
 })
 
 // --- Helpers ---
@@ -75,16 +106,34 @@ function makeOllamaProvider(baseURL: string, modelNames: string[]): Info {
   }
 }
 
-function makeVllmProvider(baseURL: string, modelIds: string[]): Info {
+type VllmModelEntry = { id: string; max_model_len?: number | undefined }
+
+function makeVllmProvider(baseURL: string, modelIds: string[]): Info
+function makeVllmProvider(baseURL: string, models: VllmModelEntry[], providerID?: string, providerName?: string): Info
+function makeVllmProvider(
+  baseURL: string,
+  modelsOrIds: string[] | VllmModelEntry[],
+  providerID = "vllm",
+  providerName = "vLLM",
+): Info {
+  const entries: VllmModelEntry[] =
+    typeof modelsOrIds[0] === "string"
+      ? (modelsOrIds as string[]).map((id) => ({ id }))
+      : (modelsOrIds as VllmModelEntry[])
+
   const models: Record<string, Model> = {}
-  for (const id of modelIds) {
+  for (const entry of entries) {
+    const contextLimit = entry.max_model_len ?? 0
+    // Reserve ~20% for system prompt + tools; remainder for conversation
+    const effectiveContext = contextLimit > 0 ? Math.floor(contextLimit * 0.8) : 0
+    const outputLimit = contextLimit > 0 ? Math.min(4096, Math.floor(contextLimit * 0.2)) : 0
     const model: Model = {
-      id: ModelID.make(id),
-      providerID: ProviderID.make("vllm"),
-      name: id,
+      id: ModelID.make(entry.id),
+      providerID: ProviderID.make(providerID),
+      name: entry.id,
       family: "",
       api: {
-        id,
+        id: entry.id,
         url: `${baseURL}/v1`,
         npm: "@ai-sdk/openai-compatible",
       },
@@ -92,7 +141,7 @@ function makeVllmProvider(baseURL: string, modelIds: string[]): Info {
       headers: {},
       options: {},
       cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-      limit: { context: 0, output: 0 },
+      limit: { context: effectiveContext, output: outputLimit },
       capabilities: {
         temperature: true,
         reasoning: false,
@@ -105,17 +154,43 @@ function makeVllmProvider(baseURL: string, modelIds: string[]): Info {
       release_date: "",
       variants: {},
     }
-    models[id] = model
+    models[entry.id] = model
   }
   return {
-    id: ProviderID.make("vllm"),
-    name: "vLLM",
+    id: ProviderID.make(providerID),
+    name: providerName,
     source: "custom",
     env: [],
     options: { baseURL: `${baseURL}/v1` },
     models,
   }
 }
+
+// --- Kubernetes in-cluster helpers ---
+
+function isInCluster(): boolean {
+  return !!process.env["KUBERNETES_SERVICE_HOST"]
+}
+
+function readInClusterConfig(): { token: string; namespace: string; apiBase: string } | null {
+  try {
+    const token = readFileSync("/var/run/secrets/kubernetes.io/serviceaccount/token", "utf8").trim()
+    const namespace = readFileSync("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "utf8").trim()
+    const host = process.env["KUBERNETES_SERVICE_HOST"]!
+    const port = process.env["KUBERNETES_SERVICE_PORT"] ?? "443"
+    return { token, namespace, apiBase: `https://${host}:${port}` }
+  } catch {
+    return null
+  }
+}
+
+// Ports to probe on each discovered service, in priority order.
+const VLLM_CANDIDATE_PORTS = [8080, 8000, 80]
+
+// Labels that identify a KServe/RHOAI InferenceService serving pod.
+const KSERVE_LABEL = "serving.kserve.io/inferenceservice"
+// Annotation that explicitly opts a service into tinycode discovery.
+const TINYCODE_DISCOVER_ANNOTATION = "tinycode.dev/discover"
 
 export interface Interface {
   readonly get: () => Effect.Effect<Record<string, Info>>
@@ -154,16 +229,148 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         Effect.timeout(PROBE_TIMEOUT),
         Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(VllmModelsResponse)(res)),
         Effect.map((data) => {
-          const ids = data.data.map((m) => m.id).filter((id) => id.length > 0)
-          if (ids.length === 0) return null
-          log.info("vllm discovered", { count: ids.length, models: ids.slice(0, 5) })
-          return makeVllmProvider(baseURL, ids)
+          const entries = data.data.filter((m) => m.id.length > 0)
+          if (entries.length === 0) return null
+          log.info("vllm discovered", { count: entries.length, models: entries.slice(0, 5).map((m) => m.id) })
+          return makeVllmProvider(baseURL, entries)
         }),
         Effect.catch((err) => {
           log.info("vllm not available", { baseURL, error: String(err) })
           return Effect.succeed(null)
         }),
       )
+    }
+
+    // Probe a single URL for a vLLM-compatible /v1/models endpoint.
+    // Returns a provider keyed by providerID if successful, null otherwise.
+    function probeVllmUrl(
+      url: string,
+      providerID: string,
+      providerName: string,
+      token?: string,
+    ): Effect.Effect<[string, Info] | null> {
+      const req = token
+        ? HttpClientRequest.get(`${url}/v1/models`).pipe(HttpClientRequest.setHeader("Authorization", `Bearer ${token}`))
+        : HttpClientRequest.get(`${url}/v1/models`)
+      return req.pipe(
+        httpClient.execute,
+        Effect.timeout(PROBE_TIMEOUT),
+        Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(VllmModelsResponse)(res)),
+        Effect.map((data) => {
+          const entries = data.data.filter((m) => m.id.length > 0 && !m.id.toLowerCase().includes("embed"))
+          if (entries.length === 0) return null
+          log.info("kubernetes vllm discovered", { service: providerID, models: entries.map((m) => m.id) })
+          return [providerID, makeVllmProvider(url, entries, providerID, providerName)] as [string, Info]
+        }),
+        Effect.catch(() => Effect.succeed(null)),
+      )
+    }
+
+    // Discover vLLM services running in the same Kubernetes namespace.
+    //
+    // Priority order:
+    // 1. Services with annotation tinycode.dev/discover=vllm  (explicit opt-in)
+    // 2. Services with label serving.kserve.io/inferenceservice (RHOAI/KServe)
+    // 3. TINYCODE_VLLM_URLS env var (comma-separated explicit URLs)
+    //
+    // Each discovered service becomes its own provider keyed as "vllm-<service-name>",
+    // so multiple models can coexist in the model picker.
+    function probeKubernetesVllm(): Effect.Effect<Record<string, Info>, never, never> {
+      return Effect.gen(function* () {
+        const result: Record<string, Info> = {}
+
+        // Explicit multi-URL override — always checked regardless of cluster detection
+        const explicitUrls = process.env["TINYCODE_VLLM_URLS"]
+        if (explicitUrls) {
+          const urls = explicitUrls.split(",").map((u) => u.trim()).filter(Boolean)
+          const probes = yield* Effect.all(
+            urls.map((url, i) => probeVllmUrl(url, `vllm-${i}`, `vLLM (${url})`)),
+            { concurrency: urls.length },
+          )
+          for (const entry of probes) {
+            if (entry) result[entry[0]] = entry[1]
+          }
+        }
+
+        // In-cluster discovery via Kubernetes API
+        if (!isInCluster()) return result
+        const clusterConfig = readInClusterConfig()
+        if (!clusterConfig) return result
+
+        const { token, namespace, apiBase } = clusterConfig
+
+        // Fetch services in the current namespace
+        const svcList = yield* HttpClientRequest.get(
+          `${apiBase}/api/v1/namespaces/${namespace}/services`,
+        ).pipe(
+          HttpClientRequest.setHeader("Authorization", `Bearer ${token}`),
+          httpClient.execute,
+          Effect.timeout(Duration.millis(5_000)),
+          Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(K8sServiceList)(res)),
+          Effect.catch(() => Effect.succeed({ items: [] as typeof K8sServiceList.Type["items"] })),
+        )
+
+        // Score and filter services: explicit annotation > KServe label > probe-all
+        const candidates: Array<{ name: string; clusterIP: string; ports: number[]; priority: number }> = []
+
+        for (const svc of svcList.items) {
+          const clusterIP = svc.spec.clusterIP
+          if (!clusterIP || clusterIP === "None") continue
+
+          const annotations = svc.metadata.annotations ?? {}
+          const labels = svc.metadata.labels ?? {}
+          const name = svc.metadata.name
+
+          // Skip Kubernetes internal services
+          if (name.startsWith("kubernetes") || name.endsWith("-metrics")) continue
+
+          const isExplicit = annotations[TINYCODE_DISCOVER_ANNOTATION] === "vllm"
+          const isKServe = KSERVE_LABEL in labels
+
+          // Collect candidate ports: prefer http-named ports, then known vLLM ports
+          const svcPorts = (svc.spec.ports ?? [])
+            .filter((p: { protocol?: string; port: number }) => p.protocol === "TCP" || !p.protocol)
+            .map((p: { port: number }) => p.port)
+          const ports = svcPorts.length > 0 ? svcPorts : VLLM_CANDIDATE_PORTS
+
+          if (isExplicit) {
+            candidates.push({ name, clusterIP, ports, priority: 0 })
+          } else if (isKServe) {
+            candidates.push({ name, clusterIP, ports, priority: 1 })
+          } else {
+            // Probe-all: only try known vLLM ports to limit noise
+            candidates.push({ name, clusterIP, ports: VLLM_CANDIDATE_PORTS, priority: 2 })
+          }
+        }
+
+        // Sort by priority, probe all concurrently
+        candidates.sort((a, b) => a.priority - b.priority)
+
+        const probes = candidates.flatMap((c) =>
+          c.ports.map((port) =>
+            probeVllmUrl(
+              `http://${c.clusterIP}:${port}`,
+              `vllm-${c.name}`,
+              c.name,
+            ),
+          ),
+        )
+
+        const probeResults = yield* Effect.all(probes, { concurrency: 10 })
+        for (const entry of probeResults) {
+          // First successful result per provider ID wins
+          if (entry && !(entry[0] in result)) result[entry[0]] = entry[1]
+        }
+
+        if (Object.keys(result).length > 0) {
+          log.info("kubernetes vllm discovery complete", {
+            namespace,
+            found: Object.keys(result),
+          })
+        }
+
+        return result
+      })
     }
 
     // Probe a LiteMaaS/LiteLLM or any OpenAI-compatible MaaS server.
@@ -241,13 +448,22 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         ]
         if (maasHost && maasKey) probes.push(probeMaas(maasHost, maasKey))
 
-        const results = yield* Effect.all(probes, { concurrency: probes.length })
+        const [results, k8sProviders] = yield* Effect.all(
+          [
+            Effect.all(probes, { concurrency: probes.length }),
+            probeKubernetesVllm(),
+          ],
+          { concurrency: 2 },
+        )
         const [ollamaResult, vllmResult, maasResult] = results
 
         const next: Record<string, Info> = {}
         if (ollamaResult) next["ollama"] = ollamaResult
-        if (vllmResult) next["vllm"] = vllmResult
+        // localhost vllm only added if no k8s vllm services found
+        if (vllmResult && Object.keys(k8sProviders).length === 0) next["vllm"] = vllmResult
         if (maasResult) next["maas"] = maasResult
+        // Merge k8s-discovered vllm providers (each keyed as "vllm-<service-name>")
+        Object.assign(next, k8sProviders)
 
         yield* Ref.set(discovered, next)
       })
