@@ -128,7 +128,9 @@ bun ./packages/tinycode/script/build.ts --single
 
 ## Remote Installation
 
-The recommended way to install on a remote server is to clone directly from your Gitea or GitHub remote and run `bun install`. If you need to transfer via zip instead:
+For production deployments on OpenShift or Kubernetes, the recommended approach is the **tinycode-operator** — it manages `TinycodeInstance` custom resources and handles deployment, storage, routing, and security context automatically. See the [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator) repository.
+
+For installing directly on a remote server, clone from your Gitea or GitHub remote and run `bun install`. If you need to transfer via zip instead:
 
 ```bash
 zip -r tinycode.zip . \
@@ -166,6 +168,13 @@ sudo firewall-cmd --add-port=4096/tcp --permanent && sudo firewall-cmd --reload
 ```
 
 Access the web UI at `http://<server-ip>:4096`.
+
+## Ecosystem
+
+| Project | Description | Repository |
+|---------|-------------|------------|
+| [tiny-container](https://github.com/bobbyjohnstx/tiny-container) | Container image packaging tinycode + oh-my-tiny for Kubernetes/OpenShift | `github.com/bobbyjohnstx/tiny-container` |
+| [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator) | OpenShift Operator managing `TinycodeInstance` CRs | `github.com/bobbyjohnstx/tinycode-operator` |
 
 ## License
 
