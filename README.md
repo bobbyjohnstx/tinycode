@@ -180,7 +180,7 @@ Access the web UI at `http://<server-ip>:4096`.
 
 | Project                                                                | Description                                                              | Repository                                  |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------- |
-| [tiny-container](https://github.com/bobbyjohnstx/tiny-container)       | Container image packaging tinycode + oh-my-tiny for Kubernetes/OpenShift | `github.com/bobbyjohnstx/tiny-container`    |
+| [tinycode-container](https://github.com/bobbyjohnstx/tinycode-container)       | Container image packaging tinycode + oh-my-tiny for Kubernetes/OpenShift | `github.com/bobbyjohnstx/tinycode-container`    |
 | [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator) | OpenShift Operator managing `TinycodeInstance` CRs                       | `github.com/bobbyjohnstx/tinycode-operator` |
 
 ## License
