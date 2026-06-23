@@ -213,6 +213,22 @@ function createWorkspaceTerminalSession(
   })
   onCleanup(unsub)
 
+  const unsubOpen = sdk.event.on("pty.open", (event: { properties: { id: string; title: string } }) => {
+    const { id, title } = event.properties
+    const nextNumber = pickNextTerminalNumber()
+    const newTerminal = {
+      id,
+      title,
+      titleNumber: nextNumber,
+    }
+    batch(() => {
+      setStore("all", (prev) => [...prev, newTerminal])
+      setStore("active", id)
+    })
+  })
+  onCleanup(unsubOpen)
+
+
   const update = (client: ReturnType<typeof useSDK>["client"], pty: Partial<LocalPTY> & { id: string }) => {
     const index = store.all.findIndex((x) => x.id === pty.id)
     const previous = index >= 0 ? store.all[index] : undefined

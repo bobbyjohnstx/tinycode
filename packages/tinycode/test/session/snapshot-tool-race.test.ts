@@ -58,6 +58,7 @@ import { AppFileSystem } from "@/core/filesystem"
 import { CrossSpawnSpawner } from "@/core/cross-spawn-spawner"
 import { Ripgrep } from "../../src/file/ripgrep"
 import { Format } from "../../src/format"
+import { Pty } from "@/pty"
 import { Reference } from "../../src/reference/reference"
 import { RepositoryCache } from "../../src/reference/repository-cache"
 import { SyncEvent } from "@/sync"
@@ -141,7 +142,7 @@ function makeHttp() {
     Layer.provide(Git.defaultLayer),
     Layer.provide(Reference.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
-    Layer.provide(Format.defaultLayer),
+    Layer.provide(Layer.mergeAll(Format.defaultLayer, Pty.defaultLayer)),
     Layer.provide(RuntimeFlags.defaultLayer),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),

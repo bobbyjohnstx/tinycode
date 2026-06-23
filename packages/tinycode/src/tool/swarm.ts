@@ -5,6 +5,9 @@ import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { InstanceState } from "@/effect/instance-state"
 import { MessageV2 } from "@/session/message-v2"
+import { RuntimeFlags } from "@/effect/runtime-flags"
+import { Pty } from "@/pty"
+import { Bus } from "@/bus"
 import DESCRIPTION from "./swarm.txt"
 import * as Tool from "./tool"
 
@@ -88,6 +91,7 @@ type Metadata = {
   panes: string[]
   switchClient: boolean
   switchedClient: boolean
+  ptyID?: string
 }
 
 const FOCUS = [
@@ -465,10 +469,17 @@ function currentVariant(message: MessageV2.WithParts | undefined): string | unde
   return message.info.variant
 }
 
-export const SwarmTool = Tool.define<typeof Parameters, Metadata, ChildProcessSpawner>(
+export const SwarmTool = Tool.define<
+  typeof Parameters,
+  Metadata,
+  ChildProcessSpawner | RuntimeFlags.Service | Pty.Service | Bus.Service
+>(
   "swarm",
   Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner
+    const flags = yield* RuntimeFlags.Service
+    const pty = yield* Pty.Service
+    const bus = yield* Bus.Service
 
     const runTmux = Effect.fn("SwarmTool.tmux")(function* (args: string[], cwd: string) {
       const handle = yield* spawner.spawn(ChildProcess.make("tmux", args, { cwd, stdin: "ignore", extendEnv: true }))
@@ -556,13 +567,32 @@ export const SwarmTool = Tool.define<typeof Parameters, Metadata, ChildProcessSp
             }
             yield* runTmux(["select-layout", "-t", `${plan.sessionName}:swarm`, "tiled"], plan.projectDir)
             yield* tmuxExit(["select-pane", "-t", `${plan.sessionName}:swarm.0`], plan.projectDir)
-            const switchExit = plan.switchClient
-              ? yield* tmuxExit(["switch-client", "-t", `${plan.sessionName}:swarm`], plan.projectDir)
-              : 1
 
             const attach = `tmux attach -t ${plan.sessionName}`
             const panes = ["dashboard", "supervisor", ...plan.workers.map((worker) => worker.id)]
-            const switchedClient = switchExit === 0
+            let switchedClient = false
+            let ptyID: string | undefined
+
+            if (flags.client === "app" || flags.client === "desktop") {
+              // Web/desktop: create a PTY that attaches to the tmux session
+              const ptyInfo = yield* pty.create({
+                command: "tmux",
+                args: ["attach-session", "-t", plan.sessionName],
+                cwd: plan.projectDir,
+                title: `Swarm: ${plan.sessionName}`,
+              })
+              ptyID = ptyInfo.id
+              // Publish pty.open so the web UI auto-opens a tab
+              yield* bus.publish(Pty.Event.Open, { id: ptyInfo.id, title: ptyInfo.title })
+              switchedClient = true
+            } else {
+              // CLI/TUI: use existing switch_client logic
+              const switchExit = plan.switchClient
+                ? yield* tmuxExit(["switch-client", "-t", `${plan.sessionName}:swarm`], plan.projectDir)
+                : 1
+              switchedClient = switchExit === 0
+            }
+            const isWebClient = flags.client === "app" || flags.client === "desktop"
             return {
               title: `swarm ${plan.sessionName}`,
               metadata: {
@@ -576,6 +606,7 @@ export const SwarmTool = Tool.define<typeof Parameters, Metadata, ChildProcessSp
                 panes,
                 switchClient: plan.switchClient,
                 switchedClient,
+                ...(ptyID ? { ptyID } : {}),
               },
               output: [
                 `Swarm launched: ${plan.sessionName}`,
@@ -585,22 +616,29 @@ export const SwarmTool = Tool.define<typeof Parameters, Metadata, ChildProcessSp
                 `Tmux panes: ${panes.join(", ")}`,
                 `Dashboard: ${path.join(plan.sharedDir, "dashboard", "run.sh")}`,
                 `Supervisor: ${path.join(plan.sharedDir, "supervisor", "run.sh")}`,
-                `Attach: ${attach}`,
-                `Pane list: tmux list-panes -t ${plan.sessionName}:swarm`,
-                `Switched current tmux client: ${
-                  switchedClient
-                    ? "yes"
-                    : plan.switchClient
-                      ? "no (attach manually if this session was not launched inside tmux)"
-                      : "no"
-                }`,
+                isWebClient ? "Swarm opened in terminal tab" : `Attach: ${attach}`,
+                isWebClient ? "" : `Pane list: tmux list-panes -t ${plan.sessionName}:swarm`,
+                isWebClient
+                  ? ""
+                  : `Switched current tmux client: ${
+                      switchedClient
+                        ? "yes"
+                        : plan.switchClient
+                          ? "no (attach manually if this session was not launched inside tmux)"
+                          : "no"
+                    }`,
+                isWebClient
+                  ? "Note: Closing the tab detaches but the swarm continues running and will self-terminate on completion"
+                  : "",
                 "",
                 "Supervisor behavior:",
                 `- Captures each worker pane every ${plan.pollSeconds}s`,
                 `- Bumps workers after ${plan.staleSeconds}s without visible progress`,
                 "- Appends bumps to inbox/<worker>.md and sends them into the worker tmux pane",
                 "- Uses one tmux window named 'swarm' with a tiled split-screen layout",
-              ].join("\n"),
+              ]
+                .filter((line) => line !== "")
+                .join("\n"),
             }
           }),
         ).pipe(Effect.orDie),

@@ -100,6 +100,7 @@ export const Event = {
   Updated: BusEvent.define("pty.updated", Schema.Struct({ info: Info })),
   Exited: BusEvent.define("pty.exited", Schema.Struct({ id: PtyID, exitCode: NonNegativeInt })),
   Deleted: BusEvent.define("pty.deleted", Schema.Struct({ id: PtyID })),
+  Open: BusEvent.define("pty.open", Schema.Struct({ id: PtyID, title: Schema.String })),
 }
 
 export interface Interface {
