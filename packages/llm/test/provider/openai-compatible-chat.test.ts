@@ -235,4 +235,27 @@ describe("OpenAI-compatible Chat route", () => {
       expect(response.events.at(-1)).toMatchObject({ type: "finish", reason: "stop" })
     }),
   )
+
+  it.effect("preserves provider-reported usage cost", () =>
+    Effect.gen(function* () {
+      const response = yield* LLMClient.generate(request).pipe(
+        Effect.provide(
+          dynamicResponse((input) =>
+            Effect.succeed(
+              input.respond(
+                sseEvents(
+                  deltaChunk({ role: "assistant", content: "Hello" }),
+                  deltaChunk({}, "stop"),
+                  usageChunk({ prompt_tokens: 5, completion_tokens: 2, total_tokens: 7, cost: 0.00001305 }),
+                ),
+                { headers: { "content-type": "text/event-stream" } },
+              ),
+            ),
+          ),
+        ),
+      )
+
+      expect(response.usage).toMatchObject({ inputTokens: 5, outputTokens: 2, totalTokens: 7, cost: 0.00001305 })
+    }),
+  )
 })

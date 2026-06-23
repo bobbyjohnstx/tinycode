@@ -30,6 +30,7 @@ const InputObject = Schema.StructWithRest(
     repo_clone: Schema.optional(Rule),
     repo_overview: Schema.optional(Rule),
     lsp: Schema.optional(Rule),
+    swarm: Schema.optional(Rule),
     doom_loop: Schema.optional(Action),
     guardrail: Schema.optional(Action),
     skill: Schema.optional(Rule),

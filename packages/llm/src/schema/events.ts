@@ -46,6 +46,11 @@ import { ToolResultValue } from "./messages"
  * keyed by provider name (`{ openai: ... }`, `{ anthropic: ... }`, etc.)
  * — for fields we don't normalize and for billing-level audit trails.
  * Matches the same escape-hatch field on `LLMEvent`.
+ *
+ * `cost` is an optional provider-reported charge for this generation. It is
+ * intentionally separate from token counts because providers such as
+ * OpenRouter can return billing-accurate request cost that may not be
+ * reconstructable from a static local price table.
  */
 export class Usage extends Schema.Class<Usage>("LLM.Usage")({
   inputTokens: Schema.optional(Schema.Number),
@@ -55,6 +60,7 @@ export class Usage extends Schema.Class<Usage>("LLM.Usage")({
   cacheWriteInputTokens: Schema.optional(Schema.Number),
   reasoningTokens: Schema.optional(Schema.Number),
   totalTokens: Schema.optional(Schema.Number),
+  cost: Schema.optional(Schema.Number),
   providerMetadata: Schema.optional(ProviderMetadata),
 }) {
   /**

@@ -50,6 +50,7 @@ Type `/` to open autocomplete and pick from available commands:
 | /init                | Guided AGENTS.md setup for the current project |
 | /review              | Review changes (commit, branch, or PR); defaults to uncommitted |
 | /ask \<agent\> \<prompt\> | Invoke a subagent — see agent list above |
+| /swarm               | Launch supervised tmux split-screen workers with shared `.tinycode/swarm/<id>` persistence |
 | /compact, /summarize | Compact the session (summarize context to free space) |
 | /rename              | Rename the current session |
 | /undo                | Revert to the previous user message |

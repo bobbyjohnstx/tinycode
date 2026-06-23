@@ -26,6 +26,7 @@ import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { LLMAISDK } from "./llm/ai-sdk"
 import { LLMNativeRuntime } from "./llm/native-runtime"
 import { LLMRequestPrep } from "./llm/request"
+import { isRecord } from "@/util/record"
 
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
@@ -269,6 +270,7 @@ const live: Layer.Layer<
       // LLMAISDK.toLLMEvents below normalizes fullStream parts for the processor.
       return {
         type: "ai-sdk" as const,
+        openRouterCostApiKey: openRouterCostApiKey(input.model, info),
         result: streamText({
           onError(error) {
             l.error("stream error", {
@@ -359,7 +361,11 @@ const live: Layer.Layer<
             return Stream.fromAsyncIterable(result.result.fullStream, (e) =>
               e instanceof Error ? e : new Error(String(e)),
             ).pipe(
-              Stream.mapEffect((event) => LLMAISDK.toLLMEvents(state, event)),
+              Stream.mapEffect((event) =>
+                withOpenRouterGenerationCost(event, result.openRouterCostApiKey, ctrl.signal).pipe(
+                  Effect.flatMap((event) => LLMAISDK.toLLMEvents(state, event)),
+                ),
+              ),
               Stream.flatMap((events) => Stream.fromIterable(events)),
             )
           }),
@@ -386,5 +392,69 @@ export const defaultLayer = Layer.suspend(() =>
 )
 
 export const hasToolCalls = LLMRequestPrep.hasToolCalls
+
+function openRouterCostApiKey(model: Provider.Model, auth: Auth.Info | undefined) {
+  if (model.providerID !== "openrouter" && model.api.npm !== "@openrouter/ai-sdk-provider") return undefined
+  if (auth?.type === "api" || auth?.type === "wellknown") return auth.key
+  return process.env.OPENROUTER_API_KEY
+}
+
+export function withOpenRouterGenerationCost(
+  event: LLMAISDK.AISDKEvent,
+  apiKey: string | undefined,
+  signal: AbortSignal,
+) {
+  return Effect.tryPromise(async () => {
+    if (!apiKey) return event
+    if (event.type !== "finish-step") return event
+    if (eventUsageCost(event.usage) !== undefined) return event
+    if (!event.response.id.startsWith("gen-")) return event
+
+    const total = await openRouterGenerationCost(event.response.id, apiKey, signal)
+    if (total === undefined) return event
+
+    return {
+      ...event,
+      usage: {
+        ...(isRecord(event.usage) ? event.usage : {}),
+        cost: total,
+      },
+    } as LLMAISDK.AISDKEvent
+  }).pipe(Effect.catchCause(() => Effect.succeed(event)))
+}
+
+export async function openRouterGenerationCost(id: string, apiKey: string, signal: AbortSignal) {
+  for (const delay of [0, 250, 1_000]) {
+    if (signal.aborted) return undefined
+    if (delay > 0) await Bun.sleep(delay)
+
+    const response = await fetch(`https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(id)}`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal,
+    })
+    if (!response.ok) continue
+
+    const total = openRouterGenerationCostFromJson(await response.json())
+    if (total !== undefined) return total
+  }
+  return undefined
+}
+
+function openRouterGenerationCostFromJson(value: unknown) {
+  if (!isRecord(value)) return undefined
+  if (!isRecord(value.data)) return undefined
+  return cost(value.data.total_cost) ?? cost(value.data.usage)
+}
+
+function eventUsageCost(value: unknown) {
+  if (!isRecord(value)) return undefined
+  return cost(value.cost) ?? (isRecord(value.raw) ? cost(value.raw.cost) : undefined)
+}
+
+function cost(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
+}
 
 export * as LLM from "./llm"
