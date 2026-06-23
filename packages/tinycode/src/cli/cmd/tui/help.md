@@ -126,7 +126,8 @@ Local providers (auto-discovered):
 - MaaS: set TINYCODE_MAAS_HOST + TINYCODE_MAAS_API_KEY env vars
 
 Cloud providers (API key required):
-- Anthropic, OpenAI, Google — enter API key via the model picker
+- Anthropic, OpenAI, Google, OpenRouter — enter API key via the model picker
+- OpenRouter: set `OPENROUTER_API_KEY` env var for account balance and generation cost tracking in the sidebar
 
 ## Configuration
 Config merges from: `~/.config/tinycode/` (global) → `.tinycode/` (project)

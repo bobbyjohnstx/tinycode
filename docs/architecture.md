@@ -85,7 +85,7 @@ Exposes REST endpoints, SSE at `/global/event` for real-time updates, and WebSoc
 
 ### Tools
 
-Registered in `src/tool/registry.ts`. Each tool is an Effect service. Current tools: read, write, edit, glob, grep, shell, LSP (go-to-definition, find-references, hover, etc.), webfetch, websearch, MCP websearch, question, task, todo, skill, plan, truncate, apply_patch, repo_clone, repo_overview, external-directory.
+Registered in `src/tool/registry.ts`. Each tool is an Effect service. Current tools: read, write, edit, glob, grep, shell, LSP, webfetch, websearch, question, task, todo, skill, plan, swarm, apply_patch, repo_clone, repo_overview. Some tools are conditionally enabled (LSP, repo_clone, repo_overview, plan).
 
 ---
 

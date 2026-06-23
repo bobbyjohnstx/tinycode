@@ -4,7 +4,7 @@ A slim, local-LLM-first AI coding assistant. Runs air-gapped with zero cloud dep
 
 ## What it is
 
-tinycode is a terminal UI (TUI) coding agent that runs against **your own LLMs** — Ollama, vLLM, or any OpenAI-compatible MaaS server on your LAN. Cloud providers (Anthropic, OpenAI, Google) are supported via API key as a secondary option, but local inference is the primary use case.
+tinycode is a terminal UI (TUI) coding agent that runs against **your own LLMs** — Ollama, vLLM, or any OpenAI-compatible MaaS server on your LAN. Cloud providers (Anthropic, OpenAI, Google, OpenRouter) are supported via API key as a secondary option, but local inference is the primary use case.
 
 ## Quick start
 
@@ -41,6 +41,12 @@ For a LAN MaaS server (LiteLLM, LiteMaaS, etc.):
 ```bash
 export TINYCODE_MAAS_HOST=https://your-maas-server
 export TINYCODE_MAAS_API_KEY=your-key
+```
+
+For OpenRouter (with account balance and cost tracking):
+
+```bash
+export OPENROUTER_API_KEY=your-key
 ```
 
 tinycode auto-discovers Ollama (`localhost:11434`), vLLM (`localhost:8000`), and MaaS servers from environment variables at startup. Use `/connect` in the TUI to manually connect a provider.
