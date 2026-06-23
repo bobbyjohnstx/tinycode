@@ -18,7 +18,11 @@ export const OmtPlugin: PluginInstance = async (input) => {
         const priority = readNotepad(dir, "priority")
         const mem = readProjectMemory(dir)
         // Only inject if content is non-trivial
-        if (priority && !priority.includes("(Empty or notepad does not exist)") && !priority.includes("Notepad does not exist")) {
+        if (
+          priority &&
+          !priority.includes("(Empty or notepad does not exist)") &&
+          !priority.includes("Notepad does not exist")
+        ) {
           output.system.push(`<omt-priority-context>\n${priority}\n</omt-priority-context>`)
         }
         if (mem && typeof mem === "object" && Object.keys(mem).length > 0) {

@@ -383,8 +383,7 @@ export const layer = Layer.effect(
       // primary model's context budget and prevents compaction loops on
       // models with small context windows (e.g. Qwen3-30B at 8k tokens).
       const model = yield* Effect.gen(function* () {
-        if (agent.model)
-          return yield* provider.getModel(agent.model.providerID, agent.model.modelID).pipe(Effect.orDie)
+        if (agent.model) return yield* provider.getModel(agent.model.providerID, agent.model.modelID).pipe(Effect.orDie)
         const small = yield* provider.getSmallModel(userMessage.model.providerID)
         if (small) return small
         return yield* provider.getModel(userMessage.model.providerID, userMessage.model.modelID).pipe(Effect.orDie)

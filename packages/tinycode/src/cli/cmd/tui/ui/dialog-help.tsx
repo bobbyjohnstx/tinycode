@@ -69,12 +69,7 @@ export function DialogHelp() {
         paddingLeft={1}
         paddingRight={1}
       >
-        <markdown
-          content={HELP_CONTENT}
-          syntaxStyle={syntax()}
-          fg={theme.textMuted}
-          bg={theme.background}
-        />
+        <markdown content={HELP_CONTENT} syntaxStyle={syntax()} fg={theme.textMuted} bg={theme.background} />
       </scrollbox>
     </box>
   )

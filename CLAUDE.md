@@ -43,6 +43,7 @@ bun test --timeout 30000 path/to/file.test.ts  # single test file
 This is a Bun monorepo with Turborepo. Key packages:
 
 ### `packages/tinycode` — Core server & CLI
+
 The heart of the project. Contains the HTTP API server, all business logic, and the TUI.
 
 - **Server** (`src/server/`): Effect-based HTTP server using Hono-style routing via `effect/unstable/http`. Runs on port 4096. Exposes REST + SSE/WebSocket for real-time events.
@@ -56,15 +57,19 @@ The heart of the project. Contains the HTTP API server, all business logic, and 
 - **MCP** (`src/mcp/`): Model Context Protocol client integration.
 
 ### `packages/app` — Web UI
+
 SolidJS + TailwindCSS v4 web app. Connects to the tinycode API server. Used by both the browser experience and the desktop app.
 
 ### `packages/desktop` — Electron desktop app
+
 Electron shell wrapping `packages/app`. Run with `bun run --cwd packages/desktop dev`.
 
 ### `packages/plugin` — Plugin SDK
+
 Source for `@tinycode/plugin`. Provides the public plugin API.
 
 ### `packages/sdk/js` — JavaScript SDK
+
 Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/build.ts`.
 
 ## Key Patterns

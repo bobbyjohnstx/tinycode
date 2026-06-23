@@ -36,4 +36,3 @@ describe("Database.getChannelPath", () => {
     }).pipe(Effect.provide(RuntimeFlags.layer({ skipMigrations: true }))),
   )
 })
-

@@ -250,7 +250,9 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
       token?: string,
     ): Effect.Effect<[string, Info] | null> {
       const req = token
-        ? HttpClientRequest.get(`${url}/v1/models`).pipe(HttpClientRequest.setHeader("Authorization", `Bearer ${token}`))
+        ? HttpClientRequest.get(`${url}/v1/models`).pipe(
+            HttpClientRequest.setHeader("Authorization", `Bearer ${token}`),
+          )
         : HttpClientRequest.get(`${url}/v1/models`)
       return req.pipe(
         httpClient.execute,
@@ -282,7 +284,10 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         // Explicit multi-URL override — always checked regardless of cluster detection
         const explicitUrls = process.env["TINYCODE_VLLM_URLS"]
         if (explicitUrls) {
-          const urls = explicitUrls.split(",").map((u) => u.trim()).filter(Boolean)
+          const urls = explicitUrls
+            .split(",")
+            .map((u) => u.trim())
+            .filter(Boolean)
           const probes = yield* Effect.all(
             urls.map((url, i) => probeVllmUrl(url, `vllm-${i}`, `vLLM (${url})`)),
             { concurrency: urls.length },
@@ -300,14 +305,12 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         const { token, namespace, apiBase } = clusterConfig
 
         // Fetch services in the current namespace
-        const svcList = yield* HttpClientRequest.get(
-          `${apiBase}/api/v1/namespaces/${namespace}/services`,
-        ).pipe(
+        const svcList = yield* HttpClientRequest.get(`${apiBase}/api/v1/namespaces/${namespace}/services`).pipe(
           HttpClientRequest.setHeader("Authorization", `Bearer ${token}`),
           httpClient.execute,
           Effect.timeout(Duration.millis(5_000)),
           Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(K8sServiceList)(res)),
-          Effect.catch(() => Effect.succeed({ items: [] as typeof K8sServiceList.Type["items"] })),
+          Effect.catch(() => Effect.succeed({ items: [] as (typeof K8sServiceList.Type)["items"] })),
         )
 
         // Score and filter services: explicit annotation > KServe label > probe-all
@@ -347,13 +350,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         candidates.sort((a, b) => a.priority - b.priority)
 
         const probes = candidates.flatMap((c) =>
-          c.ports.map((port) =>
-            probeVllmUrl(
-              `http://${c.clusterIP}:${port}`,
-              `vllm-${c.name}`,
-              c.name,
-            ),
-          ),
+          c.ports.map((port) => probeVllmUrl(`http://${c.clusterIP}:${port}`, `vllm-${c.name}`, c.name)),
         )
 
         const probeResults = yield* Effect.all(probes, { concurrency: 10 })
@@ -383,9 +380,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         Effect.timeout(PROBE_TIMEOUT),
         Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(VllmModelsResponse)(res)),
         Effect.map((data) => {
-          const ids = data.data
-            .map((m) => m.id)
-            .filter((id) => id.length > 0 && !id.toLowerCase().includes("embed"))
+          const ids = data.data.map((m) => m.id).filter((id) => id.length > 0 && !id.toLowerCase().includes("embed"))
           if (ids.length === 0) return null
           log.info("maas discovered", { host: baseURL, count: ids.length, models: ids.slice(0, 5) })
           const models: Record<string, Model> = {}
@@ -402,7 +397,10 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
               cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
               limit: { context: 0, output: 0 },
               capabilities: {
-                temperature: true, reasoning: false, attachment: false, toolcall: true,
+                temperature: true,
+                reasoning: false,
+                attachment: false,
+                toolcall: true,
                 input: { text: true, audio: false, image: false, video: false, pdf: false },
                 output: { text: true, audio: false, image: false, video: false, pdf: false },
                 interleaved: false,
@@ -435,24 +433,16 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
       const ollamaHost = ollamaHostEnv
         ? ollamaHostEnv.replace(/\/+$/, "")
         : rewriteLocalhostURL("http://localhost:11434")
-      const vllmHost = vllmHostEnv
-        ? vllmHostEnv.replace(/\/+$/, "")
-        : rewriteLocalhostURL("http://localhost:8000")
+      const vllmHost = vllmHostEnv ? vllmHostEnv.replace(/\/+$/, "") : rewriteLocalhostURL("http://localhost:8000")
       const maasHost = process.env["TINYCODE_MAAS_HOST"]?.replace(/\/+$/, "")
       const maasKey = process.env["TINYCODE_MAAS_API_KEY"]
 
       return Effect.gen(function* () {
-        const probes: Effect.Effect<Info | null>[] = [
-          probeOllama(ollamaHost),
-          probeVllm(vllmHost),
-        ]
+        const probes: Effect.Effect<Info | null>[] = [probeOllama(ollamaHost), probeVllm(vllmHost)]
         if (maasHost && maasKey) probes.push(probeMaas(maasHost, maasKey))
 
         const [results, k8sProviders] = yield* Effect.all(
-          [
-            Effect.all(probes, { concurrency: probes.length }),
-            probeKubernetesVllm(),
-          ],
+          [Effect.all(probes, { concurrency: probes.length }), probeKubernetesVllm()],
           { concurrency: 2 },
         )
         const [ollamaResult, vllmResult, maasResult] = results
@@ -470,10 +460,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
     }
 
     // Run discovery in the background — forked so startup never hangs.
-    yield* runDiscovery().pipe(
-      Effect.repeat(Schedule.fixed(POLL_INTERVAL)),
-      Effect.forkScoped,
-    )
+    yield* runDiscovery().pipe(Effect.repeat(Schedule.fixed(POLL_INTERVAL)), Effect.forkScoped)
 
     const get = () => Ref.get(discovered)
 
@@ -481,8 +468,6 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
   }),
 )
 
-export const defaultLayer: Layer.Layer<Service> = layer.pipe(
-  Layer.provide(FetchHttpClient.layer),
-)
+export const defaultLayer: Layer.Layer<Service> = layer.pipe(Layer.provide(FetchHttpClient.layer))
 
 export * as LocalDiscovery from "./local-discovery"

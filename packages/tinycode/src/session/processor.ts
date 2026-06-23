@@ -366,9 +366,8 @@ export const layer = Layer.effect(
                   JSON.stringify(part.state.input) === JSON.stringify(input),
               )
             ) {
-                return
-              }
-
+              return
+            }
 
             const agent = yield* agents.get(ctx.assistantMessage.agent)
             yield* permission.ask({

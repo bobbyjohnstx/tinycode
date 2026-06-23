@@ -31,25 +31,32 @@ import {
   appendWikiLog,
   titleToSlug,
 } from "./persistence"
-import {
-  getSgModule,
-  SUPPORTED_LANGUAGES,
-  toLangEnum,
-  getFilesForLanguage,
-  formatAstMatch,
-} from "./ast-helpers"
+import { getSgModule, SUPPORTED_LANGUAGES, toLangEnum, getFilesForLanguage, formatAstMatch } from "./ast-helpers"
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function plainTool(input: { description: string; args: Record<string, any>; execute: (args: any, ctx: any) => Promise<any> }) {
+function plainTool(input: {
+  description: string
+  args: Record<string, any>
+  execute: (args: any, ctx: any) => Promise<any>
+}) {
   return input
 }
 
 const STATE_MODES = [
-  "autopilot", "autoresearch", "team", "ralph", "ultrawork", "ultraqa",
-  "deep-interview", "self-improve", "ralplan", "omc-teams", "skill-active",
+  "autopilot",
+  "autoresearch",
+  "team",
+  "ralph",
+  "ultrawork",
+  "ultraqa",
+  "deep-interview",
+  "self-improve",
+  "ralplan",
+  "omc-teams",
+  "skill-active",
 ] as const
 
 function validateRoot(wd: string | undefined, fallback: string): string | null {
@@ -123,7 +130,10 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         if (args.completed_at !== undefined) built.completed_at = args.completed_at
         if (args.error !== undefined) built.error = args.error
         if (args.state) for (const [k, v] of Object.entries(args.state)) if (!(k in built)) built[k] = v
-        const withMeta = { ...built, _meta: { mode: args.mode, updatedAt: new Date().toISOString(), updatedBy: "omt_state_write" } }
+        const withMeta = {
+          ...built,
+          _meta: { mode: args.mode, updatedAt: new Date().toISOString(), updatedBy: "omt_state_write" },
+        }
         const err = checkSize(JSON.stringify(withMeta), MAX_STATE, "State payload")
         if (err) return err
         writeState(sd, args.mode, withMeta)
@@ -143,7 +153,9 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         if (!root) return `workingDirectory must be within your home directory`
         const sd = getStateDir(root)
         const cleared = clearState(sd, args.mode)
-        return cleared ? `Successfully cleared state for mode: ${args.mode}` : `No state found to clear for mode: ${args.mode}`
+        return cleared
+          ? `Successfully cleared state for mode: ${args.mode}`
+          : `No state found to clear for mode: ${args.mode}`
       },
     }),
 
@@ -189,7 +201,8 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
     // ---- Notepad --------------------------------------------------------------
 
     omt_notepad_read: plainTool({
-      description: "Read the notepad content. Can read the full notepad or a specific section (priority, working, manual).",
+      description:
+        "Read the notepad content. Can read the full notepad or a specific section (priority, working, manual).",
       args: {
         section: { type: "string", enum: [["all", "priority", "working", "manual"]] },
         workingDirectory: { type: "string" },
@@ -228,7 +241,9 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
         const ok = appendNotepadWorking(root, args.content)
-        return ok ? `Successfully added entry to Working Memory (${args.content.length} chars)` : "Failed to add entry to Working Memory."
+        return ok
+          ? `Successfully added entry to Working Memory (${args.content.length} chars)`
+          : "Failed to add entry to Working Memory."
       },
     }),
 
@@ -242,7 +257,9 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
         const ok = appendNotepadManual(root, args.content)
-        return ok ? `Successfully added entry to MANUAL section (${args.content.length} chars)` : "Failed to add entry to MANUAL section."
+        return ok
+          ? `Successfully added entry to MANUAL section (${args.content.length} chars)`
+          : "Failed to add entry to MANUAL section."
       },
     }),
 
@@ -284,14 +301,18 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
     omt_project_memory_read: plainTool({
       description: "Read the project memory. Can read the full memory or a specific section.",
       args: {
-        section: { type: "string", enum: [["all", "techStack", "build", "conventions", "structure", "notes", "directives"]] },
+        section: {
+          type: "string",
+          enum: [["all", "techStack", "build", "conventions", "structure", "notes", "directives"]],
+        },
         workingDirectory: { type: "string" },
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
         const data = readProjectMemory(root, args.section)
-        if (data === null) return `Project memory does not exist.\nExpected path: ${join(root, ".tinycode", "project-memory.json")}\n\nUse omt_project_memory_write to create it.`
+        if (data === null)
+          return `Project memory does not exist.\nExpected path: ${join(root, ".tinycode", "project-memory.json")}\n\nUse omt_project_memory_write to create it.`
         return `## Project Memory\n\nPath: ${join(root, ".tinycode", "project-memory.json")}\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``
       },
     }),
@@ -377,7 +398,21 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       args: {
         query: { type: "string", description: "Search text (matched against title, tags, and content)" },
         tags: { type: "array", items: { type: "string" } },
-        category: { type: "string", enum: [["architecture", "decision", "pattern", "debugging", "environment", "session-log", "reference", "convention"]] },
+        category: {
+          type: "string",
+          enum: [
+            [
+              "architecture",
+              "decision",
+              "pattern",
+              "debugging",
+              "environment",
+              "session-log",
+              "reference",
+              "convention",
+            ],
+          ],
+        },
         limit: { type: "integer", minimum: 1, maximum: 100 },
         workingDirectory: { type: "string" },
       },
@@ -393,7 +428,21 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       args: {
         title: { type: "string", description: "Page title (max 200 chars)" },
         content: { type: "string", description: "Page content in markdown (max 50KB)" },
-        category: { type: "string", enum: [["architecture", "decision", "pattern", "debugging", "environment", "session-log", "reference", "convention"]] },
+        category: {
+          type: "string",
+          enum: [
+            [
+              "architecture",
+              "decision",
+              "pattern",
+              "debugging",
+              "environment",
+              "session-log",
+              "reference",
+              "convention",
+            ],
+          ],
+        },
         tags: { type: "array", items: { type: "string" } },
         workingDirectory: { type: "string" },
       },
@@ -404,7 +453,8 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         if (sizeErr) return sizeErr
         const slug = titleToSlug(args.title)
         const existing = readWikiPage(root, slug)
-        if (existing.found) return `Page "${slug}" already exists. Use omt_wiki_ingest to merge content, or omt_wiki_delete to remove it first.`
+        if (existing.found)
+          return `Page "${slug}" already exists. Use omt_wiki_ingest to merge content, or omt_wiki_delete to remove it first.`
         const result = ingestWikiPage(root, args.title, args.content, args.tags ?? [], args.category ?? "reference")
         return `Wiki page created: ${result.created[0]}\nPath: .tinycode/wiki/${result.created[0]}`
       },
@@ -416,7 +466,21 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         title: { type: "string", description: "Page title" },
         content: { type: "string", description: "Markdown content to ingest (max 50KB)" },
         tags: { type: "array", items: { type: "string" }, description: "Searchable tags" },
-        category: { type: "string", enum: [["architecture", "decision", "pattern", "debugging", "environment", "session-log", "reference", "convention"]] },
+        category: {
+          type: "string",
+          enum: [
+            [
+              "architecture",
+              "decision",
+              "pattern",
+              "debugging",
+              "environment",
+              "session-log",
+              "reference",
+              "convention",
+            ],
+          ],
+        },
         confidence: { type: "string", enum: [["high", "medium", "low"]] },
         sources: { type: "array", items: { type: "string" } },
         workingDirectory: { type: "string" },
@@ -426,7 +490,15 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         if (!root) return `workingDirectory must be within your home directory`
         const sizeErr = checkSize(args.content, MAX_WIKI, "Wiki page content")
         if (sizeErr) return sizeErr
-        const result = ingestWikiPage(root, args.title, args.content, args.tags, args.category, args.confidence, args.sources)
+        const result = ingestWikiPage(
+          root,
+          args.title,
+          args.content,
+          args.tags,
+          args.category,
+          args.confidence,
+          args.sources,
+        )
         return `Wiki ingest complete.\n- Created: ${result.created.join(", ") || "none"}\n- Updated: ${result.updated.join(", ") || "none"}\n- Total affected: ${result.totalAffected}`
       },
     }),
@@ -451,7 +523,8 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
     // ---- LSP (stubbed -- uses tinycode's native LSP tool instead) -------------
 
     omt_lsp_diagnostics: plainTool({
-      description: "Get language server diagnostics (errors, warnings, hints) for a file. Note: Use tinycode's native 'lsp' tool for full LSP functionality.",
+      description:
+        "Get language server diagnostics (errors, warnings, hints) for a file. Note: Use tinycode's native 'lsp' tool for full LSP functionality.",
       args: {
         file: { type: "string", description: "Path to the source file" },
         severity: { type: "string", enum: [["error", "warning", "info", "hint"]] },
@@ -466,7 +539,11 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       args: {},
       async execute() {
         const servers = [
-          { name: "typescript-language-server", langs: "TypeScript, JavaScript", install: "npm install -g typescript-language-server typescript" },
+          {
+            name: "typescript-language-server",
+            langs: "TypeScript, JavaScript",
+            install: "npm install -g typescript-language-server typescript",
+          },
           { name: "pyright", langs: "Python", install: "npm install -g pyright" },
           { name: "gopls", langs: "Go", install: "go install golang.org/x/tools/gopls@latest" },
           { name: "rust-analyzer", langs: "Rust", install: "rustup component add rust-analyzer" },
@@ -474,7 +551,12 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         ]
         const rows = servers.map((s) => {
           let found = false
-          try { execSync(`which ${s.name}`, { stdio: "pipe" }); found = true } catch { /* not installed */ }
+          try {
+            execSync(`which ${s.name}`, { stdio: "pipe" })
+            found = true
+          } catch {
+            /* not installed */
+          }
           return `${found ? "[OK]" : "[--]"}  ${s.name.padEnd(32)} ${s.langs}${found ? "" : `\n      install: ${s.install}`}`
         })
         return `Language Server Status (${rows.filter((r) => r.startsWith("[OK]")).length}/${servers.length} installed)\n\n${rows.join("\n\n")}`
@@ -519,9 +601,12 @@ Examples: "function $NAME($$$ARGS)", "console.log($MSG)", "$X === null"`,
               results.push(formatAstMatch(fp, r.start.line + 1, r.end.line + 1, ctx, content))
               total++
             }
-          } catch { /* skip unparseable */ }
+          } catch {
+            /* skip unparseable */
+          }
         }
-        if (results.length === 0) return `No matches found for pattern: ${args.pattern}\n\nSearched ${files.length} ${args.language} file(s) in ${searchPath}`
+        if (results.length === 0)
+          return `No matches found for pattern: ${args.pattern}\n\nSearched ${files.length} ${args.language} file(s) in ${searchPath}`
         const out = `Found ${total} match(es) in ${files.length} file(s)\nPattern: ${args.pattern}\n\n${results.join("\n\n---\n\n")}`
         return truncated ? `${out}\n\nSearch limited to first 1000 files.` : out
       },
@@ -555,11 +640,17 @@ IMPORTANT: dryRun=true (default) only previews changes. Set dryRun=false to appl
             for (const match of matches) {
               const r = match.range()
               let rep = args.replacement
-              for (const mv of (args.replacement.match(/\$\$?\$?[A-Z_][A-Z0-9_]*/g) ?? [])) {
+              for (const mv of args.replacement.match(/\$\$?\$?[A-Z_][A-Z0-9_]*/g) ?? []) {
                 const cap = match.getMatch(mv.replace(/^\$+/, ""))
                 if (cap) rep = rep.replaceAll(mv, cap.text().replace(/\$/g, "$$$$"))
               }
-              edits.push({ start: r.start.index, end: r.end.index, replacement: rep, line: r.start.line + 1, before: match.text() })
+              edits.push({
+                start: r.start.index,
+                end: r.end.index,
+                replacement: rep,
+                line: r.start.line + 1,
+                before: match.text(),
+              })
             }
             edits.sort((a, b) => b.start - a.start)
             let newContent = content
@@ -568,13 +659,24 @@ IMPORTANT: dryRun=true (default) only previews changes. Set dryRun=false to appl
               changes.push({ file: fp, before: e.before, after: e.replacement, line: e.line })
             }
             if (!dryRun && edits.length > 0) writeFileSync(fp, newContent, "utf-8")
-          } catch { /* skip */ }
+          } catch {
+            /* skip */
+          }
         }
         if (changes.length === 0) return `No matches found for pattern: ${args.pattern}`
         const mode = dryRun ? "DRY RUN (no changes applied)" : "CHANGES APPLIED"
         const header = `${mode}\n\nFound ${changes.length} replacement(s)\nPattern: ${args.pattern}\nReplacement: ${args.replacement}\n\n`
-        const list = changes.slice(0, 50).map((c) => `${c.file}:${c.line}\n  - ${c.before}\n  + ${c.after}`).join("\n\n")
-        return header + list + (changes.length > 50 ? `\n\n... and ${changes.length - 50} more` : "") + (dryRun ? "\n\nTo apply changes, set dryRun: false" : "") + (truncated ? "\n\nSearch limited to first 1000 files." : "")
+        const list = changes
+          .slice(0, 50)
+          .map((c) => `${c.file}:${c.line}\n  - ${c.before}\n  + ${c.after}`)
+          .join("\n\n")
+        return (
+          header +
+          list +
+          (changes.length > 50 ? `\n\n... and ${changes.length - 50} more` : "") +
+          (dryRun ? "\n\nTo apply changes, set dryRun: false" : "") +
+          (truncated ? "\n\nSearch limited to first 1000 files." : "")
+        )
       },
     }),
   }

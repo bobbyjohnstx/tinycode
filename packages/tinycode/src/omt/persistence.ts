@@ -4,15 +4,7 @@
  * No Effect dependency -- pure Node.js fs.
  */
 
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-  mkdirSync,
-  readdirSync,
-  unlinkSync,
-  renameSync,
-} from "fs"
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync, renameSync } from "fs"
 import { join, dirname, sep } from "path"
 
 // ============================================================================
@@ -27,9 +19,7 @@ function ensureDir(p: string): void {
   if (!existsSync(p)) mkdirSync(p, { recursive: true })
 }
 
-type JsonReadResult =
-  | { ok: true; data: unknown }
-  | { ok: false; reason: "missing" | "corrupt"; error?: string }
+type JsonReadResult = { ok: true; data: unknown } | { ok: false; reason: "missing" | "corrupt"; error?: string }
 
 function safeReadJson(filePath: string): JsonReadResult {
   if (!existsSync(filePath)) return { ok: false, reason: "missing" }
@@ -83,7 +73,12 @@ export function listActiveStates(stateDir: string): string[] {
       .map((f) => f.replace(/-state\.json$/, ""))
       .filter((mode) => {
         const result = safeReadJson(join(stateDir, `${mode}-state.json`))
-        return result.ok && typeof result.data === "object" && result.data !== null && (result.data as Record<string, unknown>).active === true
+        return (
+          result.ok &&
+          typeof result.data === "object" &&
+          result.data !== null &&
+          (result.data as Record<string, unknown>).active === true
+        )
       })
   } catch {
     return []
@@ -106,9 +101,7 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
-const SECTION_BOUNDARIES = [PRIORITY_HEADER, WORKING_MEMORY_HEADER, MANUAL_HEADER]
-  .map(escapeRegex)
-  .join("|")
+const SECTION_BOUNDARIES = [PRIORITY_HEADER, WORKING_MEMORY_HEADER, MANUAL_HEADER].map(escapeRegex).join("|")
 
 const NOTEPAD_TEMPLATE = `# Notepad
 <!-- Auto-managed by tinycode. Manual edits preserved in MANUAL section. -->
@@ -182,9 +175,10 @@ export function writeNotepadPriority(projectRoot: string, content: string): { su
     let notepad = readFileSync(p, "utf-8")
     notepad = replaceSection(notepad, PRIORITY_HEADER, content)
     writeFileSync(p, notepad, "utf-8")
-    const warning = content.length > 500
-      ? `Priority Context exceeds 500 chars (${content.length} chars). Consider condensing.`
-      : undefined
+    const warning =
+      content.length > 500
+        ? `Priority Context exceeds 500 chars (${content.length} chars). Consider condensing.`
+        : undefined
     return { success: true, warning }
   } catch {
     return { success: false }
@@ -262,7 +256,8 @@ export function getNotepadStats(projectRoot: string): {
   oldestEntry: string | null
 } {
   const p = getNotepadPath(projectRoot)
-  if (!existsSync(p)) return { exists: false, totalSize: 0, prioritySize: 0, workingMemoryEntries: 0, oldestEntry: null }
+  if (!existsSync(p))
+    return { exists: false, totalSize: 0, prioritySize: 0, workingMemoryEntries: 0, oldestEntry: null }
 
   const content = readFileSync(p, "utf-8")
   const priority = extractSection(content, PRIORITY_HEADER) || ""
@@ -343,7 +338,12 @@ export function addProjectMemoryNote(projectRoot: string, category: string, cont
   writeProjectMemory(projectRoot, { ...existing, customNotes: notes }, false)
 }
 
-export function addProjectMemoryDirective(projectRoot: string, directive: string, priority = "normal", context = ""): void {
+export function addProjectMemoryDirective(
+  projectRoot: string,
+  directive: string,
+  priority = "normal",
+  context = "",
+): void {
   const existing = (readProjectMemory(projectRoot) as Record<string, unknown> | null) || {}
   const directives = Array.isArray(existing.userDirectives) ? [...existing.userDirectives] : []
   directives.push({ directive, priority, context, timestamp: Date.now(), source: "explicit" })
@@ -380,7 +380,11 @@ function parseYamlArray(val: unknown): string[] {
   if (Array.isArray(val)) return val.map(String)
   if (typeof val === "string") {
     const m = val.match(/^\[(.*)\]$/)
-    if (m) return m[1].split(",").map((s) => s.trim()).filter(Boolean)
+    if (m)
+      return m[1]
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
     return val ? [val] : []
   }
   return []
@@ -458,7 +462,13 @@ function serializePage(frontmatter: WikiFrontmatter, content: string): string {
 }
 
 export function titleToSlug(title: string): string {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) + ".md"
+  return (
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80) + ".md"
+  )
 }
 
 export function listWikiPages(projectRoot: string): string {
@@ -467,7 +477,11 @@ export function listWikiPages(projectRoot: string): string {
 
   const indexPath = join(wikiDir, "index.md")
   if (existsSync(indexPath)) {
-    try { return readFileSync(indexPath, "utf-8") } catch { /* fall through */ }
+    try {
+      return readFileSync(indexPath, "utf-8")
+    } catch {
+      /* fall through */
+    }
   }
 
   try {
@@ -502,7 +516,9 @@ export function readWikiPage(projectRoot: string, page: string): { found: boolea
       fm.links.length > 0 ? `**Links:** ${fm.links.join(", ")}` : "",
       fm.sources.length > 0 ? `**Sources:** ${fm.sources.join(", ")}` : "",
       "",
-    ].filter(Boolean).join("\n")
+    ]
+      .filter(Boolean)
+      .join("\n")
 
     return { found: true, text: `${header}\n${content}` }
   } catch {
@@ -510,7 +526,13 @@ export function readWikiPage(projectRoot: string, page: string): { found: boolea
   }
 }
 
-export function queryWikiPages(projectRoot: string, query: string, tags?: string[], category?: string, limit = 20): string {
+export function queryWikiPages(
+  projectRoot: string,
+  query: string,
+  tags?: string[],
+  category?: string,
+  limit = 20,
+): string {
   const wikiDir = getWikiDir(projectRoot)
   if (!existsSync(wikiDir)) return `No wiki pages match "${query}".`
 
@@ -524,7 +546,12 @@ export function queryWikiPages(projectRoot: string, query: string, tags?: string
 
   const queryTokens = query.toLowerCase().split(/\s+/).filter(Boolean)
 
-  interface Match { filename: string; fm: WikiFrontmatter; score: number; snippet: string }
+  interface Match {
+    filename: string
+    fm: WikiFrontmatter
+    score: number
+    snippet: string
+  }
   const matches: Match[] = []
 
   for (const file of files) {
@@ -551,24 +578,32 @@ export function queryWikiPages(projectRoot: string, query: string, tags?: string
       const snippetLine = lines.find((l) => queryTokens.some((t) => l.toLowerCase().includes(t)))
       const snippet = snippetLine ? snippetLine.trim().slice(0, 120) : content.trim().slice(0, 120)
       matches.push({ filename: file, fm, score, snippet })
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   matches.sort((a, b) => b.score - a.score)
   const top = matches.slice(0, limit)
   if (top.length === 0) return `No wiki pages match "${query}".`
 
-  const results = top.map((m, i) =>
-    `### ${i + 1}. ${m.fm.title} (${m.fm.category}, ${m.fm.confidence})\n` +
-    `**File:** ${m.filename} | **Tags:** ${m.fm.tags.join(", ")} | **Score:** ${m.score}\n` +
-    `**Snippet:** ${m.snippet}`
+  const results = top.map(
+    (m, i) =>
+      `### ${i + 1}. ${m.fm.title} (${m.fm.category}, ${m.fm.confidence})\n` +
+      `**File:** ${m.filename} | **Tags:** ${m.fm.tags.join(", ")} | **Score:** ${m.score}\n` +
+      `**Snippet:** ${m.snippet}`,
   )
   return `## Wiki Query: "${query}"\n\n${top.length} results:\n\n${results.join("\n\n")}`
 }
 
 export function ingestWikiPage(
-  projectRoot: string, title: string, content: string,
-  tags: string[], category: string, confidence = "medium", sources: string[] = [],
+  projectRoot: string,
+  title: string,
+  content: string,
+  tags: string[],
+  category: string,
+  confidence = "medium",
+  sources: string[] = [],
 ): { created: string[]; updated: string[]; totalAffected: number } {
   const wikiDir = ensureWikiDir(projectRoot)
   const slug = titleToSlug(title)
@@ -585,7 +620,11 @@ export function ingestWikiPage(
       fm.updated = now
       fm.tags = [...new Set([...fm.tags, ...tags])]
       if (sources.length > 0) fm.sources = [...new Set([...fm.sources, ...sources])]
-      writeFileSync(filePath, serializePage(fm, existing.trimEnd() + `\n\n---\n*Updated ${now.slice(0, 10)}*\n\n` + content), "utf-8")
+      writeFileSync(
+        filePath,
+        serializePage(fm, existing.trimEnd() + `\n\n---\n*Updated ${now.slice(0, 10)}*\n\n` + content),
+        "utf-8",
+      )
       updated.push(slug)
     } else {
       writeFileSync(filePath, raw.trimEnd() + "\n\n" + content, "utf-8")
@@ -626,16 +665,20 @@ function updateWikiIndex(projectRoot: string): void {
       try {
         const raw = readFileSync(join(wikiDir, file), "utf-8")
         const parsed = parseFrontmatter(raw)
-        entries.push(parsed
-          ? `- **[${parsed.frontmatter.title}](${file})** (${parsed.frontmatter.category}) -- *${parsed.frontmatter.tags.slice(0, 3).join(", ")}*`
-          : `- ${file}`)
+        entries.push(
+          parsed
+            ? `- **[${parsed.frontmatter.title}](${file})** (${parsed.frontmatter.category}) -- *${parsed.frontmatter.tags.slice(0, 3).join(", ")}*`
+            : `- ${file}`,
+        )
       } catch {
         entries.push(`- ${file}`)
       }
     }
     const index = `# Wiki Index\n\n*${files.length} pages -- last updated ${new Date().toISOString().slice(0, 10)}*\n\n${entries.join("\n")}\n`
     writeFileSync(join(wikiDir, "index.md"), index, "utf-8")
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
 }
 
 export function appendWikiLog(projectRoot: string, operation: string, pagesAffected: string[], summary: string): void {
@@ -645,5 +688,7 @@ export function appendWikiLog(projectRoot: string, operation: string, pagesAffec
     ensureDir(dirname(logPath))
     const existing = existsSync(logPath) ? readFileSync(logPath, "utf-8") : `# Wiki Log\n`
     writeFileSync(logPath, existing + entry, "utf-8")
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
 }

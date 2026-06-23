@@ -153,11 +153,16 @@ All server-side code uses Effect v4 for dependency injection, typed errors, and 
 export class Service extends Context.Service<Service, Interface>()("@tinycode/Agent") {}
 
 // Implementation via Layer
-export const layer = Layer.effect(Service, Effect.gen(function* () {
-  const config = yield* Config.Service
-  // ...
-  return Service.of({ /* interface impl */ })
-}))
+export const layer = Layer.effect(
+  Service,
+  Effect.gen(function* () {
+    const config = yield* Config.Service
+    // ...
+    return Service.of({
+      /* interface impl */
+    })
+  }),
+)
 ```
 
 > **Important**: All service Context tags use `@tinycode/` prefix (not `@tinycode/`). This is legacy naming from the upstream fork — it is not a bug.
@@ -167,12 +172,14 @@ export const layer = Layer.effect(Service, Effect.gen(function* () {
 `InstanceState` (backed by Effect's `ScopedCache`) ensures each service initializes once per project directory and is disposed when the project closes:
 
 ```typescript
-const state = yield* InstanceState.make<State>(
-  Effect.fn("Agent.state")(function* (ctx) {
-    // ctx.worktree = absolute path to project
-    // runs once per directory, cached thereafter
-  })
-)
+const state =
+  yield *
+  InstanceState.make<State>(
+    Effect.fn("Agent.state")(function* (ctx) {
+      // ctx.worktree = absolute path to project
+      // runs once per directory, cached thereafter
+    }),
+  )
 ```
 
 ### Self-Reexport Namespace Pattern
@@ -189,6 +196,7 @@ One exception: `src/plugin/loader.ts` uses `export namespace PluginLoader` for i
 ### Provider Model Resolution
 
 `Provider.defaultModel()` resolves the active model in priority order:
+
 1. CLI `--model` flag
 2. Agent-level model config
 3. Session-level model (SQLite per-session)
@@ -199,6 +207,7 @@ One exception: `src/plugin/loader.ts` uses `export namespace PluginLoader` for i
 ### Local Provider Auto-Discovery
 
 `LocalDiscovery` probes at startup and every 30 seconds:
+
 - **Ollama**: `http://localhost:11434/api/tags` (or `TINYCODE_OLLAMA_HOST`)
 - **vLLM**: `http://localhost:8000/v1/models` (or `TINYCODE_VLLM_HOST`)
 - **MaaS**: `TINYCODE_MAAS_HOST/v1/models` + `TINYCODE_MAAS_API_KEY`
@@ -243,6 +252,7 @@ SQLite database at `~/.local/share/tinycode/tinycode-{mode}.db` (legacy `tinycod
 Schema defined in `src/storage/schema.sql.ts` via Drizzle ORM. Migrations in `migration/` (managed by Drizzle Kit).
 
 Dual runtime:
+
 - **Bun**: `db.bun.ts` (uses Bun's native SQLite)
 - **Node**: `db.node.ts` (uses better-sqlite3)
 
@@ -268,6 +278,7 @@ User prompt
 ## Agent System
 
 Native agents (hardcoded in `src/agent/agent.ts`):
+
 - `build` — default, full tool access
 - `plan` — edit tools disabled
 - `explore` — read-only (grep/glob/read/bash)
@@ -276,6 +287,7 @@ Native agents (hardcoded in `src/agent/agent.ts`):
 - `compaction`, `title`, `summary` — hidden system agents
 
 Custom agents loaded from:
+
 - `~/.config/tinycode/agent/*.md` (global)
 - `{project}/.tinycode/agent/*.md` (project-local)
 
@@ -287,13 +299,13 @@ Frontmatter fields: `mode`, `steps`, `description`, `permission`, `model`, `temp
 
 oh-my-tiny is natively integrated into tinycode — it is not an external MCP server or companion tool. Its tools live in `src/omt/` and are registered as an internal plugin via `src/plugin/omt.ts`.
 
-| Tool category | Tools |
-|---|---|
-| State | `state_read/write/clear/list/status` |
-| Notepad | `notepad_read/write_priority/write_working/write_manual/prune/stats` |
-| Project memory | `project_memory_read/write/add_note/add_directive` |
-| Wiki | `wiki_list/read/query/add/ingest/delete` |
-| LSP | `lsp_goto_definition/find_references/hover/diagnostics/document_symbols/workspace_symbols` |
-| AST | `ast_grep_search/ast_grep_replace` |
+| Tool category  | Tools                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| State          | `state_read/write/clear/list/status`                                                       |
+| Notepad        | `notepad_read/write_priority/write_working/write_manual/prune/stats`                       |
+| Project memory | `project_memory_read/write/add_note/add_directive`                                         |
+| Wiki           | `wiki_list/read/query/add/ingest/delete`                                                   |
+| LSP            | `lsp_goto_definition/find_references/hover/diagnostics/document_symbols/workspace_symbols` |
+| AST            | `ast_grep_search/ast_grep_replace`                                                         |
 
 Data is stored under the project's `.tinycode/` directory (state, notepad, wiki, project-memory). No external installation or MCP configuration is required.

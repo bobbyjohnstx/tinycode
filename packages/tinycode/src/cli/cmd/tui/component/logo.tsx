@@ -4,9 +4,7 @@ import { For, createMemo, createSignal, onCleanup, onMount, type JSX } from "sol
 import { useTheme, tint } from "@tui/context/theme"
 import { go, logo } from "@/cli/logo"
 
-export type LogoShape =
-  | { left: string[]; right: string[] }
-  | { rows: string[]; splitCols: number[] }
+export type LogoShape = { left: string[]; right: string[] } | { rows: string[]; splitCols: number[] }
 
 type ShimmerConfig = {
   period: number
@@ -585,19 +583,33 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
 
     const colDelay = col * MATRIX_STAGGER
     const colElapsed = Math.max(0, elapsed - colDelay)
-    if (colElapsed <= 0) return <text fg={MATRIX_DIM} selectable={false}>{" "}</text>
+    if (colElapsed <= 0)
+      return (
+        <text fg={MATRIX_DIM} selectable={false}>
+          {" "}
+        </text>
+      )
 
     const rows = ctx.FULL.length
     const dropPos = (colElapsed / MATRIX_DROP) * (rows + 1) - 1
     if (dropPos >= rows) return null
 
-    if (dropPos < row) return <text fg={MATRIX_DIM} selectable={false}>{" "}</text>
+    if (dropPos < row)
+      return (
+        <text fg={MATRIX_DIM} selectable={false}>
+          {" "}
+        </text>
+      )
 
     const n = noise(col * 3.8 + 0.5, row * 2.9 + 0.3, Math.floor(t / 90) * 0.001)
     const char = MATRIX_BLOCK[Math.floor(n * MATRIX_BLOCK.length)] ?? "█"
 
     if (Math.abs(dropPos - (row + 0.4)) < 0.9) {
-      return <text fg={MATRIX_HEAD} selectable={false}>{char}</text>
+      return (
+        <text fg={MATRIX_HEAD} selectable={false}>
+          {char}
+        </text>
+      )
     }
 
     const dist = dropPos - row - 1
@@ -605,7 +617,11 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
     const fg = tint(MATRIX_TRAIL, MATRIX_DIM, dimT * 0.8)
     const n2 = noise(col * 2.1 + 0.7, row * 1.5 + 0.2, Math.floor(t / 140) * 0.001)
     const char2 = MATRIX_BLOCK[Math.floor(n2 * MATRIX_BLOCK.length)] ?? "█"
-    return <text fg={fg} selectable={false}>{char2}</text>
+    return (
+      <text fg={fg} selectable={false}>
+        {char2}
+      </text>
+    )
   }
 
   const stop = () => {
@@ -737,7 +753,7 @@ export function Logo(props: { shape?: LogoShape; ink?: RGBA; idle?: boolean } = 
     splitCol?: number,
   ): JSX.Element[] => {
     return Array.from(line).map((char, i) => {
-      const isRight = splitCol !== undefined && (off + i) >= splitCol
+      const isRight = splitCol !== undefined && off + i >= splitCol
       const ink = isRight ? (rightInk ?? baseInk) : baseInk
       const bold = isRight || baseBold
       const attrs = bold ? TextAttributes.BOLD : undefined

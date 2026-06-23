@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import {
-  visibleWidth,
-  truncateToWidth,
-  truncate,
-  truncateLeft,
-  truncateMiddle,
-} from "../../src/util/locale"
+import { visibleWidth, truncateToWidth, truncate, truncateLeft, truncateMiddle } from "../../src/util/locale"
 
 describe("util.locale", () => {
   describe("visibleWidth", () => {
@@ -89,9 +83,7 @@ describe("util.locale", () => {
 
     test("truncateMiddle works for plain strings", () => {
       expect(truncateMiddle("hello", 10)).toBe("hello")
-      expect(truncateMiddle("this is a very long string that should be truncated", 20)).toHaveLength(
-        20,
-      )
+      expect(truncateMiddle("this is a very long string that should be truncated", 20)).toHaveLength(20)
     })
   })
 })

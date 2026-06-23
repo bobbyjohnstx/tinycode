@@ -6,9 +6,8 @@ import path from "path"
 
 const COORDINATOR = path.join(import.meta.dirname, "../node_modules/oh-my-tiny/dist/team/coordinator.js")
 const SERVER_URL = process.env.TINYCODE_SERVER_URL ?? "http://localhost:4096"
-const CWD = (process.argv.includes("--cwd")
-  ? process.argv[process.argv.indexOf("--cwd") + 1]
-  : undefined) ?? process.cwd()
+const CWD =
+  (process.argv.includes("--cwd") ? process.argv[process.argv.indexOf("--cwd") + 1] : undefined) ?? process.cwd()
 
 // Pass all args through, injecting --server-url and --cwd defaults
 const args = process.argv.slice(2)

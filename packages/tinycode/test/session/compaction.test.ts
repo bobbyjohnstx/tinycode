@@ -580,7 +580,6 @@ describe("session.compaction.create", () => {
           auto: true,
           overflow: true,
         })
-
       }),
     ),
   )

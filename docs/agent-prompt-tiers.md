@@ -6,10 +6,10 @@ Agent prompts are sized to match model context budgets. Two tiers: `default` and
 
 Reuses the existing model size extraction from `src/session/system.ts`:
 
-| Tier | Model size | Context range | Agent budget |
-|------|-----------|---------------|-------------|
-| compact | ≤9B params | 4K–8K tokens | ~400 tokens (~300 words) |
-| default | ≥10B params | 32K+ tokens | ~1300 tokens (~900 words) |
+| Tier    | Model size  | Context range | Agent budget              |
+| ------- | ----------- | ------------- | ------------------------- |
+| compact | ≤9B params  | 4K–8K tokens  | ~400 tokens (~300 words)  |
+| default | ≥10B params | 32K+ tokens   | ~1300 tokens (~900 words) |
 
 The threshold is **parameter count**, not context window, because instruction-following ability correlates with model size more than context length. A 9B model with 128K context still can't follow a 900-word agent prompt reliably.
 
@@ -28,13 +28,13 @@ If no `.compact.md` variant exists, the default is used for all sizes. This allo
 
 ## Token Budget Breakdown (≤9B model, 4K context)
 
-| Component | Tokens | Notes |
-|-----------|--------|-------|
-| System prompt (`local-small.txt`) | ~350 | Fixed overhead |
-| Agent prompt | ~400 | **This is the compact budget** |
-| Project instructions (CLAUDE.md) | ~200 | Varies by project |
-| Tool schemas | ~500 | Depends on enabled tools |
-| Conversation history | ~2500 | What's left for actual work |
+| Component                         | Tokens | Notes                          |
+| --------------------------------- | ------ | ------------------------------ |
+| System prompt (`local-small.txt`) | ~350   | Fixed overhead                 |
+| Agent prompt                      | ~400   | **This is the compact budget** |
+| Project instructions (CLAUDE.md)  | ~200   | Varies by project              |
+| Tool schemas                      | ~500   | Depends on enabled tools       |
+| Conversation history              | ~2500  | What's left for actual work    |
 
 Exceeding the agent budget compresses conversation history, which degrades output quality more than a shorter agent prompt would.
 
@@ -51,16 +51,16 @@ These sections carry the most value per token for small models:
 
 Ranked by token savings vs quality impact:
 
-| Section | Typical size | Cut? | Reason |
-|---------|-------------|------|--------|
-| `<Why_This_Matters>` | 50-80 words | **Cut** | Motivational context. Small models don't internalize this. |
-| `<Failure_Modes_To_Avoid>` | 80-120 words | **Cut** | Negative examples confuse small models — they sometimes reproduce the anti-pattern instead of avoiding it. |
-| `<Final_Checklist>` | 60-80 words | **Cut** | Redundant with constraints. Small models rarely self-check. |
-| `<Tool_Usage>` | 50-80 words | **Cut** | Tool mappings are in the system prompt. Duplicating here wastes budget. |
-| `<Investigation_Protocol>` | 100-200 words | **Collapse** | Keep as 4 bullets, drop numbered sub-steps. |
-| `<Execution_Policy>` | 30-50 words | **Cut** | Effort guidance and escalation rules don't work reliably on small models. |
-| `<Success_Criteria>` | 50-80 words | **Cut** | Aspirational. Constraints are the enforceable version. |
-| Examples in constraints | 20-40 words each | **Cut** | "Adding null checks everywhere instead of asking why is it null?" becomes just "Fix root causes, not symptoms." |
+| Section                    | Typical size     | Cut?         | Reason                                                                                                          |
+| -------------------------- | ---------------- | ------------ | --------------------------------------------------------------------------------------------------------------- |
+| `<Why_This_Matters>`       | 50-80 words      | **Cut**      | Motivational context. Small models don't internalize this.                                                      |
+| `<Failure_Modes_To_Avoid>` | 80-120 words     | **Cut**      | Negative examples confuse small models — they sometimes reproduce the anti-pattern instead of avoiding it.      |
+| `<Final_Checklist>`        | 60-80 words      | **Cut**      | Redundant with constraints. Small models rarely self-check.                                                     |
+| `<Tool_Usage>`             | 50-80 words      | **Cut**      | Tool mappings are in the system prompt. Duplicating here wastes budget.                                         |
+| `<Investigation_Protocol>` | 100-200 words    | **Collapse** | Keep as 4 bullets, drop numbered sub-steps.                                                                     |
+| `<Execution_Policy>`       | 30-50 words      | **Cut**      | Effort guidance and escalation rules don't work reliably on small models.                                       |
+| `<Success_Criteria>`       | 50-80 words      | **Cut**      | Aspirational. Constraints are the enforceable version.                                                          |
+| Examples in constraints    | 20-40 words each | **Cut**      | "Adding null checks everywhere instead of asking why is it null?" becomes just "Fix root causes, not symptoms." |
 
 ## Derivation Process
 
@@ -78,17 +78,17 @@ To create a compact variant from a default agent:
 
 Current agent prompts across the three sources:
 
-| Source | Word range | Purpose |
-|--------|-----------|---------|
-| `.tinycode/agent/` (default) | 456–2462 | Full-featured for large models (default tier source) |
-| `.tinycode/agent/` (omt) | 227–373 | Already near compact size (compact tier reference) |
-| `src/agent/prompt/` (native) | 75–356 | Built-in agents, already minimal |
+| Source                       | Word range | Purpose                                              |
+| ---------------------------- | ---------- | ---------------------------------------------------- |
+| `.tinycode/agent/` (default) | 456–2462   | Full-featured for large models (default tier source) |
+| `.tinycode/agent/` (omt)     | 227–373    | Already near compact size (compact tier reference)   |
+| `src/agent/prompt/` (native) | 75–356     | Built-in agents, already minimal                     |
 
 The omt agents in `.tinycode/agent/` demonstrate what a well-done compact agent looks like — they were written for local models and have been validated against ≤12B models.
 
 ## Anti-Patterns
 
-- **Fewer rules ≠ compact.** Small models need *more* guardrails but in *fewer words*. Tighter phrasing, not fewer rules.
+- **Fewer rules ≠ compact.** Small models need _more_ guardrails but in _fewer words_. Tighter phrasing, not fewer rules.
 - **Don't add "be concise" to agent prompts.** That's in the system prompt. Agent prompts define the agent's specialty, not general behavior.
 - **Don't reference other agents in compact prompts.** "Escalate to architect" means nothing if the model doesn't know what architect is. Say "stop and explain the blocker."
 - **Don't use XML tags in compact prompts.** Small models handle flat markdown headers better than nested XML. Save the `<Section>` syntax for default tier.

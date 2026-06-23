@@ -59,36 +59,28 @@ async function discoverEmpty(overrides: EnvOverride) {
 // ---------------------------------------------------------------------------
 
 describe("LocalDiscovery", () => {
-  test(
-    "returns empty map when all servers unreachable (connection refused)",
-    async () => {
-      const result = await discoverEmpty({
-        TINYCODE_OLLAMA_HOST: "http://127.0.0.1:1",
-        TINYCODE_VLLM_HOST: "http://127.0.0.1:1",
-        TINYCODE_MAAS_HOST: undefined,
-      })
-      expect(result).toEqual({})
-    },
-    4_000,
-  )
+  test("returns empty map when all servers unreachable (connection refused)", async () => {
+    const result = await discoverEmpty({
+      TINYCODE_OLLAMA_HOST: "http://127.0.0.1:1",
+      TINYCODE_VLLM_HOST: "http://127.0.0.1:1",
+      TINYCODE_MAAS_HOST: undefined,
+    })
+    expect(result).toEqual({})
+  }, 4_000)
 
   // ---------------------------------------------------------------------------
   // Test 4: MaaS skipped when env vars absent
   // ---------------------------------------------------------------------------
 
-  test(
-    "skips MaaS probe when TINYCODE_MAAS_HOST is not set",
-    async () => {
-      const result = await discoverEmpty({
-        TINYCODE_OLLAMA_HOST: "http://127.0.0.1:1",
-        TINYCODE_VLLM_HOST: "http://127.0.0.1:1",
-        TINYCODE_MAAS_HOST: undefined,
-        TINYCODE_MAAS_API_KEY: "test-key",
-      })
-      expect(result["maas"]).toBeUndefined()
-    },
-    4_000,
-  )
+  test("skips MaaS probe when TINYCODE_MAAS_HOST is not set", async () => {
+    const result = await discoverEmpty({
+      TINYCODE_OLLAMA_HOST: "http://127.0.0.1:1",
+      TINYCODE_VLLM_HOST: "http://127.0.0.1:1",
+      TINYCODE_MAAS_HOST: undefined,
+      TINYCODE_MAAS_API_KEY: "test-key",
+    })
+    expect(result["maas"]).toBeUndefined()
+  }, 4_000)
 
   // ---------------------------------------------------------------------------
   // Test 3 (logic): Embedding model filter — pure function behavior

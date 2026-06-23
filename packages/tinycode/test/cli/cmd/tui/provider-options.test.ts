@@ -30,8 +30,9 @@ describe("providerOptions", () => {
       { id: "openai", name: "OpenAI" },
     ])
     const byId = Object.fromEntries(
-      opts.filter((o): o is typeof o & { type: "provider"; providerID: string } => o.type === "provider")
-        .map((o) => [o.providerID, o])
+      opts
+        .filter((o): o is typeof o & { type: "provider"; providerID: string } => o.type === "provider")
+        .map((o) => [o.providerID, o]),
     )
     expect(byId["ollama"]?.category).toBe("Local / LAN")
     expect(byId["vllm"]?.category).toBe("Local / LAN")

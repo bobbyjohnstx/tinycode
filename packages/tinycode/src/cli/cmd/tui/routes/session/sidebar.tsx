@@ -56,10 +56,12 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
             >
               <box paddingRight={1}>
                 <text fg={theme.text}>
-                  <b>{(() => {
-                    const title = session()!.title
-                    return title.length > 36 ? title.slice(0, 33) + "..." : title
-                  })()}</b>
+                  <b>
+                    {(() => {
+                      const title = session()!.title
+                      return title.length > 36 ? title.slice(0, 33) + "..." : title
+                    })()}
+                  </b>
                 </text>
                 <Show when={InstallationChannel !== "latest"}>
                   <text fg={theme.textMuted}>{props.sessionID}</text>

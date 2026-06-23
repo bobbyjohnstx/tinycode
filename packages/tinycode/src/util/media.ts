@@ -26,7 +26,11 @@ export function pdfBytesToText(bytes: Uint8Array): string | null {
     writeFileSync(tmp, bytes)
     return pdfFileToText(tmp)
   } finally {
-    try { unlinkSync(tmp) } catch { /* ignore */ }
+    try {
+      unlinkSync(tmp)
+    } catch {
+      /* ignore */
+    }
   }
 }
 

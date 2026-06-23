@@ -29,17 +29,25 @@ const MAX_METADATA_LENGTH = 30_000
 const CWD = new Set(["cd", "chdir", "popd", "pushd", "push-location", "set-location"])
 
 const DESTRUCTIVE_COMMANDS = new Map<string, (args: string[]) => string | null>([
-  ["rm", (args) => args.some((a) => !a.startsWith("-") || a.includes("r") || a.includes("f")) ? `rm ${args.join(" ")}` : null],
+  [
+    "rm",
+    (args) =>
+      args.some((a) => !a.startsWith("-") || a.includes("r") || a.includes("f")) ? `rm ${args.join(" ")}` : null,
+  ],
   ["rmdir", (args) => `rmdir ${args.join(" ")}`],
-  ["git", (args) => {
-    const sub = args[0]
-    if (sub === "reset" && args.includes("--hard")) return `git reset --hard`
-    if (sub === "push" && (args.includes("--force") || args.includes("-f"))) return `git push --force`
-    if (sub === "branch" && args.includes("-D")) return `git branch -D ${args.slice(args.indexOf("-D") + 1).join(" ")}`
-    if (sub === "clean" && args.includes("-f")) return `git clean -f`
-    if (sub === "checkout" && args.includes("--")) return `git checkout -- (file restore)`
-    return null
-  }],
+  [
+    "git",
+    (args) => {
+      const sub = args[0]
+      if (sub === "reset" && args.includes("--hard")) return `git reset --hard`
+      if (sub === "push" && (args.includes("--force") || args.includes("-f"))) return `git push --force`
+      if (sub === "branch" && args.includes("-D"))
+        return `git branch -D ${args.slice(args.indexOf("-D") + 1).join(" ")}`
+      if (sub === "clean" && args.includes("-f")) return `git clean -f`
+      if (sub === "checkout" && args.includes("--")) return `git checkout -- (file restore)`
+      return null
+    },
+  ],
 ])
 
 const SECRETS_PATTERNS = /\.(env|pem|key|p12|pfx|cert|credentials)$|\.env\.|\/credentials|\/secrets?\b/i

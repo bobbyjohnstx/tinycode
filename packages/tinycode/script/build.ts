@@ -84,13 +84,12 @@ const createEmbeddedAssetsBundle = async () => {
   const skillsDir = path.join(dir, ".tinycode/skills")
 
   // Collect agent .md files
-  const agentFiles: string[] = (await fs.promises.readdir(agentDir).catch(() => [] as string[]))
-    .filter((f) => f.endsWith(".md"))
+  const agentFiles: string[] = (await fs.promises.readdir(agentDir).catch(() => [] as string[])).filter((f) =>
+    f.endsWith(".md"),
+  )
 
   // Collect skill SKILL.md files
-  const skillDirEntries = await fs.promises
-    .readdir(skillsDir, { withFileTypes: true })
-    .catch(() => [] as fs.Dirent[])
+  const skillDirEntries = await fs.promises.readdir(skillsDir, { withFileTypes: true }).catch(() => [] as fs.Dirent[])
   const skillFiles: { name: string; file: string }[] = []
   for (const entry of skillDirEntries) {
     if (!entry.isDirectory()) continue

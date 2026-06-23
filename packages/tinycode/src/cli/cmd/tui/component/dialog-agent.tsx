@@ -12,7 +12,11 @@ export function DialogAgent() {
       return {
         value: item.name,
         title: item.name,
-        description: item.native ? "native" : item.compact ? `${item.description ?? ""} [compact]`.trim() : item.description,
+        description: item.native
+          ? "native"
+          : item.compact
+            ? `${item.description ?? ""} [compact]`.trim()
+            : item.description,
       }
     }),
   )

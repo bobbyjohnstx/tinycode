@@ -34,14 +34,14 @@ Prevents agents from self-approving their own work. Lightweight and standalone.
 
 Structured debugging with competing hypotheses ranked by a 6-tier evidence strength hierarchy:
 
-| Tier | Type | Example |
-|------|------|---------|
-| 1 (strongest) | Controlled reproductions | Isolated repro confirming behavior |
-| 2 | Primary source artifacts | Logs, metrics, code-path traces, git history |
-| 3 | Convergent sources | Multiple independent sources agreeing |
-| 4 | Single-source inference | One log line, one metric |
-| 5 | Circumstantial | Timing correlations, naming patterns |
-| 6 (weakest) | Speculation | Intuition, guesses |
+| Tier          | Type                     | Example                                      |
+| ------------- | ------------------------ | -------------------------------------------- |
+| 1 (strongest) | Controlled reproductions | Isolated repro confirming behavior           |
+| 2             | Primary source artifacts | Logs, metrics, code-path traces, git history |
+| 3             | Convergent sources       | Multiple independent sources agreeing        |
+| 4             | Single-source inference  | One log line, one metric                     |
+| 5             | Circumstantial           | Timing correlations, naming patterns         |
+| 6 (weakest)   | Speculation              | Intuition, guesses                           |
 
 Forces structured reasoning instead of guess-and-check. Includes falsification rules and rebuttal rounds.
 
@@ -106,11 +106,11 @@ Trailers: `Constraint:`, `Rejected:`, `Directive:`, `Confidence:`, `Scope-risk:`
 
 Tier-based agent routing:
 
-| Tier | Use Case |
-|------|----------|
-| LOW | Quick lookups, exploration, writing |
+| Tier   | Use Case                                                  |
+| ------ | --------------------------------------------------------- |
+| LOW    | Quick lookups, exploration, writing                       |
 | MEDIUM | Standard implementation, debugging, testing, verification |
-| HIGH | Architecture, deep analysis, code review, planning |
+| HIGH   | Architecture, deep analysis, code review, planning        |
 
 ---
 
@@ -135,7 +135,7 @@ Markdown knowledge base that compounds across sessions.
 - Category organization (architecture/decision/pattern/debugging)
 - Append-only log
 
-Oh-my-tiny already has wiki MCP tools, but the *skill* (when/how to write entries) is the valuable part.
+Oh-my-tiny already has wiki MCP tools, but the _skill_ (when/how to write entries) is the valuable part.
 
 - **Source**: `skills/wiki/` (if present as standalone skill)
 
@@ -173,6 +173,7 @@ Autonomous code improvement with parallel experimentation:
 4. **Circuit breaker**: Max consecutive failures → early exit
 5. **Plateau detection**: Same approach family 3+ iterations → diminishing returns
 6. **Approach family taxonomy**: architecture / training_config / data / infrastructure / optimization / testing / documentation / other
+
 - **Source**: `skills/self-improve/`
 
 ---

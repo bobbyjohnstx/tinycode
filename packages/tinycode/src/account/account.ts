@@ -1,16 +1,7 @@
 import { Effect, Layer, Option, Context } from "effect"
 import { serviceUse } from "@/core/effect/service-use"
 
-import type {
-  AccountError,
-  AccessToken,
-  AccountID,
-  Info,
-  Org,
-  OrgID,
-  Login,
-  PollResult,
-} from "./schema"
+import type { AccountError, AccessToken, AccountID, Info, Org, OrgID, Login, PollResult } from "./schema"
 
 export {
   AccountID,

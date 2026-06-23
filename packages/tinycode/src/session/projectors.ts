@@ -193,5 +193,4 @@ export default [
       log.warn("ignored late part update", { partID: id, messageID, sessionID })
     }
   }),
-
 ]

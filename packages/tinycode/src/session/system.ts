@@ -46,7 +46,7 @@ export function provider(model: Provider.Model) {
     const size = modelSizeB(model)
     if (size !== undefined && size <= 9) return [PROMPT_LOCAL_SMALL]
     if (size !== undefined && size >= 25) return [PROMPT_LOCAL_LARGE]
-    return [PROMPT_LOCAL_MEDIUM]   // 10B–24B, or unknown size
+    return [PROMPT_LOCAL_MEDIUM] // 10B–24B, or unknown size
   }
 
   return [PROMPT_DEFAULT]

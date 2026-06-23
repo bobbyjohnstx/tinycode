@@ -142,9 +142,7 @@ export const layer = Layer.effect(
     )
 
     const source = Flag.TINYCODE_MODELS_URL
-    const filepath = source
-      ? path.join(Global.Path.cache, `models-${Hash.fast(source)}.json`)
-      : undefined
+    const filepath = source ? path.join(Global.Path.cache, `models-${Hash.fast(source)}.json`) : undefined
     const ttl = Duration.minutes(5)
     const lockKey = `models-dev:${filepath ?? "local"}`
 
@@ -166,7 +164,7 @@ export const layer = Layer.effect(
       )
     })
 
-    const loadFromDisk = fs.readJson(Flag.TINYCODE_MODELS_PATH ?? (filepath ?? "")).pipe(
+    const loadFromDisk = fs.readJson(Flag.TINYCODE_MODELS_PATH ?? filepath ?? "").pipe(
       Effect.catch(() => Effect.succeed(undefined)),
       Effect.map((v) => v as Record<string, Provider> | undefined),
     )

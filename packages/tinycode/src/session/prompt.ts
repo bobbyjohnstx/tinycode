@@ -1207,9 +1207,8 @@ export const layer = Layer.effect(
                 callID: orphan.callID,
               })
             }
-            const hasAssistantText = lastAssistantMsg?.parts.some(
-              (part) => part.type === "text" && part.text.trim().length > 0,
-            ) ?? false
+            const hasAssistantText =
+              lastAssistantMsg?.parts.some((part) => part.type === "text" && part.text.trim().length > 0) ?? false
             if (!hasAssistantText && emptyResponseNudges < 1) {
               emptyResponseNudges++
               yield* slog.info("empty response after tool results, nudging model")

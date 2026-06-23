@@ -54,9 +54,7 @@ export function containerHostname(): string {
 export function rewriteLocalhostURL(url: string): string {
   if (!isContainer()) return url
   const hostname = containerHostname()
-  return url
-    .replace(/\/\/localhost([:/])/g, `//${hostname}$1`)
-    .replace(/\/\/127\.0\.0\.1([:/])/g, `//${hostname}$1`)
+  return url.replace(/\/\/localhost([:/])/g, `//${hostname}$1`).replace(/\/\/127\.0\.0\.1([:/])/g, `//${hostname}$1`)
 }
 
 export * as Container from "./container"

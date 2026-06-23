@@ -10,10 +10,7 @@ import { describe, it, expect } from "bun:test"
 import fsNode from "fs"
 import path from "path"
 
-const HELP_MD_PATH = path.resolve(
-  import.meta.dirname,
-  "../../src/cli/cmd/tui/help.md",
-)
+const HELP_MD_PATH = path.resolve(import.meta.dirname, "../../src/cli/cmd/tui/help.md")
 
 let helpContent: string
 

@@ -15,11 +15,7 @@ import { ConfigParse } from "../../src/config/parse"
 // decoded permission map so callers can assert on values.
 // ---------------------------------------------------------------------------
 function parsePermission(permissionInput: object): Config.Info["permission"] {
-  const config = ConfigParse.schema(
-    Config.Info,
-    { permission: permissionInput },
-    "test:permission-guardrail",
-  )
+  const config = ConfigParse.schema(Config.Info, { permission: permissionInput }, "test:permission-guardrail")
   return config.permission
 }
 
@@ -50,13 +46,7 @@ describe("permission schema – guardrail key", () => {
   })
 
   test("rejects unknown top-level config keys (schema still validates)", () => {
-    expect(() =>
-      ConfigParse.schema(
-        Config.Info,
-        { not_a_real_key: true },
-        "test:permission-guardrail",
-      ),
-    ).toThrow()
+    expect(() => ConfigParse.schema(Config.Info, { not_a_real_key: true }, "test:permission-guardrail")).toThrow()
   })
 
   test("guardrail key does not appear when omitted from permission object", () => {

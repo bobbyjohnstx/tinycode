@@ -185,11 +185,7 @@ const deps = Layer.mergeAll(
 ).pipe(Layer.provideMerge(infra))
 const env = Layer.mergeAll(
   TestLLMServer.layer,
-  SessionProcessor.layer.pipe(
-    Layer.provide(summary),
-    Layer.provide(Image.defaultLayer),
-    Layer.provideMerge(deps),
-  ),
+  SessionProcessor.layer.pipe(Layer.provide(summary), Layer.provide(Image.defaultLayer), Layer.provideMerge(deps)),
 )
 
 const it = testEffect(env)

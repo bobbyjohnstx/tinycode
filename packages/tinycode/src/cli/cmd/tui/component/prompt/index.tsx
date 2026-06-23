@@ -1449,7 +1449,7 @@ export function Prompt(props: PromptProps) {
       status().type !== "idle"
         ? (local.agent.list().find((a) => a.name === lastUserMessage()?.agent) ?? local.agent.current())
         : local.agent.current()
-    const color = status().type === "retry" ? theme.error : (agent ? local.agent.color(agent.name) : theme.border)
+    const color = status().type === "retry" ? theme.error : agent ? local.agent.color(agent.name) : theme.border
     return {
       frames: createFrames({
         color,

@@ -55,15 +55,15 @@ tinycode auto-discovers Ollama (`localhost:11434`), vLLM (`localhost:8000`), and
 
 Bun monorepo with Turborepo. Key packages:
 
-| Package | Description |
-|---|---|
+| Package             | Description                                                                         |
+| ------------------- | ----------------------------------------------------------------------------------- |
 | `packages/tinycode` | Core server, HTTP API, TUI, session processor, provider abstraction, tools, plugins |
-| `packages/app` | SolidJS + TailwindCSS v4 web UI |
-| `packages/desktop` | Electron desktop app |
-| `packages/llm` | LLM protocol implementations (Anthropic, OpenAI, Bedrock, Gemini) |
-| `packages/ui` | Shared SolidJS component library (icons, themes, i18n) |
-| `packages/plugin` | Plugin SDK (`@tinycode/plugin`) |
-| `packages/sdk/js` | Auto-generated TypeScript SDK |
+| `packages/app`      | SolidJS + TailwindCSS v4 web UI                                                     |
+| `packages/desktop`  | Electron desktop app                                                                |
+| `packages/llm`      | LLM protocol implementations (Anthropic, OpenAI, Bedrock, Gemini)                   |
+| `packages/ui`       | Shared SolidJS component library (icons, themes, i18n)                              |
+| `packages/plugin`   | Plugin SDK (`@tinycode/plugin`)                                                     |
+| `packages/sdk/js`   | Auto-generated TypeScript SDK                                                       |
 
 See [CLAUDE.md](CLAUDE.md) for development guidance and [AGENTS.md](AGENTS.md) for coding style.
 
@@ -73,35 +73,35 @@ Type `/ask <agent> <prompt>` to invoke a subagent. Tab or `<leader>a` switches t
 
 ### Built-in agents
 
-| Agent | Role |
-|---|---|
-| `explore` | Fast codebase search (grep/glob) |
-| `scout` | External research — clone repos, read docs. Never modifies workspace. |
-| `general` | General-purpose agent, fans out work in parallel |
+| Agent     | Role                                                                  |
+| --------- | --------------------------------------------------------------------- |
+| `explore` | Fast codebase search (grep/glob)                                      |
+| `scout`   | External research — clone repos, read docs. Never modifies workspace. |
+| `general` | General-purpose agent, fans out work in parallel                      |
 
 ### Custom agents (via `.tinycode/agent/`)
 
-| Agent | Role |
-|---|---|
-| `agent-reviewer` | Validates agent prompt definitions against the style guide |
-| `analyst` | Pre-planning requirements analysis — catches gaps before planning |
-| `architect` | Read-only code analysis and architectural guidance |
-| `code-reviewer` | Severity-rated code review with SOLID principle checks |
-| `code-simplifier` | Simplifies recently modified code without changing behavior |
-| `critic` | Quality gate — multi-perspective review of plans and code |
-| `debugger` | Root-cause analysis and bug fixing |
-| `designer` | UI/UX designer-developer for production-grade interfaces |
-| `document-specialist` | External documentation and reference specialist |
-| `executor` | Focused implementation of scoped tasks |
-| `git-master` | Git expert for atomic commits, rebasing, and history management |
-| `planner` | Strategic planning — gather requirements, produce work plans |
-| `qa-tester` | Interactive CLI testing via tmux |
-| `scientist` | Data analysis and research — hypothesis-driven, evidence required |
-| `security-reviewer` | Security vulnerability detection (OWASP Top 10, secrets, CVEs) |
-| `test-engineer` | Test strategy, integration/e2e coverage, TDD workflows |
-| `tracer` | Evidence-driven causal tracing with competing hypotheses |
-| `verifier` | Evidence-based verification of completion |
-| `writer` | Technical documentation |
+| Agent                 | Role                                                              |
+| --------------------- | ----------------------------------------------------------------- |
+| `agent-reviewer`      | Validates agent prompt definitions against the style guide        |
+| `analyst`             | Pre-planning requirements analysis — catches gaps before planning |
+| `architect`           | Read-only code analysis and architectural guidance                |
+| `code-reviewer`       | Severity-rated code review with SOLID principle checks            |
+| `code-simplifier`     | Simplifies recently modified code without changing behavior       |
+| `critic`              | Quality gate — multi-perspective review of plans and code         |
+| `debugger`            | Root-cause analysis and bug fixing                                |
+| `designer`            | UI/UX designer-developer for production-grade interfaces          |
+| `document-specialist` | External documentation and reference specialist                   |
+| `executor`            | Focused implementation of scoped tasks                            |
+| `git-master`          | Git expert for atomic commits, rebasing, and history management   |
+| `planner`             | Strategic planning — gather requirements, produce work plans      |
+| `qa-tester`           | Interactive CLI testing via tmux                                  |
+| `scientist`           | Data analysis and research — hypothesis-driven, evidence required |
+| `security-reviewer`   | Security vulnerability detection (OWASP Top 10, secrets, CVEs)    |
+| `test-engineer`       | Test strategy, integration/e2e coverage, TDD workflows            |
+| `tracer`              | Evidence-driven causal tracing with competing hypotheses          |
+| `verifier`            | Evidence-based verification of completion                         |
+| `writer`              | Technical documentation                                           |
 
 Agents with a `.compact.md` variant automatically use the compact prompt for models ≤9B parameters. See [docs/agent-prompt-tiers.md](docs/agent-prompt-tiers.md) for details.
 
@@ -111,14 +111,14 @@ Agents with a `.compact.md` variant automatically use the compact prompt for mod
 
 Type `/` to see available slash commands. Skills (marked `:skill`) inject specialized instructions:
 
-| Skill | Purpose |
-|---|---|
-| `/work-loop` | Iterate on a task until complete |
-| `/plan` | Strategic planning protocol |
-| `/wiki` | Wiki knowledge base operations |
-| `/deepinit` | Deep project initialization |
-| `/swarm` | Launch a supervised tmux split-screen swarm with shared `.tinycode/swarm/<id>` persistence |
-| `/cancel` | Cancel current operation |
+| Skill        | Purpose                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------ |
+| `/work-loop` | Iterate on a task until complete                                                           |
+| `/plan`      | Strategic planning protocol                                                                |
+| `/wiki`      | Wiki knowledge base operations                                                             |
+| `/deepinit`  | Deep project initialization                                                                |
+| `/swarm`     | Launch a supervised tmux split-screen swarm with shared `.tinycode/swarm/<id>` persistence |
+| `/cancel`    | Cancel current operation                                                                   |
 
 ## oh-my-tiny
 
@@ -146,11 +146,11 @@ zip -r tinycode.zip . \
   --exclude "*/dist/*"
 ```
 
-| Exclusion | Why |
-|-----------|-----|
+| Exclusion          | Why                                                        |
+| ------------------ | ---------------------------------------------------------- |
 | `*/node_modules/*` | npm dependencies — restored by `bun install` on the target |
-| `.git/*` | Git history — not needed to run the server |
-| `*/dist/*` | Built binaries and web UI assets — regenerated at runtime |
+| `.git/*`           | Git history — not needed to run the server                 |
+| `*/dist/*`         | Built binaries and web UI assets — regenerated at runtime  |
 
 On the target server after unzipping:
 
@@ -178,10 +178,10 @@ Access the web UI at `http://<server-ip>:4096`.
 
 ## Ecosystem
 
-| Project | Description | Repository |
-|---------|-------------|------------|
-| [tiny-container](https://github.com/bobbyjohnstx/tiny-container) | Container image packaging tinycode + oh-my-tiny for Kubernetes/OpenShift | `github.com/bobbyjohnstx/tiny-container` |
-| [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator) | OpenShift Operator managing `TinycodeInstance` CRs | `github.com/bobbyjohnstx/tinycode-operator` |
+| Project                                                                | Description                                                              | Repository                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------- |
+| [tiny-container](https://github.com/bobbyjohnstx/tiny-container)       | Container image packaging tinycode + oh-my-tiny for Kubernetes/OpenShift | `github.com/bobbyjohnstx/tiny-container`    |
+| [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator) | OpenShift Operator managing `TinycodeInstance` CRs                       | `github.com/bobbyjohnstx/tinycode-operator` |
 
 ## License
 

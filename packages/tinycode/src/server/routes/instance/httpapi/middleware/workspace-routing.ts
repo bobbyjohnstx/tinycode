@@ -66,12 +66,7 @@ export const workspaceRoutingLayer = Layer.effect(
           url.searchParams.get("directory") ||
           (rawDir ? decodeURIComponent(rawDir) : undefined) ||
           process.cwd()
-        return yield* effect.pipe(
-          Effect.provideService(
-            WorkspaceRouteContext,
-            WorkspaceRouteContext.of({ directory }),
-          ),
-        )
+        return yield* effect.pipe(Effect.provideService(WorkspaceRouteContext, WorkspaceRouteContext.of({ directory })))
       }),
     )
   }),

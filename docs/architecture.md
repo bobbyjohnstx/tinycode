@@ -8,18 +8,18 @@ tinycode is a local-LLM-first AI coding assistant. It exposes an HTTP API server
 
 Bun workspaces with Turborepo. All packages live under `packages/`.
 
-| Package | Name | Purpose |
-|---------|------|---------|
-| `tinycode` | `tinycode` | Core server, HTTP API, CLI, TUI, session processor, provider abstraction, tools, plugins |
-| `app` | `@tinycode/app` | SolidJS + TailwindCSS v4 web UI |
-| `desktop` | `@tinycode/desktop` | Electron desktop app wrapping `packages/app` |
-| `llm` | `@tinycode/llm` | LLM protocol implementations (Anthropic Messages, OpenAI Chat, Bedrock Converse, Gemini) |
-| `ui` | `@tinycode/ui` | Shared SolidJS component library (icons, themes, i18n, markdown, diffs) |
-| `plugin` | `@tinycode/plugin` | Public plugin SDK |
-| `sdk/js` | `@tinycode/sdk` | Auto-generated TypeScript SDK from OpenAPI spec |
-| `effect-drizzle-sqlite` | `@tinycode/effect-drizzle-sqlite` | Effect wrapper for Drizzle ORM + SQLite |
-| `http-recorder` | `@tinycode/http-recorder` | HTTP/WebSocket recording for tests (VCR-style cassettes) |
-| `script` | `@tinycode/script` | Build scripts and release utilities |
+| Package                 | Name                              | Purpose                                                                                  |
+| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------------------- |
+| `tinycode`              | `tinycode`                        | Core server, HTTP API, CLI, TUI, session processor, provider abstraction, tools, plugins |
+| `app`                   | `@tinycode/app`                   | SolidJS + TailwindCSS v4 web UI                                                          |
+| `desktop`               | `@tinycode/desktop`               | Electron desktop app wrapping `packages/app`                                             |
+| `llm`                   | `@tinycode/llm`                   | LLM protocol implementations (Anthropic Messages, OpenAI Chat, Bedrock Converse, Gemini) |
+| `ui`                    | `@tinycode/ui`                    | Shared SolidJS component library (icons, themes, i18n, markdown, diffs)                  |
+| `plugin`                | `@tinycode/plugin`                | Public plugin SDK                                                                        |
+| `sdk/js`                | `@tinycode/sdk`                   | Auto-generated TypeScript SDK from OpenAPI spec                                          |
+| `effect-drizzle-sqlite` | `@tinycode/effect-drizzle-sqlite` | Effect wrapper for Drizzle ORM + SQLite                                                  |
+| `http-recorder`         | `@tinycode/http-recorder`         | HTTP/WebSocket recording for tests (VCR-style cassettes)                                 |
+| `script`                | `@tinycode/script`                | Build scripts and release utilities                                                      |
 
 There is no standalone `packages/core` package. Core utilities (logging, git, npm helpers, schema definitions) live at `packages/tinycode/src/core/`.
 
@@ -29,47 +29,47 @@ There is no standalone `packages/core` package. Core utilities (logging, git, np
 
 The heart of the project. Every directory under `src/`:
 
-| Directory | Purpose |
-|-----------|---------|
-| `account/` | User account management and schema |
-| `agent/` | Agent definitions (explore, scout, general, compaction, title, summary) and subagent permissions |
-| `auth/` | Authentication for providers and services |
-| `background/` | Background job processing |
-| `bus/` | Event bus — Effect PubSub for typed event streaming between session processor, TUI, and web clients |
-| `cli/` | CLI entry point, command routing, TUI implementation |
-| `command/` | Custom command configuration |
-| `config/` | Configuration loading — global, project-local, env overrides, plugin configs, managed configs |
-| `control-plane/` | Workspace management and schema |
-| `core/` | Shared utilities (logging, git, npm, schema, process management) |
-| `effect/` | Effect framework utilities (bridges, instance state, runtime flags) |
-| `env/` | Environment variable management |
-| `file/` | File system utilities (ripgrep integration, glob patterns) |
-| `format/` | Code formatting integration |
-| `git/` | Git operations |
-| `id/` | ID generation (ULID) |
-| `ide/` | IDE integration |
-| `image/` | Image processing |
-| `lsp/` | Language Server Protocol client |
-| `mcp/` | Model Context Protocol client (stdio, SSE, HTTP transports; OAuth flow) |
-| `omt/` | oh-my-tiny plugin integration |
-| `patch/` | Diff/patch utilities |
-| `permission/` | Tool access control |
-| `plugin/` | Plugin system — loader, installer, built-in plugins (azure, cloudflare, digitalocean, github-copilot, xai, openai/codex) |
-| `project/` | Project context detection and schema |
-| `provider/` | LLM provider abstraction — wraps Vercel AI SDK, auto-discovers local LLMs |
-| `pty/` | Pseudo-terminal — dual runtime (bun-pty / @lydell/node-pty) |
-| `question/` | Interactive question/prompt system |
-| `reference/` | Reference management (repos, directories) |
-| `server/` | HTTP server — Effect HTTP with middleware, route groups, WebSocket, SSE |
-| `session/` | Session management — processor loop, LLM streaming, tool execution, compaction, overflow handling |
-| `shell/` | Shell command execution |
-| `skill/` | Skills system (slash commands, remote skill indexes) |
-| `snapshot/` | Filesystem snapshot tracking for undo/redo |
-| `storage/` | SQLite via Drizzle ORM — dual runtime (bun:sqlite / node:sqlite) |
-| `sync/` | Synchronization events and schema |
-| `tool/` | Tool implementations — read, write, edit, glob, grep, shell, LSP, webfetch, websearch, MCP, task, plan, skill, etc. |
-| `util/` | General utilities |
-| `worktree/` | Git worktree management |
+| Directory        | Purpose                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `account/`       | User account management and schema                                                                                       |
+| `agent/`         | Agent definitions (explore, scout, general, compaction, title, summary) and subagent permissions                         |
+| `auth/`          | Authentication for providers and services                                                                                |
+| `background/`    | Background job processing                                                                                                |
+| `bus/`           | Event bus — Effect PubSub for typed event streaming between session processor, TUI, and web clients                      |
+| `cli/`           | CLI entry point, command routing, TUI implementation                                                                     |
+| `command/`       | Custom command configuration                                                                                             |
+| `config/`        | Configuration loading — global, project-local, env overrides, plugin configs, managed configs                            |
+| `control-plane/` | Workspace management and schema                                                                                          |
+| `core/`          | Shared utilities (logging, git, npm, schema, process management)                                                         |
+| `effect/`        | Effect framework utilities (bridges, instance state, runtime flags)                                                      |
+| `env/`           | Environment variable management                                                                                          |
+| `file/`          | File system utilities (ripgrep integration, glob patterns)                                                               |
+| `format/`        | Code formatting integration                                                                                              |
+| `git/`           | Git operations                                                                                                           |
+| `id/`            | ID generation (ULID)                                                                                                     |
+| `ide/`           | IDE integration                                                                                                          |
+| `image/`         | Image processing                                                                                                         |
+| `lsp/`           | Language Server Protocol client                                                                                          |
+| `mcp/`           | Model Context Protocol client (stdio, SSE, HTTP transports; OAuth flow)                                                  |
+| `omt/`           | oh-my-tiny plugin integration                                                                                            |
+| `patch/`         | Diff/patch utilities                                                                                                     |
+| `permission/`    | Tool access control                                                                                                      |
+| `plugin/`        | Plugin system — loader, installer, built-in plugins (azure, cloudflare, digitalocean, github-copilot, xai, openai/codex) |
+| `project/`       | Project context detection and schema                                                                                     |
+| `provider/`      | LLM provider abstraction — wraps Vercel AI SDK, auto-discovers local LLMs                                                |
+| `pty/`           | Pseudo-terminal — dual runtime (bun-pty / @lydell/node-pty)                                                              |
+| `question/`      | Interactive question/prompt system                                                                                       |
+| `reference/`     | Reference management (repos, directories)                                                                                |
+| `server/`        | HTTP server — Effect HTTP with middleware, route groups, WebSocket, SSE                                                  |
+| `session/`       | Session management — processor loop, LLM streaming, tool execution, compaction, overflow handling                        |
+| `shell/`         | Shell command execution                                                                                                  |
+| `skill/`         | Skills system (slash commands, remote skill indexes)                                                                     |
+| `snapshot/`      | Filesystem snapshot tracking for undo/redo                                                                               |
+| `storage/`       | SQLite via Drizzle ORM — dual runtime (bun:sqlite / node:sqlite)                                                         |
+| `sync/`          | Synchronization events and schema                                                                                        |
+| `tool/`          | Tool implementations — read, write, edit, glob, grep, shell, LSP, webfetch, websearch, MCP, task, plan, skill, etc.      |
+| `util/`          | General utilities                                                                                                        |
+| `worktree/`      | Git worktree management                                                                                                  |
 
 ### Server
 
@@ -93,11 +93,11 @@ Registered in `src/tool/registry.ts`. Each tool is an Effect service. Current to
 
 ### Auto-Discovered (no config needed)
 
-| Provider | Default URL | Env Override |
-|----------|-------------|--------------|
-| ollama | `http://localhost:11434/v1` | `TINYCODE_OLLAMA_HOST` |
-| vllm | `http://localhost:8000/v1` | `TINYCODE_VLLM_HOST` |
-| maas | (none — set via env) | `TINYCODE_MAAS_HOST`, `TINYCODE_MAAS_API_KEY` |
+| Provider | Default URL                 | Env Override                                  |
+| -------- | --------------------------- | --------------------------------------------- |
+| ollama   | `http://localhost:11434/v1` | `TINYCODE_OLLAMA_HOST`                        |
+| vllm     | `http://localhost:8000/v1`  | `TINYCODE_VLLM_HOST`                          |
+| maas     | (none — set via env)        | `TINYCODE_MAAS_HOST`, `TINYCODE_MAAS_API_KEY` |
 
 Auto-discovery polls every 30 seconds with a 2-second probe timeout (`src/provider/local-discovery.ts`).
 
@@ -131,6 +131,7 @@ Built on Effect `PubSub`. Typed event definitions via `BusEvent.define()`. Per-i
 ### Dual Runtime
 
 Conditional imports via `package.json` `imports` field:
+
 - `#db`: `db.bun.ts` (bun:sqlite) vs `db.node.ts` (node:sqlite DatabaseSync)
 - `#pty`: `pty.bun.ts` (bun-pty) vs `pty.node.ts` (@lydell/node-pty)
 
@@ -174,10 +175,10 @@ Auto-generated from the OpenAPI spec using `@hey-api/openapi-ts`.
 
 ### Paths
 
-| Scope | Location |
-|-------|----------|
-| Global | `~/.config/tinycode/config.json` (also checks `tinycode.json`, `tinycode.jsonc`) |
-| Project | `.tinycode/tinycode.json` (walks up to worktree root) |
+| Scope        | Location                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------- |
+| Global       | `~/.config/tinycode/config.json` (also checks `tinycode.json`, `tinycode.jsonc`)                          |
+| Project      | `.tinycode/tinycode.json` (walks up to worktree root)                                                     |
 | Env override | `TINYCODE_CONFIG` (file path), `TINYCODE_CONFIG_DIR` (directory), `TINYCODE_CONFIG_CONTENT` (inline JSON) |
 
 Configs from all sources are deep-merged. Plugin configs are deduplicated by identity.
@@ -190,24 +191,24 @@ SQLite via Drizzle ORM at `~/.local/share/tinycode/tinycode.db` (XDG_DATA_HOME).
 
 ## CLI Commands
 
-| Command | Purpose |
-|---------|---------|
-| `tinycode` (or `bun dev`) | Interactive TUI (default) |
-| `tinycode run [message..]` | Non-interactive prompt execution |
-| `tinycode serve` | Headless API server on port 4096 |
-| `tinycode web` | Server + open web UI in browser |
-| `tinycode models [provider]` | List available models |
-| `tinycode providers` | List configured providers |
-| `tinycode mcp` | MCP server management |
-| `tinycode plugin <module>` | Plugin management |
-| `tinycode session` | Session management (list, delete, create) |
-| `tinycode export [sessionID]` | Export session |
-| `tinycode import <file>` | Import session |
-| `tinycode setup` | Initial setup wizard |
-| `tinycode status` | System status |
-| `tinycode uninstall` | Uninstall tinycode |
-| `tinycode db` | Database operations |
-| `tinycode debug <name>` | Debug utilities (agent, config, file, lsp, ripgrep, skill, snapshot, startup) |
+| Command                       | Purpose                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `tinycode` (or `bun dev`)     | Interactive TUI (default)                                                     |
+| `tinycode run [message..]`    | Non-interactive prompt execution                                              |
+| `tinycode serve`              | Headless API server on port 4096                                              |
+| `tinycode web`                | Server + open web UI in browser                                               |
+| `tinycode models [provider]`  | List available models                                                         |
+| `tinycode providers`          | List configured providers                                                     |
+| `tinycode mcp`                | MCP server management                                                         |
+| `tinycode plugin <module>`    | Plugin management                                                             |
+| `tinycode session`            | Session management (list, delete, create)                                     |
+| `tinycode export [sessionID]` | Export session                                                                |
+| `tinycode import <file>`      | Import session                                                                |
+| `tinycode setup`              | Initial setup wizard                                                          |
+| `tinycode status`             | System status                                                                 |
+| `tinycode uninstall`          | Uninstall tinycode                                                            |
+| `tinycode db`                 | Database operations                                                           |
+| `tinycode debug <name>`       | Debug utilities (agent, config, file, lsp, ripgrep, skill, snapshot, startup) |
 
 ---
 
@@ -220,13 +221,10 @@ Plugins extend tinycode with custom tools, providers, and TUI features.
 **Hook categories**: auth, provider, chat (message/params/headers), tool (definition/execute), permission, command, shell (env injection), session (compaction), text (completion).
 
 **Config**:
+
 ```json
 {
-  "plugin": [
-    "npm-package-name",
-    { "npm": "package-name", "options": {} },
-    "./local-plugin.ts"
-  ]
+  "plugin": ["npm-package-name", { "npm": "package-name", "options": {} }, "./local-plugin.ts"]
 }
 ```
 

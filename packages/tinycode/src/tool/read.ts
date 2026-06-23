@@ -279,7 +279,9 @@ export const ReadTool = Tool.define(
             `<type>pdf</type>`,
             "<content>\n",
             sliced.map((line, i) => `${i + 1}: ${line}`).join("\n"),
-            truncated ? `\n\n(Showing ${sliced.length} of ${lines.length} lines. Use offset parameter to read more.)` : "",
+            truncated
+              ? `\n\n(Showing ${sliced.length} of ${lines.length} lines. Use offset parameter to read more.)`
+              : "",
             "\n</content>",
           ].join("\n")
           return {
@@ -295,7 +297,9 @@ export const ReadTool = Tool.define(
           title,
           output: msg,
           metadata: { preview: msg, truncated: false, loaded: loaded.map((item) => item.filepath) },
-          attachments: [{ type: "file" as const, mime, url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}` }],
+          attachments: [
+            { type: "file" as const, mime, url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}` },
+          ],
         }
       }
 
@@ -306,7 +310,9 @@ export const ReadTool = Tool.define(
           title,
           output: msg,
           metadata: { preview: msg, truncated: false, loaded: loaded.map((item) => item.filepath) },
-          attachments: [{ type: "file" as const, mime, url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}` }],
+          attachments: [
+            { type: "file" as const, mime, url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}` },
+          ],
         }
       }
 

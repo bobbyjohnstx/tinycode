@@ -180,7 +180,8 @@ Two ways to define an agent. Use the file form for anything non-trivial.
 
 ```json
 {
-  "agent": {  // in tinycode.json
+  "agent": {
+    // in tinycode.json
     "my-reviewer": {
       "description": "Reviews PRs for style violations.",
       "mode": "subagent",
@@ -232,6 +233,7 @@ tinycode ships with `build`, `plan`, `general`, `explore`, and `scout`. Hidden i
 same key in `agent: { <name>: { ... } }`.
 
 Built-in agent roles:
+
 - `build` — default coding agent, has all tools
 - `plan` — read-only planning mode, no edit tools
 - `general` — fast general-purpose subagent, short-to-medium answers

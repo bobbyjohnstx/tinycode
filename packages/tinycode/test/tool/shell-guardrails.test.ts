@@ -28,7 +28,8 @@ const DESTRUCTIVE_COMMANDS = new Map<string, (args: string[]) => string | null>(
       const sub = args[0]
       if (sub === "reset" && args.includes("--hard")) return `git reset --hard`
       if (sub === "push" && (args.includes("--force") || args.includes("-f"))) return `git push --force`
-      if (sub === "branch" && args.includes("-D")) return `git branch -D ${args.slice(args.indexOf("-D") + 1).join(" ")}`
+      if (sub === "branch" && args.includes("-D"))
+        return `git branch -D ${args.slice(args.indexOf("-D") + 1).join(" ")}`
       if (sub === "clean" && args.includes("-f")) return `git clean -f`
       if (sub === "checkout" && args.includes("--")) return `git checkout -- (file restore)`
       return null

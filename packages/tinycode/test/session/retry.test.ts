@@ -254,7 +254,6 @@ describe("session.retry.retryable", () => {
     expect(retryable).toBeDefined()
     expect(retryable).toEqual({ message: "Response decompression failed" })
   })
-
 })
 
 describe("session.message-v2.fromError", () => {

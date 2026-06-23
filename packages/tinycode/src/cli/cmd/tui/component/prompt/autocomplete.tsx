@@ -513,17 +513,17 @@ export function Autocomplete(props: {
       (agent): AutocompleteOption => ({
         display: agent.name.padEnd(max + 2),
         description: agent.description,
-          onSelect: () => {
-            const input = props.input()
-            const cursor = input.logicalCursor
-            input.deleteRange(0, 0, cursor.row, cursor.col)
-            const text = "/ask " + agent.name + " "
-            input.insertText(text)
-            input.cursorOffset = Bun.stringWidth(text)
-            hide()
-          },
-        }),
-      )
+        onSelect: () => {
+          const input = props.input()
+          const cursor = input.logicalCursor
+          input.deleteRange(0, 0, cursor.row, cursor.col)
+          const text = "/ask " + agent.name + " "
+          input.insertText(text)
+          input.cursorOffset = Bun.stringWidth(text)
+          hide()
+        },
+      }),
+    )
   })
 
   const referenceAliases = createMemo(() =>

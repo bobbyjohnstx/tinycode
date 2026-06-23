@@ -106,7 +106,8 @@ const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>
   "@ai-sdk/amazon-bedrock": () => import("@ai-sdk/amazon-bedrock").then((m) => m.createAmazonBedrock),
   "@ai-sdk/azure": () => import("@ai-sdk/azure").then((m) => m.createAzure),
   "@ai-sdk/google-vertex": () => import("@ai-sdk/google-vertex").then((m) => m.createVertex),
-  "@ai-sdk/google-vertex/anthropic": () => import("@ai-sdk/google-vertex/anthropic").then((m) => m.createVertexAnthropic),
+  "@ai-sdk/google-vertex/anthropic": () =>
+    import("@ai-sdk/google-vertex/anthropic").then((m) => m.createVertexAnthropic),
   "@ai-sdk/xai": () => import("@ai-sdk/xai").then((m) => m.createXai),
   "@ai-sdk/mistral": () => import("@ai-sdk/mistral").then((m) => m.createMistral),
   "@ai-sdk/groq": () => import("@ai-sdk/groq").then((m) => m.createGroq),
@@ -121,7 +122,8 @@ const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>
   "@openrouter/ai-sdk-provider": () => import("@openrouter/ai-sdk-provider").then((m) => m.createOpenRouter),
   "gitlab-ai-provider": () => import("gitlab-ai-provider").then((m) => m.createGitLab),
   "venice-ai-sdk-provider": () => import("venice-ai-sdk-provider").then((m) => m.createVenice),
-  "ai-gateway-provider": () => import("ai-gateway-provider").then((m) => (m as any).createGateway ?? (m as any).default),
+  "ai-gateway-provider": () =>
+    import("ai-gateway-provider").then((m) => (m as any).createGateway ?? (m as any).default),
 }
 
 type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>) => Promise<any>
@@ -798,8 +800,7 @@ export const layer = Layer.effect(
 
           for (const [modelID, model] of Object.entries(provider.models)) {
             model.api.id = model.api.id ?? model.id ?? modelID
-            if (modelID === "gpt-5-chat-latest" && providerID === ProviderID.openai)
-              delete provider.models[modelID]
+            if (modelID === "gpt-5-chat-latest" && providerID === ProviderID.openai) delete provider.models[modelID]
             if (model.status === "alpha" && !runtimeFlags.enableExperimentalModels) delete provider.models[modelID]
             if (model.status === "deprecated") delete provider.models[modelID]
             if (
@@ -956,11 +957,8 @@ export const layer = Layer.effect(
           if (opts.body && opts.method === "POST") {
             const modelId = model.api.id.toLowerCase()
             const isThinkingModel =
-              options["enableThinking"] !== true && (
-                modelId.includes("qwen3") ||
-                modelId.includes("qwen2.5") ||
-                options["disableThinking"] === true
-              )
+              options["enableThinking"] !== true &&
+              (modelId.includes("qwen3") || modelId.includes("qwen2.5") || options["disableThinking"] === true)
             if (isThinkingModel) {
               const body = JSON.parse(opts.body as string)
               body.chat_template_kwargs = { ...body.chat_template_kwargs, enable_thinking: false }

@@ -83,9 +83,7 @@ export function toLLMEvents(
 
     case "finish-step":
       return Effect.sync(() => {
-        const pre = state.pendingReasoningEndID
-          ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })]
-          : []
+        const pre = state.pendingReasoningEndID ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })] : []
         state.pendingReasoningEndID = undefined
         return [
           ...pre,
@@ -116,9 +114,7 @@ export function toLLMEvents(
     case "text-start":
       return Effect.sync(() => {
         // Flush any buffered reasoning-end before text begins
-        const pre = state.pendingReasoningEndID
-          ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })]
-          : []
+        const pre = state.pendingReasoningEndID ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })] : []
         state.pendingReasoningEndID = undefined
         state.currentTextID = currentTextID(state, event.id)
         return [
@@ -189,9 +185,7 @@ export function toLLMEvents(
 
     case "tool-input-start":
       return Effect.sync(() => {
-        const pre = state.pendingReasoningEndID
-          ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })]
-          : []
+        const pre = state.pendingReasoningEndID ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })] : []
         state.pendingReasoningEndID = undefined
         state.toolNames[event.id] = event.toolName
         return [

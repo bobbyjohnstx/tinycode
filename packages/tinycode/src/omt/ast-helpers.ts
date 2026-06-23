@@ -49,28 +49,55 @@ export async function getSgModule(): Promise<typeof import("@ast-grep/napi") | n
 }
 
 export const SUPPORTED_LANGUAGES = [
-  "javascript", "typescript", "tsx", "python", "ruby", "go", "rust",
-  "java", "kotlin", "swift", "c", "cpp", "csharp", "html", "css", "json", "yaml",
+  "javascript",
+  "typescript",
+  "tsx",
+  "python",
+  "ruby",
+  "go",
+  "rust",
+  "java",
+  "kotlin",
+  "swift",
+  "c",
+  "cpp",
+  "csharp",
+  "html",
+  "css",
+  "json",
+  "yaml",
 ] as const
 
 export const EXT_TO_LANG: Record<string, string> = {
-  ".js": "javascript", ".mjs": "javascript", ".cjs": "javascript", ".jsx": "javascript",
-  ".ts": "typescript", ".mts": "typescript", ".cts": "typescript",
+  ".js": "javascript",
+  ".mjs": "javascript",
+  ".cjs": "javascript",
+  ".jsx": "javascript",
+  ".ts": "typescript",
+  ".mts": "typescript",
+  ".cts": "typescript",
   ".tsx": "tsx",
   ".py": "python",
   ".rb": "ruby",
   ".go": "go",
   ".rs": "rust",
   ".java": "java",
-  ".kt": "kotlin", ".kts": "kotlin",
+  ".kt": "kotlin",
+  ".kts": "kotlin",
   ".swift": "swift",
-  ".c": "c", ".h": "c",
-  ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp",
+  ".c": "c",
+  ".h": "c",
+  ".cpp": "cpp",
+  ".cc": "cpp",
+  ".cxx": "cpp",
+  ".hpp": "cpp",
   ".cs": "csharp",
-  ".html": "html", ".htm": "html",
+  ".html": "html",
+  ".htm": "html",
   ".css": "css",
   ".json": "json",
-  ".yaml": "yaml", ".yml": "yaml",
+  ".yaml": "yaml",
+  ".yml": "yaml",
 }
 
 /**
@@ -78,10 +105,7 @@ export const EXT_TO_LANG: Record<string, string> = {
  * In @ast-grep/napi v0.43+ only a handful of languages ship as enum members;
  * the rest are passed as plain capitalized strings (NapiLang = Lang | string).
  */
-export function toLangEnum(
-  _sg: typeof import("@ast-grep/napi"),
-  language: string,
-): string {
+export function toLangEnum(_sg: typeof import("@ast-grep/napi"), language: string): string {
   const langMap: Record<string, string> = {
     javascript: "JavaScript",
     typescript: "TypeScript",
@@ -108,7 +132,11 @@ export function toLangEnum(
 
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "__pycache__", ".venv", "venv"])
 
-export function getFilesForLanguage(dirPath: string, language: string, maxFiles = 1000): { files: string[]; truncated: boolean } {
+export function getFilesForLanguage(
+  dirPath: string,
+  language: string,
+  maxFiles = 1000,
+): { files: string[]; truncated: boolean } {
   const resolved = resolve(dirPath)
   try {
     const stat = statSync(resolved)

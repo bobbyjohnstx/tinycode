@@ -58,10 +58,7 @@ export function serveEmbeddedUIEffect(
 // In dev (bun run from source) this path is valid when the app has been built.
 const DEV_DIST_DIR = resolve(fileURLToPath(import.meta.url), "../../../../../app/dist")
 
-function serveDistFileEffect(
-  requestPath: string,
-  fs: AppFileSystem.Interface,
-) {
+function serveDistFileEffect(requestPath: string, fs: AppFileSystem.Interface) {
   const relative = requestPath.replace(/^\//, "") || "index.html"
   const primary = join(DEV_DIST_DIR, relative)
   const fallback = join(DEV_DIST_DIR, "index.html")

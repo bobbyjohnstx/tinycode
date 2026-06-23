@@ -25,12 +25,7 @@ export const Splash = (props: Pick<ComponentProps<"svg">, "ref" | "class">) => {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path
-        d="M30 4 L10 76"
-        stroke="var(--icon-strong-base)"
-        stroke-width="8"
-        stroke-linecap="round"
-      />
+      <path d="M30 4 L10 76" stroke="var(--icon-strong-base)" stroke-width="8" stroke-linecap="round" />
     </svg>
   )
 }
@@ -66,13 +61,7 @@ export const Logo = (props: { class?: string }) => {
         <rect x="59" y="18" width="4" height="10" />
       </g>
       {/* diagonal slash */}
-      <line
-        x1="82" y1="2"
-        x2="118" y2="78"
-        stroke="var(--icon-strong-base)"
-        stroke-width="3"
-        stroke-linecap="round"
-      />
+      <line x1="82" y1="2" x2="118" y2="78" stroke="var(--icon-strong-base)" stroke-width="3" stroke-linecap="round" />
       {/* code — strong, bottom-right */}
       <g fill="var(--icon-strong-base)">
         {/* c */}

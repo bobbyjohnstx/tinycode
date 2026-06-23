@@ -119,7 +119,13 @@ export const WebFetchTool = Tool.define(
               title,
               output: "PDF fetched successfully (sent as attachment)",
               metadata: {},
-              attachments: [{ type: "file" as const, mime, url: `data:${mime};base64,${Buffer.from(arrayBuffer).toString("base64")}` }],
+              attachments: [
+                {
+                  type: "file" as const,
+                  mime,
+                  url: `data:${mime};base64,${Buffer.from(arrayBuffer).toString("base64")}`,
+                },
+              ],
             }
           }
 
