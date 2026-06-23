@@ -9,6 +9,7 @@ import { MCP } from "../mcp"
 import { Skill } from "../skill"
 import PROMPT_INITIALIZE from "./template/initialize.txt"
 import PROMPT_REVIEW from "./template/review.txt"
+import PROMPT_SWARM from "./template/swarm.txt"
 
 type State = {
   commands: Record<string, Info>
@@ -54,6 +55,7 @@ export const Default = {
   INIT: "init",
   REVIEW: "review",
   ASK: "ask",
+  SWARM: "swarm",
 } as const
 
 export interface Interface {
@@ -101,6 +103,13 @@ export const layer = Layer.effect(
         subtask: true,
         template: "$2",
         hints: ["$1", "$2"],
+      }
+      commands[Default.SWARM] = {
+        name: Default.SWARM,
+        description: "launch supervised tmux swarm",
+        source: "command",
+        template: PROMPT_SWARM,
+        hints: hints(PROMPT_SWARM),
       }
 
       for (const [name, command] of Object.entries(cfg.command ?? {})) {

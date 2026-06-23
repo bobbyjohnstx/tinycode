@@ -381,6 +381,95 @@ describe("session.llm.ai-sdk adapter", () => {
     expect(stepFinish.usage).toBeUndefined()
   })
 
+  test("preserves provider-reported AI SDK usage cost", async () => {
+    const events = await adapt([
+      uncheckedAdapterEvent({
+        type: "finish-step",
+        response: { id: "response-1", timestamp: new Date(0), modelId: "openrouter-test" },
+        finishReason: "stop",
+        rawFinishReason: "stop",
+        providerMetadata: undefined,
+        usage: {
+          inputTokens: 5,
+          outputTokens: 2,
+          totalTokens: 7,
+          cost: 0.00001305,
+        },
+      }),
+    ])
+
+    const stepFinish = events[0]
+    if (stepFinish?.type !== "step-finish") throw new Error("expected step-finish")
+    expect(stepFinish.usage?.cost).toBe(0.00001305)
+  })
+
+  test("preserves OpenRouter raw usage cost from AI SDK events", async () => {
+    const events = await adapt([
+      uncheckedAdapterEvent({
+        type: "finish-step",
+        response: { id: "gen-raw-cost", timestamp: new Date(0), modelId: "openrouter-test" },
+        finishReason: "stop",
+        rawFinishReason: "stop",
+        providerMetadata: undefined,
+        usage: {
+          inputTokens: 5,
+          outputTokens: 2,
+          totalTokens: 7,
+          raw: {
+            cost: 0.000624,
+          },
+        },
+      }),
+    ])
+
+    const stepFinish = events[0]
+    if (stepFinish?.type !== "step-finish") throw new Error("expected step-finish")
+    expect(stepFinish.usage?.cost).toBe(0.000624)
+  })
+
+  test("fetches OpenRouter generation cost when AI SDK omits usage cost", async () => {
+    const originalFetch = globalThis.fetch
+    const urls: string[] = []
+    globalThis.fetch = ((input, init) => {
+      urls.push(String(input))
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-openrouter-key")
+      return Promise.resolve(
+        new Response(JSON.stringify({ data: { total_cost: 0.00042, usage: 0.999 } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+    }) as typeof fetch
+
+    try {
+      const event = await Effect.runPromise(
+        LLM.withOpenRouterGenerationCost(
+          uncheckedAdapterEvent({
+            type: "finish-step",
+            response: { id: "gen-test-cost", timestamp: new Date(0), modelId: "openrouter-test" },
+            finishReason: "stop",
+            rawFinishReason: "stop",
+            providerMetadata: undefined,
+            usage: {
+              inputTokens: 5,
+              outputTokens: 2,
+              totalTokens: 7,
+            },
+          }),
+          "test-openrouter-key",
+          new AbortController().signal,
+        ),
+      )
+
+      expect(urls).toEqual(["https://openrouter.ai/api/v1/generation?id=gen-test-cost"])
+      expect(event.type).toBe("finish-step")
+      if (event.type !== "finish-step") throw new Error("expected finish-step")
+      expect((event.usage as { cost?: number }).cost).toBe(0.00042)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test("reuses adapter state cleanly across streams once finish has fired", async () => {
     // adapterState() is meant to be per-stream, but the only thing finish currently clears
     // is toolNames — step, text counters, and the current text/reasoning IDs all leak

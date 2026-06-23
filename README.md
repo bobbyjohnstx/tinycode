@@ -111,6 +111,7 @@ Type `/` to see available slash commands. Skills (marked `:skill`) inject specia
 | `/plan` | Strategic planning protocol |
 | `/wiki` | Wiki knowledge base operations |
 | `/deepinit` | Deep project initialization |
+| `/swarm` | Launch a supervised tmux split-screen swarm with shared `.tinycode/swarm/<id>` persistence |
 | `/cancel` | Cancel current operation |
 
 ## oh-my-tiny

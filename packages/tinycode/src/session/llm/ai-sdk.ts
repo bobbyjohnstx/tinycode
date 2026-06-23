@@ -2,9 +2,10 @@ import { FinishReason, LLMEvent, ProviderMetadata, ToolResultValue } from "@tiny
 import { Effect, Schema } from "effect"
 import { type streamText } from "ai"
 import { errorMessage } from "@/util/error"
+import { isRecord } from "@/util/record"
 
 type Result = Awaited<ReturnType<typeof streamText>>
-type AISDKEvent = Result["fullStream"] extends AsyncIterable<infer T> ? T : never
+export type AISDKEvent = Result["fullStream"] extends AsyncIterable<infer T> ? T : never
 
 export function adapterState() {
   return {
@@ -36,6 +37,8 @@ function usage(value: unknown) {
     inputTokens?: number
     outputTokens?: number
     totalTokens?: number
+    cost?: number
+    raw?: unknown
     reasoningTokens?: number
     cachedInputTokens?: number
     inputTokenDetails?: { cacheReadTokens?: number; cacheWriteTokens?: number }
@@ -45,11 +48,16 @@ function usage(value: unknown) {
     inputTokens: item.inputTokens,
     outputTokens: item.outputTokens,
     totalTokens: item.totalTokens,
+    cost: usageCost(item.cost) ?? (isRecord(item.raw) ? usageCost(item.raw.cost) : undefined),
     reasoningTokens: item.outputTokenDetails?.reasoningTokens ?? item.reasoningTokens,
     cacheReadInputTokens: item.inputTokenDetails?.cacheReadTokens ?? item.cachedInputTokens,
     cacheWriteInputTokens: item.inputTokenDetails?.cacheWriteTokens,
   }).filter((entry) => entry[1] !== undefined)
   return entries.length === 0 ? undefined : Object.fromEntries(entries)
+}
+
+function usageCost(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
 function currentTextID(state: ReturnType<typeof adapterState>, id: string | undefined) {

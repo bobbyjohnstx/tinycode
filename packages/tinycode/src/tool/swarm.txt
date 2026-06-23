@@ -1,0 +1,5 @@
+Launch a tmux-backed swarm of tinycode workers for parallel work.
+
+The swarm creates an OMX-style tmux split-screen session: one tmux window named `swarm` with panes for the dashboard, supervisor, and each worker. All workers share a single persistent directory under `.tinycode/swarm/<id>` by default. The supervisor monitors worker pane output, shared done files, and heartbeat files; when a worker appears stale, it appends a bump note to that worker's inbox and sends a prompt into the worker's tmux pane. It must not open macOS Terminal pop-up windows.
+
+Use this tool when the user asks for /swarm, tmux swarm, many parallel GLM workers, or supervised parallel tinycode workers. Do not emulate the swarm with a generic shell command when this tool is available.

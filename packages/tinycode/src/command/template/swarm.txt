@@ -1,0 +1,13 @@
+Launch a supervised tmux swarm for this task:
+
+$ARGUMENTS
+
+Call the `swarm` tool exactly once. Use these defaults unless the user explicitly asked otherwise:
+- workers: 4
+- model: openrouter/z-ai/glm-5.2
+- stale_seconds: 240
+- poll_seconds: 30
+- switch_client: true when tinycode is running inside tmux unless the user asks not to switch
+- permissive: true only if the user says permissive, auto-approve, unsafe, or explicitly asks to skip permissions
+
+The swarm tool must create one tmux split-screen window named `swarm` with separate panes for the dashboard, supervisor, and workers; it must not open macOS Terminal pop-up windows. It must also create a shared persistent storage directory and a supervisor that bumps stale workers. After the tool returns, report the tmux attach command and shared directory. Do not run ad-hoc tmux shell commands yourself unless the swarm tool is unavailable.

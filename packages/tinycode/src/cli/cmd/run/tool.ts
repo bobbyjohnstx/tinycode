@@ -28,6 +28,7 @@ import type { PlanExitTool } from "@/tool/plan"
 import type { QuestionTool } from "@/tool/question"
 import type { ReadTool } from "@/tool/read"
 import type { SkillTool } from "@/tool/skill"
+import type { SwarmTool } from "@/tool/swarm"
 import type { TaskTool } from "@/tool/task"
 import type { TodoWriteTool } from "@/tool/todo"
 import type { WebFetchTool } from "@/tool/webfetch"
@@ -109,6 +110,7 @@ type ToolDefs = {
   webfetch: typeof WebFetchTool
   websearch: typeof WebSearchTool
   skill: typeof SkillTool
+  swarm: typeof SwarmTool
   plan_exit: typeof PlanExitTool
 }
 
@@ -397,6 +399,17 @@ function runSkill(p: ToolProps<typeof SkillTool>): ToolInline {
   return {
     icon: "→",
     title: `Skill "${p.input.name ?? ""}"`,
+  }
+}
+
+function runSwarm(p: ToolProps<typeof SwarmTool>): ToolInline {
+  const session = p.metadata.sessionName || p.input.session_name || "swarm"
+  return {
+    icon: "▦",
+    title: `Swarm ${session}`,
+    description: p.metadata.workerCount ? `${p.metadata.workerCount} workers` : undefined,
+    mode: "block",
+    body: p.frame.status === "completed" ? text(p.frame.state.output).trim() : undefined,
   }
 }
 
@@ -751,7 +764,7 @@ function scrollPatchFinal(p: ToolProps<typeof ApplyPatchTool>): string {
     return rows.join("\n")
   }
 
-  return patchLine(files[0]!)
+  return patchLine(files[0])
 }
 
 function scrollTaskStart(_: ToolProps<typeof TaskTool>): string {
@@ -863,6 +876,10 @@ function scrollLspStart(p: ToolProps<typeof LspTool>): string {
 
 function scrollSkillStart(p: ToolProps<typeof SkillTool>): string {
   return `→ Skill "${p.input.name ?? ""}"`
+}
+
+function scrollSwarmStart(p: ToolProps<typeof SwarmTool>): string {
+  return `▦ Swarm ${p.input.session_name ?? p.metadata.sessionName ?? ""}`.trim()
 }
 
 function scrollGlobStart(p: ToolProps<typeof GlobTool>): string {
@@ -1018,6 +1035,20 @@ function permLsp(p: ToolPermissionProps<typeof LspTool>): ToolPermissionInfo {
       ...(p.input.operation ? [`Operation: ${p.input.operation}`] : []),
       ...(file ? [`Path: ${toolPath(file, { home: true })}`] : []),
       ...(pos ? [`Position: ${pos}`] : []),
+    ],
+  }
+}
+
+function permSwarm(p: ToolPermissionProps<typeof SwarmTool>): ToolPermissionInfo {
+  const session = p.metadata.sessionName || p.input.session_name || p.patterns[0] || "swarm"
+  return {
+    icon: "▦",
+    title: `Launch swarm ${session}`,
+    lines: [
+      ...(p.input.task ? [`Task: ${p.input.task}`] : []),
+      ...(p.input.workers ? [`Workers: ${p.input.workers}`] : []),
+      ...(p.input.model ? [`Model: ${p.input.model}`] : []),
+      ...(p.metadata.sharedDir ? [`Shared: ${toolPath(p.metadata.sharedDir, { home: true })}`] : []),
     ],
   }
 }
@@ -1221,6 +1252,17 @@ const TOOL_RULES = {
     scroll: {
       start: scrollSkillStart,
     },
+  },
+  swarm: {
+    view: {
+      output: true,
+      final: false,
+    },
+    run: runSwarm,
+    scroll: {
+      start: scrollSwarmStart,
+    },
+    permission: permSwarm,
   },
   plan_exit: {
     view: {
