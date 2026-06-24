@@ -88,6 +88,18 @@ export async function parse(filePath: string) {
   }
 }
 
+export function parseContent(content: string) {
+  try {
+    return matter(content)
+  } catch {
+    try {
+      return matter(fallbackSanitization(content))
+    } catch {
+      return undefined
+    }
+  }
+}
+
 export const FrontmatterError = NamedError.create("ConfigFrontmatterError", {
   path: Schema.String,
   message: Schema.String,

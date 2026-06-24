@@ -276,15 +276,35 @@ export const layer = Layer.effect(
           content: CUSTOMIZE_TINYCODE_SKILL_BODY,
         }
 
-        // Load bundled default skills shipped with tinycode.
-        // These load BEFORE user skills so user skills can override by name.
-        const bundledSkillDir = path.join(import.meta.dir, "defaults")
-        const bundledSkills = yield* Effect.tryPromise({
-          try: () => Glob.scan("**/SKILL.md", { cwd: bundledSkillDir, absolute: true }),
-          catch: () => [] as string[],
-        }).pipe(Effect.catch(() => Effect.succeed([] as string[])))
-        for (const match of bundledSkills) {
-          yield* add(s, match, bus)
+        // Load bundled default skills. Try embedded assets first (compiled binary),
+        // fall back to filesystem scan (development mode).
+        let embeddedSkills: Record<string, string> | null = null
+        try {
+          const assets = require("tinycode-assets.gen") as { SKILL_FILES?: Record<string, string> }
+          embeddedSkills = assets.SKILL_FILES ?? null
+        } catch {}
+
+        if (embeddedSkills) {
+          for (const [name, content] of Object.entries(embeddedSkills)) {
+            const md = ConfigMarkdown.parseContent(content)
+            if (!md || !isSkillFrontmatter(md.data)) continue
+            if (s.skills[md.data.name]) continue
+            s.skills[md.data.name] = {
+              name: md.data.name,
+              description: md.data.description,
+              location: `<bundled:${name}>`,
+              content: md.content,
+            }
+          }
+        } else {
+          const bundledSkillDir = path.join(import.meta.dir, "defaults")
+          const bundledSkills = yield* Effect.tryPromise({
+            try: () => Glob.scan("**/SKILL.md", { cwd: bundledSkillDir, absolute: true }),
+            catch: () => [] as string[],
+          }).pipe(Effect.catch(() => Effect.succeed([] as string[])))
+          for (const match of bundledSkills) {
+            yield* add(s, match, bus)
+          }
         }
 
         yield* loadSkills(s, yield* InstanceState.get(discovered), bus)

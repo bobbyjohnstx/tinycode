@@ -80,8 +80,9 @@ const createEmbeddedWebUIBundle = async () => {
 
 const createEmbeddedAssetsBundle = async () => {
   console.log(`Building embedded assets bundle (agents + skills)`)
-  const agentDir = path.join(dir, ".tinycode/agent")
-  const skillsDir = path.join(dir, ".tinycode/skills")
+  const agentDir = path.join(dir, "src/agent/defaults")
+  const skillsDir = path.join(dir, "src/skill/defaults")
+  const rulesDir = path.join(dir, "src/session/rules/defaults")
 
   // Collect agent .md files
   const agentFiles: string[] = (await fs.promises.readdir(agentDir).catch(() => [] as string[])).filter((f) =>
@@ -113,15 +114,29 @@ const createEmbeddedAssetsBundle = async () => {
   })
   const skillEntries = skillFiles.map((s, i) => `  ${JSON.stringify(s.name)}: skill_${i},`)
 
+  // Collect rule .md files
+  const ruleFiles: string[] = (await fs.promises.readdir(rulesDir).catch(() => [] as string[])).filter((f) =>
+    f.endsWith(".md"),
+  )
+  const ruleImports = ruleFiles.map((f, i) => {
+    const spec = path.relative(dir, path.join(rulesDir, f)).replaceAll("\\", "/")
+    return `import rule_${i} from ${JSON.stringify(spec.startsWith(".") ? spec : "./" + spec)} with { type: "text" };`
+  })
+  const ruleEntries = ruleFiles.map((f, i) => `  ${JSON.stringify(f)}: rule_${i},`)
+
   return [
     `// Auto-generated embedded assets — do not edit`,
     ...agentImports,
     ...skillImports,
+    ...ruleImports,
     `export const AGENT_FILES: Record<string, string> = {`,
     ...agentEntries,
     `}`,
     `export const SKILL_FILES: Record<string, string> = {`,
     ...skillEntries,
+    `}`,
+    `export const RULE_FILES: Record<string, string> = {`,
+    ...ruleEntries,
     `}`,
   ].join("\n")
 }

@@ -165,12 +165,24 @@ export const layer: Layer.Layer<
       const scanRules = (dir: string) =>
         Effect.promise(() => Glob.scan("*.md", { cwd: dir, absolute: true }))
 
-      // 1. Bundled defaults (lowest priority)
-      const bundled = yield* scanRules(BUNDLED_RULES_DIR)
-      for (const file of bundled) {
-        const name = path.basename(file)
-        const content = yield* read(file)
-        if (content) ruleFiles.set(name, `Project Rules — ${name.replace(/\.md$/, "")}:\n${content}`)
+      // 1. Bundled defaults (lowest priority) — try embedded assets first, fall back to filesystem
+      let embeddedRules: Record<string, string> | null = null
+      try {
+        const assets = require("tinycode-assets.gen") as { RULE_FILES?: Record<string, string> }
+        embeddedRules = assets.RULE_FILES ?? null
+      } catch {}
+
+      if (embeddedRules) {
+        for (const [name, content] of Object.entries(embeddedRules)) {
+          if (content) ruleFiles.set(name, `Project Rules — ${name.replace(/\.md$/, "")}:\n${content}`)
+        }
+      } else {
+        const bundled = yield* scanRules(BUNDLED_RULES_DIR)
+        for (const file of bundled) {
+          const name = path.basename(file)
+          const content = yield* read(file)
+          if (content) ruleFiles.set(name, `Project Rules — ${name.replace(/\.md$/, "")}:\n${content}`)
+        }
       }
 
       // 2. Global user rules

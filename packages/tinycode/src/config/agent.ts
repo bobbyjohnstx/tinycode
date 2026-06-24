@@ -129,6 +129,18 @@ export async function load(dir: string) {
   return result
 }
 
+export function loadFromEmbedded(files: Record<string, string>) {
+  const result: Record<string, Info> = {}
+  for (const [filename, content] of Object.entries(files)) {
+    const md = ConfigMarkdown.parseContent(content)
+    if (!md) continue
+    const name = filename.replace(/\.md$/, "")
+    const config = { name, ...md.data, prompt: md.content.trim() }
+    result[config.name] = ConfigParse.schema(Info, config, `<bundled:${filename}>`)
+  }
+  return result
+}
+
 export async function loadMode(dir: string) {
   const result: Record<string, Info> = {}
   for (const item of await Glob.scan("{mode,modes}/*.md", {

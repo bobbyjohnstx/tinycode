@@ -282,10 +282,17 @@ export const layer = Layer.effect(
           },
         }
 
-        // Load bundled default agents shipped with tinycode. These are lowest
-        // priority — project and global config agents override them.
-        const bundledDir = path.join(import.meta.dir, "defaults")
-        const bundled = yield* Effect.promise(() => ConfigAgent.load(bundledDir))
+        // Load bundled default agents. Try embedded assets first (compiled binary),
+        // fall back to filesystem scan (development mode).
+        let embeddedAgents: Record<string, string> | null = null
+        try {
+          const assets = require("tinycode-assets.gen") as { AGENT_FILES?: Record<string, string> }
+          embeddedAgents = assets.AGENT_FILES ?? null
+        } catch {}
+
+        const bundled = embeddedAgents
+          ? ConfigAgent.loadFromEmbedded(embeddedAgents)
+          : yield* Effect.promise(() => ConfigAgent.load(path.join(import.meta.dir, "defaults")))
         for (const [key, value] of Object.entries(bundled)) {
           if (agents[key]) continue // never override native agents
           agents[key] = {
