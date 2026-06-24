@@ -8,8 +8,11 @@ import { Flag } from "@/core/flag/flag"
 import { AppFileSystem } from "@/core/filesystem"
 import { withTransientReadRetry } from "@/util/effect-http-client"
 import { Global } from "@/core/global"
+import { Glob } from "@/core/util/glob"
 import type { MessageV2 } from "./message-v2"
 import type { MessageID } from "./schema"
+
+const BUNDLED_RULES_DIR = path.join(import.meta.dir, "rules", "defaults")
 
 const files = (disableClaudeCodePrompt: boolean) => [
   "AGENTS.md",
@@ -151,6 +154,69 @@ export const layer: Layer.Layer<
       return paths
     })
 
+    // Load rules from bundled defaults and user directories.
+    // User rules override bundled by filename. Disabled via config.rules.disabled.
+    const loadRules = Effect.fn("Instruction.loadRules")(function* () {
+      const config = yield* cfg.get()
+      if ((config as any).rules?.disabled) return []
+
+      const ruleFiles = new Map<string, string>()
+
+      const scanRules = (dir: string) =>
+        Effect.promise(() => Glob.scan("*.md", { cwd: dir, absolute: true }))
+
+      // 1. Bundled defaults (lowest priority)
+      const bundled = yield* scanRules(BUNDLED_RULES_DIR)
+      for (const file of bundled) {
+        const name = path.basename(file)
+        const content = yield* read(file)
+        if (content) ruleFiles.set(name, `Project Rules — ${name.replace(/\.md$/, "")}:\n${content}`)
+      }
+
+      // 2. Global user rules
+      const globalRulesDir = path.join(global.config, "rules")
+      if (yield* fs.existsSafe(globalRulesDir)) {
+        const globalRules = yield* scanRules(globalRulesDir)
+        for (const file of globalRules) {
+          const name = path.basename(file)
+          const content = yield* read(file)
+          if (content) ruleFiles.set(name, `Project Rules — ${name.replace(/\.md$/, "")}:\n${content}`)
+        }
+      }
+
+      // 3. Project-level user rules (highest priority)
+      if (!Flag.TINYCODE_DISABLE_PROJECT_CONFIG) {
+        const ctx = yield* InstanceState.context
+        const projectRulesDir = path.join(ctx.worktree, ".tinycode", "rules")
+        if (yield* fs.existsSafe(projectRulesDir)) {
+          const projectRules = yield* scanRules(projectRulesDir)
+          for (const file of projectRules) {
+            const name = path.basename(file)
+            const content = yield* read(file)
+            if (content) ruleFiles.set(name, `Project Rules — ${name.replace(/\.md$/, "")}:\n${content}`)
+          }
+        }
+      }
+
+      // 4. Additional rule paths from config
+      const extraPaths = (config as any).rules?.paths as string[] | undefined
+      if (extraPaths) {
+        for (const dir of extraPaths) {
+          const resolved = dir.startsWith("~/") ? path.join(global.home, dir.slice(2)) : dir
+          if (yield* fs.existsSafe(resolved)) {
+            const extra = yield* scanRules(resolved)
+            for (const file of extra) {
+              const name = path.basename(file)
+              const content = yield* read(file)
+              if (content) ruleFiles.set(name, `Project Rules — ${name.replace(/\.md$/, "")}:\n${content}`)
+            }
+          }
+        }
+      }
+
+      return Array.from(ruleFiles.values())
+    })
+
     const system = Effect.fn("Instruction.system")(function* () {
       const config = yield* cfg.get()
       const paths = yield* systemPaths()
@@ -160,10 +226,12 @@ export const layer: Layer.Layer<
 
       const files = yield* Effect.forEach(Array.from(paths), read, { concurrency: 8 })
       const remote = yield* Effect.forEach(urls, fetch, { concurrency: 4 })
+      const rules = yield* loadRules()
 
       return [
         ...Array.from(paths).flatMap((item, i) => (files[i] ? [`Instructions from: ${item}\n${files[i]}`] : [])),
         ...urls.flatMap((item, i) => (remote[i] ? [`Instructions from: ${item}\n${remote[i]}`] : [])),
+        ...rules,
       ]
     })
 

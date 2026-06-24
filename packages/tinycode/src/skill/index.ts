@@ -275,6 +275,18 @@ export const layer = Layer.effect(
           location: "<built-in>",
           content: CUSTOMIZE_TINYCODE_SKILL_BODY,
         }
+
+        // Load bundled default skills shipped with tinycode.
+        // These load BEFORE user skills so user skills can override by name.
+        const bundledSkillDir = path.join(import.meta.dir, "defaults")
+        const bundledSkills = yield* Effect.tryPromise({
+          try: () => Glob.scan("**/SKILL.md", { cwd: bundledSkillDir, absolute: true }),
+          catch: () => [] as string[],
+        }).pipe(Effect.catch(() => Effect.succeed([] as string[])))
+        for (const match of bundledSkills) {
+          yield* add(s, match, bus)
+        }
+
         yield* loadSkills(s, yield* InstanceState.get(discovered), bus)
         return s
       }),
