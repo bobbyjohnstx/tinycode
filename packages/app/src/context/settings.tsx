@@ -28,7 +28,7 @@ export interface Settings {
     showSearch: boolean
     showStatus: boolean
     showTerminal: boolean
-    showReasoningSummaries: boolean
+    thinkingMode: "hide" | "show" | "stream"
     shellToolPartsExpanded: boolean
     editToolPartsExpanded: boolean
     showSessionProgressBar: boolean
@@ -116,7 +116,7 @@ const defaultSettings: Settings = {
     showSearch: false,
     showStatus: false,
     showTerminal: false,
-    showReasoningSummaries: false,
+    thinkingMode: "hide",
     shellToolPartsExpanded: false,
     editToolPartsExpanded: false,
     showSessionProgressBar: true,
@@ -212,12 +212,18 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setShowTerminal(value: boolean) {
           setStore("general", "showTerminal", value)
         },
-        showReasoningSummaries: withFallback(
-          () => store.general?.showReasoningSummaries,
-          defaultSettings.general.showReasoningSummaries,
+        thinkingMode: withFallback(
+          () => {
+            const v = (store.general as any)?.thinkingMode
+            if (v === "hide" || v === "show" || v === "stream") return v
+            const legacy = (store.general as any)?.showReasoningSummaries
+            if (legacy === true) return "show" as const
+            return undefined
+          },
+          defaultSettings.general.thinkingMode,
         ),
-        setShowReasoningSummaries(value: boolean) {
-          setStore("general", "showReasoningSummaries", value)
+        setThinkingMode(value: "hide" | "show" | "stream") {
+          setStore("general", "thinkingMode", value)
         },
         shellToolPartsExpanded: withFallback(
           () => store.general?.shellToolPartsExpanded,

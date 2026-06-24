@@ -284,11 +284,12 @@ export const layer = Layer.effect(
 
         // Load bundled default agents. Try embedded assets first (compiled binary),
         // fall back to filesystem scan (development mode).
-        let embeddedAgents: Record<string, string> | null = null
-        try {
-          const assets = require("tinycode-assets.gen") as { AGENT_FILES?: Record<string, string> }
-          embeddedAgents = assets.AGENT_FILES ?? null
-        } catch {}
+        const embeddedAgents = yield* Effect.promise(() =>
+          // @ts-expect-error - generated file at build time
+          import("tinycode-assets.gen")
+            .then((module) => (module.AGENT_FILES as Record<string, string> | undefined) ?? null)
+            .catch(() => null),
+        )
 
         const bundled = embeddedAgents
           ? ConfigAgent.loadFromEmbedded(embeddedAgents)

@@ -166,11 +166,12 @@ export const layer: Layer.Layer<
         Effect.promise(() => Glob.scan("*.md", { cwd: dir, absolute: true }))
 
       // 1. Bundled defaults (lowest priority) — try embedded assets first, fall back to filesystem
-      let embeddedRules: Record<string, string> | null = null
-      try {
-        const assets = require("tinycode-assets.gen") as { RULE_FILES?: Record<string, string> }
-        embeddedRules = assets.RULE_FILES ?? null
-      } catch {}
+      const embeddedRules = yield* Effect.promise(() =>
+        // @ts-expect-error - generated file at build time
+        import("tinycode-assets.gen")
+          .then((module) => (module.RULE_FILES as Record<string, string> | undefined) ?? null)
+          .catch(() => null),
+      )
 
       if (embeddedRules) {
         for (const [name, content] of Object.entries(embeddedRules)) {

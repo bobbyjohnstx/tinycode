@@ -59,7 +59,7 @@ async function configureSmokePage(page: Page, directory: string) {
         general: {
           editToolPartsExpanded: true,
           shellToolPartsExpanded: true,
-          showReasoningSummaries: true,
+          thinkingMode: "show",
           showSessionProgressBar: true,
         },
       }),

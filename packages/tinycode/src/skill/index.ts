@@ -278,11 +278,12 @@ export const layer = Layer.effect(
 
         // Load bundled default skills. Try embedded assets first (compiled binary),
         // fall back to filesystem scan (development mode).
-        let embeddedSkills: Record<string, string> | null = null
-        try {
-          const assets = require("tinycode-assets.gen") as { SKILL_FILES?: Record<string, string> }
-          embeddedSkills = assets.SKILL_FILES ?? null
-        } catch {}
+        const embeddedSkills = yield* Effect.promise(() =>
+          // @ts-expect-error - generated file at build time
+          import("tinycode-assets.gen")
+            .then((module) => (module.SKILL_FILES as Record<string, string> | undefined) ?? null)
+            .catch(() => null),
+        )
 
         if (embeddedSkills) {
           for (const [name, content] of Object.entries(embeddedSkills)) {

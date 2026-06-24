@@ -156,13 +156,36 @@ const markBoundaryGesture = (input: {
   }
 }
 
-function TimelineThinkingRow(props: { reasoningHeading?: string; showReasoningSummaries: boolean }) {
+function TimelineThinkingRow(props: {
+  reasoningHeading?: string
+  thinkingMode: "hide" | "show" | "stream"
+}) {
   const language = useLanguage()
+  const [expanded, setExpanded] = createSignal(props.thinkingMode === "stream")
 
   return (
     <div data-slot="session-turn-thinking">
-      <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
-      <Show when={!props.showReasoningSummaries}>
+      <div class="session-turn-thinking-header" style={{ display: "flex", "align-items": "center", gap: "6px" }}>
+        <button
+          class="session-turn-thinking-chevron"
+          onClick={() => setExpanded((prev) => !prev)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: "0",
+            "font-size": "0.75em",
+            opacity: "0.6",
+            transition: "transform 0.2s",
+            transform: expanded() ? "rotate(90deg)" : "rotate(0deg)",
+          }}
+          aria-label="Toggle thinking details"
+        >
+          {"▶"}
+        </button>
+        <TextShimmer text={language.t("ui.sessionTurn.status.thinking")} />
+      </div>
+      <Show when={expanded() && props.reasoningHeading}>
         <TextReveal text={props.reasoningHeading} class="session-turn-thinking-heading" travel={25} duration={700} />
       </Show>
     </div>
@@ -412,7 +435,7 @@ export function MessageTimeline(props: {
             getMsgParts,
             assistantMessagesByParent().get(userMessage.id) ?? emptyAssistantMessages,
             indexAccessor(),
-            settings.general.showReasoningSummaries(),
+            settings.general.thinkingMode(),
             sessionStatus().type,
             activeMessageID() === userMessage.id,
           )
@@ -1208,7 +1231,7 @@ export function MessageTimeline(props: {
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
               <TimelineThinkingRow
                 reasoningHeading={thinkingRow().reasoningHeading}
-                showReasoningSummaries={settings.general.showReasoningSummaries()}
+                thinkingMode={settings.general.thinkingMode()}
               />
             </div>
           </TimelineRowFrame>

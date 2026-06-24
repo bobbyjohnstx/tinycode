@@ -184,7 +184,7 @@ async function configurePage(page: Page) {
         general: {
           editToolPartsExpanded: true,
           shellToolPartsExpanded: true,
-          showReasoningSummaries: true,
+          thinkingMode: "show",
           showSessionProgressBar: true,
         },
       }),

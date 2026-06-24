@@ -356,12 +356,27 @@ export const SettingsGeneral: Component = () => {
           title={language.t("settings.general.row.reasoningSummaries.title")}
           description={language.t("settings.general.row.reasoningSummaries.description")}
         >
-          <div data-action="settings-feed-reasoning-summaries">
-            <Switch
-              checked={settings.general.showReasoningSummaries()}
-              onChange={(checked) => settings.general.setShowReasoningSummaries(checked)}
-            />
-          </div>
+          <Select
+            data-action="settings-thinking-mode"
+            options={[
+              { value: "hide" as const, label: "Collapsed" },
+              { value: "show" as const, label: "Expanded" },
+              { value: "stream" as const, label: "Stream" },
+            ]}
+            current={
+              [
+                { value: "hide" as const, label: "Collapsed" },
+                { value: "show" as const, label: "Expanded" },
+                { value: "stream" as const, label: "Stream" },
+              ].find((o) => o.value === settings.general.thinkingMode())
+            }
+            value={(o) => o.value}
+            label={(o) => o.label}
+            onSelect={(option) => option && settings.general.setThinkingMode(option.value)}
+            variant="secondary"
+            size="small"
+            triggerVariant="settings"
+          />
         </SettingsRow>
 
         <SettingsRow

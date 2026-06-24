@@ -112,7 +112,7 @@ export namespace Timeline {
     getMessageParts: (messageID: string) => Part[],
     assistantMessages: AssistantMessage[],
     index: number,
-    showReasoning: boolean,
+    showReasoning: "hide" | "show" | "stream",
     status: SessionStatus["type"],
     isActive: boolean,
   ) {
@@ -196,7 +196,7 @@ export namespace Timeline {
       assistantGroupIndex += 1
     })
 
-    if (isActive && status === "busy" && !error && (showReasoning ? assistantPartRefs.length === 0 : true)) {
+    if (isActive && status === "busy" && !error && (showReasoning !== "hide" ? assistantPartRefs.length === 0 : true)) {
       const heading = assistantMessages
         .flatMap((message) => getMessageParts(message.id))
         .map((part) => (part.type === "reasoning" && part.text ? reasoningHeading(part.text) : undefined))

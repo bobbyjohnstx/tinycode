@@ -1,9 +1,9 @@
 import { createMemo, type Setter } from "solid-js"
 import { useKV } from "./kv"
 
-export type ThinkingMode = "show" | "hide"
+export type ThinkingMode = "show" | "hide" | "stream"
 
-const MODES: readonly ThinkingMode[] = ["show", "hide"] as const
+const MODES: readonly ThinkingMode[] = ["hide", "show", "stream"] as const
 
 // OpenAI's Responses API surfaces reasoning summaries that start with a bolded
 // title block: "**Inspecting PR workflow**\n\n<body>". Treat that first block,

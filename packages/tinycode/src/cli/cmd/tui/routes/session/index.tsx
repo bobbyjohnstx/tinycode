@@ -214,7 +214,8 @@ export function Session() {
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
   const [conceal, setConceal] = createSignal(true)
   const thinking = useThinkingMode()
-  const thinkingMode = thinking.mode
+  const isChildSession = createMemo(() => !!session()?.parentID)
+  const thinkingMode = createMemo(() => isChildSession() ? "stream" as const : thinking.mode())
   const showThinking = createMemo(() => true)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
   const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", true)
@@ -683,6 +684,7 @@ export function Session() {
       title: (() => {
         const next = nextThinkingMode(thinkingMode())
         if (next === "hide") return "Collapse thinking"
+        if (next === "stream") return "Stream thinking"
         return "Expand thinking"
       })(),
       value: "session.toggle.thinking",
@@ -1528,6 +1530,7 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
   // Flips independently of the parent message completing.
   const isDone = createMemo(() => props.part.time.end !== undefined)
   const inMinimal = createMemo(() => ctx.thinkingMode() === "hide")
+  const inStream = createMemo(() => ctx.thinkingMode() === "stream")
   const duration = createMemo(() => {
     const end = props.part.time.end
     return end === undefined ? 0 : Math.max(0, end - props.part.time.start)
@@ -1540,19 +1543,25 @@ function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: Ass
     setExpanded((prev) => !prev)
   }
 
+  const showBody = createMemo(() => {
+    if (inStream()) return true
+    if (!inMinimal()) return isDone()
+    return expanded()
+  })
+
   return (
     <Show when={content()}>
       <box id={"text-" + props.part.id} paddingLeft={3} marginTop={1} flexDirection="column" flexShrink={0}>
         <box onMouseUp={toggle}>
           <ReasoningHeader
             toggleable={inMinimal()}
-            open={!inMinimal() || expanded()}
+            open={showBody()}
             done={isDone()}
             title={summary().title}
             duration={isDone() ? Locale.duration(duration()) : undefined}
           />
         </box>
-        <Show when={(!inMinimal() || expanded()) && summary().body}>
+        <Show when={showBody() && summary().body}>
           <box paddingLeft={inMinimal() ? 2 : 0} marginTop={1}>
             <code
               filetype="markdown"
