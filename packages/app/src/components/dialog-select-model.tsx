@@ -16,6 +16,12 @@ import { useLanguage } from "@/context/language"
 const isFree = (provider: string, cost: { input: number } | undefined) =>
   provider === "tinycode" && (!cost || cost.input === 0)
 
+const formatContext = (ctx: number) => {
+  if (ctx <= 0) return ""
+  if (ctx >= 1_000_000) return `${(ctx / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
+  return `${Math.round(ctx / 1000)}K`
+}
+
 type ModelState = ReturnType<typeof useLocal>["model"]
 
 const ModelList: Component<{
@@ -78,6 +84,9 @@ const ModelList: Component<{
           </Show>
           <Show when={i.latest}>
             <Tag>{language.t("model.tag.latest")}</Tag>
+          </Show>
+          <Show when={formatContext(i.limit?.context ?? 0)}>
+            {(ctx) => <span class="ml-auto shrink-0 text-11-regular text-text-dimmed">{ctx()}</span>}
           </Show>
         </div>
       )}
