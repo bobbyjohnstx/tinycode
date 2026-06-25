@@ -304,7 +304,19 @@ export const layer = Layer.effect(
             catch: () => [] as string[],
           }).pipe(Effect.catch(() => Effect.succeed([] as string[])))
           for (const match of bundledSkills) {
-            yield* add(s, match, bus)
+            const md = yield* Effect.tryPromise({
+              try: () => ConfigMarkdown.parse(match),
+              catch: () => undefined,
+            }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+            if (!md || !isSkillFrontmatter(md.data)) continue
+            if (s.skills[md.data.name]) continue
+            const name = path.basename(path.dirname(match))
+            s.skills[md.data.name] = {
+              name: md.data.name,
+              description: md.data.description,
+              location: `<bundled:${name}>`,
+              content: md.content,
+            }
           }
         }
 
