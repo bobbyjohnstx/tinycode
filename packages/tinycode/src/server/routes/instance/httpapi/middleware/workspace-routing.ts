@@ -1,6 +1,6 @@
 import type { WorkspaceID } from "@/control-plane/schema"
+import { getWorkspaceRouteSessionID } from "@/server/shared/workspace-routing"
 import { Session } from "@/session/session"
-import { SessionID } from "@/session/schema"
 import { NotFoundError } from "@/storage/storage"
 import { Context, Effect, Layer, Schema } from "effect"
 import { HttpServerRequest } from "effect/unstable/http"
@@ -36,11 +36,6 @@ export class WorkspaceRoutingMiddleware extends HttpApiMiddleware.Service<
 
 function requestURL(request: HttpServerRequest.HttpServerRequest): URL {
   return new URL(request.url, "http://localhost")
-}
-
-function getWorkspaceRouteSessionID(url: URL): SessionID | undefined {
-  const id = url.searchParams.get("sessionID")
-  return id ? SessionID.make(id) : undefined
 }
 
 export const workspaceRoutingLayer = Layer.effect(
