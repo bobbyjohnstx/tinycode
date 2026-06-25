@@ -129,6 +129,25 @@ export async function load(dir: string) {
   return result
 }
 
+export async function loadFlat(dir: string) {
+  const result: Record<string, Info> = {}
+  for (const item of await Glob.scan("*.md", {
+    cwd: dir,
+    absolute: true,
+  })) {
+    const md = await ConfigMarkdown.parse(item).catch((err) => {
+      log.error("failed to load agent", { agent: item, err })
+      return undefined
+    })
+    if (!md) continue
+
+    const name = path.basename(item, ".md")
+    const config = { name, ...md.data, prompt: md.content.trim() }
+    result[config.name] = ConfigParse.schema(Info, config, item)
+  }
+  return result
+}
+
 export function loadFromEmbedded(files: Record<string, string>) {
   const result: Record<string, Info> = {}
   for (const [filename, content] of Object.entries(files)) {

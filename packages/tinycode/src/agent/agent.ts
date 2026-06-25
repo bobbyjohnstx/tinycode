@@ -293,7 +293,7 @@ export const layer = Layer.effect(
 
         const bundled = embeddedAgents
           ? ConfigAgent.loadFromEmbedded(embeddedAgents)
-          : yield* Effect.promise(() => ConfigAgent.load(path.join(import.meta.dir, "defaults")))
+          : yield* Effect.promise(() => ConfigAgent.loadFlat(path.join(import.meta.dir, "defaults")))
         for (const [key, value] of Object.entries(bundled)) {
           if (agents[key]) continue // never override native agents
           agents[key] = {
