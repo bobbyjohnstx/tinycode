@@ -14,8 +14,16 @@ const POLL_INTERVAL = Duration.seconds(30)
 
 // --- Ollama response schema ---
 
+const OllamaModelDetails = Schema.Struct({
+  parameter_size: Schema.optional(Schema.String),
+  context_length: Schema.optional(Schema.Number),
+  family: Schema.optional(Schema.String),
+})
+
 const OllamaModel = Schema.Struct({
   name: Schema.String,
+  details: Schema.optional(OllamaModelDetails),
+  capabilities: Schema.optional(Schema.Array(Schema.String)),
 })
 
 const OllamaTagsResponse = Schema.Struct({
@@ -64,16 +72,22 @@ const K8sServiceList = Schema.Struct({
 
 // --- Helpers ---
 
-function makeOllamaProvider(baseURL: string, modelNames: string[]): Info {
+type OllamaModelEntry = Schema.Schema.Type<typeof OllamaModel>
+
+function makeOllamaProvider(baseURL: string, entries: OllamaModelEntry[]): Info {
   const models: Record<string, Model> = {}
-  for (const name of modelNames) {
+  for (const entry of entries) {
+    const caps = new Set(entry.capabilities ?? [])
+    const contextLimit = entry.details?.context_length ?? 0
+    const effectiveContext = contextLimit > 0 ? Math.floor(contextLimit * 0.8) : 0
+    const outputLimit = contextLimit > 0 ? Math.min(4096, Math.floor(contextLimit * 0.2)) : 0
     const model: Model = {
-      id: ModelID.make(name),
+      id: ModelID.make(entry.name),
       providerID: ProviderID.make("ollama"),
-      name,
-      family: "",
+      name: entry.name,
+      family: entry.details?.family ?? "",
       api: {
-        id: name,
+        id: entry.name,
         url: `${baseURL}/v1`,
         npm: "@ai-sdk/openai-compatible",
       },
@@ -81,20 +95,20 @@ function makeOllamaProvider(baseURL: string, modelNames: string[]): Info {
       headers: {},
       options: {},
       cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-      limit: { context: 0, output: 0 },
+      limit: { context: effectiveContext, output: outputLimit },
       capabilities: {
         temperature: true,
-        reasoning: false,
-        attachment: false,
-        toolcall: true,
-        input: { text: true, audio: false, image: false, video: false, pdf: false },
+        reasoning: caps.has("thinking"),
+        attachment: caps.has("vision"),
+        toolcall: caps.has("tools"),
+        input: { text: true, audio: false, image: caps.has("vision"), video: false, pdf: false },
         output: { text: true, audio: false, image: false, video: false, pdf: false },
         interleaved: false,
       },
       release_date: "",
       variants: {},
     }
-    models[name] = model
+    models[entry.name] = model
   }
   return {
     id: ProviderID.make("ollama"),
@@ -211,10 +225,10 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         Effect.timeout(PROBE_TIMEOUT),
         Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(OllamaTagsResponse)(res)),
         Effect.map((data) => {
-          const names = data.models.map((m) => m.name).filter((n) => n.length > 0)
-          if (names.length === 0) return null
-          log.info("ollama discovered", { count: names.length, models: names.slice(0, 5) })
-          return makeOllamaProvider(baseURL, names)
+          const entries = data.models.filter((m) => m.name.length > 0)
+          if (entries.length === 0) return null
+          log.info("ollama discovered", { count: entries.length, models: entries.slice(0, 5).map((m) => m.name) })
+          return makeOllamaProvider(baseURL, entries)
         }),
         Effect.catch((err) => {
           log.info("ollama not available", { baseURL, error: String(err) })
@@ -380,22 +394,25 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         Effect.timeout(PROBE_TIMEOUT),
         Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(VllmModelsResponse)(res)),
         Effect.map((data) => {
-          const ids = data.data.map((m) => m.id).filter((id) => id.length > 0 && !id.toLowerCase().includes("embed"))
-          if (ids.length === 0) return null
-          log.info("maas discovered", { host: baseURL, count: ids.length, models: ids.slice(0, 5) })
+          const entries = data.data.filter((m) => m.id.length > 0 && !m.id.toLowerCase().includes("embed"))
+          if (entries.length === 0) return null
+          log.info("maas discovered", { host: baseURL, count: entries.length, models: entries.slice(0, 5).map((m) => m.id) })
           const models: Record<string, Model> = {}
-          for (const id of ids) {
-            models[id] = {
-              id: ModelID.make(id),
+          for (const entry of entries) {
+            const contextLimit = entry.max_model_len ?? 0
+            const effectiveContext = contextLimit > 0 ? Math.floor(contextLimit * 0.8) : 0
+            const outputLimit = contextLimit > 0 ? Math.min(4096, Math.floor(contextLimit * 0.2)) : 0
+            models[entry.id] = {
+              id: ModelID.make(entry.id),
               providerID: ProviderID.make("maas"),
-              name: id,
+              name: entry.id,
               family: "",
-              api: { id, url: `${baseURL}/v1`, npm: "@ai-sdk/openai-compatible" },
+              api: { id: entry.id, url: `${baseURL}/v1`, npm: "@ai-sdk/openai-compatible" },
               status: "active",
               headers: { Authorization: `Bearer ${apiKey}` },
               options: { apiKey },
               cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-              limit: { context: 0, output: 0 },
+              limit: { context: effectiveContext, output: outputLimit },
               capabilities: {
                 temperature: true,
                 reasoning: false,

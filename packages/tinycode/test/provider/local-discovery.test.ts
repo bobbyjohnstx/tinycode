@@ -108,6 +108,73 @@ describe("LocalDiscovery", () => {
   })
 
   // ---------------------------------------------------------------------------
+  // Test: Context limit calculation (80/20 split)
+  // ---------------------------------------------------------------------------
+
+  describe("context limit calculation", () => {
+    const calcLimits = (maxModelLen: number) => {
+      const effectiveContext = maxModelLen > 0 ? Math.floor(maxModelLen * 0.8) : 0
+      const outputLimit = maxModelLen > 0 ? Math.min(4096, Math.floor(maxModelLen * 0.2)) : 0
+      return { context: effectiveContext, output: outputLimit }
+    }
+
+    test("applies 80/20 split to context_length", () => {
+      expect(calcLimits(32768)).toEqual({ context: 26214, output: 4096 })
+    })
+
+    test("caps output at 4096 for large context", () => {
+      expect(calcLimits(131072)).toEqual({ context: 104857, output: 4096 })
+    })
+
+    test("returns zero for zero context", () => {
+      expect(calcLimits(0)).toEqual({ context: 0, output: 0 })
+    })
+
+    test("small context uses proportional output", () => {
+      expect(calcLimits(8192)).toEqual({ context: 6553, output: 1638 })
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Test: Ollama capability detection from tags response
+  // ---------------------------------------------------------------------------
+
+  describe("ollama capability mapping", () => {
+    const mapCaps = (caps: string[]) => {
+      const s = new Set(caps)
+      return {
+        reasoning: s.has("thinking"),
+        toolcall: s.has("tools"),
+        vision: s.has("vision"),
+      }
+    }
+
+    test("detects thinking, tools, and vision", () => {
+      expect(mapCaps(["vision", "completion", "tools", "thinking"])).toEqual({
+        reasoning: true,
+        toolcall: true,
+        vision: true,
+      })
+    })
+
+    test("completion-only model has no special capabilities", () => {
+      expect(mapCaps(["completion"])).toEqual({
+        reasoning: false,
+        toolcall: false,
+        vision: false,
+      })
+    })
+
+    test("thinking-only model (e.g. deepseek-r1) has reasoning but no tools", () => {
+      expect(mapCaps(["completion", "thinking"])).toEqual({
+        reasoning: true,
+        toolcall: false,
+        vision: false,
+      })
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // Test 5 (logic): Trailing slash normalization — pure string behavior
   // ---------------------------------------------------------------------------
 
