@@ -401,6 +401,11 @@ export const RunCommand = effectCmd({
             })
             .catch(() => undefined)
 
+          if (current?.error) {
+            UI.error(`Failed to get session: ${JSON.stringify(current.error)}`)
+            process.exit(1)
+          }
+
           if (!current?.data) {
             UI.error("Session not found")
             process.exit(1)
@@ -429,7 +434,12 @@ export const RunCommand = effectCmd({
           }
         }
 
-        const base = args.continue ? (await sdk.session.list()).data?.find((item) => !item.parentID) : undefined
+        const listResult = args.continue ? await sdk.session.list() : undefined
+        if (listResult?.error) {
+          UI.error(`Failed to list sessions: ${JSON.stringify(listResult.error)}`)
+          process.exit(1)
+        }
+        const base = listResult?.data?.find((item) => !item.parentID)
 
         if (base && args.fork) {
           const forked = await sdk.session.fork({
@@ -460,6 +470,10 @@ export const RunCommand = effectCmd({
           title: name,
           permission: [...rules],
         })
+        if (result.error) {
+          UI.error(`Failed to create session: ${JSON.stringify(result.error)}`)
+          process.exit(1)
+        }
         const id = result.data?.id
         if (!id) {
           return
@@ -835,7 +849,12 @@ export const RunCommand = effectCmd({
         const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
           const { Server } = await import("@/server/server")
           const request = new Request(input, init)
-          return Server.Default().app.fetch(request)
+          const response = await Server.Default().app.fetch(request)
+          if (!response.ok) {
+            const body = await response.clone().text().catch(() => "")
+            UI.debug?.(`in-process server error: ${response.status} ${body.slice(0, 200)}`)
+          }
+          return response
         }) as typeof globalThis.fetch
 
         try {
@@ -869,7 +888,12 @@ export const RunCommand = effectCmd({
       const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
         const { Server } = await import("@/server/server")
         const request = new Request(input, init)
-        return Server.Default().app.fetch(request)
+        const response = await Server.Default().app.fetch(request)
+        if (!response.ok) {
+          const body = await response.clone().text().catch(() => "")
+          UI.debug?.(`in-process server error: ${response.status} ${body.slice(0, 200)}`)
+        }
+        return response
       }) as typeof globalThis.fetch
       const sdk = createTinycodeClient({
         baseUrl: "http://tinycode.internal",
