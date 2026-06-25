@@ -144,12 +144,72 @@ const OpenAIChatEvent = Schema.Struct({
 type OpenAIChatEvent = Schema.Schema.Type<typeof OpenAIChatEvent>
 type OpenAIChatRequestMessage = LLMRequest["messages"][number]
 
+interface ThinkTagState {
+  readonly inThinkTag: boolean
+  readonly buffer: string
+}
+
 interface ParserState {
   readonly tools: ToolStream.State<number>
   readonly toolCallEvents: ReadonlyArray<LLMEvent>
   readonly usage?: Usage
   readonly finishReason?: FinishReason
   readonly lifecycle: Lifecycle.State
+  readonly thinkTag: ThinkTagState
+}
+
+function processThinkTags(
+  content: string,
+  state: ThinkTagState,
+  lifecycle: Lifecycle.State,
+  events: LLMEvent[],
+): { lifecycle: Lifecycle.State; thinkTag: ThinkTagState } {
+  let pos = 0
+  let { inThinkTag, buffer } = state
+  let lc = lifecycle
+  const text = buffer + content
+  buffer = ""
+
+  while (pos < text.length) {
+    if (inThinkTag) {
+      const closeIdx = text.indexOf("</think>", pos)
+      if (closeIdx === -1) {
+        lc = Lifecycle.reasoningDelta(lc, events, "think-0", text.slice(pos))
+        pos = text.length
+      } else {
+        const chunk = text.slice(pos, closeIdx)
+        if (chunk) lc = Lifecycle.reasoningDelta(lc, events, "think-0", chunk)
+        lc = Lifecycle.reasoningEnd(lc, events, "think-0")
+        inThinkTag = false
+        pos = closeIdx + "</think>".length
+      }
+    } else {
+      const openIdx = text.indexOf("<think>", pos)
+      if (openIdx === -1) {
+        const remaining = text.slice(pos)
+        if (remaining.includes("<")) {
+          const ltIdx = remaining.lastIndexOf("<")
+          const tail = remaining.slice(ltIdx)
+          if ("<think>".startsWith(tail)) {
+            const before = remaining.slice(0, ltIdx)
+            if (before) lc = Lifecycle.textDelta(lc, events, "text-0", before)
+            buffer = tail
+            pos = text.length
+            break
+          }
+        }
+        if (remaining) lc = Lifecycle.textDelta(lc, events, "text-0", remaining)
+        pos = text.length
+      } else {
+        const before = text.slice(pos, openIdx)
+        if (before) lc = Lifecycle.textDelta(lc, events, "text-0", before)
+        inThinkTag = true
+        pos = openIdx + "<think>".length
+      }
+    }
+  }
+
+  return { lifecycle: lc, thinkTag: { inThinkTag, buffer } }
 }
 
 const invalid = ProviderShared.invalidRequest
@@ -330,7 +390,12 @@ const step = (state: ParserState, event: OpenAIChatEvent) =>
     if (delta?.reasoning_content)
       lifecycle = Lifecycle.reasoningDelta(lifecycle, events, "reasoning-0", delta.reasoning_content)
 
-    if (delta?.content) lifecycle = Lifecycle.textDelta(lifecycle, events, "text-0", delta.content)
+    let thinkTag = state.thinkTag
+    if (delta?.content) {
+      const result = processThinkTags(delta.content, thinkTag, lifecycle, events)
+      lifecycle = result.lifecycle
+      thinkTag = result.thinkTag
+    }
 
     for (const tool of toolDeltas) {
       const result = ToolStream.appendOrStart(
@@ -360,6 +425,7 @@ const step = (state: ParserState, event: OpenAIChatEvent) =>
         usage,
         finishReason,
         lifecycle,
+        thinkTag,
       },
       events,
     ] as const
@@ -392,7 +458,7 @@ export const protocol = Protocol.make({
   },
   stream: {
     event: Protocol.jsonEvent(OpenAIChatEvent),
-    initial: () => ({ tools: ToolStream.empty<number>(), toolCallEvents: [], lifecycle: Lifecycle.initial() }),
+    initial: () => ({ tools: ToolStream.empty<number>(), toolCallEvents: [], lifecycle: Lifecycle.initial(), thinkTag: { inThinkTag: false, buffer: "" } }),
     step,
     onHalt: finishEvents,
   },

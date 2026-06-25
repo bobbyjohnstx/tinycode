@@ -402,4 +402,58 @@ describe("OpenAI Chat route", () => {
       expect(events.map((event) => event.type)).toEqual(["step-start"])
     }),
   )
+
+  it.effect("parses <think> blocks from content into reasoning events", () =>
+    Effect.gen(function* () {
+      const body = sseEvents(
+        { choices: [{ delta: { content: "<think>let me reason</think>The answer is 42" } }] },
+        { choices: [{ delta: {}, finish_reason: "stop" }] },
+      )
+
+      const response = yield* LLMClient.generate(request).pipe(Effect.provide(fixedResponse(body)))
+
+      expect(response.reasoning).toBe("let me reason")
+      expect(response.text).toBe("The answer is 42")
+      expect(response.events).toMatchObject([
+        { type: "step-start", index: 0 },
+        { type: "reasoning-start", id: "think-0" },
+        { type: "reasoning-delta", id: "think-0", text: "let me reason" },
+        { type: "reasoning-end", id: "think-0" },
+        { type: "text-start", id: "text-0" },
+        { type: "text-delta", id: "text-0", text: "The answer is 42" },
+        { type: "text-end", id: "text-0" },
+        { type: "step-finish", index: 0, reason: "stop" },
+        { type: "finish", reason: "stop" },
+      ])
+    }),
+  )
+
+  it.effect("parses <think> blocks split across multiple deltas", () =>
+    Effect.gen(function* () {
+      const body = sseEvents(
+        { choices: [{ delta: { content: "<think>part one" } }] },
+        { choices: [{ delta: { content: " part two</think>visible" } }] },
+        { choices: [{ delta: {}, finish_reason: "stop" }] },
+      )
+
+      const response = yield* LLMClient.generate(request).pipe(Effect.provide(fixedResponse(body)))
+
+      expect(response.reasoning).toBe("part one part two")
+      expect(response.text).toBe("visible")
+    }),
+  )
+
+  it.effect("handles content with no think tags as plain text", () =>
+    Effect.gen(function* () {
+      const body = sseEvents(
+        { choices: [{ delta: { content: "Just regular text" } }] },
+        { choices: [{ delta: {}, finish_reason: "stop" }] },
+      )
+
+      const response = yield* LLMClient.generate(request).pipe(Effect.provide(fixedResponse(body)))
+
+      expect(response.reasoning).toBe("")
+      expect(response.text).toBe("Just regular text")
+    }),
+  )
 })

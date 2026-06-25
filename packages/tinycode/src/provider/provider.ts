@@ -949,23 +949,6 @@ export const layer = Layer.effect(
             opts.body = JSON.stringify(body)
           }
 
-          // Disable thinking mode for Qwen3 and other reasoning models served via vLLM.
-          // Thinking tags (<think>...</think>) are streamed as raw text by vLLM, which
-          // confuses tinycode's stream parser and causes display noise and compaction loops.
-          // Opt out per-model via provider options: { enableThinking: true }
-          // Opt in globally for a provider via provider options: { enableThinking: true }
-          if (opts.body && opts.method === "POST") {
-            const modelId = model.api.id.toLowerCase()
-            const isThinkingModel =
-              options["enableThinking"] !== true &&
-              (modelId.includes("qwen3") || modelId.includes("qwen2.5") || options["disableThinking"] === true)
-            if (isThinkingModel) {
-              const body = JSON.parse(opts.body as string)
-              body.chat_template_kwargs = { ...body.chat_template_kwargs, enable_thinking: false }
-              opts.body = JSON.stringify(body)
-            }
-          }
-
           // Strip openai itemId metadata following what codex does
           if (model.api.npm === "@ai-sdk/openai" && opts.body && opts.method === "POST") {
             const body = JSON.parse(opts.body as string)
