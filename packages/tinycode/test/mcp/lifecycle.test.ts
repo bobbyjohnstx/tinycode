@@ -886,3 +886,81 @@ it.instance(
     ),
   { config: { mcp: {} } },
 )
+
+// ========================================================================
+// Test: remote error messages include transport name and actionable detail
+// ========================================================================
+
+it.instance(
+  "remote 404 error includes transport name and URL guidance",
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "notfound-remote"
+        getOrCreateClientState("notfound-remote")
+        connectShouldFail = true
+        connectError = "Non-200 status code (404)"
+
+        const addResult = yield* mcp.add("notfound-remote", {
+          type: "remote",
+          url: "http://localhost:9999/wrong-path",
+          timeout: 5000,
+          oauth: false,
+        })
+
+        const serverStatus = (addResult.status as any)["notfound-remote"] ?? addResult.status
+        expect(serverStatus.status).toBe("failed")
+        expect(serverStatus.error).toContain("404")
+        expect(serverStatus.error).toContain("SSE")
+        expect(serverStatus.error).toContain("notfound-remote")
+      }),
+    ),
+  { config: { mcp: {} } },
+)
+
+it.instance(
+  "remote connection-refused error includes reachability guidance",
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "unreachable-remote"
+        getOrCreateClientState("unreachable-remote")
+        connectShouldFail = true
+        connectError = "fetch failed: ECONNREFUSED"
+
+        const addResult = yield* mcp.add("unreachable-remote", {
+          type: "remote",
+          url: "http://localhost:9999/mcp",
+          timeout: 5000,
+          oauth: false,
+        })
+
+        const serverStatus = (addResult.status as any)["unreachable-remote"] ?? addResult.status
+        expect(serverStatus.status).toBe("failed")
+        expect(serverStatus.error).toContain("cannot reach server")
+        expect(serverStatus.error).toContain("unreachable-remote")
+      }),
+    ),
+  { config: { mcp: {} } },
+)
+
+it.instance(
+  "remote URL with whitespace is trimmed and still connects",
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "ws-remote"
+        getOrCreateClientState("ws-remote")
+
+        const addResult = yield* mcp.add("ws-remote", {
+          type: "remote",
+          url: "  http://localhost:9999/mcp  ",
+          oauth: false,
+        })
+
+        const serverStatus = (addResult.status as any)["ws-remote"] ?? addResult.status
+        expect(serverStatus.status).toBe("connected")
+      }),
+    ),
+  { config: { mcp: {} } },
+)

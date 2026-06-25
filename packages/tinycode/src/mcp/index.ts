@@ -115,8 +115,29 @@ function isMcpConfigured(entry: McpEntry): entry is ConfigMCP.Info {
 const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, "_")
 
 function remoteURL(key: string, value: string) {
-  if (URL.canParse(value)) return new URL(value)
-  log.warn("invalid remote mcp url", { key })
+  const trimmed = value.trim()
+  if (URL.canParse(trimmed)) return new URL(trimmed)
+  if (URL.canParse(`https://${trimmed}`)) {
+    log.warn("MCP URL missing protocol, assuming https://", { key, url: trimmed })
+    return new URL(`https://${trimmed}`)
+  }
+  log.warn("invalid remote mcp url", { key, url: trimmed })
+}
+
+function formatTransportError(key: string, transport: string, error: Error): string {
+  const msg = error.message
+  const statusMatch = msg.match(/\b(4\d{2}|5\d{2})\b/)
+  if (statusMatch) {
+    const code = Number(statusMatch[1])
+    if (code === 404) return `${transport}: server returned 404 Not Found — check the URL for "${key}"`
+    if (code === 401 || code === 403) return `${transport}: authentication failed (${code}) — check credentials for "${key}"`
+    if (code >= 500) return `${transport}: server error (${code}) for "${key}"`
+    return `${transport}: HTTP ${code} for "${key}"`
+  }
+  if (/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|fetch failed/i.test(msg)) {
+    return `${transport}: cannot reach server "${key}" — is the URL correct and the server running?`
+  }
+  return `${transport}: ${msg}`
 }
 
 function isOutputSchemaValidationError(error: Error) {
@@ -401,7 +422,7 @@ export const layer = Layer.effect(
               url: mcp.url,
               error: lastError.message,
             })
-            lastStatus = { status: "failed" as const, error: lastError.message }
+            lastStatus = { status: "failed" as const, error: formatTransportError(key, name, lastError) }
             return Effect.succeed(undefined)
           }),
         )
@@ -415,7 +436,7 @@ export const layer = Layer.effect(
 
       return {
         client: undefined as MCPClient | undefined,
-        status: (lastStatus ?? { status: "failed", error: "Unknown error" }) as Status,
+        status: (lastStatus ?? { status: "failed", error: `Failed to connect to "${key}" at ${mcp.url}` }) as Status,
       }
     })
 
