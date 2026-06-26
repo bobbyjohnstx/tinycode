@@ -331,4 +331,32 @@ export interface Hooks {
    * Modify tool definitions (description and parameters) sent to LLM
    */
   "tool.definition"?: (input: { toolID: string }, output: { description: string; parameters: any }) => Promise<void>
+  /**
+   * Called when a new session is created
+   */
+  "session.start"?: (
+    input: { sessionID: string; parentID?: string; agent?: string },
+    output: {},
+  ) => Promise<void>
+  /**
+   * Called when a session is deleted
+   */
+  "session.end"?: (
+    input: { sessionID: string },
+    output: {},
+  ) => Promise<void>
+  /**
+   * Called when the user switches to a different session
+   */
+  "session.switch"?: (
+    input: { sessionID: string; previousSessionID?: string },
+    output: {},
+  ) => Promise<void>
+  /**
+   * Called when the model is changed for a session
+   */
+  "session.model.change"?: (
+    input: { sessionID: string; providerID: string; modelID: string; previousModelID?: string },
+    output: {},
+  ) => Promise<void>
 }

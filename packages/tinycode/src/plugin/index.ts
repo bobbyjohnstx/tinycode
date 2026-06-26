@@ -269,12 +269,77 @@ export const layer = Layer.effect(
           ),
         )
 
+        // Track previous state for session lifecycle hooks
+        const sessionModels = new Map<string, { providerID: string; modelID: string }>()
+
         // Subscribe to bus events, fiber interrupted when scope closes
         yield* (yield* bus.subscribeAll()).pipe(
           Stream.runForEach((input) =>
             Effect.sync(() => {
               for (const hook of hooks) {
                 void hook["event"]?.({ event: input as any })
+              }
+              // Trigger lifecycle hooks based on bus events
+              if (input.type === "session.created") {
+                const data = input.properties as any
+                for (const hook of hooks) {
+                  void hook["session.start"]?.(
+                    {
+                      sessionID: data.sessionID,
+                      parentID: data.info.parentID,
+                      agent: data.info.agent,
+                    },
+                    {},
+                  )
+                }
+                // Track initial model if present
+                if (data.info.model) {
+                  sessionModels.set(data.sessionID, {
+                    providerID: data.info.model.providerID,
+                    modelID: data.info.model.id,
+                  })
+                }
+              } else if (input.type === "session.deleted") {
+                const data = input.properties as any
+                for (const hook of hooks) {
+                  void hook["session.end"]?.(
+                    {
+                      sessionID: data.sessionID,
+                    },
+                    {},
+                  )
+                }
+                // Clean up tracked model
+                sessionModels.delete(data.sessionID)
+              } else if (input.type === "session.updated") {
+                const data = input.properties as any
+                // Check for model changes
+                if (data.info.model) {
+                  const previousModel = sessionModels.get(data.sessionID)
+                  const newModel = {
+                    providerID: data.info.model.providerID,
+                    modelID: data.info.model.id,
+                  }
+                  // Only trigger if model actually changed
+                  if (
+                    !previousModel ||
+                    previousModel.providerID !== newModel.providerID ||
+                    previousModel.modelID !== newModel.modelID
+                  ) {
+                    for (const hook of hooks) {
+                      void hook["session.model.change"]?.(
+                        {
+                          sessionID: data.sessionID,
+                          providerID: newModel.providerID,
+                          modelID: newModel.modelID,
+                          previousModelID: previousModel?.modelID,
+                        },
+                        {},
+                      )
+                    }
+                    sessionModels.set(data.sessionID, newModel)
+                  }
+                }
               }
             }),
           ),
