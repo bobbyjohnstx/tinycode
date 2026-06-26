@@ -1,6 +1,7 @@
 import { Effect, Layer } from "effect"
 import { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "../../src/provider/schema"
+import { MockLanguageModel, type MockScenario } from "./mock-language-model"
 
 export namespace ProviderTest {
   export function model(override: Partial<Provider.Model> = {}): Provider.Model {
@@ -43,9 +44,13 @@ export namespace ProviderTest {
     }
   }
 
-  export function fake(override: Partial<Provider.Interface> & { model?: Provider.Model; info?: Provider.Info } = {}) {
+  export function fake(
+    override: Partial<Provider.Interface> & { model?: Provider.Model; info?: Provider.Info; scenarios?: MockScenario[] } = {},
+  ) {
     const mdl = override.model ?? model()
     const row = override.info ?? info({}, mdl)
+    const mockModel = new MockLanguageModel(override.scenarios)
+
     return {
       model: mdl,
       info: row,
@@ -61,9 +66,7 @@ export namespace ProviderTest {
             if (providerID === row.id && modelID === mdl.id) return Effect.succeed(mdl)
             return Effect.die(new Error(`Unknown test model: ${providerID}/${modelID}`))
           }),
-          getLanguage: Effect.fn("TestProvider.getLanguage")(() =>
-            Effect.die(new Error("ProviderTest.getLanguage not configured")),
-          ),
+          getLanguage: Effect.fn("TestProvider.getLanguage")(() => Effect.succeed(mockModel)),
           closest: Effect.fn("TestProvider.closest")((providerID) =>
             Effect.succeed(providerID === row.id ? { providerID: row.id, modelID: mdl.id } : undefined),
           ),
