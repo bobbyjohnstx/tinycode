@@ -77,7 +77,14 @@ The heart of the project. Contains the HTTP API server, all business logic, and 
 
 - **Server** (`src/server/`): Effect-based HTTP server using Hono-style routing via `effect/unstable/http`. Runs on port 4096. Exposes REST + SSE/WebSocket for real-time events.
 - **TUI** (`src/cli/cmd/tui/`): Terminal UI written in SolidJS on top of [opentui](https://github.com/sst/opentui). The TUI either spawns the server in a worker thread or attaches to an existing one.
-- **Session** (`src/session/`): Manages AI conversation sessions. Each session runs a processor loop that calls LLMs and coordinates tools.
+- **Session** (`src/session/`): Manages AI conversation sessions. Each session runs a processor loop that calls LLMs and coordinates tools. **Context compaction** automatically summarizes old turns when context usage approaches the model limit. Advanced compaction features:
+  - **Deterministic file tracking**: Scans tool calls for read/write/edit operations, appends `<read-files>` and `<modified-files>` XML blocks to summaries (not LLM-dependent)
+  - **Observation masking**: Replaces old tool outputs with placeholders before summarization (config: `compaction.mask_observations`, default true)
+  - **Text serialization**: Conversation serialized to tagged text format with "Do NOT continue" system prompt, preventing model continuation
+  - **Circuit breaker**: Warning issued after 3+ compactions, suggesting new session or subagent approach
+  - **Structured telemetry**: Logs pre/post token counts, model, timing, and compaction number for diagnostics
+  - **Summary size cap**: Limited to `min(4096, 10% of usable context)` to avoid disproportionate overhead
+  - **Increased preserve budget**: MIN 4K tokens, MAX 20K tokens (up from 2K-8K) to maintain recent context
 - **Agent** (`src/agent/`): Built-in agent definitions. Two modes have distinct behavior: **build** (default, full tool access) and **plan** (read-only, hard permission enforcement — can only write to `.tinycode/plans/*.md`). All other agents (architect, debugger, executor, etc.) are personas that share build's permissions but have specialized system prompts. Agent defaults live in `src/agent/defaults/` with `.compact.md` variants for small models.
 - **Tools** (`src/tool/`): Individual agent tools — file read/write/edit, shell, grep, glob, LSP, MCP websearch, etc.
 - **Provider** (`src/provider/`): LLM provider abstraction (wraps Vercel AI SDK). Local LLM support via Ollama and OpenAI-compatible endpoints is the primary use case.
