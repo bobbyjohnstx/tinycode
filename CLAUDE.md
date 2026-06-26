@@ -33,10 +33,38 @@ bun test --timeout 30000 path/to/file.test.ts  # single test file
 ./packages/tinycode/script/build.ts --single
 
 # Regenerate SDK after API changes (server.ts changes → run this)
-./packages/sdk/js/script/build.ts
+./script/generate.ts
+
+# Export session to JSON or HTML
+tinycode export --format json <session-id>       # JSON format (default)
+tinycode export --format html <session-id>       # Self-contained HTML file
 ```
 
 > **Tests cannot run from repo root** (`do-not-run-tests-from-root` guard). Always `cd` into a package first.
+
+## Testing
+
+### Mock LLM Provider
+
+For deterministic testing of session logic, use `MockLanguageModel` from `test/fake/mock-language-model.ts`. It accepts a sequence of scenarios that define responses for successive LLM calls:
+
+```typescript
+import { MockLanguageModel, type MockScenario } from "@/test/fake/mock-language-model"
+
+const scenarios: MockScenario[] = [
+  { type: "text", content: "First response" },
+  { type: "text", content: "Second response" },
+  {
+    type: "tool-call",
+    calls: [{ id: "call-1", name: "tool-name", args: { key: "value" } }],
+  },
+  { type: "error", error: new Error("Simulated failure") },
+]
+
+const model = new MockLanguageModel(scenarios)
+```
+
+Each call to `doGenerate` or `doStream` advances to the next scenario. Use `ProviderTest.fake({ scenarios: [...] })` to set up a provider with mock models for session processor tests.
 
 ## Architecture
 
@@ -79,6 +107,13 @@ Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/
 - **Dual runtime**: `src/storage/db.ts` and `src/pty/` use conditional imports (`#db`, `#pty`) to swap Bun vs Node implementations.
 - **`bun dev` = `tinycode`**: During development, `bun dev` from the repo root is equivalent to the `tinycode` CLI.
 - **Local LLMs first**: The primary use case is local LLM inference via Ollama or any OpenAI-compatible endpoint. Configure via `~/.config/tinycode/config.json`.
+- **Provider filtering**: `enabled_providers` and `disabled_providers` in config apply to **all** providers — both custom API-configured providers and locally-discovered ones (Ollama, vLLM, MaaS). Filters apply during discovery, so disabled providers are completely hidden from the provider list.
 - **oh-my-tiny**: Built-in plugin at `src/omt/` providing extended orchestration tools (notepad, wiki, state management, AST grep).
+- **Session tree sidebar** (`src/cli/cmd/tui/component/session-tree.tsx`): Toggleable ASCII tree showing session hierarchy. Press `<leader>b` in the TUI to toggle visibility. Sessions are organized by parent-child relationships.
+- **Plugin lifecycle hooks** (`@tinycode/plugin`): Four observe-only hooks fire during session lifecycle:
+  - `session.start` — when a session is created
+  - `session.end` — when a session is deleted
+  - `session.switch` — when user switches to a different session
+  - `session.model.change` — when the model is changed for a session
 - **Style guide**: See [AGENTS.md](./AGENTS.md) for coding style rules (destructuring, control flow, Drizzle schema conventions, etc.).
 - **Pass model on Task calls**: Use the model configured for the session, not hardcoded model names.

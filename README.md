@@ -10,6 +10,10 @@ tinycode is an AI coding agent that runs against **your own LLMs** — Ollama, v
 
 The primary interface is the **terminal UI (TUI)** — a full-featured interactive session in your terminal with conversation history, model switching, agent/skill invocation, and inline tool approval. The TUI is the fastest way to work: it starts instantly, runs anywhere a terminal does, and keeps you in the same environment as your code.
 
+**TUI Features:**
+- **Session tree sidebar** (`<leader>b`): Toggleable ASCII tree showing your session hierarchy — organized by parent-child relationships for easy navigation
+- **Session export** (`tinycode export --format html <session-id>`): Export sessions to self-contained HTML files for sharing or archiving
+
 For teams or remote access, tinycode also ships a **web UI** (SolidJS + TailwindCSS) that connects to the tinycode API server. Open `http://localhost:4096` after starting the server, or run `bun dev web` to launch both. The web UI provides the same conversation, agent, and tool capabilities in a browser tab.
 
 A **standalone desktop app** (Electron) is available for macOS, Windows, and Linux. It wraps the web UI in a native window with system tray integration. Run `bun run --cwd packages/desktop dev` to launch in development, or build distributable binaries with `bun run --cwd packages/desktop build`.
