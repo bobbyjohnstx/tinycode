@@ -89,7 +89,14 @@ See [CLAUDE.md](CLAUDE.md) for development guidance and [AGENTS.md](AGENTS.md) f
 
 ## Agents
 
-Type `/ask <agent> <prompt>` to invoke a subagent. Tab or `<leader>a` switches the primary agent (build/plan).
+Press **Tab** to cycle through agents, or `<leader>a` to pick from a list. Use `/ask <agent> <prompt>` to invoke any agent as a one-shot subagent without switching.
+
+tinycode has two modes with distinct behavior, plus specialized agent personas:
+
+- **build** (default) — Full tool access. Reads, writes, edits files, runs shell commands, executes tools. This is the normal working mode.
+- **plan** — **Read-only mode with hard permission enforcement.** The LLM can explore the codebase and write only to a plan file (`.tinycode/plans/*.md`). All other edits are blocked at the tool level, not just by prompt instruction. When the plan is ready, `plan_exit` prompts you to approve and switch to build mode for execution.
+
+All other agents (architect, debugger, executor, etc.) are **personas** — they share the same tool permissions as build mode but have specialized system prompts that guide their behavior. An architect agent is *instructed* to be read-only and analytical, but it is not *prevented* from editing files if you ask it to. The permission prompt system provides the safety gate for all tool executions regardless of which agent is active.
 
 ### Built-in agents
 
