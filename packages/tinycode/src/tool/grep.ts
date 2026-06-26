@@ -74,6 +74,7 @@ export const GrepTool = Tool.define(
             pattern: params.pattern,
             glob: params.include ? [params.include] : undefined,
             file,
+            limit: 200,
             signal: ctx.abort,
           })
           if (result.items.length === 0) return empty
