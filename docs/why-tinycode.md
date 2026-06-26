@@ -1,6 +1,6 @@
 # Why Tinycode
 
-Built on a foundation of 14,500+ commits of production-tested code, tinycode is a lean, powerful AI coding assistant designed for developers and teams who want to run AI assistance entirely on their own infrastructure—with zero cloud dependencies.
+Built on a foundation of 13,700+ commits of production-tested code, tinycode is a lean, powerful AI coding assistant designed for developers and teams who want to run AI assistance entirely on their own infrastructure—with zero cloud dependencies.
 
 ## Sovereign AI: Complete Control, No Vendor Lock-in
 
@@ -19,7 +19,7 @@ The industry's coding assistants optimize for large, cloud-hosted models. tinyco
 
 **24 compact agent presets** tuned specifically for these models:
 
-- Average system prompt: **2.2K tokens** (vs. 4.5K for full variants)
+- Average system prompt: **~1K tokens** (vs. ~4K for full variants)
 - Fits snugly in 4K–32K context windows
 - No performance degradation—just focused, purposeful instructions
 - Auto-selection based on model size
@@ -63,7 +63,7 @@ Agents with specific expertise:
 - **test-engineer** — Test strategy and TDD workflows
 - **security-reviewer** — OWASP Top 10, CVE detection
 - **planner** — Strategic work planning
-- Plus **19 more** (designer, tracer, verifier, git-master, cluster-admin, and others)
+- Plus **18 more** (designer, tracer, verifier, git-master, cluster-admin, and others)
 
 Skills provide progressive capability disclosure:
 
@@ -77,7 +77,7 @@ Skills provide progressive capability disclosure:
 
 ## IDE Integration (Agent Client Protocol)
 
-Run `tinycode acp --cwd /path/to/project` to start an ACP server that works with VS Code, Zed, and JetBrains. Stdio transport—no network exposure, no auth needed for local IDE use.
+Run `tinycode acp --cwd /path/to/project` to start an ACP server for IDE integration. Stdio transport — no network exposure, no auth needed for local use. A reference VS Code extension is included; any ACP-compatible editor (Zed, JetBrains, etc.) can connect using the same protocol.
 
 A reference VS Code extension is included. Build custom IDE integrations with the ACP protocol.
 
@@ -146,7 +146,7 @@ tinycode inherits its foundation from a mature, proven codebase:
 - **SolidJS** — Reactive UI layer, both TUI and web
 - **Bun** — Fast runtime and build toolchain (also Node.js compatible)
 
-14,500+ commits of battle-tested patterns and decisions.
+13,700+ commits of battle-tested patterns and decisions.
 
 ## Getting Started
 
