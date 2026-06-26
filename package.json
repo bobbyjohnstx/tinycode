@@ -91,14 +91,16 @@
     "oxlint": "1.60.0",
     "oxlint-tsgolint": "0.21.0",
     "prettier": "3.6.2",
-    "semver": "^7.6.0",
+    "semver": "7.8.5",
     "turbo": "2.8.13"
   },
   "dependencies": {
     "@tinycode/plugin": "workspace:*",
     "@tinycode/script": "workspace:*",
     "@tinycode/sdk": "workspace:*",
-    "typescript": "catalog:"
+    "dompurify": "3.4.11",
+    "typescript": "catalog:",
+    "ws": "8.21.0"
   },
   "license": "MIT",
   "prettier": {
@@ -120,7 +122,9 @@
     "@opentui/keymap": "catalog:",
     "@opentui/solid": "catalog:",
     "@types/bun": "catalog:",
-    "@types/node": "catalog:"
+    "@types/node": "catalog:",
+    "ws": ">=8.21.0",
+    "dompurify": ">=3.4.11"
   },
   "patchedDependencies": {
     "@npmcli/agent@4.0.0": "patches/@npmcli%2Fagent@4.0.0.patch",
