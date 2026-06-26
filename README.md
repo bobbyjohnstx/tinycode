@@ -201,7 +201,7 @@ tinycode is three projects that work together:
 
 ### Container images
 
-Pre-built container images are published to [Quay.io](https://quay.io/bjohns/tinycode-container):
+Pre-built container images are published to [Quay.io](https://quay.io/repository/bjohns/tinycode-container):
 
 ```bash
 # Pull the latest image
