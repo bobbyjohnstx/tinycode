@@ -31,3 +31,5 @@ logs/
 *.bun-build
 tsconfig.tsbuildinfo
 .omc/
+plans/
+.claude/
