@@ -92,7 +92,7 @@
     "oxlint-tsgolint": "0.21.0",
     "prettier": "3.6.2",
     "semver": "7.8.5",
-    "turbo": "2.8.13"
+    "turbo": "2.10.0"
   },
   "dependencies": {
     "@tinycode/plugin": "workspace:*",
