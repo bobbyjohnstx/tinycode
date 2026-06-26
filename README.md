@@ -4,7 +4,15 @@ A slim, local-LLM-first AI coding assistant. Runs air-gapped with zero cloud dep
 
 ## What it is
 
-tinycode is a terminal UI (TUI) coding agent that runs against **your own LLMs** — Ollama, vLLM, or any OpenAI-compatible MaaS server on your LAN. Cloud providers (Anthropic, OpenAI, Google, OpenRouter) are supported via API key as a secondary option, but local inference is the primary use case.
+tinycode is an AI coding agent that runs against **your own LLMs** — Ollama, vLLM, or any OpenAI-compatible endpoint on your network. Cloud providers (Anthropic, OpenAI, Google, OpenRouter) are supported via API key as a secondary option, but local inference is the primary use case.
+
+### Interfaces
+
+The primary interface is the **terminal UI (TUI)** — a full-featured interactive session in your terminal with conversation history, model switching, agent/skill invocation, and inline tool approval. The TUI is the fastest way to work: it starts instantly, runs anywhere a terminal does, and keeps you in the same environment as your code.
+
+For teams or remote access, tinycode also ships a **web UI** (SolidJS + TailwindCSS) that connects to the tinycode API server. Open `http://localhost:4096` after starting the server, or run `bun dev web` to launch both. The web UI provides the same conversation, agent, and tool capabilities in a browser tab.
+
+A **standalone desktop app** (Electron) is available for macOS, Windows, and Linux. It wraps the web UI in a native window with system tray integration. Run `bun run --cwd packages/desktop dev` to launch in development, or build distributable binaries with `bun run --cwd packages/desktop build`.
 
 ## Quick start
 
@@ -177,10 +185,57 @@ Access the web UI at `http://<server-ip>:4096`.
 
 ## Ecosystem
 
-| Project                                                                | Description                                                              | Repository                                  |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------- |
-| [tinycode-container](https://github.com/bobbyjohnstx/tinycode-container)       | Container image packaging tinycode + oh-my-tiny for Kubernetes/OpenShift | `github.com/bobbyjohnstx/tinycode-container`    |
-| [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator) | OpenShift Operator managing `TinycodeInstance` CRs                       | `github.com/bobbyjohnstx/tinycode-operator` |
+tinycode is three projects that work together:
+
+| Project | What it does |
+| ------- | ------------ |
+| **tinycode** (this repo) | Core server, TUI, web UI, desktop app, agents, skills, tools, and LLM provider integrations. Everything you need to run tinycode locally. |
+| [**tinycode-container**](https://github.com/bobbyjohnstx/tinycode-container) | Container image that packages tinycode with oh-my-tiny, tmux, git, and optional oc CLI into a single OCI image for Kubernetes and OpenShift deployments. Handles PVC-based config persistence, vLLM auto-discovery, GitOps repo cloning, and OpenShift arbitrary-UID compatibility. |
+| [**tinycode-operator**](https://github.com/bobbyjohnstx/tinycode-operator) | Kubernetes Operator for OpenShift that manages `TinycodeInstance` custom resources. Handles deployment, storage provisioning, Route/Ingress creation, SCC binding, declarative vLLM configuration with auto-probing, cross-namespace model discovery, GitOps mode, shared team workspaces with RWX PVCs, and cluster-admin mode with kubeconfig mounting. Installable via OLM/OperatorHub or Helm. |
+
+### Container images
+
+Pre-built container images are published to [Quay.io](https://quay.io/bjohns/tinycode-container):
+
+```bash
+# Pull the latest image
+podman pull quay.io/bjohns/tinycode-container:latest
+
+# Run locally with Ollama on the host network
+podman run -it --network host \
+  -e TINYCODE_SERVER_PASSWORD=changeme \
+  quay.io/bjohns/tinycode-container:latest
+
+# Run with a remote vLLM endpoint
+podman run -it -p 4096:4096 \
+  -e TINYCODE_VLLM_URL=http://your-vllm-server:8000 \
+  -e TINYCODE_SERVER_PASSWORD=changeme \
+  quay.io/bjohns/tinycode-container:latest
+```
+
+Images are also mirrored to `ghcr.io/bjohns/tinycode-container`. Both registries receive identical multi-arch builds (amd64 + arm64) on every push to main.
+
+### OpenShift / Kubernetes deployment
+
+The recommended path for cluster deployments is the **tinycode-operator**. It reduces a full deployment to a single CR:
+
+```yaml
+apiVersion: tinycode.dev/v1alpha1
+kind: TinycodeInstance
+metadata:
+  name: my-tinycode
+spec:
+  vllm:
+    - name: vllm-qwen3
+      url: http://qwen3-30b.qwen3.svc.cluster.local:8080
+  model: "vllm-qwen3/qwen3-30b"
+  auth:
+    passwordSecret: tinycode-password
+  storage:
+    projectsSize: "20Gi"
+```
+
+The operator handles Route creation, PVC provisioning, SCC binding, vLLM model auto-probing, and pod lifecycle. See the [tinycode-operator README](https://github.com/bobbyjohnstx/tinycode-operator) and [RHOAI cluster setup guide](https://github.com/bobbyjohnstx/tinycode-operator/blob/main/docs/rhoai-cluster-setup.md) for full documentation.
 
 ## License
 
