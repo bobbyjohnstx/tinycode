@@ -20,6 +20,12 @@ For teams or remote access, tinycode also ships a **web UI** (SolidJS + Tailwind
 
 A **standalone desktop app** (Electron) is available for macOS, Windows, and Linux. It wraps the web UI in a native window with system tray integration. Run `bun run --cwd packages/desktop dev` to launch in development, or build distributable binaries with `bun run --cwd packages/desktop build`.
 
+### IDE Integration (ACP)
+
+tinycode supports the [Agent Client Protocol](https://agentclientprotocol.com) for IDE integration. Run `tinycode acp --cwd /path/to/project` to start an ACP server that editors (VS Code, Zed, JetBrains) can connect to via stdio.
+
+A reference [VS Code extension](packages/vscode-extension/) is included. See [docs/acp-integration.md](docs/acp-integration.md) for building custom IDE integrations.
+
 ## Quick start
 
 ```bash

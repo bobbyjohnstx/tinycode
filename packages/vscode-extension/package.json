@@ -1,0 +1,47 @@
+{
+  "name": "tinycode",
+  "displayName": "tinycode",
+  "description": "AI coding assistant powered by local LLMs via tinycode",
+  "version": "0.1.0",
+  "publisher": "tinycode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": ["AI", "Chat"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tinycode.start",
+        "title": "tinycode: Start AI Assistant"
+      },
+      {
+        "command": "tinycode.stop",
+        "title": "tinycode: Stop AI Assistant"
+      }
+    ],
+    "configuration": {
+      "title": "tinycode",
+      "properties": {
+        "tinycode.path": {
+          "type": "string",
+          "default": "tinycode",
+          "description": "Path to tinycode binary"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "0.21.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.96.0",
+    "typescript": "^5.5.0"
+  }
+}
