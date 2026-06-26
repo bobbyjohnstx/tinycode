@@ -6,6 +6,9 @@ import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
 import { EOL } from "os"
 import { Effect } from "effect"
+import { renderHTML } from "./export-html"
+import * as fs from "fs"
+import * as path from "path"
 
 function redact(kind: string, id: string, value: string) {
   return value.trim() ? `[redacted:${kind}:${id}]` : value
@@ -220,7 +223,7 @@ function sanitize(data: { info: Session.Info; messages: MessageV2.WithParts[] })
 
 export const ExportCommand = effectCmd({
   command: "export [sessionID]",
-  describe: "export session data as JSON",
+  describe: "export session data",
   builder: (yargs) =>
     yargs
       .positional("sessionID", {
@@ -230,13 +233,23 @@ export const ExportCommand = effectCmd({
       .option("sanitize", {
         describe: "redact sensitive transcript and file data",
         type: "boolean",
+      })
+      .option("format", {
+        describe: "output format",
+        type: "string",
+        choices: ["json", "html"] as const,
+        default: "json",
       }),
   handler: Effect.fn("Cli.export")(function* (args) {
     return yield* run(args)
   }),
 })
 
-const run = Effect.fn("Cli.export.body")(function* (args: { sessionID?: string; sanitize?: boolean }) {
+const run = Effect.fn("Cli.export.body")(function* (args: {
+  sessionID?: string
+  sanitize?: boolean
+  format?: "json" | "html"
+}) {
   const svc = yield* Session.Service
   let sessionID = args.sessionID ? SessionID.make(args.sessionID) : undefined
   process.stderr.write(`Exporting session: ${sessionID ?? "latest"}\n`)
@@ -284,8 +297,17 @@ const run = Effect.fn("Cli.export.body")(function* (args: { sessionID?: string; 
     const messages = yield* svc.messages({ sessionID: sessionInfo.id })
 
     const exportData = { info: sessionInfo, messages }
+    const finalData = args.sanitize ? sanitize(exportData) : exportData
 
-    process.stdout.write(JSON.stringify(args.sanitize ? sanitize(exportData) : exportData, null, 2))
-    process.stdout.write(EOL)
+    if (args.format === "html") {
+      const html = renderHTML(finalData)
+      const filename = `session-${sessionID!.slice(-8)}-${Date.now()}.html`
+      const outputPath = path.join(process.cwd(), filename)
+      fs.writeFileSync(outputPath, html)
+      process.stderr.write(`Exported to: ${outputPath}\n`)
+    } else {
+      process.stdout.write(JSON.stringify(finalData, null, 2))
+      process.stdout.write(EOL)
+    }
   }).pipe(Effect.catchCause(() => fail(`Session not found: ${sessionID!}`)))
 })
