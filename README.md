@@ -243,6 +243,10 @@ spec:
 
 The operator handles Route creation, PVC provisioning, SCC binding, vLLM model auto-probing, and pod lifecycle. See the [tinycode-operator README](https://github.com/bobbyjohnstx/tinycode-operator) and [RHOAI cluster setup guide](https://github.com/bobbyjohnstx/tinycode-operator/blob/main/docs/rhoai-cluster-setup.md) for full documentation.
 
+## Acknowledgments
+
+tinycode is built on [opencode](https://github.com/sst/opencode) by [SST](https://github.com/sst). The core architecture — session processor, provider abstraction, tool system, and TUI — originates from the opencode project. tinycode extends it with local-LLM-first design, bundled agents and skills, MCP integration, web/desktop UIs, container packaging, and a Kubernetes operator for OpenShift deployment.
+
 ## License
 
 MIT
