@@ -846,13 +846,17 @@ export const layer = Layer.effect(
     // discovered after state init (e.g. MaaS, Ollama) are always returned.
     const list = Effect.fn("Provider.list")(function* () {
       const providers = yield* InstanceState.use(state, (s) => s.providers)
+      const cfg = yield* config.get()
+      const disabled = new Set(cfg.disabled_providers ?? [])
+      const enabled = cfg.enabled_providers ? new Set(cfg.enabled_providers) : null
       const freshLocal = yield* localDiscovery.get()
       for (const [id, info] of Object.entries(freshLocal)) {
         const providerID = ProviderID.make(id)
+        if (enabled && !enabled.has(providerID)) continue
+        if (disabled.has(providerID)) continue
         if (!providers[providerID]) {
           providers[providerID] = info
         } else {
-          // Merge newly-discovered models into the existing provider entry without overwriting
           for (const [modelID, model] of Object.entries(info.models)) {
             if (!providers[providerID].models[modelID]) providers[providerID].models[modelID] = model
           }

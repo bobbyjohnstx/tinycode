@@ -551,11 +551,7 @@ it.instance(
     yield* set("ANTHROPIC_API_KEY", "test-api-key")
     yield* set("OPENAI_API_KEY", "test-openai-key")
     const providers = yield* list
-    // Verify that configured providers (with env vars set) are filtered out
-    expect(providers[ProviderID.anthropic]).toBeUndefined()
-    expect(providers[ProviderID.openai]).toBeUndefined()
-    // Note: Local discovery providers (Ollama, vLLM, MaaS) may still appear if services
-    // are running locally, as local discovery currently bypasses enabled_providers filter
+    expect(Object.keys(providers)).toHaveLength(0)
   }),
   { config: { enabled_providers: [] } },
 )
