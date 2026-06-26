@@ -8,12 +8,15 @@ import { TuiPluginRuntime } from "@/cli/cmd/tui/plugin/runtime"
 
 import { getScrollAcceleration } from "../../util/scroll"
 import { WorkspaceLabel } from "../../component/workspace-label"
+import { SessionTree } from "../../component/session-tree"
+import { useRoute } from "../../context/route"
 
 export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const project = useProject()
   const sync = useSync()
   const { theme } = useTheme()
   const tuiConfig = useTuiConfig()
+  const { navigate } = useRoute()
   const session = createMemo(() => sync.session.get(props.sessionID))
   const workspace = () => {
     const workspaceID = session()?.workspaceID
@@ -21,6 +24,10 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
     return project.workspace.get(workspaceID)
   }
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
+
+  const handleSessionSwitch = (sessionID: string) => {
+    navigate({ type: "session", sessionID })
+  }
 
   return (
     <Show when={session()}>
@@ -88,7 +95,9 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 </Show>
               </box>
             </TuiPluginRuntime.Slot>
-            <TuiPluginRuntime.Slot name="sidebar_content" session_id={props.sessionID} />
+            <TuiPluginRuntime.Slot name="sidebar_content" session_id={props.sessionID}>
+              <SessionTree sessionID={props.sessionID} onSwitch={handleSessionSwitch} />
+            </TuiPluginRuntime.Slot>
           </box>
         </scrollbox>
 
