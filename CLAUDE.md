@@ -16,6 +16,7 @@ bun dev .               # run against repo root
 # Other dev modes
 bun dev serve           # headless API server (port 4096)
 bun dev web             # server + open web interface
+bun dev acp             # Agent Client Protocol mode (IDE integration, stdio transport)
 bun run --cwd packages/app dev        # web UI only (requires server running)
 bun run --cwd packages/desktop dev    # Electron desktop app
 
@@ -83,6 +84,11 @@ The heart of the project. Contains the HTTP API server, all business logic, and 
 - **Config** (`src/config/`): User config parsing. Each config module self-exports (e.g., `export * as ConfigAgent from "./agent"`).
 - **Storage** (`src/storage/`): SQLite via Drizzle ORM. DB schema in `schema.sql.ts`.
 - **MCP** (`src/mcp/`): Model Context Protocol client integration.
+- **ACP** (`src/acp/`): Agent Client Protocol implementation for IDE integration. Implements stdio-based agent communication for editor extensions and language servers.
+
+### `packages/vscode-extension` — VS Code Extension
+
+Reference VS Code extension demonstrating ACP integration. Provides editor context injection and agent command routing to tinycode running in ACP mode.
 
 ### `packages/app` — Web UI
 
@@ -109,6 +115,7 @@ Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/
 - **Local LLMs first**: The primary use case is local LLM inference via Ollama or any OpenAI-compatible endpoint. Configure via `~/.config/tinycode/config.json`.
 - **Provider filtering**: `enabled_providers` and `disabled_providers` in config apply to **all** providers — both custom API-configured providers and locally-discovered ones (Ollama, vLLM, MaaS). Filters apply during discovery, so disabled providers are completely hidden from the provider list.
 - **oh-my-tiny**: Built-in plugin at `src/omt/` providing extended orchestration tools (notepad, wiki, state management, AST grep).
+- **ACP mode**: Run with `bun dev acp` or `tinycode acp` to enable IDE integration via the Agent Client Protocol. Communicates via stdio with editor extensions. See `docs/acp-integration.md` for developer guide.
 - **Session tree sidebar** (`src/cli/cmd/tui/component/session-tree.tsx`): Toggleable ASCII tree showing session hierarchy. Press `<leader>b` in the TUI to toggle visibility. Sessions are organized by parent-child relationships.
 - **Plugin lifecycle hooks** (`@tinycode/plugin`): Four observe-only hooks fire during session lifecycle:
   - `session.start` — when a session is created

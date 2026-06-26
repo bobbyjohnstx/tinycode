@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Agent Client Protocol (ACP) support for IDE integration (`tinycode acp` command)
+- Reference VS Code extension (`packages/vscode-extension/`)
+- ACP integration developer guide (`docs/acp-integration.md`)
+
+### Security
+- Config API secret redaction
+- Enforce auth on non-loopback network bind
+- LLM retry cap (20 attempts)
+- Agent step limit (200 default)
+- RPC timeout (30s)
+- Ripgrep result limit (200)
+
+### Fixed
+- Provider filter applies to locally-discovered providers
+- Removed dead omt LSP stub tools
+
 ## [0.1.0] — 2026-06-26
 
 Initial public release.
