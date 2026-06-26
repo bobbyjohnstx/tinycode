@@ -33,7 +33,7 @@ bun test --timeout 30000 path/to/file.test.ts  # single test file
 ./packages/tinycode/script/build.ts --single
 
 # Regenerate SDK after API changes (server.ts changes → run this)
-./script/generate.ts
+./packages/sdk/js/script/build.ts
 ```
 
 > **Tests cannot run from repo root** (`do-not-run-tests-from-root` guard). Always `cd` into a package first.
@@ -49,7 +49,7 @@ The heart of the project. Contains the HTTP API server, all business logic, and 
 - **Server** (`src/server/`): Effect-based HTTP server using Hono-style routing via `effect/unstable/http`. Runs on port 4096. Exposes REST + SSE/WebSocket for real-time events.
 - **TUI** (`src/cli/cmd/tui/`): Terminal UI written in SolidJS on top of [opentui](https://github.com/sst/opentui). The TUI either spawns the server in a worker thread or attaches to an existing one.
 - **Session** (`src/session/`): Manages AI conversation sessions. Each session runs a processor loop that calls LLMs and coordinates tools.
-- **Agent** (`src/agent/`): Agent definitions (build, plan, general subagent). Agents configure which tools are available and system prompts.
+- **Agent** (`src/agent/`): Built-in agent definitions (explore, scout, general, plus all specialized agents like architect, debugger, executor, planner, code-reviewer, etc.). Agents configure which tools are available and system prompts.
 - **Tools** (`src/tool/`): Individual agent tools — file read/write/edit, shell, grep, glob, LSP, MCP websearch, etc.
 - **Provider** (`src/provider/`): LLM provider abstraction (wraps Vercel AI SDK). Local LLM support via Ollama and OpenAI-compatible endpoints is the primary use case.
 - **Config** (`src/config/`): User config parsing. Each config module self-exports (e.g., `export * as ConfigAgent from "./agent"`).
@@ -79,6 +79,6 @@ Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/
 - **Dual runtime**: `src/storage/db.ts` and `src/pty/` use conditional imports (`#db`, `#pty`) to swap Bun vs Node implementations.
 - **`bun dev` = `tinycode`**: During development, `bun dev` from the repo root is equivalent to the `tinycode` CLI.
 - **Local LLMs first**: The primary use case is local LLM inference via Ollama or any OpenAI-compatible endpoint. Configure via `~/.config/tinycode/config.json`.
-- **oh-my-tiny**: Companion tool at `../oh-my-tiny/` for extended agent orchestration capabilities.
+- **oh-my-tiny**: Built-in plugin at `src/omt/` providing extended orchestration tools (notepad, wiki, state management, AST grep).
 - **Style guide**: See [AGENTS.md](./AGENTS.md) for coding style rules (destructuring, control flow, Drizzle schema conventions, etc.).
 - **Pass model on Task calls**: Use the model configured for the session, not hardcoded model names.

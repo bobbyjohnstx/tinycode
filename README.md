@@ -73,19 +73,12 @@ Type `/ask <agent> <prompt>` to invoke a subagent. Tab or `<leader>a` switches t
 
 ### Built-in agents
 
-| Agent     | Role                                                                  |
-| --------- | --------------------------------------------------------------------- |
-| `explore` | Fast codebase search (grep/glob)                                      |
-| `scout`   | External research — clone repos, read docs. Never modifies workspace. |
-| `general` | General-purpose agent, fans out work in parallel                      |
-
-### Custom agents (via `.tinycode/agent/`)
-
 | Agent                 | Role                                                              |
 | --------------------- | ----------------------------------------------------------------- |
 | `agent-reviewer`      | Validates agent prompt definitions against the style guide        |
 | `analyst`             | Pre-planning requirements analysis — catches gaps before planning |
 | `architect`           | Read-only code analysis and architectural guidance                |
+| `cluster-admin`       | Cluster administration and Kubernetes/OpenShift operations        |
 | `code-reviewer`       | Severity-rated code review with SOLID principle checks            |
 | `code-simplifier`     | Simplifies recently modified code without changing behavior       |
 | `critic`              | Quality gate — multi-perspective review of plans and code         |
@@ -93,14 +86,17 @@ Type `/ask <agent> <prompt>` to invoke a subagent. Tab or `<leader>a` switches t
 | `designer`            | UI/UX designer-developer for production-grade interfaces          |
 | `document-specialist` | External documentation and reference specialist                   |
 | `executor`            | Focused implementation of scoped tasks                            |
+| `explore`             | Fast codebase search (grep/glob)                                  |
 | `git-master`          | Git expert for atomic commits, rebasing, and history management   |
 | `planner`             | Strategic planning — gather requirements, produce work plans      |
 | `qa-tester`           | Interactive CLI testing via tmux                                  |
 | `scientist`           | Data analysis and research — hypothesis-driven, evidence required |
 | `security-reviewer`   | Security vulnerability detection (OWASP Top 10, secrets, CVEs)    |
+| `skills-reviewer`     | Validates skill definitions against the style guide               |
 | `test-engineer`       | Test strategy, integration/e2e coverage, TDD workflows            |
 | `tracer`              | Evidence-driven causal tracing with competing hypotheses          |
 | `verifier`            | Evidence-based verification of completion                         |
+| `workspace`           | Workspace setup and environment configuration                     |
 | `writer`              | Technical documentation                                           |
 
 Agents with a `.compact.md` variant automatically use the compact prompt for models ≤9B parameters. See [docs/agent-prompt-tiers.md](docs/agent-prompt-tiers.md) for details.
@@ -111,18 +107,21 @@ Agents with a `.compact.md` variant automatically use the compact prompt for mod
 
 Type `/` to see available slash commands. Skills (marked `:skill`) inject specialized instructions:
 
-| Skill        | Purpose                                                                                    |
-| ------------ | ------------------------------------------------------------------------------------------ |
-| `/work-loop` | Iterate on a task until complete                                                           |
-| `/plan`      | Strategic planning protocol                                                                |
-| `/wiki`      | Wiki knowledge base operations                                                             |
-| `/deepinit`  | Deep project initialization                                                                |
-| `/swarm`     | Launch a supervised tmux split-screen swarm with shared `.tinycode/swarm/<id>` persistence |
-| `/cancel`    | Cancel current operation                                                                   |
+| Skill                      | Purpose                                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------- |
+| `/ai-slop-cleaner`         | Clean AI-generated code slop with regression-safe, deletion-first workflow                    |
+| `/configure-notifications` | Configure notification integrations (Telegram, Discord, Slack) via natural language           |
+| `/debug`                   | Isolate a single most-likely root cause for a known failure                                   |
+| `/deepinit`                | Deep codebase initialization — generates per-directory AGENTS.md files                        |
+| `/mcp-setup`               | Configure MCP servers via guided menu                                                         |
+| `/remember`                | Triage session findings across memory surfaces (project memory, CLAUDE.md, session notes)     |
+| `/tc-doctor`               | Diagnose tinycode configuration and environment issues                                        |
+| `/trace`                   | Evidence-driven causal tracing with competing hypotheses                                      |
+| `/verify`                  | Confirm a change works before claiming completion — runs tiered evidence ladder               |
 
 ## oh-my-tiny
 
-oh-my-tiny is a companion plugin providing extended orchestration tools built in to tinycode. It adds notepad, wiki, project memory, state management, and AST grep tools — all stored under `.tinycode/` in the project directory. The omt agents (architect, debugger, executor, etc.) are available via `/ask <agent>` once the plugin is active.
+oh-my-tiny is a built-in plugin providing extended orchestration tools. It adds notepad, wiki, project memory, state management, and AST grep tools — all stored under `.tinycode/` in the project directory. The agents listed above ship with tinycode; omt provides the tools they use for state management and knowledge persistence.
 
 ## Building
 
