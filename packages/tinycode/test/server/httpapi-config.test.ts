@@ -110,4 +110,83 @@ describe("config HttpApi", () => {
       })
     }),
   )
+
+  it.live(
+    "redacts secrets from config response",
+    Effect.gen(function* () {
+      const tmp = yield* tmpdirEffect({
+        config: {
+          formatter: false,
+          lsp: false,
+          provider: {
+            test: {
+              options: {
+                apiKey: "sk-secret-key-12345",
+                baseURL: "https://api.test.com",
+                enterpriseUrl: "https://enterprise.test.com",
+              },
+              models: {
+                "test-model": {
+                  headers: {
+                    "X-Model-Token": "model-secret",
+                    "Authorization": "Bearer model-auth",
+                    "Content-Type": "application/json",
+                  },
+                },
+              },
+            },
+          },
+          mcp: {
+            testMcp: {
+              type: "remote",
+              url: "https://mcp.test.com",
+              oauth: {
+                clientSecret: "oauth-secret-123",
+              },
+              headers: {
+                "X-Auth-Header": "mcp-secret",
+                "Content-Type": "application/json",
+              },
+            },
+            localMcp: {
+              type: "local",
+              command: ["node", "mcp-server.js"],
+              environment: {
+                "API_KEY": "env-secret",
+                "NORMAL_VAR": "normal-value",
+              },
+            },
+          },
+        },
+      })
+
+      const response = yield* Effect.promise(() =>
+        Promise.resolve(
+          app().request("/config", {
+            headers: {
+              "x-tinycode-directory": tmp.path,
+            },
+          }),
+        ),
+      )
+
+      expect(response.status).toBe(200)
+      const config = yield* Effect.promise(() => response.json())
+
+      // Provider secrets should be redacted
+      expect(config.provider.test.options.apiKey).toBe("***")
+      expect(config.provider.test.options.enterpriseUrl).toBe("***")
+      expect(config.provider.test.options.baseURL).toBe("https://api.test.com")
+      expect(config.provider.test.models["test-model"].headers["X-Model-Token"]).toBe("***")
+      expect(config.provider.test.models["test-model"].headers["Authorization"]).toBe("***")
+      expect(config.provider.test.models["test-model"].headers["Content-Type"]).toBe("application/json")
+
+      // MCP secrets should be redacted
+      expect(config.mcp.testMcp.oauth.clientSecret).toBe("***")
+      expect(config.mcp.testMcp.headers["X-Auth-Header"]).toBe("***")
+      expect(config.mcp.testMcp.headers["Content-Type"]).toBe("application/json")
+      expect(config.mcp.localMcp.environment.API_KEY).toBe("***")
+      expect(config.mcp.localMcp.environment.NORMAL_VAR).toBe("normal-value")
+    }),
+  )
 })
