@@ -6,54 +6,36 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
 import { markInstanceForDisposal } from "../lifecycle"
 
+const SENSITIVE_KEY = /auth|key|token|secret|password/i
+
+function redactKeys(obj: Record<string, any> | undefined) {
+  if (!obj) return
+  for (const key of Object.keys(obj)) {
+    if (SENSITIVE_KEY.test(key)) obj[key] = "***"
+  }
+}
+
 function redactSecrets(config: any): any {
   const redacted = structuredClone(config)
 
-  // Redact provider API keys and headers
   if (redacted.provider) {
-    for (const [, provider] of Object.entries(redacted.provider as Record<string, any>)) {
+    for (const provider of Object.values(redacted.provider as Record<string, any>)) {
       if (provider.options?.apiKey) provider.options.apiKey = "***"
       if (provider.options?.enterpriseUrl) provider.options.enterpriseUrl = "***"
-      if (provider.headers) {
-        for (const key of Object.keys(provider.headers)) {
-          if (/auth|key|token|secret/i.test(key)) {
-            provider.headers[key] = "***"
-          }
-        }
-      }
-      // Redact model-level headers
+      redactKeys(provider.headers)
       if (provider.models) {
-        for (const [, model] of Object.entries(provider.models as Record<string, any>)) {
-          if (model.headers) {
-            for (const key of Object.keys(model.headers)) {
-              if (/auth|key|token|secret/i.test(key)) {
-                model.headers[key] = "***"
-              }
-            }
-          }
+        for (const model of Object.values(provider.models as Record<string, any>)) {
+          redactKeys(model.headers)
         }
       }
     }
   }
 
-  // Redact MCP OAuth secrets
   if (redacted.mcp) {
-    for (const [, mcp] of Object.entries(redacted.mcp as Record<string, any>)) {
+    for (const mcp of Object.values(redacted.mcp as Record<string, any>)) {
       if (mcp.oauth?.clientSecret) mcp.oauth.clientSecret = "***"
-      if (mcp.headers) {
-        for (const key of Object.keys(mcp.headers)) {
-          if (/auth|key|token|secret/i.test(key)) {
-            mcp.headers[key] = "***"
-          }
-        }
-      }
-      if (mcp.environment) {
-        for (const key of Object.keys(mcp.environment)) {
-          if (/auth|key|token|secret|password/i.test(key)) {
-            mcp.environment[key] = "***"
-          }
-        }
-      }
+      redactKeys(mcp.headers)
+      redactKeys(mcp.environment)
     }
   }
 
