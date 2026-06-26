@@ -34,8 +34,8 @@ export const PRUNE_PROTECT = 40_000
 const TOOL_OUTPUT_MAX_CHARS = 2_000
 const PRUNE_PROTECTED_TOOLS = ["skill"]
 const DEFAULT_TAIL_TURNS = 2
-const MIN_PRESERVE_RECENT_TOKENS = 2_000
-const MAX_PRESERVE_RECENT_TOKENS = 8_000
+const MIN_PRESERVE_RECENT_TOKENS = 4_000
+const MAX_PRESERVE_RECENT_TOKENS = 20_000
 const SUMMARY_TEMPLATE = `Output exactly the Markdown structure shown inside <template> and keep the section order unchanged. Do not include the <template> tags in your response.
 <template>
 ## Goal
@@ -178,6 +178,123 @@ function splitTurn(input: {
     }
     return undefined
   })
+}
+
+function extractFileOps(messages: MessageV2.WithParts[]): { read: Set<string>; modified: Set<string> } {
+  const read = new Set<string>()
+  const modified = new Set<string>()
+  for (const msg of messages) {
+    if (msg.info.role !== "assistant") continue
+    for (const part of msg.parts) {
+      if (part.type !== "tool" || !part.state.input) continue
+      const input = part.state.input as Record<string, unknown>
+      const filePath = (input.filePath ?? input.file_path ?? input.path) as string | undefined
+      if (!filePath) continue
+      const toolName = part.state.tool ?? ""
+      if (toolName === "read" || toolName === "grep" || toolName === "glob") {
+        read.add(filePath)
+      } else if (toolName === "write" || toolName === "edit" || toolName === "apply_patch") {
+        modified.add(filePath)
+      }
+    }
+  }
+  for (const f of modified) {
+    read.delete(f)
+  }
+  return { read, modified }
+}
+
+function parseFileOpsFromSummary(summary: string): { read: Set<string>; modified: Set<string> } {
+  const read = new Set<string>()
+  const modified = new Set<string>()
+  const readMatch = summary.match(/<read-files>\s*([\s\S]*?)\s*<\/read-files>/i)
+  if (readMatch) {
+    const files = readMatch[1]
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+    for (const file of files) {
+      read.add(file)
+    }
+  }
+  const modifiedMatch = summary.match(/<modified-files>\s*([\s\S]*?)\s*<\/modified-files>/i)
+  if (modifiedMatch) {
+    const files = modifiedMatch[1]
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+    for (const file of files) {
+      modified.add(file)
+    }
+  }
+  return { read, modified }
+}
+
+function formatFileOps(ops: { read: Set<string>; modified: Set<string> }): string {
+  const lines: string[] = []
+  if (ops.modified.size > 0) {
+    lines.push("<modified-files>")
+    for (const f of [...ops.modified].sort()) {
+      lines.push(`  ${f}`)
+    }
+    lines.push("</modified-files>")
+  }
+  if (ops.read.size > 0) {
+    lines.push("<read-files>")
+    for (const f of [...ops.read].sort()) {
+      lines.push(`  ${f}`)
+    }
+    lines.push("</read-files>")
+  }
+  return lines.length > 0 ? "\n\n" + lines.join("\n") : ""
+}
+
+function maskObservations(messages: MessageV2.WithParts[], preserveRecentCount: number): void {
+  let toolResultCount = 0
+  for (const msg of messages) {
+    for (const part of msg.parts) {
+      if (part.type === "tool" && part.state.output) {
+        toolResultCount++
+      }
+    }
+  }
+  const maskThreshold = toolResultCount - preserveRecentCount
+  let seen = 0
+  for (const msg of messages) {
+    for (const part of msg.parts) {
+      if (part.type !== "tool" || !part.state.output) continue
+      seen++
+      if (seen <= maskThreshold) {
+        const toolName = part.state.tool ?? "unknown"
+        const input = part.state.input as Record<string, unknown> | undefined
+        const filePath = (input?.filePath ?? input?.file_path ?? input?.path ?? "") as string
+        part.state.output = `[output masked — ${toolName}${filePath ? ` on ${filePath}` : ""} — original output truncated for context efficiency]`
+      }
+    }
+  }
+}
+
+function serializeForSummary(messages: MessageV2.WithParts[]): string {
+  const lines: string[] = ["<conversation>"]
+  for (const msg of messages) {
+    const role = msg.info.role === "user" ? "User" : "Assistant"
+    for (const part of msg.parts) {
+      if (part.type === "text" && part.text) {
+        lines.push(`[${role}] ${part.text.slice(0, 2000)}`)
+      } else if (part.type === "tool") {
+        const toolName = part.state.tool ?? "tool"
+        const input = JSON.stringify(part.state.input ?? {}).slice(0, 500)
+        lines.push(`[Tool: ${toolName}] ${input}`)
+        if (part.state.output) {
+          lines.push(`[Tool Result] ${String(part.state.output).slice(0, TOOL_OUTPUT_MAX_CHARS)}`)
+        }
+      } else if (part.type === "reasoning" && part.text) {
+        lines.push(`[Thinking] ${part.text.slice(0, 1000)}`)
+      }
+    }
+  }
+  lines.push("</conversation>")
+  return lines.join("\n")
 }
 
 export interface Interface {
@@ -344,6 +461,7 @@ export const layer = Layer.effect(
       auto: boolean
       overflow?: boolean
     }) {
+      const startTime = Date.now()
       const parent = input.messages.findLast((m) => m.info.id === input.parentID)
       if (!parent || parent.info.role !== "user") {
         throw new Error(`Compaction parent must be a user message: ${input.parentID}`)
@@ -406,11 +524,12 @@ export const layer = Layer.effect(
       )
       const nextPrompt = compacting.prompt ?? buildPrompt({ previousSummary, context: compacting.context })
       const msgs = structuredClone(selected.head)
+      if (cfg.compaction?.mask_observations !== false) {
+        maskObservations(msgs, 5)
+      }
       yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
-      const modelMessages = yield* MessageV2.toModelMessagesEffect(msgs, model, {
-        stripMedia: true,
-        toolOutputMaxChars: TOOL_OUTPUT_MAX_CHARS,
-      })
+      const serialized = serializeForSummary(msgs)
+      const preCompactionTokens = Token.estimate(serialized)
       const ctx = yield* InstanceState.context
       const msg: MessageV2.Assistant = {
         id: MessageID.ascending(),
@@ -444,20 +563,23 @@ export const layer = Layer.effect(
         sessionID: input.sessionID,
         model,
       })
+      const maxTokens = Math.min(4096, Math.floor(usable({ cfg, model }) * 0.1))
       const result = yield* processor.process({
         user: userMessage,
         agent,
         sessionID: input.sessionID,
         tools: {},
-        system: [],
+        system: [
+          "You are a context summarization assistant. Summarize the following conversation history. Do NOT continue the conversation or respond to the user's questions.",
+        ],
         messages: [
-          ...modelMessages,
           {
             role: "user",
-            content: [{ type: "text", text: nextPrompt }],
+            content: [{ type: "text", text: serialized + "\n\n" + nextPrompt }],
           },
         ],
         model,
+        maxTokens,
       })
 
       if (result === "compact") {
@@ -537,10 +659,16 @@ export const layer = Layer.effect(
               agent: userMessage.agent,
               model: userMessage.model,
             })
+            const compactionNumber = prior.length + 1
+            const warningText =
+              compactionNumber >= 3
+                ? "\n\nWARNING: This session has been compacted 3 times. Context quality may be degrading. Consider starting a new session with /new or delegating complex tasks to subagents.\n\n"
+                : ""
             const text =
               (input.overflow
                 ? "The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.\n\n"
                 : "") +
+              warningText +
               "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
             yield* session.updatePart({
               id: PartID.ascending(),
@@ -564,6 +692,53 @@ export const layer = Layer.effect(
 
       if (processor.message.error) return "stop"
       if (result === "continue") {
+        const compactionNumber = prior.length + 1
+        const summary = summaryText(processor.toMessage())
+        if (summary) {
+          const fileOps = extractFileOps(selected.head)
+          if (previousSummary) {
+            const previousOps = parseFileOpsFromSummary(previousSummary)
+            for (const f of previousOps.modified) {
+              fileOps.modified.add(f)
+              fileOps.read.delete(f)
+            }
+            for (const f of previousOps.read) {
+              if (!fileOps.modified.has(f)) {
+                fileOps.read.add(f)
+              }
+            }
+          }
+          const fileOpsXml = formatFileOps(fileOps)
+          if (fileOpsXml) {
+            for (const part of processor.message.parts ?? []) {
+              if (part.type === "text") {
+                yield* session.updatePart({
+                  ...part,
+                  text: part.text + fileOpsXml,
+                })
+                break
+              }
+            }
+          }
+        }
+        const summaryTokens = summary ? Token.estimate(summary) : 0
+        const elapsedMs = Date.now() - startTime
+        log.info("compacted", {
+          sessionID: input.sessionID,
+          compactionNumber,
+          preTokens: preCompactionTokens,
+          summaryTokens,
+          modelID: model.id,
+          providerID: model.providerID,
+          elapsedMs,
+          fileOps: { read: 0, modified: 0 },
+        })
+        if (compactionNumber >= 3) {
+          log.warn("session compacted 3+ times — context quality may be degrading", {
+            sessionID: input.sessionID,
+            count: compactionNumber,
+          })
+        }
         yield* bus.publish(Event.Compacted, { sessionID: input.sessionID })
       }
       return result
