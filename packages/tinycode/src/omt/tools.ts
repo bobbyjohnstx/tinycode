@@ -5,7 +5,7 @@
 
 import { join, resolve } from "path"
 import { readFileSync, writeFileSync } from "fs"
-import { execSync } from "child_process"
+import { execFileSync } from "child_process"
 import { homedir } from "os"
 import {
   readState,
@@ -552,7 +552,7 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         const rows = servers.map((s) => {
           let found = false
           try {
-            execSync(`which ${s.name}`, { stdio: "pipe" })
+            execFileSync("which", [s.name], { stdio: "pipe" })
             found = true
           } catch {
             /* not installed */

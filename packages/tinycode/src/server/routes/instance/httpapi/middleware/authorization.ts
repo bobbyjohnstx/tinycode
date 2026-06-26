@@ -5,6 +5,9 @@ import { HttpApiError, HttpApiMiddleware } from "effect/unstable/httpapi"
 import { hasPtyConnectTicketURL } from "@/server/shared/pty-ticket"
 import { isPublicUIPath } from "@/server/shared/public-ui"
 import { UnauthorizedError } from "../errors"
+import * as Log from "@/core/util/log"
+
+const log = Log.create({ service: "authorization" })
 
 const AUTH_TOKEN_QUERY = "auth_token"
 const UNAUTHORIZED = 401
@@ -80,7 +83,10 @@ function credentialFromRequest(request: HttpServerRequest.HttpServerRequest) {
 
 function credentialFromURL(url: URL, request: HttpServerRequest.HttpServerRequest) {
   const token = url.searchParams.get(AUTH_TOKEN_QUERY)
-  if (token) return decodeCredential(token)
+  if (token) {
+    log.warn("auth_token query parameter is deprecated; use Authorization header or ticket-based auth")
+    return decodeCredential(token)
+  }
   const match = /^Basic\s+(.+)$/i.exec(request.headers.authorization ?? "")
   if (match) return decodeCredential(match[1])
   return Effect.succeed(emptyCredential())

@@ -1,4 +1,4 @@
-import { execSync } from "child_process"
+import { execFileSync } from "child_process"
 import { writeFileSync, unlinkSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
@@ -8,7 +8,7 @@ const startsWith = (bytes: Uint8Array, prefix: number[]) => prefix.every((value,
 /** Extract text from a PDF file using pdftotext (poppler). Returns null if unavailable or extraction fails. */
 export function pdfFileToText(filepath: string): string | null {
   try {
-    const out = execSync(`pdftotext "${filepath.replace(/"/g, '\\"')}" -`, {
+    const out = execFileSync("pdftotext", [filepath, "-"], {
       encoding: "utf-8",
       timeout: 30_000,
       stdio: ["pipe", "pipe", "pipe"],

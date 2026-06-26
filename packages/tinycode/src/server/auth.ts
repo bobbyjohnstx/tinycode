@@ -3,6 +3,7 @@ export * as ServerAuth from "./auth"
 import { ConfigService } from "@/effect/config-service"
 import { Flag } from "@/core/flag/flag"
 import { Config as EffectConfig, Context, Option, Redacted } from "effect"
+import { timingSafeEqual } from "crypto"
 
 export type Credentials = {
   password?: string
@@ -26,11 +27,14 @@ export function required(config: Info) {
 }
 
 export function authorized(credentials: DecodedCredentials, config: Info) {
-  return (
-    Option.isSome(config.password) &&
-    credentials.username === config.username &&
-    Redacted.value(credentials.password) === config.password.value
-  )
+  if (!Option.isSome(config.password)) return false
+  if (credentials.username !== config.username) return false
+
+  const supplied = Buffer.from(Redacted.value(credentials.password))
+  const expected = Buffer.from(config.password.value)
+  if (supplied.length !== expected.length) return false
+
+  return timingSafeEqual(supplied, expected)
 }
 
 export function header(credentials?: Credentials) {
