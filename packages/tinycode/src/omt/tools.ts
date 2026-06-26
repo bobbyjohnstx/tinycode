@@ -5,7 +5,6 @@
 
 import { join, resolve } from "path"
 import { readFileSync, writeFileSync } from "fs"
-import { execFileSync } from "child_process"
 import { homedir } from "os"
 import {
   readState,
@@ -517,49 +516,6 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         if (!deleted) return `Wiki page not found: ${filename}`
         appendWikiLog(root, "delete", [filename], `Deleted page "${filename}"`)
         return `Deleted wiki page: ${filename}`
-      },
-    }),
-
-    // ---- LSP (stubbed -- uses tinycode's native LSP tool instead) -------------
-
-    omt_lsp_diagnostics: plainTool({
-      description:
-        "Get language server diagnostics (errors, warnings, hints) for a file. Note: Use tinycode's native 'lsp' tool for full LSP functionality.",
-      args: {
-        file: { type: "string", description: "Path to the source file" },
-        severity: { type: "string", enum: [["error", "warning", "info", "hint"]] },
-      },
-      async execute(_args) {
-        return `omt_lsp_diagnostics is not available as a standalone tool. Use tinycode's native 'lsp' tool instead, which provides full LSP integration including diagnostics, hover, go-to-definition, and more.\n\nExample: Use the 'lsp' tool with operation 'hover' on the file you want to inspect.`
-      },
-    }),
-
-    omt_lsp_servers: plainTool({
-      description: "List all known language servers and their installation status.",
-      args: {},
-      async execute() {
-        const servers = [
-          {
-            name: "typescript-language-server",
-            langs: "TypeScript, JavaScript",
-            install: "npm install -g typescript-language-server typescript",
-          },
-          { name: "pyright", langs: "Python", install: "npm install -g pyright" },
-          { name: "gopls", langs: "Go", install: "go install golang.org/x/tools/gopls@latest" },
-          { name: "rust-analyzer", langs: "Rust", install: "rustup component add rust-analyzer" },
-          { name: "clangd", langs: "C, C++", install: "brew install llvm  OR  apt install clangd" },
-        ]
-        const rows = servers.map((s) => {
-          let found = false
-          try {
-            execFileSync("which", [s.name], { stdio: "pipe" })
-            found = true
-          } catch {
-            /* not installed */
-          }
-          return `${found ? "[OK]" : "[--]"}  ${s.name.padEnd(32)} ${s.langs}${found ? "" : `\n      install: ${s.install}`}`
-        })
-        return `Language Server Status (${rows.filter((r) => r.startsWith("[OK]")).length}/${servers.length} installed)\n\n${rows.join("\n\n")}`
       },
     }),
 
