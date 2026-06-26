@@ -190,7 +190,7 @@ function extractFileOps(messages: MessageV2.WithParts[]): { read: Set<string>; m
       const input = part.state.input as Record<string, unknown>
       const filePath = (input.filePath ?? input.file_path ?? input.path) as string | undefined
       if (!filePath) continue
-      const toolName = part.state.tool ?? ""
+      const toolName = part.tool ?? ""
       if (toolName === "read" || toolName === "grep" || toolName === "glob") {
         read.add(filePath)
       } else if (toolName === "write" || toolName === "edit" || toolName === "apply_patch") {
@@ -265,7 +265,7 @@ function maskObservations(messages: MessageV2.WithParts[], preserveRecentCount: 
       if (part.type !== "tool" || !part.state.output) continue
       seen++
       if (seen <= maskThreshold) {
-        const toolName = part.state.tool ?? "unknown"
+        const toolName = part.tool ?? "unknown"
         const input = part.state.input as Record<string, unknown> | undefined
         const filePath = (input?.filePath ?? input?.file_path ?? input?.path ?? "") as string
         part.state.output = `[output masked — ${toolName}${filePath ? ` on ${filePath}` : ""} — original output truncated for context efficiency]`
@@ -282,7 +282,7 @@ function serializeForSummary(messages: MessageV2.WithParts[]): string {
       if (part.type === "text" && part.text) {
         lines.push(`[${role}] ${part.text.slice(0, 2000)}`)
       } else if (part.type === "tool") {
-        const toolName = part.state.tool ?? "tool"
+        const toolName = part.tool ?? "tool"
         const input = JSON.stringify(part.state.input ?? {}).slice(0, 500)
         lines.push(`[Tool: ${toolName}] ${input}`)
         if (part.state.output) {
@@ -790,5 +790,8 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(RuntimeFlags.defaultLayer),
   ),
 )
+
+// Exported for testing
+export { extractFileOps, formatFileOps, parseFileOpsFromSummary, maskObservations, serializeForSummary }
 
 export * as SessionCompaction from "./compaction"
