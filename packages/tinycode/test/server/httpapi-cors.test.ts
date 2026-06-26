@@ -63,7 +63,7 @@ describe("HttpApi CORS", () => {
   it.live("adds CORS headers to unauthorized responses", () =>
     Effect.gen(function* () {
       const handler = HttpRouter.toWebHandler(
-        HttpApiApp.createRoutes().pipe(
+        HttpApiApp.createRoutes({ cors: ["https://app.tinycode.dev"] }).pipe(
           Layer.provide(ConfigProvider.layer(ConfigProvider.fromUnknown({ TINYCODE_SERVER_PASSWORD: "secret" }))),
         ),
         { disableLogger: true },

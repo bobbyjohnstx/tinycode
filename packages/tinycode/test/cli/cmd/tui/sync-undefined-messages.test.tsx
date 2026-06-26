@@ -10,6 +10,40 @@ import { describe, expect, test } from "bun:test"
 import { Global } from "@/core/global"
 import { tmpdir } from "../../../fixture/fixture"
 import { directory, json, mount } from "./sync-fixture"
+import { TinycodeClient } from "@tinycode/sdk/v2"
+
+// Monkey-patch the SDK to add missing experimental methods
+// These methods don't exist in the generated SDK yet but are called by the TUI code
+if (!Object.prototype.hasOwnProperty.call(TinycodeClient.prototype, "sync")) {
+  Object.defineProperty(TinycodeClient.prototype, "sync", {
+    get() {
+      return {
+        start: () => Promise.resolve({}),
+      }
+    },
+    configurable: true,
+  })
+}
+
+// Augment the Experimental class to add workspace methods
+const experimentalGetter = Object.getOwnPropertyDescriptor(TinycodeClient.prototype, "experimental")
+if (experimentalGetter?.get) {
+  const originalGet = experimentalGetter.get
+  Object.defineProperty(TinycodeClient.prototype, "experimental", {
+    get() {
+      const experimental = originalGet.call(this)
+      if (!experimental.workspace) {
+        experimental.workspace = {
+          list: () => Promise.resolve({ data: [] }),
+          status: () => Promise.resolve({ data: [] }),
+          syncList: () => Promise.resolve({}),
+        }
+      }
+      return experimental
+    },
+    configurable: true,
+  })
+}
 
 const sessionID = "ses_undef"
 
