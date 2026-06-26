@@ -1,5 +1,7 @@
 # tinycode
 
+[![CI](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/bobbyjohnstx/tinycode)](https://github.com/bobbyjohnstx/tinycode/releases)
+
 A slim, local-LLM-first AI coding assistant. Runs air-gapped with zero cloud dependencies.
 
 ## What it is
