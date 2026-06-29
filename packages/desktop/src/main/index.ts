@@ -7,7 +7,7 @@ import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
 import type { Event } from "electron"
-import { app, BrowserWindow } from "electron"
+import { app, BrowserWindow, dialog } from "electron"
 
 import contextMenu from "electron-context-menu"
 
@@ -18,6 +18,7 @@ import { registerIpcHandlers, sendDeepLinks, sendMenuCommand, sendSqliteMigratio
 import { exportDebugLogs, initCrashReporter, initLogging, startNetLog, write as writeLog } from "./logging"
 import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
+import { createTray } from "./tray"
 import {
   getDefaultServerUrl,
   getWslConfig,
@@ -38,6 +39,17 @@ import {
 import { migrate } from "./migrate"
 import { checkUpdate, checkForUpdates, installUpdate, setupAutoUpdater } from "./updater"
 import { Deferred, Effect, Fiber } from "effect"
+
+process.on("uncaughtException", (error) => {
+  writeLog("app", "uncaught exception", { error: String(error), stack: error.stack }, "error")
+  if (app.isReady()) {
+    dialog.showErrorBox("Unexpected Error", `${error.message}\n\nThe application may be unstable.`)
+  }
+})
+
+process.on("unhandledRejection", (reason) => {
+  writeLog("app", "unhandled rejection", { reason: String(reason) }, "error")
+})
 
 const APP_NAMES: Record<string, string> = {
   dev: "TinyCode Dev",
@@ -218,6 +230,18 @@ const main = Effect.gen(function* () {
     })
   }
 
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit()
+    }
+  })
+
+  app.on("activate", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show()
+    }
+  })
+
   const serverReady = Deferred.makeUnsafe<ServerReadyData>()
   const loadingComplete = Deferred.makeUnsafe<void>()
 
@@ -387,6 +411,16 @@ const main = Effect.gen(function* () {
           app.exit(0)
         })
       },
+    })
+
+    createTray({
+      showWindow: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      },
+      quit: () => app.quit(),
     })
   }
 

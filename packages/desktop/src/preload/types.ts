@@ -92,4 +92,5 @@ export type ElectronAPI = {
   setBackgroundColor: (color: string) => Promise<void>
   exportDebugLogs: () => Promise<string>
   recordFatalRendererError: (error: FatalRendererError) => Promise<void>
+  onUpdateReady: (callback: (version: string) => void) => () => void
 }

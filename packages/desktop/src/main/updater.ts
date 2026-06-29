@@ -1,4 +1,4 @@
-import { app, dialog } from "electron"
+import { app, BrowserWindow, dialog } from "electron"
 import pkg from "electron-updater"
 import { UPDATER_ENABLED } from "./constants"
 import { getLogger } from "./logging"
@@ -87,7 +87,7 @@ export async function installUpdate(killSidecar: () => Promise<void>) {
   autoUpdater.quitAndInstall()
 }
 
-export async function checkForUpdates(alertOnFail: boolean, killSidecar: () => Promise<void>) {
+export async function checkForUpdates(alertOnFail: boolean, _killSidecar: () => Promise<void>) {
   if (!UPDATER_ENABLED) return
   const logger = getLogger()
   logger.log("checkForUpdates invoked", { alertOnFail })
@@ -114,19 +114,8 @@ export async function checkForUpdates(alertOnFail: boolean, killSidecar: () => P
     return
   }
 
-  const response = await dialog.showMessageBox({
-    type: "info",
-    message: `Update ${result.version ?? ""} downloaded. Restart now?`,
-    title: "Update Ready",
-    buttons: ["Restart", "Later"],
-    defaultId: 0,
-    cancelId: 1,
-  })
-  logger.log("update prompt response", {
-    version: result.version ?? null,
-    restartNow: response.response === 0,
-  })
-  if (response.response === 0) {
-    await installUpdate(killSidecar)
+  const mainWindow = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+  if (mainWindow) {
+    mainWindow.webContents.send("update-ready", { version: result.version })
   }
 }

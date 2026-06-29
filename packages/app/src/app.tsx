@@ -47,6 +47,7 @@ import Layout from "@/pages/layout"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 import { ServersProvider } from "./context/servers"
+import { UpdateNotificationBanner } from "@/components/update-notification-banner"
 
 const HomeRoute = lazy(() => import("@/pages/home"))
 const Session = lazy(() => import("@/pages/session"))
@@ -75,6 +76,8 @@ declare global {
     api?: {
       setTitlebar?: (theme: { mode: "light" | "dark" }) => Promise<void>
       exportDebugLogs?: () => Promise<string>
+      installUpdate?: () => Promise<void>
+      onUpdateReady?: (callback: (version: string) => void) => () => void
     }
   }
 }
@@ -145,6 +148,7 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
   return (
     <AppShellProviders>
       {/*<Suspense fallback={<Loading />}>*/}
+      <UpdateNotificationBanner />
       {props.appChildren}
       {props.children}
       {/*</Suspense>*/}

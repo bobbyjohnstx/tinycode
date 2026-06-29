@@ -148,8 +148,17 @@ export function registerIpcHandlers(deps: Deps) {
     },
   )
 
+  const ALLOWED_LINK_SCHEMES = new Set(["http:", "https:", "mailto:"])
+
   ipcMain.on("open-link", (_event: IpcMainEvent, url: string) => {
-    void shell.openExternal(url)
+    try {
+      const parsed = new URL(url)
+      if (ALLOWED_LINK_SCHEMES.has(parsed.protocol)) {
+        void shell.openExternal(url)
+      }
+    } catch {
+      // Invalid URL — silently ignore
+    }
   })
 
   ipcMain.handle("open-path", async (_event: IpcMainInvokeEvent, path: string, app?: string) => {

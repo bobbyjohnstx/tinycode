@@ -17,28 +17,32 @@ type Deps = {
 }
 
 export function createMenu(deps: Deps) {
-  if (process.platform !== "darwin") return
+  const platform = process.platform === "darwin" ? "macos" : "windows"
 
-  const template = DESKTOP_MENU.filter((menu) => desktopMenuVisible(menu, "macos")).map((menu) => {
+  const template = DESKTOP_MENU.filter((menu) => desktopMenuVisible(menu, platform)).map((menu) => {
     if (menu.role) return { role: nativeRole(menu.role) }
     return {
       label: menu.label,
       submenu: menu.items
-        ?.filter((entry) => desktopMenuVisible(entry, "macos"))
-        .map((entry) => nativeItem(entry, deps)),
+        ?.filter((entry) => desktopMenuVisible(entry, platform))
+        .map((entry) => nativeItem(entry, deps, platform)),
     }
   })
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
-function nativeItem(entry: DesktopMenuEntry, deps: Deps): MenuItemConstructorOptions {
+function nativeItem(
+  entry: DesktopMenuEntry,
+  deps: Deps,
+  platform: "macos" | "windows",
+): MenuItemConstructorOptions {
   if (entry.type === "separator") return { type: "separator" }
   if (entry.role) return { role: nativeRole(entry.role) }
 
   const item: MenuItemConstructorOptions = {
     label: entry.label,
-    accelerator: entry.accelerator?.macos,
+    accelerator: platform === "macos" ? entry.accelerator?.macos : entry.accelerator?.windows,
     enabled: entry.enabled === "updater" ? UPDATER_ENABLED : undefined,
   }
 

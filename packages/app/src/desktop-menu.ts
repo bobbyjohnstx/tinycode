@@ -200,19 +200,19 @@ export const DESKTOP_MENU: DesktopMenu[] = [
     id: "help",
     label: "Help",
     items: [
-      { type: "item", label: "TinyCode Documentation", href: "" },
-      { type: "item", label: "Support Forum", href: "" },
+      { type: "item", label: "TinyCode Documentation", href: "https://github.com/bobbyjohnstx/tinycode" },
+      { type: "item", label: "Support Forum", href: "https://github.com/bobbyjohnstx/tinycode/discussions" },
       { type: "item", label: "Export Logs...", command: "logs.export" },
       { type: "separator" },
       {
         type: "item",
         label: "Share Feedback",
-        href: "",
+        href: "https://github.com/bobbyjohnstx/tinycode/discussions",
       },
       {
         type: "item",
         label: "Report a Bug",
-        href: "",
+        href: "https://github.com/bobbyjohnstx/tinycode/issues/new",
       },
     ],
   },

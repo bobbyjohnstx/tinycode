@@ -2,7 +2,7 @@ import windowState from "electron-window-state"
 import { resolveThemeVariant } from "@tinycode/ui/theme/resolve"
 import type { DesktopTheme } from "@tinycode/ui/theme/types"
 import oc2ThemeJson from "../../../ui/src/theme/themes/oc-2.json"
-import { app, BrowserWindow, dialog, net, nativeImage, nativeTheme, protocol } from "electron"
+import { app, BrowserWindow, dialog, net, nativeImage, nativeTheme, protocol, shell } from "electron"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import type { TitlebarTheme } from "../preload/types"
@@ -129,6 +129,8 @@ export function createMainWindow() {
     y: state.y,
     width: state.width,
     height: state.height,
+    minWidth: 960,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
     title: "TinyCode",
@@ -158,12 +160,6 @@ export function createMainWindow() {
   allowRendererPermissions(win)
   wireWindowRecovery(win, "main")
 
-  win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-    const { requestHeaders } = details
-    upsertKeyValue(requestHeaders, "Access-Control-Allow-Origin", ["*"])
-    callback({ requestHeaders })
-  })
-
   win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     const { responseHeaders = {} } = details
     addRendererHeaders(details.url, responseHeaders)
@@ -172,7 +168,25 @@ export function createMainWindow() {
 
   state.manage(win)
   loadWindow(win, "index.html")
+
+  win.webContents.on("will-navigate", (event, url) => {
+    if (!isRendererUrl(url)) {
+      event.preventDefault()
+    }
+  })
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("http:") || url.startsWith("https:")) {
+      void shell.openExternal(url)
+    }
+    return { action: "deny" }
+  })
+
   wireZoom(win)
+
+  nativeTheme.on("updated", () => {
+    win.setBackgroundColor(defaultBackgroundColor())
+  })
 
   win.once("ready-to-show", () => {
     win.show()
@@ -410,7 +424,12 @@ function isTrustedRendererUrl(value?: string) {
 function addRendererHeaders(value: string, headers: Record<string, any>) {
   upsertKeyValue(headers, "Access-Control-Allow-Origin", ["*"])
   upsertKeyValue(headers, "Access-Control-Allow-Headers", ["*"])
-  if (isRendererUrl(value, true)) upsertKeyValue(headers, documentPolicyHeader, [jsCallStacksDocumentPolicy])
+  if (isRendererUrl(value, true)) {
+    upsertKeyValue(headers, documentPolicyHeader, [jsCallStacksDocumentPolicy])
+    upsertKeyValue(headers, "Content-Security-Policy", [
+      "default-src 'self' oc://renderer; script-src 'self' oc://renderer; style-src 'self' 'unsafe-inline' oc://renderer; connect-src 'self' oc://renderer http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; img-src 'self' oc://renderer data: blob:; font-src 'self' oc://renderer data:;",
+    ])
+  }
 }
 
 function isRendererUrl(value?: string, html = false) {

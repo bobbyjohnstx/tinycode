@@ -368,6 +368,10 @@ export const dict = {
   "dialog.releaseNotes.action.hideFuture": "Don't show these in the future",
   "dialog.releaseNotes.media.alt": "Release preview",
 
+  "updateBanner.title": "Update v{{version}} ready",
+  "updateBanner.action.restart": "Restart Now",
+  "updateBanner.action.dismiss": "Dismiss",
+
   "context.breakdown.title": "Context Breakdown",
   "context.breakdown.note": 'Approximate breakdown of input tokens. "Other" includes tool definitions and overhead.',
   "context.breakdown.system": "System",
