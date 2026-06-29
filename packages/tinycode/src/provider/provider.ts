@@ -732,6 +732,7 @@ export const layer = Layer.effect(
         const localProviders = yield* localDiscovery.get()
         for (const [id, info] of Object.entries(localProviders)) {
           const providerID = ProviderID.make(id)
+          if (enabled && !enabled.has(providerID)) continue
           if (disabled.has(providerID)) continue
           // Only register if not already present from env/config/api auth
           if (!providers[providerID]) {

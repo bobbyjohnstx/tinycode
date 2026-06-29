@@ -283,6 +283,9 @@ export const Info = Schema.Struct({
       reserved: Schema.optional(NonNegativeInt).annotate({
         description: "Token buffer for compaction. Leaves enough window to avoid overflow during compaction.",
       }),
+      mask_observations: Schema.optional(Schema.Boolean).annotate({
+        description: "Replace old tool outputs with placeholders before summarization (default: true)",
+      }),
     }),
   ),
   experimental: Schema.optional(
