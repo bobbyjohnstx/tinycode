@@ -105,6 +105,14 @@ SolidJS + TailwindCSS v4 web app. Connects to the tinycode API server. Used by b
 
 Electron shell wrapping `packages/app`. Run with `bun run --cwd packages/desktop dev`.
 
+**Key implementation files:**
+- **Security** (`src/main/window.ts`): Content Security Policy headers, navigation origin validation, `setWindowOpenHandler` preventing uncontrolled new windows, and `shell.openExternal` URL scheme validation (http/https/mailto only)
+- **System tray** (`src/main/tray.ts`): Cross-platform tray integration with Show Window and Quit context menu actions
+- **Application menus** (`src/main/menu.ts`): Cross-platform menus for Windows/Linux/macOS with Help menu linking to GitHub (repo, discussions, issues). No longer macOS-only
+- **Update notification** (`packages/app/src/components/update-notification-banner.tsx`): Non-blocking slide-in banner notifying about available updates from GitHub Releases. Includes i18n and ARIA accessibility
+- **Global exception handling** (`src/main/index.ts`): Captures `uncaughtException` and `unhandledRejection` globally
+- **Platform lifecycle**: Minimum window size 960x600, macOS dock icon restoration, theme change listener for OS dark/light mode sync, persistent zoom level and window state
+
 ### `packages/plugin` — Plugin SDK
 
 Source for `@tinycode/plugin`. Provides the public plugin API.

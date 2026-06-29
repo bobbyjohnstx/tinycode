@@ -18,7 +18,17 @@ The primary interface is the **terminal UI (TUI)** — a full-featured interacti
 
 For teams or remote access, tinycode also ships a **web UI** (SolidJS + TailwindCSS) that connects to the tinycode API server. Open `http://localhost:4096` after starting the server, or run `bun dev web` to launch both. The web UI provides the same conversation, agent, and tool capabilities in a browser tab.
 
-A **standalone desktop app** (Electron) is available for macOS, Windows, and Linux. It wraps the web UI in a native window with system tray integration. Run `bun run --cwd packages/desktop dev` to launch in development, or build distributable binaries with `bun run --cwd packages/desktop build`.
+A **standalone desktop app** (Electron) is available for macOS, Windows, and Linux. It wraps the web UI in a native window with system tray integration, auto-updates via GitHub Releases, and platform-specific features. Run `bun run --cwd packages/desktop dev` to launch in development, or build distributable binaries with `bun run --cwd packages/desktop build`.
+
+**Desktop app features:**
+- **System tray integration**: Access tinycode from the menu bar (macOS) or system tray (Windows/Linux) with Show/Hide and Quit actions
+- **Global hotkey** (Cmd/Ctrl+Shift+T): Bring the window to front or minimize it without closing the app
+- **Auto-updates**: Automatically checks for new releases on GitHub and notifies you with an in-app banner
+- **Platform-specific behaviors**: 
+  - macOS: Closing the window keeps the app running in the dock; Cmd+Q quits fully. Dock badge shows notification count
+  - Windows/Linux: App menu with Help links to GitHub (repo, discussions, issues). Taskbar flashes on background notifications
+- **Persistent settings**: Zoom level and window state persist across app restarts
+- **Theme sync**: Automatically detects OS dark/light mode changes and updates the app appearance
 
 ### IDE Integration (ACP)
 
