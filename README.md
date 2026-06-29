@@ -20,6 +20,12 @@ For teams or remote access, tinycode also ships a **web UI** (SolidJS + Tailwind
 
 A **standalone desktop app** (Electron) is available for macOS, Windows, and Linux. It wraps the web UI in a native window with system tray integration. Run `bun run --cwd packages/desktop dev` to launch in development, or build distributable binaries with `bun run --cwd packages/desktop build`.
 
+### IDE Integration (ACP)
+
+tinycode supports the [Agent Client Protocol](https://agentclientprotocol.com) for IDE integration. Run `tinycode acp --cwd /path/to/project` to start an ACP server that editors (VS Code, Zed, JetBrains) can connect to via stdio.
+
+A reference [VS Code extension](packages/vscode-extension/) is included. See [docs/acp-integration.md](docs/acp-integration.md) for building custom IDE integrations.
+
 ## Quick start
 
 ```bash
@@ -83,7 +89,14 @@ See [CLAUDE.md](CLAUDE.md) for development guidance and [AGENTS.md](AGENTS.md) f
 
 ## Agents
 
-Type `/ask <agent> <prompt>` to invoke a subagent. Tab or `<leader>a` switches the primary agent (build/plan).
+Press **Tab** to cycle through agents, or `<leader>a` to pick from a list. Use `/ask <agent> <prompt>` to invoke any agent as a one-shot subagent without switching.
+
+tinycode has two modes with distinct behavior, plus specialized agent personas:
+
+- **build** (default) — Full tool access. Reads, writes, edits files, runs shell commands, executes tools. This is the normal working mode.
+- **plan** — **Read-only mode with hard permission enforcement.** The LLM can explore the codebase and write only to a plan file (`.tinycode/plans/*.md`). All other edits are blocked at the tool level, not just by prompt instruction. When the plan is ready, `plan_exit` prompts you to approve and switch to build mode for execution.
+
+All other agents (architect, debugger, executor, etc.) are **personas** — they share the same tool permissions as build mode but have specialized system prompts that guide their behavior. An architect agent is *instructed* to be read-only and analytical, but it is not *prevented* from editing files if you ask it to. The permission prompt system provides the safety gate for all tool executions regardless of which agent is active.
 
 ### Built-in agents
 
@@ -242,6 +255,10 @@ spec:
 ```
 
 The operator handles Route creation, PVC provisioning, SCC binding, vLLM model auto-probing, and pod lifecycle. See the [tinycode-operator README](https://github.com/bobbyjohnstx/tinycode-operator) and [RHOAI cluster setup guide](https://github.com/bobbyjohnstx/tinycode-operator/blob/main/docs/rhoai-cluster-setup.md) for full documentation.
+
+## Acknowledgments
+
+tinycode is built on [opencode](https://github.com/sst/opencode) by [SST](https://github.com/sst). The core architecture — session processor, provider abstraction, tool system, and TUI — originates from the opencode project. tinycode extends it with local-LLM-first design, bundled agents and skills, MCP integration, web/desktop UIs, container packaging, and a Kubernetes operator for OpenShift deployment.
 
 ## License
 
