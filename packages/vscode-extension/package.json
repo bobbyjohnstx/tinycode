@@ -1,5 +1,5 @@
 {
-  "name": "tinycode",
+  "name": "@tinycode/vscode-extension",
   "displayName": "tinycode",
   "description": "AI coding assistant powered by local LLMs via tinycode",
   "version": "0.1.0",
