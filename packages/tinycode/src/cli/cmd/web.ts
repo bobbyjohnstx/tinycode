@@ -37,10 +37,15 @@ export const WebCommand = effectCmd({
   // ambient project InstanceContext needed at startup.
   instance: false,
   handler: Effect.fn("Cli.web")(function* (args) {
-    if (!Flag.TINYCODE_SERVER_PASSWORD) {
-      UI.println(UI.Style.TEXT_WARNING_BOLD + "!  TINYCODE_SERVER_PASSWORD is not set; server is unsecured.")
-    }
     const opts = yield* resolveNetworkOptions(args)
+    if (!Flag.TINYCODE_SERVER_PASSWORD) {
+      const host = opts.hostname
+      if (host === "0.0.0.0" || host === "::" || (host !== "127.0.0.1" && host !== "localhost" && host !== "::1")) {
+        UI.println(UI.Style.TEXT_ERROR_BOLD + "Error: TINYCODE_SERVER_PASSWORD is required when binding to a non-loopback address.")
+        process.exit(1)
+      }
+      UI.println(UI.Style.TEXT_WARNING_BOLD + "!  TINYCODE_SERVER_PASSWORD is not set; server is unsecured (loopback only).")
+    }
     const server = yield* Effect.promise(() => Server.listen(opts))
     UI.empty()
     UI.println(UI.logo("  "))

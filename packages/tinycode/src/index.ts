@@ -14,6 +14,7 @@ import { InstallationVersion, InstallationChannel } from "@/core/installation/ve
 import { NamedError } from "@/core/util/error"
 import { FormatError } from "./cli/error"
 import { ServeCommand } from "./cli/cmd/serve"
+import { AcpCommand } from "./cli/cmd/acp"
 import { Filesystem } from "@/util/filesystem"
 import { DebugCommand } from "./cli/cmd/debug"
 import { McpCommand } from "./cli/cmd/mcp"
@@ -162,6 +163,7 @@ const cli = yargs(args)
   .command(SetupCommand)
   .command(StatusCommand)
   .command(ServeCommand)
+  .command(AcpCommand)
   .command(WebCommand)
   .command(ModelsCommand)
   .command(ExportCommand)

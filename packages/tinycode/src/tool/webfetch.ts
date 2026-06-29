@@ -32,6 +32,11 @@ export const WebFetchTool = Tool.define(
       parameters: Parameters,
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
         Effect.gen(function* () {
+          // SECURITY: No internal-network SSRF filtering is applied here. The
+          // permission prompt (ctx.ask) provides the human-in-the-loop gate.
+          // In automated/unattended mode, callers should validate URLs before
+          // invoking this tool. Cloud metadata endpoints (169.254.169.254) and
+          // link-local addresses are reachable if auto-approved.
           if (!params.url.startsWith("http://") && !params.url.startsWith("https://")) {
             throw new Error("URL must start with http:// or https://")
           }
