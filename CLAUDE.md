@@ -16,6 +16,7 @@ bun dev .               # run against repo root
 # Other dev modes
 bun dev serve           # headless API server (port 4096)
 bun dev web             # server + open web interface
+bun dev acp             # Agent Client Protocol mode (IDE integration, stdio transport)
 bun run --cwd packages/app dev        # web UI only (requires server running)
 bun run --cwd packages/desktop dev    # Electron desktop app
 
@@ -76,13 +77,25 @@ The heart of the project. Contains the HTTP API server, all business logic, and 
 
 - **Server** (`src/server/`): Effect-based HTTP server using Hono-style routing via `effect/unstable/http`. Runs on port 4096. Exposes REST + SSE/WebSocket for real-time events.
 - **TUI** (`src/cli/cmd/tui/`): Terminal UI written in SolidJS on top of [opentui](https://github.com/sst/opentui). The TUI either spawns the server in a worker thread or attaches to an existing one.
-- **Session** (`src/session/`): Manages AI conversation sessions. Each session runs a processor loop that calls LLMs and coordinates tools.
-- **Agent** (`src/agent/`): Built-in agent definitions (explore, scout, general, plus all specialized agents like architect, debugger, executor, planner, code-reviewer, etc.). Agents configure which tools are available and system prompts.
+- **Session** (`src/session/`): Manages AI conversation sessions. Each session runs a processor loop that calls LLMs and coordinates tools. **Context compaction** automatically summarizes old turns when context usage approaches the model limit. Advanced compaction features:
+  - **Deterministic file tracking**: Scans tool calls for read/write/edit operations, appends `<read-files>` and `<modified-files>` XML blocks to summaries (not LLM-dependent)
+  - **Observation masking**: Replaces old tool outputs with placeholders before summarization (config: `compaction.mask_observations`, default true)
+  - **Text serialization**: Conversation serialized to tagged text format with "Do NOT continue" system prompt, preventing model continuation
+  - **Circuit breaker**: Warning issued after 3+ compactions, suggesting new session or subagent approach
+  - **Structured telemetry**: Logs pre/post token counts, model, timing, and compaction number for diagnostics
+  - **Summary size cap**: Limited to `min(4096, 10% of usable context)` to avoid disproportionate overhead
+  - **Increased preserve budget**: MIN 4K tokens, MAX 20K tokens (up from 2K-8K) to maintain recent context
+- **Agent** (`src/agent/`): Built-in agent definitions. Two modes have distinct behavior: **build** (default, full tool access) and **plan** (read-only, hard permission enforcement — can only write to `.tinycode/plans/*.md`). All other agents (architect, debugger, executor, etc.) are personas that share build's permissions but have specialized system prompts. Agent defaults live in `src/agent/defaults/` with `.compact.md` variants for small models.
 - **Tools** (`src/tool/`): Individual agent tools — file read/write/edit, shell, grep, glob, LSP, MCP websearch, etc.
 - **Provider** (`src/provider/`): LLM provider abstraction (wraps Vercel AI SDK). Local LLM support via Ollama and OpenAI-compatible endpoints is the primary use case.
 - **Config** (`src/config/`): User config parsing. Each config module self-exports (e.g., `export * as ConfigAgent from "./agent"`).
 - **Storage** (`src/storage/`): SQLite via Drizzle ORM. DB schema in `schema.sql.ts`.
 - **MCP** (`src/mcp/`): Model Context Protocol client integration.
+- **ACP** (`src/acp/`): Agent Client Protocol implementation for IDE integration. Implements stdio-based agent communication for editor extensions and language servers.
+
+### `packages/vscode-extension` — VS Code Extension
+
+Reference VS Code extension demonstrating ACP integration. Provides editor context injection and agent command routing to tinycode running in ACP mode.
 
 ### `packages/app` — Web UI
 
@@ -109,6 +122,7 @@ Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/
 - **Local LLMs first**: The primary use case is local LLM inference via Ollama or any OpenAI-compatible endpoint. Configure via `~/.config/tinycode/config.json`.
 - **Provider filtering**: `enabled_providers` and `disabled_providers` in config apply to **all** providers — both custom API-configured providers and locally-discovered ones (Ollama, vLLM, MaaS). Filters apply during discovery, so disabled providers are completely hidden from the provider list.
 - **oh-my-tiny**: Built-in plugin at `src/omt/` providing extended orchestration tools (notepad, wiki, state management, AST grep).
+- **ACP mode**: Run with `bun dev acp` or `tinycode acp` to enable IDE integration via the Agent Client Protocol. Communicates via stdio with editor extensions. See `docs/acp-integration.md` for developer guide.
 - **Session tree sidebar** (`src/cli/cmd/tui/component/session-tree.tsx`): Toggleable ASCII tree showing session hierarchy. Press `<leader>b` in the TUI to toggle visibility. Sessions are organized by parent-child relationships.
 - **Plugin lifecycle hooks** (`@tinycode/plugin`): Four observe-only hooks fire during session lifecycle:
   - `session.start` — when a session is created
