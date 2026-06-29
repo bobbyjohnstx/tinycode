@@ -22,126 +22,151 @@ export class MockLanguageModel implements LanguageModelV3 {
   readonly specificationVersion = "v3" as const
   readonly provider = "mock" as const
   readonly modelId = "mock-model"
-  readonly defaultObjectGenerationMode = "json" as const
+  readonly supportedUrls: Record<string, RegExp[]> = {}
 
   constructor(scenarios?: MockScenario[]) {
     this.scenarios = scenarios ?? [{ type: "text", content: "Mock response" }]
   }
 
-  async doGenerate(_options: Parameters<LanguageModelV3["doGenerate"]>[0]): Promise<{
-    text?: string
-    toolCalls?: Array<{ toolCallId: string; toolName: string; args: unknown }>
-    finishReason: "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other" | "unknown"
-    usage: { promptTokens: number; completionTokens: number }
-    rawCall: { rawPrompt: unknown; rawSettings: Record<string, unknown> }
-    rawResponse?: { headers?: Record<string, string> }
-    warnings?: Array<{ type: string; message: string }>
-    providerMetadata?: Record<string, unknown>
-  }> {
+  async doGenerate(
+    _options: Parameters<LanguageModelV3["doGenerate"]>[0]
+  ): ReturnType<LanguageModelV3["doGenerate"]> {
     const scenario = this.getNextScenario()
 
     if (scenario.type === "error") {
       throw scenario.error
     }
 
+    const usage = {
+      inputTokens: {
+        total: scenario.usage?.inputTokens ?? 100,
+        noCache: scenario.usage?.inputTokens ?? 100,
+        cacheRead: undefined,
+        cacheWrite: undefined,
+      },
+      outputTokens: {
+        total: scenario.usage?.outputTokens ?? 50,
+        text: scenario.usage?.outputTokens ?? 50,
+        reasoning: undefined,
+      },
+    }
+
+    const finishReason = {
+      unified: (scenario.type === "tool-call" ? "tool-calls" : "stop") as
+        | "stop"
+        | "length"
+        | "content-filter"
+        | "tool-calls"
+        | "error"
+        | "other",
+      raw: undefined,
+    }
+
     if (scenario.type === "tool-call") {
       return {
-        toolCalls: scenario.calls.map((call) => ({
+        content: scenario.calls.map((call) => ({
+          type: "tool-call" as const,
           toolCallId: call.id,
           toolName: call.name,
-          args: call.args,
+          input: call.args,
         })),
-        finishReason: "tool-calls",
-        usage: {
-          promptTokens: scenario.usage?.inputTokens ?? 100,
-          completionTokens: scenario.usage?.outputTokens ?? 50,
-        },
-        rawCall: { rawPrompt: null, rawSettings: {} },
+        finishReason,
+        usage,
+        warnings: [],
       }
     }
 
     return {
-      text: scenario.content,
-      finishReason: "stop",
-      usage: {
-        promptTokens: scenario.usage?.inputTokens ?? 100,
-        completionTokens: scenario.usage?.outputTokens ?? 50,
-      },
-      rawCall: { rawPrompt: null, rawSettings: {} },
+      content: [{ type: "text" as const, text: scenario.content }],
+      finishReason,
+      usage,
+      warnings: [],
     }
   }
 
-  async *doStream(_options: Parameters<LanguageModelV3["doStream"]>[0]): AsyncIterable<
-    | {
-        type: "text-delta"
-        textDelta: string
-      }
-    | {
-        type: "tool-call-delta"
-        toolCallId: string
-        toolName: string
-        argsTextDelta: string
-      }
-    | {
-        type: "tool-call"
-        toolCallId: string
-        toolName: string
-        args: unknown
-      }
-    | {
-        type: "finish"
-        finishReason: "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other" | "unknown"
-        usage: { promptTokens: number; completionTokens: number }
-        providerMetadata?: Record<string, unknown>
-      }
-    | {
-        type: "error"
-        error: unknown
-      }
-  > {
+  async doStream(_options: Parameters<LanguageModelV3["doStream"]>[0]): ReturnType<LanguageModelV3["doStream"]> {
     const scenario = this.getNextScenario()
 
-    if (scenario.type === "error") {
-      yield { type: "error", error: scenario.error }
-      return
-    }
-
-    if (scenario.type === "tool-call") {
-      for (const call of scenario.calls) {
-        yield {
-          type: "tool-call",
-          toolCallId: call.id,
-          toolName: call.name,
-          args: call.args,
+    const stream = new ReadableStream({
+      async start(controller) {
+        if (scenario.type === "error") {
+          controller.error(scenario.error)
+          return
         }
-      }
-      yield {
-        type: "finish",
-        finishReason: "tool-calls",
-        usage: {
-          promptTokens: scenario.usage?.inputTokens ?? 100,
-          completionTokens: scenario.usage?.outputTokens ?? 50,
-        },
-      }
-      return
-    }
 
-    // Text response: stream character by character
-    for (const char of scenario.content) {
-      yield {
-        type: "text-delta",
-        textDelta: char,
-      }
-    }
+        if (scenario.type === "tool-call") {
+          for (const call of scenario.calls) {
+            const id = call.id
+            controller.enqueue({
+              type: "tool-input-start" as const,
+              id,
+              toolName: call.name,
+            })
+            controller.enqueue({
+              type: "tool-input-delta" as const,
+              id,
+              delta: JSON.stringify(call.args),
+            })
+            controller.enqueue({
+              type: "tool-input-end" as const,
+              id,
+              input: call.args,
+            })
+          }
+          controller.enqueue({
+            type: "finish" as const,
+            finishReason: { unified: "tool-calls" as const, raw: undefined },
+            usage: {
+              inputTokens: {
+                total: scenario.usage?.inputTokens ?? 100,
+                noCache: scenario.usage?.inputTokens ?? 100,
+                cacheRead: undefined,
+                cacheWrite: undefined,
+              },
+              outputTokens: {
+                total: scenario.usage?.outputTokens ?? 50,
+                text: scenario.usage?.outputTokens ?? 50,
+                reasoning: undefined,
+              },
+            },
+          })
+          controller.close()
+          return
+        }
 
-    yield {
-      type: "finish",
-      finishReason: "stop",
-      usage: {
-        promptTokens: scenario.usage?.inputTokens ?? 100,
-        completionTokens: scenario.usage?.outputTokens ?? 50,
+        // Text response: stream character by character
+        const id = "text-0"
+        controller.enqueue({ type: "text-start" as const, id })
+        for (const char of scenario.content) {
+          controller.enqueue({
+            type: "text-delta" as const,
+            id,
+            delta: char,
+          })
+        }
+        controller.enqueue({ type: "text-end" as const, id })
+        controller.enqueue({
+          type: "finish" as const,
+          finishReason: { unified: "stop" as const, raw: undefined },
+          usage: {
+            inputTokens: {
+              total: scenario.usage?.inputTokens ?? 100,
+              noCache: scenario.usage?.inputTokens ?? 100,
+              cacheRead: undefined,
+              cacheWrite: undefined,
+            },
+            outputTokens: {
+              total: scenario.usage?.outputTokens ?? 50,
+              text: scenario.usage?.outputTokens ?? 50,
+              reasoning: undefined,
+            },
+          },
+        })
+        controller.close()
       },
-    }
+    })
+
+    return { stream }
   }
 
   private getNextScenario(): MockScenario {

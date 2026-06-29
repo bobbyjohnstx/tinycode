@@ -7,13 +7,16 @@ describe("MockLanguageModel", () => {
 
     const result = await mock.doGenerate({
       prompt: [],
-      mode: { type: "regular" },
     })
 
-    expect(result.text).toBe("Hello World")
-    expect(result.finishReason).toBe("stop")
-    expect(result.usage.promptTokens).toBe(100)
-    expect(result.usage.completionTokens).toBe(50)
+    expect(result.content).toHaveLength(1)
+    expect(result.content[0].type).toBe("text")
+    if (result.content[0].type === "text") {
+      expect(result.content[0].text).toBe("Hello World")
+    }
+    expect(result.finishReason.unified).toBe("stop")
+    expect(result.usage.inputTokens.total).toBe(100)
+    expect(result.usage.outputTokens.total).toBe(50)
   })
 
   test("tool call response", async () => {
@@ -26,28 +29,39 @@ describe("MockLanguageModel", () => {
 
     const result = await mock.doGenerate({
       prompt: [],
-      mode: { type: "regular" },
     })
 
-    expect(result.toolCalls).toHaveLength(1)
-    expect(result.toolCalls?.[0].toolName).toBe("Read")
-    expect(result.toolCalls?.[0].args).toEqual({ file_path: "/test.txt" })
-    expect(result.finishReason).toBe("tool-calls")
+    expect(result.content).toHaveLength(1)
+    expect(result.content[0].type).toBe("tool-call")
+    if (result.content[0].type === "tool-call") {
+      expect(result.content[0].toolName).toBe("Read")
+      expect(result.content[0].input).toEqual({ file_path: "/test.txt" })
+    }
+    expect(result.finishReason.unified).toBe("tool-calls")
   })
 
   test("streaming text response", async () => {
     const mock = new MockLanguageModel([{ type: "text", content: "Hi" }])
 
-    const chunks: string[] = []
-    for await (const chunk of mock.doStream({
+    const result = await mock.doStream({
       prompt: [],
-      mode: { type: "regular" },
-    })) {
-      if (chunk.type === "text-delta") {
-        chunks.push(chunk.textDelta)
-      } else if (chunk.type === "finish") {
-        expect(chunk.finishReason).toBe("stop")
+    })
+
+    const chunks: string[] = []
+    const reader = result.stream.getReader()
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        if (value.type === "text-delta") {
+          chunks.push(value.delta)
+        } else if (value.type === "finish") {
+          expect(value.finishReason.unified).toBe("stop")
+        }
       }
+    } finally {
+      reader.releaseLock()
     }
 
     expect(chunks.join("")).toBe("Hi")
@@ -62,28 +76,36 @@ describe("MockLanguageModel", () => {
 
     const first = await mock.doGenerate({
       prompt: [],
-      mode: { type: "regular" },
     })
-    expect(first.text).toBe("First")
+    expect(first.content[0].type).toBe("text")
+    if (first.content[0].type === "text") {
+      expect(first.content[0].text).toBe("First")
+    }
 
     const second = await mock.doGenerate({
       prompt: [],
-      mode: { type: "regular" },
     })
-    expect(second.text).toBe("Second")
+    expect(second.content[0].type).toBe("text")
+    if (second.content[0].type === "text") {
+      expect(second.content[0].text).toBe("Second")
+    }
 
     const third = await mock.doGenerate({
       prompt: [],
-      mode: { type: "regular" },
     })
-    expect(third.text).toBe("Third")
+    expect(third.content[0].type).toBe("text")
+    if (third.content[0].type === "text") {
+      expect(third.content[0].text).toBe("Third")
+    }
 
     // Should repeat last scenario
     const fourth = await mock.doGenerate({
       prompt: [],
-      mode: { type: "regular" },
     })
-    expect(fourth.text).toBe("Third")
+    expect(fourth.content[0].type).toBe("text")
+    if (fourth.content[0].type === "text") {
+      expect(fourth.content[0].text).toBe("Third")
+    }
   })
 
   test("error scenario", async () => {
@@ -92,7 +114,6 @@ describe("MockLanguageModel", () => {
     try {
       await mock.doGenerate({
         prompt: [],
-        mode: { type: "regular" },
       })
       expect(true).toBe(false) // Should not reach here
     } catch (error) {
@@ -111,10 +132,9 @@ describe("MockLanguageModel", () => {
 
     const result = await mock.doGenerate({
       prompt: [],
-      mode: { type: "regular" },
     })
 
-    expect(result.usage.promptTokens).toBe(500)
-    expect(result.usage.completionTokens).toBe(200)
+    expect(result.usage.inputTokens.total).toBe(500)
+    expect(result.usage.outputTokens.total).toBe(200)
   })
 })
