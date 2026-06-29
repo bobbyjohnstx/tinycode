@@ -7,7 +7,7 @@ import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
 import type { Event } from "electron"
-import { app, BrowserWindow, dialog } from "electron"
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain } from "electron"
 
 import contextMenu from "electron-context-menu"
 
@@ -206,6 +206,7 @@ const main = Effect.gen(function* () {
   })
 
   app.on("will-quit", () => {
+    globalShortcut.unregisterAll()
     void killSidecar()
   })
 
@@ -421,6 +422,34 @@ const main = Effect.gen(function* () {
         }
       },
       quit: () => app.quit(),
+    })
+
+    globalShortcut.register("CommandOrControl+Shift+T", () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    })
+
+    let hasFocus = mainWindow.isFocused()
+    mainWindow.on("focus", () => {
+      hasFocus = true
+      if (process.platform === "darwin") app.dock?.setBadge("")
+      mainWindow?.flashFrame(false)
+    })
+
+    mainWindow.on("blur", () => {
+      hasFocus = false
+    })
+
+    ipcMain.on("update-ready", () => {
+      if (!hasFocus && mainWindow && !mainWindow.isDestroyed()) {
+        if (process.platform === "darwin") {
+          app.dock?.setBadge("!")
+        } else {
+          mainWindow.flashFrame(true)
+        }
+      }
     })
   }
 

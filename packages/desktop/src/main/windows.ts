@@ -6,7 +6,7 @@ import { app, BrowserWindow, dialog, net, nativeImage, nativeTheme, protocol, sh
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import type { TitlebarTheme } from "../preload/types"
-import { PINCH_ZOOM_ENABLED_KEY } from "./constants"
+import { PINCH_ZOOM_ENABLED_KEY, ZOOM_FACTOR_KEY } from "./constants"
 import { exportDebugLogs, write as writeLog } from "./logging"
 import { getStore } from "./store"
 import { createUnresponsiveSampler } from "./unresponsive"
@@ -444,11 +444,15 @@ function isRendererUrl(value?: string, html = false) {
 
 function wireZoom(win: BrowserWindow) {
   pinchZoomEnabled.set(win, getPinchZoomEnabled())
-  win.webContents.setZoomFactor(1)
+  const storedZoom = getStore().get(ZOOM_FACTOR_KEY)
+  const initialZoom = typeof storedZoom === "number" ? clampZoom(storedZoom) : 1
+  win.webContents.setZoomFactor(initialZoom)
   win.webContents.on("zoom-changed", (event, zoomDirection) => {
     event.preventDefault()
     if (pinchZoomEnabled.get(win)) {
-      win.webContents.setZoomFactor(clampZoom(win.webContents.getZoomFactor() + (zoomDirection === "in" ? 0.2 : -0.2)))
+      const newZoom = clampZoom(win.webContents.getZoomFactor() + (zoomDirection === "in" ? 0.2 : -0.2))
+      win.webContents.setZoomFactor(newZoom)
+      getStore().set(ZOOM_FACTOR_KEY, newZoom)
       updateZoom(win)
       return
     }

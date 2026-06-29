@@ -207,6 +207,7 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("get-zoom-factor", (event: IpcMainInvokeEvent) => event.sender.getZoomFactor())
   ipcMain.handle("set-zoom-factor", (event: IpcMainInvokeEvent, factor: number) => {
     event.sender.setZoomFactor(factor)
+    getStore().set("zoomFactor", factor)
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
     updateTitlebar(win)
