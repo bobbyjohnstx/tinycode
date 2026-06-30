@@ -1,38 +1,9 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode acp --help 1`] = `
-"Performing one time database migration, may take a few minutes...
-sqlite-migration:done
-Database migration complete.
-▀█▀ ▄_ █▀▀▄ █__█╲
-_█_ █_ █__█ _▀▀█  ╲
-_▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█
-                      ╲  █___ █__█ █__█ █^^^
-                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+"tinycode acp
 
-Commands:
-  tinycode completion          generate shell completion script
-  tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start tinycode tui                                          [default]
-  tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run tinycode with a message
-  tinycode debug               debugging and troubleshooting tools
-  tinycode providers           manage AI providers and credentials                   [aliases: auth]
-  tinycode agent               manage agents
-  tinycode uninstall           uninstall tinycode and remove all related files
-  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
-  tinycode status              show tinycode status and provider health
-  tinycode serve               starts a headless tinycode server
-  tinycode web                 start tinycode server and open web interface
-  tinycode models [provider]   list all available models
-  tinycode export [sessionID]  export session data
-  tinycode import <file>       import session data from JSON file or URL
-  tinycode session             manage sessions
-  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
-  tinycode db                  database tools
-
-Positionals:
-  project  path to start tinycode in                                                        [string]
+start ACP (Agent Client Protocol) server
 
 Options:
   -h, --help         show help                                                             [boolean]
@@ -47,12 +18,7 @@ Options:
       --mdns-domain  custom domain name for mDNS service (default: tinycode.local)
                                                                 [string] [default: "tinycode.local"]
       --cors         additional domains to allow for CORS                      [array] [default: []]
-  -m, --model        model to use in the format of provider/model                           [string]
-  -c, --continue     continue the last session                                             [boolean]
-  -s, --session      session id to continue                                                 [string]
-      --fork         fork the session when continuing (use with --continue or --session)   [boolean]
-      --prompt       prompt to use                                                          [string]
-      --agent        agent to use                                                           [string]"
+      --cwd          working directory [string] [default: "<HOME>"]"
 `;
 
 exports[`tinycode CLI help-text snapshots every documented command emits stable help text: tinycode mcp --help 1`] = `
@@ -235,6 +201,7 @@ Commands:
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
   tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
+  tinycode acp                 start ACP (Agent Client Protocol) server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data
@@ -365,6 +332,7 @@ Commands:
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
   tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
+  tinycode acp                 start ACP (Agent Client Protocol) server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data
@@ -454,6 +422,7 @@ Commands:
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
   tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
+  tinycode acp                 start ACP (Agent Client Protocol) server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data
@@ -509,6 +478,7 @@ Commands:
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
   tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
+  tinycode acp                 start ACP (Agent Client Protocol) server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data
@@ -790,6 +760,7 @@ Commands:
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
   tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
+  tinycode acp                 start ACP (Agent Client Protocol) server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data
@@ -845,6 +816,7 @@ Commands:
   tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
   tinycode status              show tinycode status and provider health
   tinycode serve               starts a headless tinycode server
+  tinycode acp                 start ACP (Agent Client Protocol) server
   tinycode web                 start tinycode server and open web interface
   tinycode models [provider]   list all available models
   tinycode export [sessionID]  export session data
