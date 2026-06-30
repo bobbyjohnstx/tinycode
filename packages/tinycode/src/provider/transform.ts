@@ -1085,10 +1085,11 @@ export function options(input: {
   }
 
   // Disable thinking for Qwen3 on vLLM — thinking fills the output budget
-  // and causes loops. Users who want thinking can override via provider options.
+  // and causes loops. Check both api.id and model.id since custom providers
+  // may have the model name only in the model ID, not the API URL.
   if (
     input.model.api.npm === "@ai-sdk/openai-compatible" &&
-    input.model.api.id.toLowerCase().includes("qwen") &&
+    (input.model.api.id.toLowerCase().includes("qwen") || input.model.id.toLowerCase().includes("qwen")) &&
     !result["chat_template_args"]
   ) {
     result["chat_template_kwargs"] = { enable_thinking: false }
