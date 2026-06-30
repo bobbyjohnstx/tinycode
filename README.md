@@ -136,7 +136,7 @@ All other agents (architect, debugger, executor, etc.) are **personas** — they
 | `workspace`           | Workspace setup and environment configuration                     |
 | `writer`              | Technical documentation                                           |
 
-Agents with a `.compact.md` variant automatically use the compact prompt for models ≤9B parameters. See [docs/agent-prompt-tiers.md](docs/agent-prompt-tiers.md) for details.
+Agents with a `.compact.md` variant automatically use the compact prompt for models ≤8B parameters. See [docs/agent-prompt-tiers.md](docs/agent-prompt-tiers.md) for details.
 
 `@` references files only. To invoke an agent, use `/ask <agent>`.
 

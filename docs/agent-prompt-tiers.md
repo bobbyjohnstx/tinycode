@@ -8,10 +8,10 @@ Reuses the existing model size extraction from `src/session/system.ts`:
 
 | Tier    | Model size  | Context range | Agent budget              |
 | ------- | ----------- | ------------- | ------------------------- |
-| compact | ≤9B params  | 4K–8K tokens  | ~400 tokens (~300 words)  |
-| default | ≥10B params | 32K+ tokens   | ~1300 tokens (~900 words) |
+| compact | ≤8B params  | 4K–8K tokens  | ~400 tokens (~300 words)  |
+| default | ≥9B params  | 32K+ tokens   | ~1300 tokens (~900 words) |
 
-The threshold is **parameter count**, not context window, because instruction-following ability correlates with model size more than context length. A 9B model with 128K context still can't follow a 900-word agent prompt reliably.
+The threshold is **parameter count**, not context window, because instruction-following ability correlates with model size more than context length. Models at 9B parameters (e.g., qwen3.5:9b) have sufficient instruction-following ability for the full prompts.
 
 Selection function: `modelSizeB(model)` in `src/session/system.ts` extracts parameter count from model ID strings (e.g. `qwen3-14b` → 14, `llama3.1:8b` → 8). Unknown size falls back to `default`.
 
@@ -20,13 +20,13 @@ Selection function: `modelSizeB(model)` in `src/session/system.ts` extracts para
 Convention-based with fallback:
 
 ```
-agents/debugger.md          ← default (used for ≥10B)
-agents/debugger.compact.md  ← compact (used for ≤9B)
+agents/debugger.md          ← default (used for ≥9B)
+agents/debugger.compact.md  ← compact (used for ≤8B)
 ```
 
 If no `.compact.md` variant exists, the default is used for all sizes. This allows gradual adoption — create compact variants only for agents where the default is too large.
 
-## Token Budget Breakdown (≤9B model, 4K context)
+## Token Budget Breakdown (≤8B model, 4K context)
 
 | Component                         | Tokens | Notes                          |
 | --------------------------------- | ------ | ------------------------------ |
@@ -72,7 +72,7 @@ To create a compact variant from a default agent:
 4. Strip rationale from constraints — keep only the rule. "Reproduce BEFORE investigating. If you cannot reproduce, find the conditions first." becomes "Reproduce before investigating."
 5. Tighten the output format template — remove optional fields, combine related lines.
 6. Verify the result is under 300 words.
-7. Test with a ≤9B model on a representative task. If the model ignores a rule, the rule's phrasing is too subtle — make it blunter, not longer.
+7. Test with a ≤8B model on a representative task. If the model ignores a rule, the rule's phrasing is too subtle — make it blunter, not longer.
 
 ## Reference Sizes
 
