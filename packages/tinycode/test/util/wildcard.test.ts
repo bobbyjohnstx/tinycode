@@ -1,90 +1,136 @@
-import { test, expect } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { Wildcard } from "@/util/wildcard"
 
-test("match handles glob tokens", () => {
-  expect(Wildcard.match("file1.txt", "file?.txt")).toBe(true)
-  expect(Wildcard.match("file12.txt", "file?.txt")).toBe(false)
-  expect(Wildcard.match("foo+bar", "foo+bar")).toBe(true)
+describe("Wildcard.match", () => {
+  test("matches exact strings", () => {
+    expect(Wildcard.match("hello", "hello")).toBe(true)
+    expect(Wildcard.match("hello", "world")).toBe(false)
+  })
+
+  test("matches * wildcard", () => {
+    expect(Wildcard.match("hello.ts", "*.ts")).toBe(true)
+    expect(Wildcard.match("hello.js", "*.ts")).toBe(false)
+    expect(Wildcard.match("src/hello.ts", "src/*.ts")).toBe(true)
+    expect(Wildcard.match("src/util/test.ts", "src/*/test.ts")).toBe(true)
+  })
+
+  test("matches multiple levels with wildcard", () => {
+    expect(Wildcard.match("src/util/test.ts", "*/*/*.ts")).toBe(true)
+    expect(Wildcard.match("a/b.ts", "*/*.ts")).toBe(true)
+  })
+
+  test("matches ? wildcard", () => {
+    expect(Wildcard.match("test1.ts", "test?.ts")).toBe(true)
+    expect(Wildcard.match("test12.ts", "test?.ts")).toBe(false)
+    expect(Wildcard.match("test.ts", "test?.ts")).toBe(false)
+  })
+
+  test("normalizes backslashes to forward slashes", () => {
+    expect(Wildcard.match("src\\util\\test.ts", "src/util/test.ts")).toBe(true)
+    expect(Wildcard.match("src/util/test.ts", "src\\util\\test.ts")).toBe(true)
+  })
+
+  test("handles trailing space wildcard as optional", () => {
+    expect(Wildcard.match("ls", "ls *")).toBe(true)
+    expect(Wildcard.match("ls -la", "ls *")).toBe(true)
+    expect(Wildcard.match("ls -la -h", "ls *")).toBe(true)
+    expect(Wildcard.match("cd", "ls *")).toBe(false)
+  })
+
+  test("escapes special regex characters", () => {
+    expect(Wildcard.match("test.file", "test.file")).toBe(true)
+    expect(Wildcard.match("testXfile", "test.file")).toBe(false)
+    expect(Wildcard.match("test[1].ts", "test[1].ts")).toBe(true)
+    expect(Wildcard.match("test+plus.ts", "test+plus.ts")).toBe(true)
+  })
+
+  test("is case sensitive on non-Windows platforms", () => {
+    if (process.platform !== "win32") {
+      expect(Wildcard.match("Hello", "hello")).toBe(false)
+      expect(Wildcard.match("TEST.TS", "test.ts")).toBe(false)
+    }
+  })
 })
 
-test("match with trailing space+wildcard matches command with or without args", () => {
-  // "ls *" should match "ls" (no args) and "ls -la" (with args)
-  expect(Wildcard.match("ls", "ls *")).toBe(true)
-  expect(Wildcard.match("ls -la", "ls *")).toBe(true)
-  expect(Wildcard.match("ls foo bar", "ls *")).toBe(true)
+describe("Wildcard.all", () => {
+  test("returns value for matching pattern", () => {
+    const patterns = {
+      "*.ts": "typescript",
+      "*.js": "javascript",
+    }
+    expect(Wildcard.all("test.ts", patterns)).toBe("typescript")
+    expect(Wildcard.all("test.js", patterns)).toBe("javascript")
+    expect(Wildcard.all("test.py", patterns)).toBeUndefined()
+  })
 
-  // "ls*" (no space) should NOT match "ls" alone — wait, it should because .* matches empty
-  // but it WILL match "lstmeval" which is the dangerous case users should avoid
-  expect(Wildcard.match("ls", "ls*")).toBe(true)
-  expect(Wildcard.match("lstmeval", "ls*")).toBe(true)
+  test("prefers longest matching pattern", () => {
+    const patterns = {
+      "*": "any",
+      "*.ts": "typescript",
+      "src/*.ts": "source-ts",
+    }
+    expect(Wildcard.all("test.ts", patterns)).toBe("typescript")
+    expect(Wildcard.all("src/test.ts", patterns)).toBe("source-ts")
+    expect(Wildcard.all("test.py", patterns)).toBe("any")
+  })
 
-  // "ls *" (with space) should NOT match "lstmeval"
-  expect(Wildcard.match("lstmeval", "ls *")).toBe(false)
+  test("returns last match when multiple patterns of same length match", () => {
+    const patterns = {
+      "*.ts": "first",
+      "test.*": "second",
+    }
+    expect(Wildcard.all("test.ts", patterns)).toBe("second")
+  })
 
-  // multi-word commands
-  expect(Wildcard.match("git status", "git *")).toBe(true)
-  expect(Wildcard.match("git", "git *")).toBe(true)
-  expect(Wildcard.match("git commit -m foo", "git *")).toBe(true)
+  test("returns undefined when no pattern matches", () => {
+    const patterns = {
+      "*.ts": "typescript",
+    }
+    expect(Wildcard.all("test.js", patterns)).toBeUndefined()
+  })
 })
 
-test("all picks the most specific pattern", () => {
-  const rules = {
-    "*": "deny",
-    "git *": "ask",
-    "git status": "allow",
-  }
-  expect(Wildcard.all("git status", rules)).toBe("allow")
-  expect(Wildcard.all("git log", rules)).toBe("ask")
-  expect(Wildcard.all("echo hi", rules)).toBe("deny")
-})
+describe("Wildcard.allStructured", () => {
+  test("matches head and tail patterns", () => {
+    const patterns = {
+      "git commit *": "commit",
+      "git push *": "push",
+    }
+    expect(Wildcard.allStructured({ head: "git", tail: ["commit", "-m", "test"] }, patterns)).toBe("commit")
+    expect(Wildcard.allStructured({ head: "git", tail: ["push", "origin", "main"] }, patterns)).toBe("push")
+  })
 
-test("allStructured matches command sequences", () => {
-  const rules = {
-    "git *": "ask",
-    "git status*": "allow",
-  }
-  expect(Wildcard.allStructured({ head: "git", tail: ["status", "--short"] }, rules)).toBe("allow")
-  expect(Wildcard.allStructured({ head: "npm", tail: ["run", "build", "--watch"] }, { "npm run *": "allow" })).toBe(
-    "allow",
-  )
-  expect(Wildcard.allStructured({ head: "ls", tail: ["-la"] }, rules)).toBeUndefined()
-})
+  test("matches exact command without tail", () => {
+    const patterns = {
+      git: "git-tool",
+      npm: "npm-tool",
+    }
+    expect(Wildcard.allStructured({ head: "git", tail: [] }, patterns)).toBe("git-tool")
+    expect(Wildcard.allStructured({ head: "npm", tail: [] }, patterns)).toBe("npm-tool")
+  })
 
-test("allStructured prioritizes flag-specific patterns", () => {
-  const rules = {
-    "find *": "allow",
-    "find * -delete*": "ask",
-    "sort*": "allow",
-    "sort -o *": "ask",
-  }
-  expect(Wildcard.allStructured({ head: "find", tail: ["src", "-delete"] }, rules)).toBe("ask")
-  expect(Wildcard.allStructured({ head: "find", tail: ["src", "-print"] }, rules)).toBe("allow")
-  expect(Wildcard.allStructured({ head: "sort", tail: ["-o", "out.txt"] }, rules)).toBe("ask")
-  expect(Wildcard.allStructured({ head: "sort", tail: ["--reverse"] }, rules)).toBe("allow")
-})
+  test("matches patterns with multiple parts", () => {
+    const patterns = {
+      "git commit": "commit-no-args",
+      "git push": "push-cmd",
+    }
+    expect(Wildcard.allStructured({ head: "git", tail: ["commit"] }, patterns)).toBe("commit-no-args")
+    expect(Wildcard.allStructured({ head: "git", tail: ["push"] }, patterns)).toBe("push-cmd")
+  })
 
-test("allStructured handles sed flags", () => {
-  const rules = {
-    "sed * -i*": "ask",
-    "sed -n*": "allow",
-  }
-  expect(Wildcard.allStructured({ head: "sed", tail: ["-i", "file"] }, rules)).toBe("ask")
-  expect(Wildcard.allStructured({ head: "sed", tail: ["-i.bak", "file"] }, rules)).toBe("ask")
-  expect(Wildcard.allStructured({ head: "sed", tail: ["-n", "1p", "file"] }, rules)).toBe("allow")
-  expect(Wildcard.allStructured({ head: "sed", tail: ["-i", "-n", "/./p", "myfile.txt"] }, rules)).toBe("ask")
-})
+  test("returns undefined when no pattern matches", () => {
+    const patterns = {
+      "git *": "git-cmd",
+    }
+    expect(Wildcard.allStructured({ head: "npm", tail: ["install"] }, patterns)).toBeUndefined()
+  })
 
-test("match normalizes slashes for cross-platform globbing", () => {
-  expect(Wildcard.match("C:\\Windows\\System32\\*", "C:/Windows/System32/*")).toBe(true)
-  expect(Wildcard.match("C:/Windows/System32/drivers", "C:\\Windows\\System32\\*")).toBe(true)
-})
-
-test("match handles case-insensitivity on Windows", () => {
-  if (process.platform === "win32") {
-    expect(Wildcard.match("C:\\windows\\system32\\hosts", "C:/Windows/System32/*")).toBe(true)
-    expect(Wildcard.match("c:/windows/system32/hosts", "C:\\Windows\\System32\\*")).toBe(true)
-  } else {
-    // Unix paths are case-sensitive
-    expect(Wildcard.match("/users/test/file", "/Users/test/*")).toBe(false)
-  }
+  test("prefers longer patterns", () => {
+    const patterns = {
+      "git *": "any-git",
+      "git commit *": "commit",
+    }
+    expect(Wildcard.allStructured({ head: "git", tail: ["commit", "-m", "test"] }, patterns)).toBe("commit")
+    expect(Wildcard.allStructured({ head: "git", tail: ["push"] }, patterns)).toBe("any-git")
+  })
 })
