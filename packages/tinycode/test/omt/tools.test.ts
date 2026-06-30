@@ -24,8 +24,6 @@ const EXPECTED_TOOL_KEYS = [
   "omt_wiki_add",
   "omt_wiki_ingest",
   "omt_wiki_delete",
-  "omt_lsp_diagnostics",
-  "omt_lsp_servers",
   "omt_ast_grep_search",
   "omt_ast_grep_replace",
 ] as const
@@ -35,7 +33,7 @@ const EXPECTED_TOOL_KEYS = [
 // ============================================================================
 
 describe("createTools shape", () => {
-  test("returns object with all 25 expected tool keys", async () => {
+  test("returns object with all 23 expected tool keys", async () => {
     await using tmp = await tmpdir()
     const tools = createTools(tmp.path)
     for (const key of EXPECTED_TOOL_KEYS) {

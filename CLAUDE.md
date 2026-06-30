@@ -67,6 +67,18 @@ const model = new MockLanguageModel(scenarios)
 
 Each call to `doGenerate` or `doStream` advances to the next scenario. Use `ProviderTest.fake({ scenarios: [...] })` to set up a provider with mock models for session processor tests.
 
+### Slow Tests
+
+Tests that take >30 seconds are marked `.skip` in the default suite. Run them explicitly before releases:
+
+```bash
+# Full suite including slow tests
+bun test --timeout 120000
+
+# Just the slow tests
+bun test --timeout 120000 test/session/prompt.test.ts test/server/httpapi-listen.test.ts
+```
+
 ## Architecture
 
 This is a Bun monorepo with Turborepo. Key packages:

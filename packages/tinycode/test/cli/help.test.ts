@@ -73,10 +73,6 @@ describe("help.md – critical agents are documented", () => {
 })
 
 describe("help.md – critical skills are documented", () => {
-  it("mentions /work-loop skill", () => {
-    expect(helpContent).toContain("/work-loop")
-  })
-
   it("mentions /plan skill", () => {
     expect(helpContent).toContain("/plan")
   })
