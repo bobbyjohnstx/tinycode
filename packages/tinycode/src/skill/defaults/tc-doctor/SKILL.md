@@ -142,7 +142,51 @@ else
 fi
 ```
 
-### 8. Disk space
+### 8. vLLM / Local LLM Provider Health
+Check vLLM provider configuration for common issues — auto-detected models often have wrong limits or missing capabilities.
+
+Use the tinycode API (not shell) to inspect the current provider state. Read the config at `~/.config/tinycode/tinycode.jsonc` (user overrides) and compare with what the provider list reports.
+
+**Check for these issues and fix them:**
+
+#### a. Output limit too small for thinking models
+If a model name contains "qwen" (any case) and reasoning is false, or if the output limit is less than 2000 tokens, the model likely needs a config override. Qwen3 models use `<think>` blocks that consume output budget — 1638 tokens (the default 80/20 split) is too small.
+
+**Fix:** Write or update `~/.config/tinycode/tinycode.jsonc` with a custom provider entry using a unique provider ID (not "vllm" — that collides with auto-discovery). Set output limit to 4000 and reasoning to true:
+
+```json
+{
+  "provider": {
+    "vllm-qwen3": {
+      "npm": "@ai-sdk/openai-compatible",
+      "api": "http://<vllm-host>:<port>/v1",
+      "models": {
+        "<model-id>": {
+          "reasoning": true,
+          "limit": {
+            "context": 4000,
+            "output": 4000
+          }
+        }
+      }
+    }
+  },
+  "model": "vllm-qwen3/<model-id>"
+}
+```
+
+#### b. Auto-discovery overriding user config
+If a provider ID in `tinycode.jsonc` matches the auto-discovered provider ID (e.g., both use "vllm"), auto-discovery overwrites the user's limits and capabilities. The fix is to use a unique provider ID like "vllm-qwen3" or "vllm-custom" in the config.
+
+#### c. Context window too large for available memory
+If the auto-detected context limit is much larger than the model can actually serve (causes OOM or timeouts), set an explicit limit. For Qwen3-30B on a single GPU with 8K max_model_len, use context=4000 output=4000.
+
+#### d. Reasoning capability not detected
+vLLM may not advertise the "thinking" capability for models that support `<think>` blocks. If the model name contains "qwen3", "deepseek", or other known reasoning models, set `reasoning: true` in the config override.
+
+**After fixing:** Tell the user to restart tinycode or refresh the browser. The model will appear with correct limits under the custom provider ID.
+
+### 9. Disk space
 ```bash
 df -h / /home/tinycode/.local/share/tinycode 2>/dev/null | tail -n +2 | while read fs size used avail pct mount; do
   pct_num=${pct%\%}
