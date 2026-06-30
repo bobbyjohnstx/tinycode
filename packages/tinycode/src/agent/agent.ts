@@ -358,7 +358,7 @@ export const layer = Layer.effect(
         const get = Effect.fnUntraced(function* (agent: string, model?: Provider.Model) {
           if (model) {
             const size = modelSizeB(model)
-            if (size !== undefined && size <= 9) {
+            if (size !== undefined && size <= 8) {
               const compact = agents[`${agent}.compact`]
               if (compact) return { ...compact, compact: true }
             }

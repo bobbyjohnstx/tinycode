@@ -44,7 +44,7 @@ export function provider(model: Provider.Model) {
   // Local / self-hosted models: pick prompt by parameter count
   if (LOCAL_PROVIDERS.has(model.providerID)) {
     const size = modelSizeB(model)
-    if (size !== undefined && size <= 9) return [PROMPT_LOCAL_SMALL]
+    if (size !== undefined && size <= 8) return [PROMPT_LOCAL_SMALL]
     if (size !== undefined && size >= 25) return [PROMPT_LOCAL_LARGE]
     return [PROMPT_LOCAL_MEDIUM] // 10B–24B, or unknown size
   }
