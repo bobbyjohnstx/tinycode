@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { MessageV2 } from "../../src/session/message-v2"
+
+function toolOutput(part: MessageV2.ToolPart): string {
+  return (part.state as { output?: string }).output ?? ""
+}
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import {
   extractFileOps,
@@ -467,15 +471,15 @@ describe("maskObservations", () => {
 
     const allParts = messages.flatMap((m) => m.parts).filter((p): p is MessageV2.ToolPart => p.type === "tool")
 
-    expect(allParts[0].state.output).toContain("[output masked")
-    expect(allParts[0].state.output).toContain("bash")
-    expect(allParts[1].state.output).toContain("[output masked")
-    expect(allParts[1].state.output).toContain("read")
-    expect(allParts[2].state.output).toContain("[output masked")
-    expect(allParts[2].state.output).toContain("write")
+    expect(toolOutput(allParts[0])).toContain("[output masked")
+    expect(toolOutput(allParts[0])).toContain("bash")
+    expect(toolOutput(allParts[1])).toContain("[output masked")
+    expect(toolOutput(allParts[1])).toContain("read")
+    expect(toolOutput(allParts[2])).toContain("[output masked")
+    expect(toolOutput(allParts[2])).toContain("write")
 
-    expect(allParts[3].state.output).toBe("output4")
-    expect(allParts[4].state.output).toBe("output5")
+    expect(toolOutput(allParts[3])).toBe("output4")
+    expect(toolOutput(allParts[4])).toBe("output5")
   })
 
   test("masked output includes tool name", () => {
@@ -484,7 +488,7 @@ describe("maskObservations", () => {
     maskObservations(messages, 0)
 
     const part = messages[0].parts[0] as MessageV2.ToolPart
-    expect(part.state.output).toContain("bash")
+    expect(toolOutput(part)).toContain("bash")
   })
 
   test("masked output includes file path when present", () => {
@@ -497,8 +501,8 @@ describe("maskObservations", () => {
     maskObservations(messages, 0)
 
     const part = messages[0].parts[0] as MessageV2.ToolPart
-    expect(part.state.output).toContain("read")
-    expect(part.state.output).toContain("src/index.ts")
+    expect(toolOutput(part)).toContain("read")
+    expect(toolOutput(part)).toContain("src/index.ts")
   })
 
   test("skips parts without output", () => {
@@ -513,7 +517,7 @@ describe("maskObservations", () => {
     expect(part1.state.status).toBe("running")
 
     const part2 = messages[1].parts[0] as MessageV2.ToolPart
-    expect(part2.state.output).toContain("[output masked")
+    expect(toolOutput(part2)).toContain("[output masked")
   })
 
   test("preserves all when preserveRecentCount exceeds total", () => {
@@ -526,8 +530,8 @@ describe("maskObservations", () => {
 
     const part1 = messages[0].parts[0] as MessageV2.ToolPart
     const part2 = messages[1].parts[0] as MessageV2.ToolPart
-    expect(part1.state.output).toBe("output1")
-    expect(part2.state.output).toBe("output2")
+    expect(toolOutput(part1)).toBe("output1")
+    expect(toolOutput(part2)).toBe("output2")
   })
 
   test("masks all when preserveRecentCount is zero", () => {
@@ -540,8 +544,8 @@ describe("maskObservations", () => {
 
     const part1 = messages[0].parts[0] as MessageV2.ToolPart
     const part2 = messages[1].parts[0] as MessageV2.ToolPart
-    expect(part1.state.output).toContain("[output masked")
-    expect(part2.state.output).toContain("[output masked")
+    expect(toolOutput(part1)).toContain("[output masked")
+    expect(toolOutput(part2)).toContain("[output masked")
   })
 })
 

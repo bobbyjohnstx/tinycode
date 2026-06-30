@@ -1536,7 +1536,7 @@ it.instance.skip(
 )
 
 // Slow test (>30s) — run with: bun test --timeout 120000 test/session/prompt.test.ts
-unix.skip(
+it.instance.skip(
   "command ! expansion uses configured shell over env shell",
   () =>
     withSh(() =>
@@ -1648,7 +1648,7 @@ unixNoLLMServer(
 )
 
 // Slow test (>30s) — run with: bun test --timeout 120000 test/session/prompt.test.ts
-unix.skip(
+it.instance.skip(
   "cancel finalizes interrupted bash tool output through normal truncation",
   () =>
     Effect.gen(function* () {
