@@ -34,3 +34,4 @@ tsconfig.tsbuildinfo
 plans/
 .claude/
 .npmrc
+session-ses_*.md
