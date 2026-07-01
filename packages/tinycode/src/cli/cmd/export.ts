@@ -240,7 +240,7 @@ export const ExportCommand = effectCmd({
         choices: ["json", "html"] as const,
         default: "json",
       }),
-  handler: Effect.fn("Cli.export")(function* (args) {
+  handler: Effect.fn("Cli.export")(function* (args: { sessionID?: string; sanitize?: boolean; format?: "json" | "html" }) {
     return yield* run(args)
   }),
 })
@@ -266,13 +266,13 @@ const run = Effect.fn("Cli.export.body")(function* (args: {
       return
     }
 
-    sessions.sort((a, b) => b.time.updated - a.time.updated)
+    sessions.sort((a: { time: { updated: number } }, b: { time: { updated: number } }) => b.time.updated - a.time.updated)
 
     const selectedSession = yield* Effect.promise(() =>
       prompts.autocomplete({
         message: "Select session to export",
         maxItems: 10,
-        options: sessions.map((session) => ({
+        options: sessions.map((session: { id: string; title: string; time: { updated: number } }) => ({
           label: session.title,
           value: session.id,
           hint: `${new Date(session.time.updated).toLocaleString()} • ${session.id.slice(-8)}`,

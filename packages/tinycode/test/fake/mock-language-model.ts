@@ -1,4 +1,4 @@
-import { type LanguageModelV3 } from "@ai-sdk/provider"
+import { type LanguageModelV3, type LanguageModelV3GenerateResult, type LanguageModelV3StreamResult } from "@ai-sdk/provider"
 
 export type MockScenario =
   | { type: "text"; content: string; usage?: { inputTokens?: number; outputTokens?: number } }
@@ -30,7 +30,7 @@ export class MockLanguageModel implements LanguageModelV3 {
 
   async doGenerate(
     _options: Parameters<LanguageModelV3["doGenerate"]>[0]
-  ): ReturnType<LanguageModelV3["doGenerate"]> {
+  ): Promise<LanguageModelV3GenerateResult> {
     const scenario = this.getNextScenario()
 
     if (scenario.type === "error") {
@@ -68,7 +68,7 @@ export class MockLanguageModel implements LanguageModelV3 {
           type: "tool-call" as const,
           toolCallId: call.id,
           toolName: call.name,
-          input: call.args,
+          input: JSON.stringify(call.args),
         })),
         finishReason,
         usage,
@@ -84,7 +84,7 @@ export class MockLanguageModel implements LanguageModelV3 {
     }
   }
 
-  async doStream(_options: Parameters<LanguageModelV3["doStream"]>[0]): ReturnType<LanguageModelV3["doStream"]> {
+  async doStream(_options: Parameters<LanguageModelV3["doStream"]>[0]): Promise<LanguageModelV3StreamResult> {
     const scenario = this.getNextScenario()
 
     const stream = new ReadableStream({

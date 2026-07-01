@@ -368,7 +368,7 @@ export const layer = Layer.effect(
       const recent = all.slice(-limit)
       const sizes = yield* Effect.forEach(
         recent,
-        (turn) =>
+        (turn: { start: number; end: number }) =>
           estimate({
             messages: input.messages.slice(turn.start, turn.end),
             model: input.model,
@@ -769,12 +769,12 @@ export const layer = Layer.effect(
       })
     })
 
-    return Service.of({
+    return {
       isOverflow,
       prune,
       process: processCompaction,
       create,
-    })
+    }
   }),
 )
 
