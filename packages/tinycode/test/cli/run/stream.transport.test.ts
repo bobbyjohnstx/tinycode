@@ -171,7 +171,7 @@ function globalSse(stream: GlobalEventStream) {
 function wrapGlobalStream(stream: EventStream): GlobalEventStream {
   return (async function* (): GlobalEventStream {
     for await (const event of stream) {
-      yield globalEvent(event)
+      yield globalEvent(event as any)
     }
     return StreamClosed
   })()
@@ -1130,8 +1130,8 @@ describe("run stream transport", () => {
           },
         }),
       )
-      global.push(globalEvent(textUpdated(textPart("txt-child-1", "msg-child-1", "", "child-1"))))
-      global.push(globalEvent(textDelta("msg-child-1", "txt-child-1", "Hello", "child-1")))
+      global.push(globalEvent(textUpdated(textPart("txt-child-1", "msg-child-1", "", "child-1")) as any))
+      global.push(globalEvent(textDelta("msg-child-1", "txt-child-1", "Hello", "child-1") as any))
       global.push(
         globalEvent(
           toolUpdated(
@@ -1149,7 +1149,7 @@ describe("run stream transport", () => {
                 sessionId: "child-1",
               },
             }),
-          ),
+          ) as any,
         ),
       )
       gate.resolve()
@@ -1224,7 +1224,7 @@ describe("run stream transport", () => {
                 sessionId: "child-1",
               },
             }),
-          ),
+          ) as any,
         ),
       )
 
@@ -1251,7 +1251,7 @@ describe("run stream transport", () => {
           },
         }),
       )
-      global.push(globalEvent(textUpdated(textPart("txt-child-1", "msg-child-1", "hello", "child-1"))))
+      global.push(globalEvent(textUpdated(textPart("txt-child-1", "msg-child-1", "hello", "child-1")) as any))
 
       expect(
         await waitFor(() => {
@@ -1271,7 +1271,7 @@ describe("run stream transport", () => {
         ],
       })
 
-      global.push(globalEvent(textUpdated(textPart("txt-child-1", "msg-child-1", "hello world", "child-1"))))
+      global.push(globalEvent(textUpdated(textPart("txt-child-1", "msg-child-1", "hello world", "child-1")) as any))
 
       expect(
         await waitFor(() => {

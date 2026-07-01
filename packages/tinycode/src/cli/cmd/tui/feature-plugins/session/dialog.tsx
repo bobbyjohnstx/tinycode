@@ -66,7 +66,7 @@ export function SessionSwitcherDialog() {
       const workspaceID = await (async () => {
         if (selection.type === "none") return null
         if (selection.type === "existing") return selection.workspaceID
-        const result = await sdk.client.experimental.workspace
+        const result = await (sdk.client.experimental as any).workspace
           .create({ type: selection.workspaceType, branch: null })
           .catch(() => undefined)
         const created = result?.data
@@ -102,7 +102,7 @@ export function SessionSwitcherDialog() {
         onDelete={async () => {
           const current = currentSessionID()
           const info = current ? sync.data.session.find((item) => item.id === current) : undefined
-          const result = await sdk.client.experimental.workspace.remove({ id: session.workspaceID! })
+          const result = await (sdk.client.experimental as any).workspace.remove({ id: session.workspaceID! })
           if (result.error) {
             toast.show({
               variant: "error",

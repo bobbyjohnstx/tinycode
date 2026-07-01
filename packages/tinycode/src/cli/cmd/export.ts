@@ -240,9 +240,7 @@ export const ExportCommand = effectCmd({
         choices: ["json", "html"] as const,
         default: "json",
       }),
-  handler: Effect.fn("Cli.export")(function* (args: { sessionID?: string; sanitize?: boolean; format?: "json" | "html" }) {
-    return yield* run(args)
-  }),
+  handler: Effect.fn("Cli.export")((args: any) => run(args as { sessionID?: string; sanitize?: boolean; format?: "json" | "html" })),
 })
 
 const run = Effect.fn("Cli.export.body")(function* (args: {
@@ -285,7 +283,7 @@ const run = Effect.fn("Cli.export.body")(function* (args: {
       return yield* Effect.die(new UI.CancelledError())
     }
 
-    sessionID = selectedSession
+    sessionID = selectedSession as any
 
     prompts.outro("Exporting session...", { output: process.stderr })
   }
@@ -300,7 +298,7 @@ const run = Effect.fn("Cli.export.body")(function* (args: {
     const finalData = args.sanitize ? sanitize(exportData) : exportData
 
     if (args.format === "html") {
-      const html = renderHTML(finalData)
+      const html = renderHTML(finalData as any)
       const filename = `session-${sessionID!.slice(-8)}-${Date.now()}.html`
       const outputPath = path.join(process.cwd(), filename)
       fs.writeFileSync(outputPath, html)

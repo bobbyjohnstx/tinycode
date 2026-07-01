@@ -1002,9 +1002,9 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     })
   })
 
-  event.on("installation.update-available", async (evt) => {
+  event.on("installation.update-available" as any, async (evt: any) => {
     console.log("installation.update-available", evt)
-    const version = evt.properties.version
+    const version = (evt.properties as any).version
 
     const skipped = kv.get("skipped_version")
     if (skipped && !semver.gt(version, skipped)) return

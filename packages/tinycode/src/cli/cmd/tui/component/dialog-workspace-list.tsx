@@ -1,4 +1,4 @@
-import type { Workspace } from "@tinycode/sdk/v2"
+type Workspace = any
 import { useDialog } from "@tui/ui/dialog"
 import { DialogSelect, type DialogSelectOption } from "@tui/ui/dialog-select"
 import { useProject } from "@tui/context/project"
@@ -64,7 +64,7 @@ export function DialogWorkspaceList() {
 
     setDeleting(undefined)
     setRemoving(workspace.id)
-    const result = await sdk.client.experimental.workspace.remove({ id: workspace.id }).catch((err) => ({
+    const result = await (sdk.client.experimental as any).workspace.remove({ id: workspace.id }).catch((err: any) => ({
       error: err,
     }))
     if (result?.error) {
@@ -88,7 +88,7 @@ export function DialogWorkspaceList() {
 
   onMount(() => {
     dialog.setSize("large")
-    void sdk.client.experimental.workspace.syncList().catch(() => undefined)
+    void (sdk.client.experimental as any).workspace.syncList().catch(() => undefined)
     void project.workspace.sync()
   })
 

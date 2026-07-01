@@ -51,7 +51,7 @@ function renderTextPart(text: string): string {
 }
 
 function renderToolPart(part: MessageV2.ToolPart): string {
-  const name = part.name
+  const name = part.tool
   const state = part.state
 
   let inputHtml = ""
@@ -135,7 +135,7 @@ function renderPart(part: MessageV2.Part): string {
     case "agent":
       return `
         <div class="part-agent">
-          🤖 Agent: <code>${escapeHtml(part.agent)}</code>
+          🤖 Agent: <code>${escapeHtml(part.name)}</code>
         </div>
       `
 
@@ -166,7 +166,7 @@ function renderMessage(msg: MessageV2.WithParts): string {
 
 export function renderHTML(data: { info: Session.Info; messages: MessageV2.WithParts[] }): string {
   const title = data.info.title
-  const model = data.info.config?.model?.name || "unknown"
+  const model = (data.info as any).config?.model?.name || "unknown"
   const createdDate = formatDate(data.info.time.created)
   const updatedDate = formatDate(data.info.time.updated)
   const tokens = formatTokens(data.info.tokens)

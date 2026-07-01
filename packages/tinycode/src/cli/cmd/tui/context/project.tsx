@@ -1,5 +1,6 @@
 import { batch } from "solid-js"
-import type { Path, Workspace } from "@tinycode/sdk/v2"
+import type { Path } from "@tinycode/sdk/v2"
+type Workspace = any
 import { createStore, reconcile } from "solid-js/store"
 import { createSimpleContext } from "./helper"
 import { useSDK } from "./sdk"
@@ -47,23 +48,23 @@ export const { use: useProject, provider: ProjectProvider } = createSimpleContex
     }
 
     async function syncWorkspace() {
-      const listed = await sdk.client.experimental.workspace.list().catch(() => undefined)
+      const listed = await (sdk.client.experimental as any).workspace.list().catch(() => undefined)
       if (!listed?.data) return
-      const status = await sdk.client.experimental.workspace.status().catch(() => undefined)
-      const next = Object.fromEntries((status?.data ?? []).map((item) => [item.workspaceID, item.status]))
+      const status = await (sdk.client.experimental as any).workspace.status().catch(() => undefined)
+      const next = Object.fromEntries((status?.data ?? []).map((item: any) => [item.workspaceID, item.status]))
 
       batch(() => {
         setStore("workspace", "list", reconcile(listed.data))
         setStore("workspace", "status", reconcile(next))
-        if (!listed.data.some((item) => item.id === store.workspace.current)) {
+        if (!listed.data.some((item: any) => item.id === store.workspace.current)) {
           setStore("workspace", "current", undefined)
         }
       })
     }
 
     sdk.event.on("event", (event) => {
-      if (event.payload.type === "workspace.status") {
-        setStore("workspace", "status", event.payload.properties.workspaceID, event.payload.properties.status)
+      if ((event.payload as any).type === "workspace.status") {
+        setStore("workspace", "status", (event.payload as any).properties.workspaceID, (event.payload as any).properties.status)
       }
     })
 

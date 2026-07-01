@@ -253,7 +253,7 @@ function maskObservations(messages: MessageV2.WithParts[], preserveRecentCount: 
   let toolResultCount = 0
   for (const msg of messages) {
     for (const part of msg.parts) {
-      if (part.type === "tool" && part.state.output) {
+      if (part.type === "tool" && (part.state as any).output) {
         toolResultCount++
       }
     }
@@ -262,13 +262,13 @@ function maskObservations(messages: MessageV2.WithParts[], preserveRecentCount: 
   let seen = 0
   for (const msg of messages) {
     for (const part of msg.parts) {
-      if (part.type !== "tool" || !part.state.output) continue
+      if (part.type !== "tool" || !(part.state as any).output) continue
       seen++
       if (seen <= maskThreshold) {
         const toolName = part.tool ?? "unknown"
         const input = part.state.input as Record<string, unknown> | undefined
         const filePath = (input?.filePath ?? input?.file_path ?? input?.path ?? "") as string
-        part.state.output = `[output masked — ${toolName}${filePath ? ` on ${filePath}` : ""} — original output truncated for context efficiency]`
+        ;(part.state as any).output = `[output masked — ${toolName}${filePath ? ` on ${filePath}` : ""} — original output truncated for context efficiency]`
       }
     }
   }
@@ -285,8 +285,8 @@ function serializeForSummary(messages: MessageV2.WithParts[]): string {
         const toolName = part.tool ?? "tool"
         const input = JSON.stringify(part.state.input ?? {}).slice(0, 500)
         lines.push(`[Tool: ${toolName}] ${input}`)
-        if (part.state.output) {
-          lines.push(`[Tool Result] ${String(part.state.output).slice(0, TOOL_OUTPUT_MAX_CHARS)}`)
+        if ((part.state as any).output) {
+          lines.push(`[Tool Result] ${String((part.state as any).output).slice(0, TOOL_OUTPUT_MAX_CHARS)}`)
         }
       } else if (part.type === "reasoning" && part.text) {
         lines.push(`[Thinking] ${part.text.slice(0, 1000)}`)
@@ -580,7 +580,7 @@ export const layer = Layer.effect(
         ],
         model,
         maxTokens,
-      })
+      } as any)
 
       if (result === "compact") {
         processor.message.error = new MessageV2.ContextOverflowError({
@@ -693,7 +693,7 @@ export const layer = Layer.effect(
       if (processor.message.error) return "stop"
       if (result === "continue") {
         const compactionNumber = prior.length + 1
-        const summary = summaryText(processor.toMessage())
+        const summary = summaryText((processor as any).toMessage())
         if (summary) {
           const fileOps = extractFileOps(selected.head)
           if (previousSummary) {
@@ -710,7 +710,7 @@ export const layer = Layer.effect(
           }
           const fileOpsXml = formatFileOps(fileOps)
           if (fileOpsXml) {
-            for (const part of processor.message.parts ?? []) {
+            for (const part of (processor.message as any).parts ?? []) {
               if (part.type === "text") {
                 yield* session.updatePart({
                   ...part,

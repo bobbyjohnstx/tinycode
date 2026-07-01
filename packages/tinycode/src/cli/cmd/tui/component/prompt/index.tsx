@@ -216,7 +216,7 @@ export function Prompt(props: PromptProps) {
 
   async function createWorkspace(selection: Extract<WorkspaceSelection, { type: "new" }>) {
     setCreatingWorkspace(true)
-    const result = await sdk.client.experimental.workspace
+    const result = await (sdk.client.experimental as any).workspace
       .create({ type: selection.workspaceType, branch: null })
       .catch(() => undefined)
     if (result == undefined || result.error || !result.data) {

@@ -852,7 +852,7 @@ export const RunCommand = effectCmd({
           const response = await Server.Default().app.fetch(request)
           if (!response.ok) {
             const body = await response.clone().text().catch(() => "")
-            UI.debug?.(`in-process server error: ${response.status} ${body.slice(0, 200)}`)
+            console.error(`in-process server error: ${response.status} ${body.slice(0, 200)}`)
           }
           return response
         }) as typeof globalThis.fetch
@@ -891,7 +891,7 @@ export const RunCommand = effectCmd({
         const response = await Server.Default().app.fetch(request)
         if (!response.ok) {
           const body = await response.clone().text().catch(() => "")
-          UI.debug?.(`in-process server error: ${response.status} ${body.slice(0, 200)}`)
+          console.error(`in-process server error: ${response.status} ${body.slice(0, 200)}`)
         }
         return response
       }) as typeof globalThis.fetch

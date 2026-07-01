@@ -1,4 +1,4 @@
-import type { Workspace } from "@tinycode/sdk/v2"
+type Workspace = any
 import { useDialog } from "@tui/ui/dialog"
 import { DialogSelect, type DialogSelectOption } from "@tui/ui/dialog-select"
 import { useSync } from "@tui/context/sync"
@@ -81,7 +81,7 @@ export async function openWorkspaceSelect(input: {
   onSelect: (selection: WorkspaceSelection) => Promise<void> | void
 }) {
   input.dialog.clear()
-  await input.sdk.client.experimental.workspace.syncList().catch(() => undefined)
+  await (input.sdk.client.experimental as any).workspace.syncList().catch(() => undefined)
   await input.project.workspace.sync().catch(() => undefined)
   const adapters = await loadWorkspaceAdapters(input)
   if (!adapters) return
@@ -100,7 +100,7 @@ export async function warpWorkspaceSession(input: {
   copyChanges: boolean
   done?: () => void
 }): Promise<boolean> {
-  const result = await input.sdk.client.experimental.workspace
+  const result = await (input.sdk.client.experimental as any).workspace
     .warp({
       id: input.workspaceID,
       sessionID: input.sessionID,

@@ -7,13 +7,13 @@ describe("stream formatting", () => {
     test("forwards commits to footer.append", () => {
       const appended: StreamCommit[] = []
       const footer: FooterApi = {
-        append: (commit) => appended.push(commit),
+        append: (commit: any) => appended.push(commit),
         event: () => {},
-      }
+      } as any
 
       const commits: StreamCommit[] = [
-        { text: "Hello", part: undefined },
-        { text: "World", part: undefined },
+        { text: "Hello", part: undefined } as any,
+        { text: "World", part: undefined } as any,
       ]
 
       writeSessionOutput({ footer }, { commits })
@@ -27,8 +27,8 @@ describe("stream formatting", () => {
       const events: any[] = []
       const footer: FooterApi = {
         append: () => {},
-        event: (event) => events.push(event),
-      }
+        event: (event: any) => events.push(event),
+      } as any
 
       const output: FooterOutput = {
         patch: { status: "Working on it" },
@@ -46,11 +46,11 @@ describe("stream formatting", () => {
       const events: any[] = []
       const footer: FooterApi = {
         append: () => {},
-        event: (event) => events.push(event),
-      }
+        event: (event: any) => events.push(event),
+      } as any
 
       const output: FooterOutput = {
-        patch: { status: "Done", phase: "complete" },
+        patch: { status: "Done", phase: "complete" as any },
       }
 
       writeSessionOutput({ footer }, { commits: [], footer: output })
@@ -62,11 +62,11 @@ describe("stream formatting", () => {
       const events: any[] = []
       const footer: FooterApi = {
         append: () => {},
-        event: (event) => events.push(event),
-      }
+        event: (event: any) => events.push(event),
+      } as any
 
       const subagentState: FooterSubagentState = {
-        tabs: ["session1"],
+        tabs: ["session1" as any],
         details: {},
         permissions: [],
         questions: [],
@@ -87,11 +87,11 @@ describe("stream formatting", () => {
       const events: any[] = []
       const footer: FooterApi = {
         append: () => {},
-        event: (event) => events.push(event),
-      }
+        event: (event: any) => events.push(event),
+      } as any
 
       const output: FooterOutput = {
-        view: "diff",
+        view: "diff" as any,
       }
 
       writeSessionOutput({ footer }, { commits: [], footer: output })
@@ -110,9 +110,9 @@ describe("stream formatting", () => {
       const footer: FooterApi = {
         append: () => {},
         event: () => {},
-      }
+      } as any
 
-      const commits: StreamCommit[] = [{ text: "Test", part: undefined }]
+      const commits: StreamCommit[] = [{ text: "Test", part: undefined } as any]
 
       writeSessionOutput({ footer, trace }, { commits })
 
@@ -124,20 +124,21 @@ describe("stream formatting", () => {
   describe("traceSubagentState", () => {
     test("summarizes subagent state for tracing", () => {
       const state: FooterSubagentState = {
-        tabs: ["session1", "session2"],
+        tabs: ["session1" as any, "session2" as any],
         details: {
           session1: {
+            sessionID: "session1",
             commits: [
               {
                 text: "Test commit",
                 part: undefined,
-              },
+              } as any,
             ],
-          },
+          } as any,
         },
         permissions: [
           {
-            id: "perm1",
+            id: "perm1" as any,
             sessionID: "session1",
             permission: "read",
             patterns: ["*.ts"],
@@ -145,7 +146,7 @@ describe("stream formatting", () => {
             metadata: {
               input: { path: "/test/file.ts" },
             },
-          },
+          } as any,
         ],
         questions: [
           {
@@ -155,37 +156,38 @@ describe("stream formatting", () => {
               {
                 header: "Confirm",
                 question: "Proceed?",
-                options: ["Yes", "No"],
+                options: ["Yes" as any, "No" as any],
                 multiple: false,
               },
             ],
-          },
+          } as any,
         ],
       }
 
       const traced = traceSubagentState(state)
 
-      expect(traced.tabs).toEqual(["session1", "session2"])
+      expect(traced.tabs).toEqual(["session1" as any, "session2" as any])
       expect(traced.details.session1.commits.length).toBe(1)
       expect(traced.permissions.length).toBe(1)
       expect(traced.permissions[0].metadata?.keys).toEqual(["input"])
       expect(traced.questions.length).toBe(1)
-      expect(traced.questions[0].questions[0].options).toBe(2)
+      expect((traced.questions[0] as any).questions[0].options).toBe(2)
     })
 
     test("truncates long strings in commit text", () => {
       const longText = "a".repeat(200)
       const state: FooterSubagentState = {
-        tabs: [],
+        tabs: [] as any,
         details: {
           session1: {
+            sessionID: "session1",
             commits: [
               {
                 text: longText,
                 part: undefined,
-              },
+              } as any,
             ],
-          },
+          } as any,
         },
         permissions: [],
         questions: [],
@@ -216,7 +218,7 @@ describe("stream formatting", () => {
     test("traces subagent state when present", () => {
       const footer: FooterOutput = {
         subagent: {
-          tabs: ["session1"],
+          tabs: ["session1" as any],
           details: {},
           permissions: [],
           questions: [],
@@ -225,7 +227,7 @@ describe("stream formatting", () => {
 
       const traced = traceFooterOutput(footer)
       expect(traced?.subagent).toBeDefined()
-      expect(traced?.subagent?.tabs).toEqual(["session1"])
+      expect(traced?.subagent?.tabs).toEqual(["session1" as any])
     })
 
     test("handles undefined footer", () => {

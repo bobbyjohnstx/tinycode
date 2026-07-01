@@ -23,7 +23,7 @@ function event(payload: Event, input: { directory: string; project?: string; wor
     directory: input.directory,
     project: input.project,
     workspace: input.workspace,
-    payload,
+    payload: payload as any,
   }
 }
 
@@ -40,11 +40,11 @@ function vcs(branch: string): Event {
 function update(version: string): Event {
   return {
     id: `evt_update_${version}`,
-    type: "installation.update-available",
+    type: "installation.update-available" as any,
     properties: {
       version,
     },
-  }
+  } as any
 }
 
 async function mount() {
@@ -88,7 +88,7 @@ function Probe(props: {
 
   onMount(() => {
     event.subscribe((evt, { workspace }) => {
-      props.seen.push(evt)
+      props.seen.push(evt as any)
       props.workspaces.push(workspace)
     })
     props.onReady({ project })

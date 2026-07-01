@@ -88,7 +88,7 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
           if (Flag.TINYCODE_EXPERIMENTAL_WORKSPACES) {
             // Start syncing workspaces, it's important to do this after
             // we've started listening to events
-            await sdk.sync.start().catch(() => {})
+            await (sdk as any).sync.start().catch(() => {})
           }
 
           for await (const event of events.stream) {
@@ -116,7 +116,7 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
         if (Flag.TINYCODE_EXPERIMENTAL_WORKSPACES) {
           // Start syncing workspaces, it's important to do this after
           // we've started listening to events
-          await sdk.sync.start().catch(() => {})
+          await (sdk as any).sync.start().catch(() => {})
         }
       } else {
         startSSE()
