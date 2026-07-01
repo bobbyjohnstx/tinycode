@@ -35,7 +35,7 @@ describe("MockLanguageModel", () => {
     expect(result.content[0].type).toBe("tool-call")
     if (result.content[0].type === "tool-call") {
       expect(result.content[0].toolName).toBe("Read")
-      expect(result.content[0].input).toEqual({ file_path: "/test.txt" })
+      expect(JSON.parse(result.content[0].input)).toEqual({ file_path: "/test.txt" })
     }
     expect(result.finishReason.unified).toBe("tool-calls")
   })
