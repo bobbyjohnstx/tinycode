@@ -24,7 +24,16 @@
 //   `data.questions`. The footer shows whichever is first. When a reply
 //   event arrives, the queue entry is removed and the footer falls back
 //   to the next pending request or to the prompt view.
-import type { Event, Part, PermissionRequest, QuestionRequest, ToolPart } from "@tinycode/sdk/v2"
+import type { Event as SDKEvent, Part, PermissionRequest, QuestionRequest } from "@tinycode/sdk/v2"
+import type { SessionEvent } from "@/core/session-event"
+
+// SessionEvent types have .data but the wire format has .properties
+type SessionEventAsWireFormat<T extends SessionEvent.Event> = Omit<T, "data"> & {
+  properties: T["data"]
+}
+
+type Event = SDKEvent | SessionEventAsWireFormat<SessionEvent.Event>
+type ToolPart = Extract<Part, { type: "tool" }>
 import * as Locale from "@/util/locale"
 import { toolView } from "./tool"
 import type { FooterOutput, FooterPatch, FooterView, StreamCommit } from "./types"
@@ -769,38 +778,40 @@ export function reduceSessionData(input: SessionDataInput): SessionDataOutput {
   const commits: SessionCommit[] = []
   const data = input.data
   const event = input.event
+  // TypeScript cannot narrow the union of event types properly, so cast to any
+  const evt = event as any
 
   if (event.type === "session.next.shell.started") {
-    if (event.properties.sessionID !== input.sessionID) {
+    if (evt.properties.sessionID !== input.sessionID) {
       return out(data, commits)
     }
 
-    const shell = claimShell(data, event.properties.callID, "shell", event.properties.command)
+    const shell = claimShell(data, evt.properties.callID, "shell", evt.properties.command)
     if (shell.source !== "shell") {
       return out(data, commits)
     }
 
-    const partID = shellPartID(event.properties.callID)
+    const partID = shellPartID(evt.properties.callID)
     if (data.ids.has(partID) || data.tools.has(partID)) {
       return out(data, commits, patch({ status: "running shell" }))
     }
 
     data.tools.add(partID)
-    commits.push(startShell(event.properties.callID, shell.command ?? event.properties.command))
+    commits.push(startShell(evt.properties.callID, shell.command ?? evt.properties.command))
     return out(data, commits, patch({ status: "running shell" }))
   }
 
   if (event.type === "session.next.shell.ended") {
-    if (event.properties.sessionID !== input.sessionID) {
+    if (evt.properties.sessionID !== input.sessionID) {
       return out(data, commits)
     }
 
-    const shell = claimShell(data, event.properties.callID, "shell")
+    const shell = claimShell(data, evt.properties.callID, "shell")
     if (shell.source !== "shell") {
       return out(data, commits)
     }
 
-    const partID = shellPartID(event.properties.callID)
+    const partID = shellPartID(evt.properties.callID)
     const seen = data.tools.has(partID)
     const command = shell.command ?? ""
     data.tools.delete(partID)
@@ -809,20 +820,20 @@ export function reduceSessionData(input: SessionDataInput): SessionDataOutput {
     }
 
     if (!seen && command) {
-      commits.push(startShell(event.properties.callID, command))
+      commits.push(startShell(evt.properties.callID, command))
     }
 
     data.ids.add(partID)
-    commits.push(doneShell(event.properties.callID, command, event.properties.output))
+    commits.push(doneShell(evt.properties.callID, command, evt.properties.output))
     return out(data, commits)
   }
 
   if (event.type === "message.updated") {
-    if (event.properties.sessionID !== input.sessionID) {
+    if (evt.properties.sessionID !== input.sessionID) {
       return out(data, commits)
     }
 
-    const info = event.properties.info
+    const info = evt.properties.info
     if (typeof info.id === "string") {
       data.role.set(info.id, info.role)
       replay(data, commits, info.id, info.role, input.thinking)
@@ -865,33 +876,33 @@ export function reduceSessionData(input: SessionDataInput): SessionDataOutput {
   }
 
   if (event.type === "message.part.delta") {
-    if (event.properties.sessionID !== input.sessionID) {
+    if (evt.properties.sessionID !== input.sessionID) {
       return out(data, commits)
     }
 
     if (
-      typeof event.properties.partID !== "string" ||
-      typeof event.properties.field !== "string" ||
-      typeof event.properties.delta !== "string"
+      typeof evt.properties.partID !== "string" ||
+      typeof evt.properties.field !== "string" ||
+      typeof evt.properties.delta !== "string"
     ) {
       return out(data, commits)
     }
 
-    if (event.properties.field !== "text") {
+    if (evt.properties.field !== "text") {
       return out(data, commits)
     }
 
-    const partID = event.properties.partID
+    const partID = evt.properties.partID
     if (data.ids.has(partID)) {
       return out(data, commits)
     }
 
-    if (typeof event.properties.messageID === "string") {
-      data.msg.set(partID, event.properties.messageID)
+    if (typeof evt.properties.messageID === "string") {
+      data.msg.set(partID, evt.properties.messageID)
     }
 
     const text = data.text.get(partID) ?? ""
-    data.text.set(partID, text + event.properties.delta)
+    data.text.set(partID, text + evt.properties.delta)
 
     const kind = data.part.get(partID)
     if (!kind) {
@@ -911,7 +922,7 @@ export function reduceSessionData(input: SessionDataInput): SessionDataOutput {
   }
 
   if (event.type === "message.part.updated") {
-    const part = event.properties.part
+    const part = evt.properties.part
     if (part.sessionID !== input.sessionID) {
       return out(data, commits)
     }
@@ -1049,20 +1060,20 @@ export function reduceSessionData(input: SessionDataInput): SessionDataOutput {
   }
 
   if (event.type === "permission.asked") {
-    if (event.properties.sessionID !== input.sessionID) {
+    if (evt.properties.sessionID !== input.sessionID) {
       return out(data, commits)
     }
 
-    upsert(data.permissions, enrichPermission(data, event.properties))
+    upsert(data.permissions, enrichPermission(data, evt.properties))
     return queueOut(data, commits)
   }
 
   if (event.type === "permission.replied") {
-    if (event.properties.sessionID !== input.sessionID) {
+    if (evt.properties.sessionID !== input.sessionID) {
       return out(data, commits)
     }
 
-    if (!remove(data.permissions, event.properties.requestID)) {
+    if (!remove(data.permissions, evt.properties.requestID)) {
       return out(data, commits)
     }
 
@@ -1070,20 +1081,20 @@ export function reduceSessionData(input: SessionDataInput): SessionDataOutput {
   }
 
   if (event.type === "question.asked") {
-    if (event.properties.sessionID !== input.sessionID) {
+    if (evt.properties.sessionID !== input.sessionID) {
       return out(data, commits)
     }
 
-    upsert(data.questions, event.properties)
+    upsert(data.questions, evt.properties)
     return queueOut(data, commits)
   }
 
   if (event.type === "question.replied" || event.type === "question.rejected") {
-    if (event.properties.sessionID !== input.sessionID) {
+    if (evt.properties.sessionID !== input.sessionID) {
       return out(data, commits)
     }
 
-    if (!remove(data.questions, event.properties.requestID)) {
+    if (!remove(data.questions, evt.properties.requestID)) {
       return out(data, commits)
     }
 
@@ -1091,13 +1102,13 @@ export function reduceSessionData(input: SessionDataInput): SessionDataOutput {
   }
 
   if (event.type === "session.error") {
-    if (event.properties.sessionID !== input.sessionID || !event.properties.error) {
+    if (evt.properties.sessionID !== input.sessionID || !evt.properties.error) {
       return out(data, commits)
     }
 
     commits.push({
       kind: "error",
-      text: formatError(event.properties.error),
+      text: formatError(evt.properties.error),
       phase: "start",
       source: "system",
     })

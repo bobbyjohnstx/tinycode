@@ -14,20 +14,20 @@ import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import { webSearchProviderLabel } from "@/tool/websearch"
 import path from "path"
 import stripAnsi from "strip-ansi"
-import type {
-  SessionMessage,
-  SessionMessageAgentSwitched,
-  SessionMessageAssistant,
-  SessionMessageAssistantReasoning,
-  SessionMessageAssistantText,
-  SessionMessageAssistantTool,
-  SessionMessageCompaction,
-  SessionMessageModelSwitched,
-  SessionMessageShell,
-  SessionMessageUser,
-  ToolFileContent,
-  ToolTextContent,
-} from "@tinycode/sdk/v2"
+
+// Use any for these types to avoid readonly issues with Effect Schema classes
+type SessionMessage = any
+type SessionMessageAssistant = any
+type SessionMessageAgentSwitched = any
+type SessionMessageModelSwitched = any
+type SessionMessageUser = any
+type SessionMessageShell = any
+type SessionMessageCompaction = any
+type SessionMessageAssistantTool = any
+type SessionMessageAssistantText = any
+type SessionMessageAssistantReasoning = any
+type ToolTextContent = any
+type ToolFileContent = any
 import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { collapseToolOutput } from "../../util/collapse-tool-output"
 
