@@ -15,7 +15,15 @@
 // The tick counter prevents stale idle events from resolving the wrong turn.
 // We also re-check live session status before resolving an idle event so a
 // delayed idle from an older turn cannot complete a newer busy turn.
-import type { Event, GlobalEvent, TinycodeClient } from "@tinycode/sdk/v2"
+import type { Event as SDKEvent, GlobalEvent, TinycodeClient } from "@tinycode/sdk/v2"
+import type { SessionEvent } from "@/core/session-event"
+
+// SessionEvent types have .data but the wire format has .properties
+type SessionEventAsWireFormat<T extends SessionEvent.Event> = Omit<T, "data"> & {
+  properties: T["data"]
+}
+
+type Event = SDKEvent | SessionEventAsWireFormat<SessionEvent.Event>
 import { Context, Deferred, Effect, Exit, Layer, Scope, Stream } from "effect"
 import { makeRuntime } from "@/effect/run-service"
 import {
@@ -144,7 +152,7 @@ function sid(event: Event): string | undefined {
     event.type === "session.error" ||
     event.type === "session.status"
   ) {
-    return event.properties.sessionID
+    return (event as any).properties.sessionID
   }
 
   return undefined
@@ -175,7 +183,7 @@ function globalPayloadEvent(value: unknown): Event | undefined {
   }
 
   const payload = value.payload
-  if (payload.type === "sync") {
+  if ((payload as any).type === "sync") {
     return undefined
   }
 
@@ -879,7 +887,7 @@ function createLayer(input: StreamInput) {
 
           const changed = reduceSubagentData({
             data: state.subagent,
-            event,
+            event: event as any,
             sessionID: input.sessionID,
             thinking: input.thinking,
             limits: input.limits(),

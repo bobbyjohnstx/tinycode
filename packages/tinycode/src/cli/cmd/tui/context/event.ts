@@ -1,6 +1,14 @@
-import type { Event } from "@tinycode/sdk/v2"
+import type { Event as SDKEvent } from "@tinycode/sdk/v2"
+import type { SessionEvent } from "@/core/session-event"
 import { useProject } from "./project"
 import { useSDK } from "./sdk"
+
+// SessionEvent types have .data but the wire format has .properties
+type SessionEventAsWireFormat<T extends SessionEvent.Event> = Omit<T, "data"> & {
+  properties: T["data"]
+}
+
+type Event = SDKEvent | SessionEventAsWireFormat<SessionEvent.Event>
 
 type EventMetadata = {
   workspace: string | undefined
