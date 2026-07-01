@@ -89,16 +89,19 @@ export type Interface = {
 type State = Map<string, Info>
 
 export function make(): Interface {
-  const sessions = Ref.unsafeMake<State>(new Map())
+  const sessions = Ref.make<State>(new Map())
 
   const store = Effect.fn("ACP.Session.store")(function* (input: StoreInput) {
     const session = makeSession(input)
-    yield* Ref.update(sessions, (state) => new Map(state).set(session.id, session))
+    const sessionsRef = yield* sessions
+    yield* Ref.update(sessionsRef, (state: State) => new Map(state).set(session.id, session))
     return snapshot(session)
   })
 
   const tryGet = Effect.fn("ACP.Session.tryGet")(function* (sessionId: string) {
-    const session = (yield* Ref.get(sessions)).get(sessionId)
+    const sessionsRef = yield* sessions
+    const state: State = yield* Ref.get(sessionsRef)
+    const session = state.get(sessionId)
     if (!session) return
     return snapshot(session)
   })
@@ -110,7 +113,8 @@ export function make(): Interface {
   })
 
   const update = Effect.fn("ACP.Session.update")(function* (sessionId: string, fn: (session: Info) => Info) {
-    const result = yield* Ref.modify(sessions, (state) => {
+    const sessionsRef = yield* sessions
+    const result = yield* Ref.modify(sessionsRef, (state: State) => {
       const session = state.get(sessionId)
       if (!session) return [undefined, state] as const
       const next = fn(session)
@@ -121,7 +125,8 @@ export function make(): Interface {
   })
 
   const remove = Effect.fn("ACP.Session.remove")(function* (sessionId: string) {
-    return yield* Ref.modify(sessions, (state) => {
+    const sessionsRef = yield* sessions
+    return yield* Ref.modify(sessionsRef, (state: State) => {
       const session = state.get(sessionId)
       if (!session) return [undefined, state] as const
       const next = new Map(state)
@@ -162,7 +167,9 @@ export function make(): Interface {
     create: store,
     load: store,
     list: Effect.fn("ACP.Session.list")(function* (cwd?: string) {
-      return [...(yield* Ref.get(sessions)).values()]
+      const sessionsRef = yield* sessions
+      const state: State = yield* Ref.get(sessionsRef)
+      return [...state.values()]
         .filter((session) => !cwd || session.cwd === cwd)
         .map(snapshot)
         .toSorted((a, b) => b.createdAt.getTime() - a.createdAt.getTime())

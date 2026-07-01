@@ -91,7 +91,11 @@ export function make(input: { sdk: TinycodeClient; connection?: ServiceConnectio
 
   const newSession = Effect.fn("ACP.newSession")(function* (params: NewSessionRequest) {
     const created = yield* Effect.tryPromise({
-      try: () => input.sdk.session.create({ body: { directory: params.cwd } }, { throwOnError: true }),
+      try: async () => {
+        const result = await input.sdk.session.create({ query: { directory: params.cwd } })
+        if (!result.data) throw new Error("Failed to create session")
+        return result.data
+      },
       catch: (error) => new ACPError.ServiceFailureError({ safeMessage: String(error) }),
     })
 
@@ -110,14 +114,20 @@ export function make(input: { sdk: TinycodeClient; connection?: ServiceConnectio
 
   const loadSession = Effect.fn("ACP.loadSession")(function* (params: LoadSessionRequest) {
     yield* Effect.tryPromise({
-      try: () =>
-        input.sdk.session.get({ path: { id: params.sessionId }, query: { directory: params.cwd } }, { throwOnError: true }),
+      try: async () => {
+        const result = await input.sdk.session.get({ path: { id: params.sessionId }, query: { directory: params.cwd } })
+        if (!result.data) throw new Error("Session not found")
+        return result.data
+      },
       catch: () => new ACPError.SessionNotFoundError({ sessionId: params.sessionId }),
     })
 
     const messages = yield* Effect.tryPromise({
-      try: () =>
-        input.sdk.session.messages({ path: { id: params.sessionId }, query: { directory: params.cwd } }, { throwOnError: true }),
+      try: async () => {
+        const result = await input.sdk.session.messages({ path: { id: params.sessionId }, query: { directory: params.cwd } })
+        if (!result.data) throw new Error("Failed to fetch messages")
+        return result.data
+      },
       catch: (error) => new ACPError.ServiceFailureError({ safeMessage: String(error) }),
     })
 
@@ -142,21 +152,18 @@ export function make(input: { sdk: TinycodeClient; connection?: ServiceConnectio
 
   const listSessions = Effect.fn("ACP.listSessions")(function* (params: ListSessionsRequest) {
     const sessions = yield* Effect.tryPromise({
-      try: () =>
-        input.sdk.session.list(
-          {
-            query: {
-              ...(params.cwd ? { directory: params.cwd } : {}),
-              roots: true,
-            },
-          },
-          { throwOnError: true },
-        ),
+      try: async () => {
+        const result = await input.sdk.session.list({
+          query: params.cwd ? { directory: params.cwd } : undefined,
+        })
+        if (!result.data) throw new Error("Failed to list sessions")
+        return result.data
+      },
       catch: (error) => new ACPError.ServiceFailureError({ safeMessage: String(error) }),
     })
 
     const serverEntries = sessions.map(
-      (item): SessionInfo => ({
+      (item: any): SessionInfo => ({
         sessionId: item.id,
         cwd: item.directory,
         title: item.title,
@@ -165,7 +172,7 @@ export function make(input: { sdk: TinycodeClient; connection?: ServiceConnectio
     )
 
     const liveEntries = (yield* session.list(params.cwd ?? undefined))
-      .filter((item) => !serverEntries.some((entry) => entry.sessionId === item.id))
+      .filter((item) => !serverEntries.some((entry: any) => entry.sessionId === item.id))
       .map(
         (item): SessionInfo => ({
           sessionId: item.id,
@@ -185,17 +192,20 @@ export function make(input: { sdk: TinycodeClient; connection?: ServiceConnectio
 
   const resumeSession = Effect.fn("ACP.resumeSession")(function* (params: ResumeSessionRequest) {
     yield* Effect.tryPromise({
-      try: () =>
-        input.sdk.session.get({ path: { id: params.sessionId }, query: { directory: params.cwd } }, { throwOnError: true }),
+      try: async () => {
+        const result = await input.sdk.session.get({ path: { id: params.sessionId }, query: { directory: params.cwd } })
+        if (!result.data) throw new Error("Session not found")
+        return result.data
+      },
       catch: () => new ACPError.SessionNotFoundError({ sessionId: params.sessionId }),
     })
 
     const messages = yield* Effect.tryPromise({
-      try: () =>
-        input.sdk.session.messages(
-          { path: { id: params.sessionId }, query: { directory: params.cwd, limit: 20 } },
-          { throwOnError: true },
-        ),
+      try: async () => {
+        const result = await input.sdk.session.messages({ path: { id: params.sessionId }, query: { directory: params.cwd, limit: 20 } })
+        if (!result.data) throw new Error("Failed to fetch messages")
+        return result.data
+      },
       catch: (error) => new ACPError.ServiceFailureError({ safeMessage: String(error) }),
     })
 
@@ -220,7 +230,11 @@ export function make(input: { sdk: TinycodeClient; connection?: ServiceConnectio
 
   const closeSession = Effect.fn("ACP.closeSession")(function* (params: CloseSessionRequest) {
     yield* Effect.tryPromise({
-      try: () => input.sdk.session.delete({ path: { id: params.sessionId } }, { throwOnError: true }),
+      try: async () => {
+        const result = await input.sdk.session.delete({ path: { id: params.sessionId } })
+        if (result.error) throw new Error("Failed to delete session")
+        return result.data
+      },
       catch: (error) => new ACPError.ServiceFailureError({ safeMessage: String(error) }),
     })
 
@@ -231,7 +245,11 @@ export function make(input: { sdk: TinycodeClient; connection?: ServiceConnectio
 
   const forkSession = Effect.fn("ACP.forkSession")(function* (params: ForkSessionRequest) {
     const forked = yield* Effect.tryPromise({
-      try: () => input.sdk.session.fork({ path: { id: params.sessionId } }, { throwOnError: true }),
+      try: async () => {
+        const result = await input.sdk.session.fork({ path: { id: params.sessionId } })
+        if (!result.data) throw new Error("Failed to fork session")
+        return result.data
+      },
       catch: (error) => new ACPError.ServiceFailureError({ safeMessage: String(error) }),
     })
 
@@ -252,40 +270,43 @@ export function make(input: { sdk: TinycodeClient; connection?: ServiceConnectio
     }
   })
 
-  const setSessionConfigOption = Effect.fn("ACP.setSessionConfigOption")(
+  const setSessionConfigOption: Interface["setSessionConfigOption"] = Effect.fn("ACP.setSessionConfigOption")(
     function* (_params: SetSessionConfigOptionRequest) {
-      return {}
+      return {} as SetSessionConfigOptionResponse
     },
   )
 
   const setSessionMode = Effect.fn("ACP.setSessionMode")(function* (params: SetSessionModeRequest) {
-    yield* session.setMode(params.sessionId, params.mode.id)
+    yield* session.setMode(params.sessionId, (params as any).mode?.id)
     return {}
   })
 
   const setSessionModel = Effect.fn("ACP.setSessionModel")(function* (params: SetSessionModelRequest) {
     yield* session.setModel(params.sessionId, {
-      providerID: params.model.providerId,
-      modelID: params.model.modelId,
+      providerID: (params as any).modelId || "",
+      modelID: (params as any).modelId || "",
     })
     return {}
   })
 
-  const prompt = Effect.fn("ACP.prompt")(function* (params: PromptRequest) {
-    const parts = promptContentToParts(params.content)
+  const prompt: Interface["prompt"] = Effect.fn("ACP.prompt")(function* (params: PromptRequest) {
+    const parts = promptContentToParts((params as any).content)
 
     yield* Effect.tryPromise({
-      try: () =>
-        input.sdk.session.prompt({
+      try: async () => {
+        const result = await input.sdk.session.prompt({
           path: { id: params.sessionId },
           body: {
             parts,
           },
-        }),
+        })
+        if (result.error) throw new Error("Failed to send prompt")
+        return result.data
+      },
       catch: (error) => new ACPError.ServiceFailureError({ safeMessage: String(error) }),
     })
 
-    return {}
+    return {} as PromptResponse
   })
 
   const cancel = Effect.fn("ACP.cancel")(function* (params: CancelNotification) {

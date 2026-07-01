@@ -35,18 +35,18 @@ export function toToolKind(toolName: string): ToolKind {
   switch (tool) {
     case "bash":
     case "shell":
-      return "terminal"
+      return "execute"
 
     case "webfetch":
     case "websearch":
-      return "search"
+      return "fetch"
 
     case "edit":
     case "write":
-      return "file"
+      return "edit"
 
     case "read":
-      return "file"
+      return "read"
 
     case "grep":
     case "glob":
@@ -57,7 +57,7 @@ export function toToolKind(toolName: string): ToolKind {
       return "other"
 
     default:
-      if (tool.startsWith("mcp_")) return "mcp"
+      if (tool.startsWith("mcp_")) return "other"
       return "other"
   }
 }
@@ -132,7 +132,7 @@ export function runningToolUpdate(input: {
     toolCallId: input.toolCallId,
     title: input.state.title ?? input.toolName,
     kind: toToolKind(input.toolName),
-    status: "running",
+    status: "in_progress" as any,
     locations: toLocations(input.toolName, input.state.input, input.cwd),
     rawInput: JSON.stringify(input.state.input, null, 2),
     content,
@@ -159,7 +159,7 @@ export function completedToolUpdate(input: {
     toolCallId: input.toolCallId,
     title: input.toolName,
     kind: toToolKind(input.toolName),
-    status: "completed",
+    status: "completed" as any,
     locations: toLocations(input.toolName, input.state.input, input.cwd),
     rawInput: JSON.stringify(input.state.input, null, 2),
     content,
@@ -186,7 +186,7 @@ export function errorToolUpdate(input: {
     toolCallId: input.toolCallId,
     title: input.toolName,
     kind: toToolKind(input.toolName),
-    status: "error",
+    status: "failed" as any,
     locations: toLocations(input.toolName, input.state.input, input.cwd),
     rawInput: JSON.stringify(input.state.input, null, 2),
     content,
