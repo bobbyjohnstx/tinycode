@@ -255,6 +255,8 @@ Images are also mirrored to `ghcr.io/bjohns/tinycode-container`. Both registries
 
 ### OpenShift / Kubernetes deployment
 
+> **Important:** A bare tinycode container on a cluster can only chat with the model — it has no files to read, no code to edit, and no project context. To make it useful, give it something to work on: clone a git repo via GitOps mode, enable cluster-admin mode with `oc` CLI access, or mount a host path with existing code. Without one of these, the container experience is no different from a simple chat UI.
+
 The recommended path for cluster deployments is the **tinycode-operator**. It reduces a full deployment to a single CR:
 
 ```yaml
@@ -263,6 +265,12 @@ kind: TinycodeInstance
 metadata:
   name: my-tinycode
 spec:
+  # Give tinycode something to work on — at least one of these:
+  git:                                    # Clone a repo into /projects on startup
+    url: https://github.com/your-org/your-repo.git
+  clusterAdmin:                           # Enable oc CLI for cluster management
+    enabled: true
+    kubeconfigSecretName: my-kubeconfig
   vllm:
     - name: vllm-qwen3
       url: http://qwen3-30b.qwen3.svc.cluster.local:8080
@@ -272,6 +280,15 @@ spec:
   storage:
     projectsSize: "20Gi"
 ```
+
+**Common deployment patterns:**
+
+| Pattern | What it enables | Key spec fields |
+|---------|----------------|-----------------|
+| **Code assistant** | Edit files in a cloned repo, run tests, commit changes | `spec.git.url` |
+| **Cluster operator** | Manage OpenShift resources, debug pods, review logs | `spec.clusterAdmin.enabled` |
+| **Both** | Full-stack work: edit code AND deploy to the cluster | `spec.git` + `spec.clusterAdmin` |
+| **Team workspace** | Multiple users share a project on RWX storage | `spec.storage.projectsAccessMode: ReadWriteMany` + `spec.replicas: 2` |
 
 The operator handles Route creation, PVC provisioning, SCC binding, vLLM model auto-probing, and pod lifecycle. See the [tinycode-operator README](https://github.com/bobbyjohnstx/tinycode-operator) and [RHOAI cluster setup guide](https://github.com/bobbyjohnstx/tinycode-operator/blob/main/docs/rhoai-cluster-setup.md) for full documentation.
 
