@@ -34,7 +34,7 @@ export class Subscription {
       session: ACPSession.Interface
     },
   ) {
-    this.permission = new ACPPermission.Handler(input)
+    this.permission = new ACPPermission.Handler(input as any)
   }
 
   start() {
@@ -51,8 +51,8 @@ export class Subscription {
 
   async handle(event: Event) {
     switch (event.type) {
-      case "permission.asked":
-        this.permission.handle(event)
+      case "permission.updated" as any:
+        this.permission.handle(event.properties as any)
         return
       case "message.part.updated":
         return this.handlePartUpdated(event)
@@ -161,82 +161,78 @@ export class Subscription {
   private async handleToolPart(sessionId: string, part: ToolPart, cwd: string) {
     const key = `${sessionId}:${part.callID}`
 
-    if (part.status === "pending" && !this.toolStarts.has(key)) {
+    if (part.state.status === "pending" && !this.toolStarts.has(key)) {
       this.toolStarts.add(key)
       const toolCall = pendingToolCall({
         toolCallId: part.callID,
-        toolName: part.name,
-        state: { input: part.args as Record<string, unknown> },
+        toolName: part.tool,
+        state: { input: part.state.input as Record<string, unknown> },
         cwd,
       })
       await this.input.connection.sessionUpdate({
         sessionId,
         update: {
-          sessionUpdate: "tool_call",
-          messageId: part.messageID,
-          toolCall,
-        },
+          sessionUpdate: "tool_call" as any,
+          ...toolCall,
+        } as any,
       })
     }
 
-    if (part.status === "running") {
+    if (part.state.status === "running") {
       const toolUpdate = runningToolUpdate({
         toolCallId: part.callID,
-        toolName: part.name,
-        state: { status: "running", input: part.args as Record<string, unknown> },
-        output: part.result?.output,
+        toolName: part.tool,
+        state: { status: "running", input: part.state.input as Record<string, unknown> },
+        output: part.state.status === "running" ? undefined : undefined,
         cwd,
       })
       await this.input.connection.sessionUpdate({
         sessionId,
         update: {
-          sessionUpdate: "tool_call_update",
-          messageId: part.messageID,
-          toolCallUpdate: toolUpdate,
-        },
+          sessionUpdate: "tool_call_update" as any,
+          ...toolUpdate,
+        } as any,
       })
     }
 
-    if (part.status === "completed") {
+    if (part.state.status === "completed") {
       const toolUpdate = completedToolUpdate({
         toolCallId: part.callID,
-        toolName: part.name,
+        toolName: part.tool,
         state: {
           status: "completed",
-          input: part.args as Record<string, unknown>,
-          output: part.result?.output ?? "",
+          input: part.state.input as Record<string, unknown>,
+          output: part.state.output ?? "",
         },
         cwd,
       })
       await this.input.connection.sessionUpdate({
         sessionId,
         update: {
-          sessionUpdate: "tool_call_update",
-          messageId: part.messageID,
-          toolCallUpdate: toolUpdate,
-        },
+          sessionUpdate: "tool_call_update" as any,
+          ...toolUpdate,
+        } as any,
       })
       this.toolStarts.delete(key)
     }
 
-    if (part.status === "error") {
+    if (part.state.status === "error") {
       const toolUpdate = errorToolUpdate({
         toolCallId: part.callID,
-        toolName: part.name,
+        toolName: part.tool,
         state: {
           status: "error",
-          input: part.args as Record<string, unknown>,
-          error: part.result?.output ?? "Unknown error",
+          input: part.state.input as Record<string, unknown>,
+          error: part.state.error ?? "Unknown error",
         },
         cwd,
       })
       await this.input.connection.sessionUpdate({
         sessionId,
         update: {
-          sessionUpdate: "tool_call_update",
-          messageId: part.messageID,
-          toolCallUpdate: toolUpdate,
-        },
+          sessionUpdate: "tool_call_update" as any,
+          ...toolUpdate,
+        } as any,
       })
       this.toolStarts.delete(key)
     }
