@@ -290,6 +290,8 @@ function serializeForSummary(messages: MessageV2.WithParts[]): string {
         }
       } else if (part.type === "reasoning" && part.text) {
         lines.push(`[Thinking] ${part.text.slice(0, 1000)}`)
+      } else if (part.type === "file") {
+        lines.push(`[${role}] Attached ${part.mime}: ${part.filename ?? "file"}`)
       }
     }
   }
@@ -693,7 +695,12 @@ export const layer = Layer.effect(
       if (processor.message.error) return "stop"
       if (result === "continue") {
         const compactionNumber = prior.length + 1
-        const summary = summaryText((processor as any).toMessage())
+        // Fetch the assistant message with parts to get the summary text
+        const assistantWithParts = yield* session.findMessage(input.sessionID, (m) => m.info.id === msg.id).pipe(
+          Effect.catch(() => Effect.succeed({ _tag: "None" as const })),
+        )
+        if (assistantWithParts._tag !== "Some") return "stop"
+        const summary = summaryText(assistantWithParts.value)
         if (summary) {
           const fileOps = extractFileOps(selected.head)
           if (previousSummary) {
@@ -710,7 +717,7 @@ export const layer = Layer.effect(
           }
           const fileOpsXml = formatFileOps(fileOps)
           if (fileOpsXml) {
-            for (const part of (processor.message as any).parts ?? []) {
+            for (const part of assistantWithParts.value.parts) {
               if (part.type === "text") {
                 yield* session.updatePart({
                   ...part,
