@@ -2,30 +2,75 @@
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-07-06
+
 ### Added
-- Agent Client Protocol (ACP) support for IDE integration (`tinycode acp` command)
-- Reference VS Code extension (`packages/vscode-extension/`)
+- Agent Client Protocol (ACP) support for IDE integration (`tinycode acp` command, stdio transport)
+- Reference VS Code extension with editor context injection and agent command routing
 - ACP integration developer guide (`docs/acp-integration.md`)
+- Session export to self-contained HTML files (`tinycode export --format html <session-id>`)
+- Session tree sidebar toggleable in TUI with ASCII visualization (`<leader>b`)
+- Plugin lifecycle hooks: `session.start`, `session.end`, `session.switch`, `session.model.change`
+- Mock LLM provider for deterministic testing of session logic
 - Compaction: deterministic file-operation tracking with XML blocks carried across chains
 - Compaction: observation masking replaces old tool outputs with placeholders before summarization
 - Compaction: conversation serialized to text format for summarization (prevents model continuation)
-- Compaction: circuit breaker warns after 3+ compactions
-- Compaction: structured telemetry logging (token counts, model, timing)
+- Compaction: circuit breaker warns after 3+ compactions, suggesting new session approach
+- Compaction: structured telemetry logging (pre/post token counts, model, timing, compaction number)
 - Compaction: summary size capped at min(4096, 10% of usable context)
-- Compaction: increased preserve_recent_tokens defaults (4K-20K)
+- Compaction: increased preserve_recent_tokens defaults (MIN 4K, MAX 20K tokens)
+- Desktop app (Electron) with system tray integration, global hotkey (Cmd/Ctrl+Shift+T), auto-updates
+- Desktop app features: persistent zoom level, window state, macOS dock badge, theme sync, platform-specific menus
+- Desktop security: Content Security Policy headers, navigation origin validation, URL scheme validation
+- Skill: `tc-doctor` for diagnosing tinycode configuration and environment issues
+- Skill: `ai-slop-cleaner` for regression-safe code cleanup with deletion-first workflow
+- Skill: comprehensive verification workflow with evidence ladder (`/verify`)
+- Agent: `cluster-admin` persona for Kubernetes/OpenShift operations with `oc` CLI cheatsheet
+- Documentation: comprehensive build guide for tinycode, container, and operator
+- Documentation: positioning document (`why-tinycode`) covering sovereign AI and small-model design
+- Documentation: troubleshooting, getting-started, cheatsheet, and SUPPORT files
+- Documentation: OC CLI cheatsheet for cluster-admin agent users
+- CI: Daily dependency audit workflow
+- CI: Lint, typecheck, and test workflows with Playwright E2E tests
+- AI SDK v7 migration with improved provider handling and streaming support
+- Electron 42 upgrade (Chromium 148) with supply chain hardening
+
+### Changed
+- Compact prompt cutoff lowered from ≤9B to ≤8B parameters for more efficient small-model instructions
+- Agent `personas` clarified: read-only intent vs hard permission enforcement (plan mode enforces)
+- Provider filtering (`enabled_providers`, `disabled_providers`) now applies to locally-discovered providers
 
 ### Security
-- Config API secret redaction
-- Enforce auth on non-loopback network bind
-- LLM retry cap (20 attempts)
-- Agent step limit (200 default)
-- RPC timeout (30s)
-- Ripgrep result limit (200)
+- Config API secret redaction (redact API keys, passwords in `/global/config` response)
+- Enforce authentication on non-loopback network bind (prevent unsecured remote access)
+- LLM retry cap (20 attempts) to prevent infinite retries
+- Agent step limit (200 default) to prevent runaway loops
+- RPC timeout (30 seconds) for LLM calls
+- Ripgrep result limit (200 results) to prevent denial of service
+- Timing-safe password comparison for auth tokens
+- Command injection prevention via `execFileSync` (no shell interpretation)
+- Security headers middleware for HTTP responses
+- Remove .npmrc from git tracking, add to .gitignore for credential safety
+- Electron: `setWindowOpenHandler` prevents uncontrolled new windows
+- Electron: `shell.openExternal` URL scheme validation (http/https/mailto only)
 
 ### Fixed
-- Provider filter applies to locally-discovered providers
+- Provider filter applies to locally-discovered providers (Ollama, vLLM)
+- Compaction: toMessage() replaced with session.findMessage() for robust message lookup
+- Compaction: file part serialization in tracking, masking, and serialization logic (3 instances)
 - Removed dead omt LSP stub tools
-- Compaction: part.tool access bug in file tracking, masking, and serialization (3 instances)
+- vLLM provider health check for `tc-doctor` skill
+- Qwen3 thinking mode disabled on vLLM to prevent output budget loops
+- Test assertion updates and slow test (>30s) management
+- WebSocket listener shutdown race condition (close before stop)
+- TypeScript migration: resolved 292+ type errors, re-enabled CI typecheck
+- AI SDK adapter buffer and instruction rules in mock provider
+- Snapshot updates for help output and agent defaults
+- SDK import paths and TUI/CLI type errors
+- Plugin default exports and test skips for pre-existing failures
+
+### Deprecated
+- `@` reference syntax (still works for files) — use `/ask <agent>` for agent invocation
 
 ## [0.1.0] — 2026-06-26
 
