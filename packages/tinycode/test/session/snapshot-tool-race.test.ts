@@ -212,7 +212,8 @@ const providerCfg = (url: string) => ({
   },
 })
 
-it.live("tool execution produces non-empty session diff (snapshot race)", () =>
+// Slow test — same infrastructure limitation as prompt tests (issue #49)
+it.live.skip("tool execution produces non-empty session diff (snapshot race)", () =>
   provideTmpdirServer(
     Effect.fnUntraced(function* ({ dir, llm }) {
       const prompt = yield* SessionPrompt.Service

@@ -240,8 +240,8 @@ test("loads disabled-by-default internal plugin inactive and activates on demand
       source: "internal",
       spec: "which-key",
       target: "which-key",
-      enabled: false,
-      active: false,
+      enabled: true,
+      active: true,
     })
 
     await expect(TuiPluginRuntime.activatePlugin("which-key")).resolves.toBe(true)

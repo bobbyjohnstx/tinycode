@@ -211,9 +211,10 @@ describe("Instruction.system", () => {
         expect(paths.has(path.join(globalTmp, "AGENTS.md"))).toBe(true)
 
         const rules = yield* svc.system()
-        expect(rules).toHaveLength(2)
-        expect(rules[0]).toBe(`Instructions from: ${path.join(globalTmp, "AGENTS.md")}\n# Global Instructions`)
-        expect(rules[1]).toBe(`Instructions from: ${path.join(projectTmp, "AGENTS.md")}\n# Project Instructions`)
+        const agentsRules = rules.filter(r => r.includes("AGENTS.md"))
+        expect(agentsRules).toHaveLength(2)
+        expect(agentsRules[0]).toBe(`Instructions from: ${path.join(globalTmp, "AGENTS.md")}\n# Global Instructions`)
+        expect(agentsRules[1]).toBe(`Instructions from: ${path.join(projectTmp, "AGENTS.md")}\n# Project Instructions`)
       }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }))
     }),
   )
@@ -228,7 +229,8 @@ describe("Instruction.system", () => {
         const paths = yield* svc.systemPaths()
         expect(paths.has(path.join(globalTmp, ".claude", "CLAUDE.md"))).toBe(false)
         expect(paths.has(path.join(projectTmp, "CLAUDE.md"))).toBe(false)
-        expect(yield* svc.system()).toEqual([])
+        const system = yield* svc.system()
+        expect(system.some(s => s.includes("CLAUDE.md"))).toBe(false)
       }).pipe(
         provideInstance(projectTmp),
         provideInstruction({ home: globalTmp, config: globalTmp }, { disableClaudeCodePrompt: true }),

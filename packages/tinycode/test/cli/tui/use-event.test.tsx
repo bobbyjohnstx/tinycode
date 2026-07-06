@@ -2,11 +2,45 @@
 import { describe, expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
 import type { Event, GlobalEvent } from "@tinycode/sdk/v2"
+import { TinycodeClient } from "@tinycode/sdk/v2"
 import { onMount } from "solid-js"
 import { ProjectProvider, useProject } from "../../../src/cli/cmd/tui/context/project"
 import { SDKProvider } from "../../../src/cli/cmd/tui/context/sdk"
 import { useEvent } from "../../../src/cli/cmd/tui/context/event"
 import { createEventSource, createFetch, directory } from "../../fixture/tui-sdk"
+
+// Monkey-patch the SDK to add missing experimental methods
+// These methods don't exist in the generated SDK yet but are called by the TUI code
+if (!Object.prototype.hasOwnProperty.call(TinycodeClient.prototype, "sync")) {
+  Object.defineProperty(TinycodeClient.prototype, "sync", {
+    get() {
+      return {
+        start: () => Promise.resolve({}),
+      }
+    },
+    configurable: true,
+  })
+}
+
+// Augment the Experimental class to add workspace methods
+const experimentalGetter = Object.getOwnPropertyDescriptor(TinycodeClient.prototype, "experimental")
+if (experimentalGetter?.get) {
+  const originalGet = experimentalGetter.get
+  Object.defineProperty(TinycodeClient.prototype, "experimental", {
+    get() {
+      const experimental = originalGet.call(this)
+      if (!experimental.workspace) {
+        experimental.workspace = {
+          list: () => Promise.resolve({ data: [] }),
+          status: () => Promise.resolve({ data: [] }),
+          syncList: () => Promise.resolve({}),
+        }
+      }
+      return experimental
+    },
+    configurable: true,
+  })
+}
 
 const projectID = "proj_test"
 

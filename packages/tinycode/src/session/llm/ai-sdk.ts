@@ -18,6 +18,7 @@ export function adapterState() {
     // the AI SDK to fire reasoning-end after every reasoning-delta. We buffer
     // the end and suppress it if another reasoning-start immediately follows.
     pendingReasoningEndID: undefined as string | undefined,
+    pendingReasoningEndMeta: undefined as Record<string, Record<string, unknown>> | undefined,
     toolNames: {} as Record<string, string>,
   }
 }
@@ -83,8 +84,16 @@ export function toLLMEvents(
 
     case "finish-step":
       return Effect.sync(() => {
-        const pre = state.pendingReasoningEndID ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })] : []
+        const pre = state.pendingReasoningEndID
+          ? [
+              LLMEvent.reasoningEnd({
+                id: state.pendingReasoningEndID,
+                ...(state.pendingReasoningEndMeta ? { providerMetadata: state.pendingReasoningEndMeta } : {}),
+              }),
+            ]
+          : []
         state.pendingReasoningEndID = undefined
+        state.pendingReasoningEndMeta = undefined
         return [
           ...pre,
           LLMEvent.stepFinish({
@@ -98,7 +107,17 @@ export function toLLMEvents(
 
     case "finish":
       return Effect.sync(() => {
+        // Flush any buffered reasoning-end before finish
+        const pendingEnd = state.pendingReasoningEndID
+          ? [
+              LLMEvent.reasoningEnd({
+                id: state.pendingReasoningEndID,
+                ...(state.pendingReasoningEndMeta ? { providerMetadata: state.pendingReasoningEndMeta } : {}),
+              }),
+            ]
+          : []
         const events = [
+          ...pendingEnd,
           LLMEvent.finish({
             reason: finishReason(event.finishReason),
             usage: usage(event.totalUsage),
@@ -114,8 +133,16 @@ export function toLLMEvents(
     case "text-start":
       return Effect.sync(() => {
         // Flush any buffered reasoning-end before text begins
-        const pre = state.pendingReasoningEndID ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })] : []
+        const pre = state.pendingReasoningEndID
+          ? [
+              LLMEvent.reasoningEnd({
+                id: state.pendingReasoningEndID,
+                ...(state.pendingReasoningEndMeta ? { providerMetadata: state.pendingReasoningEndMeta } : {}),
+              }),
+            ]
+          : []
         state.pendingReasoningEndID = undefined
+        state.pendingReasoningEndMeta = undefined
         state.currentTextID = currentTextID(state, event.id)
         return [
           ...pre,
@@ -154,6 +181,7 @@ export function toLLMEvents(
           // Resume the same block instead of starting a new one.
           state.currentReasoningID = state.pendingReasoningEndID
           state.pendingReasoningEndID = undefined
+          state.pendingReasoningEndMeta = undefined
           return []
         }
         state.currentReasoningID = currentReasoningID(state, event.id)
@@ -180,13 +208,22 @@ export function toLLMEvents(
         state.currentReasoningID = undefined
         // Buffer the end — suppress it if reasoning-start immediately follows
         state.pendingReasoningEndID = id
+        state.pendingReasoningEndMeta = providerMetadata(event.providerMetadata)
         return []
       })
 
     case "tool-input-start":
       return Effect.sync(() => {
-        const pre = state.pendingReasoningEndID ? [LLMEvent.reasoningEnd({ id: state.pendingReasoningEndID })] : []
+        const pre = state.pendingReasoningEndID
+          ? [
+              LLMEvent.reasoningEnd({
+                id: state.pendingReasoningEndID,
+                ...(state.pendingReasoningEndMeta ? { providerMetadata: state.pendingReasoningEndMeta } : {}),
+              }),
+            ]
+          : []
         state.pendingReasoningEndID = undefined
+        state.pendingReasoningEndMeta = undefined
         state.toolNames[event.id] = event.toolName
         return [
           ...pre,
