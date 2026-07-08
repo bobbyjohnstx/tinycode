@@ -34,13 +34,23 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build binaries and create GitHub Release
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}" --generate-notes --draft
+
+      - name: Build binaries and upload to release
         env:
           TINYCODE_VERSION: ${{ github.ref_name }}
           TINYCODE_RELEASE: "true"
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run packages/tinycode/script/build.ts
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit ${{ github.ref_name }} --draft=false
 
       - name: Publish to npm and registries
         env:
