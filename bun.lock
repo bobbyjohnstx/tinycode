@@ -47,6 +47,7 @@
         "prettier": "3.9.3",
         "semver": "7.8.5",
         "turbo": "2.10.0",
+        "yaml": "2.9.0",
       },
     },
     "packages/app": {

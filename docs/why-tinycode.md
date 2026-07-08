@@ -151,20 +151,24 @@ tinycode inherits its foundation from a mature, proven codebase:
 ## Getting Started
 
 ```bash
-# Install and run locally (TUI mode)
-bun install && bun dev
+# Quick install
+curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
 
-# Run against a specific project
-bun dev /path/to/project
+# Or npm
+npx tinycode-ai
 
-# Start the API server for multi-client access
-bun dev serve
+# Run
+tinycode                                    # TUI mode
+tinycode /path/to/project                   # TUI against a specific project
+tinycode serve                              # headless API server
+tinycode web                                # server + web UI
+tinycode acp --cwd /path/to/project         # Connect from VS Code via ACP
 
-# Headless server + web UI
-bun dev web
-
-# Connect from VS Code via ACP
-tinycode acp --cwd /path/to/project
+# From source (for development)
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
+bun install
+bun dev
 
 # Deploy to Kubernetes
 kubectl apply -f tinycode-operator/config/samples/tinycode_v1alpha1_basic.yaml

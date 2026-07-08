@@ -13,13 +13,29 @@ Step-by-step walkthrough to get tinycode running and productive in 15 minutes.
 
 ## Step 1: Install tinycode
 
+### Quick install (recommended)
+
 ```bash
+curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
+```
+
+This downloads the latest binary for your platform and installs to `~/.local/bin`.
+
+### Alternative install methods
+
+```bash
+# npm (requires Node.js)
+npx tinycode-ai
+
+# Homebrew (macOS/Linux)
+brew install bobbyjohnstx/tap/tinycode
+
+# From source (for development)
 git clone https://github.com/bobbyjohnstx/tinycode.git
 cd tinycode
 bun install
+bun dev
 ```
-
-This takes 2-3 minutes. Dependencies are fetched and the TUI is prepared.
 
 ## Step 2: Start an LLM (Local Option)
 
@@ -30,7 +46,9 @@ If you want to run **locally** (no cloud), start Ollama:
 ollama serve
 
 # In another terminal, pull a model (3-5 min)
-ollama pull llama2  # or any other model: mistral, neural-chat, etc.
+ollama pull qwen3:14b  # recommended for quality
+# or qwen3.5:9b for faster responses
+# or mistral, neural-chat, etc.
 ```
 
 **Skip this step** if you're using OpenRouter, Anthropic, or another cloud provider.
@@ -38,7 +56,10 @@ ollama pull llama2  # or any other model: mistral, neural-chat, etc.
 ## Step 3: Run tinycode
 
 ```bash
-# From the tinycode repo root
+# If installed via curl/npm/brew
+tinycode
+
+# If running from source
 bun dev
 ```
 
@@ -59,7 +80,7 @@ Press `<leader>m` (Ctrl+X, then M):
 ```
 List Models
 ────────────
-ollama/llama2
+ollama/qwen3:14b
 ollama/mistral
 ```
 
@@ -191,7 +212,7 @@ Create `~/.config/tinycode/config.json`:
 
 ```json
 {
-  "model": "ollama/llama2",
+  "model": "ollama/qwen3:14b",
   "lsp": true
 }
 ```

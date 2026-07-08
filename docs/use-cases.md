@@ -11,6 +11,19 @@ Run tinycode on your desktop/laptop against local or cloud LLMs.
 ### Setup
 
 ```bash
+# Quick install
+curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
+
+# Or npm
+npx tinycode-ai
+
+# Run
+tinycode                    # TUI against current directory
+tinycode /path/to/project   # TUI against a specific project
+tinycode serve              # headless API server
+tinycode web                # server + web UI
+
+# Development (from source)
 bun install
 bun dev                     # TUI against current directory
 bun dev /path/to/project    # TUI against a specific project
