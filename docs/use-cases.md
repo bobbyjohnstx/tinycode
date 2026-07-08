@@ -11,11 +11,10 @@ Run tinycode on your desktop/laptop against local or cloud LLMs.
 ### Setup
 
 ```bash
-# Quick install
+# Install — pick one:
 curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
-
-# Or npm
-npx tinycode-ai
+npx tinycode-ai                          # or: npm install -g tinycode-ai
+brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
 
 # Run
 tinycode                    # TUI against current directory

@@ -151,11 +151,10 @@ tinycode inherits its foundation from a mature, proven codebase:
 ## Getting Started
 
 ```bash
-# Quick install
+# Install — pick one:
 curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
-
-# Or npm
-npx tinycode-ai
+npx tinycode-ai                          # or: npm install -g tinycode-ai
+brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
 
 # Run
 tinycode                                    # TUI mode

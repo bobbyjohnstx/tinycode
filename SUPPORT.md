@@ -2,6 +2,15 @@
 
 How to get help with tinycode.
 
+## Installation
+
+```bash
+# Pick one:
+curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
+npx tinycode-ai                          # or: npm install -g tinycode-ai
+brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
+```
+
 ## Quick Diagnostics
 
 Run this command to check your setup:

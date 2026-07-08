@@ -48,10 +48,12 @@ A reference [VS Code extension](packages/vscode-extension/) is included. See [do
 ## Quick start
 
 ```bash
-# Install tinycode (stable release)
+# Install tinycode — pick one:
 curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
+npx tinycode-ai                          # or: npm install -g tinycode-ai
+brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
 
-# Or install from source
+# Or install from source (development)
 bun install
 
 # Run (TUI mode, against current directory)
