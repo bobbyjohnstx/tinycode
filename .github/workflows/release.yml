@@ -54,6 +54,8 @@ jobs:
 
       - name: Publish to npm and registries
         env:
+          TINYCODE_VERSION: ${{ github.ref_name }}
+          TINYCODE_RELEASE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
