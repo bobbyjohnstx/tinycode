@@ -417,6 +417,7 @@ export const layer = Layer.effect(
                   message:
                     "Multiple tool call failures detected. This model may not reliably support tool calling. Consider switching to a larger model (qwen3:14b or similar).",
                   variant: "warning",
+                  duration: 10000,
                 })
               }
             } else {
