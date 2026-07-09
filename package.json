@@ -14,7 +14,8 @@
     "upgrade-opentui": "bun run script/upgrade-opentui.ts",
     "postinstall": "bun run --cwd packages/tinycode fix-node-pty",
     "prepare": "husky",
-    "test": "echo 'do not run tests from root' && exit 1"
+    "test": "echo 'do not run tests from root' && exit 1",
+    "benchmark": "bun run packages/tinycode/benchmark/run.ts"
   },
   "workspaces": {
     "packages": [

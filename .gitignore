@@ -35,3 +35,4 @@ plans/
 .claude/
 .npmrc
 session-ses_*.md
+packages/tinycode/results/
