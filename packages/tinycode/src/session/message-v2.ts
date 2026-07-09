@@ -1128,6 +1128,19 @@ export function fromError(
         },
         { cause: e },
       ).toObject()
+    case (e as SystemError)?.code === "ECONNREFUSED":
+      return new APIError(
+        {
+          message: "Connection refused — the model provider is not reachable. Check that Ollama or vLLM is running.",
+          isRetryable: false,
+          metadata: {
+            code: (e as SystemError).code ?? "",
+            syscall: (e as SystemError).syscall ?? "",
+            message: (e as SystemError).message ?? "",
+          },
+        },
+        { cause: e },
+      ).toObject()
     case e instanceof Error && (e as FetchDecompressionError).code === "ZlibError":
       if (ctx.aborted) {
         return new AbortedError({ message: e.message }, { cause: e }).toObject()
@@ -1167,6 +1180,21 @@ export function fromError(
         { cause: e },
       ).toObject()
     case APICallError.isInstance(e):
+      // Check for connection refused in fetch error
+      if (e.cause && typeof e.cause === "object" && "code" in e.cause && e.cause.code === "ECONNREFUSED") {
+        return new APIError(
+          {
+            message: `Connection refused — ${ctx.providerID} at ${e.url ?? "unknown URL"} is not reachable. Check that Ollama or vLLM is running.`,
+            isRetryable: false,
+            metadata: {
+              code: "ECONNREFUSED",
+              url: e.url ?? "",
+            },
+          },
+          { cause: e },
+        ).toObject()
+      }
+
       const parsed = ProviderError.parseAPICallError({
         providerID: ctx.providerID,
         error: e,

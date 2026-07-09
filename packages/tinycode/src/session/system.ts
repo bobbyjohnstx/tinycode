@@ -24,6 +24,10 @@ const LOCAL_PROVIDERS = new Set(["ollama", "maas", "vllm", "lmstudio", "openai-c
 
 // Extract parameter count in billions from model ID strings like "qwen3-14b", "llama3.1:8b"
 export function modelSizeB(model: Provider.Model): number | undefined {
+  // Check config-declared size first
+  if (model.size !== undefined) return model.size
+
+  // Fall back to regex parsing from model ID
   const m = /[:\-_v](\d+)b\b/i.exec(model.api.id) ?? /^(\d+)b\b/i.exec(model.api.id)
   return m ? parseInt(m[1], 10) : undefined
 }

@@ -242,6 +242,7 @@ export const Model = Schema.Struct({
   cost: ProviderCost,
   limit: ProviderLimit,
   status: ModelStatus,
+  size: optionalOmitUndefined(Schema.Number),
   options: Schema.Record(Schema.String, Schema.Any),
   headers: Schema.Record(Schema.String, Schema.String),
   release_date: Schema.String,
@@ -684,6 +685,7 @@ export const layer = Layer.effect(
               headers: mergeDeep(existingModel?.headers ?? {}, model.headers ?? {}),
               family: model.family ?? existingModel?.family ?? "",
               release_date: model.release_date ?? existingModel?.release_date ?? "",
+              size: model.size ?? existingModel?.size,
               variants: {},
             }
             const merged = mergeDeep(ProviderTransform.variants(parsedModel), model.variants ?? {})

@@ -321,6 +321,63 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
             return
           }
 
+          // Look up full model info from providers list
+          const provider = state.providers.find((p) => p.id === current.providerID)
+          const fullModel = provider?.models[current.modelID]
+
+          // Warn if model has insufficient context window
+          if (fullModel && fullModel.limit.context > 0 && fullModel.limit.context < 8192) {
+            const contextK = Math.round(fullModel.limit.context / 1024)
+            footer.append({
+              kind: "system",
+              text: `⚠ This model has a ${contextK}K context window. Expect frequent compaction with limited code review capability.`,
+              phase: "final",
+              source: "system",
+            })
+          }
+
+          // Auto-compact if new model has smaller context than current usage
+          if (fullModel && hasSession(input, state) && fullModel.limit.context > 0) {
+            try {
+              const messages = await ctx.sdk.session.messages({ sessionID: state.sessionID })
+              const lastMessage = messages.data?.[messages.data.length - 1]
+              if (lastMessage && lastMessage.info && "tokens" in lastMessage.info) {
+                const info = lastMessage.info as {
+                  tokens?: {
+                    total?: number
+                    input: number
+                    output: number
+                    cache: { read: number; write: number }
+                  }
+                }
+                const tokens = info.tokens
+                if (tokens) {
+                  const currentTokens =
+                    tokens.total || tokens.input + tokens.output + tokens.cache.read + tokens.cache.write
+                  const usableContext = fullModel.limit.input
+                    ? Math.max(0, fullModel.limit.input - 20000)
+                    : Math.max(0, fullModel.limit.context - (fullModel.limit.output || 4096))
+                  if (currentTokens >= usableContext) {
+                    footer.append({
+                      kind: "system",
+                      text: `Model switched to ${fullModel.limit.context / 1024}K context. Current usage ${Math.round(currentTokens / 1024)}K exceeds limit. Triggering compaction...`,
+                      phase: "final",
+                      source: "system",
+                    })
+                    await ctx.sdk.session.summarize({
+                      sessionID: state.sessionID,
+                      providerID: fullModel.providerID,
+                      modelID: fullModel.id,
+                      auto: true,
+                    })
+                  }
+                }
+              }
+            } catch (err) {
+              // Silently ignore compaction failures during model switch
+            }
+          }
+
           setRunSpanAttributes(span, {
             "tinycode.model.provider": model.providerID,
             "tinycode.model.id": model.modelID,
