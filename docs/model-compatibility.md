@@ -37,4 +37,21 @@ This benchmark validates local LLM compatibility with tinycode's tool-calling sy
 - All tasks are machine-verified with deterministic pass/fail criteria
 - Each model is tested 10 times per task for statistical significance
 - Scores are averaged across runs (0-3 points per task)
-- Cloud models (Claude, GPT-4, etc.) are not included in this benchmark
+- Cloud models (Claude, GLM-5.2, etc.) can be included as ceiling references — label as "reference" not "recommended"
+- To run the benchmark yourself: `bun benchmark --models "qwen3:14b,llama3.1:8b" --runs 10`
+- See `packages/tinycode/benchmark/run.ts --help` for all options
+
+## Running the Benchmark
+
+```bash
+# Full local benchmark (7 models, ~3 hours)
+bun benchmark --models "qwen3:14b,qwen3.5:9b,llama3.1:8b,mistral-nemo:12b,phi4:14b,codestral:22b,qwen3:3b" --runs 10
+
+# Quick test (1 model, 1 task, ~2 min)
+bun benchmark --models "qwen3:14b" --tasks 2 --runs 1
+
+# Cloud ceiling reference
+bun benchmark --models "anthropic/claude-sonnet-4-20250514" --runs 3
+```
+
+Prerequisites: models must be pulled in Ollama first (`ollama pull qwen3:14b`). Cloud models require API keys configured in tinycode.

@@ -6,11 +6,23 @@
  *   bun run benchmark/run.ts --models qwen3:14b,llama3.1:8b --tasks 1,2,3,4,5 --runs 10 --timeout 300
  *
  * Arguments:
- *   --models    Comma-separated list of Ollama models (e.g., qwen3:14b,llama3.1:8b)
+ *   --models    Comma-separated model list. Supports any provider/model format:
+ *               Local (Ollama):  qwen3:14b, llama3.1:8b, qwen3:3b
+ *               Cloud reference: anthropic/claude-sonnet-4-20250514, glm/glm-5.2-cloud
  *   --tasks     Comma-separated task IDs to run (1-5), default: all
  *   --runs      Number of runs per model/task combination (default: 10)
  *   --timeout   Timeout in seconds per task (default: 300)
  *   --help      Show this help message
+ *
+ * Examples:
+ *   # Full local benchmark
+ *   bun benchmark --models "qwen3:14b,qwen3.5:9b,llama3.1:8b,mistral-nemo:12b,phi4:14b,qwen3:3b" --runs 10
+ *
+ *   # Quick single-model test
+ *   bun benchmark --models "qwen3:14b" --tasks 2 --runs 1 --timeout 120
+ *
+ *   # Cloud ceiling reference (requires API key configured)
+ *   bun benchmark --models "anthropic/claude-sonnet-4-20250514" --runs 3
  */
 
 import { $ } from "bun"
