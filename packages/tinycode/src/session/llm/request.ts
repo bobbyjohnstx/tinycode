@@ -136,7 +136,7 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     },
   )
 
-  const tools = resolveTools(input)
+  const tools = input.model.capabilities.toolcall === false ? {} : resolveTools(input)
   if (
     input.model.providerID.includes("github-copilot") &&
     Object.keys(tools).length === 0 &&

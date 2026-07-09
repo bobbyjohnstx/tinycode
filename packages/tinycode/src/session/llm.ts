@@ -31,6 +31,21 @@ import { isRecord } from "@/util/record"
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
 
+function sanitizeToolCallJson(raw: string): string | null {
+  let s = raw.trim()
+  // Strip markdown fences
+  s = s.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "")
+  // Fix trailing commas before } or ]
+  s = s.replace(/,\s*([}\]])/g, "$1")
+  s = s.trim()
+  try {
+    JSON.parse(s)
+    return s
+  } catch {
+    return null
+  }
+}
+
 export type StreamInput = {
   user: MessageV2.User
   sessionID: string
@@ -287,6 +302,21 @@ const live: Layer.Layer<
               return {
                 ...failed.toolCall,
                 toolName: lower,
+              }
+            }
+            // Attempt JSON sanitization for InvalidToolInputError
+            if (failed.error.name === "AI_InvalidToolInputError" && typeof failed.toolCall.input === "string") {
+              const sanitized = sanitizeToolCallJson(failed.toolCall.input)
+              if (sanitized !== null) {
+                l.info("repaired tool call JSON", {
+                  tool: failed.toolCall.toolName,
+                  original: failed.toolCall.input,
+                  sanitized,
+                })
+                return {
+                  ...failed.toolCall,
+                  input: sanitized,
+                }
               }
             }
             return {

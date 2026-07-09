@@ -22,6 +22,7 @@ import { errorMessage } from "@/util/error"
 import * as Log from "@/core/util/log"
 import { isRecord } from "@/util/record"
 import { Usage, type LLMEvent } from "@tinycode/llm"
+import { TuiEvent } from "@/cli/cmd/tui/event"
 
 const log = Log.create({ service: "session.processor" })
 
@@ -71,6 +72,7 @@ interface ProcessorContext extends Input {
   needsCompaction: boolean
   currentText: MessageV2.TextPart | undefined
   reasoningMap: Record<string, MessageV2.ReasoningPart>
+  toolCallFailureCount: number
 }
 
 type StreamEvent = LLMEvent
@@ -109,6 +111,7 @@ export const layer = Layer.effect(
         needsCompaction: false,
         currentText: undefined,
         reasoningMap: {},
+        toolCallFailureCount: 0,
       }
       let aborted = false
       const slog = log.clone().tag("session.id", input.sessionID).tag("messageID", input.assistantMessage.id)
@@ -405,6 +408,20 @@ export const layer = Layer.effect(
               attachments: attachments.length ? attachments : undefined,
             }
             yield* completeToolCall(value.id, output)
+            // Track tool-call failures and warn after 3+ consecutive failures
+            const match = yield* readToolCall(value.id)
+            if (match?.part.tool === "invalid") {
+              ctx.toolCallFailureCount++
+              if (ctx.toolCallFailureCount >= 3) {
+                yield* bus.publish(TuiEvent.ToastShow, {
+                  message:
+                    "Multiple tool call failures detected. This model may not reliably support tool calling. Consider switching to a larger model (qwen3:14b or similar).",
+                  variant: "warning",
+                })
+              }
+            } else {
+              ctx.toolCallFailureCount = 0
+            }
             return
           }
 
