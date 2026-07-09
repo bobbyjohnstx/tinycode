@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+- Tool-call failure tracking with warning toast after 3+ consecutive failures (#69)
+- Auto-compact on model switch to smaller context window (#74)
+- Model size field in config for custom/finetuned models (#75)
+- Context warning for models with <8K context window (#77)
+
+### Changed
+- Skip tool injection for models with `capabilities.toolcall=false` to save context tokens (#69)
+- Sanitize markdown fences and trailing commas from malformed tool-call JSON (#69)
+
+### Fixed
+- Surface friendly error on ECONNREFUSED instead of stack trace (#76)
+
 ## [0.2.1] — 2026-07-06
 
 ### Added
