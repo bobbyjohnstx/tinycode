@@ -1632,3 +1632,32 @@ it.instance(
     expect(providers[ProviderID.openai]).toBeUndefined()
   }),
 )
+
+it.instance(
+  "config model size field is preserved on provider model",
+  Effect.gen(function* () {
+    const providers = yield* list
+    const model = providers[ProviderID.make("size-test")].models["llama-7b"]
+    expect(model.size).toBe(7)
+  }),
+  {
+    config: {
+      provider: {
+        "size-test": {
+          name: "Size Test Provider",
+          npm: "@ai-sdk/openai-compatible",
+          env: [],
+          models: {
+            "llama-7b": {
+              name: "Llama 7B",
+              tool_call: true,
+              limit: { context: 8192, output: 2048 },
+              size: 7,
+            },
+          },
+          options: { apiKey: "test" },
+        },
+      },
+    },
+  },
+)
