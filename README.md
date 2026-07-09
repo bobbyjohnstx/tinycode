@@ -11,11 +11,13 @@
 
 [![CI](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/bobbyjohnstx/tinycode)](https://github.com/bobbyjohnstx/tinycode/releases) [![Website](https://img.shields.io/badge/Website-tinycode-blue)](https://bobbyjohnstx.github.io/tinycode.html) [![Discussions](https://img.shields.io/github/discussions/bobbyjohnstx/tinycode)](https://github.com/bobbyjohnstx/tinycode/discussions)
 
-A slim, local-LLM-first AI coding assistant. Runs air-gapped with zero cloud dependencies.
+An open-source AI coding assistant that keeps your code on your machine. No cloud accounts, no API keys, no data leaving your network. Just you, your code, and your local models.
 
 ## What it is
 
-tinycode is an AI coding agent that runs against **your own LLMs** — Ollama, vLLM, or any OpenAI-compatible endpoint on your network. Cloud providers (Anthropic, OpenAI, Google, OpenRouter) are supported via API key as a secondary option, but local inference is the primary use case.
+tinycode fills the gap between cloud-only AI coding tools and privacy. It's the same kind of tool as Claude Code or Codex — reads your files, runs commands, edits code, and works through multi-step tasks — except it runs against **your own LLMs** on your own hardware. Point it at Ollama, vLLM, or any OpenAI-compatible endpoint and start coding. No sign-up, no subscription, no telemetry.
+
+Cloud providers (Anthropic, OpenAI, Google, OpenRouter) are also supported if you want them, but they're optional — not required.
 
 ### Interfaces
 
