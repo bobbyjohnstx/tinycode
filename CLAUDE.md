@@ -153,3 +153,4 @@ Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/
   - `session.model.change` — when the model is changed for a session
 - **Style guide**: See [AGENTS.md](./AGENTS.md) for coding style rules (destructuring, control flow, Drizzle schema conventions, etc.).
 - **Pass model on Task calls**: Use the model configured for the session, not hardcoded model names.
+- **Tool-call failure handling**: Models with `capabilities.toolcall=false` get no tools injected (`src/session/llm/request.ts`). Malformed tool-call JSON is auto-repaired by stripping markdown fences and trailing commas (`src/session/llm.ts`). After 3+ consecutive tool-call failures, a warning toast suggests switching to a larger model (`src/session/processor.ts`).

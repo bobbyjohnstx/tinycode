@@ -228,6 +228,38 @@ Solutions to common tinycode issues and configuration problems.
 4. Try a different browser
 5. Check for browser extensions that might intercept requests (disable temporarily)
 
+## Tool-Call Issues
+
+### Model produces malformed tool calls
+
+**Problem:** Tool calls fail repeatedly with JSON parse errors.
+
+**Solution:** tinycode automatically repairs common JSON issues:
+1. Strips markdown code fences (`` ```json ... ``` ``)
+2. Removes trailing commas before `}` or `]`
+3. Retries the repaired call
+
+If repairs fail, the model may not support tool calling reliably. See "Tool calls keep failing" below.
+
+### Tool calls keep failing
+
+**Problem:** After 3+ consecutive tool-call failures, a warning toast appears.
+
+**Solution:**
+1. This usually indicates the model is too small or lacks tool-call training
+2. Switch to a larger model: Press `<leader>m` and select `qwen3:14b`, `qwen3.5:9b`, or similar
+3. For very small models (<7B parameters), tool calling may not work at all — see next section
+
+### Model doesn't support tool calling
+
+**Problem:** tinycode detects `capabilities.toolcall=false` for this model and skips tools entirely.
+
+**Solution:**
+1. tinycode auto-detects this via the provider's capability flags
+2. When disabled, tools are not injected into the request
+3. The model still works for conversations — it just can't use tools
+4. To enable tools, select a model with `capabilities.toolcall=true` via `<leader>m`
+
 ## Plugin & Configuration Issues
 
 ### Plugin won't load

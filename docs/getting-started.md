@@ -46,10 +46,12 @@ If you want to run **locally** (no cloud), start Ollama:
 ollama serve
 
 # In another terminal, pull a model (3-5 min)
-ollama pull qwen3:14b  # recommended for quality
-# or qwen3.5:9b for faster responses
-# or mistral, neural-chat, etc.
+ollama pull qwen3:14b  # recommended — excellent tool calling
+# or qwen3.5:9b for faster responses with good tool support
+# or mistral, neural-chat, etc. (may struggle with tool calling if <7B)
 ```
+
+**Note on model selection:** tinycode works best with models that support tool calling. Larger models (≥9B) have better tool-call accuracy. Models <7B may not support tool calling at all — tinycode detects this and works without tools in that case.
 
 **Skip this step** if you're using OpenRouter, Anthropic, or another cloud provider.
 

@@ -169,3 +169,4 @@ After listing models (`<leader>m`):
 - Type `@filename` to reference a file in your prompt
 - Use `<leader>h` to collapse code blocks and focus on analysis
 - Session tree shows hierarchy with `<leader>b`
+- **Tool-call warnings:** If you see "Multiple tool call failures detected," switch to a larger model via `<leader>m` — tinycode auto-repairs common JSON issues, but very small models may not support tool calling at all

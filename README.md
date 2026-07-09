@@ -19,7 +19,7 @@ tinycode is an AI coding agent that runs against **your own LLMs** — Ollama, v
 
 ### Interfaces
 
-The primary interface is the **terminal UI (TUI)** — a full-featured interactive session in your terminal with conversation history, model switching, agent/skill invocation, and inline tool approval. The TUI is the fastest way to work: it starts instantly, runs anywhere a terminal does, and keeps you in the same environment as your code.
+The primary interface is the **terminal UI (TUI)** — a full-featured interactive session in your terminal with conversation history, model switching, agent/skill invocation, and inline tool approval. The TUI is the fastest way to work: it starts instantly, runs anywhere a terminal does, and keeps you in the same environment as your code. tinycode automatically handles model limitations: if a model doesn't support tool calling, tinycode detects it and works without tools; if tool calls are malformed, tinycode auto-repairs common JSON issues and warns after 3+ consecutive failures.
 
 **TUI Features:**
 - **Session tree sidebar** (`<leader>b`): Toggleable ASCII tree showing your session hierarchy — organized by parent-child relationships for easy navigation
