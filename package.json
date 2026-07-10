@@ -112,7 +112,7 @@
     "@ai-sdk/perplexity": "4.0.0",
     "@ai-sdk/provider": "4.0.0",
     "@ai-sdk/provider-utils": "5.0.0",
-    "@ai-sdk/togetherai": "3.0.0",
+    "@ai-sdk/togetherai": "3.0.8",
     "@ai-sdk/vercel": "3.0.0",
     "@ai-sdk/xai": "4.0.0",
     "@tinycode/plugin": "workspace:*",
