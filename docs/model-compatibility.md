@@ -13,6 +13,16 @@ This benchmark validates local LLM compatibility with tinycode's tool-calling sy
 
 ## Results
 
+### Cloud Reference (ceiling)
+
+| Model | Total | Tier | T1: Tool Diagnostic | T2: Fix Test | T3: Validation | T4: Rename | T5: Debug |
+|-------|-------|------|-----|-----|-----|-----|-----|
+| Claude Opus 4.6 | 15/15 | Full Agentic | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| gemma4:31b-cloud | 12/15 | Full Agentic | 3/3 (54s) | 3/3 (58s) | 3/3 (51s) | 0/3 (66s) | 3/3 (76s) |
+| glm-5.2:cloud | 5/15 | Chat Only | 1/3 (4s) | 1/3 (3s) | 1/3 (3s) | 1/3 (3s) | 1/3 (3s) |
+
+### Local Models
+
 | Model | Size (Active) | Total | Tier | T1: Tool Diagnostic | T2: Fix Test | T3: Validation | T4: Rename | T5: Debug |
 |-------|--------------|-------|------|-----|-----|-----|-----|-----|
 | qwen3.5:9b | 9B | 14/15 | Full Agentic | 3/3 (366s) | 3/3 (221s) | 3/3 (324s) | 2/3 (455s) | 3/3 (332s) |
@@ -46,6 +56,10 @@ This benchmark validates local LLM compatibility with tinycode's tool-calling sy
 
 ## Key Findings
 
+### qwen3.5:9b closes 93% of the gap to Claude
+
+On a MacBook M1 Pro, qwen3.5:9b scores 14/15 — one point behind Claude Opus 4.6 (15/15). The only difference is Task 4 (multi-file rename), where Claude gets 3/3 and qwen3.5 gets 2/3. For a 9B local model running entirely on-device with no API key, this is remarkable.
+
 ### Tool calling is the dividing line
 
 Models either have tool-calling capability trained in or they don't. Size matters less than training:
@@ -76,8 +90,8 @@ qwen3.6:27b aces the tasks it finishes but times out on 3 of 5. On M1 Pro 32GB, 
 ## Notes
 
 - All tasks are machine-verified with deterministic pass/fail criteria
-- Each model tested once per task (single run) — results may vary between runs
-- Timeout is 600 seconds per task
+- Local models tested once per task (single run) — results may vary between runs
+- Claude Opus 4.6 tested manually in a live session against the same fixture and verification
+- Timeout is 600 seconds per task for local models
 - Durations include full end-to-end time (inference + tool execution)
-- Cloud models (Claude, GPT-4, etc.) are not included in this benchmark
 - Models scoring 5/15 with zero tool calls may work for chat-only usage but cannot perform agentic coding tasks
