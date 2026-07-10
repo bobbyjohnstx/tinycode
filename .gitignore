@@ -36,3 +36,4 @@ plans/
 .npmrc
 session-ses_*.md
 packages/tinycode/results/
+docs/demo-script.md

@@ -2,6 +2,7 @@ import type { RunResult } from "../tasks/types"
 
 export interface ModelScore {
   model: string
+  agent: string
   totalScore: number
   maxScore: number
   tier: string
@@ -19,21 +20,24 @@ export function getTier(score: number, maxScore: number): Tier {
 }
 
 export function aggregateScores(runs: RunResult[]): ModelScore[] {
-  const modelMap = new Map<string, RunResult[]>()
+  const groupMap = new Map<string, RunResult[]>()
 
-  // Group runs by model
+  // Group runs by model+agent
   for (const run of runs) {
-    const existing = modelMap.get(run.model) || []
+    const key = `${run.model}|${run.agent}`
+    const existing = groupMap.get(key) || []
     existing.push(run)
-    modelMap.set(run.model, existing)
+    groupMap.set(key, existing)
   }
 
   const modelScores: ModelScore[] = []
 
-  for (const [model, modelRuns] of modelMap.entries()) {
+  for (const [, groupRuns] of groupMap.entries()) {
+    const { model, agent } = groupRuns[0]
+
     // Group by task
     const taskMap = new Map<number, RunResult[]>()
-    for (const run of modelRuns) {
+    for (const run of groupRuns) {
       const existing = taskMap.get(run.taskId) || []
       existing.push(run)
       taskMap.set(run.taskId, existing)
@@ -52,11 +56,12 @@ export function aggregateScores(runs: RunResult[]): ModelScore[] {
 
     modelScores.push({
       model,
+      agent,
       totalScore,
       maxScore,
       tier: getTier(totalScore, maxScore),
       taskScores,
-      runs: modelRuns,
+      runs: groupRuns,
     })
   }
 

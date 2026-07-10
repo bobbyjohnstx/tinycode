@@ -14,6 +14,7 @@ export interface TaskResult {
 
 export interface RunResult {
   model: string
+  agent: string
   task: string
   taskId: number
   score: number

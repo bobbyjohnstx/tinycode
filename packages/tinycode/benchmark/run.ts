@@ -9,6 +9,7 @@
  *   --models    Comma-separated model list. Supports any provider/model format:
  *               Local (Ollama):  qwen3:14b, llama3.1:8b, qwen3:3b
  *               Cloud reference: anthropic/claude-sonnet-4-20250514, glm/glm-5.2-cloud
+ *   --agent     Agent persona to use (e.g., debugger, executor). Default: build
  *   --tasks     Comma-separated task IDs to run (1-5), default: all
  *   --runs      Number of runs per model/task combination (default: 10)
  *   --timeout   Timeout in seconds per task (default: 300)
@@ -20,6 +21,9 @@
  *
  *   # Quick single-model test
  *   bun benchmark --models "qwen3:14b" --tasks 2 --runs 1 --timeout 120
+ *
+ *   # Test with a specialized agent
+ *   bun benchmark --models "qwen3:14b" --agent debugger --tasks 5 --runs 3
  *
  *   # Cloud ceiling reference (requires API key configured)
  *   bun benchmark --models "anthropic/claude-sonnet-4-20250514" --runs 3
@@ -45,6 +49,7 @@ const ALL_TASKS = [task1, task2, task3, task4, task5]
 
 interface Args {
   models: string[]
+  agent: string
   tasks: number[]
   runs: number
   timeout: number
@@ -56,6 +61,7 @@ function parseArguments(): Args {
     args: process.argv.slice(2),
     options: {
       models: { type: "string" },
+      agent: { type: "string" },
       tasks: { type: "string" },
       runs: { type: "string" },
       timeout: { type: "string" },
@@ -73,6 +79,7 @@ Usage:
 
 Arguments:
   --models    Comma-separated list of Ollama models (e.g., qwen3:14b,llama3.1:8b)
+  --agent     Agent persona to use (e.g., debugger, executor). Default: build
   --tasks     Comma-separated task IDs to run (1-5), default: all
   --runs      Number of runs per model/task combination (default: 10)
   --timeout   Timeout in seconds per task (default: 300)
@@ -83,6 +90,7 @@ Arguments:
 
   const models =
     typeof values.models === "string" ? values.models.split(",").map((s: string) => s.trim()) : []
+  const agent = typeof values.agent === "string" ? values.agent : "build"
   const tasks =
     typeof values.tasks === "string"
       ? values.tasks.split(",").map((s: string) => parseInt(s.trim()))
@@ -90,7 +98,7 @@ Arguments:
   const runs = typeof values.runs === "string" ? parseInt(values.runs) : 10
   const timeout = typeof values.timeout === "string" ? parseInt(values.timeout) : 300
 
-  return { models, tasks, runs, timeout, help: false }
+  return { models, agent, tasks, runs, timeout, help: false }
 }
 
 async function validateOllamaModels(models: string[]): Promise<void> {
@@ -121,6 +129,7 @@ async function validateOllamaModels(models: string[]): Promise<void> {
 
 async function runTask(
   model: string,
+  agent: string,
   taskId: number,
   runNumber: number,
   timeoutSeconds: number
@@ -152,6 +161,8 @@ async function runTask(
       "run",
       "--model",
       `ollama/${model}`,
+      "--agent",
+      agent,
       "--dangerously-skip-permissions",
       "--format",
       "json",
@@ -219,6 +230,7 @@ async function runTask(
 
   return {
     model: `ollama/${model}`,
+    agent,
     task: task.name,
     taskId: task.id,
     score,
@@ -246,6 +258,7 @@ async function main() {
 
   console.log("\n=== Model Compatibility Benchmark ===\n")
   console.log(`Models: ${args.models.join(", ")}`)
+  console.log(`Agent: ${args.agent}`)
   console.log(`Tasks: ${args.tasks.join(", ")}`)
   console.log(`Runs per task: ${args.runs}`)
   console.log(`Timeout: ${args.timeout}s`)
@@ -276,7 +289,7 @@ async function main() {
           `    [${currentRun}/${totalRuns}]`,
         )
 
-        const result = await runTask(model, taskId, runNumber, args.timeout)
+        const result = await runTask(model, args.agent, taskId, runNumber, args.timeout)
         allResults.push(result)
 
         console.log(

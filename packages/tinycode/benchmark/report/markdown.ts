@@ -43,25 +43,36 @@ export async function generateMarkdownReport(report: BenchmarkReport): Promise<s
     "Debug",
   ]
 
-  lines.push(
-    "| Model | Total | Tier | " + taskNames.map((name) => `T${taskNames.indexOf(name) + 1}: ${name}`).join(" | ") + " |"
-  )
-  lines.push(
-    "|-------|-------|------|" + taskNames.map(() => "-------").join("|") + "|"
-  )
+  const hasNonDefaultAgent = report.models.some((m: any) => m.agent && m.agent !== "build")
+  const taskHeaders = taskNames.map((name) => `T${taskNames.indexOf(name) + 1}: ${name}`).join(" | ")
+
+  if (hasNonDefaultAgent) {
+    lines.push(`| Model | Agent | Total | Tier | ${taskHeaders} |`)
+    lines.push("|-------|-------|-------|------|" + taskNames.map(() => "-------").join("|") + "|")
+  } else {
+    lines.push(`| Model | Total | Tier | ${taskHeaders} |`)
+    lines.push("|-------|-------|------|" + taskNames.map(() => "-------").join("|") + "|")
+  }
 
   for (const model of report.models) {
     const cells = [
       model.model.replace("ollama/", ""),
+    ]
+
+    if (hasNonDefaultAgent) {
+      cells.push((model as any).agent || "build")
+    }
+
+    cells.push(
       `${model.totalScore.toFixed(1)}/${model.maxScore}`,
       model.tier,
-    ]
+    )
 
     // Add task scores with median duration
     for (const taskId of taskIds) {
-      const taskRuns = model.runs.filter((r) => r.taskId === taskId)
+      const taskRuns = model.runs.filter((r: RunResult) => r.taskId === taskId)
       const score = model.taskScores[taskId] || 0
-      const durations = taskRuns.map((r) => r.durationMs).sort((a, b) => a - b)
+      const durations = taskRuns.map((r: RunResult) => r.durationMs).sort((a: number, b: number) => a - b)
       const medianDuration = durations.length
         ? durations[Math.floor(durations.length / 2)]
         : 0
