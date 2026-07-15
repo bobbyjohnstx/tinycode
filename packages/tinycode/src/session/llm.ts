@@ -287,6 +287,7 @@ const live: Layer.Layer<
         type: "ai-sdk" as const,
         openRouterCostApiKey: openRouterCostApiKey(input.model, info),
         result: streamText({
+          system: prepared.systemPrompt,
           onError(error) {
             l.error("stream error", {
               error,
