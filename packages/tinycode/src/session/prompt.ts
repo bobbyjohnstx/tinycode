@@ -1169,12 +1169,14 @@ export const layer = Layer.effect(
         let step = 0
         let emptyResponseNudges = 0
         const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
+        let cachedMsgs: MessageV2.WithParts[] | undefined
 
         while (true) {
           yield* status.set(sessionID, { type: "busy" })
           yield* slog.info("loop", { step })
 
-          let msgs = yield* MessageV2.filterCompactedEffect(sessionID)
+          let msgs = cachedMsgs ?? (yield* MessageV2.filterCompactedEffect(sessionID))
+          cachedMsgs = undefined
 
           const { user: lastUser, assistant: lastAssistant, finished: lastFinished, tasks } = MessageV2.latest(msgs)
 
