@@ -949,11 +949,15 @@ export const layer = Layer.effect(
           if (combined) opts.signal = combined
 
           // Add keep_alive for Ollama so the model stays loaded between requests.
-          // Default is "10m"; override via provider options: { keepAlive: "30m" }
+          // Default is "30m"; override via provider options: { keepAlive: "1h" }
           if (model.providerID === "ollama" && opts.body && opts.method === "POST") {
-            const body = JSON.parse(opts.body as string)
-            body.keep_alive = options["keepAlive"] ?? "10m"
-            opts.body = JSON.stringify(body)
+            try {
+              const body = JSON.parse(opts.body as string)
+              body.keep_alive = options["keepAlive"] ?? "30m"
+              opts.body = JSON.stringify(body)
+            } catch {
+              // body is not JSON string (e.g., streaming) — skip keep_alive injection
+            }
           }
 
           // Strip openai itemId metadata following what codex does
