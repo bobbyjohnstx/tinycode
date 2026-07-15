@@ -31,6 +31,9 @@ interface Entry {
   readonly deferred: Deferred.Deferred<InstanceContext>
 }
 
+const DEFAULT_MAX_INSTANCES = 32
+const MAX_INSTANCES = parseInt(process.env["TINYCODE_MAX_INSTANCES"] ?? "", 10) || DEFAULT_MAX_INSTANCES
+
 export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootstrap.Service> = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -38,6 +41,28 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
     const bootstrap = yield* InstanceBootstrap.Service
     const scope = yield* Scope.Scope
     const cache = new Map<string, Entry>()
+    const accessOrder: string[] = []
+    let maxInstances = MAX_INSTANCES
+
+    const touchAccess = (directory: string) => {
+      const idx = accessOrder.indexOf(directory)
+      if (idx !== -1) accessOrder.splice(idx, 1)
+      accessOrder.push(directory)
+    }
+
+    const evictLRU = Effect.fn("InstanceStore.evictLRU")(function* () {
+      while (cache.size > maxInstances && accessOrder.length > 0) {
+        const oldest = accessOrder.shift()!
+        const entry = cache.get(oldest)
+        if (!entry) continue
+        const exit = yield* Deferred.await(entry.deferred).pipe(Effect.exit)
+        if (Exit.isSuccess(exit)) {
+          yield* disposeEntry(oldest, entry, exit.value)
+        } else {
+          yield* removeEntry(oldest, entry)
+        }
+      }
+    })
 
     const boot = (input: LoadInput & { directory: string }) =>
       Effect.gen(function* () {
@@ -63,6 +88,8 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
       Effect.sync(() => {
         if (cache.get(directory) !== entry) return false
         cache.delete(directory)
+        const idx = accessOrder.indexOf(directory)
+        if (idx !== -1) accessOrder.splice(idx, 1)
         return true
       })
 
@@ -107,10 +134,15 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
       return Effect.uninterruptibleMask((restore) =>
         Effect.gen(function* () {
           const existing = cache.get(directory)
-          if (existing) return yield* restore(Deferred.await(existing.deferred))
+          if (existing) {
+            touchAccess(directory)
+            return yield* restore(Deferred.await(existing.deferred))
+          }
 
           const entry: Entry = { deferred: Deferred.makeUnsafe<InstanceContext>() }
           cache.set(directory, entry)
+          touchAccess(directory)
+          yield* evictLRU()
           yield* Effect.gen(function* () {
             yield* Effect.logInfo("creating instance").pipe(Effect.annotateLogs("directory", directory))
             yield* completeLoad(directory, input, entry)

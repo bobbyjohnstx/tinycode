@@ -7,6 +7,8 @@ import { MessageV2 } from "./message-v2"
 import { SessionID } from "./schema"
 import { SessionStatus } from "./status"
 
+const MAX_SESSIONS = parseInt(process.env["TINYCODE_MAX_SESSIONS"] ?? "", 10) || 0
+
 export interface Interface {
   readonly assertNotBusy: (sessionID: SessionID) => Effect.Effect<void, Session.BusyError>
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
@@ -89,6 +91,15 @@ export const layer = Layer.effect(
       onInterrupt: Effect.Effect<MessageV2.WithParts>,
       work: Effect.Effect<MessageV2.WithParts>,
     ) {
+      if (MAX_SESSIONS > 0) {
+        const active = yield* status.list()
+        if (active.size >= MAX_SESSIONS && !active.has(sessionID)) {
+          yield* Effect.logWarning("max concurrent sessions reached").pipe(
+            Effect.annotateLogs({ sessionID, active: active.size, max: MAX_SESSIONS }),
+          )
+          return yield* Effect.die(busyError(sessionID))
+        }
+      }
       return yield* (yield* runner(sessionID, onInterrupt)).ensureRunning(work)
     })
 
