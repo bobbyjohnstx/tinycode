@@ -7,7 +7,7 @@ import { Npm } from "@/core/npm"
 import { Hash } from "@/core/util/hash"
 import { Plugin } from "../plugin"
 import { serviceUse } from "@/core/effect/service-use"
-import { type LanguageModelV3 } from "@ai-sdk/provider"
+import { type LanguageModelV4 } from "@ai-sdk/provider"
 import * as ModelsDev from "@/core/models-dev"
 import { Auth } from "../auth"
 import { Env } from "../env"
@@ -90,7 +90,7 @@ function timeoutController(ms: number) {
 }
 
 type BundledSDK = {
-  languageModel(modelId: string): LanguageModelV3
+  languageModel(modelId: string): LanguageModelV4
 }
 
 const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>> = {
@@ -119,9 +119,9 @@ const BUNDLED_PROVIDERS: Record<string, () => Promise<(opts: any) => BundledSDK>
   "@ai-sdk/perplexity": () => import("@ai-sdk/perplexity").then((m) => m.createPerplexity),
   "@ai-sdk/vercel": () => import("@ai-sdk/vercel").then((m) => m.createVercel),
   "@ai-sdk/alibaba": () => import("@ai-sdk/alibaba").then((m) => m.createAlibaba),
-  "@openrouter/ai-sdk-provider": () => import("@openrouter/ai-sdk-provider").then((m) => m.createOpenRouter),
-  "gitlab-ai-provider": () => import("gitlab-ai-provider").then((m) => m.createGitLab),
-  "venice-ai-sdk-provider": () => import("venice-ai-sdk-provider").then((m) => m.createVenice),
+  "@openrouter/ai-sdk-provider": () => import("@openrouter/ai-sdk-provider").then((m) => m.createOpenRouter as any),
+  "gitlab-ai-provider": () => import("gitlab-ai-provider").then((m) => m.createGitLab as any),
+  "venice-ai-sdk-provider": () => import("venice-ai-sdk-provider").then((m) => m.createVenice as any),
   "ai-gateway-provider": () =>
     import("ai-gateway-provider").then((m) => (m as any).createGateway ?? (m as any).default),
 }
@@ -335,7 +335,7 @@ export interface Interface {
   readonly list: () => Effect.Effect<Record<ProviderID, Info>>
   readonly getProvider: (providerID: ProviderID) => Effect.Effect<Info>
   readonly getModel: (providerID: ProviderID, modelID: ModelID) => Effect.Effect<Model, ModelNotFoundError>
-  readonly getLanguage: (model: Model) => Effect.Effect<LanguageModelV3, ModelNotFoundError>
+  readonly getLanguage: (model: Model) => Effect.Effect<LanguageModelV4, ModelNotFoundError>
   readonly closest: (
     providerID: ProviderID,
     query: string[],
@@ -345,7 +345,7 @@ export interface Interface {
 }
 
 interface State {
-  models: Map<string, LanguageModelV3>
+  models: Map<string, LanguageModelV4>
   providers: Record<ProviderID, Info>
   catalog: Record<ProviderID, Info>
   sdk: Map<string, BundledSDK>
@@ -529,7 +529,7 @@ export const layer = Layer.effect(
         const database = mapValues(catalog, toPublicInfo)
 
         const providers: Record<ProviderID, Info> = {} as Record<ProviderID, Info>
-        const languages = new Map<string, LanguageModelV3>()
+        const languages = new Map<string, LanguageModelV4>()
         const modelLoaders: {
           [providerID: string]: CustomModelLoader
         } = {}

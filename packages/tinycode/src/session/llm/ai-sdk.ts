@@ -308,11 +308,8 @@ export function toLLMEvents(
     case "tool-approval-request":
       return Effect.succeed([])
 
-    default: {
-      const _exhaustive: never = event
-      void _exhaustive
+    default:
       return Effect.succeed([])
-    }
   }
 }
 

@@ -131,7 +131,7 @@ export function nativeTools(tools: Record<string, Tool>, input: Pick<StreamInput
       nativeTool({
         description: item.description ?? "",
         jsonSchema: nativeSchema(item.inputSchema),
-        execute: (args: unknown, ctx) =>
+        execute: (args: unknown, ctx: any) =>
           Effect.tryPromise({
             try: () => {
               if (!item.execute) throw new Error(`Tool has no execute handler: ${name}`)
@@ -139,11 +139,11 @@ export function nativeTools(tools: Record<string, Tool>, input: Pick<StreamInput
                 toolCallId: ctx?.id ?? name,
                 messages: input.messages,
                 abortSignal: input.abort,
-              })
+              } as any)
             },
-            catch: (error) => new ToolFailure({ message: errorMessage(error), error }),
+            catch: (error: unknown) => new ToolFailure({ message: errorMessage(error), error }),
           }),
-      }),
+      } as any),
     ]),
   )
 }

@@ -1,7 +1,7 @@
 export * as PluginV2 from "./plugin"
 
 import { createDraft, finishDraft, type Draft } from "immer"
-import type { LanguageModelV3 } from "@ai-sdk/provider"
+import type { LanguageModelV4 } from "@ai-sdk/provider"
 import { Context, Effect, Exit, Layer, PubSub, Schema, Scope, Stream } from "effect"
 import type { ModelV2 } from "./model"
 import type { AgentV2 } from "./agent"
@@ -30,7 +30,7 @@ type HookSpec = {
       options: Record<string, any>
     }
     output: {
-      language?: LanguageModelV3
+      language?: LanguageModelV4
     }
   }
   "aisdk.sdk": {

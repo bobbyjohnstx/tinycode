@@ -149,7 +149,7 @@ const live: Layer.Layer<
               toolCallId: _requestID,
               messages: input.messages,
               abortSignal: input.abort,
-            })
+            } as any)
             const output = typeof result === "string" ? result : (result?.output ?? JSON.stringify(result))
             return {
               result: output,
@@ -215,11 +215,11 @@ const live: Layer.Layer<
         })
       }
 
-      const tracer = cfg.experimental?.openTelemetry
+      const _tracer = cfg.experimental?.openTelemetry
         ? Option.getOrUndefined(yield* Effect.serviceOption(OtelTracer.OtelTracer))
         : undefined
-      const telemetryTracer = tracer
-        ? new Proxy(tracer, {
+      const _telemetryTracer = _tracer
+        ? new Proxy(_tracer, {
             get(target, prop, receiver) {
               if (prop !== "startSpan") return Reflect.get(target, prop, receiver)
               return (...args: Parameters<typeof target.startSpan>) => {
@@ -362,11 +362,6 @@ const live: Layer.Layer<
           experimental_telemetry: {
             isEnabled: cfg.experimental?.openTelemetry,
             functionId: "session.llm",
-            tracer: telemetryTracer,
-            metadata: {
-              userId: cfg.username ?? "unknown",
-              sessionId: input.sessionID,
-            },
           },
         }),
       }
