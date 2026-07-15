@@ -69,6 +69,10 @@ bun benchmark --models "qwen3.5:9b" --agent debugger --tasks 5 --runs 3
 bun benchmark --models "anthropic/claude-sonnet-4-20250514" --runs 1
 ```
 
+## Model Warmup
+
+Before Task 1 for each model, the benchmark sends a warmup request to Ollama (`/api/generate` with `keep_alive: "10m"`). This pre-loads the model into GPU memory so the cold-load penalty doesn't inflate Task 1's duration. The warmup time is printed but not counted in any task score.
+
 ## The Five Benchmark Tasks
 
 Each task uses a fixture project (a small TypeScript project with intentional bugs) that is copied to a fresh temp directory, git-initialized, and cleaned up after each run. The model gets the prompt, has full tool access, and is scored 0–3 per task (max 15 total).

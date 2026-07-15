@@ -73,6 +73,7 @@ This starts tinycode in **TUI mode** against your current directory. You'll see:
 **What happened:**
 - Detected Ollama running at `localhost:11434`
 - Auto-discovered available models
+- Warmed up the configured model (pre-loads into GPU memory and verifies tool-call support)
 - Loaded default build agent (full tool access)
 
 ## Step 4: Select a Model
@@ -337,15 +338,15 @@ See [cheatsheet.md](cheatsheet.md) for complete keyboard reference.
 
 ## Troubleshooting
 
-**Model not found:** Run `/tc-doctor` — it diagnoses configuration issues.
+Run `/tc-doctor` for a full diagnostic. It checks 14 areas including Ollama install, model availability, tool-call support, RAM fit, and tinycode integration.
 
-**Can't connect to Ollama:** Make sure `ollama serve` is running and listening on `localhost:11434`.
+**Model not found:** `/tc-doctor` checks if your configured model is actually pulled in Ollama and suggests the closest match if the name is wrong.
 
-**Session won't load:** Check disk space and database health:
-```bash
-df -h
-sqlite3 ~/.config/tinycode/db.sqlite ".tables"
-```
+**Can't connect to Ollama:** `/tc-doctor` verifies the Ollama process is running, the API is reachable, and there are no port conflicts. In containers, it suggests the correct `TINYCODE_OLLAMA_HOST`.
+
+**Tool calling not working:** The startup warmup probe tests tool-call support. If you see "no tool calling" on startup, the model lacks this capability — `/tc-doctor` recommends models that support it (qwen3.5:9b is the benchmark champion at 14/15).
+
+**Slow responses:** `/tc-doctor` checks model size vs RAM, GPU acceleration (Metal on Mac), swap pressure, and cold-load time.
 
 See [troubleshooting.md](troubleshooting.md) for detailed solutions.
 

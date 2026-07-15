@@ -79,7 +79,7 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `/deepinit` | Generate per-directory `AGENTS.md` files across the codebase |
 | `/mcp-setup` | Configure MCP servers via guided menu |
 | `/remember` | Triage findings to memory surfaces (project memory, CLAUDE.md, session notes) |
-| `/tc-doctor` | Diagnose tinycode configuration and environment issues |
+| `/tc-doctor` | Full diagnostic — Ollama install, model health, tool-call probe, RAM fit, Mac checks, provider integration (14 checks, pure bash) |
 | `/trace` | Evidence-driven causal tracing with competing hypotheses |
 | `/verify` | Confirm changes work before claiming completion |
 
@@ -138,7 +138,7 @@ Edit `~/.config/tinycode/config.json`:
 
 ```json
 {
-  "model": "ollama/llama3.2",
+  "model": "ollama/qwen3.5:9b",
   "lsp": true
 }
 ```
@@ -169,4 +169,5 @@ After listing models (`<leader>m`):
 - Type `@filename` to reference a file in your prompt
 - Use `<leader>h` to collapse code blocks and focus on analysis
 - Session tree shows hierarchy with `<leader>b`
+- **Model warmup:** On startup, tinycode probes the Ollama model to verify tool-call support and pre-load it into GPU memory. Look for "qwen3.5:9b ready — tool calling supported" in the toast/footer
 - **Tool-call warnings:** If you see "Multiple tool call failures detected," switch to a larger model via `<leader>m` — tinycode auto-repairs common JSON issues, but very small models may not support tool calling at all

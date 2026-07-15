@@ -9,14 +9,15 @@ Solutions to common tinycode issues and configuration problems.
 **Problem:** tinycode doesn't see Ollama even though it's running.
 
 **Solution:**
-1. Verify Ollama is running: `curl http://localhost:11434/api/tags`
-2. Ensure it's listening on `localhost:11434` (default). If you changed the port, set in config:
+1. Run `/tc-doctor` — it checks Ollama install, process, API reachability, and provider integration in one pass
+2. Verify Ollama is running: `curl http://localhost:11434/api/tags`
+3. Ensure it's listening on `localhost:11434` (default). If you changed the port:
    ```bash
-   export OLLAMA_HOST=http://0.0.0.0:11434
-   # or restart Ollama with different binding
+   export TINYCODE_OLLAMA_HOST=http://localhost:YOUR_PORT
    ```
-3. Check firewall isn't blocking localhost access
-4. Try restarting tinycode after Ollama starts
+4. Check if Ollama is in `disabled_providers` in your config
+5. In containers, use: `export TINYCODE_OLLAMA_HOST=http://host.docker.internal:11434`
+6. Restart tinycode after Ollama starts (provider discovery runs on startup)
 
 **Alternative:** Manually connect via `<leader>m` → `Ctrl+A` → add custom provider
 
@@ -170,22 +171,14 @@ Solutions to common tinycode issues and configuration problems.
 **Problem:** LLM takes 10+ seconds to respond or times out.
 
 **Solution:**
-1. Check what model is selected: `<leader>m`
-2. Monitor model resource usage:
-   ```bash
-   # For Ollama
-   watch "curl -s http://localhost:11434/api/tags | jq '.models[] | {name: .name, size: .size}'"
-   
-   # For vLLM
-   watch "curl -s http://localhost:8000/v1/models | jq '.data[]'"
-   ```
-3. If model is small (< 7B params), consider using a larger one
-4. Check system resources:
-   ```bash
-   top -n1 | head -20
-   ```
-5. If CPU-bound (not GPU), reduce batch size or switch to GPU inference if available
-6. Try `/tc-doctor` to check for bottlenecks
+1. Run `/tc-doctor` — it checks RAM vs model size, GPU acceleration, swap pressure, and cold-load time
+2. Check what model is selected: `<leader>m`
+3. tinycode warms the model on startup — if you see "warming model..." followed by a long load time (>60s), the model may be too large for your hardware
+4. On Mac, verify Ollama is native arm64 (not Rosetta): `/tc-doctor` checks this automatically
+5. Check if the model is swapping: close Docker, Chrome, and other memory-heavy apps
+6. Dense models >12B are too slow on 32GB RAM — use qwen3.5:9b (9B, benchmark champion at 14/15)
+7. Check `ollama ps` to see if the model is loaded or re-loading between requests
+8. If model keeps re-loading, check `keep_alive` — tinycode sets `keep_alive: "10m"` by default
 
 ### TUI is sluggish or unresponsive
 
@@ -255,10 +248,13 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
 **Problem:** tinycode detects `capabilities.toolcall=false` for this model and skips tools entirely.
 
 **Solution:**
-1. tinycode auto-detects this via the provider's capability flags
+1. tinycode auto-detects this via the provider's capability flags and confirms via warmup probe on startup
 2. When disabled, tools are not injected into the request
 3. The model still works for conversations — it just can't use tools
-4. To enable tools, select a model with `capabilities.toolcall=true` via `<leader>m`
+4. Models with tool calling: qwen3.5:9b, north-mini-code-1.0, gemma4:12b
+5. Models WITHOUT: granite, codellama, deepseek-r1 (distilled) — these all score 5/15 with zero tool calls
+6. Run `/tc-doctor` to see your model's tool-call status
+7. To switch, select a model with tool-call support via `<leader>m`
 
 ## Plugin & Configuration Issues
 
@@ -358,10 +354,11 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
 
 ## Diagnostic Commands
 
-### Check your configuration
+### Run the full diagnostic
 ```bash
 /tc-doctor
 ```
+tc-doctor runs 14 checks in order: directory structure, agents, skills, system tools, oc CLI, Ollama install/health, model availability (configured model, recommended models, RAM fit), model functionality (tool-call probe with warmup), Mac-specific checks (Metal, Rosetta, swap), tinycode↔Ollama integration, vLLM/custom provider health, tmux, and disk space. All checks use pure bash — no python3 required.
 
 ### List all active sessions
 ```bash

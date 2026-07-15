@@ -56,7 +56,7 @@ The heart of the project. Every directory under `src/`:
 | `permission/`    | Tool access control                                                                                                      |
 | `plugin/`        | Plugin system — loader, installer, built-in plugins (azure, cloudflare, digitalocean, github-copilot, xai, openai/codex) |
 | `project/`       | Project context detection and schema                                                                                     |
-| `provider/`      | LLM provider abstraction — wraps Vercel AI SDK, auto-discovers local LLMs                                                |
+| `provider/`      | LLM provider abstraction — wraps Vercel AI SDK, auto-discovers local LLMs, model warmup with tool-call probe              |
 | `pty/`           | Pseudo-terminal — dual runtime (bun-pty / @lydell/node-pty)                                                              |
 | `question/`      | Interactive question/prompt system                                                                                       |
 | `reference/`     | Reference management (repos, directories)                                                                                |
@@ -100,6 +100,8 @@ Registered in `src/tool/registry.ts`. Each tool is an Effect service. Current to
 | maas     | (none — set via env)        | `TINYCODE_MAAS_HOST`, `TINYCODE_MAAS_API_KEY` |
 
 Auto-discovery polls every 30 seconds with a 2-second probe timeout (`src/provider/local-discovery.ts`).
+
+On startup, tinycode sends a warmup probe to the configured Ollama model (`src/provider/warmup.ts`). The probe sends a tool-call request to `/api/chat` with `keep_alive: "10m"`, pre-loading the model into GPU memory and verifying tool-calling capability. Results are shown as a toast (TUI) or footer message (direct mode).
 
 ### Bundled Cloud Providers (via Vercel AI SDK)
 
