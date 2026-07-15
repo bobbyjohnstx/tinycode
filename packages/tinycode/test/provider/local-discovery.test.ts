@@ -175,6 +175,57 @@ describe("LocalDiscovery", () => {
   })
 
   // ---------------------------------------------------------------------------
+  // Test: Ramalama env-var gating
+  // ---------------------------------------------------------------------------
+
+  test("skips ramalama probe when TINYCODE_RAMALAMA_HOST is not set", async () => {
+    const result = await discoverEmpty({
+      TINYCODE_OLLAMA_HOST: "http://127.0.0.1:1",
+      TINYCODE_VLLM_HOST: "http://127.0.0.1:1",
+      TINYCODE_RAMALAMA_HOST: undefined,
+    })
+    expect(result["ramalama"]).toBeUndefined()
+  }, 4_000)
+
+  test("returns empty for ramalama when host is unreachable", async () => {
+    const result = await discoverEmpty({
+      TINYCODE_OLLAMA_HOST: "http://127.0.0.1:1",
+      TINYCODE_VLLM_HOST: "http://127.0.0.1:1",
+      TINYCODE_RAMALAMA_HOST: "http://127.0.0.1:1",
+    })
+    expect(result["ramalama"]).toBeUndefined()
+  }, 4_000)
+
+  // ---------------------------------------------------------------------------
+  // Test: Context limit with meta.n_ctx_train fallback (llama.cpp backend)
+  // ---------------------------------------------------------------------------
+
+  describe("context limit with n_ctx_train fallback", () => {
+    const calcLimits = (maxModelLen?: number, nCtxTrain?: number) => {
+      const contextLimit = maxModelLen ?? nCtxTrain ?? 0
+      const effectiveContext = contextLimit > 0 ? Math.floor(contextLimit * 0.8) : 0
+      const outputLimit = contextLimit > 0 ? Math.min(4096, Math.floor(contextLimit * 0.2)) : 0
+      return { context: effectiveContext, output: outputLimit }
+    }
+
+    test("prefers max_model_len when both are present", () => {
+      expect(calcLimits(32768, 16384)).toEqual({ context: 26214, output: 4096 })
+    })
+
+    test("falls back to n_ctx_train when max_model_len is absent", () => {
+      expect(calcLimits(undefined, 131072)).toEqual({ context: 104857, output: 4096 })
+    })
+
+    test("returns zero when both are absent", () => {
+      expect(calcLimits(undefined, undefined)).toEqual({ context: 0, output: 0 })
+    })
+
+    test("uses n_ctx_train for llama.cpp backend models", () => {
+      expect(calcLimits(undefined, 8192)).toEqual({ context: 6553, output: 1638 })
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // Test 5 (logic): Trailing slash normalization — pure string behavior
   // ---------------------------------------------------------------------------
 
