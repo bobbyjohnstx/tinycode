@@ -231,7 +231,7 @@ export function Autocomplete(props: {
     })
 
     if (part.type === "file" && part.source && part.source.type === "file") {
-      frecency.updateFrecency(part.source.path)
+      frecency.updateFrecency("files", part.source.path)
     }
   }
 
@@ -398,8 +398,8 @@ export function Autocomplete(props: {
       // Add file options
       if (!result.error && result.data) {
         const sortedFiles = result.data.sort((a, b) => {
-          const aScore = frecency.getFrecency(a)
-          const bScore = frecency.getFrecency(b)
+          const aScore = frecency.getFrecency("files", a)
+          const bScore = frecency.getFrecency("files", b)
           if (aScore !== bScore) return bScore - aScore
           const aDepth = a.split("/").length
           const bDepth = b.split("/").length
@@ -610,7 +610,7 @@ export function Autocomplete(props: {
         if (displayResult && displayResult.target.startsWith(store.visible + searchValue)) {
           score *= 2
         }
-        const frecencyScore = objResults.obj.path ? frecency.getFrecency(objResults.obj.path) : 0
+        const frecencyScore = objResults.obj.path ? frecency.getFrecency("files", objResults.obj.path) : 0
         return score * (1 + frecencyScore)
       },
     })

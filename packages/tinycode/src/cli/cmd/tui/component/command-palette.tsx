@@ -9,6 +9,7 @@ import {
   useTinycodeKeymap,
 } from "../keymap"
 import { useTuiConfig } from "../context/tui-config"
+import { useFrecency } from "./prompt/frecency"
 
 type PaletteCommandEntry = ReturnType<OpenTuiKeymap["getCommandEntries"]>[number]
 
@@ -26,6 +27,7 @@ function isSuggestedPaletteCommand(entry: PaletteCommandEntry) {
 export function CommandPaletteDialog() {
   const config = useTuiConfig()
   const keymap = useTinycodeKeymap()
+  const frecency = useFrecency()
   const entries = useKeymapSelector((keymap: OpenTuiKeymap) => {
     const query = {
       namespace: "palette",
@@ -53,8 +55,10 @@ export function CommandPaletteDialog() {
       footer: formatKeyBindings(entry.bindings, config),
       value: entry.command.name,
       suggested: isSuggestedPaletteCommand(entry),
+      frecencyScore: frecency.getFrecency("commands", entry.command.name),
       onSelect: (dialog: DialogContext) => {
         dialog.clear()
+        frecency.updateFrecency("commands", entry.command.name)
         keymap.dispatchCommand(entry.command.name)
       },
     })),
@@ -63,16 +67,15 @@ export function CommandPaletteDialog() {
   let ref: DialogSelectRef<string>
   const list = () => {
     if (ref?.filter) return options()
-    return [
-      ...options()
-        .filter((option) => option.suggested)
-        .map((option) => ({
-          ...option,
-          value: `suggested:${option.value}`,
-          category: "Suggested",
-        })),
-      ...options(),
-    ]
+    const suggested = options()
+      .filter((option) => option.suggested)
+      .map((option) => ({
+        ...option,
+        value: `suggested:${option.value}`,
+        category: "Suggested",
+      }))
+    const rest = [...options()].sort((a, b) => b.frecencyScore - a.frecencyScore)
+    return [...suggested, ...rest]
   }
 
   return <DialogSelect ref={(value) => (ref = value)} title="Commands" options={list()} />
