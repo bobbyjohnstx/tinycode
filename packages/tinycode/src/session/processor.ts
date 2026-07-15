@@ -309,6 +309,7 @@ export const layer = Layer.effect(
             return
 
           case "reasoning-end":
+            yield* session.flushPartDeltas()
             if (value.providerMetadata && value.id in ctx.reasoningMap) {
               ctx.reasoningMap[value.id].metadata = value.providerMetadata
             }
@@ -523,6 +524,7 @@ export const layer = Layer.effect(
             return
 
           case "text-end":
+            yield* session.flushPartDeltas()
             if (!ctx.currentText) return
             // oxlint-disable-next-line no-self-assign -- reactivity trigger
             ctx.currentText.text = ctx.currentText.text

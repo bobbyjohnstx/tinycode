@@ -64,7 +64,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const state = yield* InstanceState.make<State>(
       Effect.fn("Bus.state")(function* (ctx) {
-        const wildcard = yield* PubSub.unbounded<Payload>()
+        const wildcard = yield* PubSub.sliding<Payload>({ capacity: 4096 })
         const typed = new Map<string, PubSub.PubSub<Payload>>()
 
         yield* Effect.addFinalizer(() =>
@@ -90,7 +90,7 @@ export const layer = Layer.effect(
       return Effect.gen(function* () {
         let ps = state.typed.get(def.type)
         if (!ps) {
-          ps = yield* PubSub.unbounded<Payload>()
+          ps = yield* PubSub.sliding<Payload>({ capacity: 4096 })
           state.typed.set(def.type, ps)
         }
         return ps as unknown as PubSub.PubSub<Payload<D>>

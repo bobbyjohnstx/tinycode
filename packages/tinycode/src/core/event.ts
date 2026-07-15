@@ -88,7 +88,7 @@ export class Service extends Context.Service<Service, Interface>()("@tinycode/Ev
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
-    const all = yield* PubSub.unbounded<Payload>()
+    const all = yield* PubSub.sliding<Payload>({ capacity: 4096 })
     const typed = new Map<string, PubSub.PubSub<Payload>>()
     const syncHandlers = new Array<Sync>()
 
@@ -96,7 +96,7 @@ export const layer = Layer.effect(
       Effect.gen(function* () {
         const existing = typed.get(definition.type)
         if (existing) return existing
-        const pubsub = yield* PubSub.unbounded<Payload>()
+        const pubsub = yield* PubSub.sliding<Payload>({ capacity: 4096 })
         typed.set(definition.type, pubsub)
         return pubsub
       })

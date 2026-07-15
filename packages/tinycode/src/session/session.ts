@@ -497,6 +497,7 @@ export interface Interface {
     field: string
     delta: string
   }) => Effect.Effect<void>
+  readonly flushPartDeltas: () => Effect.Effect<void>
   /** Finds the first message matching the predicate, searching newest-first. */
   readonly findMessage: (
     sessionID: SessionID,
@@ -815,6 +816,11 @@ export const layer: Layer.Layer<
       return input.partID
     })
 
+    const deltaPending = new Map<
+      string,
+      { sessionID: SessionID; messageID: MessageID; partID: PartID; field: string; delta: string; ts: number }
+    >()
+
     const updatePartDelta = Effect.fnUntraced(function* (input: {
       sessionID: SessionID
       messageID: MessageID
@@ -822,7 +828,36 @@ export const layer: Layer.Layer<
       field: string
       delta: string
     }) {
-      yield* bus.publish(MessageV2.Event.PartDelta, input)
+      const key = `${input.partID}:${input.field}`
+      const now = performance.now()
+      const existing = deltaPending.get(key)
+      if (existing && now - existing.ts < 16) {
+        existing.delta += input.delta
+        return
+      }
+      if (existing) {
+        yield* bus.publish(MessageV2.Event.PartDelta, {
+          sessionID: existing.sessionID,
+          messageID: existing.messageID,
+          partID: existing.partID,
+          field: existing.field,
+          delta: existing.delta,
+        })
+      }
+      deltaPending.set(key, { ...input, ts: now })
+    })
+
+    const flushPartDeltas = Effect.fnUntraced(function* () {
+      for (const [, entry] of deltaPending) {
+        yield* bus.publish(MessageV2.Event.PartDelta, {
+          sessionID: entry.sessionID,
+          messageID: entry.messageID,
+          partID: entry.partID,
+          field: entry.field,
+          delta: entry.delta,
+        })
+      }
+      deltaPending.clear()
     })
 
     /** Finds the first message matching the predicate, searching newest-first. */
@@ -864,6 +899,7 @@ export const layer: Layer.Layer<
       updatePart,
       getPart,
       updatePartDelta,
+      flushPartDeltas,
       findMessage,
     })
   }),
