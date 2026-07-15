@@ -36,6 +36,7 @@ export const Flag = {
   // New tinycode-specific env vars
   TINYCODE_OLLAMA_HOST: process.env["TINYCODE_OLLAMA_HOST"] ?? "http://localhost:11434",
   TINYCODE_VLLM_HOST: process.env["TINYCODE_VLLM_HOST"] ?? "http://localhost:8000",
+  TINYCODE_RAMALAMA_HOST: process.env["TINYCODE_RAMALAMA_HOST"],
 
   // Experimental
   TINYCODE_EXPERIMENTAL_FILEWATCHER: Config.boolean("TINYCODE_EXPERIMENTAL_FILEWATCHER").pipe(

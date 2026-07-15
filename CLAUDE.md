@@ -141,8 +141,8 @@ Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/
 - **Event bus** (`src/bus/`): Internal pub/sub (Effect PubSub) used to stream events from the session processor to the TUI and web clients via SSE.
 - **Dual runtime**: `src/storage/db.ts` and `src/pty/` use conditional imports (`#db`, `#pty`) to swap Bun vs Node implementations.
 - **`bun dev` = `tinycode`**: During development, `bun dev` from the repo root is equivalent to the `tinycode` CLI.
-- **Local LLMs first**: The primary use case is local LLM inference via Ollama or any OpenAI-compatible endpoint. Configure via `~/.config/tinycode/config.json`.
-- **Provider filtering**: `enabled_providers` and `disabled_providers` in config apply to **all** providers — both custom API-configured providers and locally-discovered ones (Ollama, vLLM, MaaS). Filters apply during discovery, so disabled providers are completely hidden from the provider list.
+- **Local LLMs first**: The primary use case is local LLM inference via Ollama, ramalama, or any OpenAI-compatible endpoint. Configure via `~/.config/tinycode/config.json`. ramalama support is enabled via `TINYCODE_RAMALAMA_HOST` env var (e.g., `http://localhost:8080`).
+- **Provider filtering**: `enabled_providers` and `disabled_providers` in config apply to **all** providers — both custom API-configured providers and locally-discovered ones (Ollama, vLLM, ramalama, MaaS). Filters apply during discovery, so disabled providers are completely hidden from the provider list.
 - **oh-my-tiny**: Built-in plugin at `src/omt/` providing extended orchestration tools (notepad, wiki, state management, AST grep).
 - **ACP mode**: Run with `bun dev acp` or `tinycode acp` to enable IDE integration via the Agent Client Protocol. Communicates via stdio with editor extensions. See `docs/acp-integration.md` for developer guide.
 - **Session tree sidebar** (`src/cli/cmd/tui/component/session-tree.tsx`): Toggleable ASCII tree showing session hierarchy. Press `<leader>b` in the TUI to toggle visibility. Sessions are organized by parent-child relationships.

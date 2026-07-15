@@ -97,6 +97,7 @@ Registered in `src/tool/registry.ts`. Each tool is an Effect service. Current to
 | -------- | --------------------------- | --------------------------------------------- |
 | ollama   | `http://localhost:11434/v1` | `TINYCODE_OLLAMA_HOST`                        |
 | vllm     | `http://localhost:8000/v1`  | `TINYCODE_VLLM_HOST`                          |
+| ramalama | (none — set via env)        | `TINYCODE_RAMALAMA_HOST`                      |
 | maas     | (none — set via env)        | `TINYCODE_MAAS_HOST`, `TINYCODE_MAAS_API_KEY` |
 
 Auto-discovery polls every 30 seconds with a 2-second probe timeout (`src/provider/local-discovery.ts`).

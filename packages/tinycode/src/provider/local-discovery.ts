@@ -35,6 +35,9 @@ const OllamaTagsResponse = Schema.Struct({
 const VllmModel = Schema.Struct({
   id: Schema.String,
   max_model_len: Schema.optional(Schema.Number),
+  meta: Schema.optional(Schema.Struct({
+    n_ctx_train: Schema.optional(Schema.Number),
+  })),
 })
 
 const VllmModelsResponse = Schema.Struct({
@@ -120,7 +123,7 @@ function makeOllamaProvider(baseURL: string, entries: OllamaModelEntry[]): Info 
   }
 }
 
-type VllmModelEntry = { id: string; max_model_len?: number | undefined }
+type VllmModelEntry = { id: string; max_model_len?: number | undefined; meta?: { n_ctx_train?: number } }
 
 function makeVllmProvider(baseURL: string, modelIds: string[]): Info
 function makeVllmProvider(baseURL: string, models: VllmModelEntry[], providerID?: string, providerName?: string): Info
@@ -137,7 +140,7 @@ function makeVllmProvider(
 
   const models: Record<string, Model> = {}
   for (const entry of entries) {
-    const contextLimit = entry.max_model_len ?? 0
+    const contextLimit = entry.max_model_len ?? entry.meta?.n_ctx_train ?? 0
     // Reserve ~20% for system prompt + tools; remainder for conversation
     const effectiveContext = contextLimit > 0 ? Math.floor(contextLimit * 0.8) : 0
     const outputLimit = contextLimit > 0 ? Math.min(4096, Math.floor(contextLimit * 0.2)) : 0
@@ -442,32 +445,56 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
       )
     }
 
+    function probeRamalama(baseURL: string): Effect.Effect<Info | null> {
+      return HttpClientRequest.get(`${baseURL}/v1/models`).pipe(
+        httpClient.execute,
+        Effect.timeout(PROBE_TIMEOUT),
+        Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(VllmModelsResponse)(res)),
+        Effect.map((data) => {
+          const entries = data.data.filter((m) => m.id.length > 0)
+          if (entries.length === 0) return null
+          log.info("ramalama discovered", { count: entries.length, models: entries.slice(0, 5).map((m) => m.id) })
+          return makeVllmProvider(baseURL, entries, "ramalama", "RamaLama")
+        }),
+        Effect.catch((err) => {
+          log.info("ramalama not available", { baseURL, error: String(err) })
+          return Effect.succeed(null)
+        }),
+      )
+    }
+
     function runDiscovery(): Effect.Effect<void> {
       // Strip trailing slashes — a common user mistake that produces double-slash URLs
       const ollamaHostEnv = process.env["TINYCODE_OLLAMA_HOST"]
       const vllmHostEnv = process.env["TINYCODE_VLLM_HOST"]
+      const ramalamaHostEnv = process.env["TINYCODE_RAMALAMA_HOST"]
       // Only rewrite to container hostname if the user didn't explicitly set the host
       const ollamaHost = ollamaHostEnv
         ? ollamaHostEnv.replace(/\/+$/, "")
         : rewriteLocalhostURL("http://localhost:11434")
       const vllmHost = vllmHostEnv ? vllmHostEnv.replace(/\/+$/, "") : rewriteLocalhostURL("http://localhost:8000")
+      const ramalamaHost = ramalamaHostEnv ? ramalamaHostEnv.replace(/\/+$/, "") : undefined
       const maasHost = process.env["TINYCODE_MAAS_HOST"]?.replace(/\/+$/, "")
       const maasKey = process.env["TINYCODE_MAAS_API_KEY"]
 
       return Effect.gen(function* () {
         const probes: Effect.Effect<Info | null>[] = [probeOllama(ollamaHost), probeVllm(vllmHost)]
+        if (ramalamaHost) probes.push(probeRamalama(ramalamaHost))
         if (maasHost && maasKey) probes.push(probeMaas(maasHost, maasKey))
 
         const [results, k8sProviders] = yield* Effect.all(
           [Effect.all(probes, { concurrency: probes.length }), probeKubernetesVllm()],
           { concurrency: 2 },
         )
-        const [ollamaResult, vllmResult, maasResult] = results
+        const [ollamaResult, vllmResult, ...rest] = results
+        const ramalamaResult = ramalamaHost ? rest[0] : null
+        const maasResult = ramalamaHost ? rest[1] : rest[0]
 
         const next: Record<string, Info> = {}
         if (ollamaResult) next["ollama"] = ollamaResult
         // localhost vllm only added if no k8s vllm services found
         if (vllmResult && Object.keys(k8sProviders).length === 0) next["vllm"] = vllmResult
+        if (ramalamaResult) next["ramalama"] = ramalamaResult
         if (maasResult) next["maas"] = maasResult
         // Merge k8s-discovered vllm providers (each keyed as "vllm-<service-name>")
         Object.assign(next, k8sProviders)

@@ -228,6 +228,48 @@ if [ -n "$OLLAMA_VER" ]; then
 fi
 ```
 
+### 6e. ramalama provider
+
+```bash
+# Check if ramalama CLI is installed
+if command -v ramalama >/dev/null 2>&1; then
+  RAMALAMA_VERSION=$(ramalama --version 2>&1 | head -1)
+  echo "✓ ramalama installed: $RAMALAMA_VERSION"
+
+  # Check container runtime
+  if command -v podman >/dev/null 2>&1; then
+    echo "✓ podman available: $(podman --version 2>&1 | head -1)"
+  elif command -v docker >/dev/null 2>&1; then
+    echo "✓ docker available: $(docker --version 2>&1 | head -1)"
+  else
+    echo "⚠ No container runtime found (podman or docker required for ramalama)"
+  fi
+else
+  echo "ℹ ramalama not installed (optional — container-based LLM serving)"
+fi
+
+# Check TINYCODE_RAMALAMA_HOST env var
+if [ -n "$TINYCODE_RAMALAMA_HOST" ]; then
+  RAMALAMA_HOST=$(echo "$TINYCODE_RAMALAMA_HOST" | sed 's|/+$||')
+  echo "  TINYCODE_RAMALAMA_HOST: $RAMALAMA_HOST"
+  if curl -sf --max-time 3 "${RAMALAMA_HOST}/v1/models" >/dev/null 2>&1; then
+    echo "✓ ramalama API responding at ${RAMALAMA_HOST}"
+    RAMALAMA_MODELS=$(curl -sf --max-time 3 "${RAMALAMA_HOST}/v1/models" 2>/dev/null | grep -oE '"id"\s*:\s*"[^"]*"' | sed 's/"id"\s*:\s*"//;s/"//')
+    RAMALAMA_COUNT=$(echo "$RAMALAMA_MODELS" | grep -c . 2>/dev/null || echo 0)
+    echo "  Serving $RAMALAMA_COUNT model(s)"
+    echo "$RAMALAMA_MODELS" | while read -r name; do
+      echo "    $name"
+    done
+  else
+    echo "✗ ramalama API not reachable at ${RAMALAMA_HOST}"
+    echo "  Fix: Verify ramalama is serving: ramalama serve <model>"
+  fi
+else
+  echo "ℹ TINYCODE_RAMALAMA_HOST not set (set to enable ramalama provider)"
+  echo "  Example: export TINYCODE_RAMALAMA_HOST=http://localhost:8080"
+fi
+```
+
 ### 7. Model availability
 
 All JSON parsing uses grep/sed/awk — no python3 required.

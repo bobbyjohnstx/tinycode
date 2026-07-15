@@ -21,6 +21,17 @@ Solutions to common tinycode issues and configuration problems.
 
 **Alternative:** Manually connect via `<leader>m` → `Ctrl+A` → add custom provider
 
+### ramalama not connecting
+
+**Problem:** ramalama models don't appear in tinycode.
+
+**Solution:**
+1. Verify ramalama is serving: `curl http://localhost:8080/v1/models`
+2. Set the env var: `export TINYCODE_RAMALAMA_HOST=http://localhost:8080`
+3. ramalama auto-selects ports in 8080-8180 — check `ramalama ps` for the actual port
+4. Verify the container is running: `podman ps | grep ramalama`
+5. Run `/tc-doctor` to check ramalama CLI, container runtime, and endpoint reachability
+
 ### vLLM not connecting
 
 **Problem:** "Connection refused" or timeout when connecting to vLLM.

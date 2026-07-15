@@ -51,6 +51,13 @@ ollama pull qwen3.5:9b  # recommended — 14/15 benchmark, excellent tool callin
 # or mistral, neural-chat, etc. (may struggle with tool calling if <7B)
 ```
 
+**Alternative: ramalama** (container-based LLM serving):
+
+```bash
+ramalama serve ollama://qwen3.5:9b
+export TINYCODE_RAMALAMA_HOST=http://localhost:8080
+```
+
 **Note on model selection:** tinycode works best with models that support tool calling. Larger models (≥9B) have better tool-call accuracy. Models <7B may not support tool calling at all — tinycode detects this and works without tools in that case.
 
 **Skip this step** if you're using OpenRouter, Anthropic, or another cloud provider.
