@@ -7,6 +7,7 @@ import {
   For,
   Match,
   on,
+  onCleanup,
   onMount,
   Show,
   Switch,
@@ -26,6 +27,7 @@ import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, 
 import { Prompt, type PromptRef } from "@tui/component/prompt"
 import type { AssistantMessage, Part, Provider, ToolPart, UserMessage, TextPart, ReasoningPart } from "@tinycode/sdk/v2"
 import { useLocal } from "@tui/context/local"
+import { warmup } from "@/provider/warmup"
 import { Locale } from "@/util/locale"
 import type { Tool } from "@/tool/tool"
 import type { ReadTool } from "@/tool/read"
@@ -348,6 +350,31 @@ export function Session() {
         ``,
       ].join("\n"),
     )
+  })
+
+  let lastWarmedModel: string | undefined
+  createEffect(() => {
+    const model = local.model.current()
+    if (!model || model.providerID !== "ollama") return
+    const key = `${model.providerID}/${model.modelID}`
+    if (key === lastWarmedModel) return
+    lastWarmedModel = key
+    const controller = new AbortController()
+    toast.show({ message: `Warming ${model.modelID}...`, variant: "info", duration: 2000 })
+    void warmup(model.modelID).then((result) => {
+      if (controller.signal.aborted) return
+      const status = result.ready
+        ? result.toolcall
+          ? "tool calling supported"
+          : "no tool calling"
+        : "warmup timed out"
+      toast.show({
+        message: `${result.model} ready — ${status}`,
+        variant: result.ready ? "info" : "warning",
+        duration: 4000,
+      })
+    })
+    onCleanup(() => controller.abort())
   })
 
   // Helper: Find next visible message boundary in direction

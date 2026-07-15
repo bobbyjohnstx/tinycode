@@ -14,6 +14,7 @@
 //   4. runs the prompt queue until the footer closes.
 import { createTinycodeClient } from "@tinycode/sdk/v2"
 import { Flag } from "@/core/flag/flag"
+import { warmup } from "@/provider/warmup"
 import { createRunDemo } from "./demo"
 import { resolveDiffStyle, resolveFooterKeybinds, resolveModelInfo, resolveSessionInfo } from "./runtime.boot"
 import { createRuntimeLifecycle } from "./runtime.lifecycle"
@@ -525,6 +526,29 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
           type: "model",
           model: formatModelLabel(state.model, state.activeVariant, state.providers),
         })
+
+        if (state.model.providerID === "ollama") {
+          footer.append({
+            kind: "system",
+            text: `warming ${state.model.modelID}...`,
+            phase: "start",
+            source: "system",
+          })
+          void warmup(state.model.modelID).then((result) => {
+            if (footer.isClosed) return
+            const status = result.ready
+              ? result.toolcall
+                ? "tool calling supported"
+                : "no tool calling"
+              : "warmup timed out"
+            footer.append({
+              kind: "system",
+              text: `${result.model} ready — ${status} (${Math.round(result.durationMs / 1000)}s)`,
+              phase: "final",
+              source: "system",
+            })
+          })
+        }
       })
 
       const streamTask = import("./stream.transport")

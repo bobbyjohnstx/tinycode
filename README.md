@@ -77,7 +77,7 @@ Config lives at `~/.config/tinycode/config.json`:
 
 ```json
 {
-  "model": "ollama/llama3.2",
+  "model": "ollama/qwen3.5:9b",
   "lsp": true
 }
 ```

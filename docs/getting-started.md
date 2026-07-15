@@ -46,8 +46,8 @@ If you want to run **locally** (no cloud), start Ollama:
 ollama serve
 
 # In another terminal, pull a model (3-5 min)
-ollama pull qwen3:14b  # recommended — excellent tool calling
-# or qwen3.5:9b for faster responses with good tool support
+ollama pull qwen3.5:9b  # recommended — 14/15 benchmark, excellent tool calling
+# or north-mini-code-1.0 for MoE alternative (3B active, fast)
 # or mistral, neural-chat, etc. (may struggle with tool calling if <7B)
 ```
 
@@ -82,7 +82,7 @@ Press `<leader>m` (Ctrl+X, then M):
 ```
 List Models
 ────────────
-ollama/qwen3:14b
+ollama/qwen3.5:9b
 ollama/mistral
 ```
 
@@ -214,7 +214,7 @@ Create `~/.config/tinycode/config.json`:
 
 ```json
 {
-  "model": "ollama/qwen3:14b",
+  "model": "ollama/qwen3.5:9b",
   "lsp": true
 }
 ```

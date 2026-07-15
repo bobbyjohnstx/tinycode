@@ -29,6 +29,7 @@
  *   bun benchmark --models "anthropic/claude-sonnet-4-20250514" --runs 3
  */
 
+import path from "path"
 import { $ } from "bun"
 import { parseArgs } from "util"
 import { createFixtureDir } from "./fixture/setup"
@@ -127,6 +128,34 @@ async function validateOllamaModels(models: string[]): Promise<void> {
   console.log(`All ${models.length} models validated`)
 }
 
+async function warmModel(model: string): Promise<void> {
+  const base = process.env["TINYCODE_OLLAMA_HOST"]?.replace(/\/+$/, "") ?? "http://localhost:11434"
+  const start = Date.now()
+  console.log(`  Warming model...`)
+
+  try {
+    const res = await fetch(`${base}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        prompt: "respond with: ready",
+        stream: false,
+        keep_alive: "10m",
+      }),
+      signal: AbortSignal.timeout(120_000),
+    })
+
+    if (res.ok) {
+      console.log(`  Model loaded (${Math.round((Date.now() - start) / 1000)}s)`)
+    } else {
+      console.warn(`  Warmup failed: HTTP ${res.status}`)
+    }
+  } catch (err) {
+    console.warn(`  Warmup failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
 async function runTask(
   model: string,
   agent: string,
@@ -173,7 +202,7 @@ async function runTask(
 
     // Spawn process with timeout
     const proc = Bun.spawn(tinycodeCommand, {
-      cwd: "/Users/bjohns/projects/tinycode",
+      cwd: path.resolve(import.meta.dir, "../../../.."),
       stdout: "pipe",
       stderr: "pipe",
     })
@@ -276,6 +305,7 @@ async function main() {
   // Run benchmark
   for (const model of args.models) {
     console.log(`\nModel: ${model}`)
+    await warmModel(model)
 
     for (const taskId of args.tasks) {
       const task = ALL_TASKS.find((t) => t.id === taskId)
