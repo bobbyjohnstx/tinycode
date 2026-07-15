@@ -35,6 +35,7 @@ const CUSTOMIZE_TINYCODE_SKILL_DESCRIPTION =
 export const Info = Schema.Struct({
   name: Schema.String,
   description: Schema.optional(Schema.String),
+  params: Schema.optional(Schema.Array(Schema.String)),
   location: Schema.String,
   content: Schema.String,
 })
@@ -48,11 +49,12 @@ const Issue = Schema.StructWithRest(
   [Schema.Record(Schema.String, Schema.Unknown)],
 )
 
-function isSkillFrontmatter(data: unknown): data is { name: string; description?: string } {
+function isSkillFrontmatter(data: unknown): data is { name: string; description?: string; params?: string[] } {
   return (
     isRecord(data) &&
     typeof data.name === "string" &&
-    (data.description === undefined || typeof data.description === "string")
+    (data.description === undefined || typeof data.description === "string") &&
+    (data.params === undefined || (Array.isArray(data.params) && data.params.every((p) => typeof p === "string")))
   )
 }
 
@@ -134,6 +136,7 @@ const add = Effect.fnUntraced(function* (state: State, match: string, bus: Bus.I
   state.skills[md.data.name] = {
     name: md.data.name,
     description: md.data.description,
+    params: md.data.params,
     location: match,
     content: md.content,
   }

@@ -165,7 +165,7 @@ export const layer = Layer.effect(
           get template() {
             return item.content
           },
-          hints: [],
+          hints: item.params?.map((_, i) => `$${i + 1}`) ?? [],
         }
       }
 
