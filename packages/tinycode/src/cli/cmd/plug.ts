@@ -4,6 +4,7 @@ import { Effect } from "effect"
 import { ConfigPaths } from "@/config/paths"
 import { Global } from "@/core/global"
 import { installPlugin, patchPluginConfig, readPluginManifest } from "../../plugin/install"
+import { PluginRegistry } from "../../plugin/registry"
 import { resolvePluginTarget } from "../../plugin/shared"
 import { errorMessage } from "../../util/error"
 import { Filesystem } from "@/util/filesystem"
@@ -198,11 +199,16 @@ export const PluginCommand = effectCmd({
         describe: "replace existing plugin version",
       }),
   handler: Effect.fn("Cli.plug")(function* (args) {
-    const mod = String(args.module ?? "").trim()
+    let mod = String(args.module ?? "").trim()
     if (!mod) {
       UI.error("module is required")
       process.exitCode = 1
       return
+    }
+
+    const registryEntry = PluginRegistry.resolve(mod)
+    if (registryEntry) {
+      mod = registryEntry.npm
     }
 
     UI.empty()
@@ -226,5 +232,37 @@ export const PluginCommand = effectCmd({
 
     outro("Done")
     if (!ok) process.exitCode = 1
+  }),
+})
+
+export const PluginSearchCommand = effectCmd({
+  command: "plugin-search [query]",
+  describe: "search available plugins",
+  instance: false,
+  builder: (yargs) =>
+    yargs.positional("query", {
+      type: "string",
+      describe: "search term (name, description, or tag)",
+      default: "",
+    }),
+  handler: Effect.fn("Cli.pluginSearch")(function* (args) {
+    const query = String(args.query ?? "").trim()
+    const results = PluginRegistry.search(query)
+
+    if (results.length === 0) {
+      console.log(query ? `No plugins found matching "${query}"` : "No plugins in registry")
+      process.exitCode = 1
+      return
+    }
+
+    console.log(`\nAvailable plugins${query ? ` matching "${query}"` : ""}:\n`)
+    for (const p of results) {
+      const badge = p.builtin ? " (built-in)" : ""
+      console.log(`  ${p.name}${badge}`)
+      console.log(`    ${p.description}`)
+      console.log(`    npm: ${p.npm}  tags: ${p.tags.join(", ")}`)
+      console.log()
+    }
+    console.log(`${results.length} plugin(s) found. Install with: tinycode plugin <name>`)
   }),
 })

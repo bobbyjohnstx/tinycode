@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "name": "github-copilot",
+      "npm": "@tinycode/plugin-github-copilot",
+      "description": "GitHub Copilot model provider integration",
+      "author": "tinycode",
+      "tags": ["provider", "copilot", "github"],
+      "builtin": true
+    },
+    {
+      "name": "azure",
+      "npm": "@tinycode/plugin-azure",
+      "description": "Azure OpenAI provider integration",
+      "author": "tinycode",
+      "tags": ["provider", "azure", "openai"],
+      "builtin": true
+    },
+    {
+      "name": "cloudflare",
+      "npm": "@tinycode/plugin-cloudflare",
+      "description": "Cloudflare Workers AI provider integration",
+      "author": "tinycode",
+      "tags": ["provider", "cloudflare", "workers"],
+      "builtin": true
+    },
+    {
+      "name": "xai",
+      "npm": "@tinycode/plugin-xai",
+      "description": "xAI Grok model provider integration",
+      "author": "tinycode",
+      "tags": ["provider", "xai", "grok"],
+      "builtin": true
+    },
+    {
+      "name": "digitalocean",
+      "npm": "@tinycode/plugin-digitalocean",
+      "description": "DigitalOcean GPU Droplets provider integration",
+      "author": "tinycode",
+      "tags": ["provider", "digitalocean", "gpu"],
+      "builtin": true
+    }
+  ]
+}
