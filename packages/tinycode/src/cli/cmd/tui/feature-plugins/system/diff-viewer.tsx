@@ -666,6 +666,12 @@ function DiffViewer(props: { api: TuiPluginApi }) {
           <text fg={theme().text}>Diff </text>
           <text fg={theme().textMuted}>{mode() === "last-turn" ? "last turn" : "working tree"}</text>
           <box flexGrow={1} />
+          <Show when={files().length > 0}>
+            <text fg={theme().diffAdded}>+{files().reduce((s, f) => s + f.additions, 0)}</text>
+            <text fg={theme().textMuted}> </text>
+            <text fg={theme().diffRemoved}>-{files().reduce((s, f) => s + f.deletions, 0)}</text>
+            <text fg={theme().textMuted}>  </text>
+          </Show>
           <text fg={theme().textMuted}>
             {files().length} {files().length === 1 ? "file" : "files"}
           </text>
