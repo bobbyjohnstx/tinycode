@@ -53,6 +53,7 @@ export namespace TimelineRow {
   export class Thinking extends Data.TaggedClass("Thinking")<{
     userMessageID: string
     reasoningHeading?: string
+    reasoningText?: string
   }> {}
   export class DiffSummary extends Data.TaggedClass("DiffSummary")<{
     userMessageID: string
@@ -197,15 +198,21 @@ export namespace Timeline {
     })
 
     if (isActive && status === "busy" && !error && (showReasoning !== "hide" ? assistantPartRefs.length === 0 : true)) {
-      const heading = assistantMessages
+      const reasoningParts = assistantMessages
         .flatMap((message) => getMessageParts(message.id))
-        .map((part) => (part.type === "reasoning" && part.text ? reasoningHeading(part.text) : undefined))
+        .filter((part) => part.type === "reasoning" && part.text)
+      const heading = reasoningParts
+        .map((part) => reasoningHeading(part.type === "reasoning" ? part.text : ""))
         .find((value): value is string => !!value)
+      const fullText = reasoningParts
+        .map((part) => (part.type === "reasoning" ? part.text : ""))
+        .join("\n")
 
       rows.push(
         new TimelineRow.Thinking({
           userMessageID: userMessage.id,
           reasoningHeading: heading,
+          reasoningText: fullText || undefined,
         }),
       )
     }
