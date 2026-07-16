@@ -85,7 +85,13 @@ Exposes REST endpoints, SSE at `/global/event` for real-time updates, and WebSoc
 
 ### Tools
 
-Registered in `src/tool/registry.ts`. Each tool is an Effect service. Current tools: read, write, edit, glob, grep, shell, LSP, webfetch, websearch, question, task, todo, skill, plan, swarm, apply_patch, repo_clone, repo_overview. Some tools are conditionally enabled (LSP, repo_clone, repo_overview, plan).
+Registered in `src/tool/registry.ts`. Each tool is an Effect service. Current tools: read, write, edit, glob, grep, shell, LSP, webfetch, websearch, question, task, todo, skill, plan, swarm, apply_patch, repo_clone, repo_overview. Some tools are conditionally enabled (LSP, repo_clone, repo_overview, plan). Additionally, the omt plugin adds 22 tools (notepad, wiki, state management, AST grep).
+
+**Per-agent tool scoping:** Each agent's `.md` frontmatter declares a `permission:` block using `"*": deny` + explicit allows. This reduces the ~18,500 tokens of tool definitions to ~1,800-2,700 per agent, cutting prompt processing time from ~38s to ~4-8s on local 9B models. The `Permission.disabled()` mechanism at `core/permission.ts` combined with `resolveTools()` at `session/llm/request.ts` handles the filtering.
+
+### Plugins
+
+Plugin registry at `src/plugin/registry.json` provides a curated catalog of known plugins. `tinycode plugin-search [query]` searches by name/description/tags. `tinycode plugin <name>` resolves registry names to npm packages. Plugin install, load, and lifecycle management in `src/plugin/`.
 
 ---
 

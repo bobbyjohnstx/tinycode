@@ -24,6 +24,7 @@ Quick reference for the most common keyboard shortcuts, agents, and commands.
 | `<leader>t` | Switch theme |
 | `<leader>s` | View status |
 | `<leader>c` | Compact the session |
+| `<leader>d` | Toggle diff viewer |
 | `<leader>x` | Export session transcript |
 | `<leader>y` | Copy message |
 | `<leader>u` / `<leader>r` | Undo/redo message |
@@ -82,6 +83,13 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `/tc-doctor` | Full diagnostic — Ollama install, model health, tool-call probe, RAM fit, Mac checks, provider integration (14 checks, pure bash) |
 | `/trace` | Evidence-driven causal tracing with competing hypotheses |
 | `/verify` | Confirm changes work before claiming completion |
+
+**CLI commands:**
+
+| Command | Purpose |
+|---------|---------|
+| `tinycode plugin-search [query]` | Search available plugins in the curated registry |
+| `tinycode plugin <name>` | Install a plugin (resolves registry names or raw npm specifiers) |
 
 ## Common Workflows
 
