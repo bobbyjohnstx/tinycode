@@ -3,12 +3,11 @@ description: Pre-planning requirements analyst — converts scope into implement
 mode: subagent
 steps: 30
 permission:
-  edit: deny
-  bash: deny
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
 ---
 
 ## Role

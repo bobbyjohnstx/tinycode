@@ -3,11 +3,9 @@ description: OpenShift/Kubernetes cluster management — run oc/kubectl commands
 mode: subagent
 steps: 30
 permission:
-  bash: ask
+  "*": deny
   read: allow
-  glob: allow
-  grep: allow
-  edit: deny
+  bash: allow
 ---
 
 ## Role

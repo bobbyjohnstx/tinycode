@@ -3,12 +3,12 @@ description: Root-cause analysis, regression isolation, stack trace analysis, bu
 mode: subagent
 steps: 30
 permission:
-  edit: ask
-  bash: ask
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
+  edit: allow
 ---
 
 ## Role

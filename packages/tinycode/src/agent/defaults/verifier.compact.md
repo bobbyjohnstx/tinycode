@@ -3,12 +3,11 @@ description: Evidence-based verification — confirm completion claims with fres
 mode: subagent
 steps: 20
 permission:
-  edit: deny
-  bash: ask
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
 ---
 
 ## Role

@@ -3,12 +3,11 @@ description: Evidence-driven causal tracing with competing hypotheses, evidence 
 mode: subagent
 steps: 30
 permission:
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
-  edit: deny
-  bash: ask
+  bash: allow
 ---
 
 ## Role

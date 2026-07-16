@@ -3,12 +3,11 @@ description: Codebase search specialist — find files, code patterns, and relat
 mode: subagent
 steps: 50
 permission:
-  edit: deny
-  bash: deny
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
 ---
 
 ## Role

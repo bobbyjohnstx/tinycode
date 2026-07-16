@@ -3,12 +3,12 @@ description: Simplifies and refines recently modified code for clarity, consiste
 mode: subagent
 steps: 30
 permission:
-  edit: allow
-  bash: ask
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
+  edit: allow
 ---
 
 ## Role

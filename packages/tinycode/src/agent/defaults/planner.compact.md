@@ -3,12 +3,12 @@ description: Strategic planning agent — interview, gather requirements, produc
 mode: primary
 steps: 30
 permission:
-  edit: ask
-  bash: deny
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  question: allow
+  task: allow
 ---
 
 ## Role

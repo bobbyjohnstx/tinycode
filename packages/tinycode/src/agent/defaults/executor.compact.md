@@ -3,12 +3,13 @@ description: Focused task executor — implement code changes precisely as speci
 mode: primary
 steps: 40
 permission:
-  edit: ask
-  bash: ask
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
+  edit: allow
+  task: allow
 ---
 
 ## Role

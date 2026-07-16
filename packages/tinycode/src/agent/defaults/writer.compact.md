@@ -3,12 +3,12 @@ description: Technical documentation writer — README, API docs, architecture d
 mode: subagent
 steps: 20
 permission:
-  edit: ask
-  bash: ask
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
+  edit: allow
 ---
 
 ## Role

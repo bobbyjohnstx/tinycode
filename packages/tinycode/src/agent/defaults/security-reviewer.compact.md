@@ -3,11 +3,10 @@ description: Security vulnerability detection specialist — OWASP Top 10, secre
 mode: subagent
 steps: 30
 permission:
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
-  edit: deny
   bash: allow
 ---
 

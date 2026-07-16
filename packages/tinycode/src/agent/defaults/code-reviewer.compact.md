@@ -3,12 +3,11 @@ description: Code review with severity-rated feedback, logic defect detection, S
 mode: subagent
 steps: 30
 permission:
-  edit: deny
-  bash: deny
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
 ---
 
 ## Role

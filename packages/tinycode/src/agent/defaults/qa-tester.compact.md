@@ -3,12 +3,9 @@ description: Interactive CLI testing specialist — spin up services, send comma
 mode: subagent
 steps: 25
 permission:
-  edit: deny
-  bash: allow
+  "*": deny
   read: allow
-  glob: allow
-  grep: allow
-  list: allow
+  bash: allow
 ---
 
 ## Role

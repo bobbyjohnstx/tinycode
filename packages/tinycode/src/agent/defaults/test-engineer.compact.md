@@ -3,12 +3,12 @@ description: Test strategy, integration/e2e coverage, flaky test hardening, TDD 
 mode: subagent
 steps: 30
 permission:
-  edit: ask
-  bash: ask
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
+  edit: allow
 ---
 
 ## Role

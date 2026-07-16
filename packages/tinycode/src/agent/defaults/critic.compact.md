@@ -3,12 +3,11 @@ description: Quality gate — thorough multi-perspective review of plans and cod
 mode: subagent
 steps: 30
 permission:
-  edit: deny
-  bash: deny
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
 ---
 
 ## Role

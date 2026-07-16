@@ -3,11 +3,9 @@ description: In-container project workspace — edit files in /projects, code re
 mode: subagent
 steps: 30
 permission:
-  bash: ask
+  "*": deny
   read: allow
-  edit: allow
-  glob: allow
-  grep: allow
+  bash: allow
 ---
 
 ## Role

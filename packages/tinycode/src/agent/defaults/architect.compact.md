@@ -3,12 +3,11 @@ description: Strategic architecture advisor — analyze code, diagnose bugs, pro
 mode: subagent
 steps: 25
 permission:
-  edit: deny
-  bash: deny
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
 ---
 
 ## Role

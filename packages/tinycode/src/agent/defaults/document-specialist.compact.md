@@ -3,12 +3,13 @@ description: External documentation and reference specialist — SDK docs, API r
 mode: subagent
 steps: 30
 permission:
-  edit: deny
-  bash: ask
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
+  webfetch: allow
+  websearch: allow
 ---
 
 ## Role

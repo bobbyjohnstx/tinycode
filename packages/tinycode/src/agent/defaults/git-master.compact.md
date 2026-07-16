@@ -3,12 +3,11 @@ description: Git expert for atomic commits, rebasing, and history management wit
 mode: subagent
 steps: 30
 permission:
-  edit: deny
-  bash: ask
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
 ---
 
 ## Role

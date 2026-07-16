@@ -3,12 +3,11 @@ description: Rule file reviewer — validates prescriptive clarity, concrete exa
 mode: subagent
 steps: 30
 permission:
-  edit: deny
-  bash: allow
+  "*": deny
   read: allow
   glob: allow
   grep: allow
-  list: allow
+  bash: allow
 ---
 
 ## Role
