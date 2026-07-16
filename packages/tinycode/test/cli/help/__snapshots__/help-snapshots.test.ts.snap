@@ -189,26 +189,27 @@ _▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █�
                         ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
-  tinycode completion          generate shell completion script
-  tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start tinycode tui                                          [default]
-  tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run tinycode with a message
-  tinycode debug               debugging and troubleshooting tools
-  tinycode providers           manage AI providers and credentials                   [aliases: auth]
-  tinycode agent               manage agents
-  tinycode uninstall           uninstall tinycode and remove all related files
-  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
-  tinycode status              show tinycode status and provider health
-  tinycode serve               starts a headless tinycode server
-  tinycode acp                 start ACP (Agent Client Protocol) server
-  tinycode web                 start tinycode server and open web interface
-  tinycode models [provider]   list all available models
-  tinycode export [sessionID]  export session data
-  tinycode import <file>       import session data from JSON file or URL
-  tinycode session             manage sessions
-  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
-  tinycode db                  database tools
+  tinycode completion             generate shell completion script
+  tinycode mcp                    manage MCP (Model Context Protocol) servers
+  tinycode [project]              start tinycode tui                                       [default]
+  tinycode attach <url>           attach to a running tinycode server
+  tinycode run [message..]        run tinycode with a message
+  tinycode debug                  debugging and troubleshooting tools
+  tinycode providers              manage AI providers and credentials                [aliases: auth]
+  tinycode agent                  manage agents
+  tinycode uninstall              uninstall tinycode and remove all related files
+  tinycode setup                  set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status                 show tinycode status and provider health
+  tinycode serve                  starts a headless tinycode server
+  tinycode acp                    start ACP (Agent Client Protocol) server
+  tinycode web                    start tinycode server and open web interface
+  tinycode models [provider]      list all available models
+  tinycode export [sessionID]     export session data
+  tinycode import <file>          import session data from JSON file or URL
+  tinycode session                manage sessions
+  tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-search [query]  search available plugins
+  tinycode db                     database tools
 
 Positionals:
   project  path to start tinycode in                                                        [string]
@@ -320,26 +321,27 @@ _▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █�
                         ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
-  tinycode completion          generate shell completion script
-  tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start tinycode tui                                          [default]
-  tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run tinycode with a message
-  tinycode debug               debugging and troubleshooting tools
-  tinycode providers           manage AI providers and credentials                   [aliases: auth]
-  tinycode agent               manage agents
-  tinycode uninstall           uninstall tinycode and remove all related files
-  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
-  tinycode status              show tinycode status and provider health
-  tinycode serve               starts a headless tinycode server
-  tinycode acp                 start ACP (Agent Client Protocol) server
-  tinycode web                 start tinycode server and open web interface
-  tinycode models [provider]   list all available models
-  tinycode export [sessionID]  export session data
-  tinycode import <file>       import session data from JSON file or URL
-  tinycode session             manage sessions
-  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
-  tinycode db                  database tools
+  tinycode completion             generate shell completion script
+  tinycode mcp                    manage MCP (Model Context Protocol) servers
+  tinycode [project]              start tinycode tui                                       [default]
+  tinycode attach <url>           attach to a running tinycode server
+  tinycode run [message..]        run tinycode with a message
+  tinycode debug                  debugging and troubleshooting tools
+  tinycode providers              manage AI providers and credentials                [aliases: auth]
+  tinycode agent                  manage agents
+  tinycode uninstall              uninstall tinycode and remove all related files
+  tinycode setup                  set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status                 show tinycode status and provider health
+  tinycode serve                  starts a headless tinycode server
+  tinycode acp                    start ACP (Agent Client Protocol) server
+  tinycode web                    start tinycode server and open web interface
+  tinycode models [provider]      list all available models
+  tinycode export [sessionID]     export session data
+  tinycode import <file>          import session data from JSON file or URL
+  tinycode session                manage sessions
+  tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-search [query]  search available plugins
+  tinycode db                     database tools
 
 Positionals:
   project  path to start tinycode in                                                        [string]
@@ -410,26 +412,27 @@ _▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █�
                         ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
-  tinycode completion          generate shell completion script
-  tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start tinycode tui                                          [default]
-  tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run tinycode with a message
-  tinycode debug               debugging and troubleshooting tools
-  tinycode providers           manage AI providers and credentials                   [aliases: auth]
-  tinycode agent               manage agents
-  tinycode uninstall           uninstall tinycode and remove all related files
-  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
-  tinycode status              show tinycode status and provider health
-  tinycode serve               starts a headless tinycode server
-  tinycode acp                 start ACP (Agent Client Protocol) server
-  tinycode web                 start tinycode server and open web interface
-  tinycode models [provider]   list all available models
-  tinycode export [sessionID]  export session data
-  tinycode import <file>       import session data from JSON file or URL
-  tinycode session             manage sessions
-  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
-  tinycode db                  database tools
+  tinycode completion             generate shell completion script
+  tinycode mcp                    manage MCP (Model Context Protocol) servers
+  tinycode [project]              start tinycode tui                                       [default]
+  tinycode attach <url>           attach to a running tinycode server
+  tinycode run [message..]        run tinycode with a message
+  tinycode debug                  debugging and troubleshooting tools
+  tinycode providers              manage AI providers and credentials                [aliases: auth]
+  tinycode agent                  manage agents
+  tinycode uninstall              uninstall tinycode and remove all related files
+  tinycode setup                  set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status                 show tinycode status and provider health
+  tinycode serve                  starts a headless tinycode server
+  tinycode acp                    start ACP (Agent Client Protocol) server
+  tinycode web                    start tinycode server and open web interface
+  tinycode models [provider]      list all available models
+  tinycode export [sessionID]     export session data
+  tinycode import <file>          import session data from JSON file or URL
+  tinycode session                manage sessions
+  tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-search [query]  search available plugins
+  tinycode db                     database tools
 
 Positionals:
   project  path to start tinycode in                                                        [string]
@@ -466,26 +469,27 @@ _▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █�
                         ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
-  tinycode completion          generate shell completion script
-  tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start tinycode tui                                          [default]
-  tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run tinycode with a message
-  tinycode debug               debugging and troubleshooting tools
-  tinycode providers           manage AI providers and credentials                   [aliases: auth]
-  tinycode agent               manage agents
-  tinycode uninstall           uninstall tinycode and remove all related files
-  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
-  tinycode status              show tinycode status and provider health
-  tinycode serve               starts a headless tinycode server
-  tinycode acp                 start ACP (Agent Client Protocol) server
-  tinycode web                 start tinycode server and open web interface
-  tinycode models [provider]   list all available models
-  tinycode export [sessionID]  export session data
-  tinycode import <file>       import session data from JSON file or URL
-  tinycode session             manage sessions
-  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
-  tinycode db                  database tools
+  tinycode completion             generate shell completion script
+  tinycode mcp                    manage MCP (Model Context Protocol) servers
+  tinycode [project]              start tinycode tui                                       [default]
+  tinycode attach <url>           attach to a running tinycode server
+  tinycode run [message..]        run tinycode with a message
+  tinycode debug                  debugging and troubleshooting tools
+  tinycode providers              manage AI providers and credentials                [aliases: auth]
+  tinycode agent                  manage agents
+  tinycode uninstall              uninstall tinycode and remove all related files
+  tinycode setup                  set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status                 show tinycode status and provider health
+  tinycode serve                  starts a headless tinycode server
+  tinycode acp                    start ACP (Agent Client Protocol) server
+  tinycode web                    start tinycode server and open web interface
+  tinycode models [provider]      list all available models
+  tinycode export [sessionID]     export session data
+  tinycode import <file>          import session data from JSON file or URL
+  tinycode session                manage sessions
+  tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-search [query]  search available plugins
+  tinycode db                     database tools
 
 Positionals:
   project  path to start tinycode in                                                        [string]
@@ -748,26 +752,27 @@ _▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █�
                         ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
-  tinycode completion          generate shell completion script
-  tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start tinycode tui                                          [default]
-  tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run tinycode with a message
-  tinycode debug               debugging and troubleshooting tools
-  tinycode providers           manage AI providers and credentials                   [aliases: auth]
-  tinycode agent               manage agents
-  tinycode uninstall           uninstall tinycode and remove all related files
-  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
-  tinycode status              show tinycode status and provider health
-  tinycode serve               starts a headless tinycode server
-  tinycode acp                 start ACP (Agent Client Protocol) server
-  tinycode web                 start tinycode server and open web interface
-  tinycode models [provider]   list all available models
-  tinycode export [sessionID]  export session data
-  tinycode import <file>       import session data from JSON file or URL
-  tinycode session             manage sessions
-  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
-  tinycode db                  database tools
+  tinycode completion             generate shell completion script
+  tinycode mcp                    manage MCP (Model Context Protocol) servers
+  tinycode [project]              start tinycode tui                                       [default]
+  tinycode attach <url>           attach to a running tinycode server
+  tinycode run [message..]        run tinycode with a message
+  tinycode debug                  debugging and troubleshooting tools
+  tinycode providers              manage AI providers and credentials                [aliases: auth]
+  tinycode agent                  manage agents
+  tinycode uninstall              uninstall tinycode and remove all related files
+  tinycode setup                  set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status                 show tinycode status and provider health
+  tinycode serve                  starts a headless tinycode server
+  tinycode acp                    start ACP (Agent Client Protocol) server
+  tinycode web                    start tinycode server and open web interface
+  tinycode models [provider]      list all available models
+  tinycode export [sessionID]     export session data
+  tinycode import <file>          import session data from JSON file or URL
+  tinycode session                manage sessions
+  tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-search [query]  search available plugins
+  tinycode db                     database tools
 
 Positionals:
   project  path to start tinycode in                                                        [string]
@@ -804,26 +809,27 @@ _▀_ ▀_ ▀~~▀ ___▀    ╲    █▀▀▀ █▀▀█ █▀▀█ █�
                         ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
 
 Commands:
-  tinycode completion          generate shell completion script
-  tinycode mcp                 manage MCP (Model Context Protocol) servers
-  tinycode [project]           start tinycode tui                                          [default]
-  tinycode attach <url>        attach to a running tinycode server
-  tinycode run [message..]     run tinycode with a message
-  tinycode debug               debugging and troubleshooting tools
-  tinycode providers           manage AI providers and credentials                   [aliases: auth]
-  tinycode agent               manage agents
-  tinycode uninstall           uninstall tinycode and remove all related files
-  tinycode setup               set up tinycode configuration, agents, skills, and MCP servers
-  tinycode status              show tinycode status and provider health
-  tinycode serve               starts a headless tinycode server
-  tinycode acp                 start ACP (Agent Client Protocol) server
-  tinycode web                 start tinycode server and open web interface
-  tinycode models [provider]   list all available models
-  tinycode export [sessionID]  export session data
-  tinycode import <file>       import session data from JSON file or URL
-  tinycode session             manage sessions
-  tinycode plugin <module>     install plugin and update config                      [aliases: plug]
-  tinycode db                  database tools
+  tinycode completion             generate shell completion script
+  tinycode mcp                    manage MCP (Model Context Protocol) servers
+  tinycode [project]              start tinycode tui                                       [default]
+  tinycode attach <url>           attach to a running tinycode server
+  tinycode run [message..]        run tinycode with a message
+  tinycode debug                  debugging and troubleshooting tools
+  tinycode providers              manage AI providers and credentials                [aliases: auth]
+  tinycode agent                  manage agents
+  tinycode uninstall              uninstall tinycode and remove all related files
+  tinycode setup                  set up tinycode configuration, agents, skills, and MCP servers
+  tinycode status                 show tinycode status and provider health
+  tinycode serve                  starts a headless tinycode server
+  tinycode acp                    start ACP (Agent Client Protocol) server
+  tinycode web                    start tinycode server and open web interface
+  tinycode models [provider]      list all available models
+  tinycode export [sessionID]     export session data
+  tinycode import <file>          import session data from JSON file or URL
+  tinycode session                manage sessions
+  tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-search [query]  search available plugins
+  tinycode db                     database tools
 
 Positionals:
   project  path to start tinycode in                                                        [string]
