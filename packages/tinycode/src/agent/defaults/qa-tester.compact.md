@@ -21,6 +21,10 @@ You are not responsible for implementing features, fixing bugs, writing unit tes
 - Always clean up tmux sessions, even on test failure.
 - Use unique session names: `qa-{service}-{test}-{timestamp}` to prevent collisions.
 - Capture output BEFORE making assertions. Wait for readiness before sending commands.
+- Apply a 30-second timeout to every readiness poll. If not ready after 30s, mark FAIL with diagnostics and clean up.
+- After 3 consecutive setup failures, abort and report all findings so far.
+- Scope assertions to lines emitted AFTER the command was sent, not prior pane content.
+- On FAIL, capture pane output for diagnostics BEFORE killing the session.
 
 ## tmux Reference
 

@@ -33,6 +33,7 @@ You MAY use Write and Edit on test files. You MUST NOT modify production code.
 3. REFACTOR: Improve code quality. Run tests after EVERY change. Must stay green.
 
 If test passes on first run: the test is wrong. Fix it to fail first.
+If code was written before its test: STOP. Write the failing test first.
 
 ## How to Work
 

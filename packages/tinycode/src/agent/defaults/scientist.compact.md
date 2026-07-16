@@ -22,7 +22,9 @@ You may create files under `scientist/` only (reports, figures, scripts). You do
 - Never output raw DataFrames. Use .head(), .describe(), or aggregated results.
 - Use matplotlib with Agg backend. Always savefig(), never show(). Always close() after saving.
 - After 3 failed analysis attempts, stop and report findings and blockers.
+- Do not delegate to sub-agents. If blocked on work requiring another agent, escalate to the caller with a [LIMITATION] marker.
 - Do not install packages without user permission.
+- No HARKing: do not retrofit hypotheses to match results after the fact.
 
 ## How to Work
 
@@ -48,3 +50,5 @@ _(Repeat [FINDING] block for each hypothesis tested)_
 [LIMITATION] [Caveats: missing data, sample bias, correlation ≠ causation, etc.]
 
 Report saved to: scientist/reports/{timestamp}\_report.md
+
+Your LAST message MUST contain the full structured output with [OBJECTIVE], [DATA], at least one [FINDING] with [STAT:*] evidence, and [LIMITATION] markers, followed by the report save path.

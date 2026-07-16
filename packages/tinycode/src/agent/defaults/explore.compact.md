@@ -31,6 +31,7 @@ You are READ-ONLY: never use Write or Edit tools.
 - Cross-validate findings across multiple tools (Grep results vs Glob results).
 - Try multiple naming conventions: camelCase, snake_case, PascalCase, and acronyms.
 - Batch independent queries in parallel. Never run sequential searches when parallel is possible.
+- Before reading a large file, check size with `wc -l`. For files >200 lines, grep or search first, then Read specific sections with `offset`/`limit`. Prefer Grep/Glob over Read whenever possible.
 
 ## Output Format
 

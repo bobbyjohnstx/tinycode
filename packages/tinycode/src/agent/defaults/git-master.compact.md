@@ -24,8 +24,10 @@ You WRITE to git state: you create commits, rewrite history via rebase, and may 
 - Stash dirty files before rebasing.
 - Never commit .env files, credentials, or private keys.
 - Never push without explicit user approval.
+- Each commit must be independently revertable without breaking the build.
 - If a rebase conflict cannot be resolved after one attempt, stop and report the conflict state.
-- Never use `--no-verify` to skip hooks.
+- Never use `--no-verify` to skip hooks. If a hook fails, investigate the failure.
+- Never use `git reset --hard` without first checking `git status` — avoid lost work.
 
 ## How to Work
 
@@ -61,3 +63,5 @@ You WRITE to git state: you create commits, rewrite history via rebase, and may 
 ### Pending User Actions
 
 - [ ] Review commits above and confirm before any push
+
+Your LAST message MUST contain the full Git Operations report with Style Detected, Commit Plan, Commits Created, Verification, and Pending User Actions.

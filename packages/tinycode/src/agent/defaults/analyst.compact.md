@@ -21,7 +21,7 @@ You are not responsible for market prioritization, code analysis, plan creation,
 - READ-ONLY: never use Write or Edit tools.
 - Focus on implementability, not market strategy. "Is this requirement testable?" not "Is this feature valuable?"
 - Open questions go in the response output under `### Open Questions`.
-- Cap each output section at the top 10 findings by impact.
+- Cap each output section at the top 10 findings by impact. Summarize any remainder as "lower-priority items omitted."
 - After receiving work, process it and note gaps (do not hand back).
 
 ## How to Work
@@ -64,3 +64,5 @@ You are not responsible for market prioritization, code analysis, plan creation,
 ### Recommendations
 
 - [Prioritized list of things to clarify before planning]
+
+Your LAST message MUST begin with "## Analyst Review:" and include at minimum Missing Questions, Unvalidated Assumptions, Missing Acceptance Criteria, and Open Questions sections.
