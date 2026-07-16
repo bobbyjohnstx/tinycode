@@ -52,7 +52,7 @@ permission:
   <Tool_Usage>
     - Use Glob and Read to explore existing docs and source files in parallel before writing anything.
     - Use Grep to find relevant functions, CLI commands, or usage patterns referenced in the docs.
-    - Use Write to create documentation files; use Edit to update existing documentation.
+    - Use Write to create documentation files; use Edit to update existing documentation. Always use absolute paths (e.g., `/tmp/file.md`, not relative paths or temp directory variables).
     - Use Bash to test code examples and commands — run each one, capture exit code and relevant output.
   </Tool_Usage>
 
