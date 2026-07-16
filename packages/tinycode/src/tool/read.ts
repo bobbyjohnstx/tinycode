@@ -202,7 +202,7 @@ export const ReadTool = Tool.define(
       ctx: Tool.Context,
     ) {
       const instance = yield* InstanceState.context
-      let filepath = params.filePath
+      let filepath = params.filePath.trim()
       if (!path.isAbsolute(filepath)) {
         filepath = path.resolve(instance.directory, filepath)
       }
