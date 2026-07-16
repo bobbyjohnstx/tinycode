@@ -157,6 +157,32 @@ const docRoute = HttpRouter.use((router) => router.add("GET", "/doc", () => Effe
   Layer.provide(authOnlyRouterLayer),
 )
 
+const apiDocsRoute = HttpRouter.use((router) =>
+  Effect.gen(function* () {
+    yield* router.add("GET", "/api/openapi.json", () =>
+      Effect.promise(() => import("@/server/server").then((m) => m.openapi())).pipe(
+        Effect.flatMap((spec) => HttpServerResponse.json(spec)),
+      ),
+    )
+    yield* router.add("GET", "/api/docs", () =>
+      Effect.succeed(
+        HttpServerResponse.html(`<!DOCTYPE html>
+<html>
+<head>
+  <title>tinycode API</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <script id="api-reference" data-url="/api/openapi.json"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+</body>
+</html>`),
+      ),
+    )
+  }),
+).pipe(Layer.provide(authOnlyRouterLayer))
+
 const uiRoute = HttpRouter.use((router) =>
   Effect.gen(function* () {
     const fs = yield* AppFileSystem.Service
@@ -178,7 +204,7 @@ type RouteRequirements =
 export function createRoutes(
   corsOptions?: CorsOptions,
 ): Layer.Layer<never, EffectConfig.ConfigError, RouteRequirements> {
-  return Layer.mergeAll(rootApiRoutes, eventApiRoutes, ptyConnectApiRoutes, instanceRoutes, docRoute, uiRoute).pipe(
+  return Layer.mergeAll(rootApiRoutes, eventApiRoutes, ptyConnectApiRoutes, instanceRoutes, docRoute, apiDocsRoute, uiRoute).pipe(
     Layer.provide([
       errorLayer,
       compressionLayer,
