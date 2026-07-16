@@ -203,7 +203,7 @@ describe("session.llm-native.request", () => {
             },
             required: ["command"],
           }),
-        }),
+        }) as any,
       },
       toolChoice: "required",
       temperature: 0.2,

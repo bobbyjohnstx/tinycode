@@ -66,7 +66,7 @@ export namespace ProviderTest {
             if (providerID === row.id && modelID === mdl.id) return Effect.succeed(mdl)
             return Effect.die(new Error(`Unknown test model: ${providerID}/${modelID}`))
           }),
-          getLanguage: Effect.fn("TestProvider.getLanguage")(() => Effect.succeed(mockModel)),
+          getLanguage: Effect.fn("TestProvider.getLanguage")(() => Effect.succeed(mockModel as any)),
           closest: Effect.fn("TestProvider.closest")((providerID) =>
             Effect.succeed(providerID === row.id ? { providerID: row.id, modelID: mdl.id } : undefined),
           ),

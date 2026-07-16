@@ -171,7 +171,7 @@ describe("session.llm.hasToolCalls", () => {
 describe("session.llm.ai-sdk adapter", () => {
   type AISDKAdapterEvent = Parameters<typeof LLMAISDK.toLLMEvents>[1]
 
-  const adapt = (events: ReadonlyArray<AISDKAdapterEvent>) => {
+  const adapt = (events: ReadonlyArray<any>) => {
     const state = LLMAISDK.adapterState()
     return Effect.runPromise(
       Effect.forEach(events, (event) => LLMAISDK.toLLMEvents(state, event)).pipe(Effect.map((items) => items.flat())),
@@ -480,7 +480,7 @@ describe("session.llm.ai-sdk adapter", () => {
     // step index 1 on the second stream's first events. The test pins the intended
     // contract: after finish, the same state can be reused and starts fresh.
     const state = LLMAISDK.adapterState()
-    const run = (events: ReadonlyArray<AISDKAdapterEvent>) =>
+    const run = (events: ReadonlyArray<any>) =>
       Effect.runPromise(
         Effect.forEach(events, (event) => LLMAISDK.toLLMEvents(state, event)).pipe(Effect.map((items) => items.flat())),
       )

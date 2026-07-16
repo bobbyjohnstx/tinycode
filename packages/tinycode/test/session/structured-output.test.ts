@@ -226,7 +226,7 @@ describe("structured-output.createStructuredOutputTool", () => {
       toolCallId: "test-call-id",
       messages: [],
       abortSignal: undefined as any,
-    })
+    } as any)
 
     expect(capturedOutput).toEqual(testArgs)
     expect(result.output).toBe("Structured output captured successfully.")
@@ -307,7 +307,7 @@ describe("structured-output.createStructuredOutputTool", () => {
         toolCallId: "test-call-id",
         messages: [],
         abortSignal: undefined as any,
-      },
+      } as any,
     )
 
     expect(capturedOutput).toEqual({ user: { name: "John", email: "john@test.com" } })
@@ -346,7 +346,7 @@ describe("structured-output.createStructuredOutputTool", () => {
         toolCallId: "test-call-id",
         messages: [],
         abortSignal: undefined as any,
-      },
+      } as any,
     )
 
     expect(capturedOutput).toEqual({ tags: ["a", "b", "c"] })

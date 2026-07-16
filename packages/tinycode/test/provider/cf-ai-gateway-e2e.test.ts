@@ -90,7 +90,7 @@ function extractUpstreamQuery(body: unknown): Record<string, unknown> | undefine
 async function callThroughGateway(apiId: string, providerOptions: ProviderOptions) {
   const aigateway = createAiGateway({ accountId: "test", gateway: "test", apiKey: "test" })
   const unified = createUnified()
-  await generateText({ model: aigateway(unified(apiId)), prompt: "hi", providerOptions })
+  await generateText({ model: aigateway(unified(apiId) as any), prompt: "hi", providerOptions })
   return extractUpstreamQuery(captured?.outerBody)
 }
 
