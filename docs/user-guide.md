@@ -131,6 +131,54 @@ Write a bash script that lists all .ts files
 
 ---
 
+## First 5 Minutes
+
+Four workflows that show what tinycode does in practice. Copy-paste these after installing.
+
+### Debug a failing test
+
+```bash
+$ tinycode /path/to/project
+
+# In the TUI, type:
+The test in auth_test.go is failing with "token expired."
+Find the root cause and fix it.
+
+# Or use the debug skill directly:
+/debug auth_test.go is failing with "token expired"
+```
+
+### Plan a feature before writing code
+
+```bash
+$ tinycode /path/to/project
+
+# Press Tab to switch to the plan agent, then:
+Add a /health endpoint that returns pod name,
+uptime, and connected LLM providers.
+
+# tinycode writes a plan to .tinycode/plans/
+# Review it, approve, switch to build mode to execute
+```
+
+### Review a pull request
+
+```
+# Ask the code-reviewer agent:
+/ask code-reviewer Review the diff on the current branch
+against main. Focus on correctness and security.
+```
+
+### Explore an unfamiliar codebase
+
+```
+# Ask the architect agent:
+/ask architect How is authentication handled in this project?
+Trace from the HTTP handler to the token validation.
+```
+
+---
+
 ## The Terminal UI
 
 ### Keyboard Shortcuts
