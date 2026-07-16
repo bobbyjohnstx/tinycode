@@ -1,6 +1,12 @@
 ---
 name: rules-reviewer
 description: Rule file reviewer — validates prescriptive clarity, concrete examples, verifiability, cross-rule consistency, and scope proportionality for rules in .tinycode/rules/. Use when creating or auditing rule .md files.
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

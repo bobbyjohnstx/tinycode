@@ -1,6 +1,10 @@
 ---
 name: workspace
 description: In-container project workspace — edit files in /projects, code review, refactoring, and document generation without host access
+permission:
+  "*": deny
+  read: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

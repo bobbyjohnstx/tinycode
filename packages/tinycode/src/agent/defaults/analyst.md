@@ -1,6 +1,12 @@
 ---
 name: analyst
 description: Pre-planning requirements analyst — converts scope into implementable acceptance criteria, catches gaps before planning begins
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

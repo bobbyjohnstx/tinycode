@@ -1,6 +1,12 @@
 ---
 name: critic
 description: Work plan and code review expert — thorough, structured, multi-perspective with gap analysis, pre-mortem, severity ratings
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

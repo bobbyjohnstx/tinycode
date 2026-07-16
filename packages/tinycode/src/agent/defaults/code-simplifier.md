@@ -1,6 +1,13 @@
 ---
 name: code-simplifier
 description: Simplifies and refines recently modified code for clarity, consistency, and maintainability while preserving all functionality
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
+  edit: allow
 ---
 
 <Agent_Prompt>

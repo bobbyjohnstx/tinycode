@@ -1,6 +1,12 @@
 ---
 name: verifier
 description: Verification strategy, evidence-based completion checks, test adequacy — no approval without fresh evidence
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

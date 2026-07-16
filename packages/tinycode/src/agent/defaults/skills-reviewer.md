@@ -1,6 +1,12 @@
 ---
 name: skills-reviewer
 description: Skill definition reviewer — validates schema completeness, scope clarity, workflow concreteness, and output contract quality against the established skill style guide. Use when creating or auditing skill SKILL.md files in .tinycode/skills/.
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

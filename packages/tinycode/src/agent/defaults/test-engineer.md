@@ -1,6 +1,13 @@
 ---
 name: test-engineer
 description: Test strategy, coverage authoring, flaky test hardening, and TDD workflows — writes and edits test files; for interactive live-session CLI testing use qa-tester instead
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
+  edit: allow
 ---
 
 <Agent_Prompt>

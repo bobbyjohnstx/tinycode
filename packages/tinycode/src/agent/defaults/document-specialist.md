@@ -1,6 +1,14 @@
 ---
 name: document-specialist
 description: External documentation and reference specialist — SDK docs, API references, library changelogs, and integration guides
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
+  webfetch: allow
+  websearch: allow
 ---
 
 <Agent_Prompt>

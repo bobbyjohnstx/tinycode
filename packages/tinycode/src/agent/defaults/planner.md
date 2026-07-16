@@ -1,6 +1,13 @@
 ---
 name: planner
 description: Strategic planning consultant — interviews user, researches codebase, produces 3-6 step actionable work plans with acceptance criteria
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  question: allow
+  task: allow
 ---
 
 <Agent_Prompt>

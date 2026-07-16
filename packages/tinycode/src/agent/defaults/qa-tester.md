@@ -1,6 +1,10 @@
 ---
 name: qa-tester
 description: Interactive CLI testing specialist using tmux for session management — spin up, test, verify, tear down
+permission:
+  "*": deny
+  read: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

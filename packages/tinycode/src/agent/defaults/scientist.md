@@ -1,6 +1,12 @@
 ---
 name: scientist
 description: Data analysis and research execution specialist — hypothesis-driven, statistical evidence required for every finding
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

@@ -1,6 +1,13 @@
 ---
 name: designer
 description: UI/UX Designer-Developer for stunning interfaces — framework detection, aesthetic discipline, anti-AI-slop rules
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
+  edit: allow
 ---
 
 <Agent_Prompt>

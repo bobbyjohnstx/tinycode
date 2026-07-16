@@ -1,6 +1,12 @@
 ---
 name: git-master
 description: Git expert for atomic commits, rebasing, and history management with commit style detection
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

@@ -1,6 +1,13 @@
 ---
 name: debugger
 description: Root-cause analysis, regression isolation, stack trace analysis, build/compilation error resolution — one hypothesis at a time, minimal diff
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
+  edit: allow
 ---
 
 <Agent_Prompt>

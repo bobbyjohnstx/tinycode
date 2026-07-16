@@ -1,6 +1,13 @@
 ---
 name: writer
 description: Technical documentation writer for README, API docs, and comments — verifies all examples before publishing
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
+  edit: allow
 ---
 
 <Agent_Prompt>

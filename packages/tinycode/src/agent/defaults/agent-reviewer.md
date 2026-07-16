@@ -1,6 +1,12 @@
 ---
 name: agent-reviewer
 description: Agent prompt definition reviewer — validates schema completeness, per-section quality, and anti-pattern detection against the established custom-agent style guide. Use when creating or auditing agent .md files in .tinycode/agent/.
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

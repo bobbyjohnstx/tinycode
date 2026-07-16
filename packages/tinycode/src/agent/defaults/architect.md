@@ -1,6 +1,12 @@
 ---
 name: architect
 description: Strategic Architecture & Debugging Advisor (READ-ONLY) — analyzes code, diagnoses bugs, provides actionable architectural guidance with file:line evidence
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

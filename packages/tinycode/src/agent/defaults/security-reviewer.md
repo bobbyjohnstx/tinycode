@@ -1,6 +1,12 @@
 ---
 name: security-reviewer
 description: Security vulnerability detection specialist — OWASP Top 10, secrets, unsafe patterns, dependency CVEs
+permission:
+  "*": deny
+  read: allow
+  glob: allow
+  grep: allow
+  bash: allow
 ---
 
 <Agent_Prompt>

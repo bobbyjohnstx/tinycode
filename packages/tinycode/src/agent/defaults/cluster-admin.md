@@ -1,6 +1,10 @@
 ---
 name: cluster-admin
 description: OpenShift/Kubernetes cluster management — run oc/kubectl commands, read logs, diagnose issues, manage deployments
+permission:
+  "*": deny
+  read: allow
+  bash: allow
 ---
 
 <Agent_Prompt>
