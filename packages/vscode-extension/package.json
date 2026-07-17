@@ -38,7 +38,7 @@
     "watch": "tsc --watch"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "0.21.0"
+    "@agentclientprotocol/sdk": "1.2.1"
   },
   "devDependencies": {
     "@types/vscode": "^1.96.0",

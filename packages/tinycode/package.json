@@ -72,7 +72,7 @@
   "dependencies": {
     "@actions/core": "1.11.1",
     "@actions/github": "6.0.1",
-    "@agentclientprotocol/sdk": "0.21.0",
+    "@agentclientprotocol/sdk": "1.2.1",
     "@ai-sdk/alibaba": "2.0.2",
     "@ai-sdk/amazon-bedrock": "5.0.2",
     "@ai-sdk/anthropic": "4.0.1",
