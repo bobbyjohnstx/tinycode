@@ -125,7 +125,7 @@
     "dompurify": "3.4.11",
     "hono": "4.12.27",
     "minimatch": "10.2.5",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "ws": "8.21.0"
   },
   "license": "MIT",
