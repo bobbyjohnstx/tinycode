@@ -33,7 +33,7 @@
     "marked": "^15"
   },
   "devDependencies": {
-    "@actions/artifact": "4.0.0",
+    "@actions/artifact": "6.2.1",
     "@lydell/node-pty": "catalog:",
     "@tinycode/app": "workspace:*",
     "@tinycode/ui": "workspace:*",
