@@ -259,8 +259,8 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
                               <ThemeProvider mode={mode}>
                                 <LocalProvider>
                                   <PromptStashProvider>
-                                    <DialogProvider>
-                                      <FrecencyProvider>
+                                    <FrecencyProvider>
+                                      <DialogProvider>
                                         <PromptHistoryProvider>
                                           <PromptRefProvider>
                                             <EditorContextProvider>
@@ -268,8 +268,8 @@ async function mountTui(input: TuiInput & { keymap: ReturnType<typeof createDefa
                                             </EditorContextProvider>
                                           </PromptRefProvider>
                                         </PromptHistoryProvider>
-                                      </FrecencyProvider>
-                                    </DialogProvider>
+                                      </DialogProvider>
+                                    </FrecencyProvider>
                                   </PromptStashProvider>
                                 </LocalProvider>
                               </ThemeProvider>

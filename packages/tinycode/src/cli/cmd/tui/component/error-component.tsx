@@ -20,7 +20,7 @@ export function ErrorComponent(props: {
   })
   const [copied, setCopied] = createSignal(false)
 
-  const issueURL = new URL("")
+  const issueURL = new URL("https://github.com/bobbyjohnstx/tinycode/issues/new")
 
   // Choose safe fallback colors per mode since theme context may not be available
   const isLight = props.mode === "light"
