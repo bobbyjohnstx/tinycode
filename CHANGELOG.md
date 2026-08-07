@@ -15,6 +15,32 @@
 ### Fixed
 - Surface friendly error on ECONNREFUSED instead of stack trace (#76)
 
+## [1.17.0] — 2026-08-07
+
+### Added
+- Unified command palette (`Ctrl+P`) searches across commands, agents, sessions, and skills with frecency ranking (#59)
+- Subagent output rendered inline in parent session as collapsible preview (#87)
+- Leader-key session navigation using vim-style hjkl (`<leader>h/j/k/l`) — replaces bare arrow keys (#88)
+- OpenAPI spec and Scalar docs UI served at `/api/docs`
+- First 5 Minutes quick-start section in user guide
+- Comprehensive user manual and deployment verification guide
+
+### Changed
+- Session list moved from `<leader>l` to `<leader>o` (freed for sibling navigation)
+- Code block concealment moved from `<leader>h` to `<leader>;` (freed for sibling navigation)
+- System prompts: agent prompts compose with base instead of replacing
+- System prompts: tool infrastructure separated from personality
+
+### Fixed
+- Command palette crash causing unrecoverable stuck/dimmed TUI state (#86)
+- Non-interactive run mode (`bun dev run`) — SSE events now fully delivered before exit (#84)
+- Docker multi-platform build — `TARGETARCH` moved to global scope in Dockerfile (#83)
+- `modelSizeB` regex handles decimal model sizes like "3.5b" (#80)
+- ErrorComponent double-fault from invalid `new URL("")` constructor
+- Dialog-scoped ErrorBoundary for graceful dialog error recovery
+- Release workflow: added buildx setup for multi-platform Docker builds
+- File path whitespace trimming in read/edit/write tools
+
 ## [0.2.1] — 2026-07-06
 
 ### Added

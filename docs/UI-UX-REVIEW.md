@@ -66,15 +66,9 @@ The help dialog dumps raw markdown syntax — headers show as `## text`, tables 
 
 **Files:** `keybind.ts:43`, `tui-schema.ts:31`
 
-### 6. Subagent navigation paradigm shift
+### 6. Subagent navigation paradigm shift — RESOLVED
 
-Parent → child: `ctrl+x j` (leader key chord)
-Inside child: `up` (parent), `left/right` (prev/next siblings)
-Arrow keys work because child view has no prompt, but this is non-obvious and undiscoverable without the SubagentFooter hint text.
-
-**Fix:** Add `<leader>k` for parent (mirror of `<leader>j`) alongside arrow keys.
-
-**Files:** `keybind.ts:98-101`, `subagent-footer.tsx:96-128`, `index.tsx:444-449`
+Vim-style hjkl navigation: `<leader>h` (prev sibling), `<leader>j` (child), `<leader>k` (parent), `<leader>l` (next sibling). Bare arrow keys removed to avoid conflicts with OS window management (#88).
 
 ### 7. "tinycode" branding remnants (user-visible)
 

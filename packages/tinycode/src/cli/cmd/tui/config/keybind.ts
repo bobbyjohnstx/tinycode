@@ -85,7 +85,7 @@ export const Definitions = {
   session_export: keybind("<leader>x", "Export session transcript"),
   session_copy: keybind("none", "Copy session transcript"),
   session_new: keybind("<leader>n", "Create a new session"),
-  session_list: keybind("<leader>l", "List all sessions"),
+  session_list: keybind("<leader>o", "List all sessions"),
   session_timeline: keybind("<leader>g", "Show session timeline"),
   session_fork: keybind("none", "Fork session from message"),
   session_rename: keybind("ctrl+r", "Rename session"),
@@ -142,7 +142,7 @@ export const Definitions = {
   messages_copy: keybind("<leader>y", "Copy message"),
   messages_undo: keybind("<leader>u", "Undo message"),
   messages_redo: keybind("<leader>r", "Redo message"),
-  messages_toggle_conceal: keybind("<leader>h", "Toggle code block concealment in messages"),
+  messages_toggle_conceal: keybind("<leader>;", "Toggle code block concealment in messages"),
   tool_details: keybind("none", "Toggle tool details visibility"),
   display_thinking: keybind("<C-t>", "Cycle thinking display mode"),
 

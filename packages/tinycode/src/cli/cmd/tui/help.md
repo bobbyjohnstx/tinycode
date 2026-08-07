@@ -89,7 +89,7 @@ Leader key defaults to `ctrl+x`. All `<leader>` bindings require pressing the le
 
 | Key           | Action                                      |
 | ------------- | ------------------------------------------- |
-| ctrl+p        | Open command palette                        |
+| ctrl+p        | Open command palette (commands, agents, sessions, skills) |
 | f1            | Open help                                   |
 | escape        | Interrupt current session / close dialog    |
 | tab           | Cycle to next agent                         |
@@ -97,12 +97,14 @@ Leader key defaults to `ctrl+x`. All `<leader>` bindings require pressing the le
 | return        | Submit prompt                               |
 | shift+return  | Insert newline                              |
 | \<leader\>n   | New session                                 |
-| \<leader\>l   | List sessions                               |
+| \<leader\>o   | List sessions                               |
 | \<leader\>g   | Session timeline (jump to message)          |
 | \<leader\>c   | Compact session                             |
 | ctrl+r        | Rename session                              |
+| \<leader\>h   | Go to previous sibling session              |
 | \<leader\>j   | Go to first child (subagent) session        |
 | \<leader\>k   | Go to parent session                        |
+| \<leader\>l   | Go to next sibling session                  |
 | \<leader\>u   | Undo last message                           |
 | \<leader\>r   | Redo undone message                         |
 | \<leader\>y   | Copy last assistant message                 |
@@ -113,7 +115,7 @@ Leader key defaults to `ctrl+x`. All `<leader>` bindings require pressing the le
 | \<leader\>t   | Switch theme                                |
 | \<leader\>e   | Open external editor                        |
 | \<leader\>s   | View status                                 |
-| \<leader\>h   | Toggle code block concealment               |
+| \<leader\>;   | Toggle code block concealment               |
 | f2            | Cycle to next recently used model           |
 | shift+f2      | Cycle to previous recently used model       |
 | ctrl+t        | Cycle model variants                        |

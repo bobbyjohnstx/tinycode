@@ -189,15 +189,15 @@ Trace from the HTTP handler to the token validation.
 |-----|--------|
 | `Ctrl+C` / `Ctrl+D` / `<leader>q` | Exit tinycode |
 | `F1` | Help dialog |
-| `Ctrl+P` | Command palette |
+| `Ctrl+P` | Command palette (commands, agents, sessions, skills) |
 | `<leader>a` | List agents |
 | `Tab` / `Shift+Tab` | Next/previous agent |
 | `<leader>m` | Switch model |
 | `F2` / `Shift+F2` | Cycle next/previous recent model |
-| `<leader>l` | List all sessions |
+| `<leader>o` | List all sessions |
 | `<leader>n` | New session |
+| `<leader>h` / `<leader>l` | Previous / next sibling session |
 | `<leader>j` / `<leader>k` | Go to first child / parent session |
-| `left` / `right` | Cycle sibling sessions |
 | `<leader>b` | Toggle session tree sidebar |
 | `<leader>e` | Open external editor (your `$EDITOR`) |
 | `<leader>t` | Switch theme |
@@ -207,7 +207,7 @@ Trace from the HTTP handler to the token validation.
 | `<leader>x` | Export session to JSON/HTML |
 | `<leader>y` | Copy message |
 | `<leader>u` / `<leader>r` | Undo/redo message |
-| `<leader>h` | Toggle code block concealment (collapse code, focus on text) |
+| `<leader>;` | Toggle code block concealment (collapse code, focus on text) |
 | `Ctrl+R` | Rename session |
 | `Ctrl+D` | Delete session |
 | `Escape` | Interrupt current operation |
@@ -258,10 +258,10 @@ Sessions are conversations. They form a **tree structure** where child sessions 
 | Key | Action |
 |-----|--------|
 | `<leader>n` | Create new session (as child of current) |
-| `<leader>l` | List all sessions |
+| `<leader>o` | List all sessions |
+| `<leader>h` / `<leader>l` | Previous / next sibling session |
 | `<leader>j` | Go to first child session |
-| `<leader>k` or `up` | Go to parent session |
-| `left` / `right` | Cycle to previous/next sibling |
+| `<leader>k` | Go to parent session |
 
 ### Session Types
 
@@ -657,7 +657,7 @@ Use agents in sequence for complex tasks:
 /ask test-engineer write tests
 ```
 
-Navigate the tree with `<leader>j` (to child), `<leader>k` (to parent), `left`/`right` (siblings).
+Navigate the tree with `<leader>h`/`<leader>l` (siblings), `<leader>j` (to child), `<leader>k` (to parent).
 
 ### Using Plan Mode
 
@@ -856,7 +856,7 @@ Smaller prompts = faster processing (4–8s vs 38s on 9B models).
 
 - Use **qwen3.5:9b** or **north-mini-code-1.0** for best speed/accuracy
 - Disable animations: `"animations": false` in config
-- Collapse code blocks: `<leader>h` to focus on text
+- Collapse code blocks: `<leader>;` to focus on text
 - Compact sessions regularly: `<leader>c`
 - Close memory-heavy apps (Docker, Chrome) to free RAM
 - Use vLLM for faster inference than Ollama
@@ -896,7 +896,7 @@ Checks 14 areas in pure bash:
 | Can't connect to Ollama | Verify `ollama serve` is running; check `TINYCODE_OLLAMA_HOST` |
 | Tool calling not working | Run `/tc-doctor` to check model capability; try qwen3.5:9b |
 | Responses are slow | `/tc-doctor` checks RAM vs model size, GPU acceleration, swap pressure |
-| TUI is sluggish | Disable animations in config; collapse code blocks with `<leader>h` |
+| TUI is sluggish | Disable animations in config; collapse code blocks with `<leader>;` |
 | Session not found | Check database: `ls ~/.local/share/tinycode/tinycode.db` |
 | Permission prompts too frequent | Review what's being approved; or configure auto-approval in config |
 

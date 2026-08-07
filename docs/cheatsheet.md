@@ -10,11 +10,11 @@ Quick reference for the most common keyboard shortcuts, agents, and commands.
 |-----|--------|
 | `Ctrl+C` or `Ctrl+D` or `<leader>q` | Exit tinycode |
 | `F1` | Open help dialog |
-| `Ctrl+P` | Show command palette |
-| `<leader>l` | List all sessions |
+| `Ctrl+P` | Command palette (commands, agents, sessions, skills) |
+| `<leader>o` | List all sessions |
 | `<leader>n` | Create a new session |
-| `<leader>j` / `<leader>k` | Go to first/parent child session |
-| `left` / `right` | Cycle to previous/next child session |
+| `<leader>h` / `<leader>l` | Previous/next sibling session |
+| `<leader>j` / `<leader>k` | Go to first child / parent session |
 | `<leader>m` | List available models |
 | `F2` / `Shift+F2` | Cycle to next/previous recent model |
 | `<leader>a` | List available agents |
@@ -28,7 +28,7 @@ Quick reference for the most common keyboard shortcuts, agents, and commands.
 | `<leader>x` | Export session transcript |
 | `<leader>y` | Copy message |
 | `<leader>u` / `<leader>r` | Undo/redo message |
-| `<leader>h` | Toggle code block concealment |
+| `<leader>;` | Toggle code block concealment |
 | `Ctrl+R` | Rename session |
 | `Ctrl+D` | Delete session |
 | `Escape` | Interrupt current session |
@@ -133,11 +133,12 @@ Follow the suggestions
 Write guide for new developers on session architecture
 ```
 
-### Session navigation
+### Session navigation (vim-style hjkl)
 ```
+<leader>h          # Go to previous sibling session
 <leader>j          # Go to first child session
-<leader>k / up     # Go to parent session
-left / right       # Cycle through siblings
+<leader>k          # Go to parent session
+<leader>l          # Go to next sibling session
 ```
 
 ## Configuration
@@ -146,7 +147,7 @@ Edit `~/.config/tinycode/config.json`:
 
 ```json
 {
-  "model": "ollama/qwen3.5:9b",
+  "model": "ollama/qwen2.5:latest",
   "lsp": true
 }
 ```
@@ -175,7 +176,7 @@ After listing models (`<leader>m`):
 - Use `<leader>c` to compact a session before exporting
 - Export to HTML with `tinycode export --format html <session-id>`
 - Type `@filename` to reference a file in your prompt
-- Use `<leader>h` to collapse code blocks and focus on analysis
+- Use `<leader>;` to collapse code blocks and focus on analysis
 - Session tree shows hierarchy with `<leader>b`
 - **Model warmup:** On startup, tinycode probes the Ollama model to verify tool-call support and pre-load it into GPU memory. Look for "qwen3.5:9b ready — tool calling supported" in the toast/footer
 - **Tool-call warnings:** If you see "Multiple tool call failures detected," switch to a larger model via `<leader>m` — tinycode auto-repairs common JSON issues, but very small models may not support tool calling at all
