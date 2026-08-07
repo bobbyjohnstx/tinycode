@@ -6,13 +6,13 @@ ARG BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
 ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=${BUN_RUNTIME_TRANSPILER_CACHE_PATH}
 RUN apk add libgcc libstdc++ ripgrep
 
+ARG TARGETARCH
 FROM base AS build-amd64
 COPY dist/tinycode-linux-x64-baseline-musl/bin/tinycode /usr/local/bin/tinycode
 
 FROM base AS build-arm64
 COPY dist/tinycode-linux-arm64-musl/bin/tinycode /usr/local/bin/tinycode
 
-ARG TARGETARCH
 FROM build-${TARGETARCH}
 RUN tinycode --version
 ENTRYPOINT ["tinycode"]
