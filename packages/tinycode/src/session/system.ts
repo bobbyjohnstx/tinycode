@@ -28,8 +28,8 @@ export function modelSizeB(model: Provider.Model): number | undefined {
   if (model.size !== undefined) return model.size
 
   // Fall back to regex parsing from model ID
-  const m = /[:\-_v](\d+)b\b/i.exec(model.api.id) ?? /^(\d+)b\b/i.exec(model.api.id)
-  return m ? parseInt(m[1], 10) : undefined
+  const m = /[:\-_v](\d+(?:\.\d+)?)b\b/i.exec(model.api.id) ?? /^(\d+(?:\.\d+)?)b\b/i.exec(model.api.id)
+  return m ? parseFloat(m[1]) : undefined
 }
 
 export function provider(model: Provider.Model) {

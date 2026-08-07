@@ -171,6 +171,27 @@ describe("modelSizeB", () => {
     expect(modelSizeB(model)).toBe(405)
   })
 
+  test("parses decimal size: qwen3.5-3.5b", () => {
+    const model = {
+      api: { id: "qwen3.5-3.5b" },
+    } as Provider.Model
+    expect(modelSizeB(model)).toBe(3.5)
+  })
+
+  test("parses decimal size with colon: model:1.5b", () => {
+    const model = {
+      api: { id: "model:1.5b" },
+    } as Provider.Model
+    expect(modelSizeB(model)).toBe(1.5)
+  })
+
+  test("parses decimal size at start: 0.5b-tiny", () => {
+    const model = {
+      api: { id: "0.5b-tiny" },
+    } as Provider.Model
+    expect(modelSizeB(model)).toBe(0.5)
+  })
+
   test("config size overrides even when name contains different size", () => {
     const model = {
       size: 30,
