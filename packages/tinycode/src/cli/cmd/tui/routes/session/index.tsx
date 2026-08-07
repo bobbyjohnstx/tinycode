@@ -2124,6 +2124,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
   const { navigate } = useRoute()
   const sync = useSync()
   const dialog = useDialog()
+  const ctx = use()
 
   onMount(() => {
     if (props.metadata.sessionId && !sync.data.message[props.metadata.sessionId]?.length)
@@ -2187,24 +2188,61 @@ function Task(props: ToolProps<typeof TaskTool>) {
     return content.join("\n")
   })
 
+  // Extract task result from output
+  const taskResult = createMemo(() => {
+    if (!props.output?.trim()) return undefined
+    const match = props.output.match(/<task_result>\s*([\s\S]*?)\s*<\/task_result>/)
+    if (match) {
+      return match[1].trim() || undefined
+    }
+    return undefined
+  })
+
+  const [expanded, setExpanded] = createSignal(false)
+  const maxLines = 3
+  const maxChars = createMemo(() => maxLines * Math.max(20, ctx.width - 6))
+  const collapsed = createMemo(() => collapseToolOutput(taskResult() ?? "", maxLines, maxChars()))
+  const limited = createMemo(() => {
+    if (expanded() || !collapsed().overflow) return taskResult()
+    return collapsed().output
+  })
+
+  const hasOutput = createMemo(() => props.part.state.status === "completed" && !!taskResult())
+
   return (
-    <InlineTool
-      icon="│"
-      color={retry() ? theme.error : undefined}
-      spinner={isRunning()}
-      complete={props.input.description}
-      pending="Delegating..."
-      part={props.part}
-      onClick={() => {
-        if (props.metadata.sessionId) {
-          navigate({ type: "session", sessionID: props.metadata.sessionId })
-        }
-        const status = retry()
-        if (status) void DialogAlert.show(dialog, "Retry Error", status.message)
-      }}
-    >
-      {content()}
-    </InlineTool>
+    <>
+      <InlineTool
+        icon="│"
+        color={retry() ? theme.error : undefined}
+        spinner={isRunning()}
+        complete={props.input.description}
+        pending="Delegating..."
+        part={props.part}
+        onClick={() => {
+          if (props.metadata.sessionId) {
+            navigate({ type: "session", sessionID: props.metadata.sessionId })
+          }
+          const status = retry()
+          if (status) void DialogAlert.show(dialog, "Retry Error", status.message)
+        }}
+      >
+        {content()}
+      </InlineTool>
+      <Show when={hasOutput()}>
+        <BlockTool
+          title="# Subagent Output"
+          part={props.part}
+          onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
+        >
+          <box gap={1}>
+            <text fg={theme.text}>{limited()}</text>
+            <Show when={collapsed().overflow}>
+              <text fg={theme.textMuted}>{expanded() ? "Click to collapse" : "Click to expand"}</text>
+            </Show>
+          </box>
+        </BlockTool>
+      </Show>
+    </>
   )
 }
 
