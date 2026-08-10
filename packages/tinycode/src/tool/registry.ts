@@ -1,5 +1,6 @@
 import { PlanExitTool } from "./plan"
 import { Session } from "@/session/session"
+import { createTools as createOmtTools } from "@/omt"
 import { QuestionTool } from "./question"
 import { ShellTool } from "./shell"
 import { EditTool } from "./edit"
@@ -214,6 +215,11 @@ export const layer: Layer.Layer<
             if (!isPluginTool(def)) continue
             custom.push(fromPlugin(id === "default" ? namespace : `${namespace}_${id}`, def))
           }
+        }
+
+        // Register omt tools natively (no plugin indirection)
+        for (const [id, def] of Object.entries(createOmtTools(ctx.directory))) {
+          custom.push(fromPlugin(id, def))
         }
 
         const plugins = yield* plugin.list()

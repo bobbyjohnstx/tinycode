@@ -1,6 +1,7 @@
 import { Config } from "@/config/config"
 import { serviceUse } from "@/core/effect/service-use"
 import { Provider } from "@/provider/provider"
+import { readNotepad, readProjectMemory } from "@/omt"
 import { ModelID, ProviderID } from "../provider/schema"
 import { generateObject, streamObject, type ModelMessage } from "ai"
 import { Truncate } from "@/tool/truncate"
@@ -437,6 +438,28 @@ export const layer = Layer.effect(
 
         const system = [PROMPT_GENERATE]
         yield* plugin.trigger("experimental.chat.system.transform", { model: resolved }, { system })
+        yield* InstanceState.directory.pipe(
+          Effect.flatMap((dir) =>
+            Effect.try({
+              try: () => {
+                const priority = readNotepad(dir, "priority")
+                const mem = readProjectMemory(dir)
+                if (
+                  priority &&
+                  !priority.includes("(Empty or notepad does not exist)") &&
+                  !priority.includes("Notepad does not exist")
+                ) {
+                  system.push(`<omt-priority-context>\n${priority}\n</omt-priority-context>`)
+                }
+                if (mem && typeof mem === "object" && Object.keys(mem).length > 0) {
+                  system.push(`<omt-project-memory>\n${JSON.stringify(mem, null, 2)}\n</omt-project-memory>`)
+                }
+              },
+              catch: () => undefined,
+            }),
+          ),
+          Effect.ignore,
+        )
         const existing = yield* InstanceState.useEffect(state, (s) => s.list())
 
         // TODO: clean this up so provider specific logic doesnt bleed over

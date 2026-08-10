@@ -2,6 +2,7 @@ import type { Auth } from "@/auth"
 import type { RuntimeFlags } from "@/effect/runtime-flags"
 import { InstanceState } from "@/effect/instance-state"
 import { Permission } from "@/permission"
+import { readNotepad, readProjectMemory } from "@/omt"
 import type { Agent } from "@/agent/agent"
 import type { MessageV2 } from "../message-v2"
 import type { Provider } from "@/provider/provider"
@@ -70,6 +71,31 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     { sessionID: input.sessionID, model: input.model },
     { system },
   )
+
+  // Native omt system injection (notepad priority context + project memory)
+  yield* InstanceState.directory.pipe(
+    Effect.flatMap((dir) =>
+      Effect.try({
+        try: () => {
+          const priority = readNotepad(dir, "priority")
+          const mem = readProjectMemory(dir)
+          if (
+            priority &&
+            !priority.includes("(Empty or notepad does not exist)") &&
+            !priority.includes("Notepad does not exist")
+          ) {
+            system.push(`<omt-priority-context>\n${priority}\n</omt-priority-context>`)
+          }
+          if (mem && typeof mem === "object" && Object.keys(mem).length > 0) {
+            system.push(`<omt-project-memory>\n${JSON.stringify(mem, null, 2)}\n</omt-project-memory>`)
+          }
+        },
+        catch: () => undefined,
+      }),
+    ),
+    Effect.ignore,
+  )
+
   if (system.length > 2 && system[0] === header) {
     const rest = system.slice(1)
     system.length = 0
