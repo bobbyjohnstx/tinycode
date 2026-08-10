@@ -268,10 +268,10 @@ Create `~/.config/tinycode/config.json`:
 For higher quality responses, use Anthropic, OpenAI, or OpenRouter:
 
 ```bash
-export OPENROUTER_API_KEY=your-key
+export OPENROUTER_API_KEY=your-key    # auto-discovers 300+ models
 ```
 
-Then `<leader>m` and select an OpenRouter model.
+Then `<leader>m` and select an OpenRouter model. Or use `/connect` in the TUI to enter an API key interactively.
 
 ### 2. Connect MCP servers
 

@@ -130,7 +130,7 @@ All keybindings can be overridden in `tui.json` under the `keybinds` key.
 
 ## Connecting Providers
 
-Open the model picker with `<leader>m` to select a model and connect providers.
+Use `/connect` to add a provider, or open the model picker with `<leader>m`.
 
 Local providers (auto-discovered):
 
@@ -140,8 +140,8 @@ Local providers (auto-discovered):
 
 Cloud providers (API key required):
 
-- Anthropic, OpenAI, Google, OpenRouter — enter API key via the model picker
-- OpenRouter: set `OPENROUTER_API_KEY` env var for account balance and generation cost tracking in the sidebar
+- Anthropic, OpenAI, Google — enter API key via `/connect` or model picker
+- OpenRouter: set `OPENROUTER_API_KEY` env var — auto-discovers 300+ models filtered to tool-capable, with pricing and generation cost tracking in the sidebar
 
 ## Configuration
 

@@ -108,11 +108,13 @@ Plugin registry at `src/plugin/registry.json` provides a curated catalog of know
 
 Auto-discovery polls every 30 seconds with a 2-second probe timeout (`src/provider/local-discovery.ts`).
 
+OpenRouter is also auto-discovered when `OPENROUTER_API_KEY` is set. The probe fetches `https://openrouter.ai/api/v1/models` (5-second timeout), filters to tool-capable non-free models, and maps pricing/capabilities/limits. Uses `@openrouter/ai-sdk-provider` SDK with generation cost tracking via OpenRouter's billing API.
+
 On startup, tinycode sends a warmup probe to the configured Ollama model (`src/provider/warmup.ts`). The probe sends a tool-call request to `/api/chat` with `keep_alive: "10m"`, pre-loading the model into GPU memory and verifying tool-calling capability. Results are shown as a toast (TUI) or footer message (direct mode).
 
 ### Bundled Cloud Providers (via Vercel AI SDK)
 
-anthropic, openai, google, amazon-bedrock, azure, google-vertex, xai, mistral, groq, deepinfra, cerebras, cohere, openrouter, togetherai, perplexity, vercel, alibaba, gateway, gitlab, venice, and any generic openai-compatible endpoint.
+anthropic, openai, google, amazon-bedrock, azure, google-vertex, xai, mistral, groq, deepinfra, cerebras, cohere, openrouter, togetherai, perplexity, vercel, alibaba, gateway, gitlab, venice, and any generic openai-compatible endpoint. OpenRouter is the only cloud provider with auto-discovery — others require manual model selection from the bundled catalog.
 
 ### Plugin Providers
 

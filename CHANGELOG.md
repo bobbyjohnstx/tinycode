@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Added
+- OpenRouter as full-fledged provider with auto-discovery — set `OPENROUTER_API_KEY` to discover 300+ models with capability detection, pricing, and cost tracking
+- OpenRouter in `/connect` TUI dialog for API key entry
 - Tool-call failure tracking with warning toast after 3+ consecutive failures (#69)
 - Auto-compact on model switch to smaller context window (#74)
 - Model size field in config for custom/finetuned models (#75)
@@ -13,6 +15,7 @@
 - Sanitize markdown fences and trailing commas from malformed tool-call JSON (#69)
 
 ### Fixed
+- oh-my-tiny tool schemas: nested `enum` arrays broke OpenAI strict JSON Schema validation
 - Surface friendly error on ECONNREFUSED instead of stack trace (#76)
 
 ## [1.17.0] — 2026-08-07

@@ -533,15 +533,17 @@ export TINYCODE_VLLM_URLS=http://your-vllm-host:8000
 
 #### Cloud Providers
 
-Set API keys as environment variables:
+Set API keys as environment variables, or use `/connect` in the TUI to enter them interactively:
 
 ```bash
-export OPENROUTER_API_KEY=your-key
+export OPENROUTER_API_KEY=your-key    # auto-discovers 300+ models
 export ANTHROPIC_API_KEY=your-key
 export OPENAI_API_KEY=your-key
 ```
 
 Then select the model via `<leader>m`.
+
+**OpenRouter** is auto-discovered when `OPENROUTER_API_KEY` is set — tinycode fetches available models from the OpenRouter API, filters to tool-capable models, and maps pricing and capabilities automatically. Generation costs are tracked per-request via OpenRouter's billing API and shown in the sidebar.
 
 ### Provider Filtering
 
