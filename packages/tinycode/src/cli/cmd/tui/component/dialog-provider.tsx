@@ -25,6 +25,7 @@ const PROVIDER_PRIORITY: Record<string, number> = {
   anthropic: 4,
   openai: 5,
   google: 6,
+  openrouter: 7,
 }
 
 // Controls which section providers appear in
@@ -67,6 +68,7 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
           anthropic: "(API key)",
           openai: "(API key)",
           google: "(API key)",
+          openrouter: "(API key — openrouter.ai)",
         }[provider.id],
         category: LOCAL_PROVIDERS.has(provider.id) ? "Local / LAN" : "Cloud",
       })),

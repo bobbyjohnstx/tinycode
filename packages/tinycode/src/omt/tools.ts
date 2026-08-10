@@ -203,7 +203,7 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       description:
         "Read the notepad content. Can read the full notepad or a specific section (priority, working, manual).",
       args: {
-        section: { type: "string", enum: [["all", "priority", "working", "manual"]] },
+        section: { type: "string", enum: ["all", "priority", "working", "manual"] },
         workingDirectory: { type: "string" },
       },
       async execute(args) {
@@ -302,7 +302,7 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       args: {
         section: {
           type: "string",
-          enum: [["all", "techStack", "build", "conventions", "structure", "notes", "directives"]],
+          enum: ["all", "techStack", "build", "conventions", "structure", "notes", "directives"],
         },
         workingDirectory: { type: "string" },
       },
@@ -352,7 +352,7 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       description: "Add a user directive to project memory. Directives are instructions that persist across sessions.",
       args: {
         directive: { type: "string", description: "The directive (e.g., Always use TypeScript strict mode)" },
-        priority: { type: "string", enum: [["high", "normal"]] },
+        priority: { type: "string", enum: ["high", "normal"] },
         context: { type: "string" },
         workingDirectory: { type: "string" },
       },
@@ -400,16 +400,14 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         category: {
           type: "string",
           enum: [
-            [
-              "architecture",
-              "decision",
-              "pattern",
-              "debugging",
-              "environment",
-              "session-log",
-              "reference",
-              "convention",
-            ],
+            "architecture",
+            "decision",
+            "pattern",
+            "debugging",
+            "environment",
+            "session-log",
+            "reference",
+            "convention",
           ],
         },
         limit: { type: "integer", minimum: 1, maximum: 100 },
@@ -430,16 +428,14 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         category: {
           type: "string",
           enum: [
-            [
-              "architecture",
-              "decision",
-              "pattern",
-              "debugging",
-              "environment",
-              "session-log",
-              "reference",
-              "convention",
-            ],
+            "architecture",
+            "decision",
+            "pattern",
+            "debugging",
+            "environment",
+            "session-log",
+            "reference",
+            "convention",
           ],
         },
         tags: { type: "array", items: { type: "string" } },
@@ -468,19 +464,17 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
         category: {
           type: "string",
           enum: [
-            [
-              "architecture",
-              "decision",
-              "pattern",
-              "debugging",
-              "environment",
-              "session-log",
-              "reference",
-              "convention",
-            ],
+            "architecture",
+            "decision",
+            "pattern",
+            "debugging",
+            "environment",
+            "session-log",
+            "reference",
+            "convention",
           ],
         },
-        confidence: { type: "string", enum: [["high", "medium", "low"]] },
+        confidence: { type: "string", enum: ["high", "medium", "low"] },
         sources: { type: "array", items: { type: "string" } },
         workingDirectory: { type: "string" },
       },

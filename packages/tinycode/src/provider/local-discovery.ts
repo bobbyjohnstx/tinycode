@@ -44,6 +44,103 @@ const VllmModelsResponse = Schema.Struct({
   data: Schema.Array(VllmModel),
 })
 
+// --- OpenRouter response schema ---
+
+const OpenRouterModelArchitecture = Schema.Struct({
+  input_modalities: Schema.optional(Schema.Array(Schema.String)),
+  output_modalities: Schema.optional(Schema.Array(Schema.String)),
+})
+
+const OpenRouterModelPricing = Schema.Struct({
+  prompt: Schema.optional(Schema.String),
+  completion: Schema.optional(Schema.String),
+})
+
+const OpenRouterModelTopProvider = Schema.Struct({
+  context_length: Schema.optional(Schema.Number),
+  max_completion_tokens: Schema.optional(Schema.NullOr(Schema.Number)),
+})
+
+const OpenRouterModelReasoning = Schema.Struct({
+  mandatory: Schema.optional(Schema.Boolean),
+  default_enabled: Schema.optional(Schema.Boolean),
+})
+
+const OpenRouterModel = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  context_length: Schema.optional(Schema.Number),
+  architecture: Schema.optional(OpenRouterModelArchitecture),
+  pricing: Schema.optional(OpenRouterModelPricing),
+  top_provider: Schema.optional(OpenRouterModelTopProvider),
+  supported_parameters: Schema.optional(Schema.Array(Schema.String)),
+  reasoning: Schema.optional(OpenRouterModelReasoning),
+})
+
+const OpenRouterModelsResponse = Schema.Struct({
+  data: Schema.Array(OpenRouterModel),
+})
+
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1"
+const OPENROUTER_PROBE_TIMEOUT = Duration.millis(5_000)
+
+type OpenRouterModelEntry = Schema.Schema.Type<typeof OpenRouterModel>
+
+function makeOpenRouterProvider(apiKey: string, entries: OpenRouterModelEntry[]): Info {
+  const models: Record<string, Model> = {}
+  for (const entry of entries) {
+    const params = new Set(entry.supported_parameters ?? [])
+    const inputMods = new Set(entry.architecture?.input_modalities ?? ["text"])
+    const contextLength = entry.top_provider?.context_length ?? entry.context_length ?? 0
+    const maxOutput = entry.top_provider?.max_completion_tokens ?? Math.min(16384, Math.floor(contextLength * 0.2))
+    const promptCost = entry.pricing?.prompt ? parseFloat(entry.pricing.prompt) * 1_000_000 : 0
+    const completionCost = entry.pricing?.completion ? parseFloat(entry.pricing.completion) * 1_000_000 : 0
+    const hasReasoning = entry.reasoning?.mandatory === true || entry.reasoning?.default_enabled === true
+
+    models[entry.id] = {
+      id: ModelID.make(entry.id),
+      providerID: ProviderID.make("openrouter"),
+      name: entry.name,
+      family: entry.id.split("/")[0] ?? "",
+      api: {
+        id: entry.id,
+        url: OPENROUTER_API_URL,
+        npm: "@openrouter/ai-sdk-provider",
+      },
+      status: "active",
+      headers: {},
+      options: {},
+      cost: { input: promptCost, output: completionCost, cache: { read: 0, write: 0 } },
+      limit: { context: contextLength, output: maxOutput },
+      capabilities: {
+        temperature: params.has("temperature"),
+        reasoning: hasReasoning,
+        attachment: inputMods.has("image") || inputMods.has("file"),
+        toolcall: params.has("tools"),
+        input: {
+          text: inputMods.has("text"),
+          audio: inputMods.has("audio"),
+          image: inputMods.has("image"),
+          video: inputMods.has("video"),
+          pdf: inputMods.has("file"),
+        },
+        output: { text: true, audio: false, image: false, video: false, pdf: false },
+        interleaved: false,
+      },
+      release_date: "",
+      variants: {},
+    }
+  }
+  return {
+    id: ProviderID.make("openrouter"),
+    name: "OpenRouter",
+    source: "custom",
+    env: ["OPENROUTER_API_KEY"],
+    options: { apiKey },
+    models,
+  }
+}
+
 // --- Kubernetes API schemas ---
 
 const K8sServicePort = Schema.Struct({
@@ -463,6 +560,30 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
       )
     }
 
+    function probeOpenRouter(apiKey: string): Effect.Effect<Info | null> {
+      return HttpClientRequest.get(`${OPENROUTER_API_URL}/models`).pipe(
+        HttpClientRequest.setHeader("Authorization", `Bearer ${apiKey}`),
+        httpClient.execute,
+        Effect.timeout(OPENROUTER_PROBE_TIMEOUT),
+        Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(OpenRouterModelsResponse)(res)),
+        Effect.map((data) => {
+          const entries = data.data.filter((m) => {
+            if (!m.id || m.id.length === 0) return false
+            if (m.id.includes(":free") || m.id.includes(":beta")) return false
+            const params = new Set(m.supported_parameters ?? [])
+            return params.has("tools")
+          })
+          if (entries.length === 0) return null
+          log.info("openrouter discovered", { count: entries.length })
+          return makeOpenRouterProvider(apiKey, entries)
+        }),
+        Effect.catch((err) => {
+          log.info("openrouter not available", { error: String(err) })
+          return Effect.succeed(null)
+        }),
+      )
+    }
+
     function runDiscovery(): Effect.Effect<void> {
       // Strip trailing slashes — a common user mistake that produces double-slash URLs
       const ollamaHostEnv = process.env["TINYCODE_OLLAMA_HOST"]
@@ -476,19 +597,28 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
       const ramalamaHost = ramalamaHostEnv ? ramalamaHostEnv.replace(/\/+$/, "") : undefined
       const maasHost = process.env["TINYCODE_MAAS_HOST"]?.replace(/\/+$/, "")
       const maasKey = process.env["TINYCODE_MAAS_API_KEY"]
+      const openRouterKey = process.env["OPENROUTER_API_KEY"]
 
       return Effect.gen(function* () {
         const probes: Effect.Effect<Info | null>[] = [probeOllama(ollamaHost), probeVllm(vllmHost)]
         if (ramalamaHost) probes.push(probeRamalama(ramalamaHost))
         if (maasHost && maasKey) probes.push(probeMaas(maasHost, maasKey))
 
-        const [results, k8sProviders] = yield* Effect.all(
-          [Effect.all(probes, { concurrency: probes.length }), probeKubernetesVllm()],
-          { concurrency: 2 },
+        const cloudProbes: Effect.Effect<Info | null>[] = []
+        if (openRouterKey) cloudProbes.push(probeOpenRouter(openRouterKey))
+
+        const [results, k8sProviders, ...cloudResults] = yield* Effect.all(
+          [
+            Effect.all(probes, { concurrency: probes.length }),
+            probeKubernetesVllm(),
+            ...cloudProbes,
+          ],
+          { concurrency: "unbounded" },
         )
         const [ollamaResult, vllmResult, ...rest] = results
         const ramalamaResult = ramalamaHost ? rest[0] : null
         const maasResult = ramalamaHost ? rest[1] : rest[0]
+        const openRouterResult = openRouterKey ? cloudResults[0] : null
 
         const next: Record<string, Info> = {}
         if (ollamaResult) next["ollama"] = ollamaResult
@@ -496,6 +626,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         if (vllmResult && Object.keys(k8sProviders).length === 0) next["vllm"] = vllmResult
         if (ramalamaResult) next["ramalama"] = ramalamaResult
         if (maasResult) next["maas"] = maasResult
+        if (openRouterResult) next["openrouter"] = openRouterResult
         // Merge k8s-discovered vllm providers (each keyed as "vllm-<service-name>")
         Object.assign(next, k8sProviders)
 

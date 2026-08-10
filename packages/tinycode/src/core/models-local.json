@@ -131,5 +131,12 @@
     "name": "MaaS (LiteMaaS/LiteLLM)",
     "env": ["TINYCODE_MAAS_API_KEY"],
     "models": {}
+  },
+  "openrouter": {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "npm": "@openrouter/ai-sdk-provider",
+    "env": ["OPENROUTER_API_KEY"],
+    "models": {}
   }
 }
