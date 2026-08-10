@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.1] — 2026-08-10
+
 ### Added
 - OpenRouter as full-fledged provider with auto-discovery — set `OPENROUTER_API_KEY` to discover 300+ models with capability detection, pricing, and cost tracking
 - OpenRouter in `/connect` TUI dialog for API key entry
@@ -11,6 +13,7 @@
 - Context warning for models with <8K context window (#77)
 
 ### Changed
+- omt tools and system prompt injection moved from plugin to native registration
 - Skip tool injection for models with `capabilities.toolcall=false` to save context tokens (#69)
 - Sanitize markdown fences and trailing commas from malformed tool-call JSON (#69)
 
