@@ -154,6 +154,7 @@ Key config fields in `config.json`:
   "model": "ollama/llama3.2",
   "small_model": "ollama/llama3.2",
   "default_agent": "build",
+  "subagent_depth": 1,
   "provider": {
     "my-server": {
       "npm": "@ai-sdk/openai-compatible",
@@ -176,6 +177,7 @@ Key config fields in `config.json`:
 - `model` — default model (e.g. "maas/qwen3-14b", "ollama/llama3.2")
 - `small_model` — model for lightweight tasks like title generation
 - `default_agent` — which primary agent to start with (default: build)
+- `subagent_depth` — maximum nesting depth for subagents (default: 1, prevents infinite recursion)
 - `provider` — custom/MaaS provider definitions
 - `mcp` — MCP server configurations
 - `lsp` — enable language servers (true/false or per-language config)

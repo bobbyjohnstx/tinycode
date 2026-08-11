@@ -83,6 +83,10 @@ Exposes REST endpoints, SSE at `/global/event` for real-time updates, and WebSoc
 
 `src/session/processor.ts` runs the main agent loop: stream LLM response, execute tool calls, manage context overflow (compaction), handle retries, track run state. Each session is independent with its own processor instance.
 
+**Subagent depth limit**: The `subagent_depth` config option (default: 1) prevents infinite recursion. A root session can spawn subagents, but subagents cannot spawn further subagents by default. Set `subagent_depth: 2` or higher to allow nesting.
+
+**Message ordering**: Session message boundaries use `time.created` timestamps for chronological ordering, fixing issues with imported sessions where message IDs may not be monotonically increasing. Affects `latest()`, fork, revert, and prompt loop.
+
 ### Tools
 
 Registered in `src/tool/registry.ts`. Each tool is an Effect service. Current tools: read, write, edit, glob, grep, shell, LSP, webfetch, websearch, question, task, todo, skill, plan, swarm, apply_patch, repo_clone, repo_overview. Some tools are conditionally enabled (LSP, repo_clone, repo_overview, plan). Additionally, the omt plugin adds 22 tools (notepad, wiki, state management, AST grep).
@@ -111,6 +115,10 @@ Auto-discovery polls every 30 seconds with a 2-second probe timeout (`src/provid
 OpenRouter is also auto-discovered when `OPENROUTER_API_KEY` is set. The probe fetches `https://openrouter.ai/api/v1/models` (5-second timeout), filters to tool-capable non-free models, and maps pricing/capabilities/limits. Uses `@openrouter/ai-sdk-provider` SDK with generation cost tracking via OpenRouter's billing API.
 
 On startup, tinycode sends a warmup probe to the configured Ollama model (`src/provider/warmup.ts`). The probe sends a tool-call request to `/api/chat` with `keep_alive: "10m"`, pre-loading the model into GPU memory and verifying tool-calling capability. Results are shown as a toast (TUI) or footer message (direct mode).
+
+**Retry logic**: The `retryable()` function uses regex-based error matching for ~30 scenarios including network failures (fetch failed, connection refused, ECONNRESET, ETIMEDOUT), timeouts, provider overloads, rate limits, and server errors. OpenAI header timeout is increased to 300s (5 minutes) to support reasoning models (o1, o3) that can take minutes to produce the first SSE event.
+
+**Stream error preservation**: Patched `@ai-sdk/openai-compatible` to preserve full error objects during streaming (not just `.message`). `parseStreamError()` now handles both nested envelope and flat error object shapes.
 
 ### Bundled Cloud Providers (via Vercel AI SDK)
 
@@ -197,6 +205,10 @@ Configs from all sources are deep-merged. Plugin configs are deduplicated by ide
 ### Database
 
 SQLite via Drizzle ORM at `~/.local/share/tinycode/tinycode.db` (XDG_DATA_HOME). Schema files: `storage/schema.sql.ts`, `session/session.sql.ts`, `project/project.sql.ts`, `account/account.sql.ts`, `control-plane/workspace.sql.ts`, `sync/event.sql.ts`. Migrations run automatically on startup.
+
+**Forward compatibility**: Config parsing silently ignores unknown fields, enabling newer config files with older tinycode versions and shared configs across teams.
+
+**MCP reconnect loop fix**: Patched `@modelcontextprotocol/sdk` to recognize JSON-RPC error responses, preventing infinite SSE reconnection loops when MCP servers return errors.
 
 ---
 

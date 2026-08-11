@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+- Subagent depth limit (`subagent_depth` config, default: 1) — prevents infinite recursion by limiting how deep subagents can spawn further subagents
+
+### Changed
+- Expanded retry error patterns — `retryable()` now uses regex-based matching for ~30 scenarios including network failures, timeouts, provider overloads, rate limits, and server errors
+- OpenAI header timeout increased from 10s to 300s (5 minutes) to support reasoning models (o1, o3) that can take minutes to produce the first SSE event
+- Config parsing now silently ignores unknown fields for forward compatibility and shared configs
+- Session message ordering uses `time.created` timestamps instead of ID-based comparison for chronological correctness
+
+### Fixed
+- Stream error preservation in `@ai-sdk/openai-compatible` — patched to preserve full error objects during streaming (not just `.message`)
+- MCP SSE reconnect loop — patched `@modelcontextprotocol/sdk` to recognize JSON-RPC error responses, preventing infinite reconnection loops
+- Message boundary detection for imported sessions where IDs may not be monotonically increasing
+
 ## [1.17.1] — 2026-08-10
 
 ### Added

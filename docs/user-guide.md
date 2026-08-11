@@ -503,6 +503,7 @@ tinycode reads config from three sources (in order of precedence):
 | `server.port` | `4096` | HTTP API server port |
 | `server.hostname` | `127.0.0.1` | Server bind address |
 | `keybinds.leader` | `ctrl+x` | Leader key for shortcuts |
+| `subagent_depth` | `1` | Maximum nesting depth for subagents (prevents infinite recursion) |
 
 ### Provider Configuration
 

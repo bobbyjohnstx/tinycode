@@ -61,7 +61,7 @@ function isOverflow(message: string) {
   return /^4(00|13)\s*(status code)?\s*\(no body\)/i.test(message)
 }
 
-function message(providerID: ProviderID, e: APICallError) {
+function message(_providerID: ProviderID, e: APICallError) {
   return iife(() => {
     const msg = e.message
     if (msg === "") {
@@ -137,9 +137,18 @@ export function parseStreamError(input: unknown): ParsedStreamError | undefined 
   if (!body) return
 
   const responseBody = JSON.stringify(body)
-  if (body.type !== "error") return
 
-  switch (body?.error?.code) {
+  // Support both nested envelope {type:"error", error:{code,message}} and
+  // flat error object {type:"server_error", code:"server_error", message:"..."}
+  // from the patched @ai-sdk/openai-compatible SDK.
+  const isErrorEnvelope = body.type === "error"
+  const isFlatError = !isErrorEnvelope && typeof body.type === "string" && typeof body.code === "string"
+  if (!isErrorEnvelope && !isFlatError) return
+
+  const errorCode = isErrorEnvelope ? body?.error?.code : body?.code
+  const errorMessage = isErrorEnvelope ? body?.error?.message : body?.message
+
+  switch (errorCode) {
     case "context_length_exceeded":
       return {
         type: "context_overflow",
@@ -163,7 +172,7 @@ export function parseStreamError(input: unknown): ParsedStreamError | undefined 
     case "invalid_prompt":
       return {
         type: "api_error",
-        message: typeof body?.error?.message === "string" ? body?.error?.message : "Invalid prompt.",
+        message: typeof errorMessage === "string" ? errorMessage : "Invalid prompt.",
         isRetryable: false,
         responseBody,
       }
@@ -171,7 +180,7 @@ export function parseStreamError(input: unknown): ParsedStreamError | undefined 
     case "server_error":
       return {
         type: "api_error",
-        message: typeof body?.error?.message === "string" ? body?.error?.message : "Server error.",
+        message: typeof errorMessage === "string" ? errorMessage : "Server error.",
         isRetryable: true,
         responseBody,
       }

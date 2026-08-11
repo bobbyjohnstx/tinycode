@@ -91,7 +91,7 @@ The heart of the project. Contains the HTTP API server, all business logic, and 
 
 - **Server** (`src/server/`): Effect-based HTTP server using Hono-style routing via `effect/unstable/http`. Runs on port 4096. Exposes REST + SSE/WebSocket for real-time events.
 - **TUI** (`src/cli/cmd/tui/`): Terminal UI written in SolidJS on top of [opentui](https://github.com/sst/opentui). The TUI either spawns the server in a worker thread or attaches to an existing one.
-- **Session** (`src/session/`): Manages AI conversation sessions. Each session runs a processor loop that calls LLMs and coordinates tools. **Context compaction** automatically summarizes old turns when context usage approaches the model limit. Advanced compaction features:
+- **Session** (`src/session/`): Manages AI conversation sessions. Each session runs a processor loop that calls LLMs and coordinates tools. **Subagent depth limit** prevents infinite recursion via `subagent_depth` config (default: 1) — root sessions can spawn subagents, but subagents cannot spawn further subagents by default. Set `subagent_depth: 2` or higher to allow nesting. **Context compaction** automatically summarizes old turns when context usage approaches the model limit. Advanced compaction features:
   - **Deterministic file tracking**: Scans tool calls for read/write/edit operations, appends `<read-files>` and `<modified-files>` XML blocks to summaries (not LLM-dependent)
   - **Observation masking**: Replaces old tool outputs with placeholders before summarization (config: `compaction.mask_observations`, default true)
   - **Text serialization**: Conversation serialized to tagged text format with "Do NOT continue" system prompt, preventing model continuation
@@ -101,10 +101,10 @@ The heart of the project. Contains the HTTP API server, all business logic, and 
   - **Increased preserve budget**: MIN 4K tokens, MAX 20K tokens (up from 2K-8K) to maintain recent context
 - **Agent** (`src/agent/`): Built-in agent definitions. Two modes have distinct behavior: **build** (default, full tool access) and **plan** (read-only, hard permission enforcement — can only write to `.tinycode/plans/*.md`). All other agents (architect, debugger, executor, etc.) are personas that share build's permissions but have specialized system prompts. Agent defaults live in `src/agent/defaults/` with `.compact.md` variants for small models.
 - **Tools** (`src/tool/`): Individual agent tools — file read/write/edit, shell, grep, glob, LSP, MCP websearch, etc.
-- **Provider** (`src/provider/`): LLM provider abstraction (wraps Vercel AI SDK). Local LLM support via Ollama and OpenAI-compatible endpoints is the primary use case. Includes **model warmup** (`src/provider/warmup.ts`) that sends a tool-call probe to Ollama on startup to pre-load the model into GPU memory and verify tool-calling capability.
-- **Config** (`src/config/`): User config parsing. Each config module self-exports (e.g., `export * as ConfigAgent from "./agent"`).
+- **Provider** (`src/provider/`): LLM provider abstraction (wraps Vercel AI SDK). Local LLM support via Ollama and OpenAI-compatible endpoints is the primary use case. Includes **model warmup** (`src/provider/warmup.ts`) that sends a tool-call probe to Ollama on startup to pre-load the model into GPU memory and verify tool-calling capability. **Retry logic** uses regex-based error matching for ~30 scenarios including network failures (fetch failed, connection refused, ECONNRESET, ETIMEDOUT), timeouts, provider overloads, rate limits, and server errors. OpenAI header timeout is 5 minutes to support reasoning models (o1, o3).
+- **Config** (`src/config/`): User config parsing. Each config module self-exports (e.g., `export * as ConfigAgent from "./agent"`). **Forward compatibility**: Config parsing silently ignores unknown fields, enabling newer config files to work with older tinycode versions and shared configs across teams.
 - **Storage** (`src/storage/`): SQLite via Drizzle ORM. DB schema in `schema.sql.ts`.
-- **MCP** (`src/mcp/`): Model Context Protocol client integration.
+- **MCP** (`src/mcp/`): Model Context Protocol client integration. **Reconnect loop fix**: Patched `@modelcontextprotocol/sdk` to recognize JSON-RPC error responses, preventing infinite SSE reconnection loops when MCP servers return errors.
 - **ACP** (`src/acp/`): Agent Client Protocol implementation for IDE integration. Implements stdio-based agent communication for editor extensions and language servers.
 
 ### `packages/vscode-extension` — VS Code Extension

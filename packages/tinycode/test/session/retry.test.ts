@@ -241,6 +241,108 @@ describe("session.retry.retryable", () => {
     expect(SessionRetry.retryable(error, retryProvider)).toBeUndefined()
   })
 
+  test("retries network failure: fetch failed", () => {
+    const error = wrap("fetch failed")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "fetch failed" })
+  })
+
+  test("retries network failure: connection refused", () => {
+    const error = wrap("connection refused")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "connection refused" })
+  })
+
+  test("retries network failure: ECONNRESET", () => {
+    const error = wrap("ECONNRESET")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "ECONNRESET" })
+  })
+
+  test("retries network failure: ETIMEDOUT", () => {
+    const error = wrap("ETIMEDOUT")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "ETIMEDOUT" })
+  })
+
+  test("retries network failure: socket hang up", () => {
+    const error = wrap("socket hang up")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "socket hang up" })
+  })
+
+  test("retries network failure: getaddrinfo ENOTFOUND", () => {
+    const error = wrap("getaddrinfo ENOTFOUND")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "getaddrinfo ENOTFOUND" })
+  })
+
+  test("retries timeout: request timeout", () => {
+    const error = wrap("request timeout")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "request timeout" })
+  })
+
+  test("retries timeout: exact match", () => {
+    const error = wrap("timeout")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "timeout" })
+  })
+
+  test("retries timeout: connection timed out", () => {
+    const error = wrap("connection timed out")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "connection timed out" })
+  })
+
+  test("retries provider hint: try your request again", () => {
+    const error = wrap("try your request again")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "try your request again" })
+  })
+
+  test("retries provider hint: retry your request", () => {
+    const error = wrap("retry your request")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "retry your request" })
+  })
+
+  test("retries server error in message: internal server error", () => {
+    const error = wrap("internal server error")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "internal server error" })
+  })
+
+  test("retries server error in message: 502 Bad Gateway", () => {
+    const error = wrap("502 Bad Gateway")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "502 Bad Gateway" })
+  })
+
+  test("retries server error in message: service unavailable", () => {
+    const error = wrap("service unavailable")
+    expect(SessionRetry.retryable(error, retryProvider)).toEqual({ message: "Provider is overloaded" })
+  })
+
+  test("retries APIError with retryable message but isRetryable=false and non-5xx status (429 rate limit)", () => {
+    const error = Schema.decodeUnknownSync(MessageV2.APIError.Schema)(
+      new MessageV2.APIError({
+        message: "rate limit exceeded",
+        isRetryable: false,
+        statusCode: 429,
+      }).toObject(),
+    )
+    expect(SessionRetry.retryable(error, retryProvider)).toBeDefined()
+  })
+
+  test("retries APIError with retryable message but isRetryable=false and non-5xx status (400 fetch failed)", () => {
+    const error = Schema.decodeUnknownSync(MessageV2.APIError.Schema)(
+      new MessageV2.APIError({
+        message: "fetch failed",
+        isRetryable: false,
+        statusCode: 400,
+      }).toObject(),
+    )
+    expect(SessionRetry.retryable(error, retryProvider)).toBeDefined()
+  })
+
+  test("does not retry non-retryable error: Invalid API key", () => {
+    const error = wrap("Invalid API key")
+    expect(SessionRetry.retryable(error, retryProvider)).toBeUndefined()
+  })
+
+  test("does not retry non-retryable error: Bad request malformed JSON", () => {
+    const error = wrap("Bad request: malformed JSON")
+    expect(SessionRetry.retryable(error, retryProvider)).toBeUndefined()
+  })
+
   test("retries ZlibError decompression failures", () => {
     const error = Schema.decodeUnknownSync(MessageV2.APIError.Schema)(
       new MessageV2.APIError({
@@ -324,17 +426,15 @@ describe("session.message-v2.fromError", () => {
   })
 
   test("converts OpenAI server_error stream chunks to retryable APIError", () => {
+    // Post-patch: the @ai-sdk/openai-compatible SDK now emits the full error object
+    // instead of just the message string
     const result = MessageV2.fromError(
       {
         message: JSON.stringify({
-          type: "error",
-          sequence_number: 2,
-          error: {
-            type: "server_error",
-            code: "server_error",
-            message: "An error occurred while processing your request.",
-            param: null,
-          },
+          type: "server_error",
+          code: "server_error",
+          message: "An error occurred while processing your request.",
+          param: null,
         }),
       },
       { providerID: ProviderID.make("openai") },
@@ -346,5 +446,16 @@ describe("session.message-v2.fromError", () => {
     expect(SessionRetry.retryable(result, retryProvider)).toEqual({
       message: "An error occurred while processing your request.",
     })
+  })
+
+  test("converts flat stream error objects to retryable APIError (patched SDK)", () => {
+    const result = MessageV2.fromError(
+      { message: "An error occurred", type: "server_error", code: "server_error" },
+      { providerID: ProviderID.make("openai") },
+    )
+    expect(MessageV2.APIError.isInstance(result)).toBe(true)
+    if (!MessageV2.APIError.isInstance(result)) throw new Error("expected APIError")
+    expect(result.data.isRetryable).toBe(true)
+    expect(SessionRetry.retryable(result, retryProvider)).toBeDefined()
   })
 })

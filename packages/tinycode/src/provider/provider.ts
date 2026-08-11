@@ -30,7 +30,7 @@ import { ProviderError } from "./error"
 import { LocalDiscovery } from "./local-discovery"
 
 const log = Log.create({ service: "provider" })
-const OPENAI_HEADER_TIMEOUT_DEFAULT = 10_000
+const OPENAI_HEADER_TIMEOUT_DEFAULT = 300_000
 
 function wrapSSE(res: Response, ms: number, ctl: AbortController) {
   if (typeof ms !== "number" || ms <= 0) return res

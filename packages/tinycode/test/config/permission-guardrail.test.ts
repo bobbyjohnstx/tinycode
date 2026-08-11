@@ -45,8 +45,10 @@ describe("permission schema – guardrail key", () => {
     expect(permission?.guardrail).toBe("ask")
   })
 
-  test("rejects unknown top-level config keys (schema still validates)", () => {
-    expect(() => ConfigParse.schema(Config.Info, { not_a_real_key: true }, "test:permission-guardrail")).toThrow()
+  test("silently ignores unknown top-level config keys for forward compatibility", () => {
+    const result = ConfigParse.schema(Config.Info, { not_a_real_key: true }, "test:permission-guardrail")
+    expect(result).toBeDefined()
+    expect((result as any).not_a_real_key).toBeUndefined()
   })
 
   test("guardrail key does not appear when omitted from permission object", () => {

@@ -696,8 +696,9 @@ export const layer: Layer.Layer<
       const msgs = yield* messages({ sessionID: input.sessionID })
       const idMap = new Map<string, MessageID>()
 
-      for (const msg of msgs) {
-        if (input.messageID && msg.info.id >= input.messageID) break
+      const cutoff = input.messageID ? msgs.findIndex((m) => m.info.id === input.messageID) : -1
+      const included = cutoff >= 0 ? msgs.slice(0, cutoff) : msgs
+      for (const msg of included) {
         const newID = MessageID.ascending()
         idMap.set(msg.info.id, newID)
 
