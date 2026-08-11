@@ -189,7 +189,7 @@ Solutions to common tinycode issues and configuration problems.
 5. Check if the model is swapping: close Docker, Chrome, and other memory-heavy apps
 6. Dense models >12B are too slow on 32GB RAM — use qwen3.5:9b (9B, benchmark champion at 14/15)
 7. Check `ollama ps` to see if the model is loaded or re-loading between requests
-8. If model keeps re-loading, check `keep_alive` — tinycode sets `keep_alive: "10m"` by default
+8. If model keeps re-loading, check `keep_alive` — tinycode sets `keep_alive: "30m"` by default
 
 ### TUI is sluggish or unresponsive
 
@@ -209,7 +209,7 @@ Solutions to common tinycode issues and configuration problems.
    ```
 2. Collapse code blocks to reduce rendering:
    ```
-   <leader>h        # Toggle code concealment
+   <leader>;        # Toggle code concealment
    ```
 3. Try a smaller terminal font size (renders faster)
 4. Check system isn't CPU-constrained (tinycode TUI runs on single thread)
@@ -373,7 +373,7 @@ tc-doctor runs 14 checks in order: directory structure, agents, skills, system t
 
 ### List all active sessions
 ```bash
-<leader>l
+<leader>o
 ```
 
 ### View server status

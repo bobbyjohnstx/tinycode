@@ -830,7 +830,7 @@ See [@tinycode/plugin](packages/plugin) for the full SDK.
 
 On startup, tinycode sends a warmup probe to Ollama via `/api/chat` with:
 - A dummy tool-call request
-- `keep_alive: "10m"` (keeps model loaded for 10 minutes)
+- `keep_alive: "30m"` (keeps model loaded for 30 minutes)
 - Results logged to footer/toast
 
 This pre-loads the model into GPU memory so responses are fast.

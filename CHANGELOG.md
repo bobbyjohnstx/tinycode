@@ -15,6 +15,10 @@
 - Stream error preservation in `@ai-sdk/openai-compatible` — patched to preserve full error objects during streaming (not just `.message`)
 - MCP SSE reconnect loop — patched `@modelcontextprotocol/sdk` to recognize JSON-RPC error responses, preventing infinite reconnection loops
 - Message boundary detection for imported sessions where IDs may not be monotonically increasing
+- Truncation cleanup uses filesystem mtime instead of ID-embedded timestamps — fixes incorrect retention calculations
+- Grep results preserve user-provided symlink paths instead of resolving them to physical paths
+- ACP mode drains SSE events before returning end-of-turn — prevents clients from missing final tool results
+- CI: configure git identity for AUR and Homebrew tap commits in publish script
 
 ## [1.17.1] — 2026-08-10
 

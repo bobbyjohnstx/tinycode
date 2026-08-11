@@ -332,6 +332,29 @@ await conn.prompt({
 })
 ```
 
+## End-of-Turn Handling
+
+ACP clients need to know when the agent has finished processing a prompt. tinycode uses SSE event draining internally to ensure all tool results and message parts are delivered before the `prompt()` call resolves.
+
+The `prompt()` method returns only after:
+1. The LLM finishes generating
+2. All tool executions complete
+3. All `sessionUpdate` notifications for the turn have been emitted
+
+This means clients can safely treat the `prompt()` promise resolution as the end-of-turn signal — no polling or timeout required.
+
+```typescript
+// prompt() resolves only after all events are delivered
+await conn.prompt({
+  sessionId: session.sessionId,
+  prompt: [{ type: 'text', text: 'Run the tests and report results' }]
+})
+// At this point, all tool-call-completed events have been emitted
+console.log('Turn complete — all results delivered')
+```
+
+For non-interactive integrations (CI pipelines, batch processing), this guarantees that reading the session messages after `prompt()` returns will include the complete response.
+
 ## Troubleshooting
 
 ### Connection Failed
