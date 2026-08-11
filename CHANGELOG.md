@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.18.0] — 2026-08-10
+
 ### Added
 - Subagent depth limit (`subagent_depth` config, default: 1) — prevents infinite recursion by limiting how deep subagents can spawn further subagents
 
