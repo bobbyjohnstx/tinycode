@@ -130,6 +130,7 @@ if (!Script.preview) {
         await $`rm -rf ./dist/aur-${pkg}`
         await $`git clone ssh://aur@aur.archlinux.org/${pkg}.git ./dist/aur-${pkg}`
         await $`cd ./dist/aur-${pkg} && git checkout master`
+        await $`cd ./dist/aur-${pkg} && git config user.name "tinycode-bot" && git config user.email "bot@tinycode.dev"`
         await Bun.file(`./dist/aur-${pkg}/PKGBUILD`).write(pkgbuild)
         await $`cd ./dist/aur-${pkg} && makepkg --printsrcinfo > .SRCINFO`
         await $`cd ./dist/aur-${pkg} && git add PKGBUILD .SRCINFO`
@@ -204,6 +205,7 @@ if (!Script.preview) {
   const tap = `https://x-access-token:${token}@github.com/bobbyjohnstx/homebrew-tap.git`
   await $`rm -rf ./dist/homebrew-tap`
   await $`git clone ${tap} ./dist/homebrew-tap`
+  await $`cd ./dist/homebrew-tap && git config user.name "tinycode-bot" && git config user.email "bot@tinycode.dev"`
   await Bun.file("./dist/homebrew-tap/tinycode.rb").write(homebrewFormula)
   await $`cd ./dist/homebrew-tap && git add tinycode.rb`
   if ((await $`cd ./dist/homebrew-tap && git diff --cached --quiet`.nothrow()).exitCode !== 0) {
