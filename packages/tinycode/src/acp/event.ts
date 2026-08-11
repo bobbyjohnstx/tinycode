@@ -15,6 +15,22 @@ type GlobalEventStream = {
   stream: AsyncIterable<GlobalEventEnvelope>
 }
 
+interface Signal {
+  promise: Promise<void>
+  resolve: () => void
+  reject: (reason?: unknown) => void
+}
+
+function signal(): Signal {
+  let resolve!: () => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 export function start(input: { sdk: TinycodeClient; connection: Connection; session: ACPSession.Interface }) {
   const subscription = new Subscription(input)
   subscription.start()
@@ -26,6 +42,9 @@ export class Subscription {
   private readonly toolStarts = new Set<string>()
   private readonly permission: ACPPermission.Handler
   private started = false
+  private connected = false
+  private readonly connectionWaiters = new Set<() => void>()
+  private readonly idleWaiters = new Map<string, Set<Signal>>()
 
   constructor(
     private readonly input: {
@@ -47,6 +66,47 @@ export class Subscription {
 
   stop() {
     this.abort.abort()
+    this.disconnected()
+  }
+
+  async runUntilIdle<A>(sessionId: string, fn: () => Promise<A>): Promise<A> {
+    await this.waitUntilConnected()
+    const s = signal()
+    let waiters = this.idleWaiters.get(sessionId)
+    if (!waiters) {
+      waiters = new Set()
+      this.idleWaiters.set(sessionId, waiters)
+    }
+    waiters.add(s)
+    try {
+      const result = await fn()
+      await s.promise
+      return result
+    } finally {
+      waiters.delete(s)
+      if (waiters.size === 0) this.idleWaiters.delete(sessionId)
+    }
+  }
+
+  private waitUntilConnected(): Promise<void> {
+    if (this.connected) return Promise.resolve()
+    return new Promise((resolve) => {
+      this.connectionWaiters.add(resolve)
+    })
+  }
+
+  private markConnected() {
+    this.connected = true
+    for (const waiter of this.connectionWaiters) waiter()
+    this.connectionWaiters.clear()
+  }
+
+  private disconnected() {
+    this.connected = false
+    for (const [, waiters] of this.idleWaiters) {
+      for (const s of waiters) s.reject(new Error("SSE disconnected"))
+    }
+    this.idleWaiters.clear()
   }
 
   async handle(event: Event) {
@@ -54,6 +114,17 @@ export class Subscription {
       case "permission.updated" as any:
         this.permission.handle(event.properties as any)
         return
+      case "session.status": {
+        const props = event.properties as { sessionID: string; status: { type: string } }
+        if (props.status.type === "idle") {
+          const waiters = this.idleWaiters.get(props.sessionID)
+          if (waiters) {
+            for (const s of waiters) s.resolve()
+            this.idleWaiters.delete(props.sessionID)
+          }
+        }
+        return
+      }
       case "message.part.updated":
         return this.handlePartUpdated(event)
     }
@@ -95,14 +166,21 @@ export class Subscription {
 
   private async run() {
     while (!this.abort.signal.aborted) {
-      const events = (await this.input.sdk.global.event({
-        signal: this.abort.signal,
-      })) as GlobalEventStream
+      try {
+        const events = (await this.input.sdk.global.event({
+          signal: this.abort.signal,
+        })) as GlobalEventStream
 
-      for await (const event of events.stream) {
+        this.markConnected()
+
+        for await (const event of events.stream) {
+          if (this.abort.signal.aborted) return
+          if (!event.payload) continue
+          await this.handle(event.payload).catch(() => {})
+        }
+      } catch {
         if (this.abort.signal.aborted) return
-        if (!event.payload) continue
-        await this.handle(event.payload).catch(() => {})
+        this.disconnected()
       }
       if (!this.abort.signal.aborted) await new Promise((resolve) => setTimeout(resolve, 1000))
     }

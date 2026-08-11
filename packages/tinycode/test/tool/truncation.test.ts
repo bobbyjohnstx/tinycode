@@ -7,6 +7,7 @@ import { Config } from "@/config/config"
 import { Identifier } from "../../src/id/id"
 import { Process } from "@/util/process"
 import path from "path"
+import { utimes } from "fs/promises"
 import { testEffect } from "../lib/effect"
 import { writeFileStringScoped } from "../lib/filesystem"
 import { TestConfig } from "../fixture/config"
@@ -255,6 +256,13 @@ describe("Truncate", () => {
 
         yield* writeFileStringScoped(old, "old content")
         yield* writeFileStringScoped(recent, "recent content")
+
+        // Set mtime to match the intended age (cleanup now uses fs mtime, not filename timestamps)
+        const oldTime = new Date(Date.now() - 10 * DAY_MS)
+        const recentTime = new Date(Date.now() - 3 * DAY_MS)
+        yield* Effect.promise(() => utimes(old, oldTime, oldTime))
+        yield* Effect.promise(() => utimes(recent, recentTime, recentTime))
+
         yield* svc.cleanup()
 
         expect(yield* fs.exists(old)).toBe(false)

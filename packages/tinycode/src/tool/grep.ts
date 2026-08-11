@@ -64,10 +64,8 @@ export const GrepTool = Tool.define(
             kind: requestedInfo?.type === "Directory" ? "directory" : "file",
           })
 
-          const search = AppFileSystem.resolve(requested)
-          const info = yield* fs.stat(search).pipe(Effect.catch(() => Effect.succeed(undefined)))
-          const cwd = info?.type === "Directory" ? search : path.dirname(search)
-          const file = info?.type === "Directory" ? undefined : [path.relative(cwd, search)]
+          const cwd = requestedInfo?.type === "Directory" ? requested : path.dirname(requested)
+          const file = requestedInfo?.type === "Directory" ? undefined : [path.basename(requested)]
 
           const result = yield* rg.search({
             cwd,
@@ -80,9 +78,7 @@ export const GrepTool = Tool.define(
           if (result.items.length === 0) return empty
 
           const rows = result.items.map((item) => ({
-            path: AppFileSystem.resolve(
-              path.isAbsolute(item.path.text) ? item.path.text : path.join(cwd, item.path.text),
-            ),
+            path: path.isAbsolute(item.path.text) ? item.path.text : path.join(cwd, item.path.text),
             line: item.line_number,
             text: item.lines.text,
           }))

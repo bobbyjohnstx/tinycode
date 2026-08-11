@@ -289,20 +289,24 @@ export function make(input: { sdk: TinycodeClient; connection?: ServiceConnectio
     return {}
   })
 
+  const runUntilIdle = <A>(sessionId: string, fn: () => Promise<A>): Promise<A> =>
+    events ? events.runUntilIdle(sessionId, fn) : fn()
+
   const prompt: Interface["prompt"] = Effect.fn("ACP.prompt")(function* (params: PromptRequest) {
     const parts = promptContentToParts((params as any).content)
 
     yield* Effect.tryPromise({
-      try: async () => {
-        const result = await input.sdk.session.prompt({
-          path: { id: params.sessionId },
-          body: {
-            parts,
-          },
-        })
-        if (result.error) throw new Error("Failed to send prompt")
-        return result.data
-      },
+      try: () =>
+        runUntilIdle(params.sessionId, async () => {
+          const result = await input.sdk.session.prompt({
+            path: { id: params.sessionId },
+            body: {
+              parts,
+            },
+          })
+          if (result.error) throw new Error("Failed to send prompt")
+          return result.data
+        }),
       catch: (error) => new ACPError.ServiceFailureError({ safeMessage: String(error) }),
     })
 
