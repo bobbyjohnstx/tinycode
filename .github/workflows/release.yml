@@ -71,6 +71,7 @@ jobs:
           TINYCODE_RELEASE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           # Configure npm authentication
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc

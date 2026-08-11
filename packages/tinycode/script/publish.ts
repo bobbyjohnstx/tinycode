@@ -135,7 +135,7 @@ if (!Script.preview) {
         await $`cd ./dist/aur-${pkg} && makepkg --printsrcinfo > .SRCINFO`
         await $`cd ./dist/aur-${pkg} && git add PKGBUILD .SRCINFO`
         if ((await $`cd ./dist/aur-${pkg} && git diff --cached --quiet`.nothrow()).exitCode === 0) break
-        await $`cd ./dist/aur-${pkg} && git commit -m "Update to v${Script.version}"`
+        await $`cd ./dist/aur-${pkg} && git commit -m "Update to ${Script.version}"`
         await $`cd ./dist/aur-${pkg} && git push`
         break
       } catch {
@@ -197,19 +197,24 @@ if (!Script.preview) {
     "",
   ].join("\n")
 
-  const token = process.env.GITHUB_TOKEN
+  const token = process.env.HOMEBREW_TAP_TOKEN || process.env.GITHUB_TOKEN
   if (!token) {
-    console.error("GITHUB_TOKEN is required to update homebrew tap")
+    console.error("HOMEBREW_TAP_TOKEN or GITHUB_TOKEN is required to update homebrew tap")
     process.exit(1)
   }
-  const tap = `https://x-access-token:${token}@github.com/bobbyjohnstx/homebrew-tap.git`
-  await $`rm -rf ./dist/homebrew-tap`
-  await $`git clone ${tap} ./dist/homebrew-tap`
-  await $`cd ./dist/homebrew-tap && git config user.name "tinycode-bot" && git config user.email "bot@tinycode.dev"`
-  await Bun.file("./dist/homebrew-tap/tinycode.rb").write(homebrewFormula)
-  await $`cd ./dist/homebrew-tap && git add tinycode.rb`
-  if ((await $`cd ./dist/homebrew-tap && git diff --cached --quiet`.nothrow()).exitCode !== 0) {
-    await $`cd ./dist/homebrew-tap && git commit -m "Update to v${Script.version}"`
-    await $`cd ./dist/homebrew-tap && git push`
+  try {
+    const tap = `https://x-access-token:${token}@github.com/bobbyjohnstx/homebrew-tap.git`
+    await $`rm -rf ./dist/homebrew-tap`
+    await $`git clone ${tap} ./dist/homebrew-tap`
+    await $`cd ./dist/homebrew-tap && git config user.name "tinycode-bot" && git config user.email "bot@tinycode.dev"`
+    await Bun.file("./dist/homebrew-tap/tinycode.rb").write(homebrewFormula)
+    await $`cd ./dist/homebrew-tap && git add tinycode.rb`
+    if ((await $`cd ./dist/homebrew-tap && git diff --cached --quiet`.nothrow()).exitCode !== 0) {
+      await $`cd ./dist/homebrew-tap && git commit -m "Update to ${Script.version}"`
+      await $`cd ./dist/homebrew-tap && git push`
+    }
+  } catch (err) {
+    console.error("Failed to update homebrew tap:", err)
+    console.error("Set HOMEBREW_TAP_TOKEN to a PAT with repo scope for bobbyjohnstx/homebrew-tap")
   }
 }
