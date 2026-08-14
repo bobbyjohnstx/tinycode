@@ -101,7 +101,7 @@
     "@modelcontextprotocol/sdk": "1.27.1",
     "@npmcli/arborist": "9.4.0",
     "@npmcli/config": "10.8.1",
-    "@octokit/graphql": "9.0.2",
+    "@octokit/graphql": "9.0.4",
     "@octokit/rest": "catalog:",
     "@openauthjs/openauth": "catalog:",
     "@openrouter/ai-sdk-provider": "2.8.1",
