@@ -175,6 +175,6 @@
     "drizzle-orm": "catalog:"
   },
   "optionalDependencies": {
-    "@ast-grep/napi": "0.43.0"
+    "@ast-grep/napi": "0.45.1"
   }
 }
