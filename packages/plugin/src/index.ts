@@ -201,6 +201,48 @@ export type ProviderHook = {
 /** @deprecated Use AuthOAuthResult instead. */
 export type AuthOuathResult = AuthOAuthResult
 
+/**
+ * Provider record in the model catalog.
+ */
+export type CatalogProviderRecord = {
+  provider: Record<string, any>
+  models: Map<string, Record<string, any>>
+}
+
+/**
+ * Context for `catalog.transform` hooks. Provides methods to modify
+ * the model catalog (providers and models). The callback parameters
+ * in update methods are mutable drafts (immer).
+ */
+export type CatalogContext = {
+  /** Current provider records */
+  data: readonly CatalogProviderRecord[]
+  /** @deprecated Use `provider.update` instead */
+  updateProvider: (providerID: string, fn: (provider: Record<string, any>) => void) => void
+  /** @deprecated Use `model.update` instead */
+  updateModel: (providerID: string, modelID: string, fn: (model: Record<string, any>) => void) => void
+  provider: {
+    update: (providerID: string, fn: (provider: Record<string, any>) => void) => void
+    remove: (providerID: string) => void
+  }
+  model: {
+    update: (providerID: string, modelID: string, fn: (model: Record<string, any>) => void) => void
+    remove: (providerID: string, modelID: string) => void
+  }
+}
+
+/**
+ * Agent information for `agent.update` and `agent.remove` hooks.
+ */
+export type AgentInfo = {
+  name: string
+  description?: string
+  mode: "subagent" | "primary" | "all"
+  hidden?: boolean
+  color?: string
+  [key: string]: any
+}
+
 export interface Hooks {
   dispose?: () => Promise<void>
   event?: (input: { event: Event }) => Promise<void>
@@ -341,4 +383,45 @@ export interface Hooks {
     input: { sessionID: string; providerID: string; modelID: string; previousModelID?: string },
     output: {},
   ) => Promise<void>
+  /**
+   * Modify the model catalog (providers and models).
+   * Called when the catalog is rebuilt or a plugin is added.
+   * Use `input.provider.update()` and `input.model.update()` to modify entries.
+   */
+  "catalog.transform"?: (input: CatalogContext, output: {}) => Promise<void>
+  /**
+   * Modify or cancel agent registration.
+   * Mutate `output.agent` to modify the agent, or set `output.cancel = true` to prevent registration.
+   */
+  "agent.update"?: (input: {}, output: { agent: AgentInfo; cancel: boolean }) => Promise<void>
+  /**
+   * Intercept agent removal.
+   * Set `output.cancel = true` to prevent the agent from being removed.
+   */
+  "agent.remove"?: (input: { agent: AgentInfo }, output: { cancel: boolean }) => Promise<void>
+  /**
+   * Override the default agent.
+   * Set `output.agent` to an agent name to change the default.
+   */
+  "agent.default"?: (input: {}, output: { agent?: string }) => Promise<void>
+  /**
+   * Register a custom AI SDK language model provider.
+   * Set `output.language` to provide a custom LanguageModelV4 implementation.
+   */
+  "aisdk.language"?: (
+    input: { model: Record<string, any>; sdk: any; options: Record<string, any> },
+    output: { language?: any },
+  ) => Promise<void>
+  /**
+   * Register a custom AI SDK provider.
+   * Set `output.sdk` to provide a custom SDK instance for the given package.
+   */
+  "aisdk.sdk"?: (
+    input: { model: Record<string, any>; package: string; options: Record<string, any> },
+    output: { sdk?: any },
+  ) => Promise<void>
+  /**
+   * Notification when the active account changes for a service.
+   */
+  "account.switched"?: (input: { serviceID: string; from?: string; to?: string }, output: {}) => Promise<void>
 }

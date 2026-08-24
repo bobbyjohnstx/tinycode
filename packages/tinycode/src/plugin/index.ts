@@ -21,6 +21,7 @@ import { AzureAuthPlugin } from "./azure"
 import { DigitalOceanAuthPlugin } from "./digitalocean"
 import { XaiAuthPlugin } from "./xai"
 import { Effect, Layer, Context, Stream } from "effect"
+import { PluginV2 } from "@/core/plugin"
 import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { errorMessage } from "@/util/error"
@@ -139,6 +140,7 @@ export const layer = Layer.effect(
     const bus = yield* Bus.Service
     const config = yield* Config.Service
     const flags = yield* RuntimeFlags.Service
+    const pluginV2 = yield* PluginV2.Service
 
     const state = yield* InstanceState.make<State>(
       Effect.fn("Plugin.state")(function* (ctx) {
@@ -370,6 +372,48 @@ export const layer = Layer.effect(
           Effect.forkScoped,
         )
 
+        // Bridge V1 hooks with V2 hook names to the V2 plugin system.
+        // When an external plugin registers a V2 hook via the V1 interface,
+        // we register it with V2's add() so it fires during V2 triggers.
+        const v2HookNames = [
+          "catalog.transform",
+          "agent.update",
+          "agent.remove",
+          "agent.default",
+          "aisdk.language",
+          "aisdk.sdk",
+          "account.switched",
+        ] as const
+        const emptyOutputHooks = new Set<string>(["catalog.transform", "account.switched"])
+        const emptyInputHooks = new Set<string>(["agent.update", "agent.default"])
+
+        for (let i = 0; i < hooks.length; i++) {
+          const hook = hooks[i]
+          const v2Fns: Record<string, (event: any) => Effect.Effect<void>> = {}
+          let hasV2 = false
+
+          for (const name of v2HookNames) {
+            const fn = (hook as any)[name]
+            if (typeof fn !== "function") continue
+            hasV2 = true
+
+            if (emptyOutputHooks.has(name)) {
+              v2Fns[name] = (event: any) => Effect.promise(() => Promise.resolve(fn(event, {})))
+            } else if (emptyInputHooks.has(name)) {
+              v2Fns[name] = (event: any) => Effect.promise(() => Promise.resolve(fn({}, event)))
+            } else {
+              v2Fns[name] = (event: any) => Effect.promise(() => Promise.resolve(fn(event, event)))
+            }
+          }
+
+          if (hasV2) {
+            yield* pluginV2.add({
+              id: PluginV2.ID.make(`v1-bridge-${i}`),
+              effect: Effect.succeed(v2Fns as PluginV2.HookFunctions),
+            })
+          }
+        }
+
         return { hooks }
       }),
     )
@@ -411,6 +455,7 @@ export const defaultLayer = layer.pipe(
   Layer.provide(Bus.layer),
   Layer.provide(Config.defaultLayer),
   Layer.provide(RuntimeFlags.defaultLayer),
+  Layer.provide(PluginV2.defaultLayer),
 )
 
 export * as Plugin from "."

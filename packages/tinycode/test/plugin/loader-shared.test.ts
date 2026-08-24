@@ -15,6 +15,7 @@ const { Bus } = await import("../../src/bus")
 const { Npm } = await import("@/core/npm")
 const { TestConfig } = await import("../fixture/config")
 const { RuntimeFlags } = await import("../../src/effect/runtime-flags")
+const { PluginV2 } = await import("../../src/core/plugin")
 
 afterEach(async () => {
   await disposeAllInstances()
@@ -48,6 +49,7 @@ function load(dir: string, flags?: Parameters<typeof RuntimeFlags.layer>[0]) {
         Plugin.layer.pipe(
           Layer.provide(Bus.layer),
           Layer.provide(RuntimeFlags.layer({ disableDefaultPlugins: true, ...flags })),
+          Layer.provide(PluginV2.layer),
           Layer.provide(
             TestConfig.layer({
               get: () =>

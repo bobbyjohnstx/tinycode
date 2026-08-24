@@ -11,6 +11,7 @@ import { Config } from "../../src/config/config"
 import { Env } from "../../src/env"
 import { RuntimeFlags } from "../../src/effect/runtime-flags"
 import { Plugin } from "../../src/plugin/index"
+import { PluginV2 } from "../../src/core/plugin"
 import { ModelID, ProviderID } from "../../src/provider/schema"
 import { provideTmpdirInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
@@ -33,6 +34,7 @@ const it = testEffect(
       Layer.provide(Bus.layer),
       Layer.provide(configLayer),
       Layer.provide(RuntimeFlags.layer({ disableDefaultPlugins: true })),
+      Layer.provide(PluginV2.layer),
     ),
     CrossSpawnSpawner.defaultLayer,
   ),

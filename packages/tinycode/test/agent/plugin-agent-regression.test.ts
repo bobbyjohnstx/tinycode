@@ -10,6 +10,7 @@ import { Config } from "../../src/config/config"
 import { Env } from "../../src/env"
 import { RuntimeFlags } from "../../src/effect/runtime-flags"
 import { Plugin } from "../../src/plugin"
+import { PluginV2 } from "../../src/core/plugin"
 import { AccountTest } from "../fake/account"
 import { AuthTest } from "../fake/auth"
 import { NpmTest } from "../fake/npm"
@@ -36,6 +37,7 @@ const pluginLayer = Plugin.layer.pipe(
   Layer.provide(Bus.layer),
   Layer.provide(configLayer),
   Layer.provide(RuntimeFlags.layer({ disableDefaultPlugins: true })),
+  Layer.provide(PluginV2.layer),
 )
 const agentLayer = Agent.layer.pipe(
   Layer.provide(configLayer),
