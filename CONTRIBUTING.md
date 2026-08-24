@@ -11,17 +11,21 @@
 
 - `bun dev` — Run TUI in development mode
 - `bun run lint` — Lint with oxlint
-- `cd packages/tinycode && bun typecheck` — Type check
+- `bun typecheck` — Type check all packages (runs via Turborepo from repo root)
 - `cd packages/tinycode && bun test` — Run tests
 
 ## Pull Request Process
 
+Please open a [GitHub Issue](https://github.com/bobbyjohnstx/tinycode/issues) before submitting a PR for anything beyond a typo or documentation fix. Code PRs without a prior issue may be closed.
+
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-feature`)
 3. Make your changes
-4. Run `bun run lint` and `cd packages/tinycode && bun test` before committing
+4. Run `bun run lint`, `bun typecheck`, and `cd packages/tinycode && bun test` before committing
 5. Use conventional commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 6. Push and open a PR against `main`
+
+CI runs three gates on every PR: **lint**, **typecheck**, and **test** (see `.github/workflows/ci.yml`). Some tests (TUI, httpapi-listen, help) are excluded in CI.
 
 ## Coding Standards
 
@@ -46,6 +50,14 @@ Run tests from a package directory, never from root:
 cd packages/tinycode && bun test --timeout 30000
 ```
 
+## Changelog
+
+CHANGELOG.md is maintained by the project maintainer at release time. Contributors do not need to add changelog entries.
+
+## Legal
+
+No CLA or DCO is required to contribute.
+
 ## Questions?
 
-Open a [GitHub Issue](https://github.com/bobbyjohnstx/tinycode/issues) for bugs or feature requests.
+Open a [GitHub Issue](https://github.com/bobbyjohnstx/tinycode/issues) for bugs or feature requests. For security vulnerabilities, see [SECURITY.md](SECURITY.md).
