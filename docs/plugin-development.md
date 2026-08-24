@@ -23,7 +23,7 @@ Plugins extend tinycode with custom tools, LLM providers, authentication flows, 
 ### Plugin module shape
 
 ```typescript
-import type { PluginModule } from "@tinycode/plugin"
+import type { PluginModule } from "tinycode-plugin"
 
 export default {
   server: async (input, options) => {
@@ -80,7 +80,7 @@ my-plugin/
     "./server": "./src/index.ts"
   },
   "dependencies": {
-    "@tinycode/plugin": "latest"
+    "tinycode-plugin": "latest"
   }
 }
 ```
@@ -90,8 +90,8 @@ The `./server` export is required for server-side plugins. If your plugin also e
 **src/index.ts:**
 
 ```typescript
-import type { PluginModule } from "@tinycode/plugin"
-import { tool } from "@tinycode/plugin"
+import type { PluginModule } from "tinycode-plugin"
+import { tool } from "tinycode-plugin/tool"
 
 export default {
   server: async (input, options) => {
@@ -763,12 +763,12 @@ Called when a text part is complete. Allows post-processing of generated text.
 
 ## Tool API
 
-Tools are the primary way plugins expose functionality to the LLM. Use the `tool()` helper from `@tinycode/plugin` to define tools with validated arguments and typed execution.
+Tools are the primary way plugins expose functionality to the LLM. Use the `tool()` helper from `tinycode-plugin/tool` to define tools with validated arguments and typed execution.
 
 ### Defining a tool
 
 ```typescript
-import { tool } from "@tinycode/plugin"
+import { tool } from "tinycode-plugin/tool"
 
 const myTool = tool({
   description: "Search a knowledge base",
@@ -818,6 +818,9 @@ type ToolContext = {
     metadata?: Record<string, any>
   }): void
   ask(input: AskInput): Promise<void>  // Request user permission
+  progress: (message: string) => void  // Emit progress during execution
+  messages: () => Promise<ReadonlyArray<{ role: string; content: string }>>  // Conversation history
+  sessionInfo: () => Promise<{ id: string; model: string; agent: string }>   // Session metadata
 }
 ```
 
@@ -914,7 +917,7 @@ Plugins can export a `schema` field on their `PluginModule` to validate options 
 
 ```typescript
 import { z } from "zod"
-import type { PluginModule } from "@tinycode/plugin"
+import type { PluginModule } from "tinycode-plugin"
 
 export default {
   schema: z.object({
@@ -935,14 +938,14 @@ When validation fails, tinycode reports the error and skips loading the plugin.
 
 ## Testing
 
-The `@tinycode/plugin/test` module provides utilities for testing plugins without a running tinycode server.
+The `tinycode-plugin/test` module provides utilities for testing plugins without a running tinycode server.
 
 ### `createMockPluginInput`
 
 Creates a mock `PluginInput` with sensible defaults. All fields can be overridden:
 
 ```typescript
-import { createMockPluginInput } from "@tinycode/plugin/test"
+import { createMockPluginInput } from "tinycode-plugin/test"
 
 const input = createMockPluginInput({
   directory: "/my/project",
@@ -963,7 +966,7 @@ Default values:
 Creates a mock `ToolContext` for testing tool execution:
 
 ```typescript
-import { createMockToolContext } from "@tinycode/plugin/test"
+import { createMockToolContext } from "tinycode-plugin/test"
 
 const context = createMockToolContext({
   sessionID: "my-session",
@@ -986,7 +989,7 @@ Default values:
 Loads a `PluginModule` with mock input and returns the resolved hooks plus a typed `invoke` helper:
 
 ```typescript
-import { createTestHarness } from "@tinycode/plugin/test"
+import { createTestHarness } from "tinycode-plugin/test"
 import plugin from "./index"
 
 const { hooks, invoke } = await createTestHarness(plugin, {
@@ -1011,7 +1014,7 @@ If the hook is not registered, `invoke` throws an error.
 
 ```typescript
 import { describe, it, expect } from "bun:test"
-import { createTestHarness, createMockToolContext } from "@tinycode/plugin/test"
+import { createTestHarness, createMockToolContext } from "tinycode-plugin/test"
 import plugin from "../src/index"
 
 describe("my-plugin", () => {
@@ -1070,7 +1073,7 @@ Your `package.json` must include:
    }
    ```
 
-2. **`@tinycode/plugin`** as a dependency for type support and the `tool()` helper.
+2. **`tinycode-plugin`** as a dependency for type support and the `tool()` helper.
 
 3. **`type: "module"`** since tinycode plugins are ESM.
 
@@ -1131,7 +1134,7 @@ A full working plugin that provides a tool, reacts to session events, validates 
     "./server": "./src/index.ts"
   },
   "dependencies": {
-    "@tinycode/plugin": "latest"
+    "tinycode-plugin": "latest"
   }
 }
 ```
@@ -1140,8 +1143,8 @@ A full working plugin that provides a tool, reacts to session events, validates 
 
 ```typescript
 import { z } from "zod"
-import type { PluginModule, PluginInput, PluginOptions } from "@tinycode/plugin"
-import { tool } from "@tinycode/plugin"
+import type { PluginModule, PluginInput, PluginOptions } from "tinycode-plugin"
+import { tool } from "tinycode-plugin/tool"
 
 type SessionMetrics = {
   startTime: number

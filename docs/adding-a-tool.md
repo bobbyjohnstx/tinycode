@@ -4,34 +4,41 @@ There are two ways to add a tool to tinycode. Choose based on your comfort level
 
 ## Path 1: Plugin Tool (Recommended for Contributors)
 
-Plugin tools use the `@tinycode/plugin` SDK. No Effect framework knowledge required.
+Plugin tools use the `tinycode-plugin` SDK (npm: `tinycode-plugin`). No Effect framework knowledge required.
+
+Tools are registered inside your plugin's `server` function return object:
 
 ```typescript
-import { tool } from "@tinycode/plugin"
-import { z } from "zod"
+import type { PluginModule } from "tinycode-plugin"
+import { tool } from "tinycode-plugin/tool"
 
-export default tool({
-  name: "my-tool",
-  description: "A short description of what this tool does",
-  parameters: z.object({
-    query: z.string().describe("The search query"),
-    limit: z.number().optional().default(10).describe("Max results to return"),
+export default {
+  server: async (input) => ({
+    tool: {
+      my_tool: tool({
+        description: "A short description of what this tool does",
+        args: {
+          query: tool.schema.string().describe("The search query"),
+          limit: tool.schema.number().optional().describe("Max results to return"),
+        },
+        execute: async (args, context) => {
+          const results = await doSomething(args.query, args.limit ?? 10)
+          return {
+            output: JSON.stringify(results, null, 2),
+          }
+        },
+      }),
+    },
   }),
-  execute: async ({ query, limit }) => {
-    // Your tool logic here
-    const results = await doSomething(query, limit)
-    return {
-      output: JSON.stringify(results, null, 2),
-    }
-  },
-})
+} satisfies PluginModule
 ```
 
 Key points:
 
-- Define parameters with a `zod` schema -- the descriptions are surfaced to the LLM
-- Return an object with an `output` string
-- Plugin tools run in an isolated process, so they cannot access tinycode internals
+- Use `tool.schema` (which is zod's `z`) to define `args` as a flat shape -- descriptions are surfaced to the LLM
+- Return a string or an object with an `output` string (optionally with `title`, `metadata`, `attachments`)
+- The `context` parameter provides `sessionID`, `directory`, `progress()`, `ask()`, `messages()`, and `sessionInfo()`
+- Plugin tools are loaded via dynamic import and do not have access to tinycode internals
 
 See [plugin-development.md](plugin-development.md) for the full plugin development guide, including how to register, test, and publish plugins.
 

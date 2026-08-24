@@ -20,6 +20,7 @@ Bun workspaces with Turborepo. All packages live under `packages/`.
 | `effect-drizzle-sqlite` | `@tinycode/effect-drizzle-sqlite` | Effect wrapper for Drizzle ORM + SQLite                                                  |
 | `http-recorder`         | `@tinycode/http-recorder`         | HTTP/WebSocket recording for tests (VCR-style cassettes)                                 |
 | `script`                | `@tinycode/script`                | Build scripts and release utilities                                                      |
+| `vscode-extension`      | `@tinycode/vscode-extension`      | VS Code extension for ACP integration (editor context, agent routing)                    |
 
 There is no standalone `packages/core` package. Core utilities (logging, git, npm helpers, schema definitions) live at `packages/tinycode/src/core/`.
 
@@ -32,7 +33,7 @@ The heart of the project. Every directory under `src/`:
 | Directory        | Purpose                                                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `account/`       | User account management and schema                                                                                       |
-| `agent/`         | Agent definitions (explore, scout, general, compaction, title, summary) and subagent permissions                         |
+| `agent/`         | Agent definitions (25+ agents including architect, debugger, executor, planner, code-reviewer, test-engineer) and subagent permissions |
 | `auth/`          | Authentication for providers and services                                                                                |
 | `background/`    | Background job processing                                                                                                |
 | `bus/`           | Event bus — Effect PubSub for typed event streaming between session processor, TUI, and web clients                      |
