@@ -801,24 +801,32 @@ Plugins observe four session events:
 
 ### Creating Plugins
 
-Plugins are npm packages exporting a default function:
+Plugins are npm packages that export a `PluginModule`. The module's `server` function receives a `PluginInput` context and returns `Hooks` — an object declaring tools, event handlers, and lifecycle callbacks:
 
 ```typescript
-import type { Plugin } from "@tinycode/plugin"
+import type { PluginModule } from "@tinycode/plugin"
+import { tool } from "@tinycode/plugin/tool"
 
 export default {
-  name: "my-plugin",
-  version: "1.0.0",
-  tools: [
-    {
-      name: "my-tool",
-      description: "Does something useful",
-      input: { type: "object", properties: { ... } },
-      execute: async (input, context) => { ... }
+  server: async (ctx) => {
+    return {
+      tool: {
+        "my-tool": tool({
+          description: "Does something useful",
+          args: {
+            query: tool.schema.string().describe("The search query"),
+          },
+          async execute(args) {
+            return `Result for: ${args.query}`
+          },
+        }),
+      },
     }
-  ]
-} satisfies Plugin
+  },
+} satisfies PluginModule
 ```
+
+The `tool()` helper uses Zod schemas for argument validation (available as `tool.schema`). The `execute` function receives validated args and an optional `ToolContext` with session metadata.
 
 See [@tinycode/plugin](packages/plugin) for the full SDK.
 
