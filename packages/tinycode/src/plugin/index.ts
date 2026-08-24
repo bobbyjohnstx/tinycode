@@ -3,7 +3,6 @@ import type {
   PluginInput,
   Plugin as PluginInstance,
   PluginModule,
-  WorkspaceAdapter as PluginWorkspaceAdapter,
 } from "@tinycode/plugin"
 import { Config } from "@/config/config"
 import { Bus } from "../bus"
@@ -148,11 +147,6 @@ export const layer = Layer.effect(
           project: ctx.project,
           worktree: ctx.worktree,
           directory: ctx.directory,
-          experimental_workspace: {
-            register(_type: string, _adapter: PluginWorkspaceAdapter) {
-              // Workspace adapters removed in tinycode
-            },
-          },
           get serverUrl(): URL {
             return Server.url ?? new URL("http://localhost:4096")
           },
@@ -271,23 +265,35 @@ export const layer = Layer.effect(
         const sessionModels = new Map<string, { providerID: string; modelID: string }>()
 
         // Subscribe to bus events, fiber interrupted when scope closes
+        function safeFireHook(name: string, fn: () => Promise<void> | undefined) {
+          try {
+            fn()?.catch((err: unknown) => {
+              log.error("plugin hook failed", { hook: name, error: err })
+            })
+          } catch (err) {
+            log.error("plugin hook failed", { hook: name, error: err })
+          }
+        }
+
         yield* (yield* bus.subscribeAll()).pipe(
           Stream.runForEach((input) =>
             Effect.sync(() => {
               for (const hook of hooks) {
-                void hook["event"]?.({ event: input as any })
+                safeFireHook("event", () => hook["event"]?.({ event: input as any }))
               }
               // Trigger lifecycle hooks based on bus events
               if (input.type === "session.created") {
                 const data = input.properties as any
                 for (const hook of hooks) {
-                  void hook["session.start"]?.(
-                    {
-                      sessionID: data.sessionID,
-                      parentID: data.info.parentID,
-                      agent: data.info.agent,
-                    },
-                    {},
+                  safeFireHook("session.start", () =>
+                    hook["session.start"]?.(
+                      {
+                        sessionID: data.sessionID,
+                        parentID: data.info.parentID,
+                        agent: data.info.agent,
+                      },
+                      {},
+                    ),
                   )
                 }
                 // Track initial model if present
@@ -300,11 +306,13 @@ export const layer = Layer.effect(
               } else if (input.type === "session.deleted") {
                 const data = input.properties as any
                 for (const hook of hooks) {
-                  void hook["session.end"]?.(
-                    {
-                      sessionID: data.sessionID,
-                    },
-                    {},
+                  safeFireHook("session.end", () =>
+                    hook["session.end"]?.(
+                      {
+                        sessionID: data.sessionID,
+                      },
+                      {},
+                    ),
                   )
                 }
                 // Clean up tracked model
@@ -325,14 +333,16 @@ export const layer = Layer.effect(
                     previousModel.modelID !== newModel.modelID
                   ) {
                     for (const hook of hooks) {
-                      void hook["session.model.change"]?.(
-                        {
-                          sessionID: data.sessionID,
-                          providerID: newModel.providerID,
-                          modelID: newModel.modelID,
-                          previousModelID: previousModel?.modelID,
-                        },
-                        {},
+                      safeFireHook("session.model.change", () =>
+                        hook["session.model.change"]?.(
+                          {
+                            sessionID: data.sessionID,
+                            providerID: newModel.providerID,
+                            modelID: newModel.modelID,
+                            previousModelID: previousModel?.modelID,
+                          },
+                          {},
+                        ),
                       )
                     }
                     sessionModels.set(data.sessionID, newModel)
@@ -358,7 +368,12 @@ export const layer = Layer.effect(
       for (const hook of s.hooks) {
         const fn = hook[name] as any
         if (!fn) continue
-        yield* Effect.promise(async () => fn(input, output))
+        yield* Effect.tryPromise({
+          try: () => Promise.resolve(fn(input, output)),
+          catch: (err) => {
+            log.error("plugin hook failed", { hook: name, error: err })
+          },
+        }).pipe(Effect.ignore)
       }
       return output
     })

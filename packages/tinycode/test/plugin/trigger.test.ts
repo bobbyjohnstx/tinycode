@@ -116,4 +116,60 @@ describe("plugin.trigger", () => {
       }),
     ),
   )
+
+  it.live("a throwing sync hook does not crash trigger", () =>
+    withProject(
+      [
+        "export default async () => ({",
+        `  ${JSON.stringify(systemHook)}: (_input, _output) => {`,
+        '    throw new Error("sync boom")',
+        "  },",
+        "})",
+        "",
+      ].join("\n"),
+      Effect.gen(function* () {
+        // trigger should complete without error, returning the output unchanged
+        expect(yield* triggerSystemTransform()).toEqual([])
+      }),
+    ),
+  )
+
+  it.live("a throwing async hook does not crash trigger", () =>
+    withProject(
+      [
+        "export default async () => ({",
+        `  ${JSON.stringify(systemHook)}: async (_input, _output) => {`,
+        '    throw new Error("async boom")',
+        "  },",
+        "})",
+        "",
+      ].join("\n"),
+      Effect.gen(function* () {
+        expect(yield* triggerSystemTransform()).toEqual([])
+      }),
+    ),
+  )
+
+  it.live("a throwing hook does not prevent subsequent hooks from running", () =>
+    withProject(
+      [
+        // Two named exports: first throws, second mutates output
+        "export const throwing = async () => ({",
+        `  ${JSON.stringify(systemHook)}: (_input, _output) => {`,
+        '    throw new Error("first hook explodes")',
+        "  },",
+        "})",
+        "",
+        "export const surviving = async () => ({",
+        `  ${JSON.stringify(systemHook)}: (_input, output) => {`,
+        '    output.system.push("survived")',
+        "  },",
+        "})",
+        "",
+      ].join("\n"),
+      Effect.gen(function* () {
+        expect(yield* triggerSystemTransform()).toEqual(["survived"])
+      }),
+    ),
+  )
 })
