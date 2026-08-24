@@ -14,7 +14,9 @@ import { CodexAuthPlugin } from "./openai/codex"
 import { Session } from "@/session/session"
 import { NamedError } from "@/core/util/error"
 import { CopilotAuthPlugin } from "./github-copilot/copilot"
+// Built-in: replaces deprecated opencode-gitlab-auth npm package
 import { gitlabAuthPlugin as GitlabAuthPlugin } from "opencode-gitlab-auth"
+// Built-in: replaces deprecated opencode-poe-auth npm package
 import { PoeAuthPlugin } from "opencode-poe-auth"
 import { CloudflareAIGatewayAuthPlugin, CloudflareWorkersAuthPlugin } from "./cloudflare"
 import { AzureAuthPlugin } from "./azure"

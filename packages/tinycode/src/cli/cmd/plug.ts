@@ -1,4 +1,7 @@
+import * as prompts from "@clack/prompts"
 import { intro, log, outro, spinner } from "@clack/prompts"
+import { existsSync, mkdirSync, writeFileSync } from "fs"
+import { join, resolve } from "path"
 import { Effect } from "effect"
 
 import { ConfigPaths } from "@/config/paths"
@@ -264,5 +267,143 @@ export const PluginSearchCommand = effectCmd({
       console.log()
     }
     console.log(`${results.length} plugin(s) found. Install with: tinycode plugin <name>`)
+  }),
+})
+
+export const PluginInitCommand = effectCmd({
+  command: "plugin-init [name]",
+  describe: "scaffold a new plugin project",
+  instance: false,
+  builder: (yargs) =>
+    yargs.positional("name", {
+      type: "string",
+      describe: "plugin name (directory will be created)",
+    }),
+  handler: Effect.fn("Cli.pluginInit")(function* (args) {
+    let name = String(args.name ?? "").trim()
+
+    intro("Create a new tinycode plugin")
+
+    if (!name) {
+      const result = yield* Effect.promise(() =>
+        prompts.text({
+          message: "Plugin name",
+          validate: (v) => (v && v.trim().length > 0 ? undefined : "Name is required"),
+        }),
+      )
+      if (prompts.isCancel(result)) {
+        outro("Cancelled")
+        return
+      }
+      name = result.trim()
+    }
+
+    const dir = resolve(name)
+    if (existsSync(dir)) {
+      log.error(`Directory "${name}" already exists`)
+      process.exitCode = 1
+      outro("Init failed")
+      return
+    }
+
+    const pkgJson = JSON.stringify(
+      {
+        name,
+        version: "0.1.0",
+        type: "module",
+        license: "MIT",
+        description: "A tinycode plugin",
+        engines: {
+          "tinycode-plugin": ">=1",
+        },
+        exports: {
+          ".": "./src/index.ts",
+        },
+        dependencies: {
+          "tinycode-plugin": "^1.18.0",
+          zod: "^3.23.0",
+        },
+        devDependencies: {
+          "@types/node": "^22.0.0",
+          typescript: "^5.7.0",
+        },
+      },
+      null,
+      2,
+    )
+
+    const tsconfig = JSON.stringify(
+      {
+        compilerOptions: {
+          target: "ESNext",
+          module: "ESNext",
+          moduleResolution: "bundler",
+          strict: true,
+          skipLibCheck: true,
+          declaration: true,
+          outDir: "dist",
+          rootDir: "src",
+        },
+        include: ["src"],
+      },
+      null,
+      2,
+    )
+
+    const indexTs = `import type { PluginModule } from "tinycode-plugin"
+import { tool } from "tinycode-plugin/tool"
+
+export default {
+  server: async (input) => ({
+    tool: {
+      example_tool: tool({
+        description: "An example tool — replace this with your own",
+        args: {
+          message: tool.schema.string().describe("A message to echo back"),
+        },
+        execute: async (args) => {
+          return \`Echo: \${args.message}\`
+        },
+      }),
+    },
+  }),
+} satisfies PluginModule
+`
+
+    const testTs = `import { describe, it, expect } from "bun:test"
+import { createTestHarness, createMockToolContext } from "tinycode-plugin/test"
+import plugin from "../src/index"
+
+describe("${name}", () => {
+  it("example_tool echoes message", async () => {
+    const { hooks } = await createTestHarness(plugin)
+    const toolDef = hooks.tool!["example_tool"]
+    const result = await toolDef.execute({ message: "hello" }, createMockToolContext())
+    expect(result).toBe("Echo: hello")
+  })
+})
+`
+
+    mkdirSync(join(dir, "src"), { recursive: true })
+    mkdirSync(join(dir, "test"), { recursive: true })
+    writeFileSync(join(dir, "package.json"), pkgJson)
+    writeFileSync(join(dir, "tsconfig.json"), tsconfig)
+    writeFileSync(join(dir, "src", "index.ts"), indexTs)
+    writeFileSync(join(dir, "test", "index.test.ts"), testTs)
+
+    log.success(`Created plugin scaffold at ./${name}/`)
+    log.message(
+      [
+        "Next steps:",
+        `  cd ${name}`,
+        "  bun install",
+        "  bun test",
+        "",
+        "To install in tinycode:",
+        `  tinycode plugin file://./${name}`,
+      ].join("\n"),
+    )
+
+    outro("Done")
   }),
 })

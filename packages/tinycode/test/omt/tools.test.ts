@@ -73,7 +73,7 @@ describe("omt_state_read smoke test", () => {
   test("returns 'No state found' message when state dir is empty", async () => {
     await using tmp = await tmpdir()
     const tools = createTools(tmp.path)
-    const result = await tools.omt_state_read.execute({ mode: "autopilot" }, {})
+    const result = await tools.omt_state_read.execute({ mode: "autopilot" }, {} as any)
     expect(typeof result).toBe("string")
     expect(result).toContain("No state found")
   })
@@ -83,7 +83,7 @@ describe("omt_notepad_read smoke test", () => {
   test("returns 'does not exist' message when no notepad file exists", async () => {
     await using tmp = await tmpdir()
     const tools = createTools(tmp.path)
-    const result = await tools.omt_notepad_read.execute({}, {})
+    const result = await tools.omt_notepad_read.execute({}, {} as any)
     expect(typeof result).toBe("string")
     expect(result).toContain("does not exist")
   })
@@ -101,10 +101,10 @@ describe("omt_state_write + omt_state_read round-trip", () => {
         iteration: 5,
         current_phase: "execution",
       },
-      {},
+      {} as any,
     )
 
-    const readResult = await tools.omt_state_read.execute({ mode: "autopilot" }, {})
+    const readResult = await tools.omt_state_read.execute({ mode: "autopilot" }, {} as any)
     expect(typeof readResult).toBe("string")
     expect(readResult).toContain("autopilot")
     expect(readResult).toContain('"active": true')

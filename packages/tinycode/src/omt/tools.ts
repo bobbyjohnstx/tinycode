@@ -1,11 +1,12 @@
 /**
- * All 22 omt tool definitions using the plainTool pattern.
+ * All 22 omt tool definitions using the plugin SDK tool() helper.
  * Adapted from oh-my-tiny/src/plugin/index.ts.
  */
 
 import { join, resolve } from "path"
 import { readFileSync, writeFileSync } from "fs"
 import { homedir } from "os"
+import { tool } from "@tinycode/plugin/tool"
 import {
   readState,
   writeState,
@@ -36,14 +37,6 @@ import { getSgModule, SUPPORTED_LANGUAGES, toLangEnum, getFilesForLanguage, form
 // Helpers
 // ---------------------------------------------------------------------------
 
-function plainTool(input: {
-  description: string
-  args: Record<string, any>
-  execute: (args: any, ctx: any) => Promise<any>
-}) {
-  return input
-}
-
 const STATE_MODES = [
   "autopilot",
   "autoresearch",
@@ -56,6 +49,11 @@ const STATE_MODES = [
   "ralplan",
   "omc-teams",
   "skill-active",
+] as const
+
+const WIKI_CATEGORIES = [
+  "architecture", "decision", "pattern", "debugging",
+  "environment", "session-log", "reference", "convention",
 ] as const
 
 function validateRoot(wd: string | undefined, fallback: string): string | null {
@@ -77,16 +75,16 @@ const MAX_WIKI = 512 * 1024
 // Tool definitions
 // ---------------------------------------------------------------------------
 
-export function createTools(dir: string): Record<string, ReturnType<typeof plainTool>> {
+export function createTools(dir: string): Record<string, ReturnType<typeof tool>> {
   return {
     // ---- State ----------------------------------------------------------------
 
-    omt_state_read: plainTool({
+    omt_state_read: tool({
       description: "Read the current state for a specific mode. Returns JSON state data or indicates no state exists.",
       args: {
-        mode: { type: "string", enum: STATE_MODES, description: "The mode to read state for" },
-        workingDirectory: { type: "string", description: "Override project directory" },
-        session_id: { type: "string", description: "Session ID (optional)" },
+        mode: tool.schema.enum(STATE_MODES).describe("The mode to read state for"),
+        workingDirectory: tool.schema.string().describe("Override project directory").optional(),
+        session_id: tool.schema.string().describe("Session ID (optional)").optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -97,22 +95,22 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_state_write: plainTool({
+    omt_state_write: tool({
       description: "Write/update state for a specific mode. Creates state file and directories if needed.",
       args: {
-        mode: { type: "string", enum: STATE_MODES, description: "The mode to write state for" },
-        workingDirectory: { type: "string" },
-        session_id: { type: "string" },
-        active: { type: "boolean" },
-        iteration: { type: "integer", minimum: 0 },
-        max_iterations: { type: "integer", minimum: 1 },
-        current_phase: { type: "string" },
-        task_description: { type: "string" },
-        plan_path: { type: "string" },
-        started_at: { type: "string" },
-        completed_at: { type: "string" },
-        error: { type: "string" },
-        state: { type: "object", additionalProperties: true },
+        mode: tool.schema.enum(STATE_MODES).describe("The mode to write state for"),
+        workingDirectory: tool.schema.string().optional(),
+        session_id: tool.schema.string().optional(),
+        active: tool.schema.boolean().optional(),
+        iteration: tool.schema.number().int().min(0).optional(),
+        max_iterations: tool.schema.number().int().min(1).optional(),
+        current_phase: tool.schema.string().optional(),
+        task_description: tool.schema.string().optional(),
+        plan_path: tool.schema.string().optional(),
+        started_at: tool.schema.string().optional(),
+        completed_at: tool.schema.string().optional(),
+        error: tool.schema.string().optional(),
+        state: tool.schema.record(tool.schema.string(), tool.schema.unknown()).optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -140,12 +138,12 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_state_clear: plainTool({
+    omt_state_clear: tool({
       description: "Clear/delete state for a specific mode.",
       args: {
-        mode: { type: "string", enum: [...STATE_MODES] },
-        workingDirectory: { type: "string" },
-        session_id: { type: "string" },
+        mode: tool.schema.enum(STATE_MODES),
+        workingDirectory: tool.schema.string().optional(),
+        session_id: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -158,9 +156,9 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_state_list_active: plainTool({
+    omt_state_list_active: tool({
       description: "List all currently active modes.",
-      args: { workingDirectory: { type: "string" }, session_id: { type: "string" } },
+      args: { workingDirectory: tool.schema.string().optional(), session_id: tool.schema.string().optional() },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
@@ -170,12 +168,12 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_state_get_status: plainTool({
+    omt_state_get_status: tool({
       description: "Get detailed status for a specific mode or all modes.",
       args: {
-        mode: { type: "string", enum: [...STATE_MODES] },
-        workingDirectory: { type: "string" },
-        session_id: { type: "string" },
+        mode: tool.schema.enum(STATE_MODES).optional(),
+        workingDirectory: tool.schema.string().optional(),
+        session_id: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -199,12 +197,12 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
 
     // ---- Notepad --------------------------------------------------------------
 
-    omt_notepad_read: plainTool({
+    omt_notepad_read: tool({
       description:
         "Read the notepad content. Can read the full notepad or a specific section (priority, working, manual).",
       args: {
-        section: { type: "string", enum: ["all", "priority", "working", "manual"] },
-        workingDirectory: { type: "string" },
+        section: tool.schema.enum(["all", "priority", "working", "manual"]).optional(),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -213,11 +211,11 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_notepad_write_priority: plainTool({
+    omt_notepad_write_priority: tool({
       description: "Write to the Priority Context section. This REPLACES the existing content. Keep under 500 chars.",
       args: {
-        content: { type: "string", description: "Content to write (recommend under 500 chars)" },
-        workingDirectory: { type: "string" },
+        content: tool.schema.string().describe("Content to write (recommend under 500 chars)"),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -230,11 +228,11 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_notepad_write_working: plainTool({
+    omt_notepad_write_working: tool({
       description: "Add an entry to Working Memory section. Entries are timestamped and auto-pruned after 7 days.",
       args: {
-        content: { type: "string", description: "Content to add as a new entry" },
-        workingDirectory: { type: "string" },
+        content: tool.schema.string().describe("Content to add as a new entry"),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -246,11 +244,11 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_notepad_write_manual: plainTool({
+    omt_notepad_write_manual: tool({
       description: "Add a custom note to the MANUAL section. Content in this section is never auto-pruned.",
       args: {
-        content: { type: "string", description: "Content to add as a new entry" },
-        workingDirectory: { type: "string" },
+        content: tool.schema.string().describe("Content to add as a new entry"),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -262,11 +260,11 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_notepad_prune: plainTool({
+    omt_notepad_prune: tool({
       description: "Prune Working Memory entries older than N days (default: 7 days).",
       args: {
-        daysOld: { type: "integer", minimum: 1 },
-        workingDirectory: { type: "string" },
+        daysOld: tool.schema.number().int().min(1).optional(),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -276,9 +274,9 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_notepad_stats: plainTool({
+    omt_notepad_stats: tool({
       description: "Get statistics about the notepad (size, entry count, oldest entry).",
-      args: { workingDirectory: { type: "string" } },
+      args: { workingDirectory: tool.schema.string().optional() },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
@@ -297,14 +295,11 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
 
     // ---- Project Memory -------------------------------------------------------
 
-    omt_project_memory_read: plainTool({
+    omt_project_memory_read: tool({
       description: "Read the project memory. Can read the full memory or a specific section.",
       args: {
-        section: {
-          type: "string",
-          enum: ["all", "techStack", "build", "conventions", "structure", "notes", "directives"],
-        },
-        workingDirectory: { type: "string" },
+        section: tool.schema.enum(["all", "techStack", "build", "conventions", "structure", "notes", "directives"]).optional(),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -316,12 +311,12 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_project_memory_write: plainTool({
+    omt_project_memory_write: tool({
       description: "Write/update project memory. Can replace entirely or merge with existing memory.",
       args: {
-        memory: { type: "object", additionalProperties: { type: "string" }, description: "The memory object to write" },
-        merge: { type: "boolean" },
-        workingDirectory: { type: "string" },
+        memory: tool.schema.record(tool.schema.string(), tool.schema.string()).describe("The memory object to write"),
+        merge: tool.schema.boolean().optional(),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -331,12 +326,12 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_project_memory_add_note: plainTool({
+    omt_project_memory_add_note: tool({
       description: "Add a custom note to project memory. Notes are categorized and persisted across sessions.",
       args: {
-        category: { type: "string", description: "Note category (e.g., build, test, deploy, env, architecture)" },
-        content: { type: "string", description: "Note content" },
-        workingDirectory: { type: "string" },
+        category: tool.schema.string().describe("Note category (e.g., build, test, deploy, env, architecture)"),
+        content: tool.schema.string().describe("Note content"),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -348,13 +343,13 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_project_memory_add_directive: plainTool({
+    omt_project_memory_add_directive: tool({
       description: "Add a user directive to project memory. Directives are instructions that persist across sessions.",
       args: {
-        directive: { type: "string", description: "The directive (e.g., Always use TypeScript strict mode)" },
-        priority: { type: "string", enum: ["high", "normal"] },
-        context: { type: "string" },
-        workingDirectory: { type: "string" },
+        directive: tool.schema.string().describe("The directive (e.g., Always use TypeScript strict mode)"),
+        priority: tool.schema.enum(["high", "normal"]).optional(),
+        context: tool.schema.string().optional(),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -368,9 +363,9 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
 
     // ---- Wiki -----------------------------------------------------------------
 
-    omt_wiki_list: plainTool({
+    omt_wiki_list: tool({
       description: "List all wiki pages with summaries.",
-      args: { workingDirectory: { type: "string" } },
+      args: { workingDirectory: tool.schema.string().optional() },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
         if (!root) return `workingDirectory must be within your home directory`
@@ -378,11 +373,11 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_wiki_read: plainTool({
+    omt_wiki_read: tool({
       description: "Read a specific wiki page by filename (without .md extension is OK).",
       args: {
-        page: { type: "string", description: "Page filename or slug" },
-        workingDirectory: { type: "string" },
+        page: tool.schema.string().describe("Page filename or slug"),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -392,26 +387,14 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_wiki_query: plainTool({
+    omt_wiki_query: tool({
       description: "Search across all wiki pages by keywords and tags. Returns matching pages with relevance snippets.",
       args: {
-        query: { type: "string", description: "Search text (matched against title, tags, and content)" },
-        tags: { type: "array", items: { type: "string" } },
-        category: {
-          type: "string",
-          enum: [
-            "architecture",
-            "decision",
-            "pattern",
-            "debugging",
-            "environment",
-            "session-log",
-            "reference",
-            "convention",
-          ],
-        },
-        limit: { type: "integer", minimum: 1, maximum: 100 },
-        workingDirectory: { type: "string" },
+        query: tool.schema.string().describe("Search text (matched against title, tags, and content)"),
+        tags: tool.schema.array(tool.schema.string()).optional(),
+        category: tool.schema.enum(WIKI_CATEGORIES).optional(),
+        limit: tool.schema.number().int().min(1).max(100).optional(),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -420,26 +403,14 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_wiki_add: plainTool({
+    omt_wiki_add: tool({
       description: "Quick-add a wiki page. Simpler than wiki_ingest -- creates a single page directly.",
       args: {
-        title: { type: "string", description: "Page title (max 200 chars)" },
-        content: { type: "string", description: "Page content in markdown (max 50KB)" },
-        category: {
-          type: "string",
-          enum: [
-            "architecture",
-            "decision",
-            "pattern",
-            "debugging",
-            "environment",
-            "session-log",
-            "reference",
-            "convention",
-          ],
-        },
-        tags: { type: "array", items: { type: "string" } },
-        workingDirectory: { type: "string" },
+        title: tool.schema.string().describe("Page title (max 200 chars)"),
+        content: tool.schema.string().describe("Page content in markdown (max 50KB)"),
+        category: tool.schema.enum(WIKI_CATEGORIES).optional(),
+        tags: tool.schema.array(tool.schema.string()).optional(),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -455,28 +426,16 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_wiki_ingest: plainTool({
+    omt_wiki_ingest: tool({
       description: "Process knowledge into wiki pages. Creates new pages or merges into existing ones.",
       args: {
-        title: { type: "string", description: "Page title" },
-        content: { type: "string", description: "Markdown content to ingest (max 50KB)" },
-        tags: { type: "array", items: { type: "string" }, description: "Searchable tags" },
-        category: {
-          type: "string",
-          enum: [
-            "architecture",
-            "decision",
-            "pattern",
-            "debugging",
-            "environment",
-            "session-log",
-            "reference",
-            "convention",
-          ],
-        },
-        confidence: { type: "string", enum: ["high", "medium", "low"] },
-        sources: { type: "array", items: { type: "string" } },
-        workingDirectory: { type: "string" },
+        title: tool.schema.string().describe("Page title"),
+        content: tool.schema.string().describe("Markdown content to ingest (max 50KB)"),
+        tags: tool.schema.array(tool.schema.string()).describe("Searchable tags"),
+        category: tool.schema.enum(WIKI_CATEGORIES),
+        confidence: tool.schema.enum(["high", "medium", "low"]).optional(),
+        sources: tool.schema.array(tool.schema.string()).optional(),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -496,11 +455,11 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
       },
     }),
 
-    omt_wiki_delete: plainTool({
+    omt_wiki_delete: tool({
       description: "Delete a wiki page by filename.",
       args: {
-        page: { type: "string", description: "Page filename or slug to delete" },
-        workingDirectory: { type: "string" },
+        page: tool.schema.string().describe("Page filename or slug to delete"),
+        workingDirectory: tool.schema.string().optional(),
       },
       async execute(args) {
         const root = validateRoot(args.workingDirectory, dir)
@@ -515,7 +474,7 @@ export function createTools(dir: string): Record<string, ReturnType<typeof plain
 
     // ---- AST ------------------------------------------------------------------
 
-    omt_ast_grep_search: plainTool({
+    omt_ast_grep_search: tool({
       description: `Search for code patterns using AST matching. More precise than text search.
 
 Use meta-variables in patterns:
@@ -524,11 +483,11 @@ Use meta-variables in patterns:
 
 Examples: "function $NAME($$$ARGS)", "console.log($MSG)", "$X === null"`,
       args: {
-        pattern: { type: "string", description: "AST pattern with meta-variables ($VAR, $$$VARS)" },
-        language: { type: "string", enum: [...SUPPORTED_LANGUAGES], description: "Programming language" },
-        path: { type: "string", description: "Directory or file to search (default: project root)" },
-        context: { type: "integer", minimum: 0, description: "Lines of context around matches (default: 2)" },
-        maxResults: { type: "integer", minimum: 1, description: "Maximum results to return (default: 20)" },
+        pattern: tool.schema.string().describe("AST pattern with meta-variables ($VAR, $$$VARS)"),
+        language: tool.schema.enum(SUPPORTED_LANGUAGES).describe("Programming language"),
+        path: tool.schema.string().describe("Directory or file to search (default: project root)").optional(),
+        context: tool.schema.number().int().min(0).describe("Lines of context around matches (default: 2)").optional(),
+        maxResults: tool.schema.number().int().min(1).describe("Maximum results to return (default: 20)").optional(),
       },
       async execute(args) {
         const sg = await getSgModule()
@@ -562,16 +521,16 @@ Examples: "function $NAME($$$ARGS)", "console.log($MSG)", "$X === null"`,
       },
     }),
 
-    omt_ast_grep_replace: plainTool({
+    omt_ast_grep_replace: tool({
       description: `Replace code patterns using AST matching. Preserves matched content via meta-variables.
 
 IMPORTANT: dryRun=true (default) only previews changes. Set dryRun=false to apply.`,
       args: {
-        pattern: { type: "string", description: "Pattern to match" },
-        replacement: { type: "string", description: "Replacement pattern (use same meta-variables)" },
-        language: { type: "string", enum: [...SUPPORTED_LANGUAGES], description: "Programming language" },
-        path: { type: "string", description: "Directory or file to search (default: project root)" },
-        dryRun: { type: "boolean", description: "Preview only, don't apply changes (default: true)" },
+        pattern: tool.schema.string().describe("Pattern to match"),
+        replacement: tool.schema.string().describe("Replacement pattern (use same meta-variables)"),
+        language: tool.schema.enum(SUPPORTED_LANGUAGES).describe("Programming language"),
+        path: tool.schema.string().describe("Directory or file to search (default: project root)").optional(),
+        dryRun: tool.schema.boolean().describe("Preview only, don't apply changes (default: true)").optional(),
       },
       async execute(args) {
         const sg = await getSgModule()

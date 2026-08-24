@@ -31,7 +31,7 @@ import { Global } from "@/core/global"
 import { JsonMigration } from "@/storage/json-migration"
 import { Database } from "@/storage/db"
 import { errorMessage } from "./util/error"
-import { PluginCommand, PluginSearchCommand } from "./cli/cmd/plug"
+import { PluginCommand, PluginInitCommand, PluginSearchCommand } from "./cli/cmd/plug"
 import { Heap } from "./cli/heap"
 import { drizzle } from "drizzle-orm/bun-sqlite"
 import { ensureProcessMetadata } from "@/core/util/tinycode-process"
@@ -170,6 +170,7 @@ const cli = yargs(args)
   .command(ImportCommand)
   .command(SessionCommand)
   .command(PluginCommand)
+  .command(PluginInitCommand)
   .command(PluginSearchCommand)
   .command(DbCommand)
   .fail((msg, err) => {

@@ -1,0 +1,21 @@
+{
+  "name": "tinycode-plugin-hello",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Reference tinycode plugin — demonstrates tools, hooks, and config validation",
+  "engines": {
+    "tinycode-plugin": ">=1"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "tinycode-plugin": "^1.18.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

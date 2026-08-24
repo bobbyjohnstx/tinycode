@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@tinycode/sdk",
-  "version": "1.15.12",
+  "version": "1.18.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -9,13 +9,41 @@
     "build": "bun ./script/build.ts"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./client": "./src/client.ts",
-    "./server": "./src/server.ts",
-    "./v2": "./src/v2/index.ts",
-    "./v2/client": "./src/v2/client.ts",
-    "./v2/gen/client": "./src/v2/gen/client/index.ts",
-    "./v2/server": "./src/v2/server.ts"
+    ".": {
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./client": {
+      "bun": "./src/client.ts",
+      "import": "./dist/client.js",
+      "types": "./dist/client.d.ts"
+    },
+    "./server": {
+      "bun": "./src/server.ts",
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
+    },
+    "./v2": {
+      "bun": "./src/v2/index.ts",
+      "import": "./dist/v2/index.js",
+      "types": "./dist/v2/index.d.ts"
+    },
+    "./v2/client": {
+      "bun": "./src/v2/client.ts",
+      "import": "./dist/v2/client.js",
+      "types": "./dist/v2/client.d.ts"
+    },
+    "./v2/gen/client": {
+      "bun": "./src/v2/gen/client/index.ts",
+      "import": "./dist/v2/gen/client/index.js",
+      "types": "./dist/v2/gen/client/index.d.ts"
+    },
+    "./v2/server": {
+      "bun": "./src/v2/server.ts",
+      "import": "./dist/v2/server.js",
+      "types": "./dist/v2/server.d.ts"
+    }
   },
   "files": [
     "dist"

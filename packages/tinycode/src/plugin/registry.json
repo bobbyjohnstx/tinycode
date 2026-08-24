@@ -40,6 +40,13 @@
       "author": "tinycode",
       "tags": ["provider", "digitalocean", "gpu"],
       "builtin": true
+    },
+    {
+      "name": "tinycode-plugin-hello",
+      "npm": "tinycode-plugin-hello",
+      "description": "Reference plugin — demonstrates tools, hooks, and config",
+      "author": "tinycode",
+      "tags": ["example", "reference", "tools", "hooks"]
     }
   ]
 }

@@ -1258,3 +1258,22 @@ Or configure with options in `~/.config/tinycode/config.json`:
   ]
 }
 ```
+
+---
+
+## OpenCode Plugin Compatibility
+
+The following OpenCode plugins have been **deprecated** because their functionality is now built into tinycode:
+
+| OpenCode Plugin | Built-in Replacement | Status |
+|---|---|---|
+| `opencode-openai-codex-auth` | Built-in Codex auth | Deprecated since 1.14 |
+| `opencode-copilot-auth` | Built-in Copilot auth | Deprecated since 1.14 |
+| `opencode-gitlab-auth` | Built-in GitLab auth | Deprecated since 1.18 |
+| `opencode-poe-auth` | Built-in Poe auth | Deprecated since 1.18 |
+
+### Migration
+
+If you have any of these plugins in your `config.json` under `plugin_origins`, you can safely remove them. tinycode silently skips deprecated plugins, so no action is required — but removing them avoids unnecessary startup warnings.
+
+OpenCode plugins that use a different hook interface than tinycode's `Hooks` type are not supported. If you have a custom OpenCode plugin, migrate it to the tinycode plugin SDK (`tinycode-plugin` on npm). See the rest of this guide for the tinycode plugin API.
