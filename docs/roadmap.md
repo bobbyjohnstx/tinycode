@@ -2,9 +2,9 @@
 
 Vision and current status of tinycode development.
 
-## Current (v0.1.x) — Foundation
+## Current (v1.x) — Foundation
 
-What's available now:
+What's available now (v1.18.0+):
 
 ### Core
 - **TUI** — Full-featured terminal interface with session hierarchy
@@ -41,9 +41,9 @@ What's available now:
 
 ---
 
-## Next (v0.2.x) — Enhancement & Polish
+## Next (v1.x) — Enhancement & Polish
 
-Planned improvements for the next major release.
+Planned improvements for upcoming releases.
 
 ### UX & Workflow
 - **Prompt templates** — Save and reuse common prompts with variables
@@ -72,7 +72,7 @@ Planned improvements for the next major release.
 
 ---
 
-## Future (v1.0+) — Ecosystem & Scale
+## Future (v2.0+) — Ecosystem & Scale
 
 Longer-term vision.
 
@@ -133,12 +133,10 @@ tinycode is open source. Contributions welcome:
 
 ## Release Cadence
 
-- **v0.1.x:** Monthly patch releases (bug fixes, small features)
-- **v0.2.0:** Q3 2026 (UX, provider improvements, skills)
-- **v0.3.0:** Q4 2026 (multi-agent orchestration, enterprise features)
-- **v1.0.0:** Q2 2027 (stable API, enterprise-ready)
+- **v1.x:** Regular releases with new features and improvements
+- **v2.0:** Ecosystem & scale milestone (multi-agent orchestration, enterprise features)
 
-Dates are estimates and subject to change based on community feedback and contributions.
+Release frequency is driven by community feedback and contributions.
 
 ---
 

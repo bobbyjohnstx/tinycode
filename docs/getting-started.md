@@ -15,10 +15,6 @@ Step-by-step walkthrough to get tinycode running and productive in 15 minutes.
 
 ### Quick install (recommended)
 
-### Quick install (recommended) — from source only
-
-**Note:** The curl installer is deprecated. tinycode now ships as npm package or via homebrew on macOS/Linux:
-
 ```bash
 # npm (requires Node.js 20+)
 npx tinycode-ai@latest
@@ -27,7 +23,9 @@ npx tinycode-ai@latest
 brew install bobbyjohnstx/tap/tinycode
 ```
 
-**From source:** For development, clone and run directly:
+> **Note:** The curl installer (`install.sh`) is deprecated. Use npm or Homebrew instead.
+
+### From source (development)
 
 ```bash
 git clone https://github.com/bobbyjohnstx/tinycode.git
@@ -37,22 +35,6 @@ bun dev
 ```
 
 This starts the interactive TUI immediately. Use `Ctrl+D` or `<leader>q` to exit.
-
-### Alternative install methods
-
-```bash
-# npm (requires Node.js)
-npx tinycode-ai
-
-# Homebrew (macOS/Linux)
-brew install bobbyjohnstx/tap/tinycode
-
-# From source (for development)
-git clone https://github.com/bobbyjohnstx/tinycode.git
-cd tinycode
-bun install
-bun dev
-```
 
 ## Step 2: Start an LLM (Local Option)
 

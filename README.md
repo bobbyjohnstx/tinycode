@@ -15,9 +15,11 @@ An open-source AI coding assistant that keeps your code on your machine. No clou
 
 ## What it is
 
-tinycode fills the gap between cloud-only AI coding tools and privacy. It's the same kind of tool as Claude Code or Codex — reads your files, runs commands, edits code, and works through multi-step tasks — except it runs against **your own LLMs** on your own hardware. Point it at Ollama, vLLM, or any OpenAI-compatible endpoint and start coding. No sign-up, no subscription, no telemetry.
+tinycode fills the gap between cloud-only AI coding tools and privacy. It's the same kind of tool as Claude Code or Codex — reads your files, runs commands, edits code, and works through multi-step tasks — except it runs against **your own LLMs** on your own hardware. Point it at Ollama, vLLM, or any OpenAI-compatible endpoint and start coding. No sign-up, no subscription, no telemetry by default.
 
 Cloud providers (Anthropic, OpenAI, Google, OpenRouter) are also supported if you want them, but they're optional — not required.
+
+> **Privacy:** The CLI, TUI, and server make zero outbound network calls except to your configured model provider. The desktop app supports optional crash reporting (Sentry) when configured by the deployer via `VITE_SENTRY_DSN`.
 
 ### Interfaces
 
@@ -51,9 +53,11 @@ A reference [VS Code extension](packages/vscode-extension/) is included. See [do
 
 ```bash
 # Install tinycode — pick one:
-curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
 npx tinycode-ai                          # or: npm install -g tinycode-ai
 brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
+
+# Alternative (deprecated — use npm or Homebrew instead):
+# curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
 
 # Or install from source (development)
 bun install
@@ -82,6 +86,8 @@ Config lives at `~/.config/tinycode/config.json`:
 }
 ```
 
+> Local 9B models need ~6GB VRAM or ~12GB RAM; expect 3-8 minutes per task on CPU. See [model-compatibility.md](docs/model-compatibility.md) for hardware tiers.
+
 For a LAN MaaS server (LiteLLM, LiteMaaS, etc.):
 
 ```bash
@@ -96,6 +102,16 @@ export OPENROUTER_API_KEY=your-key
 ```
 
 tinycode auto-discovers Ollama (`localhost:11434`), vLLM (`localhost:8000`), and MaaS servers from environment variables at startup. Use `/connect` in the TUI to manually connect a provider.
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md)
+- [User Guide](docs/user-guide.md)
+- [Architecture Overview](docs/architecture.md)
+- [Model Compatibility](docs/model-compatibility.md) — hardware tiers & benchmarks
+- [Plugin Development](docs/plugin-development.md) (npm: `tinycode-plugin`)
+- [Adding a Tool](docs/adding-a-tool.md)
+- [Deployment Guide](docs/deployment.md)
 
 ## Architecture
 
@@ -152,7 +168,7 @@ All other agents (architect, debugger, executor, etc.) are **personas** — they
 | `workspace`           | Workspace setup and environment configuration                     |
 | `writer`              | Technical documentation                                           |
 
-Agents with a `.compact.md` variant automatically use the compact prompt for models ≤8B parameters. See [docs/agent-prompt-tiers.md](docs/agent-prompt-tiers.md) for details.
+Agents with a `.compact.md` variant automatically use the compact prompt for models ≤8B parameters. See [docs/internal/agent-prompt-tiers.md](docs/internal/agent-prompt-tiers.md) for details.
 
 `@` references files only. To invoke an agent, use `/ask <agent>`.
 
@@ -185,48 +201,9 @@ bun ./packages/tinycode/script/build.ts --single
 # Output: packages/tinycode/dist/tinycode-darwin-arm64/bin/tinycode
 ```
 
-## Remote Installation
+## Deployment
 
-For production deployments on OpenShift or Kubernetes, the recommended approach is the **tinycode-operator** — it manages `TinycodeInstance` custom resources and handles deployment, storage, routing, and security context automatically. See the [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator) repository.
-
-For installing directly on a remote server, clone from your Gitea or GitHub remote and run `bun install`. If you need to transfer via zip instead:
-
-```bash
-zip -r tinycode.zip . \
-  --exclude "*/node_modules/*" \
-  --exclude ".git/*" \
-  --exclude "*/dist/*"
-```
-
-| Exclusion          | Why                                                        |
-| ------------------ | ---------------------------------------------------------- |
-| `*/node_modules/*` | npm dependencies — restored by `bun install` on the target |
-| `.git/*`           | Git history — not needed to run the server                 |
-| `*/dist/*`         | Built binaries and web UI assets — regenerated at runtime  |
-
-On the target server after unzipping:
-
-```bash
-# Install Bun (if not already installed)
-curl -fsSL https://bun.sh/install | bash
-
-# Install dependencies
-bun install
-
-# Run headless server, bound to all interfaces for remote access
-bun dev serve --hostname 0.0.0.0
-
-# Or set in ~/.config/tinycode/config.json:
-# { "server": { "hostname": "0.0.0.0" } }
-```
-
-Set `TINYCODE_SERVER_PASSWORD` before starting — without it the server is unsecured. Open port 4096 in the firewall:
-
-```bash
-sudo firewall-cmd --add-port=4096/tcp --permanent && sudo firewall-cmd --reload
-```
-
-Access the web UI at `http://<server-ip>:4096`.
+For remote servers, containers, and OpenShift/Kubernetes clusters, see the [Deployment Guide](docs/deployment.md). The recommended path for cluster deployments is the [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator), which manages `TinycodeInstance` custom resources and handles storage, routing, and security context automatically.
 
 ## Ecosystem
 
@@ -237,67 +214,6 @@ tinycode is three projects that work together:
 | **tinycode** (this repo) | Core server, TUI, web UI, desktop app, agents, skills, tools, and LLM provider integrations. Everything you need to run tinycode locally. |
 | [**tinycode-container**](https://github.com/bobbyjohnstx/tinycode-container) | Container image that packages tinycode with oh-my-tiny, tmux, git, and optional oc CLI into a single OCI image for Kubernetes and OpenShift deployments. Handles PVC-based config persistence, vLLM auto-discovery, GitOps repo cloning, and OpenShift arbitrary-UID compatibility. |
 | [**tinycode-operator**](https://github.com/bobbyjohnstx/tinycode-operator) | Kubernetes Operator for OpenShift that manages `TinycodeInstance` custom resources. Handles deployment, storage provisioning, Route/Ingress creation, SCC binding, declarative vLLM configuration with auto-probing, cross-namespace model discovery, GitOps mode, shared team workspaces with RWX PVCs, and cluster-admin mode with kubeconfig mounting. Installable via OLM/OperatorHub or Helm. |
-
-### Container images
-
-Pre-built container images are published to [Quay.io](https://quay.io/repository/bjohns/tinycode-container):
-
-```bash
-# Pull the latest image
-podman pull quay.io/bjohns/tinycode-container:latest
-
-# Run locally with Ollama on the host network
-podman run -it --network host \
-  -e TINYCODE_SERVER_PASSWORD=changeme \
-  quay.io/bjohns/tinycode-container:latest
-
-# Run with a remote vLLM endpoint
-podman run -it -p 4096:4096 \
-  -e TINYCODE_VLLM_URL=http://your-vllm-server:8000 \
-  -e TINYCODE_SERVER_PASSWORD=changeme \
-  quay.io/bjohns/tinycode-container:latest
-```
-
-Images are also mirrored to `ghcr.io/bjohns/tinycode-container`. Both registries receive identical multi-arch builds (amd64 + arm64) on every push to main.
-
-### OpenShift / Kubernetes deployment
-
-> **Important:** A bare tinycode container on a cluster can only chat with the model — it has no files to read, no code to edit, and no project context. To make it useful, give it something to work on: clone a git repo via GitOps mode, enable cluster-admin mode with `oc` CLI access, or mount a host path with existing code. Without one of these, the container experience is no different from a simple chat UI.
-
-The recommended path for cluster deployments is the **tinycode-operator**. It reduces a full deployment to a single CR:
-
-```yaml
-apiVersion: tinycode.dev/v1alpha1
-kind: TinycodeInstance
-metadata:
-  name: my-tinycode
-spec:
-  # Give tinycode something to work on — at least one of these:
-  git:                                    # Clone a repo into /projects on startup
-    url: https://github.com/your-org/your-repo.git
-  clusterAdmin:                           # Enable oc CLI for cluster management
-    enabled: true
-    kubeconfigSecretName: my-kubeconfig
-  vllm:
-    - name: vllm-qwen3
-      url: http://qwen3-30b.qwen3.svc.cluster.local:8080
-  model: "vllm-qwen3/qwen3-30b"
-  auth:
-    passwordSecret: tinycode-password
-  storage:
-    projectsSize: "20Gi"
-```
-
-**Common deployment patterns:**
-
-| Pattern | What it enables | Key spec fields |
-|---------|----------------|-----------------|
-| **Code assistant** | Edit files in a cloned repo, run tests, commit changes | `spec.git.url` |
-| **Cluster operator** | Manage OpenShift resources, debug pods, review logs | `spec.clusterAdmin.enabled` |
-| **Both** | Full-stack work: edit code AND deploy to the cluster | `spec.git` + `spec.clusterAdmin` |
-| **Team workspace** | Multiple users share a project on RWX storage | `spec.storage.projectsAccessMode: ReadWriteMany` + `spec.replicas: 2` |
-
-The operator handles Route creation, PVC provisioning, SCC binding, vLLM model auto-probing, and pod lifecycle. See the [tinycode-operator README](https://github.com/bobbyjohnstx/tinycode-operator) and [RHOAI cluster setup guide](https://github.com/bobbyjohnstx/tinycode-operator/blob/main/docs/rhoai-cluster-setup.md) for full documentation.
 
 ## Acknowledgments
 
