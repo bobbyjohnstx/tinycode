@@ -10,6 +10,7 @@ import {
 } from "./shared"
 import { ConfigPlugin } from "@/config/plugin"
 import { InstallationVersion } from "@/core/installation/version"
+import { PLUGIN_API_VERSION } from "@tinycode/plugin"
 
 export namespace PluginLoader {
   // A normalized plugin declaration derived from config before any filesystem or npm work happens.
@@ -123,7 +124,7 @@ export namespace PluginLoader {
     // as local development code and skip this compatibility gate.
     if (base.source === "npm") {
       try {
-        await checkPluginCompatibility(base.target, InstallationVersion, base.pkg)
+        await checkPluginCompatibility(base.target, InstallationVersion, base.pkg, PLUGIN_API_VERSION)
       } catch (error) {
         return { ok: false, stage: "compatibility", error }
       }

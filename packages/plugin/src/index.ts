@@ -14,8 +14,22 @@ import type { Provider as ProviderV2, Model as ModelV2, Auth } from "@tinycode/s
 
 import type { BunShell } from "./shell.js"
 import { type ToolDefinition } from "./tool.js"
+import { z } from "zod"
 
 export * from "./tool.js"
+
+/**
+ * The current plugin API version. Bumps on breaking Hooks changes.
+ * Plugins can declare `engines: { "tinycode-plugin": "1" }` in their
+ * package.json to assert compatibility.
+ */
+export const PLUGIN_API_VERSION = 1
+
+/**
+ * A zod schema that plugins can optionally export to validate their options.
+ * When present on a PluginModule, options are validated before the plugin is loaded.
+ */
+export type PluginSchema = z.ZodType<any>
 
 export type ProviderContext = {
   source: "env" | "config" | "custom" | "api"
@@ -44,6 +58,7 @@ export type PluginModule = {
   id?: string
   server: Plugin
   tui?: never
+  schema?: PluginSchema
 }
 
 type Rule = {

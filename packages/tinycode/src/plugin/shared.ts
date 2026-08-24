@@ -191,16 +191,33 @@ export async function resolvePathPluginTarget(spec: string) {
   throw new Error(`Plugin directory ${file} is missing package.json or index file`)
 }
 
-export async function checkPluginCompatibility(target: string, tinycodeVersion: string, pkg?: PluginPackage) {
+export async function checkPluginCompatibility(
+  target: string,
+  tinycodeVersion: string,
+  pkg?: PluginPackage,
+  pluginApiVersion?: number,
+) {
   if (!semver.valid(tinycodeVersion) || semver.major(tinycodeVersion) === 0) return
   const hit = pkg ?? (await readPluginPackage(target).catch(() => undefined))
   if (!hit) return
   const engines = hit.json.engines
   if (!isRecord(engines)) return
   const range = engines.tinycode
-  if (typeof range !== "string") return
-  if (!semver.satisfies(tinycodeVersion, range)) {
-    throw new Error(`Plugin requires tinycode ${range} but running ${tinycodeVersion}`)
+  if (typeof range === "string") {
+    if (!semver.satisfies(tinycodeVersion, range)) {
+      throw new Error(`Plugin requires tinycode ${range} but running ${tinycodeVersion}`)
+    }
+  }
+  if (pluginApiVersion !== undefined) {
+    const apiRange = engines["tinycode-plugin"]
+    if (typeof apiRange === "string") {
+      const apiSemver = `${pluginApiVersion}.0.0`
+      if (!semver.satisfies(apiSemver, apiRange)) {
+        throw new Error(
+          `Plugin requires tinycode-plugin API ${apiRange} but running API version ${pluginApiVersion}`,
+        )
+      }
+    }
   }
 }
 

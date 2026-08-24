@@ -3,6 +3,7 @@ import type {
   PluginInput,
   Plugin as PluginInstance,
   PluginModule,
+  PluginSchema,
 } from "@tinycode/plugin"
 import { Config } from "@/config/config"
 import { Bus } from "../bus"
@@ -104,11 +105,26 @@ function getLegacyPlugins(mod: Record<string, unknown>) {
   return result
 }
 
+function validatePluginOptions(
+  schema: PluginSchema | undefined,
+  options: Record<string, unknown> | undefined,
+  spec: string,
+): Record<string, unknown> | undefined {
+  if (!schema) return options
+  const result = schema.safeParse(options ?? {})
+  if (!result.success) {
+    const issues = result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+    throw new Error(`Plugin ${spec} options validation failed: ${issues}`)
+  }
+  return result.data
+}
+
 async function applyPlugin(load: PluginLoader.Loaded, input: PluginInput, hooks: Hooks[]) {
   const plugin = readV1Plugin(load.mod, load.spec, "server", "detect")
   if (plugin) {
     await resolvePluginId(load.source, load.spec, load.target, readPluginId(plugin.id, load.spec), load.pkg)
-    hooks.push(await (plugin as PluginModule).server(input, load.options))
+    const validated = validatePluginOptions((plugin as PluginModule).schema, load.options, load.spec)
+    hooks.push(await (plugin as PluginModule).server(input, validated))
     return
   }
 
