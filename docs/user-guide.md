@@ -828,7 +828,7 @@ export default {
 
 The `tool()` helper uses Zod schemas for argument validation (available as `tool.schema`). The `execute` function receives validated args and an optional `ToolContext` with session metadata.
 
-See [@tinycode/plugin](packages/plugin) for the full SDK.
+See the [Plugin Development Guide](plugin-development.md) for the full hooks reference, tool API, testing utilities, and publishing instructions. For the SDK source, see [@tinycode/plugin](packages/plugin).
 
 ---
 
