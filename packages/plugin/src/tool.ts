@@ -17,6 +17,21 @@ export type ToolContext = {
   abort: AbortSignal
   metadata(input: { title?: string; metadata?: { [key: string]: any } }): void
   ask(input: AskInput): Promise<void>
+  /**
+   * Emit a progress message during tool execution.
+   * Updates the tool call's metadata with the latest progress text.
+   * Safe to call even if no listener exists (no-op by default).
+   */
+  progress: (message: string) => void
+  /**
+   * Read-only snapshot of the conversation history for this session.
+   * Returns a simplified view of messages with role and text content.
+   */
+  messages: () => Promise<ReadonlyArray<{ role: string; content: string }>>
+  /**
+   * Read-only session metadata: session ID, current model, and active agent.
+   */
+  sessionInfo: () => Promise<{ id: string; model: string; agent: string }>
 }
 
 type AskInput = {

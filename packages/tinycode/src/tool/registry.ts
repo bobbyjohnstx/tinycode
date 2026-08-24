@@ -171,6 +171,34 @@ export const layer: Layer.Layer<
                   ask: (req) => bridge.promise(toolCtx.ask(req)),
                   directory: ctx.directory,
                   worktree: ctx.worktree,
+                  progress: (message) => {
+                    bridge.promise(
+                      toolCtx.metadata({ metadata: { progress: message } }),
+                    ).catch(() => {})
+                  },
+                  messages: async () => {
+                    const msgs = toolCtx.messages.map((msg) => {
+                      const text = msg.parts
+                        .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
+                        .map((p) => p.text)
+                        .join("\n")
+                      return Object.freeze({ role: msg.info.role, content: text })
+                    })
+                    return Object.freeze(msgs)
+                  },
+                  sessionInfo: async () => {
+                    const extra = toolCtx.extra
+                    const model = extra?.model
+                    const apiId =
+                      model && typeof model === "object" && "api" in model && model.api && typeof model.api === "object" && "id" in model.api && typeof model.api.id === "string"
+                        ? model.api.id
+                        : "unknown"
+                    return Object.freeze({
+                      id: toolCtx.sessionID,
+                      model: apiId,
+                      agent: toolCtx.agent,
+                    })
+                  },
                 }
                 const result = yield* Effect.promise(() => def.execute(args as any, pluginCtx))
                 const output = typeof result === "string" ? result : result.output

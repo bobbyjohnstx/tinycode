@@ -58,6 +58,9 @@ export function createMockToolContext(
     abort: AbortSignal.abort(),
     metadata: () => {},
     ask: async () => {},
+    progress: () => {},
+    messages: async () => Object.freeze([]),
+    sessionInfo: async () => Object.freeze({ id: "test-session", model: "test-model", agent: "test-agent" }),
     ...overrides,
   }
 }
