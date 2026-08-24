@@ -11,7 +11,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./tool": "./src/tool.ts",
-    "./tui": "./src/tui.ts"
+    "./tui": "./src/tui.ts",
+    "./test": "./src/test.ts"
   },
   "files": [
     "dist"
