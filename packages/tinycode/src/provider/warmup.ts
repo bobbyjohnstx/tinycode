@@ -14,7 +14,7 @@ const WARMUP_TOOL = {
   },
 }
 
-const LOCAL_PROVIDERS = new Set(["ollama", "ramalama", "vllm", "maas"])
+const LOCAL_PROVIDERS = new Set(["ollama", "ramalama", "vllm", "maas", "lmstudio"])
 
 export function isLocalProvider(providerID: string): boolean {
   return LOCAL_PROVIDERS.has(providerID)

@@ -560,6 +560,24 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
       )
     }
 
+    function probeLmStudio(baseURL: string): Effect.Effect<Info | null> {
+      return HttpClientRequest.get(`${baseURL}/v1/models`).pipe(
+        httpClient.execute,
+        Effect.timeout(PROBE_TIMEOUT),
+        Effect.flatMap((res) => HttpClientResponse.schemaBodyJson(VllmModelsResponse)(res)),
+        Effect.map((data) => {
+          const entries = data.data.filter((m) => m.id.length > 0)
+          if (entries.length === 0) return null
+          log.info("lmstudio discovered", { count: entries.length, models: entries.slice(0, 5).map((m) => m.id) })
+          return makeVllmProvider(baseURL, entries, "lmstudio", "LM Studio")
+        }),
+        Effect.catch((err) => {
+          log.info("lmstudio not available", { baseURL, error: String(err) })
+          return Effect.succeed(null)
+        }),
+      )
+    }
+
     function probeOpenRouter(apiKey: string): Effect.Effect<Info | null> {
       return HttpClientRequest.get(`${OPENROUTER_API_URL}/models`).pipe(
         HttpClientRequest.setHeader("Authorization", `Bearer ${apiKey}`),
@@ -595,12 +613,14 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         : rewriteLocalhostURL("http://localhost:11434")
       const vllmHost = vllmHostEnv ? vllmHostEnv.replace(/\/+$/, "") : rewriteLocalhostURL("http://localhost:8000")
       const ramalamaHost = ramalamaHostEnv ? ramalamaHostEnv.replace(/\/+$/, "") : undefined
+      const lmstudioHostEnv = process.env["TINYCODE_LMSTUDIO_HOST"]
+      const lmstudioHost = lmstudioHostEnv ? lmstudioHostEnv.replace(/\/+$/, "") : "http://localhost:1234"
       const maasHost = process.env["TINYCODE_MAAS_HOST"]?.replace(/\/+$/, "")
       const maasKey = process.env["TINYCODE_MAAS_API_KEY"]
       const openRouterKey = process.env["OPENROUTER_API_KEY"]
 
       return Effect.gen(function* () {
-        const probes: Effect.Effect<Info | null>[] = [probeOllama(ollamaHost), probeVllm(vllmHost)]
+        const probes: Effect.Effect<Info | null>[] = [probeOllama(ollamaHost), probeVllm(vllmHost), probeLmStudio(lmstudioHost)]
         if (ramalamaHost) probes.push(probeRamalama(ramalamaHost))
         if (maasHost && maasKey) probes.push(probeMaas(maasHost, maasKey))
 
@@ -615,7 +635,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
           ],
           { concurrency: "unbounded" },
         )
-        const [ollamaResult, vllmResult, ...rest] = results
+        const [ollamaResult, vllmResult, lmstudioResult, ...rest] = results
         const ramalamaResult = ramalamaHost ? rest[0] : null
         const maasResult = ramalamaHost ? rest[1] : rest[0]
         const openRouterResult = openRouterKey ? cloudResults[0] : null
@@ -624,6 +644,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         if (ollamaResult) next["ollama"] = ollamaResult
         // localhost vllm only added if no k8s vllm services found
         if (vllmResult && Object.keys(k8sProviders).length === 0) next["vllm"] = vllmResult
+        if (lmstudioResult) next["lmstudio"] = lmstudioResult
         if (ramalamaResult) next["ramalama"] = ramalamaResult
         if (maasResult) next["maas"] = maasResult
         if (openRouterResult) next["openrouter"] = openRouterResult

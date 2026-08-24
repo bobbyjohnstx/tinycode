@@ -19,17 +19,18 @@ import { useBindings } from "../keymap"
 // Controls sort order (lower = appears first in the list)
 const PROVIDER_PRIORITY: Record<string, number> = {
   ollama: 0,
-  vllm: 1,
-  maas: 2,
-  "openai-compatible": 3,
-  anthropic: 4,
-  openai: 5,
-  google: 6,
-  openrouter: 7,
+  lmstudio: 1,
+  vllm: 2,
+  maas: 3,
+  "openai-compatible": 4,
+  anthropic: 5,
+  openai: 6,
+  google: 7,
+  openrouter: 8,
 }
 
 // Controls which section providers appear in
-const LOCAL_PROVIDERS = new Set(["ollama", "vllm", "maas", "openai-compatible"])
+const LOCAL_PROVIDERS = new Set(["ollama", "lmstudio", "vllm", "maas", "openai-compatible"])
 
 const CUSTOM_PROVIDER_OPTION_VALUE = "__tinycode_custom_provider__"
 const CUSTOM_PROVIDER_ID = /^[a-z0-9][a-z0-9-_]*$/
@@ -62,6 +63,7 @@ export function providerOptions(list: { id: string; name: string }[]): ProviderO
         providerID: provider.id,
         description: {
           ollama: "(local — auto-discovered)",
+          lmstudio: "(local — lmstudio.ai)",
           vllm: "(local — auto-discovered)",
           maas: "(LAN — set TINYCODE_MAAS_HOST + TINYCODE_MAAS_API_KEY)",
           "openai-compatible": "(any OpenAI-compatible endpoint)",

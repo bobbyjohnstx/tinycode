@@ -196,6 +196,15 @@ describe("LocalDiscovery", () => {
     expect(result["ramalama"]).toBeUndefined()
   }, 4_000)
 
+  test("returns empty for lmstudio when host is unreachable", async () => {
+    const result = await discoverEmpty({
+      TINYCODE_OLLAMA_HOST: "http://127.0.0.1:1",
+      TINYCODE_VLLM_HOST: "http://127.0.0.1:1",
+      TINYCODE_LMSTUDIO_HOST: "http://127.0.0.1:1",
+    })
+    expect(result["lmstudio"]).toBeUndefined()
+  }, 4_000)
+
   // ---------------------------------------------------------------------------
   // Test: Context limit with meta.n_ctx_train fallback (llama.cpp backend)
   // ---------------------------------------------------------------------------

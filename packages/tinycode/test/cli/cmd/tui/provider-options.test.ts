@@ -21,11 +21,12 @@ describe("providerOptions", () => {
   })
 
   // Test 10: Local / LAN category assignment for local providers
-  test("assigns 'Local / LAN' category to ollama, vllm, and maas", () => {
+  test("assigns 'Local / LAN' category to ollama, vllm, maas, and lmstudio", () => {
     const opts = providerOptions([
       { id: "ollama", name: "Ollama" },
       { id: "vllm", name: "vLLM" },
       { id: "maas", name: "MaaS" },
+      { id: "lmstudio", name: "LM Studio" },
       { id: "anthropic", name: "Anthropic" },
       { id: "openai", name: "OpenAI" },
     ])
@@ -37,6 +38,7 @@ describe("providerOptions", () => {
     expect(byId["ollama"]?.category).toBe("Local / LAN")
     expect(byId["vllm"]?.category).toBe("Local / LAN")
     expect(byId["maas"]?.category).toBe("Local / LAN")
+    expect(byId["lmstudio"]?.category).toBe("Local / LAN")
     expect(byId["anthropic"]?.category).toBe("Cloud")
     expect(byId["openai"]?.category).toBe("Cloud")
   })
