@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+## [1.19.0] — 2026-08-24
+
+### Added
+- Plugin SDK V2 hooks: `tool.execute.before`, `tool.execute.after`, `tool.definition`, `chat.params`, `chat.headers`, `command.execute.before`, `experimental.compaction.autocontinue` surfaced to external plugins
+- Plugin SDK `ToolContext` gains `progress()`, `messages()`, and `sessionInfo()` methods
+- Plugin SDK config schema validation and API versioning (`engines.tinycode-plugin`)
+- Plugin test utilities exported from `tinycode-plugin/test` (`createTestHarness`, `createMockToolContext`, `createMockPluginInput`)
+- Plugin SDK published to npm as `tinycode-plugin` and `tinycode-sdk` (unscoped packages)
+- `tinycode plugin-init` CLI command for scaffolding new plugins
+- Plugin template repository (`bobbyjohnstx/tinycode-plugin-template`)
+- Reference plugin example (`examples/tinycode-plugin-hello`)
+- LM Studio auto-discovery as a local provider
+- CI expanded to typecheck all packages and test 5 additional packages (app, ui, llm, effect-drizzle-sqlite, http-recorder)
+- docs/adding-a-tool.md — guide for plugin and core tool development
+- docs/deployment.md — extracted from README for focused deployment guidance
+- patches/README.md — rationale for all 7 active dependency patches
+- "Where to Start" contributor on-ramp in CONTRIBUTING.md
+
+### Changed
+- omt tools converted from `plainTool()` to `tool()` with zod schemas
+- Plugin hook triggers wrapped with error boundaries to prevent single-plugin failures from crashing sessions
+- README restructured: npm/homebrew primary install, curl deprecated, Documentation section added, deployment content extracted, hardware expectations added
+- Roadmap version scheme updated from v0.x to v1.x to match actual releases
+- Internal agent-generated docs moved to docs/internal/
+
+### Fixed
+- LICENSE now includes upstream SST/opencode copyright notice (MIT compliance)
+- Branch contradiction: CONTRIBUTING.md aligned to `dev` branch (was incorrectly referencing `main`)
+- Contradictory install instructions resolved between README and getting-started.md
+- "No telemetry" claim qualified to "no telemetry by default" with Sentry disclosure for desktop app
+- Plugin development docs updated: all imports use npm name `tinycode-plugin`, ToolContext documented with all methods
+- CI double-v in registry commit tags
+- Dead workspace API code removed from plugin system
+
 ## [1.18.0] — 2026-08-10
 
 ### Added
