@@ -38,7 +38,7 @@ Please open a [GitHub Issue](https://github.com/bobbyjohnstx/tinycode/issues) be
 3. Make your changes
 4. Run `bun run lint`, `bun typecheck`, and `cd packages/tinycode && bun test` before committing
 5. Use conventional commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
-6. Push and open a PR against `dev`
+6. Push and open a PR against `main`
 
 CI runs three gates on every PR: **lint**, **typecheck**, and **test** (see `.github/workflows/ci.yml`). Some tests (TUI, httpapi-listen, help) are excluded in CI.
 
