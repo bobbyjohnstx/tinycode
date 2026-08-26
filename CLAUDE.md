@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-> **Note:** End users install tinycode via `curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh` or `npx tinycode-ai`. The `bun install` path below is for **development** only.
+> **Note:** End users install tinycode via `curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh` or `npx tinycode-ai`. The `bun install` path below is for **development** only.
 
 ```bash
 # Install dependencies (from repo root, development only)

@@ -1,13 +1,6 @@
 # tinycode
 
-```
-  _   _                        _
- | |_(_)_ __  _   _  ___ ___  __| | ___
- | __| | '_ \| | | |/ __/ _ \/ _` |/ _ \
- | |_| | | | | |_| | (_| (_) | (_| |  __/
-  \__|_|_| |_|\__, |\___\___/ \__,_|\___|
-              |___/
-```
+![tinycode TUI](tinycode-screenshot.png)
 
 [![CI](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/bobbyjohnstx/tinycode)](https://github.com/bobbyjohnstx/tinycode/releases) [![Website](https://img.shields.io/badge/Website-tinycode-blue)](https://bobbyjohnstx.github.io/tinycode.html) [![Discussions](https://img.shields.io/github/discussions/bobbyjohnstx/tinycode)](https://github.com/bobbyjohnstx/tinycode/discussions)
 
@@ -57,7 +50,7 @@ npx tinycode-ai                          # or: npm install -g tinycode-ai
 brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
 
 # Alternative (deprecated — use npm or Homebrew instead):
-# curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
+# curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
 
 # Or install from source (development)
 bun install
@@ -101,7 +94,7 @@ For OpenRouter (with account balance and cost tracking):
 export OPENROUTER_API_KEY=your-key
 ```
 
-tinycode auto-discovers Ollama (`localhost:11434`), vLLM (`localhost:8000`), and MaaS servers from environment variables at startup. Use `/connect` in the TUI to manually connect a provider.
+tinycode auto-discovers Ollama (`localhost:11434`), vLLM (`localhost:8000`), LM Studio (`localhost:1234`), and MaaS servers from environment variables at startup. Use `/connect` in the TUI to manually connect a provider.
 
 ## Documentation
 
@@ -126,6 +119,7 @@ Bun monorepo with Turborepo. Key packages:
 | `packages/ui`       | Shared SolidJS component library (icons, themes, i18n)                              |
 | `packages/plugin`   | Plugin SDK (`@tinycode/plugin`)                                                     |
 | `packages/sdk/js`   | Auto-generated TypeScript SDK                                                       |
+| `packages/vscode-extension` | Reference VS Code extension for ACP integration                          |
 
 See [CLAUDE.md](CLAUDE.md) for development guidance and [AGENTS.md](AGENTS.md) for coding style.
 
@@ -152,6 +146,7 @@ All other agents (architect, debugger, executor, etc.) are **personas** — they
 | `code-simplifier`     | Simplifies recently modified code without changing behavior       |
 | `critic`              | Quality gate — multi-perspective review of plans and code         |
 | `debugger`            | Root-cause analysis and bug fixing                                |
+| `deep-explore`        | Thorough codebase exploration with multi-file analysis            |
 | `designer`            | UI/UX designer-developer for production-grade interfaces          |
 | `document-specialist` | External documentation and reference specialist                   |
 | `executor`            | Focused implementation of scoped tasks                            |
@@ -159,6 +154,7 @@ All other agents (architect, debugger, executor, etc.) are **personas** — they
 | `git-master`          | Git expert for atomic commits, rebasing, and history management   |
 | `planner`             | Strategic planning — gather requirements, produce work plans      |
 | `qa-tester`           | Interactive CLI testing via tmux                                  |
+| `rules-reviewer`      | Validates rule definitions against the style guide                |
 | `scientist`           | Data analysis and research — hypothesis-driven, evidence required |
 | `security-reviewer`   | Security vulnerability detection (OWASP Top 10, secrets, CVEs)    |
 | `skills-reviewer`     | Validates skill definitions against the style guide               |
@@ -207,13 +203,15 @@ For remote servers, containers, and OpenShift/Kubernetes clusters, see the [Depl
 
 ## Ecosystem
 
-tinycode is three projects that work together:
+tinycode is a family of projects that work together:
 
 | Project | What it does |
 | ------- | ------------ |
 | **tinycode** (this repo) | Core server, TUI, web UI, desktop app, agents, skills, tools, and LLM provider integrations. Everything you need to run tinycode locally. |
 | [**tinycode-container**](https://github.com/bobbyjohnstx/tinycode-container) | Container image that packages tinycode with oh-my-tiny, tmux, git, and optional oc CLI into a single OCI image for Kubernetes and OpenShift deployments. Handles PVC-based config persistence, vLLM auto-discovery, GitOps repo cloning, and OpenShift arbitrary-UID compatibility. |
 | [**tinycode-operator**](https://github.com/bobbyjohnstx/tinycode-operator) | Kubernetes Operator for OpenShift that manages `TinycodeInstance` custom resources. Handles deployment, storage provisioning, Route/Ingress creation, SCC binding, declarative vLLM configuration with auto-probing, cross-namespace model discovery, GitOps mode, shared team workspaces with RWX PVCs, and cluster-admin mode with kubeconfig mounting. Installable via OLM/OperatorHub or Helm. |
+| [**tinycode-plugins**](https://github.com/bobbyjohnstx/tinycode-plugins) | Community plugin registry and supporting materials. Publish your plugins here for discovery via `tinycode plugin-search`. |
+| [**tinycode-plugin-template**](https://github.com/bobbyjohnstx/tinycode-plugin-template) | Starter template for building tinycode plugins. Clone it to scaffold a new plugin with the correct structure, dependencies, and example tool. |
 
 ## Acknowledgments
 

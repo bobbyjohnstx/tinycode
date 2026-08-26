@@ -3,7 +3,7 @@
 # MIT License - https://opensource.org/licenses/MIT
 #
 # Installer for tinycode - Local-LLM-first AI coding assistant
-# Usage: curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
 
 set -euo pipefail
 

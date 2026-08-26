@@ -24,7 +24,7 @@
 
 **Action:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/dev/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
 tinycode --version
 ```
 
