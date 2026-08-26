@@ -22,13 +22,17 @@ import { Skill } from "@/skill"
 // Local/self-hosted providers that benefit from simplified prompts
 const LOCAL_PROVIDERS = new Set(["ollama", "maas", "vllm", "lmstudio", "openai-compatible"])
 
-// Extract parameter count in billions from model ID strings like "qwen3-14b", "llama3.1:8b"
+// Extract parameter count in billions from model ID strings like "qwen3-14b", "llama3.1:8b",
+// "gemma-4-E4B-it-MLX-8bit" (E4B = Effective 4 Billion)
 export function modelSizeB(model: Provider.Model): number | undefined {
-  // Check config-declared size first
   if (model.size !== undefined) return model.size
 
-  // Fall back to regex parsing from model ID
-  const m = /[:\-_v](\d+(?:\.\d+)?)b\b/i.exec(model.api.id) ?? /^(\d+(?:\.\d+)?)b\b/i.exec(model.api.id)
+  const id = model.api.id
+  // Match "E4B" pattern (Effective N Billion, used by MLX quantized models)
+  const eMatch = /[:\-_]E(\d+(?:\.\d+)?)B\b/i.exec(id)
+  if (eMatch) return parseFloat(eMatch[1])
+  // Match standard patterns: "14b", ":8b", "-7b", "_3b"
+  const m = /[:\-_v](\d+(?:\.\d+)?)b\b/i.exec(id) ?? /^(\d+(?:\.\d+)?)b\b/i.exec(id)
   return m ? parseFloat(m[1]) : undefined
 }
 
