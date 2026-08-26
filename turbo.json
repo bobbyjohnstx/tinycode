@@ -3,7 +3,9 @@
   "globalEnv": ["CI"],
   "globalPassThroughEnv": ["CI"],
   "tasks": {
-    "typecheck": {},
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
     "build": {
       "dependsOn": [],
       "outputs": ["dist/**"]

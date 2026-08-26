@@ -2,6 +2,21 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator"
 
 GlobalRegistrator.register()
 
+// xterm 5.5.0 calls matchMedia(...).addListener() which is deprecated but required.
+// happy-dom provides addListener, but some bun versions/platforms lose it.
+// Wrap matchMedia to guarantee addListener exists on returned MediaQueryList objects.
+const _origMatchMedia = globalThis.matchMedia
+if (typeof _origMatchMedia === "function") {
+  globalThis.matchMedia = function (query: string) {
+    const result = _origMatchMedia.call(this, query)
+    if (result && typeof result.addListener !== "function") {
+      result.addListener = function (cb: any) { this.addEventListener("change", cb) }
+      result.removeListener = function (cb: any) { this.removeEventListener("change", cb) }
+    }
+    return result
+  } as typeof globalThis.matchMedia
+}
+
 const originalGetContext = HTMLCanvasElement.prototype.getContext
 // @ts-expect-error - we're overriding with a simplified mock
 HTMLCanvasElement.prototype.getContext = function (contextType: string, _options?: unknown) {
