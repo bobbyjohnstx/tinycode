@@ -1172,6 +1172,8 @@ export const layer = Layer.effect(
         const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
         let cachedMsgs: MessageV2.WithParts[] | undefined
         let cachedModel: Provider.Model | undefined
+        const cfg = yield* config.get()
+        const maxAutoContinue = cfg.experimental?.auto_continue ?? 3
 
         while (true) {
           yield* status.set(sessionID, { type: "busy" })
@@ -1236,10 +1238,9 @@ export const layer = Layer.effect(
               continue
             }
             // Auto-continue for small models that stop prematurely after tool calls.
-            // step > 0 means at least one tool-call round completed before the model stopped.
-            const cfg = yield* config.get()
-            const maxAutoContinue = cfg.experimental?.auto_continue ?? 3
-            if (step > 0 && autoContinueNudges < maxAutoContinue && cachedModel) {
+            // Only nudge when the model stopped without giving a text response — if it
+            // produced text, it's giving its answer, not stopping prematurely.
+            if (step > 0 && !hasAssistantText && autoContinueNudges < maxAutoContinue && cachedModel) {
               const size = SystemPrompt.modelSizeB(cachedModel)
               if (size !== undefined && size <= 14) {
                 autoContinueNudges++
@@ -1263,16 +1264,17 @@ export const layer = Layer.effect(
                   messageID: continueMsg.id,
                   sessionID,
                   type: "text",
-                  text: "Continue working on the task. Use tools to make progress. If the task is fully complete, say so.",
+                  text: "You stopped without completing the task. Use the available tools to continue making progress.",
                   synthetic: true,
                 } satisfies MessageV2.TextPart)
                 continue
               }
             }
-            yield* slog.info("exiting loop")
+            yield* slog.info("exiting loop", { step, hasAssistantText, emptyResponseNudges, autoContinueNudges })
             break
           }
 
+          autoContinueNudges = 0
           step++
           if (step === 1)
             yield* title({
