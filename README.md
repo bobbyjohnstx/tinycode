@@ -105,6 +105,7 @@ tinycode auto-discovers Ollama (`localhost:11434`), vLLM (`localhost:8000`), LM 
 - [Plugin Development](docs/plugin-development.md) (npm: `tinycode-plugin`)
 - [Adding a Tool](docs/adding-a-tool.md)
 - [Deployment Guide](docs/deployment.md)
+- [OpenShell Integration](docs/openshell-integration.md) — sandboxed execution with NVIDIA OpenShell
 
 ## Architecture
 
