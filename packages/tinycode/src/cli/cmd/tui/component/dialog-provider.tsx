@@ -393,17 +393,19 @@ function ApiMethod(props: ApiMethodProps) {
   const sync = useSync()
   const toast = useToast()
 
+  const hasBaseURL = !!props.metadata?.baseURL
+
   return (
     <DialogPrompt
       title={props.title}
-      placeholder="API key"
+      placeholder={hasBaseURL ? "API key (optional — enter to skip)" : "API key"}
       onConfirm={async (value) => {
-        if (!value) return
+        if (!value && !hasBaseURL) return
         await sdk.client.auth.set({
           providerID: props.providerID,
           auth: {
             type: "api",
-            key: value,
+            key: value || "no-key",
             ...(props.metadata ? { metadata: props.metadata } : {}),
           },
         })

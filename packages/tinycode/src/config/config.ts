@@ -310,6 +310,10 @@ export const Info = Schema.Struct({
       mcp_timeout: Schema.optional(PositiveInt).annotate({
         description: "Timeout in milliseconds for model context protocol (MCP) requests",
       }),
+      auto_continue: Schema.optional(NonNegativeInt).annotate({
+        description:
+          "Max auto-continue nudges for small models that stop prematurely after tool calls (default: 3, 0 to disable)",
+      }),
     }),
   ),
 }).annotate({ identifier: "Config" })

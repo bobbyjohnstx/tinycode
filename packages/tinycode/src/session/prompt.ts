@@ -1168,8 +1168,10 @@ export const layer = Layer.effect(
         let structured: unknown
         let step = 0
         let emptyResponseNudges = 0
+        let autoContinueNudges = 0
         const session = yield* sessions.get(sessionID).pipe(Effect.orDie)
         let cachedMsgs: MessageV2.WithParts[] | undefined
+        let cachedModel: Provider.Model | undefined
 
         while (true) {
           yield* status.set(sessionID, { type: "busy" })
@@ -1233,6 +1235,40 @@ export const layer = Layer.effect(
               } satisfies MessageV2.TextPart)
               continue
             }
+            // Auto-continue for small models that stop prematurely after tool calls.
+            // step > 0 means at least one tool-call round completed before the model stopped.
+            const cfg = yield* config.get()
+            const maxAutoContinue = cfg.experimental?.auto_continue ?? 3
+            if (step > 0 && autoContinueNudges < maxAutoContinue && cachedModel) {
+              const size = SystemPrompt.modelSizeB(cachedModel)
+              if (size !== undefined && size <= 14) {
+                autoContinueNudges++
+                yield* slog.info("small model premature stop, auto-continuing", {
+                  step,
+                  nudge: autoContinueNudges,
+                  max: maxAutoContinue,
+                  modelSize: size,
+                })
+                const continueMsg: MessageV2.User = {
+                  id: MessageID.ascending(),
+                  sessionID,
+                  role: "user",
+                  time: { created: Date.now() },
+                  agent: lastUser.agent,
+                  model: lastUser.model,
+                }
+                yield* sessions.updateMessage(continueMsg)
+                yield* sessions.updatePart({
+                  id: PartID.ascending(),
+                  messageID: continueMsg.id,
+                  sessionID,
+                  type: "text",
+                  text: "Continue working on the task. Use tools to make progress. If the task is fully complete, say so.",
+                  synthetic: true,
+                } satisfies MessageV2.TextPart)
+                continue
+              }
+            }
             yield* slog.info("exiting loop")
             break
           }
@@ -1247,6 +1283,7 @@ export const layer = Layer.effect(
             }).pipe(Effect.ignore, Effect.forkIn(scope))
 
           const model = yield* getModel(lastUser.model.providerID, lastUser.model.modelID, sessionID)
+          cachedModel = model
           const task = tasks.pop()
 
           if (task?.type === "subtask") {

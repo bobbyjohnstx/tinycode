@@ -203,12 +203,25 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
   }
 })
 
-function resolveTools(input: Pick<PrepareInput, "tools" | "agent" | "permission" | "user">) {
+// Tools available at each model size tier. Small models get overwhelmed by 40+ tools
+// and produce better results with a focused set matching local-small.txt instructions.
+const ESSENTIAL_TOOLS = new Set(["invalid", "question", "bash", "read", "glob", "grep", "edit", "write"])
+const STANDARD_TOOLS = new Set([...ESSENTIAL_TOOLS, "task", "skill", "webfetch", "todowrite"])
+
+function resolveTools(input: Pick<PrepareInput, "tools" | "agent" | "permission" | "user" | "model">) {
   const disabled = Permission.disabled(
     Object.keys(input.tools),
     Permission.merge(input.agent.permission, input.permission ?? []),
   )
-  return Record.filter(input.tools, (_, k) => input.user.tools?.[k] !== false && !disabled.has(k))
+  const size = SystemPrompt.modelSizeB(input.model)
+  const isLocal = ["ollama", "vllm", "lmstudio", "maas", "openai-compatible"].includes(input.model.providerID)
+  const tier = isLocal && size !== undefined && size <= 8 ? ESSENTIAL_TOOLS
+    : isLocal && size !== undefined && size <= 24 ? STANDARD_TOOLS
+    : undefined
+  return Record.filter(
+    input.tools,
+    (_, k) => input.user.tools?.[k] !== false && !disabled.has(k) && (!tier || tier.has(k)),
+  )
 }
 
 export function hasToolCalls(messages: ModelMessage[]): boolean {
