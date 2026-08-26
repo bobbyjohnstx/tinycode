@@ -29,6 +29,7 @@ opencode-dev
 UPCOMING_CHANGELOG.md
 logs/
 *.bun-build
+bun.lock
 tsconfig.tsbuildinfo
 .omc/
 plans/
