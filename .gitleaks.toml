@@ -1,0 +1,19 @@
+[allowlist]
+  description = "False positives — test fixtures with fake tokens and redaction test data"
+
+  paths = [
+    '''\/test\/.*\.test\.ts$''',
+    '''\/test\/.*\.types\.ts$''',
+  ]
+
+  regexes = [
+    '''notsecret''',
+    '''test-token''',
+    '''sk-test''',
+    '''gateway-token''',
+    '''query-secret-123''',
+    '''header-secret-456''',
+    '''body-secret''',
+    '''response-secret''',
+    '''api_key=secret''',
+  ]
