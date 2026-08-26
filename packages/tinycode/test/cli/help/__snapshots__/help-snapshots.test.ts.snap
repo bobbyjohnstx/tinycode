@@ -208,6 +208,7 @@ Commands:
   tinycode import <file>          import session data from JSON file or URL
   tinycode session                manage sessions
   tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-init [name]     scaffold a new plugin project
   tinycode plugin-search [query]  search available plugins
   tinycode db                     database tools
 
@@ -340,6 +341,7 @@ Commands:
   tinycode import <file>          import session data from JSON file or URL
   tinycode session                manage sessions
   tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-init [name]     scaffold a new plugin project
   tinycode plugin-search [query]  search available plugins
   tinycode db                     database tools
 
@@ -431,6 +433,7 @@ Commands:
   tinycode import <file>          import session data from JSON file or URL
   tinycode session                manage sessions
   tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-init [name]     scaffold a new plugin project
   tinycode plugin-search [query]  search available plugins
   tinycode db                     database tools
 
@@ -488,6 +491,7 @@ Commands:
   tinycode import <file>          import session data from JSON file or URL
   tinycode session                manage sessions
   tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-init [name]     scaffold a new plugin project
   tinycode plugin-search [query]  search available plugins
   tinycode db                     database tools
 
@@ -771,6 +775,7 @@ Commands:
   tinycode import <file>          import session data from JSON file or URL
   tinycode session                manage sessions
   tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-init [name]     scaffold a new plugin project
   tinycode plugin-search [query]  search available plugins
   tinycode db                     database tools
 
@@ -828,6 +833,7 @@ Commands:
   tinycode import <file>          import session data from JSON file or URL
   tinycode session                manage sessions
   tinycode plugin <module>        install plugin and update config                   [aliases: plug]
+  tinycode plugin-init [name]     scaffold a new plugin project
   tinycode plugin-search [query]  search available plugins
   tinycode db                     database tools
 
