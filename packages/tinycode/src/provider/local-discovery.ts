@@ -1,4 +1,4 @@
-import { Context, Duration, Effect, Layer, Ref, Schedule } from "effect"
+import { Context, Deferred, Duration, Effect, Layer, Ref, Schedule } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { Schema } from "effect"
 import * as Log from "@/core/util/log"
@@ -318,6 +318,7 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
     const httpClient = yield* HttpClient.HttpClient
 
     const discovered = yield* Ref.make<Record<string, Info>>({})
+    const ready = yield* Deferred.make<void>()
 
     function probeOllama(baseURL: string): Effect.Effect<Info | null> {
       return HttpClientRequest.get(`${baseURL}/api/tags`).pipe(
@@ -652,13 +653,14 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         Object.assign(next, k8sProviders)
 
         yield* Ref.set(discovered, next)
+        yield* Deferred.succeed(ready, void 0).pipe(Effect.ignore)
       })
     }
 
     // Run discovery in the background — forked so startup never hangs.
     yield* runDiscovery().pipe(Effect.repeat(Schedule.fixed(POLL_INTERVAL)), Effect.forkScoped)
 
-    const get = () => Ref.get(discovered)
+    const get = () => Deferred.await(ready).pipe(Effect.flatMap(() => Ref.get(discovered)))
 
     return Service.of({ get })
   }),

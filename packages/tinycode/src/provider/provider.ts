@@ -845,6 +845,23 @@ export const layer = Layer.effect(
       }),
     )
 
+    const refreshProviderFromDiscovery = (
+      s: { providers: Record<string, Info> },
+      providerID: ProviderID,
+    ) =>
+      Effect.gen(function* () {
+        const freshLocal = yield* localDiscovery.get()
+        const freshInfo = freshLocal[providerID]
+        if (!freshInfo) return undefined
+        const cfg = yield* config.get()
+        const disabled = new Set(cfg.disabled_providers ?? [])
+        const enabled = cfg.enabled_providers ? new Set(cfg.enabled_providers) : null
+        if (enabled && !enabled.has(providerID)) return undefined
+        if (disabled.has(providerID)) return undefined
+        s.providers[providerID] = freshInfo
+        return freshInfo
+      }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+
     // list() merges fresh local-discovery results on every call so that providers
     // discovered after state init (e.g. MaaS, Ollama) are always returned.
     const list = Effect.fn("Provider.list")(function* () {
@@ -1053,13 +1070,20 @@ export const layer = Layer.effect(
       }
     }
 
-    const getProvider = Effect.fn("Provider.getProvider")((providerID: ProviderID) =>
-      InstanceState.use(state, (s) => s.providers[providerID]),
-    )
+    const getProvider = Effect.fn("Provider.getProvider")(function* (providerID: ProviderID) {
+      const s = yield* InstanceState.get(state)
+      if (!s.providers[providerID]) {
+        yield* refreshProviderFromDiscovery(s, providerID)
+      }
+      return s.providers[providerID]
+    })
 
     const getModel = Effect.fn("Provider.getModel")(function* (providerID: ProviderID, modelID: ModelID) {
       const s = yield* InstanceState.get(state)
-      const provider = s.providers[providerID]
+      let provider: Info | undefined = s.providers[providerID]
+      if (!provider) {
+        provider = yield* refreshProviderFromDiscovery(s, providerID)
+      }
       if (!provider) {
         const catalogProvider = s.catalog[providerID]
         const suggestions = catalogProvider
@@ -1109,7 +1133,10 @@ export const layer = Layer.effect(
 
     const closest = Effect.fn("Provider.closest")(function* (providerID: ProviderID, query: string[]) {
       const s = yield* InstanceState.get(state)
-      const provider = s.providers[providerID]
+      let provider: Info | undefined = s.providers[providerID]
+      if (!provider) {
+        provider = yield* refreshProviderFromDiscovery(s, providerID)
+      }
       if (!provider) return undefined
       for (const item of query) {
         for (const modelID of Object.keys(provider.models)) {
@@ -1130,7 +1157,10 @@ export const layer = Layer.effect(
       }
 
       const s = yield* InstanceState.get(state)
-      const provider = s.providers[providerID]
+      let provider: Info | undefined = s.providers[providerID]
+      if (!provider) {
+        provider = yield* refreshProviderFromDiscovery(s, providerID)
+      }
       if (!provider) return undefined
 
       let priority = [
@@ -1156,6 +1186,24 @@ export const layer = Layer.effect(
       if (cfg.model) return parseModel(cfg.model)
 
       const s = yield* InstanceState.get(state)
+
+      // Merge fresh local-discovery results (same pattern as list())
+      const disabled = new Set(cfg.disabled_providers ?? [])
+      const enabled = cfg.enabled_providers ? new Set(cfg.enabled_providers) : null
+      const freshLocal = yield* localDiscovery.get().pipe(Effect.catch(() => Effect.succeed({} as Record<string, Info>)))
+      for (const [id, info] of Object.entries(freshLocal)) {
+        const providerID = ProviderID.make(id)
+        if (enabled && !enabled.has(providerID)) continue
+        if (disabled.has(providerID)) continue
+        if (!s.providers[providerID]) {
+          s.providers[providerID] = info
+        } else {
+          for (const [modelID, model] of Object.entries(info.models)) {
+            if (!s.providers[providerID].models[modelID]) s.providers[providerID].models[modelID] = model
+          }
+        }
+      }
+
       const recent = yield* fs.readJson(path.join(Global.Path.state, "model.json")).pipe(
         Effect.map((x): { providerID: ProviderID; modelID: ModelID }[] => {
           if (!isRecord(x) || !Array.isArray(x.recent)) return []
