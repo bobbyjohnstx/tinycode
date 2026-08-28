@@ -113,7 +113,7 @@
     "@opentui/core": "catalog:",
     "@opentui/keymap": "catalog:",
     "@opentui/solid": "catalog:",
-    "@parcel/watcher": "2.5.6",
+    "@parcel/watcher": "2.6.0",
     "@pierre/diffs": "catalog:",
     "@silvia-odwyer/photon-node": "0.3.4",
     "@solid-primitives/event-bus": "1.1.2",
