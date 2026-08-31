@@ -43,6 +43,7 @@ Promote durable, reusable knowledge into the right memory surface instead of lea
 - **`~/.config/tinycode/projects/<project>/memory/`** — durable project knowledge (facts, feedback, decisions)
 - **`CLAUDE.md` / `AGENTS.md`** — durable instructions and conventions when they truly belong there
 - **Session notes** — temporary working context for the current conversation only
+- **`.tinycode/wiki/`** — project-level knowledge base for debugging findings, architectural decisions, environment quirks, and reference material (uses `omt_wiki_add` or `omt_wiki_ingest` tools)
 
 ## Workflow
 1. Scan the session for memory candidates: facts established, user corrections or preferences voiced, conventions agreed upon, decisions made with rationale. List each candidate before classifying.
@@ -52,6 +53,9 @@ Promote durable, reusable knowledge into the right memory surface instead of lea
    - operator instruction or convention
    - temporary working note
    - duplicate / stale / conflicting information
+   - debugging finding (e.g., "port 8080 conflicts with local Ollama") → route to wiki with category: debugging
+   - architectural decision with rationale (e.g., "chose Effect over raw Promises for error typing") → route to wiki with category: decision
+   - environment quirk or setup note (e.g., "must set DOCKER_HOST on Apple Silicon") → route to wiki with category: environment
 3. Propose the best destination for each item.
 4. Write or update only the appropriate memory surface.
 5. Call out duplicates or conflicts that should be cleaned up.
@@ -62,6 +66,7 @@ Promote durable, reusable knowledge into the right memory surface instead of lea
 - Keep entries concise and actionable.
 - If something is uncertain, mark it as uncertain rather than storing it as fact.
 - Do not save things already captured in CLAUDE.md or derivable from the code.
+- If wiki triage is disabled in config (`experimental.wiki.triage: false`), skip wiki routing and classify items across the original three surfaces only.
 
 ## Output Contract
 
