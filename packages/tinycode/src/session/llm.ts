@@ -126,6 +126,7 @@ const live: Layer.Layer<
         plugin,
         flags,
         isWorkflow,
+        wikiAutoQuery: cfg.experimental?.wiki?.auto_query,
       })
 
       // Wire up toolExecutor for DWS workflow models so that tool calls

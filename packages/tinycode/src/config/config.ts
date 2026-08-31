@@ -314,6 +314,16 @@ export const Info = Schema.Struct({
         description:
           "Max auto-continue nudges for small models that stop prematurely after tool calls (default: 3, 0 to disable)",
       }),
+      wiki: Schema.optional(
+        Schema.Struct({
+          auto_query: Schema.optional(Schema.Boolean).annotate({
+            description: "Inject wiki page hints into system prompt on first turn (default: true)",
+          }),
+          triage: Schema.optional(Schema.Boolean).annotate({
+            description: "Enable wiki routing in the /remember skill (default: true)",
+          }),
+        }),
+      ),
     }),
   ),
 }).annotate({ identifier: "Config" })

@@ -3,6 +3,7 @@ import type { RuntimeFlags } from "@/effect/runtime-flags"
 import { InstanceState } from "@/effect/instance-state"
 import { Permission } from "@/permission"
 import { readNotepad, readProjectMemory } from "@/omt"
+import { queryWikiPages } from "@/omt/persistence"
 import type { Agent } from "@/agent/agent"
 import type { MessageV2 } from "../message-v2"
 import type { Provider } from "@/provider/provider"
@@ -32,6 +33,7 @@ type PrepareInput = {
   readonly plugin: Plugin.Interface
   readonly flags: RuntimeFlags.Info
   readonly isWorkflow: boolean
+  readonly wikiAutoQuery?: boolean
 }
 
 export type Prepared = {
@@ -95,6 +97,57 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
     ),
     Effect.ignore,
   )
+
+  // Wiki hint injection — first turn only, non-subagent, model > 8B
+  if (!input.parentSessionID && !input.messages.some((m) => m.role === "assistant")) {
+    if (input.wikiAutoQuery !== false) {
+      const size = SystemPrompt.modelSizeB(input.model)
+      const isSmallLocal = size !== undefined && size <= 8
+      if (!isSmallLocal) {
+        yield* InstanceState.directory.pipe(
+          Effect.flatMap((dir) =>
+            Effect.try({
+              try: () => {
+                const firstMsg = input.messages[0]
+                let queryText = ""
+                if (firstMsg && firstMsg.role === "user") {
+                  const content = firstMsg.content
+                  if (typeof content === "string") {
+                    queryText = content.slice(0, 200)
+                  } else if (Array.isArray(content)) {
+                    queryText = content
+                      .filter((p): p is { type: "text"; text: string } => p.type === "text")
+                      .map((p) => p.text)
+                      .join(" ")
+                      .slice(0, 200)
+                  }
+                }
+                const dirName = dir.split("/").pop() ?? ""
+                const query = `${dirName} ${queryText}`.trim()
+                if (!query) return
+
+                const result = queryWikiPages(dir, query, undefined, undefined, 5)
+                if (
+                  result.startsWith("No wiki pages match") ||
+                  result.startsWith("Error reading") ||
+                  result.length === 0
+                )
+                  return
+
+                const truncated =
+                  result.length > 2048
+                    ? result.slice(0, 2048) + "\n... more results available via omt_wiki_query / omt_wiki_read"
+                    : result
+                system.push(`<omt-wiki-hints>\n${truncated}\n</omt-wiki-hints>`)
+              },
+              catch: () => undefined,
+            }),
+          ),
+          Effect.ignore,
+        )
+      }
+    }
+  }
 
   if (system.length > 2 && system[0] === header) {
     const rest = system.slice(1)
