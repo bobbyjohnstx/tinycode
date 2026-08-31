@@ -1113,3 +1113,29 @@ it.instance(
   }),
   { git: true },
 )
+
+it.live(
+  "directory != worktree: changed, stage, and drop work from a subdirectory",
+  Effect.gen(function* () {
+    const repo = yield* scopedGitTmpdir()
+    const subdir = `${repo}/src`
+    yield* mkdirp(subdir)
+    yield* write(`${repo}/root.txt`, "root content")
+    yield* write(`${subdir}/app.txt`, "app content")
+    yield* exec(repo, ["git", "add", "."])
+    yield* exec(repo, ["git", "commit", "-m", "init"])
+    yield* Effect.gen(function* () {
+      const snapshot = yield* Snapshot.Service
+      const before = yield* snapshot.track()
+      expect(before).toBeTruthy()
+      yield* write(`${subdir}/app.txt`, "modified app")
+      yield* write(`${subdir}/new.txt`, "new file")
+      const patch = yield* snapshot.patch(before!)
+      expect(patch.files).toContain(fwd(subdir, "app.txt"))
+      expect(patch.files).toContain(fwd(subdir, "new.txt"))
+      yield* snapshot.revert([patch])
+      expect(yield* readText(`${subdir}/app.txt`)).toBe("app content")
+      expect(yield* exists(`${subdir}/new.txt`)).toBe(false)
+    }).pipe(provideInstance(subdir))
+  }),
+)
