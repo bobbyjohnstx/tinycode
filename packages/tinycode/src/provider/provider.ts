@@ -28,6 +28,7 @@ import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderError } from "./error"
 import { LocalDiscovery } from "./local-discovery"
+import { ensureOllamaProfile, isProfile, numCtxFromProfileName, type AutoProfileConfig } from "./ollama-profile"
 
 const log = Log.create({ service: "provider" })
 const OPENAI_HEADER_TIMEOUT_DEFAULT = 300_000
@@ -1102,6 +1103,38 @@ export const layer = Layer.effect(
           : modelSuggestions(s.catalog[providerID], modelID, runtimeFlags.enableExperimentalModels)
         return yield* new ModelNotFoundError({ providerID, modelID, suggestions })
       }
+
+      // Ollama auto-profiling: ensure a derived profile with GPU-appropriate num_ctx
+      if (providerID === "ollama" && !isProfile(modelID)) {
+        const cfg = yield* config.get()
+        const ollamaConfig = (cfg.provider?.["ollama"]?.options as Record<string, unknown> | undefined)
+        const autoProfile = ollamaConfig?.auto_profile as AutoProfileConfig | undefined
+        if (autoProfile?.enabled !== false) {
+          const baseURL = (provider.options?.baseURL as string)?.replace(/\/v1\/?$/, "") ?? "http://localhost:11434"
+          const profiled = yield* Effect.promise(() =>
+            ensureOllamaProfile(baseURL, modelID, autoProfile).catch(() => modelID as string),
+          )
+          if (profiled !== modelID) {
+            const existing = provider.models[profiled as ModelID]
+            if (existing) return existing
+            const profileNumCtx = numCtxFromProfileName(profiled)
+            const profiledModel: Model = {
+              ...info,
+              id: ModelID.make(profiled),
+              name: profiled,
+              api: { ...info.api, id: profiled },
+              limit: {
+                ...info.limit,
+                context: profileNumCtx,
+                output: Math.min(4096, Math.floor(profileNumCtx * 0.2)),
+              },
+            }
+            provider.models[profiled as ModelID] = profiledModel
+            return profiledModel
+          }
+        }
+      }
+
       return info
     })
 
