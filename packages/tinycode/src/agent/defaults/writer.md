@@ -8,6 +8,7 @@ permission:
   grep: allow
   bash: allow
   edit: allow
+  write: allow
 ---
 
 <Agent_Prompt>
