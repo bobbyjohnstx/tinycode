@@ -2,6 +2,26 @@ import { Schema } from "effect"
 import { PositiveInt } from "@/core/schema"
 import { ModelStatus } from "@/provider/model-status"
 
+// --- Auto-profile config for Ollama providers ---
+
+const NumCtxRange = Schema.Int.pipe(
+  Schema.check(Schema.isGreaterThanOrEqualTo(2048)),
+  Schema.check(Schema.isLessThanOrEqualTo(131072)),
+)
+
+const AutoProfileModelOverride = Schema.Struct({
+  num_ctx: Schema.optional(NumCtxRange),
+  skip: Schema.optional(Schema.Boolean),
+})
+
+export const AutoProfile = Schema.Struct({
+  enabled: Schema.optional(Schema.Boolean),
+  default_num_ctx: Schema.optional(NumCtxRange),
+  cleanup_on_exit: Schema.optional(Schema.Boolean),
+  models: Schema.optional(Schema.Record(Schema.String, AutoProfileModelOverride)),
+})
+export type AutoProfile = Schema.Schema.Type<typeof AutoProfile>
+
 export const Model = Schema.Struct({
   id: Schema.optional(Schema.String),
   name: Schema.optional(Schema.String),
@@ -115,6 +135,10 @@ export const Info = Schema.Struct({
         tlsRejectUnauthorized: Schema.optional(Schema.Boolean).annotate({
           description:
             "Set to false to skip TLS certificate verification for this provider. Use for self-signed certificates. Defaults to true.",
+        }),
+        auto_profile: Schema.optional(AutoProfile).annotate({
+          description:
+            "Ollama auto-profiling: create derived model profiles with GPU-appropriate num_ctx values. Only applies to local Ollama providers.",
         }),
       }),
       [Schema.Record(Schema.String, Schema.Any)],
