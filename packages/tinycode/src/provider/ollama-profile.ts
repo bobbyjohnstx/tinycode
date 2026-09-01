@@ -37,6 +37,7 @@ export type OllamaShowResult = {
 export type AutoProfileConfig = {
   enabled?: boolean
   default_num_ctx?: number
+  max_num_ctx?: number
   cleanup_on_exit?: boolean
   models?: Record<string, { num_ctx?: number; skip?: boolean }>
 }
@@ -249,6 +250,10 @@ export async function ensureOllamaProfile(
     }
     const advertisedContext = modelInfo.contextLength > 0 ? modelInfo.contextLength : 131072
     numCtx = calculateNumCtx(gpuMem.totalBytes, modelInfo, advertisedContext)
+  }
+
+  if (config?.max_num_ctx && numCtx > config.max_num_ctx) {
+    numCtx = config.max_num_ctx
   }
 
   const name = profileName(modelName, numCtx)

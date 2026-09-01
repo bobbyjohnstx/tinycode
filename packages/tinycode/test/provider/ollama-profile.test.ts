@@ -405,6 +405,60 @@ describe("ollama-profile", () => {
       expect(result).toBe("qwen3.5:9b-tc16k")
       expect(createCalled).toBe(true)
     })
+
+    test("clamps calculated num_ctx to max_num_ctx when set", async () => {
+      let createdNumCtx: number | undefined
+      globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input.toString()
+        if (url.includes("/api/show")) {
+          return Promise.resolve(new Response("Not Found", { status: 404 }))
+        }
+        if (url.includes("/api/create")) {
+          const body = JSON.parse(init?.body as string)
+          createdNumCtx = body.parameters?.num_ctx
+          return Promise.resolve(
+            new Response('{"status":"success"}\n', { status: 200 }),
+          )
+        }
+        return Promise.resolve(new Response("", { status: 404 }))
+      }) as unknown as typeof fetch
+
+      const { ensureOllamaProfile } = await import("../../src/provider/ollama-profile")
+      const result = await ensureOllamaProfile(
+        "http://localhost:11434",
+        "qwen3.5:9b",
+        { default_num_ctx: 65536, max_num_ctx: 32768 },
+      )
+      expect(result).toBe("qwen3.5:9b-tc32k")
+      expect(createdNumCtx).toBe(32768)
+    })
+
+    test("does not clamp when num_ctx is below max_num_ctx", async () => {
+      let createdNumCtx: number | undefined
+      globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input.toString()
+        if (url.includes("/api/show")) {
+          return Promise.resolve(new Response("Not Found", { status: 404 }))
+        }
+        if (url.includes("/api/create")) {
+          const body = JSON.parse(init?.body as string)
+          createdNumCtx = body.parameters?.num_ctx
+          return Promise.resolve(
+            new Response('{"status":"success"}\n', { status: 200 }),
+          )
+        }
+        return Promise.resolve(new Response("", { status: 404 }))
+      }) as unknown as typeof fetch
+
+      const { ensureOllamaProfile } = await import("../../src/provider/ollama-profile")
+      const result = await ensureOllamaProfile(
+        "http://localhost:11434",
+        "qwen3.5:9b",
+        { default_num_ctx: 16384, max_num_ctx: 32768 },
+      )
+      expect(result).toBe("qwen3.5:9b-tc16k")
+      expect(createdNumCtx).toBe(16384)
+    })
   })
 
   // --- cleanupStaleProfiles ---

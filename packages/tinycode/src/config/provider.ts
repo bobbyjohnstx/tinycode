@@ -17,6 +17,7 @@ const AutoProfileModelOverride = Schema.Struct({
 export const AutoProfile = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean),
   default_num_ctx: Schema.optional(NumCtxRange),
+  max_num_ctx: Schema.optional(NumCtxRange),
   cleanup_on_exit: Schema.optional(Schema.Boolean),
   models: Schema.optional(Schema.Record(Schema.String, AutoProfileModelOverride)),
 })
