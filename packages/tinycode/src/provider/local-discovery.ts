@@ -6,6 +6,7 @@ import { ModelID, ProviderID } from "./schema"
 import type { Info, Model } from "./provider"
 import { rewriteLocalhostURL } from "@/util/container"
 import { readFileSync } from "fs"
+import { isProfile, numCtxFromProfileName, cleanupStaleProfiles } from "./ollama-profile"
 
 const log = Log.create({ service: "local-discovery" })
 
@@ -178,9 +179,16 @@ function makeOllamaProvider(baseURL: string, entries: OllamaModelEntry[]): Info 
   const models: Record<string, Model> = {}
   for (const entry of entries) {
     const caps = new Set(entry.capabilities ?? [])
+    const isProfileEntry = isProfile(entry.name)
+    const profileNumCtx = isProfileEntry ? numCtxFromProfileName(entry.name) : 0
     const contextLimit = entry.details?.context_length ?? 0
-    const effectiveContext = contextLimit > 0 ? Math.floor(contextLimit * 0.8) : 0
-    const outputLimit = contextLimit > 0 ? Math.min(4096, Math.floor(contextLimit * 0.2)) : 0
+    // Profile entries use their baked-in num_ctx; non-profile entries use 80% of advertised
+    const effectiveContext = isProfileEntry && profileNumCtx > 0
+      ? profileNumCtx
+      : contextLimit > 0 ? Math.floor(contextLimit * 0.8) : 0
+    const outputLimit = isProfileEntry && profileNumCtx > 0
+      ? Math.min(4096, Math.floor(profileNumCtx * 0.2))
+      : contextLimit > 0 ? Math.min(4096, Math.floor(contextLimit * 0.2)) : 0
     const model: Model = {
       id: ModelID.make(entry.name),
       providerID: ProviderID.make("ollama"),
@@ -329,6 +337,15 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
           const entries = data.models.filter((m) => m.name.length > 0)
           if (entries.length === 0) return null
           log.info("ollama discovered", { count: entries.length, models: entries.slice(0, 5).map((m) => m.name) })
+
+          // Cleanup stale profiles in the background (fire-and-forget)
+          const allNames = entries.map((m) => m.name)
+          const baseModels = new Set(allNames.filter((n) => !isProfile(n)))
+          const profileNames = allNames.filter((n) => isProfile(n))
+          if (profileNames.length > 0) {
+            cleanupStaleProfiles(baseURL, baseModels, profileNames).catch(() => {})
+          }
+
           return makeOllamaProvider(baseURL, entries)
         }),
         Effect.catch((err) => {
