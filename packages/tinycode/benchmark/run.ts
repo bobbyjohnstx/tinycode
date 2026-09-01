@@ -202,7 +202,7 @@ async function runTask(
 
     // Spawn process with timeout
     const proc = Bun.spawn(tinycodeCommand, {
-      cwd: path.resolve(import.meta.dir, "../../../.."),
+      cwd: path.resolve(import.meta.dir, "../../.."),
       stdout: "pipe",
       stderr: "pipe",
     })
