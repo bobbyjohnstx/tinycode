@@ -102,6 +102,7 @@ describe("ollama-profile", () => {
       embeddingLength: 3840,
       headCount: 24,
       headCountKV: 8,
+      contextLength: 262144,
     }
 
     test("qwen3.5:9b on 16 GB produces 18k-19k context", () => {
@@ -121,6 +122,7 @@ describe("ollama-profile", () => {
         embeddingLength: 4096,
         headCount: 32,
         headCountKV: 8,
+        contextLength: 131072,
       }
       const gpuMem = 17_179_869_184
       const numCtx = calculateNumCtx(gpuMem, llama31, 131072)
@@ -138,6 +140,7 @@ describe("ollama-profile", () => {
         embeddingLength: 8192,
         headCount: 64,
         headCountKV: 8,
+        contextLength: 131072,
       }
       const gpuMem = 8 * 1024 * 1024 * 1024 // 8 GB
       const numCtx = calculateNumCtx(gpuMem, huge, 131072)
@@ -153,6 +156,7 @@ describe("ollama-profile", () => {
         embeddingLength: 2048,
         headCount: 16,
         headCountKV: 4,
+        contextLength: 8192,
       }
       const gpuMem = 128 * 1024 * 1024 * 1024 // 128 GB
       const numCtx = calculateNumCtx(gpuMem, tiny, 8192)
@@ -167,6 +171,7 @@ describe("ollama-profile", () => {
         embeddingLength: 0,
         headCount: 0,
         headCountKV: 0,
+        contextLength: 0,
       }
       const numCtx = calculateNumCtx(16 * 1024 * 1024 * 1024, noArch, 131072)
       expect(numCtx).toBe(8192)
@@ -185,6 +190,7 @@ describe("ollama-profile", () => {
         embeddingLength: 2048,
         headCount: 16,
         headCountKV: 4,
+        contextLength: 32768,
       }
       const numCtx = calculateNumCtx(16 * 1024 * 1024 * 1024, fp16, 32768)
       expect(numCtx).toBeGreaterThanOrEqual(2048)
@@ -261,7 +267,7 @@ describe("ollama-profile", () => {
 
     test("sends correct request body and returns true on success", async () => {
       let capturedBody: string | undefined
-      globalThis.fetch = mock((input: RequestInfo | URL, init?: RequestInit) => {
+      globalThis.fetch = mock((_input: RequestInfo | URL, init?: RequestInit) => {
         capturedBody = init?.body as string
         return Promise.resolve(
           new Response('{"status":"reading model metadata"}\n{"status":"success"}\n', { status: 200 }),

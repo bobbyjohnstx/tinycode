@@ -31,6 +31,7 @@ export type OllamaShowResult = {
   embeddingLength: number
   headCount: number
   headCountKV: number
+  contextLength: number
 }
 
 export type AutoProfileConfig = {
@@ -147,6 +148,7 @@ export async function showModel(baseURL: string, model: string): Promise<OllamaS
     const embeddingLength = findModelInfoValue(info, "embedding_length")
     const headCount = findModelInfoValue(info, "head_count")
     const headCountKV = findModelInfoValue(info, "head_count_kv")
+    const contextLength = findModelInfoValue(info, "context_length")
 
     return {
       parameterSize: body.details?.parameter_size ?? "",
@@ -155,6 +157,7 @@ export async function showModel(baseURL: string, model: string): Promise<OllamaS
       embeddingLength,
       headCount,
       headCountKV,
+      contextLength,
     }
   } catch {
     return null
@@ -244,22 +247,7 @@ export async function ensureOllamaProfile(
       log.info("could not fetch model info, skipping profiling", { model: modelName })
       return modelName
     }
-    // Use the model's advertised context or a sensible default
-    const showForContext = await fetch(`${baseURL}/api/show`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: modelName }),
-    }).then((r) => r.json() as Promise<{ model_info?: Record<string, unknown> }>).catch(() => null)
-
-    let advertisedContext = 131072
-    if (showForContext?.model_info) {
-      for (const [key, value] of Object.entries(showForContext.model_info)) {
-        if (key.endsWith(".context_length") && typeof value === "number") {
-          advertisedContext = value
-          break
-        }
-      }
-    }
+    const advertisedContext = modelInfo.contextLength > 0 ? modelInfo.contextLength : 131072
     numCtx = calculateNumCtx(gpuMem.totalBytes, modelInfo, advertisedContext)
   }
 
