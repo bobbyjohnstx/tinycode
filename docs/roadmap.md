@@ -4,20 +4,24 @@ Vision and current status of tinycode development.
 
 ## Current (v1.x) — Foundation
 
-What's available now (v1.18.0+):
+What's available now (v1.19.0+):
 
 ### Core
 - **TUI** — Full-featured terminal interface with session hierarchy
 - **HTTP API** — REST + SSE/WebSocket server for remote access
 - **Web UI** — SolidJS + TailwindCSS browser interface
 - **Desktop app** — Electron wrapper with system tray, auto-updates, global hotkey
-- **Provider abstraction** — Support for Ollama, vLLM, OpenAI-compatible endpoints, cloud providers (Anthropic, OpenAI, Google, OpenRouter)
+- **Provider abstraction** — Support for Ollama, vLLM, LM Studio, ramalama, OpenAI-compatible endpoints, cloud providers (Anthropic, OpenAI, Google, OpenRouter)
+- **Ollama auto-profiling** — GPU-aware `num_ctx` baked into derived Modelfile profiles, with configurable `max_num_ctx` cap
 - **Session tree** — Parent-child session relationships with tree sidebar visualization
-- **Plugin system** — Load plugins from `.tinycode/plugins/`
+- **Plugin system** — SDK published as `tinycode-plugin` on npm, with lifecycle hooks, test utilities, and plugin marketplace
+- **ACP mode** — Agent Client Protocol for IDE integration (VS Code extension, stdio transport)
+- **Auto-continue** — Automatic continuation loop with tiered tool injection for small local models
 
 ### Agents
 - All 20+ built-in agents (architect, debugger, executor, planner, code-reviewer, test-engineer, etc.)
 - Two execution modes: **build** (full access) and **plan** (read-only)
+- **Per-agent tool permissions** — Frontmatter-declared permission blocks scope which tools each agent can access
 - Agent prompt tiers for small models (< 8B params)
 
 ### Tools
@@ -27,11 +31,12 @@ What's available now (v1.18.0+):
 - LSP integration for code intelligence
 - MCP client for connecting servers (web search, etc.)
 - oh-my-tiny plugin (notepad, wiki, state management, AST grep)
+- Wiki skill for guided knowledge persistence
 
 ### Storage
 - SQLite-backed session persistence
 - Session export to HTML (self-contained) and JSON
-- Session compaction to reduce size
+- Context compaction with deterministic file tracking and observation masking
 
 ### Deployment
 - Local development (TUI, server, web)
@@ -48,16 +53,14 @@ Planned improvements for upcoming releases.
 ### UX & Workflow
 - **Prompt templates** — Save and reuse common prompts with variables
 - **Plugin keybindings** — Custom hotkeys for plugin tools
-- **JSON-RPC mode** — Alternative to REST API for editor integrations (VSCode, Zed, JetBrains via ACP)
+- **JSON-RPC mode** — Alternative to REST API for editor integrations (Zed, JetBrains via ACP)
 - **Session search** — Full-text search across all sessions
 - **Diff improvements** — Better inline diff viewer with blame/history integration
 - **Which-key enhancements** — Better discovery of less-used features
 
 ### Model & Provider
-- **Model context awareness** — Automatically adjust prompt strategy based on context window size
 - **Streaming optimizations** — Better token streaming for slower connections
 - **Provider fallback** — Auto-retry with fallback provider if one fails
-- **Cost tracking** — Estimate and track per-session API costs
 - **Model variants** — Save and switch between model quantizations (e.g., Q4 vs Q5)
 
 ### Agent & Skill Expansion
@@ -88,7 +91,6 @@ Longer-term vision.
 - **Fine-grained RBAC** — Control which agents and tools each user can access
 
 ### Plugin Ecosystem
-- **Plugin marketplace** — Discover, install, share plugins
 - **Custom tools** — Plugins can define new tools (not just instructions)
 - **Tool composition** — Chain tool outputs as inputs to other tools
 
