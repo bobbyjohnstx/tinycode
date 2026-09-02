@@ -78,6 +78,25 @@ const tasks = Object.entries(binaries).map(async ([name]) => {
 await Promise.all(tasks)
 await publish(`./dist/${pkg.name}`, `${pkg.name}-ai`, version)
 
+// Publish plugin SDK and JS SDK with unscoped npm names
+const repoRoot = fileURLToPath(new URL("../../..", import.meta.url))
+for (const [localDir, npmName] of [
+  ["packages/plugin", "tinycode-plugin"],
+  ["packages/sdk/js", "tinycode-sdk"],
+] as const) {
+  const pkgDir = `${repoRoot}/${localDir}`
+  const pkgJson = await Bun.file(`${pkgDir}/package.json`).json()
+  const originalName = pkgJson.name
+  try {
+    pkgJson.name = npmName
+    await Bun.file(`${pkgDir}/package.json`).write(JSON.stringify(pkgJson, null, 2) + "\n")
+    await publish(pkgDir, npmName, pkgJson.version)
+  } finally {
+    pkgJson.name = originalName
+    await Bun.file(`${pkgDir}/package.json`).write(JSON.stringify(pkgJson, null, 2) + "\n")
+  }
+}
+
 const image = "ghcr.io/bobbyjohnstx/tinycode"
 const platforms = "linux/amd64,linux/arm64"
 const tags = [`${image}:${version}`, `${image}:${Script.channel}`]
