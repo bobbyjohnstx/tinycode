@@ -4,7 +4,7 @@ Vision and current status of tinycode development.
 
 ## Current (v1.x) — Foundation
 
-What's available now (v1.19.0+):
+What's available now (v1.20.0+):
 
 ### Core
 - **TUI** — Full-featured terminal interface with session hierarchy

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.20.0] — 2026-08-31
+
 ### Added
 - Ollama auto-profiling: GPU-aware `num_ctx` baked into derived Modelfile profiles (`qwen3.5:9b-tc32k`), fixing context window truncation on `/v1/chat/completions` endpoint
 - GPU memory detection for macOS (unified), NVIDIA (nvidia-smi), and AMD (sysfs) with 50% budget capped at 32 GB
