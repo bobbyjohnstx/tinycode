@@ -63,7 +63,7 @@ podman run -it -p 4096:4096 \
   quay.io/bjohns/tinycode-container:latest
 ```
 
-Images are also mirrored to `ghcr.io/bjohns/tinycode-container`. Both registries receive identical multi-arch builds (amd64 + arm64) on every push to main.
+Images are also mirrored to `ghcr.io/bobbyjohnstx/tinycode-container`. Both registries receive identical multi-arch builds (amd64 + arm64) on every push to main.
 
 ## OpenShift / Kubernetes Deployment
 

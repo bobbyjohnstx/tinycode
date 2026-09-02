@@ -30,14 +30,14 @@ Sandboxes are containers (Docker, Podman, or Kubernetes pods) with policies that
 
 - OpenShell installed ([installation guide](https://docs.nvidia.com/openshell/getting-started/installation))
 - A local LLM provider (Ollama, vLLM) running on the host
-- tinycode container image (`ghcr.io/bjohns/tinycode-container:latest`)
+- tinycode container image (`ghcr.io/bobbyjohnstx/tinycode-container:latest`)
 
 ### Basic Usage
 
 ```bash
 # Run tinycode in a sandbox with GPU access
 openshell sandbox create \
-  --image ghcr.io/bjohns/tinycode-container:latest \
+  --image ghcr.io/bobbyjohnstx/tinycode-container:latest \
   --gpu \
   -- tinycode
 ```
@@ -49,7 +49,7 @@ When Ollama runs on the host, OpenShell routes inference traffic through `host.o
 ```bash
 # Start a sandbox with inference routing to host Ollama
 openshell sandbox create \
-  --image ghcr.io/bjohns/tinycode-container:latest \
+  --image ghcr.io/bobbyjohnstx/tinycode-container:latest \
   --provider ollama --type openai --host host.openshell.internal:11434 \
   -- tinycode
 ```
@@ -68,7 +68,7 @@ tinycode's auto-discovery will find Ollama at the routed address.
 
 ```bash
 openshell sandbox create \
-  --image ghcr.io/bjohns/tinycode-container:latest \
+  --image ghcr.io/bobbyjohnstx/tinycode-container:latest \
   --provider vllm --type openai --host host.openshell.internal:8000 \
   -- tinycode
 ```
@@ -102,7 +102,7 @@ process:
 ```bash
 openshell sandbox create \
   --policy tinycode-policy.yaml \
-  --image ghcr.io/bjohns/tinycode-container:latest \
+  --image ghcr.io/bobbyjohnstx/tinycode-container:latest \
   -- tinycode /workspace
 ```
 
