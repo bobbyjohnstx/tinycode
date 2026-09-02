@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Added
+- Ollama auto-profiling: GPU-aware `num_ctx` baked into derived Modelfile profiles (`qwen3.5:9b-tc32k`), fixing context window truncation on `/v1/chat/completions` endpoint
+- GPU memory detection for macOS (unified), NVIDIA (nvidia-smi), and AMD (sysfs) with 50% budget capped at 32 GB
+- `auto_profile` config for Ollama providers: `max_num_ctx` cap, `default_num_ctx` override, per-model `skip`/`num_ctx` overrides, `cleanup_on_exit`
+- Auto-continue loop and tiered tool injection for small local models
+- Wiki skill for guided knowledge persistence with query-on-start injection
+- Remember skill extended to route codebase findings to wiki
+- NVIDIA OpenShell integration guide
+
+### Changed
+- Executor, test-engineer, writer, and designer agents now have `write` permission (can create new files, not just edit existing ones)
+- Consolidated to main branch, removed dev branch references
+- Workspace catalog versions aligned with root dependencies
+
+### Fixed
+- Benchmark runner cwd resolution: child process spawn used 4 parent traversals instead of 3, causing all runs to exit immediately with no tool calls
+- Local discovery race condition in provider state readers
+- Snapshot git commands now use worktree root instead of subdirectory
+- Auto-continue only nudges when model gave no text response
+- `modelSizeB` regex for MLX quantized model names
+- Plugin typecheck and xterm test failures in CI
+- Help snapshot updated for plugin-init command
+- Gitleaks allowlist for test token false positives
+
 ## [1.19.0] — 2026-08-24
 
 ### Added
