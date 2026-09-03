@@ -33,9 +33,8 @@ export const PRUNE_MINIMUM = 20_000
 export const PRUNE_PROTECT = 40_000
 const TOOL_OUTPUT_MAX_CHARS = 2_000
 const PRUNE_PROTECTED_TOOLS = ["skill"]
-const DEFAULT_TAIL_TURNS = 2
-const MIN_PRESERVE_RECENT_TOKENS = 4_000
-const MAX_PRESERVE_RECENT_TOKENS = 20_000
+const MIN_PRESERVE_RECENT_TOKENS = 2_000
+const MAX_PRESERVE_RECENT_TOKENS = 15_000
 const SUMMARY_TEMPLATE = `Output exactly the Markdown structure shown inside <template> and keep the section order unchanged. Do not include the <template> tags in your response.
 <template>
 ## Goal
@@ -118,16 +117,19 @@ function completedCompactions(messages: MessageV2.WithParts[]) {
 }
 
 function buildPrompt(input: { previousSummary?: string; context: string[] }) {
-  const anchor = input.previousSummary
-    ? [
-        "Update the anchored summary below using the conversation history above.",
-        "Preserve still-true details, remove stale details, and merge in the new facts.",
-        "<previous-summary>",
-        input.previousSummary,
-        "</previous-summary>",
-      ].join("\n")
-    : "Create a new anchored summary from the conversation history above."
-  return [anchor, SUMMARY_TEMPLATE, ...input.context].join("\n\n")
+  const conversation = `Here is the conversation so far:\n\n${input.context.join("\n\n")}`
+  if (!input.previousSummary)
+    return [
+      conversation,
+      "Create a new anchored summary from the conversation history in the <conversation> tags above so another coding agent can continue the work.",
+      SUMMARY_TEMPLATE,
+    ].join("\n\n")
+  return [
+    conversation,
+    `Here is the summary of the conversation before the <conversation> above:\n\n<prior-summary>\n${input.previousSummary}\n</prior-summary>`,
+    "Update the anchored summary below using the conversation history in the <conversation> tags above. Preserve still-true details, remove stale details, and merge in the new facts.",
+    SUMMARY_TEMPLATE,
+  ].join("\n\n")
 }
 
 function preserveRecentBudget(input: { cfg: Config.Info; model: Provider.Model }) {
@@ -362,27 +364,22 @@ export const layer = Layer.effect(
       cfg: Config.Info
       model: Provider.Model
     }) {
-      const limit = input.cfg.compaction?.tail_turns ?? DEFAULT_TAIL_TURNS
-      if (limit <= 0) return { head: input.messages, tail_start_id: undefined }
+      const limit = input.cfg.compaction?.tail_turns
+      if (limit !== undefined && limit <= 0) return { head: input.messages, tail_start_id: undefined }
       const budget = preserveRecentBudget({ cfg: input.cfg, model: input.model })
       const all = turns(input.messages)
       if (!all.length) return { head: input.messages, tail_start_id: undefined }
-      const recent = all.slice(-limit)
-      const sizes = yield* Effect.forEach(
-        recent,
-        (turn: { start: number; end: number }) =>
-          estimate({
-            messages: input.messages.slice(turn.start, turn.end),
-            model: input.model,
-          }),
-        { concurrency: 1 },
-      )
+      const recent = limit === undefined ? all : all.slice(-limit)
 
       let total = 0
       let keep: Tail | undefined
       for (let i = recent.length - 1; i >= 0; i--) {
         const turn = recent[i]!
-        const size = sizes[i]
+        // estimate lazily so cost stays proportional to the retained tail, not the whole session
+        const size = yield* estimate({
+          messages: input.messages.slice(turn.start, turn.end),
+          model: input.model,
+        })
         if (total + size <= budget) {
           total += size
           keep = { start: turn.start, id: turn.id }
@@ -524,7 +521,6 @@ export const layer = Layer.effect(
         { sessionID: input.sessionID },
         { context: [], prompt: undefined },
       )
-      const nextPrompt = compacting.prompt ?? buildPrompt({ previousSummary, context: compacting.context })
       const msgs = structuredClone(selected.head)
       if (cfg.compaction?.mask_observations !== false) {
         maskObservations(msgs, 5)
@@ -532,6 +528,17 @@ export const layer = Layer.effect(
       yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
       const serialized = serializeForSummary(msgs)
       const preCompactionTokens = Token.estimate(serialized)
+      const nextPrompt =
+        compacting.prompt ??
+        [
+          buildPrompt({
+            previousSummary,
+            context: [serialized],
+          }),
+          ...compacting.context,
+        ]
+          .filter(Boolean)
+          .join("\n\n")
       const ctx = yield* InstanceState.context
       const msg: MessageV2.Assistant = {
         id: MessageID.ascending(),
@@ -565,23 +572,29 @@ export const layer = Layer.effect(
         sessionID: input.sessionID,
         model,
       })
-      const maxTokens = Math.min(4096, Math.floor(usable({ cfg, model }) * 0.1))
       const result = yield* processor.process({
         user: userMessage,
         agent,
         sessionID: input.sessionID,
         tools: {},
-        system: [
-          "You are a context summarization assistant. Summarize the following conversation history. Do NOT continue the conversation or respond to the user's questions.",
-        ],
+        system: [],
         messages: [
           {
             role: "user",
-            content: [{ type: "text", text: serialized + "\n\n" + nextPrompt }],
+            content: [
+              {
+                type: "text",
+                text: [
+                  nextPrompt,
+                  ...(compacting.prompt ? ["The following is the conversation history:", serialized] : []),
+                ]
+                  .filter(Boolean)
+                  .join("\n\n"),
+              },
+            ],
           },
         ],
         model,
-        maxTokens,
       } as any)
 
       if (result === "compact") {

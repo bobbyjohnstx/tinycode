@@ -1359,7 +1359,7 @@ describe("session.compaction.process", () => {
         expect(captured).not.toContain("keep this turn")
         expect(captured).not.toContain("and this one too")
         expect(captured).not.toContain("What did we do so far?")
-      }).pipe(withCompaction({ llm: stub.layer }))
+      }).pipe(withCompaction({ llm: stub.layer, config: cfg({ tail_turns: 2, preserve_recent_tokens: 10_000 }) }))
     },
     { git: true },
   )
@@ -1396,7 +1396,7 @@ describe("session.compaction.process", () => {
         expect(parent).toBeTruthy()
         yield* SessionCompaction.use.process({ parentID: parent!, messages: msgs, sessionID: session.id, auto: false })
 
-        expect(captured).toContain("<previous-summary>")
+        expect(captured).toContain("<prior-summary>")
         expect(captured).toContain("summary one")
         expect(captured.match(/summary one/g)?.length).toBe(1)
         expect(captured).toContain("## Constraints & Preferences")
