@@ -132,9 +132,17 @@ Electron shell wrapping `packages/app`. Run with `bun run --cwd packages/desktop
 
 Source for `@tinycode/plugin`. Provides the public plugin API.
 
-### `packages/sdk/js` — JavaScript SDK
+### `packages/sdk` — JavaScript SDK
 
-Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/build.ts`.
+Auto-generated TypeScript SDK from the OpenAPI spec (`openapi.json`). Client code is in `js/`. Regenerate with `./packages/sdk/js/script/build.ts`.
+
+### Other Packages
+
+- **`packages/ui`** — Shared SolidJS component library used by the web and desktop apps
+- **`packages/llm`** — LLM protocol implementations (Anthropic, OpenAI, Bedrock, Gemini)
+- **`packages/effect-drizzle-sqlite`** — Effect wrapper for Drizzle ORM + SQLite
+- **`packages/http-recorder`** — HTTP request/response recorder for test fixtures
+- **`packages/script`** — Build and release scripts
 
 ## Key Patterns
 
@@ -157,7 +165,6 @@ Auto-generated from the OpenAPI spec. Regenerate with `./packages/sdk/js/script/
 - **Style guide**: See [AGENTS.md](./AGENTS.md) for coding style rules (destructuring, control flow, Drizzle schema conventions, etc.).
 - **Pass model on Task calls**: Use the model configured for the session, not hardcoded model names.
 - **Tool-call failure handling**: Models with `capabilities.toolcall=false` get no tools injected (`src/session/llm/request.ts`). Malformed tool-call JSON is auto-repaired by stripping markdown fences and trailing commas (`src/session/llm.ts`). After 3+ consecutive tool-call failures, a warning toast suggests switching to a larger model (`src/session/processor.ts`).
-- **Model warmup on startup**: For local providers (Ollama, ramalama, vLLM), tinycode sends a tool-call probe on startup (`src/provider/warmup.ts`) via `/v1/chat/completions` to pre-load the model into GPU memory and verify tool-calling support. Uses `keep_alive: "30m"`.
 - **Per-agent tool permissions**: Each agent's `.md` frontmatter declares a `permission:` block that scopes which tools are injected into LLM calls. Read-only agents (architect, critic, etc.) get only read/glob/grep/bash (~1,800 tokens), write agents add edit (~2,700 tokens). This reduces prompt processing from ~38s to ~4-8s on local 9B models. The `explore` agent in `agent.ts` was the first to use this pattern.
 - **Skill parameter substitution**: Skills can declare `params:` in SKILL.md frontmatter (e.g., `params: [name, language]`). Parameters map to `$1`, `$2` placeholders in the skill content, substituted by `SessionPrompt.command()`.
 - **Plugin marketplace**: Curated plugin registry at `src/plugin/registry.json` with search via `tinycode plugin-search [query]`. Plugin install resolves registry names to npm packages automatically.

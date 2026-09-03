@@ -34,6 +34,7 @@ tsconfig.tsbuildinfo
 .omc/
 plans/
 .claude/
+.tinycode/wiki/
 .npmrc
 session-ses_*.md
 packages/tinycode/results/
