@@ -598,6 +598,7 @@ export const layer = Layer.effect(
                   ...model,
                   id: ModelID.make(id),
                   providerID,
+                  size: typeof model.size === "number" ? model.size : undefined,
                 },
               ]),
             )
