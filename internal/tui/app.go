@@ -151,6 +151,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case CommandListMsg:
 		if msg.Err == nil {
 			a.state.Commands = msg.Commands
+			items := make([]AutocompleteItem, len(msg.Commands))
+			for i, cmd := range msg.Commands {
+				items[i] = AutocompleteItem{
+					Name:        cmd.Name,
+					Description: cmd.Description,
+				}
+			}
+			a.prompt.SetCommands(items)
 		}
 		return a, nil
 

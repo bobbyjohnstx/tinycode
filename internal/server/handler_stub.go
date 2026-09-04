@@ -411,5 +411,9 @@ func (s *Server) handleVCSDiff(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleMCPStatus(w http.ResponseWriter, r *http.Request) {
+	if s.deps.MCPService != nil {
+		respondJSON(w, http.StatusOK, s.deps.MCPService.Status(r.Context()))
+		return
+	}
 	respondJSON(w, http.StatusOK, map[string]any{})
 }

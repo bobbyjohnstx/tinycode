@@ -80,7 +80,7 @@ func New(cfg Config, deps Dependencies) *Server {
 		mux:             mux,
 		deps:            deps,
 		logger:          logger,
-		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory, deps.ToolRegistry, deps.PermService),
+		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory, deps.ToolRegistry, deps.PermService, deps.AgentRegistry, deps.MCPService),
 		permissionStore: NewPermissionStore(),
 		questionStore:   NewQuestionStore(),
 	}

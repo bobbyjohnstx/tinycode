@@ -8,14 +8,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// PromptInput is a multi-line text input with a metadata bar.
+// PromptInput is a multi-line text input with a metadata bar,
+// autocomplete popover, and prompt history navigation.
 type PromptInput struct {
-	textarea textarea.Model
-	agent    string
-	model    string
-	provider string
-	width    int
-	keys     KeyMap
+	textarea     textarea.Model
+	autocomplete Autocomplete
+	history      PromptHistory
+	agent        string
+	model        string
+	provider     string
+	width        int
+	keys         KeyMap
 }
 
 // NewPromptInput creates a PromptInput with the given width.
@@ -29,10 +32,12 @@ func NewPromptInput(width int) PromptInput {
 	ta.CharLimit = 0 // no limit
 
 	return PromptInput{
-		textarea: ta,
-		agent:    "build",
-		width:    width,
-		keys:     DefaultKeyMap(),
+		textarea:     ta,
+		autocomplete: NewAutocomplete(),
+		history:      NewPromptHistory(),
+		agent:        "build",
+		width:        width,
+		keys:         DefaultKeyMap(),
 	}
 }
 
@@ -40,6 +45,13 @@ func NewPromptInput(width int) PromptInput {
 func (p *PromptInput) SetSize(width int) {
 	p.width = width
 	p.textarea.SetWidth(width - 2)
+	p.autocomplete.SetWidth(width)
+}
+
+// SetCommands sets the available slash commands for autocomplete.
+func (p *PromptInput) SetCommands(cmds []AutocompleteItem) {
+	p.autocomplete.SetCommands(cmds)
+	p.autocomplete.SetWidth(p.width)
 }
 
 // SetMetadata updates the agent/model display below the textarea.
@@ -77,11 +89,30 @@ func (p PromptInput) Init() tea.Cmd {
 // Update implements tea.Model.
 func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		// When the autocomplete popover is visible, it gets priority
+		// for navigation keys so the user can browse and select commands.
+		if p.autocomplete.IsVisible() {
+			switch keyMsg.String() {
+			case "up", "down", "tab", "esc":
+				p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
+				return p, nil
+			case "enter":
+				selected := p.autocomplete.Selected()
+				if selected != "" {
+					p.textarea.SetValue("/" + selected + " ")
+					p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
+					return p, nil
+				}
+				// Fall through to normal enter handling if nothing selected.
+			}
+		}
+
 		switch keyMsg.String() {
 		case "enter":
 			// Submit on Enter (plain, no modifier).
 			content := p.textarea.Value()
 			if content != "" {
+				p.history.Add(content)
 				p.textarea.Reset()
 				return p, func() tea.Msg {
 					return PromptSubmittedMsg{Content: content}
@@ -93,11 +124,32 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 			// Insert newline.
 			p.textarea, _ = p.textarea.Update(msg)
 			return p, nil
+
+		case "up":
+			// Navigate history when autocomplete is not visible.
+			if prev, ok := p.history.Previous(p.textarea.Value()); ok {
+				p.textarea.SetValue(prev)
+				return p, nil
+			}
+			return p, nil
+
+		case "down":
+			// Navigate history forward.
+			if next, ok := p.history.Next(p.textarea.Value()); ok {
+				p.textarea.SetValue(next)
+			} else {
+				p.textarea.SetValue(p.history.StashValue())
+			}
+			return p, nil
 		}
 	}
 
 	var cmd tea.Cmd
 	p.textarea, cmd = p.textarea.Update(msg)
+
+	// Update autocomplete based on current input text.
+	p.autocomplete.UpdateInput(p.textarea.Value())
+
 	return p, cmd
 }
 
@@ -105,6 +157,12 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 func (p PromptInput) View() string {
 	ta := stylePromptBorder.Width(p.width - 2).Render(p.textarea.View())
 	meta := p.renderMetadata()
+
+	if p.autocomplete.IsVisible() {
+		acView := p.autocomplete.View()
+		return lipgloss.JoinVertical(lipgloss.Left, acView, ta, meta)
+	}
+
 	return lipgloss.JoinVertical(lipgloss.Left, ta, meta)
 }
 

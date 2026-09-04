@@ -8,9 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/id"
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
+	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
@@ -18,7 +20,17 @@ import (
 )
 
 type activeSession struct {
-	cancel context.CancelFunc
+	cancel    context.CancelFunc
+	processor *session.Processor
+	model     *provider.Model
+	agent     string
+
+	mu            sync.Mutex
+	assistMsgID   string            // bridge-generated assistant message ID during streaming
+	textPartID    string            // bridge-generated text part ID during streaming
+	streamStarted bool             // whether initial assistant events have been emitted
+	msgStartTime  int64            // timestamp when the current assistant message started
+	idMap         map[string]string // processor msg ID → bridge msg ID
 }
 
 // SessionStatus represents the processing state of a session.
@@ -28,28 +40,33 @@ type SessionStatus struct {
 }
 
 type SessionManager struct {
-	mu       sync.Mutex
-	sessions map[string]*activeSession
-	bus      *bus.Bus
-	registry *provider.Registry
-	db       *sql.DB
-	dir      string
-	tools    *tool.Registry
-	perms    *permission.Service
+	mu            sync.Mutex
+	sessions      map[string]*activeSession
+	bus           *bus.Bus
+	registry      *provider.Registry
+	db            *sql.DB
+	dir           string
+	tools         *tool.Registry
+	perms         *permission.Service
+	agentRegistry *agent.Registry
+	mcpSvc        *mcp.Service
 }
 
-func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service) *SessionManager {
+func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service) *SessionManager {
 	sm := &SessionManager{
-		sessions: make(map[string]*activeSession),
-		bus:      b,
-		registry: reg,
-		db:       db,
-		dir:      dir,
-		tools:    tools,
-		perms:    perms,
+		sessions:      make(map[string]*activeSession),
+		bus:           b,
+		registry:      reg,
+		db:            db,
+		dir:           dir,
+		tools:         tools,
+		perms:         perms,
+		agentRegistry: agents,
+		mcpSvc:        mcpSvc,
 	}
 	sm.subscribeCommands()
 	sm.subscribePrompts()
+	sm.subscribeProcessorEvents()
 	return sm
 }
 
@@ -128,11 +145,11 @@ func (sm *SessionManager) subscribePrompts() {
 }
 
 type PromptInput struct {
-	SessionID  string
-	Model      *promptModel
-	Agent      string
-	Parts      []promptPart
-	MessageID  string
+	SessionID string
+	Model     *promptModel
+	Agent     string
+	Parts     []promptPart
+	MessageID string
 }
 
 type promptModel struct {
@@ -150,8 +167,14 @@ func (sm *SessionManager) Abort(sessionID string) {
 	sm.mu.Lock()
 	active, ok := sm.sessions[sessionID]
 	sm.mu.Unlock()
-	if ok && active.cancel != nil {
+	if !ok {
+		return
+	}
+	if active.cancel != nil {
 		active.cancel()
+	}
+	if active.processor != nil {
+		active.processor.Abort()
 	}
 }
 
@@ -161,10 +184,427 @@ func (sm *SessionManager) StartPrompt(ctx context.Context, input PromptInput) {
 		active.cancel()
 	}
 	pctx, cancel := context.WithCancel(ctx)
-	sm.sessions[input.SessionID] = &activeSession{cancel: cancel}
+	sm.sessions[input.SessionID] = &activeSession{
+		cancel: cancel,
+		idMap:  make(map[string]string),
+	}
 	sm.mu.Unlock()
 
 	go sm.processPrompt(pctx, input)
+}
+
+// subscribeProcessorEvents subscribes to Processor bus events and re-publishes
+// them as UI events that the TUI and web clients expect.
+func (sm *SessionManager) subscribeProcessorEvents() {
+	msgSub := sm.bus.Subscribe("session.message")
+	deltaSub := sm.bus.Subscribe("session.text.delta")
+	toolBeginSub := sm.bus.Subscribe("session.tool.begin")
+	toolEndSub := sm.bus.Subscribe("session.tool.end")
+	warnSub := sm.bus.Subscribe("session.warning")
+
+	go func() {
+		for evt := range msgSub.C {
+			sm.bridgeMessageEvent(evt)
+		}
+	}()
+	go func() {
+		for evt := range deltaSub.C {
+			sm.bridgeTextDelta(evt)
+		}
+	}()
+	go func() {
+		for evt := range toolBeginSub.C {
+			sm.bridgeToolBegin(evt)
+		}
+	}()
+	go func() {
+		for evt := range toolEndSub.C {
+			sm.bridgeToolEnd(evt)
+		}
+	}()
+	go func() {
+		for evt := range warnSub.C {
+			sm.bridgeWarning(evt)
+		}
+	}()
+}
+
+func (sm *SessionManager) getActive(sessionID string) *activeSession {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	return sm.sessions[sessionID]
+}
+
+func (sm *SessionManager) bridgeMessageEvent(evt bus.Event) {
+	props, ok := evt.Properties.(map[string]any)
+	if !ok {
+		return
+	}
+	sessionID, _ := props["sessionID"].(string)
+	msg, ok := props["message"].(session.Message)
+	if !ok {
+		return
+	}
+	active := sm.getActive(sessionID)
+	if active == nil {
+		return
+	}
+
+	now := time.Now().UnixMilli()
+
+	switch msg.Role {
+	case session.RoleUser:
+		sm.bridgeUserMessage(sessionID, active, msg, now)
+	case session.RoleAssistant:
+		sm.bridgeAssistantMessage(sessionID, active, msg, now)
+	case session.RoleTool:
+		sm.bridgeToolMessage(sessionID, msg, now)
+	}
+}
+
+func (sm *SessionManager) bridgeUserMessage(sessionID string, active *activeSession, msg session.Message, now int64) {
+	modelInfo := map[string]any{}
+	if active.model != nil {
+		modelInfo["providerID"] = active.model.ProviderID
+		modelInfo["modelID"] = active.model.ID
+	}
+
+	sm.bus.Publish("message.updated", map[string]any{
+		"sessionID": sessionID,
+		"info": map[string]any{
+			"id":        msg.ID,
+			"sessionID": sessionID,
+			"role":      "user",
+			"time":      map[string]any{"created": now},
+			"agent":     active.agent,
+			"model":     modelInfo,
+		},
+	})
+
+	for _, part := range msg.Parts {
+		if part.Type == session.PartText {
+			partID, _ := id.Ascending("part")
+			sm.bus.Publish("message.part.updated", map[string]any{
+				"sessionID": sessionID,
+				"part": map[string]any{
+					"id":        partID,
+					"sessionID": sessionID,
+					"messageID": msg.ID,
+					"type":      "text",
+					"text":      part.Text,
+					"time":      map[string]any{"start": now, "end": now},
+				},
+				"time": now,
+			})
+		}
+	}
+}
+
+func (sm *SessionManager) bridgeAssistantMessage(sessionID string, active *activeSession, msg session.Message, now int64) {
+	active.mu.Lock()
+	bridgeMsgID := active.assistMsgID
+	bridgePartID := active.textPartID
+	startTime := active.msgStartTime
+
+	// Store processor-to-bridge ID mapping for persistence
+	if bridgeMsgID != "" {
+		active.idMap[msg.ID] = bridgeMsgID
+	}
+
+	// Reset streaming state for next potential iteration (tool loop)
+	active.streamStarted = false
+	active.assistMsgID = ""
+	active.textPartID = ""
+	active.mu.Unlock()
+
+	// If no streaming happened (no text deltas received), use processor's ID directly
+	if bridgeMsgID == "" {
+		bridgeMsgID = msg.ID
+		startTime = now
+	}
+	if bridgePartID == "" {
+		bridgePartID, _ = id.Ascending("part")
+	}
+
+	completedAt := time.Now().UnixMilli()
+
+	var inputTokens, outputTokens int
+	if msg.Tokens != nil {
+		inputTokens = msg.Tokens.Input
+		outputTokens = msg.Tokens.Output
+	}
+
+	modelID := ""
+	providerID := ""
+	if active.model != nil {
+		modelID = active.model.ID
+		providerID = active.model.ProviderID
+	}
+
+	sm.bus.Publish("message.updated", map[string]any{
+		"sessionID": sessionID,
+		"info": map[string]any{
+			"id":         bridgeMsgID,
+			"sessionID":  sessionID,
+			"role":       "assistant",
+			"time":       map[string]any{"created": startTime, "completed": completedAt},
+			"modelID":    modelID,
+			"providerID": providerID,
+			"mode":       "build",
+			"agent":      active.agent,
+			"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
+			"cost":       0,
+			"tokens":     map[string]any{"input": inputTokens, "output": outputTokens},
+		},
+	})
+
+	for _, part := range msg.Parts {
+		switch part.Type {
+		case session.PartText:
+			sm.bus.Publish("message.part.updated", map[string]any{
+				"sessionID": sessionID,
+				"part": map[string]any{
+					"id":        bridgePartID,
+					"sessionID": sessionID,
+					"messageID": bridgeMsgID,
+					"type":      "text",
+					"text":      part.Text,
+					"time":      map[string]any{"start": startTime, "end": completedAt},
+				},
+				"time": completedAt,
+			})
+		case session.PartToolCall:
+			tcPartID, _ := id.Ascending("part")
+			sm.bus.Publish("message.part.updated", map[string]any{
+				"sessionID": sessionID,
+				"part": map[string]any{
+					"id":         tcPartID,
+					"sessionID":  sessionID,
+					"messageID":  bridgeMsgID,
+					"type":       "tool-call",
+					"toolCallID": part.ToolCallID,
+					"toolName":   part.ToolName,
+					"toolArgs":   part.ToolArgs,
+					"time":       map[string]any{"start": startTime, "end": completedAt},
+				},
+				"time": completedAt,
+			})
+		}
+	}
+}
+
+func (sm *SessionManager) bridgeToolMessage(sessionID string, msg session.Message, now int64) {
+	toolMsgID, _ := id.Ascending("message")
+	sm.bus.Publish("message.updated", map[string]any{
+		"sessionID": sessionID,
+		"info": map[string]any{
+			"id":        toolMsgID,
+			"sessionID": sessionID,
+			"role":      "tool",
+			"time":      map[string]any{"created": now},
+		},
+	})
+	for _, part := range msg.Parts {
+		if part.Type == session.PartToolResult {
+			partID, _ := id.Ascending("part")
+			sm.bus.Publish("message.part.updated", map[string]any{
+				"sessionID": sessionID,
+				"part": map[string]any{
+					"id":         partID,
+					"sessionID":  sessionID,
+					"messageID":  toolMsgID,
+					"type":       "tool-result",
+					"toolCallID": part.ToolCallID,
+					"toolName":   part.ToolName,
+					"toolResult": part.ToolResult,
+					"toolError":  part.ToolError,
+					"time":       map[string]any{"start": now, "end": now},
+				},
+				"time": now,
+			})
+		}
+	}
+}
+
+func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
+	props, ok := evt.Properties.(map[string]any)
+	if !ok {
+		return
+	}
+	sessionID, _ := props["sessionID"].(string)
+	text, _ := props["text"].(string)
+	active := sm.getActive(sessionID)
+	if active == nil {
+		return
+	}
+
+	active.mu.Lock()
+	if !active.streamStarted {
+		active.assistMsgID, _ = id.Ascending("message")
+		active.textPartID, _ = id.Ascending("part")
+		active.msgStartTime = time.Now().UnixMilli()
+		active.streamStarted = true
+		msgID := active.assistMsgID
+		partID := active.textPartID
+		startTime := active.msgStartTime
+		active.mu.Unlock()
+
+		modelID := ""
+		providerID := ""
+		if active.model != nil {
+			modelID = active.model.ID
+			providerID = active.model.ProviderID
+		}
+
+		// Emit initial assistant message
+		sm.bus.Publish("message.updated", map[string]any{
+			"sessionID": sessionID,
+			"info": map[string]any{
+				"id":         msgID,
+				"sessionID":  sessionID,
+				"role":       "assistant",
+				"time":       map[string]any{"created": startTime},
+				"modelID":    modelID,
+				"providerID": providerID,
+				"mode":       "build",
+				"agent":      active.agent,
+				"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
+				"cost":       0,
+				"tokens":     map[string]any{"input": 0, "output": 0},
+			},
+		})
+
+		// Emit initial empty text part
+		sm.bus.Publish("message.part.updated", map[string]any{
+			"sessionID": sessionID,
+			"part": map[string]any{
+				"id":        partID,
+				"sessionID": sessionID,
+				"messageID": msgID,
+				"type":      "text",
+				"text":      "",
+				"time":      map[string]any{"start": startTime},
+			},
+			"time": startTime,
+		})
+
+		// Emit the delta
+		sm.bus.Publish("message.part.delta", map[string]any{
+			"sessionID": sessionID,
+			"messageID": msgID,
+			"partID":    partID,
+			"field":     "text",
+			"delta":     text,
+		})
+		return
+	}
+
+	msgID := active.assistMsgID
+	partID := active.textPartID
+	active.mu.Unlock()
+
+	sm.bus.Publish("message.part.delta", map[string]any{
+		"sessionID": sessionID,
+		"messageID": msgID,
+		"partID":    partID,
+		"field":     "text",
+		"delta":     text,
+	})
+}
+
+func (sm *SessionManager) bridgeToolBegin(evt bus.Event) {
+	props, ok := evt.Properties.(map[string]any)
+	if !ok {
+		return
+	}
+	sessionID, _ := props["sessionID"].(string)
+	toolCallID, _ := props["toolCallID"].(string)
+	toolName, _ := props["toolName"].(string)
+	active := sm.getActive(sessionID)
+	if active == nil {
+		return
+	}
+
+	active.mu.Lock()
+	msgID := active.assistMsgID
+	active.mu.Unlock()
+
+	if msgID == "" {
+		return
+	}
+
+	partID, _ := id.Ascending("part")
+	now := time.Now().UnixMilli()
+
+	sm.bus.Publish("message.part.updated", map[string]any{
+		"sessionID": sessionID,
+		"part": map[string]any{
+			"id":         partID,
+			"sessionID":  sessionID,
+			"messageID":  msgID,
+			"type":       "tool-call",
+			"toolCallID": toolCallID,
+			"toolName":   toolName,
+			"time":       map[string]any{"start": now},
+		},
+		"time": now,
+	})
+}
+
+func (sm *SessionManager) bridgeToolEnd(evt bus.Event) {
+	props, ok := evt.Properties.(map[string]any)
+	if !ok {
+		return
+	}
+	sessionID, _ := props["sessionID"].(string)
+	toolCallID, _ := props["toolCallID"].(string)
+	toolName, _ := props["toolName"].(string)
+	toolArgs, _ := props["toolArgs"].(string)
+	active := sm.getActive(sessionID)
+	if active == nil {
+		return
+	}
+
+	active.mu.Lock()
+	msgID := active.assistMsgID
+	active.mu.Unlock()
+
+	if msgID == "" {
+		return
+	}
+
+	partID, _ := id.Ascending("part")
+	now := time.Now().UnixMilli()
+
+	sm.bus.Publish("message.part.updated", map[string]any{
+		"sessionID": sessionID,
+		"part": map[string]any{
+			"id":         partID,
+			"sessionID":  sessionID,
+			"messageID":  msgID,
+			"type":       "tool-call",
+			"toolCallID": toolCallID,
+			"toolName":   toolName,
+			"toolArgs":   toolArgs,
+			"time":       map[string]any{"start": now, "end": now},
+		},
+		"time": now,
+	})
+}
+
+func (sm *SessionManager) bridgeWarning(evt bus.Event) {
+	props, ok := evt.Properties.(map[string]any)
+	if !ok {
+		return
+	}
+	sessionID, _ := props["sessionID"].(string)
+	message, _ := props["message"].(string)
+
+	sm.bus.Publish("toast", map[string]any{
+		"sessionID": sessionID,
+		"type":      "warning",
+		"message":   message,
+	})
 }
 
 func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) {
@@ -185,6 +625,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 		"status":    map[string]any{"alert": false, "working": true},
 	})
 
+	// Extract user text from parts
 	var userText string
 	for _, p := range input.Parts {
 		if p.Type == "text" {
@@ -199,6 +640,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 		return
 	}
 
+	// Resolve model
 	var model *provider.Model
 	if input.Model != nil {
 		m, err := sm.registry.GetModel(input.Model.ProviderID, input.Model.ModelID)
@@ -222,211 +664,109 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 		return
 	}
 
-	userMsgID, _ := id.Ascending("message")
-	now := time.Now().UnixMilli()
+	// Look up the agent
+	agentInfo := sm.agentRegistry.Get(input.Agent, model.SizeB())
+	var agentPrompt string
+	var agentPerms []string
+	if agentInfo != nil {
+		agentPrompt = agentInfo.Prompt
+		agentPerms = extractAllowedPerms(agentInfo.Permission)
+	}
 
-	sm.bus.Publish("message.updated", map[string]any{
-		"sessionID": sessionID,
-		"info": map[string]any{
-			"id":        userMsgID,
-			"sessionID": sessionID,
-			"role":      "user",
-			"time":      map[string]any{"created": now},
-			"agent":     input.Agent,
-			"model": map[string]any{
-				"providerID": model.ProviderID,
-				"modelID":    model.ID,
-			},
-		},
+	// Build system prompt
+	systemPrompt := session.BuildSystemPrompt(session.SystemPromptInput{
+		AgentPrompt: agentPrompt,
+		Directory:   sm.dir,
+		ToolDefs:    sm.tools.ToolDefs(agentPerms),
 	})
 
-	userPartID, _ := id.Ascending("part")
-	sm.bus.Publish("message.part.updated", map[string]any{
-		"sessionID": sessionID,
-		"part": map[string]any{
-			"id":        userPartID,
-			"sessionID": sessionID,
-			"messageID": userMsgID,
-			"type":      "text",
-			"text":      userText,
-			"time":      map[string]any{"start": now, "end": now},
-		},
-		"time": now,
-	})
+	// Sync MCP tools before processing
+	if sm.mcpSvc != nil {
+		mcpTools := sm.mcpSvc.Tools(ctx)
+		for _, def := range mcpTools {
+			sm.tools.Register(def)
+		}
+	}
 
+	// Load existing messages for this session
 	ms := session.NewMessageStore(session.NewStore(sm.db))
-	ps := session.NewPartStore(sm.db)
+	existingMsgs, _ := ms.List(sessionID)
 
-	userMsg := &session.Message{
-		ID:        userMsgID,
-		SessionID: sessionID,
-		Role:      session.RoleUser,
-		Parts:     []session.Part{session.TextPart(userText)},
-		CreatedAt: time.UnixMilli(now),
-	}
-	if err := ms.Append(userMsg); err != nil {
-		slog.Error("failed to persist user message", "error", err, "sessionID", sessionID)
-	}
-	_ = ps.Save(session.StoredPart{
-		ID:        userPartID,
-		MessageID: userMsgID,
-		SessionID: sessionID,
-		Type:      string(session.PartText),
-		Text:      userText,
-		Time:      session.PartTime{Start: now, End: now},
-	})
-
-	assistantMsgID, _ := id.Ascending("message")
-	sm.bus.Publish("message.updated", map[string]any{
-		"sessionID": sessionID,
-		"info": map[string]any{
-			"id":         assistantMsgID,
-			"sessionID":  sessionID,
-			"role":       "assistant",
-			"time":       map[string]any{"created": now},
-			"parentID":   userMsgID,
-			"modelID":    model.ID,
-			"providerID": model.ProviderID,
-			"mode":       "build",
-			"agent":      input.Agent,
-			"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
-			"cost":       0,
-			"tokens":     map[string]any{"input": 0, "output": 0},
-		},
-	})
-
-	textPartID, _ := id.Ascending("part")
-	sm.bus.Publish("message.part.updated", map[string]any{
-		"sessionID": sessionID,
-		"part": map[string]any{
-			"id":        textPartID,
-			"sessionID": sessionID,
-			"messageID": assistantMsgID,
-			"type":      "text",
-			"text":      "",
-			"time":      map[string]any{"start": now},
-		},
-		"time": now,
-	})
-
+	// Create LLM client and Processor
 	client := llm.NewOpenAIClient(model.API.URL+"/v1", "")
-	req := llm.Request{
-		Model: model.API.ID,
-		Messages: []llm.Message{
-			{Role: "user", Content: userText},
-		},
+	proc := session.NewProcessor(session.ProcessorConfig{
+		SessionID:    sessionID,
+		Agent:        input.Agent,
+		Model:        model,
+		SystemPrompt: systemPrompt,
+	}, client, sm.tools, sm.bus)
+	proc.SetMessages(existingMsgs)
+
+	// Store processor reference and metadata so the event bridge can use them
+	sm.mu.Lock()
+	if active, ok := sm.sessions[sessionID]; ok {
+		active.processor = proc
+		active.model = model
+		active.agent = input.Agent
 	}
+	sm.mu.Unlock()
 
-	ch, err := client.Stream(ctx, req)
-	if err != nil {
-		slog.Error("llm stream failed", "error", err, "sessionID", sessionID)
-		sm.bus.Publish("message.updated", map[string]any{
-			"sessionID": sessionID,
-			"info": map[string]any{
-				"id":         assistantMsgID,
-				"sessionID":  sessionID,
-				"role":       "assistant",
-				"time":       map[string]any{"created": now, "completed": time.Now().UnixMilli()},
-				"parentID":   userMsgID,
-				"modelID":    model.ID,
-				"providerID": model.ProviderID,
-				"mode":       "build",
-				"agent":      input.Agent,
-				"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
-				"cost":       0,
-				"tokens":     map[string]any{"input": 0, "output": 0},
-				"error":      map[string]any{"_tag": "ApiError", "message": err.Error()},
-			},
-		})
-		return
-	}
+	// Run the processor (blocks until complete)
+	result := proc.Process(ctx, userText)
 
-	var totalText string
-	var inputTokens, outputTokens int
-
-	for event := range ch {
-		select {
-		case <-ctx.Done():
-			return
-		default:
+	// Persist new messages to the database
+	if result != nil && len(result.Messages) > len(existingMsgs) {
+		sm.mu.Lock()
+		active := sm.sessions[sessionID]
+		var idMap map[string]string
+		if active != nil {
+			active.mu.Lock()
+			idMap = active.idMap
+			active.mu.Unlock()
 		}
+		sm.mu.Unlock()
 
-		switch event.Type {
-		case llm.EventTextDelta:
-			totalText += event.Text
-			sm.bus.Publish("message.part.delta", map[string]any{
-				"sessionID": sessionID,
-				"messageID": assistantMsgID,
-				"partID":    textPartID,
-				"field":     "text",
-				"delta":     event.Text,
-			})
-
-		case llm.EventFinish:
-			if event.Usage != nil {
-				inputTokens = event.Usage.PromptTokens
-				outputTokens = event.Usage.CompletionTokens
+		newMsgs := result.Messages[len(existingMsgs):]
+		for i := range newMsgs {
+			msg := newMsgs[i]
+			// Remap assistant message IDs to bridge-generated IDs for TUI consistency
+			if idMap != nil {
+				if bridgeID, ok := idMap[msg.ID]; ok {
+					msg.ID = bridgeID
+				}
 			}
+			if err := ms.Append(&msg); err != nil {
+				slog.Error("failed to persist message", "error", err, "role", msg.Role, "sessionID", sessionID)
+			}
+		}
 
-		case llm.EventError:
-			slog.Error("llm stream error", "error", event.Error, "sessionID", sessionID)
+		// Update session token usage
+		store := session.NewStore(sm.db)
+		_ = store.UpdateCost(sessionID, 0, session.TokenUsage{
+			Input:  result.Usage.Input,
+			Output: result.Usage.Output,
+		})
+	}
+
+	// Report errors
+	if result != nil && result.Error != nil {
+		slog.Error("processor error", "error", result.Error, "sessionID", sessionID)
+		sm.bus.Publish("session.error", map[string]any{
+			"sessionID": sessionID,
+			"error":     result.Error.Error(),
+		})
+	}
+}
+
+// extractAllowedPerms returns the set of permission names that are explicitly
+// allowed in the ruleset. If no explicit allows are found, returns nil (meaning
+// all tools should be included).
+func extractAllowedPerms(ruleset permission.Ruleset) []string {
+	var result []string
+	for _, rule := range ruleset {
+		if rule.Action == permission.ActionAllow {
+			result = append(result, rule.Permission)
 		}
 	}
-
-	completedAt := time.Now().UnixMilli()
-
-	sm.bus.Publish("message.part.updated", map[string]any{
-		"sessionID": sessionID,
-		"part": map[string]any{
-			"id":        textPartID,
-			"sessionID": sessionID,
-			"messageID": assistantMsgID,
-			"type":      "text",
-			"text":      totalText,
-			"time":      map[string]any{"start": now, "end": completedAt},
-		},
-		"time": completedAt,
-	})
-
-	sm.bus.Publish("message.updated", map[string]any{
-		"sessionID": sessionID,
-		"info": map[string]any{
-			"id":         assistantMsgID,
-			"sessionID":  sessionID,
-			"role":       "assistant",
-			"time":       map[string]any{"created": now, "completed": completedAt},
-			"parentID":   userMsgID,
-			"modelID":    model.ID,
-			"providerID": model.ProviderID,
-			"mode":       "build",
-			"agent":      input.Agent,
-			"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
-			"cost":       0,
-			"tokens":     map[string]any{"input": inputTokens, "output": outputTokens},
-		},
-	})
-
-	assistantMsg := &session.Message{
-		ID:        assistantMsgID,
-		SessionID: sessionID,
-		Role:      session.RoleAssistant,
-		Parts:     []session.Part{session.TextPart(totalText)},
-		Model:     model.ID,
-		Tokens: &session.MsgUsage{
-			Input:  inputTokens,
-			Output: outputTokens,
-		},
-		CreatedAt: time.UnixMilli(now),
-	}
-	if err := ms.Append(assistantMsg); err != nil {
-		slog.Error("failed to persist assistant message", "error", err, "sessionID", sessionID)
-	}
-	_ = ps.Save(session.StoredPart{
-		ID:        textPartID,
-		MessageID: assistantMsgID,
-		SessionID: sessionID,
-		Type:      string(session.PartText),
-		Text:      totalText,
-		Time:      session.PartTime{Start: now, End: completedAt},
-	})
+	return result
 }
