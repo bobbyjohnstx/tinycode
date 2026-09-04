@@ -84,7 +84,7 @@ func (d SessionDialog) Update(msg tea.Msg) (SessionDialog, tea.Cmd) {
 		if idx < len(d.sessions) {
 			id := d.sessions[idx].ID
 			d.visible = false
-			return d, switchSession(id)
+			return d, func() tea.Msg { return SessionSwitchedMsg{SessionID: id} }
 		}
 	case "esc", "q":
 		d.visible = false
@@ -132,16 +132,9 @@ func (d SessionDialog) View() string {
 		sb.WriteString("\n")
 
 		title := truncate(sess.Title, dialogWidth-10)
-		age := relativeTime(sess.Time.Updated)
-		model := ""
-		if sess.Model != nil {
-			model = sess.Model.ModelID
-		}
+		age := relativeTime(sess.UpdatedAt)
 
 		line := fmt.Sprintf("%s  %s", title, styleMetadata.Render(age))
-		if model != "" {
-			line += "  " + styleMetadata.Render(model)
-		}
 
 		if d.selected == i+1 {
 			sb.WriteString(styleSelected.Render("▸ " + line))

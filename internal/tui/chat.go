@@ -63,8 +63,7 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 
 	case MessagesLoadedMsg:
 		if msg.Err == nil {
-			c.messages = msg.Messages
-			c.rebuildContent()
+			c.messages = nil
 		}
 		return c, nil
 	}
@@ -104,15 +103,14 @@ func (c *ChatView) applyDelta(msg MessagePartDeltaMsg) {
 	}
 }
 
-// upsertMessage inserts or updates a message by ID.
 func (c *ChatView) upsertMessage(msg MessageUpdatedMsg) {
 	for i := range c.messages {
-		if c.messages[i].Info.ID == msg.Info.ID {
-			c.messages[i].Info = msg.Info
+		if c.messages[i].Info.ID == msg.Message.Info.ID {
+			c.messages[i].Info = msg.Message.Info
 			return
 		}
 	}
-	c.messages = append(c.messages, MessageView{Info: msg.Info})
+	c.messages = append(c.messages, msg.Message)
 }
 
 // upsertPart inserts or updates a part within its parent message.

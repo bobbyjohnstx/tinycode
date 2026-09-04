@@ -1,8 +1,14 @@
 package tui
 
-// Shared state types for the TUI.
-// NOTE: The foundation layer (state.go) is being created by another agent.
-// These types should be consolidated with the canonical definitions once available.
+import "github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
+
+// Route identifies which top-level view is active.
+type Route int
+
+const (
+	RouteChat Route = iota
+	RouteSessionList
+)
 
 // FocusTarget identifies which component has keyboard focus.
 type FocusTarget int
@@ -15,7 +21,7 @@ const (
 	FocusPermission
 )
 
-// SessionStatus tracks the working/alert state of a session.
+// SessionStatus tracks the working state of a session.
 type SessionStatus struct {
 	Working bool `json:"working"`
 	Alert   bool `json:"alert"`
@@ -23,24 +29,37 @@ type SessionStatus struct {
 
 // ModelSelection identifies the currently selected model.
 type ModelSelection struct {
-	ProviderID string `json:"providerID"`
-	ModelID    string `json:"modelID"`
+	ProviderID string
+	ModelID    string
 }
 
-// SessionInfo is the TUI's view of a session (mirrors session.Info).
-type SessionInfo struct {
-	ID        string          `json:"id"`
-	Title     string          `json:"title"`
-	Agent     string          `json:"agent,omitempty"`
-	Model     *ModelSelection `json:"model,omitempty"`
-	ParentID  string          `json:"parentID,omitempty"`
-	Time      TimeInfo        `json:"time"`
+// MessageInfo is the metadata of a message (role, model, etc.).
+type MessageInfo struct {
+	ID         string `json:"id"`
+	SessionID  string `json:"sessionID"`
+	Role       string `json:"role"`
+	Agent      string `json:"agent,omitempty"`
+	ModelID    string `json:"modelID,omitempty"`
+	ProviderID string `json:"providerID,omitempty"`
 }
 
-// TimeInfo holds created/updated timestamps.
-type TimeInfo struct {
-	Created int64 `json:"created"`
-	Updated int64 `json:"updated"`
+// MessageView represents a message with its parts.
+type MessageView struct {
+	Info  MessageInfo
+	Parts []PartView
+}
+
+// PartView represents a message part (text, tool call, etc.).
+type PartView struct {
+	ID        string         `json:"id"`
+	SessionID string         `json:"sessionID"`
+	MessageID string         `json:"messageID"`
+	Type      string         `json:"type"`
+	Text      string         `json:"text,omitempty"`
+	ToolName  string         `json:"toolName,omitempty"`
+	ToolArgs  string         `json:"toolArgs,omitempty"`
+	ToolError bool           `json:"toolError,omitempty"`
+	Time      map[string]any `json:"time,omitempty"`
 }
 
 // ProviderInfo is the TUI's view of a provider.
@@ -57,56 +76,56 @@ type ModelInfo struct {
 	Name       string `json:"name"`
 }
 
-// MessageInfo is the SSE-sourced message metadata.
-type MessageInfo struct {
-	ID         string `json:"id"`
-	SessionID  string `json:"sessionID"`
-	Role       string `json:"role"`
-	Agent      string `json:"agent,omitempty"`
-	ModelID    string `json:"modelID,omitempty"`
-	ProviderID string `json:"providerID,omitempty"`
-}
-
-// MessageView is a message with its rendered parts.
-type MessageView struct {
-	Info  MessageInfo
-	Parts []PartView
-}
-
-// PartView is the TUI's view of a message part.
-type PartView struct {
+// PermissionRequest represents a pending permission prompt.
+type PermissionRequest struct {
 	ID        string `json:"id"`
 	SessionID string `json:"sessionID"`
-	MessageID string `json:"messageID"`
-	Type      string `json:"type"`
-	Text      string `json:"text,omitempty"`
-	ToolName  string `json:"toolName,omitempty"`
-	ToolArgs  string `json:"toolArgs,omitempty"`
-	ToolError bool   `json:"toolError,omitempty"`
-	Time      *struct {
-		Start int64 `json:"start,omitempty"`
-		End   int64 `json:"end,omitempty"`
-	} `json:"time,omitempty"`
+	Tool      string `json:"tool"`
+	Input     any    `json:"input"`
 }
 
-// AppState holds all shared state for the TUI, mutated only through Update.
+// AppState holds all shared TUI state, mutated only through the Update path.
 type AppState struct {
+	Route         Route
 	ActiveSession string
+
+	// Server-synced data
 	Sessions      []SessionInfo
 	Messages      map[string][]MessageView
+	Parts         map[string][]PartView
 	Providers     []ProviderInfo
+	Agents        []api.AgentInfo
+	Commands      []api.CommandInfo
+	Permissions   map[string][]PermissionRequest
 	SessionStatus map[string]SessionStatus
-	CurrentAgent  string
-	CurrentModel  ModelSelection
-	SidebarOpen   bool
-	Connected     bool
+
+	// Local UI state
+	CurrentAgent string
+	CurrentModel ModelSelection
+	SidebarOpen  bool
+	Focus        FocusTarget
+	Connected    bool
 }
 
-// NewAppState creates an initialized AppState.
+// SessionInfo is a lightweight view of session.Info for the TUI layer,
+// avoiding a direct import of the storage-coupled session package in UI state.
+type SessionInfo struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Agent     string `json:"agent,omitempty"`
+	ParentID  string `json:"parentID,omitempty"`
+	Directory string `json:"directory"`
+	CreatedAt int64  `json:"created"`
+	UpdatedAt int64  `json:"updated"`
+}
+
+// NewAppState returns an AppState with initialized maps.
 func NewAppState() *AppState {
 	return &AppState{
+		Route:         RouteChat,
 		Messages:      make(map[string][]MessageView),
+		Parts:         make(map[string][]PartView),
+		Permissions:   make(map[string][]PermissionRequest),
 		SessionStatus: make(map[string]SessionStatus),
-		CurrentAgent:  "build",
 	}
 }

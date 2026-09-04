@@ -107,10 +107,12 @@ func toolIcon(name string) string {
 
 // toolStatus returns a status indicator based on whether the part is complete.
 func toolStatus(part PartView) string {
-	if part.Time != nil && part.Time.End > 0 {
-		return renderSuccess("✓")
+	if part.Time != nil {
+		if end, ok := part.Time["end"].(float64); ok && end > 0 {
+			return renderSuccess("done")
+		}
 	}
-	return styleSpinner.Render("○") // circle
+	return styleSpinner.Render("...")
 }
 
 // renderError renders text in the error color.
