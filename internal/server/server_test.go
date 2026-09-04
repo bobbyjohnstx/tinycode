@@ -527,8 +527,8 @@ func TestSSEEventStream_ConnectedEvent(t *testing.T) {
 	<-done
 
 	body := w.Body.String()
-	if !strings.Contains(body, "event: server.connected") {
-		t.Errorf("expected server.connected event, got: %s", body)
+	if !strings.Contains(body, `"type":"server.connected"`) {
+		t.Errorf("expected server.connected event in payload, got: %s", body)
 	}
 }
 
