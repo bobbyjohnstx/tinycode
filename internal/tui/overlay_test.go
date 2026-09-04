@@ -313,8 +313,3 @@ func TestAgentDialog_EnterSelectsAgent(t *testing.T) {
 	}
 }
 
-// --- Helpers ---
-
-func keyMsg(key string) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
-}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/server"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/storage"
+	"github.com/bobbyjohnstx/tinycode-go/internal/tui"
 )
 
 var (
@@ -29,13 +31,21 @@ var (
 )
 
 func main() {
+	defer func() {
+		if logFile != nil {
+			logFile.Close()
+		}
+	}()
+
 	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(0)
+		runTUI()
+		return
 	}
 
 	cmd := os.Args[1]
 	switch cmd {
+	case "tui":
+		runTUI()
 	case "serve":
 		runServe()
 	case "web":
@@ -61,9 +71,12 @@ func printVersion() {
 func printUsage() {
 	fmt.Println("tinycode - Local-LLM-first AI coding assistant")
 	fmt.Println()
-	fmt.Println("Usage: tinycode <command> [flags]")
+	fmt.Println("Usage: tinycode [command] [flags]")
+	fmt.Println()
+	fmt.Println("Running with no command starts the terminal UI (same as 'tinycode tui').")
 	fmt.Println()
 	fmt.Println("Commands:")
+	fmt.Println("  tui        Start terminal UI (default)")
 	fmt.Println("  serve      Start headless API server (port 4096)")
 	fmt.Println("  web        Start server and open web interface")
 	fmt.Println("  acp        Agent Client Protocol mode (stdio, for IDE integration)")
@@ -76,7 +89,11 @@ func printUsage() {
 	fmt.Println("  TINYCODE_DB         Override database path")
 	fmt.Println("  TINYCODE_LOG_LEVEL  Set log level (debug, info, warn, error)")
 	fmt.Println("  TINYCODE_WEB_DIR    Serve web UI from directory (dev mode)")
+	fmt.Println()
+	fmt.Println("Logs: ~/.local/share/tinycode/tinycode.log")
 }
+
+var logFile *os.File
 
 func setupLogger() {
 	level := slog.LevelInfo
@@ -88,7 +105,20 @@ func setupLogger() {
 	case "error":
 		level = slog.LevelError
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+
+	dataDir := config.DataDir()
+	os.MkdirAll(dataDir, 0o755)
+
+	logPath := filepath.Join(dataDir, "tinycode.log")
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+		slog.Warn("failed to open log file, falling back to stderr", "path", logPath, "error", err)
+		return
+	}
+
+	logFile = f
+	slog.SetDefault(slog.New(slog.NewTextHandler(f, &slog.HandlerOptions{Level: level})))
 }
 
 func initDependencies() (*bus.Bus, *storage.DB, *config.Info) {
@@ -196,6 +226,51 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 	}
 
 	return disc
+}
+
+func runTUI() {
+	setupLogger()
+
+	b, db, cfg := initDependencies()
+	defer db.Close()
+	defer b.Close()
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	if len(cfg.MCP) > 0 {
+		mcpSvc := mcp.NewService(b)
+		defer mcpSvc.Close()
+		mcpSvc.Configure(ctx, cfg.MCP)
+	}
+
+	reg := provider.NewRegistry()
+	disc := startDiscovery(ctx, reg, b, cfg)
+	defer disc.Stop()
+
+	dir, _ := os.Getwd()
+	agentReg := initAgentRegistry(cfg, dir)
+
+	srvCfg := serverConfig(cfg, false)
+	srvCfg.Port = 0
+	srv := server.New(srvCfg, server.Dependencies{Bus: b, DB: db.DB, Registry: reg, AgentRegistry: agentReg})
+
+	listener, err := srv.Listen(ctx)
+	if err != nil {
+		slog.Error("failed to start embedded server", "error", err)
+		os.Exit(1)
+	}
+
+	serverURL := listener.URL.String()
+	slog.Debug("embedded server started", "url", serverURL)
+
+	if err := tui.Run(ctx, tui.RunConfig{
+		ServerURL: serverURL,
+		Directory: dir,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func runServe() {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -160,7 +161,7 @@ func TestRun_ToolCallError(t *testing.T) {
 			{
 				Name: "fail",
 				Execute: func(_ context.Context, _ json.RawMessage, _ ToolContext) (string, error) {
-					return "", json.Unmarshal([]byte("invalid"), nil)
+					return "", errors.New("tool execution failed")
 				},
 			},
 		},

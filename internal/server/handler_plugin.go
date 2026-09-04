@@ -16,12 +16,13 @@ func (s *Server) handlePluginList(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, []plugin.PluginInfo{})
 		return
 	}
-	respondJSON(w, http.StatusOK, mgr.List())
+	respondJSON(w, http.StatusOK, mgr.Plugins())
 }
 
 func (s *Server) handlePluginLoad(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name string `json:"name"`
+		Name    string         `json:"name"`
+		Options map[string]any `json:"options"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -38,13 +39,18 @@ func (s *Server) handlePluginLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, err := mgr.Load(body.Name)
+	binaryPath, err := plugin.ResolveBinary(body.Name)
 	if err != nil {
+		respondError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	if err := mgr.LoadPlugin(r.Context(), binaryPath, body.Options); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	respondJSON(w, http.StatusOK, info)
+	respondJSON(w, http.StatusOK, map[string]string{"status": "loaded", "name": body.Name})
 }
 
 func (s *Server) handlePluginUnload(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +72,7 @@ func (s *Server) handlePluginUnload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := mgr.Unload(body.ID); err != nil {
+	if err := mgr.UnloadPlugin(body.ID); err != nil {
 		respondError(w, http.StatusNotFound, err.Error())
 		return
 	}
@@ -75,10 +81,6 @@ func (s *Server) handlePluginUnload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePluginRegistry(w http.ResponseWriter, r *http.Request) {
-	mgr := s.pluginManager()
-	if mgr == nil {
-		respondJSON(w, http.StatusOK, []plugin.RegistryEntry{})
-		return
-	}
-	respondJSON(w, http.StatusOK, mgr.Registry())
+	entries := plugin.Registry()
+	respondJSON(w, http.StatusOK, entries)
 }
