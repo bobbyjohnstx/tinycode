@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"sync"
 	"time"
@@ -10,10 +11,17 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/id"
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
+	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 )
 
 type activeSession struct {
 	cancel context.CancelFunc
+}
+
+// SessionStatus represents the processing state of a session.
+type SessionStatus struct {
+	Alert   bool `json:"alert"`
+	Working bool `json:"working"`
 }
 
 type SessionManager struct {
@@ -21,16 +29,95 @@ type SessionManager struct {
 	sessions map[string]*activeSession
 	bus      *bus.Bus
 	registry *provider.Registry
+	db       *sql.DB
 	dir      string
 }
 
-func NewSessionManager(b *bus.Bus, reg *provider.Registry, dir string) *SessionManager {
-	return &SessionManager{
+func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string) *SessionManager {
+	sm := &SessionManager{
 		sessions: make(map[string]*activeSession),
 		bus:      b,
 		registry: reg,
+		db:       db,
 		dir:      dir,
 	}
+	sm.subscribeCommands()
+	sm.subscribePrompts()
+	return sm
+}
+
+// Status returns the processing status of all active sessions.
+func (sm *SessionManager) Status() map[string]SessionStatus {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	result := make(map[string]SessionStatus, len(sm.sessions))
+	for sid := range sm.sessions {
+		result[sid] = SessionStatus{Working: true}
+	}
+	return result
+}
+
+func (sm *SessionManager) subscribeCommands() {
+	sub := sm.bus.Subscribe("session.command")
+	go func() {
+		for evt := range sub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			sessionID, _ := props["sessionID"].(string)
+			command, _ := props["command"].(string)
+			args, _ := props["args"].(string)
+			sm.handleCommand(sessionID, command, args)
+		}
+	}()
+}
+
+func (sm *SessionManager) handleCommand(sessionID, command, args string) {
+	switch command {
+	case "abort":
+		sm.Abort(sessionID)
+	default:
+		content := "/" + command
+		if args != "" {
+			content += " " + args
+		}
+		sm.bus.Publish("session.prompt", map[string]any{
+			"sessionID": sessionID,
+			"content":   content,
+		})
+	}
+}
+
+func (sm *SessionManager) subscribePrompts() {
+	sub := sm.bus.Subscribe("session.prompt")
+	go func() {
+		for evt := range sub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			sessionID, _ := props["sessionID"].(string)
+			content, _ := props["content"].(string)
+			if sessionID == "" || content == "" {
+				continue
+			}
+			store := session.NewStore(sm.db)
+			info, err := store.Get(sessionID)
+			if err != nil || info.Model == nil {
+				continue
+			}
+			sm.StartPrompt(context.Background(), PromptInput{
+				SessionID: sessionID,
+				Model: &promptModel{
+					ProviderID: info.Model.ProviderID,
+					ModelID:    info.Model.ID,
+				},
+				Agent: info.Agent,
+				Parts: []promptPart{{Type: "text", Text: content}},
+			})
+		}
+	}()
 }
 
 type PromptInput struct {
@@ -149,6 +236,28 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 			"time":      map[string]any{"start": now, "end": now},
 		},
 		"time": now,
+	})
+
+	ms := session.NewMessageStore(session.NewStore(sm.db))
+	ps := session.NewPartStore(sm.db)
+
+	userMsg := &session.Message{
+		ID:        userMsgID,
+		SessionID: sessionID,
+		Role:      session.RoleUser,
+		Parts:     []session.Part{session.TextPart(userText)},
+		CreatedAt: time.UnixMilli(now),
+	}
+	if err := ms.Append(userMsg); err != nil {
+		slog.Error("failed to persist user message", "error", err, "sessionID", sessionID)
+	}
+	_ = ps.Save(session.StoredPart{
+		ID:        userPartID,
+		MessageID: userMsgID,
+		SessionID: sessionID,
+		Type:      string(session.PartText),
+		Text:      userText,
+		Time:      session.PartTime{Start: now, End: now},
 	})
 
 	assistantMsgID, _ := id.Ascending("message")
@@ -279,5 +388,29 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 			"cost":       0,
 			"tokens":     map[string]any{"input": inputTokens, "output": outputTokens},
 		},
+	})
+
+	assistantMsg := &session.Message{
+		ID:        assistantMsgID,
+		SessionID: sessionID,
+		Role:      session.RoleAssistant,
+		Parts:     []session.Part{session.TextPart(totalText)},
+		Model:     model.ID,
+		Tokens: &session.MsgUsage{
+			Input:  inputTokens,
+			Output: outputTokens,
+		},
+		CreatedAt: time.UnixMilli(now),
+	}
+	if err := ms.Append(assistantMsg); err != nil {
+		slog.Error("failed to persist assistant message", "error", err, "sessionID", sessionID)
+	}
+	_ = ps.Save(session.StoredPart{
+		ID:        textPartID,
+		MessageID: assistantMsgID,
+		SessionID: sessionID,
+		Type:      string(session.PartText),
+		Text:      totalText,
+		Time:      session.PartTime{Start: now, End: completedAt},
 	})
 }

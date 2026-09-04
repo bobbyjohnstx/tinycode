@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/project"
+	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 )
 
 func (s *Server) handleGlobalEventStream(w http.ResponseWriter, r *http.Request) {
@@ -13,23 +14,42 @@ func (s *Server) handleGlobalEventStream(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleSessionStatus(w http.ResponseWriter, r *http.Request) {
-	respondJSON(w, http.StatusOK, map[string]any{})
+	status := s.sessionManager.Status()
+	respondJSON(w, http.StatusOK, status)
 }
 
 func (s *Server) handleSessionInit(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	respondJSON(w, http.StatusOK, map[string]any{
+	store := s.sessionStore()
+
+	info, err := store.Get(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "session not found")
+		return
+	}
+
+	s.deps.Bus.Publish("session.initialized", map[string]any{
 		"sessionID": id,
-		"status":    "initialized",
 	})
+
+	respondJSON(w, http.StatusOK, info)
 }
 
 func (s *Server) handleSessionSummarize(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	respondJSON(w, http.StatusAccepted, map[string]any{
+	store := s.sessionStore()
+
+	info, err := store.Get(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "session not found")
+		return
+	}
+
+	s.deps.Bus.Publish("session.summarize", map[string]any{
 		"sessionID": id,
-		"status":    "summarizing",
 	})
+
+	respondJSON(w, http.StatusAccepted, info)
 }
 
 func (s *Server) handleSessionCommand(w http.ResponseWriter, r *http.Request) {
@@ -55,24 +75,52 @@ func (s *Server) handleSessionCommand(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSessionRevert(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	respondJSON(w, http.StatusOK, map[string]any{
+	store := s.sessionStore()
+
+	info, err := store.Get(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "session not found")
+		return
+	}
+
+	s.deps.Bus.Publish("session.revert", map[string]any{
 		"sessionID": id,
-		"status":    "reverted",
 	})
+
+	respondJSON(w, http.StatusOK, info)
 }
 
 func (s *Server) handleSessionUnrevert(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	respondJSON(w, http.StatusOK, map[string]any{
+	store := s.sessionStore()
+
+	info, err := store.Get(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "session not found")
+		return
+	}
+
+	s.deps.Bus.Publish("session.unrevert", map[string]any{
 		"sessionID": id,
-		"status":    "unreverted",
 	})
+
+	respondJSON(w, http.StatusOK, info)
 }
 
 func (s *Server) handleSessionChildren(w http.ResponseWriter, r *http.Request) {
-	respondJSON(w, http.StatusOK, map[string]any{
-		"children": []any{},
-	})
+	id := r.PathValue("id")
+	store := s.sessionStore()
+
+	children, err := store.Children(id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if children == nil {
+		children = []session.Info{}
+	}
+
+	respondJSON(w, http.StatusOK, children)
 }
 
 func (s *Server) handleSessionTodo(w http.ResponseWriter, r *http.Request) {
@@ -83,11 +131,24 @@ func (s *Server) handleSessionTodo(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSessionDiff(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{
-		"diff": "",
+		"diff":    "",
+		"files":   []any{},
+		"summary": map[string]any{"additions": 0, "deletions": 0, "files": 0},
 	})
 }
 
 func (s *Server) handleMessageDelete(w http.ResponseWriter, r *http.Request) {
+	messageID := r.PathValue("messageID")
+
+	ms := s.messageStore()
+	if err := ms.DeleteByID(messageID); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	ps := s.partStore()
+	_ = ps.DeleteByMessage(messageID)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -100,6 +161,14 @@ func (s *Server) handleSessionPermissionReply(w http.ResponseWriter, r *http.Req
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+
+	s.permissionStore.Remove(permissionID)
+
+	s.deps.Bus.Publish("permission.reply", map[string]any{
+		"permissionID": permissionID,
+		"action":       body.Action,
+	})
+
 	respondJSON(w, http.StatusOK, map[string]any{
 		"permissionID": permissionID,
 		"status":       "replied",
@@ -107,13 +176,30 @@ func (s *Server) handleSessionPermissionReply(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) handleQuestionList(w http.ResponseWriter, r *http.Request) {
+	questions := s.questionStore.List()
 	respondJSON(w, http.StatusOK, map[string]any{
-		"questions": []any{},
+		"questions": questions,
 	})
 }
 
 func (s *Server) handleQuestionReply(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+
+	var body struct {
+		Answer string `json:"answer"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	s.questionStore.Remove(id)
+
+	s.deps.Bus.Publish("question.reply", map[string]any{
+		"questionID": id,
+		"answer":     body.Answer,
+	})
+
 	respondJSON(w, http.StatusOK, map[string]any{
 		"questionID": id,
 		"status":     "replied",
@@ -242,3 +328,4 @@ func (s *Server) handleVCSDiff(w http.ResponseWriter, r *http.Request) {
 		"diff": "",
 	})
 }
+

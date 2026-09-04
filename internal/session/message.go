@@ -1,6 +1,7 @@
 package session
 
 import (
+	"database/sql"
 	"encoding/json"
 	"time"
 )
@@ -79,6 +80,22 @@ func ToolResultPart(id, name, result string, isError bool) Part {
 
 func ReasoningPart(text string) Part {
 	return Part{Type: PartReasoning, Text: text}
+}
+
+// StoredPart represents a message part as persisted in the part table.
+type StoredPart struct {
+	ID        string   `json:"id"`
+	MessageID string   `json:"messageID"`
+	SessionID string   `json:"sessionID"`
+	Type      string   `json:"type"`
+	Text      string   `json:"text,omitempty"`
+	Time      PartTime `json:"time"`
+}
+
+// PartTime tracks when a part started and ended streaming.
+type PartTime struct {
+	Start int64 `json:"start"`
+	End   int64 `json:"end,omitempty"`
 }
 
 type MessageStore struct {
@@ -160,10 +177,68 @@ func (ms *MessageStore) Delete(sessionID string) error {
 	return err
 }
 
+func (ms *MessageStore) DeleteByID(messageID string) error {
+	_, err := ms.store.db.Exec("DELETE FROM message WHERE id = ?", messageID)
+	return err
+}
+
 func (ms *MessageStore) Count(sessionID string) (int, error) {
 	var count int
 	err := ms.store.db.QueryRow(
 		"SELECT COUNT(*) FROM message WHERE session_id = ?", sessionID,
 	).Scan(&count)
 	return count, err
+}
+
+// PartStore handles part persistence in the part table.
+type PartStore struct {
+	db *sql.DB
+}
+
+func NewPartStore(db *sql.DB) *PartStore {
+	return &PartStore{db: db}
+}
+
+func (ps *PartStore) Save(part StoredPart) error {
+	data, err := json.Marshal(part)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UnixMilli()
+	_, err = ps.db.Exec(
+		`INSERT OR REPLACE INTO part (id, message_id, session_id, time_created, time_updated, data)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		part.ID, part.MessageID, part.SessionID, now, now, string(data),
+	)
+	return err
+}
+
+func (ps *PartStore) ListByMessage(messageID string) ([]StoredPart, error) {
+	rows, err := ps.db.Query(
+		`SELECT data FROM part WHERE message_id = ? ORDER BY time_created ASC`,
+		messageID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var parts []StoredPart
+	for rows.Next() {
+		var dataJSON string
+		if err := rows.Scan(&dataJSON); err != nil {
+			return nil, err
+		}
+		var p StoredPart
+		if err := json.Unmarshal([]byte(dataJSON), &p); err != nil {
+			return nil, err
+		}
+		parts = append(parts, p)
+	}
+	return parts, rows.Err()
+}
+
+func (ps *PartStore) DeleteByMessage(messageID string) error {
+	_, err := ps.db.Exec("DELETE FROM part WHERE message_id = ?", messageID)
+	return err
 }

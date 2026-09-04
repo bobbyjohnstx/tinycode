@@ -44,12 +44,14 @@ type Dependencies struct {
 }
 
 type Server struct {
-	config         Config
-	httpServer     *http.Server
-	mux            *http.ServeMux
-	deps           Dependencies
-	logger         *slog.Logger
-	sessionManager *SessionManager
+	config          Config
+	httpServer      *http.Server
+	mux             *http.ServeMux
+	deps            Dependencies
+	logger          *slog.Logger
+	sessionManager  *SessionManager
+	permissionStore *PermissionStore
+	questionStore   *QuestionStore
 }
 
 func New(cfg Config, deps Dependencies) *Server {
@@ -64,11 +66,13 @@ func New(cfg Config, deps Dependencies) *Server {
 	logger := slog.Default()
 
 	s := &Server{
-		config:         cfg,
-		mux:            mux,
-		deps:           deps,
-		logger:         logger,
-		sessionManager: NewSessionManager(deps.Bus, deps.Registry, cfg.Directory),
+		config:          cfg,
+		mux:             mux,
+		deps:            deps,
+		logger:          logger,
+		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory),
+		permissionStore: NewPermissionStore(),
+		questionStore:   NewQuestionStore(),
 	}
 
 	s.registerRoutes()

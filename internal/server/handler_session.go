@@ -17,6 +17,10 @@ func (s *Server) messageStore() *session.MessageStore {
 	return session.NewMessageStore(s.sessionStore())
 }
 
+func (s *Server) partStore() *session.PartStore {
+	return session.NewPartStore(s.deps.DB)
+}
+
 func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ParentID string            `json:"parentID,omitempty"`
@@ -259,6 +263,7 @@ func (s *Server) handleSessionFork(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.PathValue("id")
 	ms := s.messageStore()
+	ps := s.partStore()
 
 	messages, err := ms.List(sessionID)
 	if err != nil {
@@ -268,9 +273,20 @@ func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 
 	result := make([]map[string]any, 0, len(messages))
 	for _, m := range messages {
+		storedParts, _ := ps.ListByMessage(m.ID)
+
+		var parts any
+		if len(storedParts) > 0 {
+			parts = storedParts
+		} else if len(m.Parts) > 0 {
+			parts = m.Parts
+		} else {
+			parts = []session.StoredPart{}
+		}
+
 		result = append(result, map[string]any{
 			"info":  m,
-			"parts": []any{},
+			"parts": parts,
 		})
 	}
 

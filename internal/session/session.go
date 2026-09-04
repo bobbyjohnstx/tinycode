@@ -193,6 +193,27 @@ func (s *Store) List(projectID string, limit, offset int) ([]Info, error) {
 	return result, rows.Err()
 }
 
+func (s *Store) Children(parentID string) ([]Info, error) {
+	rows, err := s.db.Query(
+		`SELECT `+sessionSelectCols+` FROM session WHERE parent_id = ? ORDER BY time_created DESC`,
+		parentID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing children: %w", err)
+	}
+	defer rows.Close()
+
+	var result []Info
+	for rows.Next() {
+		info, err := scanSessionRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *info)
+	}
+	return result, rows.Err()
+}
+
 func (s *Store) UpdateTitle(sessionID, title string) error {
 	_, err := s.db.Exec(
 		"UPDATE session SET title = ?, time_updated = ? WHERE id = ?",

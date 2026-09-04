@@ -1,7 +1,10 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 )
@@ -28,7 +31,32 @@ func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]any{
-		"status": "updated",
-	})
+	configPath := config.GlobalConfigFile()
+
+	existing := make(map[string]any)
+	if data, err := os.ReadFile(configPath); err == nil {
+		_ = json.Unmarshal(data, &existing)
+	}
+
+	for k, v := range body {
+		existing[k] = v
+	}
+
+	data, err := json.MarshalIndent(existing, "", "  ")
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to marshal config")
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to create config directory")
+		return
+	}
+
+	if err := os.WriteFile(configPath, append(data, '\n'), 0o644); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to write config")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, existing)
 }
