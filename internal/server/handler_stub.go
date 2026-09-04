@@ -1,11 +1,14 @@
 package server
 
 import (
+	"bufio"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/project"
+	"github.com/bobbyjohnstx/tinycode-go/internal/vcs"
 )
 
 func (s *Server) handleGlobalEventStream(w http.ResponseWriter, r *http.Request) {
@@ -121,14 +124,110 @@ func (s *Server) handleQuestionReply(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFileSearch(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		respondJSON(w, http.StatusOK, map[string]any{
+			"results": []any{},
+		})
+		return
+	}
+
+	type searchResult struct {
+		File    string `json:"file"`
+		Line    int    `json:"line"`
+		Content string `json:"content"`
+	}
+
+	var results []searchResult
+	const maxResults = 100
+
+	_ = filepath.Walk(s.config.Directory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if len(results) >= maxResults {
+			return filepath.SkipAll
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == ".git" || name == "node_modules" || name == ".tinycode" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if info.Size() > 1<<20 {
+			return nil
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer f.Close()
+
+		rel, _ := filepath.Rel(s.config.Directory, path)
+		scanner := bufio.NewScanner(f)
+		lineNum := 0
+		for scanner.Scan() {
+			lineNum++
+			line := scanner.Text()
+			if strings.Contains(line, query) {
+				results = append(results, searchResult{
+					File:    rel,
+					Line:    lineNum,
+					Content: line,
+				})
+				if len(results) >= maxResults {
+					break
+				}
+			}
+		}
+		return nil
+	})
+
 	respondJSON(w, http.StatusOK, map[string]any{
-		"results": []any{},
+		"results": results,
 	})
 }
 
 func (s *Server) handleFileFind(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		respondJSON(w, http.StatusOK, map[string]any{
+			"files": []string{},
+		})
+		return
+	}
+
+	var files []string
+	const maxFiles = 200
+
+	_ = filepath.Walk(s.config.Directory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if len(files) >= maxFiles {
+			return filepath.SkipAll
+		}
+		if info.IsDir() {
+			name := info.Name()
+			if name == ".git" || name == "node_modules" || name == ".tinycode" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		name := info.Name()
+		matched, _ := filepath.Match(query, name)
+		if matched || strings.Contains(name, query) {
+			rel, _ := filepath.Rel(s.config.Directory, path)
+			files = append(files, rel)
+		}
+		return nil
+	})
+
 	respondJSON(w, http.StatusOK, map[string]any{
-		"files": []any{},
+		"files": files,
 	})
 }
 
@@ -224,21 +323,43 @@ func (s *Server) handleCommandList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleVCSInfo(w http.ResponseWriter, r *http.Request) {
-	respondJSON(w, http.StatusOK, map[string]any{
-		"type":   "git",
-		"branch": "",
-	})
+	info, err := vcs.GitInfo(s.config.Directory)
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]any{
+			"type":   "git",
+			"branch": "",
+			"remote": "",
+		})
+		return
+	}
+	respondJSON(w, http.StatusOK, info)
 }
 
 func (s *Server) handleVCSStatus(w http.ResponseWriter, r *http.Request) {
-	respondJSON(w, http.StatusOK, map[string]any{
-		"clean":   true,
-		"changes": []any{},
-	})
+	status, err := vcs.GitStatus(s.config.Directory)
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]any{
+			"clean":   true,
+			"changes": []any{},
+		})
+		return
+	}
+	respondJSON(w, http.StatusOK, status)
 }
 
 func (s *Server) handleVCSDiff(w http.ResponseWriter, r *http.Request) {
+	diff, err := vcs.GitDiff(s.config.Directory)
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]any{
+			"diff": "",
+		})
+		return
+	}
 	respondJSON(w, http.StatusOK, map[string]any{
-		"diff": "",
+		"diff": diff,
 	})
+}
+
+func (s *Server) handleMCPStatus(w http.ResponseWriter, r *http.Request) {
+	respondJSON(w, http.StatusOK, map[string]any{})
 }
