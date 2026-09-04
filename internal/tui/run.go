@@ -55,6 +55,8 @@ func (c connectedApp) Init() tea.Cmd {
 		listenSSE(c.ctx, c.client),
 		fetchSessions(c.client, 50, 0),
 		fetchProviders(c.client),
+		fetchAgents(c.client),
+		fetchCommands(c.client),
 	)
 }
 

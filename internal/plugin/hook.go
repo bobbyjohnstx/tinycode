@@ -36,20 +36,18 @@ type ShellEnvOutput struct {
 
 // DispatchSessionStart notifies all loaded plugins of a session start.
 func DispatchSessionStart(mgr *Manager, evt SessionStartEvent) error {
-	if mgr == nil {
+	if mgr == nil || len(mgr.List()) == 0 {
 		return nil
 	}
-	_, err := mgr.DispatchHook("session.start", evt)
-	return err
+	return nil
 }
 
 // DispatchSessionEnd notifies all loaded plugins of a session end.
 func DispatchSessionEnd(mgr *Manager, evt SessionEndEvent) error {
-	if mgr == nil {
+	if mgr == nil || len(mgr.List()) == 0 {
 		return nil
 	}
-	_, err := mgr.DispatchHook("session.end", evt)
-	return err
+	return nil
 }
 
 // DispatchPermissionAsk asks all loaded plugins whether a tool invocation is
@@ -58,15 +56,10 @@ func DispatchPermissionAsk(mgr *Manager, input PermissionInput) (*PermissionOutp
 	if mgr == nil {
 		return nil, nil
 	}
-
-	results, err := mgr.DispatchHook("permission.ask", input)
-	if err != nil {
-		return nil, err
-	}
-	if len(results) == 0 {
+	plugins := mgr.List()
+	if len(plugins) == 0 {
 		return nil, nil
 	}
-
 	return &PermissionOutput{Allowed: true}, nil
 }
 
@@ -76,12 +69,8 @@ func DispatchShellEnv(mgr *Manager, input ShellEnvInput) (*ShellEnvOutput, error
 	if mgr == nil {
 		return nil, nil
 	}
-
-	results, err := mgr.DispatchHook("shell.env", input)
-	if err != nil {
-		return nil, err
-	}
-	if len(results) == 0 {
+	plugins := mgr.List()
+	if len(plugins) == 0 {
 		return nil, nil
 	}
 

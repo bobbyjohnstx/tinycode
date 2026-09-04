@@ -17,10 +17,12 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/server"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/storage"
+	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
 	"github.com/bobbyjohnstx/tinycode-go/internal/tui"
 )
 
@@ -194,6 +196,17 @@ func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
 	return reg
 }
 
+func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Service) {
+	permSvc := permission.NewService(b)
+	toolCtx := &tool.Context{
+		Directory: directory,
+		Perms:     permSvc,
+	}
+	toolReg := tool.NewRegistry(toolCtx)
+	tool.RegisterBuiltins(toolReg)
+	return toolReg, permSvc
+}
+
 func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg *config.Info) *provider.Discovery {
 	disc := provider.NewDiscovery(reg, b)
 
@@ -238,8 +251,9 @@ func runTUI() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	var mcpSvc *mcp.Service
 	if len(cfg.MCP) > 0 {
-		mcpSvc := mcp.NewService(b)
+		mcpSvc = mcp.NewService(b)
 		defer mcpSvc.Close()
 		mcpSvc.Configure(ctx, cfg.MCP)
 	}
@@ -251,9 +265,23 @@ func runTUI() {
 	dir, _ := os.Getwd()
 	agentReg := initAgentRegistry(cfg, dir)
 
+	toolReg, permSvc := initTooling(b, dir)
+
+	pluginMgr := plugin.NewManager(slog.Default())
+	defer pluginMgr.Shutdown()
+
 	srvCfg := serverConfig(cfg, false)
 	srvCfg.Port = 0
-	srv := server.New(srvCfg, server.Dependencies{Bus: b, DB: db.DB, Registry: reg, AgentRegistry: agentReg})
+	srv := server.New(srvCfg, server.Dependencies{
+		Bus:           b,
+		DB:            db.DB,
+		Registry:      reg,
+		AgentRegistry: agentReg,
+		PluginManager: pluginMgr,
+		ToolRegistry:  toolReg,
+		PermService:   permSvc,
+		MCPService:    mcpSvc,
+	})
 
 	listener, err := srv.Listen(ctx)
 	if err != nil {
@@ -284,8 +312,9 @@ func runServe() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	var mcpSvc *mcp.Service
 	if len(cfg.MCP) > 0 {
-		mcpSvc := mcp.NewService(b)
+		mcpSvc = mcp.NewService(b)
 		defer mcpSvc.Close()
 		mcpSvc.Configure(ctx, cfg.MCP)
 	}
@@ -297,7 +326,21 @@ func runServe() {
 	dir, _ := os.Getwd()
 	agentReg := initAgentRegistry(cfg, dir)
 
-	srv := server.New(serverConfig(cfg, false), server.Dependencies{Bus: b, DB: db.DB, Registry: reg, AgentRegistry: agentReg})
+	toolReg, permSvc := initTooling(b, dir)
+
+	pluginMgr := plugin.NewManager(slog.Default())
+	defer pluginMgr.Shutdown()
+
+	srv := server.New(serverConfig(cfg, false), server.Dependencies{
+		Bus:           b,
+		DB:            db.DB,
+		Registry:      reg,
+		AgentRegistry: agentReg,
+		PluginManager: pluginMgr,
+		ToolRegistry:  toolReg,
+		PermService:   permSvc,
+		MCPService:    mcpSvc,
+	})
 
 	listener, err := srv.Listen(ctx)
 	if err != nil {
@@ -322,8 +365,9 @@ func runWeb() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	var mcpSvc *mcp.Service
 	if len(cfg.MCP) > 0 {
-		mcpSvc := mcp.NewService(b)
+		mcpSvc = mcp.NewService(b)
 		defer mcpSvc.Close()
 		mcpSvc.Configure(ctx, cfg.MCP)
 	}
@@ -335,7 +379,21 @@ func runWeb() {
 	dir, _ := os.Getwd()
 	agentReg := initAgentRegistry(cfg, dir)
 
-	srv := server.New(serverConfig(cfg, true), server.Dependencies{Bus: b, DB: db.DB, Registry: reg, AgentRegistry: agentReg})
+	toolReg, permSvc := initTooling(b, dir)
+
+	pluginMgr := plugin.NewManager(slog.Default())
+	defer pluginMgr.Shutdown()
+
+	srv := server.New(serverConfig(cfg, true), server.Dependencies{
+		Bus:           b,
+		DB:            db.DB,
+		Registry:      reg,
+		AgentRegistry: agentReg,
+		PluginManager: pluginMgr,
+		ToolRegistry:  toolReg,
+		PermService:   permSvc,
+		MCPService:    mcpSvc,
+	})
 
 	listener, err := srv.Listen(ctx)
 	if err != nil {

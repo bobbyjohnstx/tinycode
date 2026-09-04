@@ -12,10 +12,13 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
+	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/server/middleware"
 	"github.com/bobbyjohnstx/tinycode-go/internal/static"
+	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
 )
 
 const (
@@ -45,6 +48,9 @@ type Dependencies struct {
 	Registry      *provider.Registry
 	AgentRegistry *agent.Registry
 	PluginManager *plugin.Manager
+	ToolRegistry  *tool.Registry
+	PermService   *permission.Service
+	MCPService    *mcp.Service
 }
 
 type Server struct {
@@ -74,7 +80,7 @@ func New(cfg Config, deps Dependencies) *Server {
 		mux:             mux,
 		deps:            deps,
 		logger:          logger,
-		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory),
+		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory, deps.ToolRegistry, deps.PermService),
 		permissionStore: NewPermissionStore(),
 		questionStore:   NewQuestionStore(),
 	}

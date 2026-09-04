@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -10,8 +11,10 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/id"
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
+	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
 )
 
 type activeSession struct {
@@ -31,15 +34,19 @@ type SessionManager struct {
 	registry *provider.Registry
 	db       *sql.DB
 	dir      string
+	tools    *tool.Registry
+	perms    *permission.Service
 }
 
-func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string) *SessionManager {
+func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service) *SessionManager {
 	sm := &SessionManager{
 		sessions: make(map[string]*activeSession),
 		bus:      b,
 		registry: reg,
 		db:       db,
 		dir:      dir,
+		tools:    tools,
+		perms:    perms,
 	}
 	sm.subscribeCommands()
 	sm.subscribePrompts()
@@ -197,12 +204,21 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 		m, err := sm.registry.GetModel(input.Model.ProviderID, input.Model.ModelID)
 		if err != nil {
 			slog.Error("model not found", "provider", input.Model.ProviderID, "model", input.Model.ModelID, "error", err)
+			sm.bus.Publish("session.error", map[string]any{
+				"sessionID": sessionID,
+				"error":     fmt.Sprintf("model %s/%s not found: %v", input.Model.ProviderID, input.Model.ModelID, err),
+			})
 			return
 		}
 		model = m
 	}
 	if model == nil {
-		slog.Error("no model specified for prompt", "sessionID", sessionID)
+		errMsg := "no model specified for prompt — configure a default model or select one when creating the session"
+		slog.Error(errMsg, "sessionID", sessionID)
+		sm.bus.Publish("session.error", map[string]any{
+			"sessionID": sessionID,
+			"error":     errMsg,
+		})
 		return
 	}
 

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/project"
+	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 )
 
@@ -32,6 +33,11 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+
+	// Assign a default model if none was provided.
+	if body.Model == nil {
+		body.Model = s.resolveDefaultModel()
 	}
 
 	dir := r.URL.Query().Get("directory")
@@ -258,6 +264,29 @@ func (s *Server) handleSessionFork(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusCreated, forked)
+}
+
+// resolveDefaultModel returns a ModelRef using the configured default model or,
+// failing that, the first model from the first available provider.
+func (s *Server) resolveDefaultModel() *session.ModelRef {
+	// 1. Check configured default model (e.g. "ollama/llama3.2").
+	if s.config.DefaultModel != "" {
+		providerID, modelID := provider.ParseModel(s.config.DefaultModel)
+		if providerID != "" && modelID != "" {
+			return &session.ModelRef{ProviderID: providerID, ID: modelID}
+		}
+		// If no slash separator, modelID is the whole string; skip — we need both.
+	}
+
+	// 2. Pick the first model from the first available provider.
+	providers := s.deps.Registry.ListProviders()
+	for _, p := range providers {
+		for _, m := range p.Models {
+			return &session.ModelRef{ProviderID: p.ID, ID: m.ID}
+		}
+	}
+
+	return nil
 }
 
 func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {

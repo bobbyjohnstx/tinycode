@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
@@ -39,14 +40,12 @@ func (s *Server) handlePluginLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	binaryPath, err := plugin.ResolveBinary(body.Name)
-	if err != nil {
-		respondError(w, http.StatusNotFound, err.Error())
-		return
-	}
-
-	if err := mgr.LoadPlugin(r.Context(), binaryPath, body.Options); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+	if _, err := mgr.Load(body.Name); err != nil {
+		if errors.Is(err, plugin.ErrPluginNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+		} else {
+			respondError(w, http.StatusInternalServerError, err.Error())
+		}
 		return
 	}
 
