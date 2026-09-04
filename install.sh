@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 RESET='\033[0m'
 
 # Configuration
-REPO="bobbyjohnstx/tinycode"
+REPO="bobbyjohnstx/tinycode-go"
 INSTALL_DIR="${TINYCODE_INSTALL_DIR:-$HOME/.local/bin}"
 TMP_DIR="/tmp/tinycode-install-$$"
 
@@ -66,7 +66,7 @@ detect_platform() {
 
   case "$ARCH" in
     x86_64)
-      PLATFORM_ARCH="x64"
+      PLATFORM_ARCH="amd64"
       ;;
     arm64|aarch64)
       PLATFORM_ARCH="arm64"
@@ -144,14 +144,12 @@ install_binary() {
 
   # Find the binary (handle both flat and nested structures)
   BINARY_PATH=""
-  if [ -f "$TMP_DIR/${BINARY_NAME}/bin/tinycode" ]; then
-    BINARY_PATH="$TMP_DIR/${BINARY_NAME}/bin/tinycode"
-  elif [ -f "$TMP_DIR/bin/tinycode" ]; then
-    BINARY_PATH="$TMP_DIR/bin/tinycode"
+  if [ -f "$TMP_DIR/${BINARY_NAME}/tinycode" ]; then
+    BINARY_PATH="$TMP_DIR/${BINARY_NAME}/tinycode"
   elif [ -f "$TMP_DIR/tinycode" ]; then
     BINARY_PATH="$TMP_DIR/tinycode"
   else
-    error "Binary not found in archive. Expected structure: ${BINARY_NAME}/bin/tinycode"
+    error "Binary not found in archive. Expected structure: ${BINARY_NAME}/tinycode"
   fi
 
   # Copy to install directory

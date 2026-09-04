@@ -1,0 +1,87 @@
+name: Go Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build all platforms
+        env:
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
+
+          platforms="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"
+          for platform in $platforms; do
+            os="${platform%/*}"
+            arch="${platform#*/}"
+            ext=""
+            if [ "$os" = "windows" ]; then ext=".exe"; fi
+
+            output="dist/tinycode-${os}-${arch}${ext}"
+            echo "Building ${output}..."
+            GOOS=$os GOARCH=$arch go build -ldflags "$LDFLAGS" -o "$output" ./cmd/tinycode/
+          done
+
+      - name: Create release archives
+        run: |
+          mkdir -p dist/release
+
+          platforms="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"
+          for platform in $platforms; do
+            os="${platform%/*}"
+            arch="${platform#*/}"
+            ext=""
+            if [ "$os" = "windows" ]; then ext=".exe"; fi
+
+            binary="dist/tinycode-${os}-${arch}${ext}"
+            archiveName="tinycode-${os}-${arch}"
+
+            mkdir -p "dist/release/${archiveName}"
+            cp "$binary" "dist/release/${archiveName}/tinycode${ext}"
+
+            if [ "$os" = "windows" ]; then
+              (cd dist/release && zip -q "${archiveName}.zip" "${archiveName}/tinycode${ext}")
+            else
+              tar -czf "dist/release/${archiveName}.tar.gz" -C dist/release "${archiveName}"
+            fi
+
+            rm -rf "dist/release/${archiveName}"
+          done
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            dist/release/*
+
+      - name: Generate checksums
+        run: |
+          cd dist/release
+          sha256sum * > checksums-sha256.txt
+
+      - name: Upload checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} dist/release/checksums-sha256.txt

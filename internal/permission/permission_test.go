@@ -1,0 +1,479 @@
+package permission
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+)
+
+func TestWildcardMatch_ExactMatch(t *testing.T) {
+	if !WildcardMatch("bash", "bash") {
+		t.Error("expected exact match")
+	}
+}
+
+func TestWildcardMatch_Star(t *testing.T) {
+	if !WildcardMatch("bash", "*") {
+		t.Error("expected * to match anything")
+	}
+}
+
+func TestWildcardMatch_Prefix(t *testing.T) {
+	if !WildcardMatch("bash foo bar", "bash *") {
+		t.Error("expected prefix match with *")
+	}
+}
+
+func TestWildcardMatch_QuestionMark(t *testing.T) {
+	if !WildcardMatch("a", "?") {
+		t.Error("expected ? to match single char")
+	}
+	if WildcardMatch("ab", "?") {
+		t.Error("expected ? to match only single char")
+	}
+}
+
+func TestWildcardMatch_TrailingSpaceStar(t *testing.T) {
+	if !WildcardMatch("bash", "bash *") {
+		t.Error("expected trailing ' *' to be optional")
+	}
+	if !WildcardMatch("bash --help", "bash *") {
+		t.Error("expected trailing ' *' to match args")
+	}
+}
+
+func TestWildcardMatch_NoMatch(t *testing.T) {
+	if WildcardMatch("edit", "bash") {
+		t.Error("expected no match")
+	}
+}
+
+func TestWildcardMatch_BackslashNormalized(t *testing.T) {
+	if !WildcardMatch("path\\to\\file", "path/to/*") {
+		t.Error("expected backslashes normalized to forward slashes")
+	}
+}
+
+func TestWildcardMatch_RegexSpecialChars(t *testing.T) {
+	if !WildcardMatch("file.txt", "file.txt") {
+		t.Error("expected dot to be escaped in pattern")
+	}
+	if WildcardMatch("filextxt", "file.txt") {
+		t.Error("dot should be literal, not regex any")
+	}
+}
+
+func TestEvaluate_LastWins(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "bash", Pattern: "*", Action: ActionAllow},
+		{Permission: "bash", Pattern: "*", Action: ActionDeny},
+	}
+	result := Evaluate("bash", "/tmp/foo", rules)
+	if result.Action != ActionDeny {
+		t.Errorf("expected deny (last-wins), got %s", result.Action)
+	}
+}
+
+func TestEvaluate_DefaultAsk(t *testing.T) {
+	result := Evaluate("bash", "/tmp/foo")
+	if result.Action != ActionAsk {
+		t.Errorf("expected ask default, got %s", result.Action)
+	}
+}
+
+func TestEvaluate_MultipleRulesets(t *testing.T) {
+	agent := Ruleset{{Permission: "bash", Pattern: "*", Action: ActionAllow}}
+	config := Ruleset{{Permission: "bash", Pattern: "*.secret", Action: ActionDeny}}
+	result := Evaluate("bash", "data.secret", agent, config)
+	if result.Action != ActionDeny {
+		t.Errorf("expected deny from config override, got %s", result.Action)
+	}
+}
+
+func TestEvaluate_WildcardPermission(t *testing.T) {
+	rules := Ruleset{{Permission: "*", Pattern: "*", Action: ActionAllow}}
+	result := Evaluate("anything", "/any/path", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected allow from wildcard permission, got %s", result.Action)
+	}
+}
+
+func TestMerge_ConcatenatesRulesets(t *testing.T) {
+	a := Ruleset{{Permission: "bash", Pattern: "*", Action: ActionAllow}}
+	b := Ruleset{{Permission: "edit", Pattern: "*", Action: ActionDeny}}
+	merged := Merge(a, b)
+	if len(merged) != 2 {
+		t.Fatalf("expected 2 rules, got %d", len(merged))
+	}
+	if merged[0].Permission != "bash" || merged[1].Permission != "edit" {
+		t.Error("merge should preserve order")
+	}
+}
+
+func TestDisabled_DeniedTools(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "bash", Pattern: "*", Action: ActionDeny},
+		{Permission: "edit", Pattern: "*", Action: ActionDeny},
+	}
+	disabled := Disabled([]string{"bash", "edit", "write", "read"}, rules)
+	if !disabled["bash"] {
+		t.Error("bash should be disabled")
+	}
+	if !disabled["write"] {
+		t.Error("write (maps to edit) should be disabled")
+	}
+	if disabled["read"] {
+		t.Error("read should not be disabled")
+	}
+}
+
+func TestDisabled_SpecificPatternNotDisabled(t *testing.T) {
+	rules := Ruleset{{Permission: "bash", Pattern: "/specific/path", Action: ActionDeny}}
+	disabled := Disabled([]string{"bash"}, rules)
+	if disabled["bash"] {
+		t.Error("specific-pattern deny should not disable the whole tool")
+	}
+}
+
+func newTestBus() *bus.Bus {
+	return bus.New()
+}
+
+func TestService_AskAllowed(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+		Metadata:   map[string]any{},
+		Always:     []string{"/tmp/foo"},
+		Ruleset:    Ruleset{{Permission: "bash", Pattern: "*", Action: ActionAllow}},
+	})
+	if err != nil {
+		t.Fatalf("expected nil error for allowed, got %v", err)
+	}
+}
+
+func TestService_AskDenied(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+		Metadata:   map[string]any{},
+		Ruleset:    Ruleset{{Permission: "bash", Pattern: "*", Action: ActionDeny}},
+	})
+	var de *DeniedError
+	if !errors.As(err, &de) {
+		t.Fatalf("expected DeniedError, got %v", err)
+	}
+}
+
+func TestService_AskBlocksUntilReply(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	var askErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		askErr = svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+			Always:     []string{"/tmp/foo"},
+			Ruleset:    Ruleset{},
+		})
+	}()
+
+	// Wait for the ask to be pending
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	if len(pending) != 1 {
+		t.Fatalf("expected 1 pending request, got %d", len(pending))
+	}
+
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyOnce,
+	})
+	if err != nil {
+		t.Fatalf("reply failed: %v", err)
+	}
+
+	wg.Wait()
+	if askErr != nil {
+		t.Fatalf("expected nil after approval, got %v", askErr)
+	}
+}
+
+func TestService_RejectCascadesSameSession(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	var errs [2]error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	for i := 0; i < 2; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			errs[idx] = svc.Ask(context.Background(), AskInput{
+				SessionID:  "ses_001",
+				Permission: "bash",
+				Patterns:   []string{"/tmp/foo"},
+				Metadata:   map[string]any{},
+				Ruleset:    Ruleset{},
+			})
+		}(i)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) >= 2 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	if len(pending) < 2 {
+		t.Fatalf("expected 2 pending, got %d", len(pending))
+	}
+
+	// Reject one — should cascade to the other
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyReject,
+	})
+	if err != nil {
+		t.Fatalf("reject failed: %v", err)
+	}
+
+	wg.Wait()
+
+	for i, e := range errs {
+		if e == nil {
+			t.Errorf("ask %d: expected rejection error, got nil", i)
+		}
+	}
+
+	if len(svc.List()) != 0 {
+		t.Error("expected no pending after cascade rejection")
+	}
+}
+
+func TestService_AlwaysAutoApprovesPending(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	var errs [2]error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	for i := 0; i < 2; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			errs[idx] = svc.Ask(context.Background(), AskInput{
+				SessionID:  "ses_001",
+				Permission: "bash",
+				Patterns:   []string{"/tmp/foo"},
+				Metadata:   map[string]any{},
+				Always:     []string{"/tmp/foo"},
+				Ruleset:    Ruleset{},
+			})
+		}(i)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) >= 2 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	if len(pending) < 2 {
+		t.Fatalf("expected 2 pending, got %d", len(pending))
+	}
+
+	// "Always" approve one — should auto-approve the matching one
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyAlways,
+	})
+	if err != nil {
+		t.Fatalf("always reply failed: %v", err)
+	}
+
+	wg.Wait()
+
+	for i, e := range errs {
+		if e != nil {
+			t.Errorf("ask %d: expected nil after always approval, got %v", i, e)
+		}
+	}
+}
+
+func TestService_ReplyNotFound(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: "per_nonexistent",
+		Reply:     ReplyOnce,
+	})
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestService_CorrectedError(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	var askErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		askErr = svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+			Ruleset:    Ruleset{},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyReject,
+		Message:   "use a different approach",
+	})
+	if err != nil {
+		t.Fatalf("reject with message failed: %v", err)
+	}
+
+	wg.Wait()
+
+	var ce *CorrectedError
+	if !errors.As(askErr, &ce) {
+		t.Fatalf("expected CorrectedError, got %v", askErr)
+	}
+	if ce.Feedback != "use a different approach" {
+		t.Errorf("expected feedback message, got %s", ce.Feedback)
+	}
+}
+
+func TestService_ContextCancellation(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err := svc.Ask(ctx, AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+		Metadata:   map[string]any{},
+		Ruleset:    Ruleset{},
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected DeadlineExceeded, got %v", err)
+	}
+}
+
+func TestService_Close(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	var askErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		askErr = svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+			Ruleset:    Ruleset{},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	svc.Close()
+	wg.Wait()
+
+	if !errors.Is(askErr, ErrRejected) {
+		t.Errorf("expected ErrRejected after close, got %v", askErr)
+	}
+}
+
+func TestFromConfig_AllowDeny(t *testing.T) {
+	rules := FromConfig(
+		[]string{"bash *", "read"},
+		[]string{"edit /etc/*"},
+	)
+	if len(rules) != 3 {
+		t.Fatalf("expected 3 rules, got %d", len(rules))
+	}
+	if rules[0].Permission != "bash" || rules[0].Pattern != "*" || rules[0].Action != ActionAllow {
+		t.Errorf("unexpected first rule: %+v", rules[0])
+	}
+	if rules[1].Permission != "read" || rules[1].Pattern != "*" || rules[1].Action != ActionAllow {
+		t.Errorf("unexpected second rule: %+v", rules[1])
+	}
+	if rules[2].Permission != "edit" || rules[2].Pattern != "/etc/*" || rules[2].Action != ActionDeny {
+		t.Errorf("unexpected third rule: %+v", rules[2])
+	}
+}
+
