@@ -24,6 +24,7 @@ var prefixes = map[string]string{
 	"pty":        "pty",
 	"tool":       "tool",
 	"workspace":  "wrk",
+	"plugin":     "plg",
 }
 
 var (

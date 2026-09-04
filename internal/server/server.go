@@ -12,6 +12,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/server/middleware"
 	"github.com/bobbyjohnstx/tinycode-go/internal/static"
@@ -43,6 +44,7 @@ type Dependencies struct {
 	DB            *sql.DB
 	Registry      *provider.Registry
 	AgentRegistry *agent.Registry
+	PluginManager *plugin.Manager
 }
 
 type Server struct {
