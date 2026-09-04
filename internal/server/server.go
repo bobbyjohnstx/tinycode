@@ -89,6 +89,7 @@ func New(cfg Config, deps Dependencies) *Server {
 	}
 
 	s.registerRoutes()
+	s.wirePluginHooks()
 
 	if cfg.ServeWebUI {
 		mux.Handle("/", static.Handler(cfg.WebUIDir))
@@ -162,6 +163,45 @@ func (s *Server) Listen(ctx context.Context) (*Listener, error) {
 	}()
 
 	return listener, nil
+}
+
+func (s *Server) wirePluginHooks() {
+	mgr := s.deps.PluginManager
+	if mgr == nil {
+		return
+	}
+
+	startSub := s.deps.Bus.Subscribe("session.created")
+	go func() {
+		for evt := range startSub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			info, _ := props["info"].(map[string]any)
+			if info == nil {
+				continue
+			}
+			sid, _ := info["id"].(string)
+			if sid != "" {
+				plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{SessionID: sid})
+			}
+		}
+	}()
+
+	endSub := s.deps.Bus.Subscribe("session.deleted")
+	go func() {
+		for evt := range endSub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			sid, _ := props["sessionID"].(string)
+			if sid != "" {
+				plugin.DispatchSessionEnd(mgr, plugin.SessionEndEvent{SessionID: sid})
+			}
+		}
+	}()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

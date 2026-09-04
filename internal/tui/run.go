@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
 )
 
@@ -76,10 +77,20 @@ func (c connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PromptSubmittedMsg:
 		sessionID := c.app.state.ActiveSession
 		if sessionID == "" {
-			cmds = append(cmds, createSession(c.client, api.SessionCreateInput{
+			input := api.SessionCreateInput{
 				Title: "New Session",
-				Agent: "build",
-			}))
+				Agent: c.app.state.CurrentAgent,
+			}
+			if input.Agent == "" {
+				input.Agent = "build"
+			}
+			if c.app.state.CurrentModel.ModelID != "" {
+				input.Model = &session.ModelRef{
+					ProviderID: c.app.state.CurrentModel.ProviderID,
+					ID:         c.app.state.CurrentModel.ModelID,
+				}
+			}
+			cmds = append(cmds, createSession(c.client, input))
 		} else {
 			cmds = append(cmds, sendPrompt(c.client, sessionID, api.PromptInput{
 				Parts: []api.PromptPart{{Type: "text", Text: msg.Content}},
