@@ -110,13 +110,15 @@ type AppState struct {
 // SessionInfo is a lightweight view of session.Info for the TUI layer,
 // avoiding a direct import of the storage-coupled session package in UI state.
 type SessionInfo struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Agent     string `json:"agent,omitempty"`
-	ParentID  string `json:"parentID,omitempty"`
-	Directory string `json:"directory"`
-	CreatedAt int64  `json:"created"`
-	UpdatedAt int64  `json:"updated"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	Agent      string `json:"agent,omitempty"`
+	ModelID    string `json:"modelID,omitempty"`
+	ProviderID string `json:"providerID,omitempty"`
+	ParentID   string `json:"parentID,omitempty"`
+	Directory  string `json:"directory"`
+	CreatedAt  int64  `json:"created"`
+	UpdatedAt  int64  `json:"updated"`
 }
 
 // NewAppState returns an AppState with initialized maps.

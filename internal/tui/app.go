@@ -202,6 +202,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SessionSwitchedMsg:
 		a.state.ActiveSession = msg.SessionID
 		a.state.Messages[msg.SessionID] = nil // clear, will reload
+		a.syncPromptMetadata()
 		return a, nil
 
 	case ProvidersLoadedMsg:
@@ -376,6 +377,27 @@ func (a *App) removeSession(id string) {
 	a.state.Sessions = sessions
 	delete(a.state.Messages, id)
 	delete(a.state.SessionStatus, id)
+}
+
+// syncPromptMetadata updates the prompt's agent/model/provider display
+// from the active session info.
+func (a *App) syncPromptMetadata() {
+	sid := a.state.ActiveSession
+	if sid == "" {
+		a.prompt.SetMetadata("build", "", "")
+		return
+	}
+	for _, s := range a.state.Sessions {
+		if s.ID == sid {
+			agent := s.Agent
+			if agent == "" {
+				agent = "build"
+			}
+			a.prompt.SetMetadata(agent, s.ModelID, s.ProviderID)
+			return
+		}
+	}
+	a.prompt.SetMetadata("build", "", "")
 }
 
 // showPalette opens the command palette with available commands.

@@ -254,7 +254,7 @@ func replyPermission(client *api.Client, sessionID, permissionID, action string)
 }
 
 func sessionInfoFromAPI(s session.Info) SessionInfo {
-	return SessionInfo{
+	si := SessionInfo{
 		ID:        s.ID,
 		Title:     s.Title,
 		Agent:     s.Agent,
@@ -263,6 +263,11 @@ func sessionInfoFromAPI(s session.Info) SessionInfo {
 		CreatedAt: s.Time.Created,
 		UpdatedAt: s.Time.Updated,
 	}
+	if s.Model != nil {
+		si.ModelID = s.Model.ID
+		si.ProviderID = s.Model.ProviderID
+	}
+	return si
 }
 
 // stringProp extracts a string value from a property map.
@@ -282,6 +287,10 @@ func parseSessionInfo(props map[string]any) SessionInfo {
 	si.Agent, _ = info["agent"].(string)
 	si.ParentID, _ = info["parentID"].(string)
 	si.Directory, _ = info["directory"].(string)
+	if m, ok := info["model"].(map[string]any); ok {
+		si.ModelID, _ = m["id"].(string)
+		si.ProviderID, _ = m["providerID"].(string)
+	}
 	if t, ok := info["time"].(map[string]any); ok {
 		if c, ok := t["created"].(float64); ok {
 			si.CreatedAt = int64(c)

@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 	"github.com/bobbyjohnstx/tinycode-go/internal/id"
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
 	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
@@ -50,9 +52,11 @@ type SessionManager struct {
 	perms         *permission.Service
 	agentRegistry *agent.Registry
 	mcpSvc        *mcp.Service
+	cfg           *config.Info
+	revertState   *RevertState
 }
 
-func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service) *SessionManager {
+func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service, cfg *config.Info) *SessionManager {
 	sm := &SessionManager{
 		sessions:      make(map[string]*activeSession),
 		bus:           b,
@@ -63,12 +67,30 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 		perms:         perms,
 		agentRegistry: agents,
 		mcpSvc:        mcpSvc,
+		cfg:           cfg,
+		revertState:   NewRevertState(),
 	}
 	sm.subscribeCommands()
 	sm.subscribePrompts()
 	sm.subscribePermissionReplies()
 	sm.subscribeProcessorEvents()
+	sm.subscribeRevert()
+	sm.subscribeUnrevert()
+	sm.subscribeSummarize()
 	return sm
+}
+
+// Shutdown cancels all active session processors so they can drain
+// before the server exits.
+func (sm *SessionManager) Shutdown() {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	for sid, active := range sm.sessions {
+		if active.cancel != nil {
+			active.cancel()
+		}
+		delete(sm.sessions, sid)
+	}
 }
 
 // Status returns the processing status of all active sessions.
@@ -711,11 +733,18 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 		agentPerms = extractAllowedPerms(agentInfo.Permission)
 	}
 
+	// Wire user instructions from config
+	var instructions string
+	if sm.cfg != nil && len(sm.cfg.Instructions) > 0 {
+		instructions = strings.Join(sm.cfg.Instructions, "\n\n")
+	}
+
 	// Build system prompt
 	systemPrompt := session.BuildSystemPrompt(session.SystemPromptInput{
-		AgentPrompt: agentPrompt,
-		Directory:   sm.dir,
-		ToolDefs:    sm.tools.ToolDefs(agentPerms),
+		AgentPrompt:  agentPrompt,
+		Instructions: instructions,
+		Directory:    sm.dir,
+		ToolDefs:     sm.tools.ToolDefs(agentPerms),
 	})
 
 	// Sync MCP tools before processing
@@ -730,13 +759,32 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 	ms := session.NewMessageStore(session.NewStore(sm.db))
 	existingMsgs, _ := ms.List(sessionID)
 
+	// Wire SubagentDepth from config
+	subagentDepth := 1
+	if sm.cfg != nil && sm.cfg.SubagentDepth != nil {
+		subagentDepth = *sm.cfg.SubagentDepth
+	}
+
+	// Wire Compaction config
+	compactionCfg := session.DefaultCompactionConfig()
+	if sm.cfg != nil && sm.cfg.Compaction != nil {
+		if sm.cfg.Compaction.MaskObservations != nil {
+			compactionCfg.MaskObservations = *sm.cfg.Compaction.MaskObservations
+		}
+		if sm.cfg.Compaction.PreserveRecentTokens != nil {
+			compactionCfg.MaxPreserve = *sm.cfg.Compaction.PreserveRecentTokens
+		}
+	}
+
 	// Create LLM client and Processor
 	client := llm.NewOpenAIClient(model.API.URL+"/v1", "")
 	proc := session.NewProcessor(session.ProcessorConfig{
-		SessionID:    sessionID,
-		Agent:        input.Agent,
-		Model:        model,
-		SystemPrompt: systemPrompt,
+		SessionID:     sessionID,
+		Agent:         input.Agent,
+		Model:         model,
+		SubagentDepth: subagentDepth,
+		SystemPrompt:  systemPrompt,
+		Compaction:    compactionCfg,
 	}, client, sm.tools, sm.bus)
 	proc.SetMessages(existingMsgs)
 
@@ -794,6 +842,96 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 			"error":     result.Error.Error(),
 		})
 	}
+}
+
+// subscribeRevert listens for session.revert events and stashes the current
+// working tree changes.
+func (sm *SessionManager) subscribeRevert() {
+	sub := sm.bus.Subscribe("session.revert")
+	go func() {
+		for evt := range sub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			sessionID, _ := props["sessionID"].(string)
+			if sessionID == "" {
+				continue
+			}
+
+			if err := sm.revertState.Stash(sm.dir, sessionID); err != nil {
+				slog.Error("revert failed", "sessionID", sessionID, "error", err)
+				sm.bus.Publish("session.error", map[string]any{
+					"sessionID": sessionID,
+					"error":     "revert failed: " + err.Error(),
+				})
+				continue
+			}
+			sm.bus.Publish("session.reverted", map[string]any{"sessionID": sessionID})
+		}
+	}()
+}
+
+// subscribeUnrevert listens for session.unrevert events and pops the stash
+// created by the corresponding revert.
+func (sm *SessionManager) subscribeUnrevert() {
+	sub := sm.bus.Subscribe("session.unrevert")
+	go func() {
+		for evt := range sub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			sessionID, _ := props["sessionID"].(string)
+			if sessionID == "" {
+				continue
+			}
+
+			if err := sm.revertState.Pop(sm.dir, sessionID); err != nil {
+				slog.Error("unrevert failed", "sessionID", sessionID, "error", err)
+				sm.bus.Publish("session.error", map[string]any{
+					"sessionID": sessionID,
+					"error":     "unrevert failed: " + err.Error(),
+				})
+				continue
+			}
+			sm.bus.Publish("session.unreverted", map[string]any{"sessionID": sessionID})
+		}
+	}()
+}
+
+// subscribeSummarize listens for session.summarize events and publishes
+// status + compacted events. Full LLM-driven compaction is handled by the
+// Processor; this subscriber signals that a manual summarize was requested.
+func (sm *SessionManager) subscribeSummarize() {
+	sub := sm.bus.Subscribe("session.summarize")
+	go func() {
+		for evt := range sub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			sessionID, _ := props["sessionID"].(string)
+			if sessionID == "" {
+				continue
+			}
+
+			sm.bus.Publish("session.status", map[string]any{
+				"sessionID": sessionID,
+				"status":    map[string]any{"alert": false, "working": true},
+			})
+
+			sm.bus.Publish("session.compacted", map[string]any{
+				"sessionID": sessionID,
+				"message":   "Manual summarize requested",
+			})
+
+			sm.bus.Publish("session.status", map[string]any{
+				"sessionID": sessionID,
+				"status":    map[string]any{"alert": false, "working": false},
+			})
+		}
+	}()
 }
 
 // extractAllowedPerms returns the set of permission names that are explicitly

@@ -171,6 +171,7 @@ func serverConfig(cfg *config.Info, serveWebUI bool) server.Config {
 		WebUIDir:     os.Getenv("TINYCODE_WEB_DIR"),
 		Directory:    dir,
 		DefaultModel: cfg.Model,
+		DefaultAgent: cfg.DefaultAgent,
 	}
 }
 
@@ -281,6 +282,7 @@ func runTUI() {
 		ToolRegistry:  toolReg,
 		PermService:   permSvc,
 		MCPService:    mcpSvc,
+		Config:        cfg,
 	})
 
 	listener, err := srv.Listen(ctx)
@@ -340,6 +342,7 @@ func runServe() {
 		ToolRegistry:  toolReg,
 		PermService:   permSvc,
 		MCPService:    mcpSvc,
+		Config:        cfg,
 	})
 
 	listener, err := srv.Listen(ctx)
@@ -393,6 +396,7 @@ func runWeb() {
 		ToolRegistry:  toolReg,
 		PermService:   permSvc,
 		MCPService:    mcpSvc,
+		Config:        cfg,
 	})
 
 	listener, err := srv.Listen(ctx)

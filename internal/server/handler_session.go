@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	id2 "github.com/bobbyjohnstx/tinycode-go/internal/id"
 	"github.com/bobbyjohnstx/tinycode-go/internal/project"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
@@ -33,6 +34,15 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+
+	// Assign a default agent if none was provided.
+	if body.Agent == "" {
+		if s.config.DefaultAgent != "" {
+			body.Agent = s.config.DefaultAgent
+		} else {
+			body.Agent = "build"
+		}
 	}
 
 	// Assign a default model if none was provided.
@@ -261,6 +271,22 @@ func (s *Server) handleSessionFork(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	// Copy messages from parent to forked session.
+	ms := s.messageStore()
+	parentMsgs, err := ms.List(id)
+	if err == nil {
+		for i := range parentMsgs {
+			msg := parentMsgs[i]
+			msg.SessionID = forked.ID
+			newID, idErr := id2.Ascending("message")
+			if idErr != nil {
+				continue
+			}
+			msg.ID = newID
+			_ = ms.Append(&msg)
+		}
 	}
 
 	respondJSON(w, http.StatusCreated, forked)

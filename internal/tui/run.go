@@ -96,6 +96,7 @@ func (c connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil && msg.Session != nil {
 			c.app.state.ActiveSession = msg.Session.ID
 			c.app.state.Sessions = append([]SessionInfo{*msg.Session}, c.app.state.Sessions...)
+			c.app.syncPromptMetadata()
 		}
 		return c, nil
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
@@ -34,6 +35,7 @@ type Config struct {
 	ServeWebUI   bool
 	Directory    string
 	DefaultModel string
+	DefaultAgent string
 }
 
 type Listener struct {
@@ -51,6 +53,7 @@ type Dependencies struct {
 	ToolRegistry  *tool.Registry
 	PermService   *permission.Service
 	MCPService    *mcp.Service
+	Config        *config.Info
 }
 
 type Server struct {
@@ -80,7 +83,7 @@ func New(cfg Config, deps Dependencies) *Server {
 		mux:             mux,
 		deps:            deps,
 		logger:          logger,
-		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory, deps.ToolRegistry, deps.PermService, deps.AgentRegistry, deps.MCPService),
+		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory, deps.ToolRegistry, deps.PermService, deps.AgentRegistry, deps.MCPService, deps.Config),
 		permissionStore: NewPermissionStore(),
 		questionStore:   NewQuestionStore(),
 	}
@@ -142,6 +145,10 @@ func (s *Server) Listen(ctx context.Context) (*Listener, error) {
 	go func() {
 		<-ctx.Done()
 		s.logger.Info("shutting down server")
+
+		// Drain active session processors before closing HTTP.
+		s.sessionManager.Shutdown()
+
 		s.deps.Bus.Publish("global.disposed", map[string]any{
 			"timestamp": time.Now().UnixMilli(),
 		})
