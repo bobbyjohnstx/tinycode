@@ -2,37 +2,51 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // App is the root bubbletea model composing all TUI components.
 type App struct {
-	chat      ChatView
-	prompt    PromptInput
-	status    StatusBar
-	dialog    SessionDialog
-	state     *AppState
-	focus     FocusTarget
-	width     int
-	height    int
-	serverURL string
-	keys      KeyMap
-	ready     bool
+	chat       ChatView
+	prompt     PromptInput
+	status     StatusBar
+	dialog     SessionDialog
+	palette    CommandPalette
+	agentDlg   AgentDialog
+	modelDlg   ModelDialog
+	permPrompt PermissionPrompt
+	toast      Toast
+	sidebar    Sidebar
+	leader     LeaderState
+	state      *AppState
+	focus      FocusTarget
+	width      int
+	height     int
+	serverURL  string
+	keys       KeyMap
+	ready      bool
 }
 
 // NewApp creates a new App with the given server URL.
 func NewApp(serverURL string) App {
 	state := NewAppState()
+	keys := DefaultKeyMap()
 
 	return App{
-		chat:      NewChatView(80, 24),
-		prompt:    NewPromptInput(80),
-		status:    NewStatusBar(80),
-		dialog:    NewSessionDialog(),
-		state:     state,
-		focus:     FocusPrompt,
-		serverURL: serverURL,
-		keys:      DefaultKeyMap(),
+		chat:       NewChatView(80, 24),
+		prompt:     NewPromptInput(80),
+		status:     NewStatusBar(80),
+		dialog:     NewSessionDialog(),
+		palette:    NewCommandPalette(),
+		agentDlg:   NewAgentDialog(),
+		modelDlg:   NewModelDialog(),
+		permPrompt: NewPermissionPrompt(),
+		toast:      NewToast(DefaultTheme()),
+		sidebar:    NewSidebar(),
+		leader:     NewLeaderState(keys),
+		state:      state,
+		focus:      FocusPrompt,
+		serverURL:  serverURL,
+		keys:       keys,
 	}
 }
 
@@ -58,10 +72,95 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tea.KeyMsg:
+		// Leader key state machine runs first.
+		if a.leader.IsPending() {
+			action, consumed := a.leader.HandleKey(msg)
+			if consumed {
+				if action != "" {
+					cmd := a.dispatchLeaderAction(action)
+					return a, cmd
+				}
+				return a, nil
+			}
+		} else {
+			_, consumed := a.leader.HandleKey(msg)
+			if consumed {
+				// Leader key was just pressed; start timeout.
+				return a, a.leader.TimeoutCmd()
+			}
+		}
+
+		// Route keys to visible overlay (priority order).
+		if a.permPrompt.IsVisible() {
+			var cmd tea.Cmd
+			a.permPrompt, cmd = a.permPrompt.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return a, tea.Batch(cmds...)
+		}
+		if a.palette.IsVisible() {
+			var cmd tea.Cmd
+			a.palette, cmd = a.palette.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return a, tea.Batch(cmds...)
+		}
+		if a.agentDlg.IsVisible() {
+			var cmd tea.Cmd
+			a.agentDlg, cmd = a.agentDlg.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return a, tea.Batch(cmds...)
+		}
+		if a.modelDlg.IsVisible() {
+			var cmd tea.Cmd
+			a.modelDlg, cmd = a.modelDlg.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return a, tea.Batch(cmds...)
+		}
+
 		// Global keys handled before component dispatch.
 		if cmd := a.handleGlobalKey(msg); cmd != nil {
 			return a, cmd
 		}
+
+	case LeaderTimeoutMsg:
+		a.leader.HandleTimeout()
+		return a, nil
+
+	case ToastMsg:
+		cmd := a.toast.Show(msg.Text, msg.IsError)
+		return a, cmd
+
+	case ToastExpiredMsg:
+		var cmd tea.Cmd
+		a.toast, cmd = a.toast.Update(msg)
+		return a, cmd
+
+	case AgentListMsg:
+		if msg.Err == nil {
+			a.state.Agents = msg.Agents
+		}
+		return a, nil
+
+	case CommandListMsg:
+		if msg.Err == nil {
+			a.state.Commands = msg.Commands
+		}
+		return a, nil
+
+	case PermissionRequestedMsg:
+		a.permPrompt.Show(msg.Request)
+		return a, nil
+
+	case PaletteClosedMsg:
+		a.setFocus(FocusPrompt)
+		return a, nil
 
 	case PromptSubmittedMsg:
 		a.state.SessionStatus[a.state.ActiveSession] = SessionStatus{Working: true}
@@ -78,15 +177,18 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SessionsLoadedMsg:
 		if msg.Err == nil {
 			a.state.Sessions = msg.Sessions
+			a.sidebar.SetSessions(msg.Sessions)
 		}
 		return a, nil
 
 	case SessionCreatedMsg:
 		a.state.Sessions = append([]SessionInfo{msg.Info}, a.state.Sessions...)
+		a.sidebar.SetSessions(a.state.Sessions)
 		return a, nil
 
 	case SessionDeletedMsg:
 		a.removeSession(msg.SessionID)
+		a.sidebar.SetSessions(a.state.Sessions)
 		return a, nil
 
 	case SessionSwitchedMsg:
@@ -109,6 +211,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case FocusChangedMsg:
+		if msg.Target == FocusPalette {
+			a.showPalette()
+			return a, nil
+		}
 		a.setFocus(msg.Target)
 		return a, nil
 	}
@@ -165,23 +271,45 @@ func (a App) View() string {
 		return "Loading..."
 	}
 
-	l := calculateLayout(a.width, a.height, a.state.SidebarOpen)
+	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen())
 
 	chatView := a.chat.View()
 	promptView := a.prompt.View()
 	statusView := a.status.View()
 
-	// Overlay dialog if visible.
+	// Render highest-priority overlay if one is visible.
+	if a.permPrompt.IsVisible() {
+		return a.permPrompt.View()
+	}
+	if a.palette.IsVisible() {
+		return a.palette.View()
+	}
+	if a.agentDlg.IsVisible() {
+		return a.agentDlg.View()
+	}
+	if a.modelDlg.IsVisible() {
+		return a.modelDlg.View()
+	}
 	if a.dialog.IsVisible() {
-		overlay := a.dialog.View()
-		return lipgloss.Place(
-			a.width, a.height,
-			lipgloss.Center, lipgloss.Center,
-			overlay,
-		)
+		return a.dialog.View()
 	}
 
-	return composeView(chatView, promptView, statusView, "", l)
+	sidebarView := ""
+	if a.sidebar.IsOpen() {
+		sidebarView = a.sidebar.View()
+	}
+
+	base := composeView(chatView, promptView, statusView, sidebarView, l)
+
+	// Overlay toast at the bottom if visible.
+	if a.toast.IsVisible() {
+		toastLine := toastOverlay(a.toast.View(), a.width)
+		if toastLine != "" {
+			return base + "\n" + toastLine
+		}
+	}
+
+	return base
 }
 
 // handleGlobalKey handles keys that work regardless of focus.
@@ -195,18 +323,27 @@ func (a *App) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 	case "ctrl+d":
 		return tea.Quit
+	case "ctrl+p":
+		a.showPalette()
+		return nil
 	}
 	return nil
 }
 
 // resize recalculates all component sizes.
 func (a *App) resize() {
-	l := calculateLayout(a.width, a.height, a.state.SidebarOpen)
+	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen())
 
 	a.chat.SetSize(l.chatWidth, l.chatHeight)
 	a.prompt.SetSize(l.promptWidth)
 	a.status.SetSize(l.statusWidth)
 	a.dialog.SetSize(a.width, a.height)
+	a.palette.SetSize(a.width, a.height)
+	a.agentDlg.SetSize(a.width, a.height)
+	a.modelDlg.SetSize(a.width, a.height)
+	a.permPrompt.SetSize(a.width, a.height)
+	a.toast.SetSize(a.width)
+	a.sidebar.SetSize(l.sidebarWidth, l.chatHeight)
 }
 
 // setFocus changes the focused component.
@@ -231,4 +368,44 @@ func (a *App) removeSession(id string) {
 	a.state.Sessions = sessions
 	delete(a.state.Messages, id)
 	delete(a.state.SessionStatus, id)
+}
+
+// showPalette opens the command palette with available commands.
+func (a *App) showPalette() {
+	items := make([]PaletteItem, 0, len(a.state.Commands))
+	for _, cmd := range a.state.Commands {
+		items = append(items, PaletteItem{
+			Label:       cmd.Name,
+			Description: cmd.Description,
+			Value:       cmd.Name,
+		})
+	}
+	a.palette.Show(items)
+	a.focus = FocusPalette
+}
+
+// dispatchLeaderAction handles a resolved leader key action.
+func (a *App) dispatchLeaderAction(action string) tea.Cmd {
+	switch action {
+	case LeaderActionSidebar:
+		a.sidebar.Toggle()
+		a.state.SidebarOpen = a.sidebar.IsOpen()
+		a.resize()
+		return nil
+	case LeaderActionAgentList:
+		a.agentDlg.Show(a.state.Agents)
+		return nil
+	case LeaderActionModelList:
+		a.modelDlg.Show(a.state.Providers)
+		return nil
+	case LeaderActionSessionList:
+		a.dialog.Show(a.state.Sessions)
+		return nil
+	case LeaderActionNewSession:
+		// Emit a SessionSwitchedMsg with empty ID to trigger new session creation.
+		return func() tea.Msg {
+			return SessionSwitchedMsg{SessionID: ""}
+		}
+	}
+	return nil
 }
