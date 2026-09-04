@@ -1,25 +1,5 @@
 package plugin
 
-import (
-	"errors"
-	"sync"
-
-	"github.com/bobbyjohnstx/tinycode-go/internal/id"
-)
-
-// PluginInfo describes a loaded plugin.
-type PluginInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
-// RegistryEntry describes an available plugin in the registry.
-type RegistryEntry struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Package     string `json:"package"`
-}
-
 // SessionStartEvent is emitted when a session is created.
 type SessionStartEvent struct {
 	SessionID string
@@ -32,9 +12,9 @@ type SessionEndEvent struct {
 
 // PermissionInput is the input for a permission hook.
 type PermissionInput struct {
-	SessionID  string
-	ToolName   string
-	Args       map[string]any
+	SessionID string
+	ToolName  string
+	Args      map[string]any
 }
 
 // PermissionOutput is the aggregated result of permission hooks.
@@ -52,76 +32,6 @@ type ShellEnvInput struct {
 // ShellEnvOutput is the aggregated result of shell environment hooks.
 type ShellEnvOutput struct {
 	Env map[string]string
-}
-
-// Manager manages loaded plugins and dispatches hooks.
-type Manager struct {
-	mu       sync.RWMutex
-	plugins  map[string]*PluginInfo
-	registry []RegistryEntry
-}
-
-// NewManager creates a Manager with the given registry entries.
-func NewManager(registry []RegistryEntry) *Manager {
-	return &Manager{
-		plugins:  make(map[string]*PluginInfo),
-		registry: registry,
-	}
-}
-
-// List returns all loaded plugins.
-func (m *Manager) List() []PluginInfo {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	out := make([]PluginInfo, 0, len(m.plugins))
-	for _, p := range m.plugins {
-		out = append(out, *p)
-	}
-	return out
-}
-
-// Load registers a plugin by name and returns its info.
-func (m *Manager) Load(name string) (*PluginInfo, error) {
-	if name == "" {
-		return nil, errors.New("plugin name is required")
-	}
-
-	pid, err := id.Ascending("plugin")
-	if err != nil {
-		return nil, err
-	}
-
-	info := &PluginInfo{
-		ID:   pid,
-		Name: name,
-	}
-
-	m.mu.Lock()
-	m.plugins[pid] = info
-	m.mu.Unlock()
-
-	return info, nil
-}
-
-// Unload removes a plugin by ID.
-func (m *Manager) Unload(pluginID string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if _, ok := m.plugins[pluginID]; !ok {
-		return errors.New("plugin not found")
-	}
-	delete(m.plugins, pluginID)
-	return nil
-}
-
-// Registry returns available registry entries.
-func (m *Manager) Registry() []RegistryEntry {
-	if m.registry == nil {
-		return []RegistryEntry{}
-	}
-	return m.registry
 }
 
 // DispatchSessionStart notifies all loaded plugins of a session start.

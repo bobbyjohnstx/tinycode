@@ -19,7 +19,7 @@ func testServerWithPlugins(t *testing.T, registry []plugin.RegistryEntry) *Serve
 
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	mgr := plugin.NewManager(registry)
+	mgr := plugin.NewManagerWithRegistry(registry)
 
 	srv := New(Config{}, Dependencies{
 		Bus:           b,
