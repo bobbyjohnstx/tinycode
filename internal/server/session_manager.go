@@ -66,6 +66,7 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 	}
 	sm.subscribeCommands()
 	sm.subscribePrompts()
+	sm.subscribePermissionReplies()
 	sm.subscribeProcessorEvents()
 	return sm
 }
@@ -139,6 +140,43 @@ func (sm *SessionManager) subscribePrompts() {
 				},
 				Agent: info.Agent,
 				Parts: []promptPart{{Type: "text", Text: content}},
+			})
+		}
+	}()
+}
+
+func (sm *SessionManager) subscribePermissionReplies() {
+	if sm.perms == nil {
+		return
+	}
+	sub := sm.bus.Subscribe("permission.reply")
+	go func() {
+		for evt := range sub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			permID, _ := props["permissionID"].(string)
+			action, _ := props["action"].(string)
+			if permID == "" || action == "" {
+				continue
+			}
+
+			var reply permission.Reply
+			switch action {
+			case "allow":
+				reply = permission.ReplyOnce
+			case "always":
+				reply = permission.ReplyAlways
+			case "reject":
+				reply = permission.ReplyReject
+			default:
+				continue
+			}
+
+			sm.perms.RespondToAsk(permission.ReplyInput{
+				RequestID: permID,
+				Reply:     reply,
 			})
 		}
 	}()

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
 	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 )
@@ -18,6 +19,7 @@ type Context struct {
 	SessionID string
 	Directory string
 	Perms     *permission.Service
+	Bus       *bus.Bus
 }
 
 type Def struct {
@@ -79,6 +81,20 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		SessionID: sessionID,
 		Directory: r.ctx.Directory,
 		Perms:     r.ctx.Perms,
+		Bus:       r.ctx.Bus,
+	}
+
+	// Check permissions if service is available and tool has a permission requirement
+	if toolCtx.Perms != nil && def.Permission != "" {
+		askErr := toolCtx.Perms.Ask(ctx, permission.AskInput{
+			SessionID:  sessionID,
+			Permission: def.Permission,
+			Patterns:   []string{name},
+			Metadata:   map[string]any{"tool": name, "args": string(args)},
+		})
+		if askErr != nil {
+			return askErr.Error(), true, nil
+		}
 	}
 
 	result, err := def.Execute(ctx, toolCtx, args)

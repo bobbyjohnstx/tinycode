@@ -130,17 +130,88 @@ func (s *Server) handleSessionChildren(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSessionTodo(w http.ResponseWriter, r *http.Request) {
-	respondJSON(w, http.StatusOK, map[string]any{
-		"todos": []any{},
-	})
+	sessionID := r.PathValue("id")
+	ms := s.messageStore()
+	messages, err := ms.List(sessionID)
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]any{"todos": []any{}})
+		return
+	}
+
+	type todoItem struct {
+		Text      string `json:"text"`
+		MessageID string `json:"messageID"`
+		Line      int    `json:"line"`
+	}
+
+	var todos []todoItem
+	for _, msg := range messages {
+		for _, part := range msg.Parts {
+			if part.Type != session.PartText || part.Text == "" {
+				continue
+			}
+			lines := strings.Split(part.Text, "\n")
+			for i, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.Contains(strings.ToUpper(trimmed), "TODO") ||
+					strings.Contains(strings.ToUpper(trimmed), "FIXME") {
+					todos = append(todos, todoItem{
+						Text:      trimmed,
+						MessageID: msg.ID,
+						Line:      i + 1,
+					})
+				}
+			}
+		}
+	}
+
+	if todos == nil {
+		todos = []todoItem{}
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"todos": todos})
 }
 
 func (s *Server) handleSessionDiff(w http.ResponseWriter, r *http.Request) {
+	diff, err := vcs.GitDiff(s.config.Directory)
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]any{
+			"diff":    "",
+			"files":   []any{},
+			"summary": map[string]any{"additions": 0, "deletions": 0, "files": 0},
+		})
+		return
+	}
+
+	files, additions, deletions := parseDiffStats(diff)
 	respondJSON(w, http.StatusOK, map[string]any{
-		"diff":    "",
-		"files":   []any{},
-		"summary": map[string]any{"additions": 0, "deletions": 0, "files": 0},
+		"diff":  diff,
+		"files": files,
+		"summary": map[string]any{
+			"additions": additions,
+			"deletions": deletions,
+			"files":     len(files),
+		},
 	})
+}
+
+func parseDiffStats(diff string) (files []string, additions, deletions int) {
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, "diff --git") {
+			parts := strings.Fields(line)
+			if len(parts) >= 4 {
+				file := strings.TrimPrefix(parts[3], "b/")
+				files = append(files, file)
+			}
+		} else if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			additions++
+		} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+			deletions++
+		}
+	}
+	if files == nil {
+		files = []string{}
+	}
+	return
 }
 
 func (s *Server) handleMessageDelete(w http.ResponseWriter, r *http.Request) {

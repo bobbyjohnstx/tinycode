@@ -109,6 +109,10 @@ func (c connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, fetchMessages(c.client, msg.SessionID))
 		}
 		return c, tea.Batch(cmds...)
+
+	case ProvidersRefreshMsg:
+		cmds = append(cmds, fetchProviders(c.client))
+		return c, tea.Batch(cmds...)
 	}
 
 	model, cmd := c.app.Update(msg)

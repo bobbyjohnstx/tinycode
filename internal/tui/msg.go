@@ -121,6 +121,9 @@ type WindowSizeMsg struct {
 
 type TickMsg struct{}
 
+// ProvidersRefreshMsg signals that the provider list should be re-fetched.
+type ProvidersRefreshMsg struct{}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

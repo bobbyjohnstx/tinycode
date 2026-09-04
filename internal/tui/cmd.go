@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -86,6 +87,33 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 			PartID:    partID,
 			Field:     field,
 			Delta:     delta,
+		}
+
+	case "session.error":
+		errMsg := stringProp(props, "error")
+		if errMsg == "" {
+			errMsg = "unknown error"
+		}
+		return ToastMsg{Text: errMsg, IsError: true}
+
+	case "permission.asked":
+		return PermissionRequestedMsg{
+			Request: PermissionRequest{
+				ID:        stringProp(props, "id"),
+				SessionID: sessionID,
+				Tool:      stringProp(props, "tool"),
+				Input:     props["input"],
+			},
+		}
+
+	case "provider.updated":
+		return ProvidersRefreshMsg{}
+
+	case "session.compacted":
+		compNum, _ := props["compactionNum"].(float64)
+		return ToastMsg{
+			Text:    fmt.Sprintf("Context compacted (#%d)", int(compNum)),
+			IsError: false,
 		}
 
 	default:
@@ -235,6 +263,12 @@ func sessionInfoFromAPI(s session.Info) SessionInfo {
 		CreatedAt: s.Time.Created,
 		UpdatedAt: s.Time.Updated,
 	}
+}
+
+// stringProp extracts a string value from a property map.
+func stringProp(props map[string]any, key string) string {
+	v, _ := props[key].(string)
+	return v
 }
 
 func parseSessionInfo(props map[string]any) SessionInfo {
