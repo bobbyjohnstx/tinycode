@@ -81,4 +81,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /vcs", s.handleVCSInfo)
 	s.mux.HandleFunc("GET /vcs/status", s.handleVCSStatus)
 	s.mux.HandleFunc("GET /vcs/diff", s.handleVCSDiff)
+
+	// MCP
+	s.mux.HandleFunc("GET /mcp/status", s.handleMCPStatus)
 }
