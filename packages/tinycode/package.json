@@ -73,7 +73,7 @@
     "@actions/core": "1.11.1",
     "@actions/github": "6.0.1",
     "@agentclientprotocol/sdk": "0.21.0",
-    "@ai-sdk/alibaba": "2.0.2",
+    "@ai-sdk/alibaba": "2.0.39",
     "@ai-sdk/amazon-bedrock": "5.0.2",
     "@ai-sdk/anthropic": "4.0.1",
     "@ai-sdk/azure": "4.0.2",

@@ -97,7 +97,7 @@
     "yaml": "2.9.0"
   },
   "dependencies": {
-    "@ai-sdk/alibaba": "2.0.2",
+    "@ai-sdk/alibaba": "2.0.39",
     "@ai-sdk/amazon-bedrock": "5.0.2",
     "@ai-sdk/anthropic": "4.0.1",
     "@ai-sdk/azure": "4.0.2",
