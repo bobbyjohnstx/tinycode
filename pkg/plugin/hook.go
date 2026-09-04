@@ -1,0 +1,66 @@
+package plugin
+
+import "context"
+
+// HookHandlers holds optional callback functions for plugin lifecycle hooks.
+// Each field is nil when the plugin does not handle that hook.
+type HookHandlers struct {
+	SessionStart  func(ctx context.Context, event SessionStartEvent) error
+	SessionEnd    func(ctx context.Context, event SessionEndEvent) error
+	PermissionAsk func(ctx context.Context, input PermissionInput) (*PermissionOutput, error)
+	ShellEnv      func(ctx context.Context, input ShellEnvInput) (*ShellEnvOutput, error)
+	ToolExecBefore func(ctx context.Context, input ToolExecBeforeInput) error
+	ToolExecAfter  func(ctx context.Context, input ToolExecAfterInput) error
+	Dispose       func(ctx context.Context) error
+}
+
+// SessionStartEvent is emitted when a new session is created.
+type SessionStartEvent struct {
+	SessionID string `json:"sessionId"`
+	Directory string `json:"directory"`
+}
+
+// SessionEndEvent is emitted when a session is destroyed.
+type SessionEndEvent struct {
+	SessionID string `json:"sessionId"`
+}
+
+// PermissionInput is the payload for permission.ask hooks.
+type PermissionInput struct {
+	SessionID  string `json:"sessionId"`
+	ToolName   string `json:"toolName"`
+	ToolArgs   string `json:"toolArgs"`
+	Permission string `json:"permission"`
+}
+
+// PermissionOutput is the response from a permission.ask hook.
+type PermissionOutput struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+// ShellEnvInput is the payload for shell.env hooks.
+type ShellEnvInput struct {
+	SessionID string `json:"sessionId"`
+	Directory string `json:"directory"`
+}
+
+// ShellEnvOutput is the response from a shell.env hook.
+type ShellEnvOutput struct {
+	Env map[string]string `json:"env"`
+}
+
+// ToolExecBeforeInput is the payload for tool.execute.before hooks.
+type ToolExecBeforeInput struct {
+	SessionID string `json:"sessionId"`
+	ToolName  string `json:"toolName"`
+	ToolArgs  string `json:"toolArgs"`
+}
+
+// ToolExecAfterInput is the payload for tool.execute.after hooks.
+type ToolExecAfterInput struct {
+	SessionID string `json:"sessionId"`
+	ToolName  string `json:"toolName"`
+	Output    string `json:"output"`
+	IsError   bool   `json:"isError"`
+}
