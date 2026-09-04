@@ -7,8 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/command"
+	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 	"github.com/bobbyjohnstx/tinycode-go/internal/project"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode-go/internal/skill"
 	"github.com/bobbyjohnstx/tinycode-go/internal/vcs"
 )
 
@@ -342,69 +345,30 @@ func (s *Server) handlePathGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAgentList(w http.ResponseWriter, r *http.Request) {
-	agents := []map[string]any{
-		{
-			"name":        "build",
-			"description": "Full tool access for implementation work",
-			"mode":        "primary",
-			"native":      true,
-			"permission":  map[string]any{"allow": []string{"*"}, "deny": []string{}},
-		},
-		{
-			"name":        "plan",
-			"description": "Read-only planning and analysis",
-			"mode":        "primary",
-			"native":      true,
-			"permission":  map[string]any{"allow": []string{"read", "glob", "grep", "bash"}, "deny": []string{}},
-		},
-		{
-			"name":        "architect",
-			"description": "Architecture analysis and design guidance",
-			"mode":        "subagent",
-			"native":      true,
-			"permission":  map[string]any{"allow": []string{"read", "glob", "grep", "bash"}, "deny": []string{}},
-		},
-		{
-			"name":        "debugger",
-			"description": "Root-cause analysis and debugging",
-			"mode":        "subagent",
-			"native":      true,
-			"permission":  map[string]any{"allow": []string{"*"}, "deny": []string{}},
-		},
+	if s.deps.AgentRegistry != nil {
+		agents := s.deps.AgentRegistry.List("")
+		respondJSON(w, http.StatusOK, agents)
+		return
 	}
-	respondJSON(w, http.StatusOK, agents)
-}
-
-func (s *Server) handleSkillList(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, []any{})
 }
 
+func (s *Server) handleSkillList(w http.ResponseWriter, r *http.Request) {
+	configDir := config.ConfigDir()
+	skills := skill.Discover(configDir, s.config.Directory)
+	respondJSON(w, http.StatusOK, skills)
+}
+
 func (s *Server) handleCommandList(w http.ResponseWriter, r *http.Request) {
-	commands := []map[string]any{
-		{
-			"name":        "init",
-			"description": "Guided project setup",
-			"source":      "command",
-			"template":    "Initialize this project for AI-assisted development.",
-			"hints":       []string{},
-		},
-		{
-			"name":        "review",
-			"description": "Review changes — /review [commit|branch|pr]",
-			"source":      "command",
-			"template":    "Review the recent changes in this project.",
-			"subtask":     true,
-			"hints":       []string{"$1"},
-		},
-		{
-			"name":        "ask",
-			"description": "Ask an agent — /ask <agent> <prompt>",
-			"source":      "command",
-			"template":    "$2",
-			"subtask":     true,
-			"hints":       []string{"$1", "$2"},
-		},
+	var agentNames []string
+	if s.deps.AgentRegistry != nil {
+		for _, a := range s.deps.AgentRegistry.List("") {
+			agentNames = append(agentNames, a.Name)
+		}
 	}
+
+	configDir := config.ConfigDir()
+	commands := command.Discover(configDir, s.config.Directory, agentNames)
 	respondJSON(w, http.StatusOK, commands)
 }
 

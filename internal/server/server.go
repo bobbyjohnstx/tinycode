@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/server/middleware"
@@ -38,9 +39,10 @@ type Listener struct {
 }
 
 type Dependencies struct {
-	Bus      *bus.Bus
-	DB       *sql.DB
-	Registry *provider.Registry
+	Bus           *bus.Bus
+	DB            *sql.DB
+	Registry      *provider.Registry
+	AgentRegistry *agent.Registry
 }
 
 type Server struct {

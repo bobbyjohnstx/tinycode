@@ -11,9 +11,11 @@ import (
 	"syscall"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/acp"
+	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
+	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/server"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
@@ -140,6 +142,28 @@ func serverConfig(cfg *config.Info, serveWebUI bool) server.Config {
 	}
 }
 
+func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
+	defaultPerms := permission.Ruleset{
+		{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
+	}
+	var userPerms permission.Ruleset
+	if cfg.Permission != nil {
+		for _, a := range cfg.Permission.Allow {
+			userPerms = append(userPerms, permission.Rule{Permission: a, Pattern: "*", Action: permission.ActionAllow})
+		}
+		for _, d := range cfg.Permission.Deny {
+			userPerms = append(userPerms, permission.Rule{Permission: d, Pattern: "*", Action: permission.ActionDeny})
+		}
+	}
+
+	reg := agent.NewRegistry()
+	if err := reg.LoadDefaults(defaultPerms, userPerms); err != nil {
+		slog.Warn("failed to load default agents", "error", err)
+	}
+	reg.LoadUserAgents(config.ConfigDir(), directory, defaultPerms, userPerms)
+	return reg
+}
+
 func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg *config.Info) *provider.Discovery {
 	disc := provider.NewDiscovery(reg, b)
 
@@ -195,7 +219,10 @@ func runServe() {
 	disc := startDiscovery(ctx, reg, b, cfg)
 	defer disc.Stop()
 
-	srv := server.New(serverConfig(cfg, false), server.Dependencies{Bus: b, DB: db.DB, Registry: reg})
+	dir, _ := os.Getwd()
+	agentReg := initAgentRegistry(cfg, dir)
+
+	srv := server.New(serverConfig(cfg, false), server.Dependencies{Bus: b, DB: db.DB, Registry: reg, AgentRegistry: agentReg})
 
 	listener, err := srv.Listen(ctx)
 	if err != nil {
@@ -230,7 +257,10 @@ func runWeb() {
 	disc := startDiscovery(ctx, reg, b, cfg)
 	defer disc.Stop()
 
-	srv := server.New(serverConfig(cfg, true), server.Dependencies{Bus: b, DB: db.DB, Registry: reg})
+	dir, _ := os.Getwd()
+	agentReg := initAgentRegistry(cfg, dir)
+
+	srv := server.New(serverConfig(cfg, true), server.Dependencies{Bus: b, DB: db.DB, Registry: reg, AgentRegistry: agentReg})
 
 	listener, err := srv.Listen(ctx)
 	if err != nil {
