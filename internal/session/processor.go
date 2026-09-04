@@ -29,6 +29,7 @@ type ProcessorConfig struct {
 	Model          *provider.Model
 	SubagentDepth  int
 	MaxSubagents   int
+	SystemPrompt   string
 	Compaction     CompactionConfig
 }
 
@@ -249,7 +250,14 @@ func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) 
 
 func (p *Processor) buildRequest() llm.Request {
 	messages := p.Messages()
-	llmMessages := make([]llm.Message, 0, len(messages))
+	llmMessages := make([]llm.Message, 0, len(messages)+1)
+
+	if p.config.SystemPrompt != "" {
+		llmMessages = append(llmMessages, llm.Message{
+			Role:    "system",
+			Content: p.config.SystemPrompt,
+		})
+	}
 
 	for _, msg := range messages {
 		llmMsg := llm.Message{Role: string(msg.Role)}
