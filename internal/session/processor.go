@@ -260,6 +260,20 @@ func (p *Processor) buildRequest() llm.Request {
 	}
 
 	for _, msg := range messages {
+		if msg.Role == RoleTool {
+			// Each tool result must be a separate LLM message per the OpenAI API.
+			for _, part := range msg.Parts {
+				if part.Type == PartToolResult {
+					llmMessages = append(llmMessages, llm.Message{
+						Role:       "tool",
+						Content:    part.ToolResult,
+						ToolCallID: part.ToolCallID,
+					})
+				}
+			}
+			continue
+		}
+
 		llmMsg := llm.Message{Role: string(msg.Role)}
 
 		for _, part := range msg.Parts {
@@ -278,9 +292,6 @@ func (p *Processor) buildRequest() llm.Request {
 						Arguments: part.ToolArgs,
 					},
 				})
-			case PartToolResult:
-				llmMsg.Content = part.ToolResult
-				llmMsg.ToolCallID = part.ToolCallID
 			}
 		}
 
