@@ -144,6 +144,16 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, tea.Batch(cmds...)
 
+	case PromptSentMsg:
+		if msg.Err != nil {
+			model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Prompt failed: %v", msg.Err), IsError: true})
+			c.app = model.(App)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return c, tea.Batch(cmds...)
+
 	case ProvidersRefreshMsg:
 		cmds = append(cmds, fetchProviders(c.client))
 		return c, tea.Batch(cmds...)

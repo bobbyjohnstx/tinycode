@@ -90,7 +90,7 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 			},
 		}
 
-	case "provider.updated":
+	case "provider.discovered", "provider.removed", "provider.reconnected":
 		return ProvidersRefreshMsg{}
 
 	case "session.compacted":

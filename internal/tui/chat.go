@@ -68,7 +68,42 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 
 	case MessagesLoadedMsg:
 		if msg.Err == nil {
-			c.messages = nil
+			views := make([]MessageView, 0, len(msg.Messages))
+			for _, m := range msg.Messages {
+				mv := MessageView{}
+				if info, ok := m["info"].(map[string]any); ok {
+					mv.Info.ID, _ = info["id"].(string)
+					mv.Info.SessionID, _ = info["sessionID"].(string)
+					mv.Info.Role, _ = info["role"].(string)
+					mv.Info.Agent, _ = info["agent"].(string)
+					mv.Info.ModelID, _ = info["modelID"].(string)
+					mv.Info.ProviderID, _ = info["providerID"].(string)
+				}
+				if parts, ok := m["parts"].([]any); ok {
+					for _, p := range parts {
+						pm, ok := p.(map[string]any)
+						if !ok {
+							continue
+						}
+						pv := PartView{}
+						pv.ID, _ = pm["id"].(string)
+						pv.SessionID, _ = pm["sessionID"].(string)
+						pv.MessageID, _ = pm["messageID"].(string)
+						pv.Type, _ = pm["type"].(string)
+						pv.Text, _ = pm["text"].(string)
+						pv.ToolName, _ = pm["toolName"].(string)
+						pv.ToolArgs, _ = pm["toolArgs"].(string)
+						pv.ToolError, _ = pm["toolError"].(bool)
+						if t, ok := pm["time"].(map[string]any); ok {
+							pv.Time = t
+						}
+						mv.Parts = append(mv.Parts, pv)
+					}
+				}
+				views = append(views, mv)
+			}
+			c.messages = views
+			c.rebuildContent()
 		}
 		return c, nil
 	}
