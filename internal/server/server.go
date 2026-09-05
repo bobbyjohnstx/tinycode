@@ -202,6 +202,42 @@ func (s *Server) wirePluginHooks() {
 			}
 		}
 	}()
+
+	toolBeforeSub := s.deps.Bus.Subscribe("tool.execute.before")
+	go func() {
+		for evt := range toolBeforeSub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			sessionID, _ := props["sessionID"].(string)
+			toolName, _ := props["tool"].(string)
+			args, _ := props["args"].(string)
+			plugin.DispatchToolExecBefore(mgr, plugin.ToolExecBeforeEvent{
+				SessionID: sessionID,
+				Tool:      toolName,
+				Args:      args,
+			})
+		}
+	}()
+
+	toolAfterSub := s.deps.Bus.Subscribe("tool.execute.after")
+	go func() {
+		for evt := range toolAfterSub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			sessionID, _ := props["sessionID"].(string)
+			toolName, _ := props["tool"].(string)
+			success, _ := props["success"].(bool)
+			plugin.DispatchToolExecAfter(mgr, plugin.ToolExecAfterEvent{
+				SessionID: sessionID,
+				Tool:      toolName,
+				Success:   success,
+			})
+		}
+	}()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

@@ -258,6 +258,23 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 	return disc
 }
 
+func loadConfigPlugins(mgr *plugin.Manager, cfg *config.Info, dir string) {
+	mgr.SetDirectory(dir)
+	if len(cfg.Plugins) == 0 {
+		return
+	}
+	specs, err := plugin.ParsePluginConfig(cfg.Plugins)
+	if err != nil {
+		slog.Warn("failed to parse plugin config", "error", err)
+		return
+	}
+	for _, spec := range specs {
+		if _, err := mgr.Load(spec.Name); err != nil {
+			slog.Warn("failed to load plugin", "name", spec.Name, "error", err)
+		}
+	}
+}
+
 func runTUI() {
 	setupLogger()
 
@@ -286,6 +303,7 @@ func runTUI() {
 
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
+	loadConfigPlugins(pluginMgr, cfg, dir)
 
 	srvCfg := serverConfig(cfg, false)
 	srvCfg.Port = 0
@@ -348,6 +366,7 @@ func runServe() {
 
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
+	loadConfigPlugins(pluginMgr, cfg, dir)
 
 	srv := server.New(serverConfig(cfg, false), server.Dependencies{
 		Bus:           b,
@@ -402,6 +421,7 @@ func runWeb() {
 
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
+	loadConfigPlugins(pluginMgr, cfg, dir)
 
 	srv := server.New(serverConfig(cfg, true), server.Dependencies{
 		Bus:           b,

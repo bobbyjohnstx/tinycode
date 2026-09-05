@@ -29,6 +29,7 @@ type Info struct {
 	ToolOutput        *ToolOutputConfig         `json:"tool_output,omitempty"`
 	Compaction        *CompactionConfig         `json:"compaction,omitempty"`
 	Instructions      []string                  `json:"instructions,omitempty"`
+	Plugins           []json.RawMessage         `json:"plugins,omitempty"`
 	MCP               map[string]MCPConfig      `json:"mcp,omitempty"`
 }
 
@@ -254,6 +255,9 @@ func Merge(dst, src *Info) *Info {
 	}
 	if len(src.Instructions) > 0 {
 		result.Instructions = dedup(append(result.Instructions, src.Instructions...))
+	}
+	if len(src.Plugins) > 0 {
+		result.Plugins = src.Plugins
 	}
 
 	if len(src.Provider) > 0 {
