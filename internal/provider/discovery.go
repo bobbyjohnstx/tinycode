@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	probeTimeout = 2 * time.Second
-	pollInterval = 30 * time.Second
+	probeTimeout            = 2 * time.Second
+	pollInterval            = 30 * time.Second
+	maxConsecutiveFailures  = 3
 )
 
 type Discovery struct {
@@ -89,6 +90,66 @@ type ollamaModelDetails struct {
 	Family        string `json:"family,omitempty"`
 }
 
+// handleDiscoveryFailure records a failure for a provider and removes it
+// after maxConsecutiveFailures consecutive failures.
+func (d *Discovery) handleDiscoveryFailure(providerID, providerName string, err error) {
+	count := d.registry.RecordFailure(providerID)
+	slog.Warn("provider discovery failed",
+		"provider", providerID,
+		"error", err,
+		"consecutive_failures", count,
+	)
+	if count >= maxConsecutiveFailures {
+		d.registry.Remove(providerID)
+		d.bus.Publish("provider.removed", map[string]any{
+			"providerID":   providerID,
+			"providerName": providerName,
+			"reason":       "consecutive_failures",
+			"failures":     count,
+		})
+		slog.Warn("provider removed after consecutive failures",
+			"provider", providerID,
+			"failures", count,
+		)
+	}
+}
+
+// handleDiscoverySuccess resets the failure counter and publishes a
+// reconnected event if the provider was previously failing.
+func (d *Discovery) handleDiscoverySuccess(providerID string) {
+	prev := d.registry.ResetFailures(providerID)
+	if prev > 0 {
+		d.bus.Publish("provider.reconnected", map[string]any{
+			"providerID":        providerID,
+			"previous_failures": prev,
+		})
+		slog.Info("provider reconnected after failures",
+			"provider", providerID,
+			"previous_failures", prev,
+		)
+	}
+}
+
+// diffModels logs models added and removed compared to the existing
+// registration for a provider.
+func (d *Discovery) diffModels(providerID string, newModels map[string]*Model) {
+	existing, err := d.registry.GetProvider(providerID)
+	if err != nil {
+		return // provider not yet registered, no diff needed
+	}
+
+	for id := range newModels {
+		if _, ok := existing.Models[id]; !ok {
+			slog.Info("model added", "provider", providerID, "model", id)
+		}
+	}
+	for id := range existing.Models {
+		if _, ok := newModels[id]; !ok {
+			slog.Info("model removed", "provider", providerID, "model", id)
+		}
+	}
+}
+
 func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 	url := strings.TrimRight(baseURL, "/") + "/api/tags"
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -98,17 +159,19 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 
 	resp, err := d.client.Do(req)
 	if err != nil {
-		slog.Debug("ollama discovery failed", "error", err)
+		d.handleDiscoveryFailure("ollama", "Ollama", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		d.handleDiscoveryFailure("ollama", "Ollama", fmt.Errorf("status %d", resp.StatusCode))
 		return
 	}
 
 	var tags ollamaTagsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
+		d.handleDiscoveryFailure("ollama", "Ollama", err)
 		return
 	}
 
@@ -159,6 +222,9 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 		}
 	}
 
+	d.diffModels("ollama", models)
+	d.handleDiscoverySuccess("ollama")
+
 	d.registry.Register(&Info{
 		ID:      "ollama",
 		Name:    "Ollama",
@@ -192,17 +258,19 @@ func (d *Discovery) discoverVLLM(ctx context.Context, baseURL string) {
 
 	resp, err := d.client.Do(req)
 	if err != nil {
-		slog.Debug("vllm discovery failed", "error", err)
+		d.handleDiscoveryFailure("vllm", "vLLM", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		d.handleDiscoveryFailure("vllm", "vLLM", fmt.Errorf("status %d", resp.StatusCode))
 		return
 	}
 
 	var body vllmModelsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		d.handleDiscoveryFailure("vllm", "vLLM", err)
 		return
 	}
 
@@ -234,6 +302,9 @@ func (d *Discovery) discoverVLLM(ctx context.Context, baseURL string) {
 		}
 	}
 
+	d.diffModels("vllm", models)
+	d.handleDiscoverySuccess("vllm")
+
 	d.registry.Register(&Info{
 		ID:      "vllm",
 		Name:    "vLLM",
@@ -258,17 +329,19 @@ func (d *Discovery) discoverLMStudio(ctx context.Context, baseURL string) {
 
 	resp, err := d.client.Do(req)
 	if err != nil {
-		slog.Debug("lm-studio discovery failed", "error", err)
+		d.handleDiscoveryFailure("lm-studio", "LM Studio", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		d.handleDiscoveryFailure("lm-studio", "LM Studio", fmt.Errorf("status %d", resp.StatusCode))
 		return
 	}
 
 	var body vllmModelsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		d.handleDiscoveryFailure("lm-studio", "LM Studio", err)
 		return
 	}
 
@@ -294,6 +367,9 @@ func (d *Discovery) discoverLMStudio(ctx context.Context, baseURL string) {
 			},
 		}
 	}
+
+	d.diffModels("lm-studio", models)
+	d.handleDiscoverySuccess("lm-studio")
 
 	d.registry.Register(&Info{
 		ID:      "lm-studio",

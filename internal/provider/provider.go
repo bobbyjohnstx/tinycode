@@ -22,6 +22,7 @@ type Registry struct {
 	providers map[string]*Info
 	disabled  map[string]bool
 	enabled   map[string]bool
+	failures  map[string]int // providerID -> consecutive failure count
 }
 
 func NewRegistry() *Registry {
@@ -29,6 +30,7 @@ func NewRegistry() *Registry {
 		providers: make(map[string]*Info),
 		disabled:  make(map[string]bool),
 		enabled:   make(map[string]bool),
+		failures:  make(map[string]int),
 	}
 }
 
@@ -66,11 +68,38 @@ func (r *Registry) Register(info *Info) {
 	r.providers[info.ID] = info
 }
 
-// Remove removes a provider.
+// Remove removes a provider and its failure tracking.
 func (r *Registry) Remove(id string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.providers, id)
+	delete(r.failures, id)
+}
+
+// RecordFailure increments the consecutive failure count for a provider
+// and returns the new count.
+func (r *Registry) RecordFailure(id string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.failures[id]++
+	return r.failures[id]
+}
+
+// ResetFailures resets the consecutive failure count for a provider
+// and returns the previous count.
+func (r *Registry) ResetFailures(id string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	prev := r.failures[id]
+	delete(r.failures, id)
+	return prev
+}
+
+// Failures returns the current consecutive failure count for a provider.
+func (r *Registry) Failures(id string) int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.failures[id]
 }
 
 // GetProvider returns provider info by ID.
