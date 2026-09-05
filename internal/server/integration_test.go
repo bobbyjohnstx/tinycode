@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -129,6 +131,14 @@ func newTestHarness(t *testing.T, scenarios []mockScenario) *testHarness {
 
 	pluginMgr := plugin.NewManagerWithRegistry([]plugin.RegistryEntry{
 		{Name: "test-plugin", Package: "test-plugin"},
+	})
+	pluginMgr.SetResolveFunc(func(name string) (string, error) {
+		return name, nil
+	})
+	pluginMgr.SetCommandFactory(func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestHelperPluginProcess")
+		cmd.Env = append(os.Environ(), "GO_TEST_HELPER_PROCESS=1")
+		return cmd
 	})
 
 	permSvc := permission.NewService(b)
@@ -1167,5 +1177,47 @@ func TestE2E_ConfigEndpoint(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// TestHelperPluginProcess is a mock plugin subprocess for integration tests.
+// It reads JSON-RPC from stdin and writes responses to stdout.
+func TestHelperPluginProcess(t *testing.T) {
+	if os.Getenv("GO_TEST_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	type rpcReq struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Method  string `json:"method"`
+	}
+	type rpcResp struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      int             `json:"id"`
+		Result  json.RawMessage `json:"result,omitempty"`
+	}
+
+	decoder := json.NewDecoder(os.Stdin)
+	encoder := json.NewEncoder(os.Stdout)
+
+	for {
+		var req rpcReq
+		if err := decoder.Decode(&req); err != nil {
+			os.Exit(0)
+		}
+
+		switch req.Method {
+		case "initialize":
+			raw, _ := json.Marshal(map[string]any{
+				"hooks": []string{"session.start", "session.end"},
+			})
+			encoder.Encode(rpcResp{JSONRPC: "2.0", ID: req.ID, Result: raw})
+		case "dispose":
+			encoder.Encode(rpcResp{JSONRPC: "2.0", ID: req.ID, Result: json.RawMessage(`{}`)})
+			os.Exit(0)
+		default:
+			encoder.Encode(rpcResp{JSONRPC: "2.0", ID: req.ID, Result: json.RawMessage(`{}`)})
+		}
 	}
 }
