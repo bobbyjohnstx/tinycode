@@ -215,6 +215,23 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Resolve model and agent from session store when not provided in the request body.
+	if body.Model == nil || body.Agent == "" {
+		store := s.sessionStore()
+		info, err := store.Get(sessionID)
+		if err == nil && info != nil {
+			if body.Model == nil && info.Model != nil {
+				body.Model = &promptModel{
+					ProviderID: info.Model.ProviderID,
+					ModelID:    info.Model.ID,
+				}
+			}
+			if body.Agent == "" {
+				body.Agent = info.Agent
+			}
+		}
+	}
+
 	s.sessionManager.StartPrompt(context.Background(), PromptInput{
 		SessionID: sessionID,
 		Model:     body.Model,

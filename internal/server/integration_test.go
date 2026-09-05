@@ -545,6 +545,64 @@ func TestE2E_PromptAsyncRoute(t *testing.T) {
 	}
 }
 
+func TestE2E_PromptAsyncResolvesModelFromSession(t *testing.T) {
+	scenarios := []mockScenario{
+		{textResponse: "resolved model response"},
+	}
+	h := newTestHarness(t, scenarios)
+
+	sessionID := h.createSession("Resolve Model", "build")
+
+	// Subscribe to error and status events
+	errorSub := h.bus.Subscribe("session.error")
+	defer errorSub.Unsubscribe()
+	statusSub := h.bus.Subscribe("session.status")
+	defer statusSub.Unsubscribe()
+
+	// Send prompt WITHOUT specifying model — handler should resolve it from the session store
+	h.sendPromptAsync(sessionID, "hello without model")
+
+	// Wait for processing to complete (working=false)
+	deadline := time.After(10 * time.Second)
+	var gotDone bool
+	for !gotDone {
+		select {
+		case evt := <-statusSub.C:
+			props := evt.Properties.(map[string]any)
+			if props["sessionID"] == sessionID {
+				status, _ := props["status"].(map[string]any)
+				if working, ok := status["working"].(bool); ok && !working {
+					gotDone = true
+				}
+			}
+		case <-deadline:
+			t.Fatal("timeout waiting for session.status working=false")
+		}
+	}
+
+	// Verify no session.error was published (model should have been resolved)
+	select {
+	case evt := <-errorSub.C:
+		props := evt.Properties.(map[string]any)
+		if props["sessionID"] == sessionID {
+			t.Fatalf("unexpected session.error: %v", props["error"])
+		}
+	default:
+		// No error — expected
+	}
+
+	// Verify mock LLM was called (proves model was resolved successfully)
+	if h.mock.callCount() == 0 {
+		t.Error("expected mock LLM client to be called, but it was not — model was likely not resolved")
+	}
+
+	// Verify messages were persisted
+	messages := h.listMessages(sessionID)
+	if len(messages) < 2 {
+		t.Fatalf("expected at least 2 messages (user + assistant), got %d", len(messages))
+	}
+}
+
 func TestE2E_PromptRoundTripWithMockLLM(t *testing.T) {
 	scenarios := []mockScenario{
 		{textResponse: "Hello from mock LLM"},
