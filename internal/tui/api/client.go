@@ -153,7 +153,9 @@ func (c *Client) postNoResp(path string, payload any) error {
 	if err != nil {
 		return err
 	}
-	body.Close()
+	if body != nil {
+		body.Close()
+	}
 	return nil
 }
 
