@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,21 +8,6 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
 )
-
-// listenSSE establishes the SSE connection and returns the first event.
-func listenSSE(ctx context.Context, client *api.Client) tea.Cmd {
-	return func() tea.Msg {
-		events, err := client.Subscribe(ctx)
-		if err != nil {
-			return SSEDisconnectedMsg{Err: err}
-		}
-		evt, ok := <-events
-		if !ok {
-			return SSEDisconnectedMsg{}
-		}
-		return SSEEventMsg{Event: evt}
-	}
-}
 
 // waitForSSE waits for the next event on an existing SSE channel.
 func waitForSSE(events <-chan api.ServerEvent) tea.Cmd {
