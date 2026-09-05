@@ -5,12 +5,15 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/tui/render"
 )
 
 // ChatView displays a scrollable list of messages using a viewport.
 type ChatView struct {
 	viewport     viewport.Model
 	messages     []MessageView
+	renderer     *render.MarkdownRenderer
 	width        int
 	height       int
 	stickyBottom bool
@@ -23,18 +26,20 @@ func NewChatView(width, height int) ChatView {
 
 	return ChatView{
 		viewport:     vp,
+		renderer:     render.NewMarkdownRenderer(width - 4),
 		width:        width,
 		height:       height,
 		stickyBottom: true,
 	}
 }
 
-// SetSize updates the viewport dimensions.
+// SetSize updates the viewport dimensions and recreates the markdown renderer.
 func (c *ChatView) SetSize(width, height int) {
 	c.width = width
 	c.height = height
 	c.viewport.Width = width
 	c.viewport.Height = height
+	c.renderer = render.NewMarkdownRenderer(width - 4)
 	c.rebuildContent()
 }
 
@@ -96,6 +101,7 @@ func (c *ChatView) applyDelta(msg MessagePartDeltaMsg) {
 			if c.messages[i].Parts[j].ID == msg.PartID {
 				if msg.Field == "text" {
 					c.messages[i].Parts[j].Text += msg.Delta
+					c.messages[i].Parts[j].Streaming = true
 				}
 				return
 			}
@@ -137,7 +143,7 @@ func (c *ChatView) rebuildContent() {
 		if i > 0 {
 			sb.WriteString("\n")
 		}
-		sb.WriteString(renderMessage(msg, c.width))
+		sb.WriteString(renderMessage(msg, c.width, c.renderer))
 	}
 
 	c.viewport.SetContent(sb.String())
