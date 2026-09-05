@@ -60,6 +60,11 @@ type PartView struct {
 	ToolArgs  string         `json:"toolArgs,omitempty"`
 	ToolError bool           `json:"toolError,omitempty"`
 	Time      map[string]any `json:"time,omitempty"`
+
+	// Streaming is true while deltas are still arriving for this part.
+	Streaming bool `json:"-"`
+	// Collapsed hides tool result output when true.
+	Collapsed bool `json:"-"`
 }
 
 // ProviderInfo is the TUI's view of a provider.
