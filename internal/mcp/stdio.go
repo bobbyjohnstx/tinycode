@@ -10,18 +10,29 @@ import (
 	"os/exec"
 	"sync"
 	"sync/atomic"
+	"time"
 )
+
+const defaultStdioTimeout = 60 * time.Second
 
 type StdioTransport struct {
 	command string
 	args    []string
 	env     map[string]string
+	Timeout time.Duration
 
 	mu     sync.Mutex
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	reader *bufio.Reader
 	nextID atomic.Int64
+
+	messages chan *jsonrpcResponse
+	done     chan struct{}
+	doneOnce sync.Once
+
+	onDisconnect   func()
+	onNotification func(method string)
 }
 
 func NewStdioTransport(command string, args []string, env map[string]string) *StdioTransport {
@@ -63,6 +74,11 @@ func (t *StdioTransport) Connect(ctx context.Context) error {
 	t.cmd = cmd
 	t.stdin = stdin
 	t.reader = bufio.NewReaderSize(stdout, 1024*1024)
+	t.messages = make(chan *jsonrpcResponse, 64)
+	t.done = make(chan struct{})
+	t.doneOnce = sync.Once{}
+
+	go t.readLoop(ctx)
 
 	initReq := jsonrpcRequest{
 		JSONRPC: "2.0",
@@ -98,6 +114,39 @@ func (t *StdioTransport) Connect(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (t *StdioTransport) readLoop(ctx context.Context) {
+	defer t.doneOnce.Do(func() { close(t.done) })
+
+	for {
+		line, err := t.reader.ReadBytes('\n')
+		if err != nil {
+			if ctx.Err() == nil && t.onDisconnect != nil {
+				t.onDisconnect()
+			}
+			return
+		}
+
+		var resp jsonrpcResponse
+		if err := json.Unmarshal(line, &resp); err != nil {
+			continue
+		}
+
+		// Handle notifications (no ID, has method, no result/error)
+		if resp.ID == 0 && resp.Result == nil && resp.Error == nil {
+			if resp.Method != "" && t.onNotification != nil {
+				go t.onNotification(resp.Method)
+			}
+			continue
+		}
+
+		select {
+		case t.messages <- &resp:
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (t *StdioTransport) ListTools(ctx context.Context) ([]MCPTool, error) {
@@ -218,6 +267,7 @@ func (t *StdioTransport) closeInternal() error {
 		_ = t.cmd.Process.Kill()
 		_ = t.cmd.Wait()
 	}
+	t.doneOnce.Do(func() { close(t.done) })
 	return nil
 }
 
@@ -231,38 +281,32 @@ func (t *StdioTransport) sendMessage(msg any) error {
 	return err
 }
 
-func (t *StdioTransport) readMessage() (*jsonrpcResponse, error) {
-	for {
-		line, err := t.reader.ReadBytes('\n')
-		if err != nil {
-			return nil, fmt.Errorf("reading response: %w", err)
-		}
-
-		var resp jsonrpcResponse
-		if err := json.Unmarshal(line, &resp); err != nil {
-			continue
-		}
-
-		if resp.ID == 0 && resp.Result == nil && resp.Error == nil {
-			continue
-		}
-
-		return &resp, nil
-	}
-}
-
 func (t *StdioTransport) roundTrip(req jsonrpcRequest) (*jsonrpcResponse, error) {
 	if err := t.sendMessage(req); err != nil {
 		return nil, err
 	}
 
+	timeout := t.Timeout
+	if timeout == 0 {
+		timeout = defaultStdioTimeout
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
 	for {
-		resp, err := t.readMessage()
-		if err != nil {
-			return nil, err
-		}
-		if resp.ID == req.ID {
-			return resp, nil
+		select {
+		case resp, ok := <-t.messages:
+			if !ok {
+				return nil, fmt.Errorf("transport closed")
+			}
+			if resp.ID == req.ID {
+				return resp, nil
+			}
+		case <-timer.C:
+			return nil, fmt.Errorf("roundTrip timeout after %v", timeout)
+		case <-t.done:
+			return nil, fmt.Errorf("transport disconnected")
 		}
 	}
 }
@@ -277,6 +321,7 @@ type jsonrpcRequest struct {
 type jsonrpcResponse struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      int64           `json:"id,omitempty"`
+	Method  string          `json:"method,omitempty"`
 	Result  json.RawMessage `json:"result,omitempty"`
 	Error   *jsonrpcError   `json:"error,omitempty"`
 }

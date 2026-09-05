@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
@@ -15,10 +16,11 @@ import (
 type Status string
 
 const (
-	StatusDisconnected Status = "disconnected"
-	StatusConnecting   Status = "connecting"
-	StatusConnected    Status = "connected"
-	StatusError        Status = "error"
+	StatusDisconnected  Status = "disconnected"
+	StatusConnecting    Status = "connecting"
+	StatusConnected     Status = "connected"
+	StatusReconnecting  Status = "reconnecting"
+	StatusError         Status = "error"
 )
 
 type ServerStatus struct {
@@ -41,13 +43,15 @@ type Service struct {
 }
 
 type serverConn struct {
-	name      string
-	config    config.MCPConfig
-	transport Transport
-	status    Status
-	err       string
-	tools     []MCPTool
-	cancel    context.CancelFunc
+	name         string
+	config       config.MCPConfig
+	transport    Transport
+	status       Status
+	err          string
+	tools        []MCPTool
+	cancel       context.CancelFunc
+	ctx          context.Context
+	reconnecting bool
 }
 
 func NewService(b *bus.Bus) *Service {
@@ -109,6 +113,9 @@ func (s *Service) connectServer(ctx context.Context, name string) {
 		return
 	}
 
+	// Set reconnection and notification callbacks before connecting
+	s.setTransportCallbacks(transport, ctx, name)
+
 	connCtx, cancel := context.WithCancel(ctx)
 	if err := transport.Connect(connCtx); err != nil {
 		cancel()
@@ -135,6 +142,7 @@ func (s *Service) connectServer(ctx context.Context, name string) {
 	s.mu.Lock()
 	conn.transport = transport
 	conn.cancel = cancel
+	conn.ctx = connCtx
 	conn.tools = tools
 	conn.status = StatusConnected
 	conn.err = ""
@@ -142,6 +150,144 @@ func (s *Service) connectServer(ctx context.Context, name string) {
 
 	s.publishStatus(name)
 	slog.Info("mcp server connected", "name", name, "tools", len(tools))
+}
+
+// setTransportCallbacks configures disconnect and notification callbacks on a transport.
+func (s *Service) setTransportCallbacks(transport Transport, ctx context.Context, name string) {
+	onDisconnect := func() {
+		slog.Warn("mcp server disconnected", "name", name)
+		go s.reconnectServer(ctx, name)
+	}
+
+	onNotification := func(method string) {
+		if method == "notifications/tools/list_changed" {
+			slog.Info("mcp tools changed notification", "name", name)
+			s.refreshTools(name)
+		}
+	}
+
+	switch t := transport.(type) {
+	case *StdioTransport:
+		t.onDisconnect = onDisconnect
+		t.onNotification = onNotification
+	case *SSETransport:
+		t.onDisconnect = onDisconnect
+		t.onNotification = onNotification
+	case *StreamableHTTPTransport:
+		t.onDisconnect = onDisconnect
+	}
+}
+
+// reconnectServer attempts to reconnect a disconnected server with exponential backoff.
+func (s *Service) reconnectServer(ctx context.Context, name string) {
+	s.mu.Lock()
+	conn, ok := s.servers[name]
+	if !ok || conn.reconnecting {
+		s.mu.Unlock()
+		return
+	}
+	conn.reconnecting = true
+	conn.status = StatusReconnecting
+	s.mu.Unlock()
+
+	defer func() {
+		s.mu.Lock()
+		if c, exists := s.servers[name]; exists {
+			c.reconnecting = false
+		}
+		s.mu.Unlock()
+	}()
+
+	s.publishStatus(name)
+
+	for attempt := 0; attempt < maxReconnectAttempts; attempt++ {
+		if ctx.Err() != nil {
+			return
+		}
+
+		delay := backoffDelay(attempt)
+		s.bus.Publish("mcp.reconnecting", map[string]any{
+			"server":  name,
+			"attempt": attempt + 1,
+		})
+
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return
+		}
+
+		// Stop existing transport
+		s.mu.Lock()
+		conn, ok = s.servers[name]
+		if !ok {
+			s.mu.Unlock()
+			return
+		}
+		s.mu.Unlock()
+
+		s.stopServer(conn)
+
+		s.mu.Lock()
+		conn.transport = nil
+		conn.cancel = nil
+		conn.ctx = nil
+		conn.tools = nil
+		s.mu.Unlock()
+
+		// Attempt connection
+		s.connectServer(ctx, name)
+
+		s.mu.RLock()
+		connected := conn.status == StatusConnected
+		s.mu.RUnlock()
+
+		if connected {
+			s.bus.Publish("mcp.reconnected", map[string]any{"server": name})
+			slog.Info("mcp server reconnected", "name", name, "attempt", attempt+1)
+			return
+		}
+	}
+
+	s.mu.Lock()
+	if c, exists := s.servers[name]; exists {
+		c.status = StatusError
+		c.err = fmt.Sprintf("reconnection failed after %d attempts", maxReconnectAttempts)
+	}
+	s.mu.Unlock()
+	s.publishStatus(name)
+	slog.Error("mcp reconnection failed", "name", name, "maxAttempts", maxReconnectAttempts)
+}
+
+// refreshTools re-lists tools from a connected server and updates the registry.
+func (s *Service) refreshTools(name string) {
+	s.mu.RLock()
+	conn, ok := s.servers[name]
+	if !ok || conn.status != StatusConnected || conn.transport == nil {
+		s.mu.RUnlock()
+		return
+	}
+	transport := conn.transport
+	connCtx := conn.ctx
+	s.mu.RUnlock()
+
+	if connCtx == nil || connCtx.Err() != nil {
+		return
+	}
+
+	tools, err := transport.ListTools(connCtx)
+	if err != nil {
+		slog.Warn("failed to refresh MCP tools", "name", name, "error", err)
+		return
+	}
+
+	s.mu.Lock()
+	// Clear and replace tools to avoid duplicates
+	conn.tools = tools
+	s.mu.Unlock()
+
+	s.publishStatus(name)
+	slog.Info("mcp tools refreshed", "name", name, "tools", len(tools))
 }
 
 func (s *Service) createTransport(cfg config.MCPConfig) (Transport, error) {
@@ -239,6 +385,7 @@ func (s *Service) Restart(ctx context.Context, name string) error {
 	conn.status = StatusDisconnected
 	conn.transport = nil
 	conn.cancel = nil
+	conn.ctx = nil
 	conn.tools = nil
 	s.mu.Unlock()
 
