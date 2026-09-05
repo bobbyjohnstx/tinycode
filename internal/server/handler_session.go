@@ -316,9 +316,10 @@ func (s *Server) resolveDefaultModel() *session.ModelRef {
 	if s.config.DefaultModel != "" {
 		providerID, modelID := provider.ParseModel(s.config.DefaultModel)
 		if providerID != "" && modelID != "" {
-			return &session.ModelRef{ProviderID: providerID, ID: modelID}
+			if _, err := s.deps.Registry.GetModel(providerID, modelID); err == nil {
+				return &session.ModelRef{ProviderID: providerID, ID: modelID}
+			}
 		}
-		// If no slash separator, modelID is the whole string; skip — we need both.
 	}
 
 	// 2. Pick the first model from the first available provider.

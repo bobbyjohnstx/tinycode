@@ -50,11 +50,14 @@ func (d *Discovery) SetAutoProfile(cfg *AutoProfileConfig) {
 }
 
 // Start begins background polling for local providers.
+// The first poll runs synchronously so providers are available before the
+// server starts accepting requests.
 func (d *Discovery) Start(ctx context.Context, ollamaURL, vllmURL, lmStudioURL string) {
 	ctx, d.cancel = context.WithCancel(ctx)
 
+	d.poll(ctx, ollamaURL, vllmURL, lmStudioURL)
+
 	go func() {
-		d.poll(ctx, ollamaURL, vllmURL, lmStudioURL)
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
 

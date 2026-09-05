@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/acp"
@@ -255,7 +256,96 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 		}()
 	}
 
+	registerConfigProviders(reg, cfg)
+
 	return disc
+}
+
+// registerConfigProviders registers custom API providers from config that
+// aren't handled by the discovery loop (Ollama, vLLM, LM Studio, OpenRouter).
+func registerConfigProviders(reg *provider.Registry, cfg *config.Info) {
+	knownDiscovery := map[string]bool{
+		"ollama":     true,
+		"vllm":       true,
+		"lm-studio":  true,
+		"openrouter": true,
+	}
+
+	for id, pc := range cfg.Provider {
+		if knownDiscovery[id] {
+			continue
+		}
+		if len(pc.Models) == 0 {
+			continue
+		}
+
+		baseURL := ""
+		apiKey := ""
+		name := id
+		if pc.Options != nil {
+			if u, ok := pc.Options["baseURL"].(string); ok {
+				baseURL = u
+			}
+			if k, ok := pc.Options["apiKey"].(string); ok {
+				apiKey = k
+			}
+			if n, ok := pc.Options["name"].(string); ok {
+				name = n
+			}
+		}
+		if baseURL == "" {
+			slog.Warn("custom provider has no baseURL, skipping", "provider", id)
+			continue
+		}
+
+		// Strip trailing /v1 — the LLM client factory adds it.
+		baseURL = strings.TrimSuffix(strings.TrimSuffix(baseURL, "/"), "/v1")
+
+		models := make(map[string]*provider.Model, len(pc.Models))
+		for modelID, mc := range pc.Models {
+			contextLen := 8192
+			outputLen := 4096
+			if mc.Limit != nil {
+				if mc.Limit.Context > 0 {
+					contextLen = mc.Limit.Context
+				}
+				if mc.Limit.Output > 0 {
+					outputLen = mc.Limit.Output
+				}
+			}
+
+			models[modelID] = &provider.Model{
+				ID:         modelID,
+				ProviderID: id,
+				Name:       modelID,
+				API: provider.ModelAPI{
+					ID:  modelID,
+					URL: baseURL,
+				},
+				Status:  "active",
+				Headers: make(map[string]string),
+				Options: map[string]any{"api_key": apiKey},
+				Limit:   provider.ModelLimit{Context: contextLen, Output: outputLen},
+				Capabilities: provider.ModelCaps{
+					Temperature: true,
+					ToolCall:    true,
+					Input:       provider.ModalityCaps{Text: true},
+					Output:      provider.ModalityCaps{Text: true},
+				},
+			}
+		}
+
+		reg.Register(&provider.Info{
+			ID:      id,
+			Name:    name,
+			Source:  "config",
+			Env:     pc.Env,
+			Options: pc.Options,
+			Models:  models,
+		})
+
+		slog.Info("registered config provider", "provider", id, "models", len(models))
+	}
 }
 
 func loadConfigPlugins(mgr *plugin.Manager, cfg *config.Info, dir string) {

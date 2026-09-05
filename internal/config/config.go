@@ -88,9 +88,19 @@ type ServerConfig struct {
 }
 
 type ProviderConfig struct {
-	NPM     string                 `json:"npm,omitempty"`
-	Env     []string               `json:"env,omitempty"`
-	Options map[string]interface{} `json:"options,omitempty"`
+	NPM     string                        `json:"npm,omitempty"`
+	Env     []string                      `json:"env,omitempty"`
+	Options map[string]interface{}        `json:"options,omitempty"`
+	Models  map[string]ProviderModelConfig `json:"models,omitempty"`
+}
+
+type ProviderModelConfig struct {
+	Limit *ProviderModelLimit `json:"limit,omitempty"`
+}
+
+type ProviderModelLimit struct {
+	Context int `json:"context,omitempty"`
+	Output  int `json:"output,omitempty"`
 }
 
 type PermissionConfig struct {
