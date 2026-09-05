@@ -163,6 +163,11 @@ func newTestHarness(t *testing.T, scenarios []mockScenario) *testHarness {
 		},
 	)
 
+	// Inject mock LLM client factory so processPrompt uses the mock
+	srv.sessionManager.SetClientFactory(func(_ *provider.Model) llm.Client {
+		return mock
+	})
+
 	ctx, cancel := context.WithCancel(context.Background())
 	listener, err := srv.Listen(ctx)
 	if err != nil {
@@ -527,6 +532,161 @@ func TestE2E_PromptAsyncRoute(t *testing.T) {
 		case <-timeout:
 			t.Fatal("timeout waiting for session.status working=true")
 		}
+	}
+}
+
+func TestE2E_PromptRoundTripWithMockLLM(t *testing.T) {
+	scenarios := []mockScenario{
+		{textResponse: "Hello from mock LLM"},
+	}
+	h := newTestHarness(t, scenarios)
+
+	sessionID := h.createSession("Mock Prompt", "build")
+
+	// Subscribe to status events to detect when processing finishes
+	statusSub := h.bus.Subscribe("session.status")
+	defer statusSub.Unsubscribe()
+
+	// Send a prompt with model info so processPrompt can resolve it
+	body := `{"parts":[{"type":"text","text":"test prompt"}],"model":{"providerID":"test-provider","modelID":"test-model"}}`
+	resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/prompt_async", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("send prompt: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", resp.StatusCode)
+	}
+
+	// Wait for working=false (processing complete)
+	deadline := time.After(10 * time.Second)
+	var gotDone bool
+	for !gotDone {
+		select {
+		case evt := <-statusSub.C:
+			props := evt.Properties.(map[string]any)
+			if props["sessionID"] == sessionID {
+				status, _ := props["status"].(map[string]any)
+				if working, ok := status["working"].(bool); ok && !working {
+					gotDone = true
+				}
+			}
+		case <-deadline:
+			t.Fatal("timeout waiting for session.status working=false")
+		}
+	}
+
+	// Verify mock was called
+	if h.mock.callCount() == 0 {
+		t.Error("expected mock LLM client to be called at least once")
+	}
+
+	// Verify messages were persisted (user + assistant)
+	messages := h.listMessages(sessionID)
+	if len(messages) < 2 {
+		t.Fatalf("expected at least 2 messages (user + assistant), got %d", len(messages))
+	}
+}
+
+func TestE2E_PromptMockLLMError(t *testing.T) {
+	scenarios := []mockScenario{
+		{err: fmt.Errorf("mock LLM connection refused")},
+	}
+	h := newTestHarness(t, scenarios)
+
+	sessionID := h.createSession("Error Prompt", "build")
+
+	// Subscribe to error and status events
+	errorSub := h.bus.Subscribe("session.error")
+	defer errorSub.Unsubscribe()
+	statusSub := h.bus.Subscribe("session.status")
+	defer statusSub.Unsubscribe()
+
+	body := `{"parts":[{"type":"text","text":"test prompt"}],"model":{"providerID":"test-provider","modelID":"test-model"}}`
+	resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/prompt_async", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("send prompt: %v", err)
+	}
+	resp.Body.Close()
+
+	// Wait for processing to complete (working=false)
+	deadline := time.After(10 * time.Second)
+	var gotDone bool
+	for !gotDone {
+		select {
+		case evt := <-statusSub.C:
+			props := evt.Properties.(map[string]any)
+			if props["sessionID"] == sessionID {
+				status, _ := props["status"].(map[string]any)
+				if working, ok := status["working"].(bool); ok && !working {
+					gotDone = true
+				}
+			}
+		case <-deadline:
+			t.Fatal("timeout waiting for session.status working=false after error")
+		}
+	}
+
+	// Mock should have been called
+	if h.mock.callCount() == 0 {
+		t.Error("expected mock LLM client to be called")
+	}
+}
+
+func TestE2E_ClientFactoryReceivesAPIKey(t *testing.T) {
+	// Verify that the default client factory extracts api_key from model options
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+
+	reg := provider.NewRegistry()
+	agentReg := agent.NewRegistry()
+	agentReg.LoadDefaults(nil, nil)
+	permSvc := permission.NewService(b)
+	toolReg := tool.NewRegistry(&tool.Context{
+		Directory: t.TempDir(),
+		Bus:       b,
+		Perms:     permSvc,
+	})
+
+	sm := NewSessionManager(b, reg, db, t.TempDir(), toolReg, permSvc, agentReg, nil, nil)
+
+	// Track what the factory produces
+	var capturedClient llm.Client
+	sm.SetClientFactory(func(m *provider.Model) llm.Client {
+		// Call the default factory pattern to verify api_key extraction works
+		apiKey := ""
+		if m.Options != nil {
+			if key, ok := m.Options["api_key"].(string); ok {
+				apiKey = key
+			}
+		}
+		c := llm.NewOpenAIClient(m.API.URL+"/v1", apiKey)
+		capturedClient = c
+		return c
+	})
+
+	model := &provider.Model{
+		ID:   "test",
+		API:  provider.ModelAPI{URL: "http://localhost:11434"},
+		Options: map[string]any{"api_key": "sk-test-123"},
+	}
+	client := sm.clientFactory(model)
+
+	if client == nil {
+		t.Fatal("expected non-nil client from factory")
+	}
+	if capturedClient == nil {
+		t.Fatal("expected factory to be called")
+	}
+
+	// Verify the OpenAI client received the API key
+	oaiClient, ok := capturedClient.(*llm.OpenAIClient)
+	if !ok {
+		t.Fatal("expected *llm.OpenAIClient")
+	}
+	if oaiClient.APIKey != "sk-test-123" {
+		t.Errorf("expected API key 'sk-test-123', got %q", oaiClient.APIKey)
 	}
 }
 

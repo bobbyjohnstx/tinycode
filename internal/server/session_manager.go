@@ -54,6 +54,7 @@ type SessionManager struct {
 	mcpSvc        *mcp.Service
 	cfg           *config.Info
 	revertState   *RevertState
+	clientFactory func(*provider.Model) llm.Client
 }
 
 func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service, cfg *config.Info) *SessionManager {
@@ -69,6 +70,15 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 		mcpSvc:        mcpSvc,
 		cfg:           cfg,
 		revertState:   NewRevertState(),
+		clientFactory: func(m *provider.Model) llm.Client {
+			apiKey := ""
+			if m.Options != nil {
+				if key, ok := m.Options["api_key"].(string); ok {
+					apiKey = key
+				}
+			}
+			return llm.NewOpenAIClient(m.API.URL+"/v1", apiKey)
+		},
 	}
 	sm.subscribeCommands()
 	sm.subscribePrompts()
@@ -78,6 +88,12 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 	sm.subscribeUnrevert()
 	sm.subscribeSummarize()
 	return sm
+}
+
+// SetClientFactory overrides the default LLM client factory.
+// This allows tests to inject mock clients without changing the constructor.
+func (sm *SessionManager) SetClientFactory(f func(*provider.Model) llm.Client) {
+	sm.clientFactory = f
 }
 
 // Shutdown cancels all active session processors so they can drain
@@ -777,7 +793,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 	}
 
 	// Create LLM client and Processor
-	client := llm.NewOpenAIClient(model.API.URL+"/v1", "")
+	client := sm.clientFactory(model)
 	proc := session.NewProcessor(session.ProcessorConfig{
 		SessionID:     sessionID,
 		Agent:         input.Agent,
