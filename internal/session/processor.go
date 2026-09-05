@@ -31,6 +31,7 @@ type ProcessorConfig struct {
 	MaxSubagents   int
 	SystemPrompt   string
 	Compaction     CompactionConfig
+	AgentPerms     []string
 }
 
 type Processor struct {
@@ -298,8 +299,7 @@ func (p *Processor) buildRequest() llm.Request {
 		llmMessages = append(llmMessages, llmMsg)
 	}
 
-	var agentPerms []string
-	tools := p.tools.ToolDefs(agentPerms)
+	tools := p.tools.ToolDefs(p.config.AgentPerms)
 
 	req := llm.Request{
 		Model:    p.config.Model.ID,

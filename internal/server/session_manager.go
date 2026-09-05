@@ -801,6 +801,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 		SubagentDepth: subagentDepth,
 		SystemPrompt:  systemPrompt,
 		Compaction:    compactionCfg,
+		AgentPerms:    agentPerms,
 	}, client, sm.tools, sm.bus)
 	proc.SetMessages(existingMsgs)
 

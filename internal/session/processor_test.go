@@ -217,3 +217,111 @@ func TestBuildRequest_AssistantToolCalls(t *testing.T) {
 	}
 }
 
+// filteringToolExecutor returns different tool sets based on agentPerms.
+type filteringToolExecutor struct{}
+
+func (f *filteringToolExecutor) Execute(_ context.Context, _ string, _ json.RawMessage, _ string) (string, bool, error) {
+	return "", false, nil
+}
+
+func (f *filteringToolExecutor) ToolDefs(agentPerms []string) []llm.Tool {
+	allTools := []llm.Tool{
+		{Type: "function", Function: llm.ToolFunction{Name: "read"}},
+		{Type: "function", Function: llm.ToolFunction{Name: "write"}},
+		{Type: "function", Function: llm.ToolFunction{Name: "edit"}},
+		{Type: "function", Function: llm.ToolFunction{Name: "grep"}},
+		{Type: "function", Function: llm.ToolFunction{Name: "bash"}},
+	}
+	if len(agentPerms) == 0 {
+		return allTools
+	}
+	allowed := make(map[string]bool, len(agentPerms))
+	for _, p := range agentPerms {
+		allowed[p] = true
+	}
+	var filtered []llm.Tool
+	for _, t := range allTools {
+		if allowed[t.Function.Name] {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
+}
+
+func TestBuildRequest_AgentPermsFilter(t *testing.T) {
+	p := &Processor{
+		config: ProcessorConfig{
+			SessionID:    "ses-perms",
+			Model:        &provider.Model{ID: "test-model"},
+			SystemPrompt: "Test",
+			AgentPerms:   []string{"read", "grep"},
+		},
+		tools: &filteringToolExecutor{},
+		bus:   bus.New(),
+	}
+
+	p.messages = []Message{
+		{
+			ID:        "msg-1",
+			SessionID: "ses-perms",
+			Role:      RoleUser,
+			Parts:     []Part{TextPart("Hello")},
+			CreatedAt: time.Now(),
+		},
+	}
+
+	req := p.buildRequest()
+
+	if len(req.Tools) != 2 {
+		t.Fatalf("expected 2 tools, got %d", len(req.Tools))
+	}
+
+	toolNames := make(map[string]bool)
+	for _, tool := range req.Tools {
+		toolNames[tool.Function.Name] = true
+	}
+
+	if !toolNames["read"] {
+		t.Error("expected 'read' tool to be present")
+	}
+	if !toolNames["grep"] {
+		t.Error("expected 'grep' tool to be present")
+	}
+	if toolNames["write"] {
+		t.Error("'write' tool should not be present")
+	}
+	if toolNames["edit"] {
+		t.Error("'edit' tool should not be present")
+	}
+	if toolNames["bash"] {
+		t.Error("'bash' tool should not be present")
+	}
+}
+
+func TestBuildRequest_NoAgentPermsReturnsAll(t *testing.T) {
+	p := &Processor{
+		config: ProcessorConfig{
+			SessionID: "ses-no-perms",
+			Model:     &provider.Model{ID: "test-model"},
+		},
+		tools: &filteringToolExecutor{},
+		bus:   bus.New(),
+	}
+
+	p.messages = []Message{
+		{
+			ID:        "msg-1",
+			SessionID: "ses-no-perms",
+			Role:      RoleUser,
+			Parts:     []Part{TextPart("Hello")},
+			CreatedAt: time.Now(),
+		},
+	}
+
+	req := p.buildRequest()
+
+	if len(req.Tools) != 5 {
+		t.Fatalf("expected 5 tools (all), got %d", len(req.Tools))
+	}
+}
+
