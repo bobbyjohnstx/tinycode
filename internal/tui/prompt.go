@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
@@ -89,6 +90,11 @@ func (p PromptInput) Init() tea.Cmd {
 // Update implements tea.Model.
 func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		// Discard terminal OSC responses (e.g. background color query replies)
+		// that leak through the input parser as key events.
+		if s := keyMsg.String(); strings.HasPrefix(s, "]") || strings.Contains(s, ";rgb:") {
+			return p, nil
+		}
 		// When the autocomplete popover is visible, it gets priority
 		// for navigation keys so the user can browse and select commands.
 		if p.autocomplete.IsVisible() {
