@@ -21,6 +21,8 @@ type StreamableHTTPTransport struct {
 	client    *http.Client
 	sessionID string
 	nextID    atomic.Int64
+
+	onDisconnect func()
 }
 
 func NewStreamableHTTPTransport(url string, headers map[string]string) *StreamableHTTPTransport {
@@ -98,6 +100,9 @@ func (t *StreamableHTTPTransport) sendRequest(ctx context.Context, req jsonrpcRe
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
+		if t.onDisconnect != nil {
+			go t.onDisconnect()
+		}
 		return nil, &UnauthorizedError{StatusCode: resp.StatusCode}
 	}
 

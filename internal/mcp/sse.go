@@ -29,7 +29,11 @@ type SSETransport struct {
 	nextID       atomic.Int64
 	pending      map[int64]chan *jsonrpcResponse
 	cancel       context.CancelFunc
+	connCtx      context.Context
 	connected    chan struct{}
+
+	onDisconnect   func()
+	onNotification func(method string)
 }
 
 func NewSSETransport(url string, headers map[string]string) *SSETransport {
@@ -45,6 +49,7 @@ func (t *SSETransport) Connect(ctx context.Context) error {
 	t.connected = make(chan struct{})
 	connCtx, cancel := context.WithCancel(ctx)
 	t.cancel = cancel
+	t.connCtx = connCtx
 
 	req, err := http.NewRequestWithContext(connCtx, "GET", t.url, nil)
 	if err != nil {
@@ -113,6 +118,11 @@ func (t *SSETransport) readSSEStream(body io.ReadCloser) {
 			dataBuf.WriteString(strings.TrimPrefix(line, "data: "))
 		}
 	}
+
+	// Stream closed - fire disconnect if not intentional
+	if t.connCtx != nil && t.connCtx.Err() == nil && t.onDisconnect != nil {
+		t.onDisconnect()
+	}
 }
 
 func (t *SSETransport) handleSSEEvent(eventType, data string) {
@@ -141,6 +151,15 @@ func (t *SSETransport) handleSSEEvent(eventType, data string) {
 		if err := json.Unmarshal([]byte(data), &resp); err != nil {
 			return
 		}
+
+		// Handle server-initiated notifications (no ID, has method)
+		if resp.ID == 0 && resp.Method != "" {
+			if t.onNotification != nil {
+				go t.onNotification(resp.Method)
+			}
+			return
+		}
+
 		t.mu.Lock()
 		ch, ok := t.pending[resp.ID]
 		if ok {
