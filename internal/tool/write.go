@@ -59,6 +59,14 @@ func executeWrite(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		return &ExecuteResult{Output: fmt.Sprintf("Error writing file: %v", err), IsError: true}, nil
 	}
 
+	if tc.Bus != nil {
+		tc.Bus.Publish("file.modified", map[string]any{
+			"sessionID": tc.SessionID,
+			"path":      path,
+			"operation": "write",
+		})
+	}
+
 	return &ExecuteResult{Output: fmt.Sprintf("Successfully wrote %d bytes to %s", len(args.Content), path)}, nil
 }
 

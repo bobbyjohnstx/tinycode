@@ -97,9 +97,32 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		}
 	}
 
+	if toolCtx.Bus != nil {
+		toolCtx.Bus.Publish("tool.execute.before", map[string]any{
+			"sessionID": sessionID,
+			"tool":      name,
+			"args":      string(args),
+		})
+	}
+
 	result, err := def.Execute(ctx, toolCtx, args)
 	if err != nil {
+		if toolCtx.Bus != nil {
+			toolCtx.Bus.Publish("tool.execute.after", map[string]any{
+				"sessionID": sessionID,
+				"tool":      name,
+				"success":   false,
+			})
+		}
 		return err.Error(), true, nil
+	}
+
+	if toolCtx.Bus != nil {
+		toolCtx.Bus.Publish("tool.execute.after", map[string]any{
+			"sessionID": sessionID,
+			"tool":      name,
+			"success":   !result.IsError,
+		})
 	}
 
 	output := result.Output

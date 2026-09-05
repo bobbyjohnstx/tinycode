@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 )
 
 const (
@@ -83,12 +85,23 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		}
 	}
 
-	destructive := isDestructive(args.Command)
-	if destructive {
-		return &ExecuteResult{
-			Output:  fmt.Sprintf("Potentially destructive command detected: %s\nUse with caution.", args.Command),
-			IsError: true,
-		}, nil
+	if isDestructive(args.Command) {
+		if tc.Perms != nil {
+			askErr := tc.Perms.Ask(ctx, permission.AskInput{
+				SessionID:  tc.SessionID,
+				Permission: "destructive-shell",
+				Patterns:   []string{args.Command},
+				Metadata:   map[string]any{"command": args.Command},
+			})
+			if askErr != nil {
+				return &ExecuteResult{Output: askErr.Error(), IsError: true}, nil
+			}
+		} else {
+			return &ExecuteResult{
+				Output:  fmt.Sprintf("Potentially destructive command detected: %s\nUse with caution.", args.Command),
+				IsError: true,
+			}, nil
+		}
 	}
 
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)

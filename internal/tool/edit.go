@@ -103,6 +103,14 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		return &ExecuteResult{Output: fmt.Sprintf("Error writing file: %v", err), IsError: true}, nil
 	}
 
+	if tc.Bus != nil {
+		tc.Bus.Publish("file.modified", map[string]any{
+			"sessionID": tc.SessionID,
+			"path":      path,
+			"operation": "edit",
+		})
+	}
+
 	replacements := 1
 	if args.ReplaceAll {
 		replacements = count
