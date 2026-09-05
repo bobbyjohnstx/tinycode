@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -227,6 +228,21 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 
 	if cfg.EnabledProviders != nil || cfg.DisabledProviders != nil {
 		reg.SetFilters(cfg.EnabledProviders, cfg.DisabledProviders)
+	}
+
+	// Wire auto-profiling config from provider.ollama.options.auto_profile
+	if ollamaCfg, ok := cfg.Provider["ollama"]; ok && ollamaCfg.Options != nil {
+		if apRaw, ok := ollamaCfg.Options["auto_profile"]; ok {
+			data, err := json.Marshal(apRaw)
+			if err == nil {
+				var apCfg provider.AutoProfileConfig
+				if err := json.Unmarshal(data, &apCfg); err == nil {
+					disc.SetAutoProfile(&apCfg)
+				} else {
+					slog.Warn("failed to parse auto_profile config", "error", err)
+				}
+			}
+		}
 	}
 
 	disc.Start(ctx, ollamaURL, vllmURL, lmStudioURL)

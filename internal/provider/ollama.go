@@ -250,3 +250,27 @@ func CreateProfile(ctx context.Context, baseURL, baseName, profName string, numC
 
 	return nil
 }
+
+// DeleteModel removes a model from Ollama via the API.
+func DeleteModel(ctx context.Context, baseURL, model string) error {
+	ctx, cancel := context.WithTimeout(ctx, ollamaAPITimeout)
+	defer cancel()
+
+	payload, _ := json.Marshal(map[string]string{"model": model})
+	req, err := http.NewRequestWithContext(ctx, "DELETE", strings.TrimRight(baseURL, "/")+"/api/delete", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("ollama delete returned %d", resp.StatusCode)
+	}
+	return nil
+}
