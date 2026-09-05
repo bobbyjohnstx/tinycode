@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
@@ -19,20 +20,33 @@ const (
 )
 
 type Discovery struct {
-	registry *Registry
-	bus      *bus.Bus
-	client   *http.Client
-	cancel   context.CancelFunc
+	registry    *Registry
+	bus         *bus.Bus
+	client      *http.Client
+	cancel      context.CancelFunc
+	autoProfile *AutoProfileConfig
+	detectGPU   func() (int64, error)
+	gpuMemory   int64
+	gpuOnce     sync.Once
+	warmedMu    sync.Mutex
+	warmedModels map[string]bool
 }
 
 func NewDiscovery(registry *Registry, b *bus.Bus) *Discovery {
 	return &Discovery{
-		registry: registry,
-		bus:      b,
+		registry:     registry,
+		bus:          b,
+		detectGPU:    DetectGPUMemory,
+		warmedModels: make(map[string]bool),
 		client: &http.Client{
 			Timeout: probeTimeout,
 		},
 	}
+}
+
+// SetAutoProfile configures GPU-aware auto-profiling for Ollama models.
+func (d *Discovery) SetAutoProfile(cfg *AutoProfileConfig) {
+	d.autoProfile = cfg
 }
 
 // Start begins background polling for local providers.
@@ -175,12 +189,19 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 		return
 	}
 
-	models := make(map[string]*Model, len(tags.Models))
+	// Separate base models from existing profiles
+	existingProfiles := make(map[string]string) // base name -> profile name
+	var baseModels []ollamaModel
 	for _, m := range tags.Models {
 		if IsProfile(m.Name) {
-			continue
+			existingProfiles[BaseModelName(m.Name)] = m.Name
+		} else {
+			baseModels = append(baseModels, m)
 		}
+	}
 
+	models := make(map[string]*Model, len(baseModels))
+	for _, m := range baseModels {
 		contextLen := 0
 		family := ""
 		if m.Details != nil {
@@ -204,21 +225,63 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 			}
 		}
 
+		apiID := m.Name
+		profileCtx := contextLen
+
+		if d.autoProfileEnabled() && !d.isModelSkipped(m.Name) {
+			numCtx := d.resolveNumCtx(ctx, baseURL, m.Name, contextLen)
+			if numCtx >= minNumCtx {
+				profName := ProfileName(m.Name, numCtx)
+				if existing, ok := existingProfiles[m.Name]; ok && existing == profName {
+					// Profile already exists with the right num_ctx
+					apiID = profName
+					profileCtx = numCtx
+					delete(existingProfiles, m.Name)
+				} else {
+					// Create new profile (or replace stale one)
+					if err := CreateProfile(ctx, baseURL, m.Name, profName, numCtx); err != nil {
+						slog.Warn("failed to create ollama profile",
+							"model", m.Name, "profile", profName, "error", err)
+					} else {
+						slog.Info("created ollama profile",
+							"model", m.Name, "profile", profName, "num_ctx", numCtx)
+						apiID = profName
+						profileCtx = numCtx
+						delete(existingProfiles, m.Name)
+					}
+				}
+			}
+		}
+
 		models[m.Name] = &Model{
 			ID:         m.Name,
 			ProviderID: "ollama",
 			Name:       m.Name,
 			Family:     family,
 			API: ModelAPI{
-				ID:  m.Name,
+				ID:  apiID,
 				URL: baseURL,
 			},
 			Status:  "active",
 			Headers: make(map[string]string),
 			Options: make(map[string]any),
 			Cost:    ModelCost{},
-			Limit:   ModelLimit{Context: contextLen, Output: contextLen / 2},
+			Limit:   ModelLimit{Context: profileCtx, Output: profileCtx / 2},
 			Capabilities: caps,
+		}
+	}
+
+	// Clean up stale profiles (profile exists but base model is gone)
+	if d.autoProfileEnabled() {
+		for baseName, profName := range existingProfiles {
+			if _, exists := models[baseName]; !exists {
+				if err := DeleteModel(ctx, baseURL, profName); err != nil {
+					slog.Warn("failed to delete stale profile",
+						"profile", profName, "error", err)
+				} else {
+					slog.Info("deleted stale ollama profile", "profile", profName)
+				}
+			}
 		}
 	}
 
@@ -238,6 +301,109 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 		"providerID": "ollama",
 		"modelCount": len(models),
 	})
+
+	// Trigger warmup probes for newly discovered models
+	for _, m := range models {
+		d.maybeWarmup(ctx, m)
+	}
+}
+
+// autoProfileEnabled returns true if auto-profiling is configured and not disabled.
+func (d *Discovery) autoProfileEnabled() bool {
+	if d.autoProfile == nil {
+		return false
+	}
+	if d.autoProfile.Enabled != nil && !*d.autoProfile.Enabled {
+		return false
+	}
+	return true
+}
+
+// isModelSkipped returns true if the model is marked as skip in the auto-profile config.
+func (d *Discovery) isModelSkipped(modelName string) bool {
+	if d.autoProfile == nil || d.autoProfile.Models == nil {
+		return false
+	}
+	m, ok := d.autoProfile.Models[modelName]
+	return ok && m.Skip
+}
+
+// resolveNumCtx determines the optimal num_ctx for a model, using config
+// overrides, GPU detection, and the CalculateNumCtx algorithm.
+func (d *Discovery) resolveNumCtx(ctx context.Context, baseURL, modelName string, advertisedCtx int) int {
+	// Check per-model override
+	if d.autoProfile != nil && d.autoProfile.Models != nil {
+		if m, ok := d.autoProfile.Models[modelName]; ok && m.NumCtx != nil {
+			return *m.NumCtx
+		}
+	}
+
+	// Check default override
+	if d.autoProfile != nil && d.autoProfile.DefaultNumCtx != nil {
+		return *d.autoProfile.DefaultNumCtx
+	}
+
+	// Detect GPU memory (cached)
+	d.gpuOnce.Do(func() {
+		mem, err := d.detectGPU()
+		if err != nil {
+			slog.Warn("GPU memory detection failed, auto-profiling will use defaults", "error", err)
+			return
+		}
+		d.gpuMemory = mem
+		slog.Info("detected GPU memory", "bytes", mem, "gb", fmt.Sprintf("%.1f", float64(mem)/(1024*1024*1024)))
+	})
+
+	if d.gpuMemory <= 0 {
+		return advertisedCtx
+	}
+
+	// Query model details
+	info, err := ShowModel(ctx, baseURL, modelName)
+	if err != nil {
+		slog.Warn("failed to query model info for auto-profiling",
+			"model", modelName, "error", err)
+		return advertisedCtx
+	}
+
+	numCtx := CalculateNumCtx(d.gpuMemory, *info, advertisedCtx)
+
+	// Apply max cap from config
+	if d.autoProfile != nil && d.autoProfile.MaxNumCtx != nil && numCtx > *d.autoProfile.MaxNumCtx {
+		numCtx = *d.autoProfile.MaxNumCtx
+	}
+
+	return numCtx
+}
+
+// maybeWarmup triggers a background warmup probe for a model if it hasn't
+// been warmed up yet. On probe failure, sets ToolCall capability to false.
+func (d *Discovery) maybeWarmup(ctx context.Context, m *Model) {
+	d.warmedMu.Lock()
+	if d.warmedModels[m.ID] {
+		d.warmedMu.Unlock()
+		return
+	}
+	d.warmedModels[m.ID] = true
+	d.warmedMu.Unlock()
+
+	go func() {
+		capable, err := WarmupProbe(ctx, m.API.URL, m.API.ID)
+		if err != nil {
+			slog.Warn("warmup probe failed", "model", m.ID, "error", err)
+			capable = false
+		}
+
+		if !capable {
+			m.Capabilities.ToolCall = false
+			slog.Info("model does not support tool calls", "model", m.ID)
+		}
+
+		d.bus.Publish("provider.warmup.complete", map[string]any{
+			"modelID":     m.ID,
+			"toolCapable": capable,
+		})
+	}()
 }
 
 type vllmModelsResponse struct {
