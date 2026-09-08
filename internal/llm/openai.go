@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -46,6 +47,9 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 	}
 
 	url := c.BaseURL + "/chat/completions"
+
+	slog.Info("LLM request", "model", req.Model, "messages", len(req.Messages), "tools", len(req.Tools), "url", url, "bodyLen", len(body))
+
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
@@ -60,17 +64,21 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 		httpReq.Header.Set(k, v)
 	}
 
+	start := time.Now()
 	resp, err := c.Client.Do(httpReq)
 	if err != nil {
+		slog.Error("LLM request failed", "model", req.Model, "elapsed", time.Since(start), "error", err)
 		return nil, fmt.Errorf("sending request: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 		respBody, _ := io.ReadAll(resp.Body)
+		slog.Error("LLM HTTP error", "model", req.Model, "status", resp.StatusCode, "body", string(respBody), "elapsed", time.Since(start))
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
+	slog.Info("LLM stream started", "model", req.Model, "elapsed", time.Since(start))
 	ch := make(chan Event, 64)
 	go c.readSSE(ctx, resp.Body, ch)
 	return ch, nil
@@ -80,20 +88,47 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 	defer close(ch)
 	defer body.Close()
 
-	scanner := bufio.NewScanner(body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	lines := make(chan string)
+	scanDone := make(chan error, 1)
+	go func() {
+		defer close(lines)
+		scanner := bufio.NewScanner(body)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+		scanDone <- scanner.Err()
+	}()
 
 	toolCalls := make(map[int]*toolCallAccum)
+	timer := time.NewTimer(chunkTimeout)
+	defer timer.Stop()
 
-	for scanner.Scan() {
+	for {
+		var line string
 		select {
 		case <-ctx.Done():
+			slog.Warn("SSE stream context cancelled")
 			ch <- Event{Type: EventError, Error: ctx.Err()}
 			return
-		default:
+		case <-timer.C:
+			slog.Error("SSE chunk timeout", "timeout", chunkTimeout)
+			ch <- Event{Type: EventError, Error: fmt.Errorf("chunk read timeout after %v with no data from model", chunkTimeout)}
+			return
+		case l, ok := <-lines:
+			if !ok {
+				if err := <-scanDone; err != nil {
+					slog.Error("SSE stream read error", "error", err)
+					ch <- Event{Type: EventError, Error: fmt.Errorf("reading SSE stream: %w", err)}
+				} else {
+					slog.Info("SSE stream ended normally")
+				}
+				return
+			}
+			timer.Reset(chunkTimeout)
+			line = l
 		}
 
-		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
 			continue
 		}
@@ -130,7 +165,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 		}
 
 		if delta.ReasoningContent != "" {
-			ch <- Event{Type: EventTextDelta, Text: delta.ReasoningContent}
+			ch <- Event{Type: EventReasoningDelta, Text: delta.ReasoningContent}
 		}
 
 		for _, tc := range delta.ToolCalls {
@@ -178,10 +213,6 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 				FinishReason: choice.FinishReason,
 			}
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		ch <- Event{Type: EventError, Error: fmt.Errorf("reading SSE stream: %w", err)}
 	}
 }
 

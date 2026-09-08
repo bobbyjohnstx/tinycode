@@ -747,6 +747,9 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 	if agentInfo != nil {
 		agentPrompt = agentInfo.Prompt
 		agentPerms = extractAllowedPerms(agentInfo.Permission)
+		slog.Info("agent loaded", "agent", input.Agent, "promptLen", len(agentPrompt), "compact", agentInfo.Compact)
+	} else {
+		slog.Warn("agent not found in registry", "agent", input.Agent)
 	}
 
 	// Wire user instructions from config
@@ -762,6 +765,8 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 		Directory:    sm.dir,
 		ToolDefs:     sm.tools.ToolDefs(agentPerms),
 	})
+
+	slog.Info("system prompt built", "sessionID", sessionID, "agent", input.Agent, "promptLen", len(systemPrompt))
 
 	// Sync MCP tools before processing
 	if sm.mcpSvc != nil {

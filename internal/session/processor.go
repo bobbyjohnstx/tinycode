@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -111,9 +112,14 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 
 	totalUsage := TokenUsage{}
 	var consecutiveToolFailures int
+	iteration := 0
 
 	for {
+		iteration++
+		slog.Info("processor loop iteration", "sessionID", p.config.SessionID, "iteration", iteration, "messageCount", len(p.Messages()))
+
 		if p.isAborted() {
+			slog.Info("processor aborted", "sessionID", p.config.SessionID, "iteration", iteration)
 			return &ProcessResult{
 				Messages: p.Messages(),
 				Usage:    totalUsage,
@@ -123,6 +129,7 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 
 		select {
 		case <-ctx.Done():
+			slog.Info("processor context cancelled", "sessionID", p.config.SessionID, "iteration", iteration)
 			return &ProcessResult{
 				Messages: p.Messages(),
 				Usage:    totalUsage,
@@ -133,6 +140,7 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 
 		assistantMsg, usage, err := p.callLLM(ctx)
 		if err != nil {
+			slog.Error("callLLM failed", "sessionID", p.config.SessionID, "iteration", iteration, "error", err)
 			if provider.IsOverflow(err.Error()) {
 				compacted, compactErr := p.compact(ctx)
 				if compactErr != nil {
@@ -169,7 +177,16 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 		})
 
 		toolCalls := extractToolCalls(assistantMsg)
+		textLen := 0
+		for _, part := range assistantMsg.Parts {
+			if part.Type == PartText {
+				textLen += len(part.Text)
+			}
+		}
+		slog.Info("LLM response", "sessionID", p.config.SessionID, "iteration", iteration, "toolCalls", len(toolCalls), "textLen", textLen, "parts", len(assistantMsg.Parts), "inputTokens", usage.Input, "outputTokens", usage.Output)
+
 		if len(toolCalls) == 0 {
+			slog.Info("processor done (no tool calls)", "sessionID", p.config.SessionID, "iteration", iteration)
 			return &ProcessResult{
 				Messages: p.Messages(),
 				Usage:    totalUsage,
@@ -177,6 +194,7 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 		}
 
 		results, allFailed := p.executeTools(ctx, toolCalls)
+		slog.Info("tools executed", "sessionID", p.config.SessionID, "iteration", iteration, "toolCount", len(toolCalls), "allFailed", allFailed)
 
 		toolMsgID, _ := id.Ascending("message")
 		toolMsg := Message{
@@ -214,10 +232,13 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) {
 	req := p.buildRequest()
 
+	slog.Info("callLLM", "sessionID", p.config.SessionID, "model", p.config.Model.ID, "llmMessages", len(req.Messages), "tools", len(req.Tools))
+
 	var lastErr error
 	for attempt := 0; attempt <= provider.MaxRetries; attempt++ {
 		if attempt > 0 {
 			delay := provider.RetryDelay(attempt)
+			slog.Warn("callLLM retry", "sessionID", p.config.SessionID, "attempt", attempt, "delay", delay, "lastErr", lastErr)
 			select {
 			case <-ctx.Done():
 				return nil, nil, ctx.Err()
@@ -333,6 +354,9 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 				"sessionID": p.config.SessionID,
 				"text":      event.Text,
 			})
+
+		case llm.EventReasoningDelta:
+			reasoningParts = append(reasoningParts, event.Text)
 
 		case llm.EventToolCallBegin:
 			part := ToolCallPart(event.ToolCallID, event.ToolName, "")

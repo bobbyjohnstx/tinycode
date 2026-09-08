@@ -1,8 +1,7 @@
 package tui
 
 import (
-	"fmt"
-	"path/filepath"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -10,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// StatusBar renders the bottom status line showing cwd, model, agent, and hints.
+// StatusBar renders a two-line bottom area: hints line + status bar.
 type StatusBar struct {
 	cwd      string
 	model    string
@@ -25,7 +24,7 @@ type StatusBar struct {
 func NewStatusBar(width int) StatusBar {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = styleSpinner
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"})
 
 	return StatusBar{
 		spinner: sp,
@@ -75,57 +74,78 @@ func (s StatusBar) Update(msg tea.Msg) (StatusBar, tea.Cmd) {
 	return s, nil
 }
 
-// View implements tea.Model.
+// View renders the hints line and the status bar.
 func (s StatusBar) View() string {
-	var parts []string
+	dim := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#666666"})
 
-	// Working indicator
+	// Hints line
+	var hintsLeft string
 	if s.working {
-		parts = append(parts, s.spinner.View())
+		hintsLeft = s.spinner.View() + " " + dim.Render("esc interrupt")
 	}
+	hintsRight := dim.Render("tab") + " agents  " + dim.Render("ctrl+p") + " commands"
 
-	// CWD (shortened)
+	hintsGap := s.width - lipgloss.Width(hintsLeft) - lipgloss.Width(hintsRight)
+	if hintsGap < 1 {
+		hintsGap = 1
+	}
+	hintsLine := hintsLeft + strings.Repeat(" ", hintsGap) + hintsRight
+
+	// Status bar: cwd left, model+provider right.
+	// styleStatusBar has Padding(0,1) so content area is width-2.
+	innerWidth := s.width - 2
+
+	left := ""
 	if s.cwd != "" {
-		dir := shortenPath(s.cwd)
-		parts = append(parts, dir)
+		left = shortenCwd(s.cwd)
 	}
 
-	// Model info
-	if s.model != "" {
-		modelStr := s.model
-		if s.provider != "" {
-			modelStr = fmt.Sprintf("%s %s", s.model, s.provider)
-		}
-		parts = append(parts, modelStr)
+	right := truncatedModelProvider(s.model, s.provider, innerWidth-lipgloss.Width(left)-2)
+
+	statusGap := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
+	if statusGap < 1 {
+		statusGap = 1
 	}
+	statusLine := left + strings.Repeat(" ", statusGap) + right
 
-	// Agent
-	if s.agent != "" {
-		parts = append(parts, s.agent)
-	}
-
-	// Hints
-	hints := "ctrl+p commands"
-
-	left := strings.Join(parts, " │ ")
-	right := hints
-
-	gap := s.width - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
-		gap = 1
-	}
-
-	line := left + strings.Repeat(" ", gap) + right
-	return styleStatusBar.Width(s.width).Render(line)
+	return hintsLine + "\n" + styleStatusBar.Width(s.width).Render(statusLine)
 }
 
-// shortenPath returns a display-friendly path (last 2 components).
-func shortenPath(p string) string {
-	dir := filepath.Dir(p)
-	base := filepath.Base(p)
-	parent := filepath.Base(dir)
-	if parent == "." || parent == "/" {
-		return base
+// truncatedModelProvider builds a "model  provider" string that fits within
+// maxWidth, truncating the model name with an ellipsis if needed.
+func truncatedModelProvider(model, provider string, maxWidth int) string {
+	var parts []string
+	if model != "" {
+		parts = append(parts, model)
 	}
-	return parent + "/" + base
+	if provider != "" {
+		parts = append(parts, provider)
+	}
+	combined := strings.Join(parts, "  ")
+	if maxWidth <= 0 || lipgloss.Width(combined) <= maxWidth {
+		return combined
+	}
+	if provider != "" && model != "" {
+		providerWidth := lipgloss.Width(provider)
+		available := maxWidth - providerWidth - 5 // "  " separator + "..."
+		if available > 3 {
+			model = model[:available] + "..."
+			return model + "  " + provider
+		}
+	}
+	if lipgloss.Width(combined) > maxWidth && maxWidth > 3 {
+		return combined[:maxWidth-3] + "..."
+	}
+	return combined
+}
+
+// shortenCwd returns a display-friendly path with ~ for home dir.
+func shortenCwd(p string) string {
+	if home, err := os.UserHomeDir(); err == nil {
+		if strings.HasPrefix(p, home) {
+			p = "~" + p[len(home):]
+		}
+	}
+	return p
 }

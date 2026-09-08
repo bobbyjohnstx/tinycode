@@ -2,12 +2,16 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+var oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,2}\\?$`)
 
 // PromptInput is a multi-line text input with a metadata bar,
 // autocomplete popover, and prompt history navigation.
@@ -20,17 +24,33 @@ type PromptInput struct {
 	provider     string
 	width        int
 	keys         KeyMap
+	guardEnabled bool
+	startTime    time.Time
 }
 
 // NewPromptInput creates a PromptInput with the given width.
 func NewPromptInput(width int) PromptInput {
 	ta := textarea.New()
 	ta.Placeholder = "Type a message..."
+	ta.Prompt = ""
 	ta.ShowLineNumbers = false
-	ta.SetWidth(width - 2) // account for border
+	ta.SetWidth(width - 4)
 	ta.SetHeight(3)
 	ta.Focus()
-	ta.CharLimit = 0 // no limit
+	ta.CharLimit = 0
+
+	// Strip all default textarea chrome — the prompt accent bar handles the visual frame.
+	noBorder := lipgloss.NewStyle()
+	ta.FocusedStyle.Base = noBorder
+	ta.FocusedStyle.CursorLine = noBorder
+	ta.FocusedStyle.CursorLineNumber = noBorder
+	ta.FocusedStyle.EndOfBuffer = noBorder
+	ta.FocusedStyle.Prompt = noBorder
+	ta.BlurredStyle.Base = noBorder
+	ta.BlurredStyle.CursorLine = noBorder
+	ta.BlurredStyle.CursorLineNumber = noBorder
+	ta.BlurredStyle.EndOfBuffer = noBorder
+	ta.BlurredStyle.Prompt = noBorder
 
 	return PromptInput{
 		textarea:     ta,
@@ -42,10 +62,24 @@ func NewPromptInput(width int) PromptInput {
 	}
 }
 
+// EnableStartupGuard arms the startup guard. The actual timer starts
+// when ResetStartupGuard is called (typically on first render).
+func (p *PromptInput) EnableStartupGuard() {
+	p.guardEnabled = true
+	p.startTime = time.Now()
+}
+
+// ResetStartupGuard restarts the guard timer if the guard was armed.
+func (p *PromptInput) ResetStartupGuard() {
+	if p.guardEnabled {
+		p.startTime = time.Now()
+	}
+}
+
 // SetSize updates the prompt width.
 func (p *PromptInput) SetSize(width int) {
 	p.width = width
-	p.textarea.SetWidth(width - 2)
+	p.textarea.SetWidth(width - 4)
 	p.autocomplete.SetWidth(width)
 }
 
@@ -90,9 +124,14 @@ func (p PromptInput) Init() tea.Cmd {
 // Update implements tea.Model.
 func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		// Discard terminal OSC responses (e.g. background color query replies)
-		// that leak through the input parser as key events.
-		if s := keyMsg.String(); strings.HasPrefix(s, "]") || strings.Contains(s, ";rgb:") {
+		// Discard terminal escape sequences that leak through bubbletea's input parser.
+		if s := keyMsg.String(); isTerminalEscape(s) {
+			return p, nil
+		}
+		// Discard rune-only input during startup grace period — terminal
+		// responses (OSC color, CSI cursor reports) arrive as printable
+		// characters indistinguishable from typing.
+		if keyMsg.Type == tea.KeyRunes && p.guardEnabled && time.Since(p.startTime) < 2*time.Second {
 			return p, nil
 		}
 		// When the autocomplete popover is visible, it gets priority
@@ -105,11 +144,17 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 			case "enter":
 				selected := p.autocomplete.Selected()
 				if selected != "" {
-					p.textarea.SetValue("/" + selected + " ")
+					current := strings.TrimPrefix(strings.TrimSpace(p.textarea.Value()), "/")
+					if current != selected && !strings.HasPrefix(current, selected+" ") {
+						// Still completing — fill in the command name
+						p.textarea.SetValue("/" + selected + " ")
+						p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
+						return p, nil
+					}
+					// User already typed the full command — dismiss and fall through to submit
 					p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
-					return p, nil
 				}
-				// Fall through to normal enter handling if nothing selected.
+				// Fall through to normal enter handling.
 			}
 		}
 
@@ -161,25 +206,46 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 
 // View implements tea.Model.
 func (p PromptInput) View() string {
-	ta := stylePromptBorder.Width(p.width - 2).Render(p.textarea.View())
+	innerWidth := p.width - 4 // account for accent border + padding
+
+	taView := p.textarea.View()
 	meta := p.renderMetadata()
+	inner := lipgloss.JoinVertical(lipgloss.Left, taView, meta)
+
+	box := stylePromptAccent.Width(innerWidth).Render(inner)
+	top := stylePromptBorder.Width(p.width - 2).Render(box)
 
 	if p.autocomplete.IsVisible() {
 		acView := p.autocomplete.View()
-		return lipgloss.JoinVertical(lipgloss.Left, acView, ta, meta)
+		return lipgloss.JoinVertical(lipgloss.Left, acView, top)
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, ta, meta)
+	return top
 }
 
 // renderMetadata renders the status line below the textarea.
 func (p PromptInput) renderMetadata() string {
-	label := p.agent
-	if p.model != "" {
-		label = fmt.Sprintf("%s · %s", p.agent, p.model)
+	agentPrefix := "  " + p.agent
+	modelProvider := truncatedModelProvider(p.model, p.provider, p.width-len(agentPrefix)-5)
+	label := agentPrefix
+	if modelProvider != "" {
+		label = fmt.Sprintf("%s · %s", agentPrefix, modelProvider)
 	}
-	if p.provider != "" {
-		label = fmt.Sprintf("%s %s", label, p.provider)
+	return styleMetadata.Width(p.width).Render(label)
+}
+
+// isTerminalEscape returns true if the string looks like a terminal escape
+// response that leaked through bubbletea's input parser (raw ESC/C1 bytes
+// or OSC color response fragments like "rgb:" or "11;").
+func isTerminalEscape(s string) bool {
+	if strings.ContainsAny(s, "\x1b\x9c") {
+		return true
 	}
-	return styleMetadata.Width(p.width).Render("  " + label)
+	if strings.Contains(s, "rgb:") || strings.Contains(s, "11;") || strings.Contains(s, "10;") {
+		return true
+	}
+	if oscHexFragment.MatchString(s) {
+		return true
+	}
+	return false
 }

@@ -22,6 +22,8 @@ Session.vim
 a.out
 target
 /tinycode
+/tinycode-go
+tinycode.log
 .scripts
 .direnv/
 

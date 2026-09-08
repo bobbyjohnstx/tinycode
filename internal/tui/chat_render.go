@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
@@ -10,23 +11,108 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/tui/render"
 )
 
+var (
+	styleUserBorder = lipgloss.NewStyle().
+		BorderStyle(lipgloss.ThickBorder()).
+		BorderLeft(true).BorderTop(false).BorderRight(false).BorderBottom(false).
+		BorderForeground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"}).
+		PaddingLeft(1)
+	styleTimestamp = lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#AAAAAA", Dark: "#666666"})
+	styleAgentFooter = lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
+	styleReasoningLabel = lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"})
+)
+
 // renderMessage renders a single message (user or assistant) as a string.
 func renderMessage(msg MessageView, width int, md *render.MarkdownRenderer) string {
-	var sb strings.Builder
-
 	switch msg.Info.Role {
 	case "user":
-		sb.WriteString(styleUserMsg.Render("> "))
+		return renderUserMessage(msg, width)
 	case "assistant":
-		sb.WriteString(styleAssistantMsg.Render("  "))
+		return renderAssistantMessage(msg, width, md)
 	default:
-		sb.WriteString("  ")
+		return renderParts(msg.Parts, width-4, md)
+	}
+}
+
+func renderUserMessage(msg MessageView, width int) string {
+	var lines []string
+	for _, part := range msg.Parts {
+		if part.Type == "text" && part.Text != "" {
+			lines = append(lines, lipgloss.NewStyle().Bold(true).Render(part.Text))
+		}
+	}
+	ts := formatTimestamp(msg.Info.CreatedAt)
+	if ts != "" {
+		lines = append(lines, styleTimestamp.Render(ts))
+	}
+	inner := strings.Join(lines, "\n")
+	return styleUserBorder.Width(width - 4).Render(inner)
+}
+
+func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRenderer) string {
+	var sb strings.Builder
+
+	for _, part := range msg.Parts {
+		switch part.Type {
+		case "text":
+			rendered := renderTextPart(part, width-4, md)
+			if rendered != "" {
+				sb.WriteString(rendered)
+				sb.WriteString("\n")
+			}
+		case "reasoning":
+			label := styleReasoningLabel.Render("+ Thought")
+			if part.Time != nil {
+				if dur := partDuration(part); dur != "" {
+					label += styleReasoningLabel.Render(": " + dur)
+				}
+			}
+			sb.WriteString(label)
+			sb.WriteString("\n")
+		case "tool-call":
+			sb.WriteString(renderToolCallPart(part))
+			sb.WriteString("\n")
+		case "tool-result":
+			result := renderToolResultPart(part, width-4)
+			if result != "" {
+				sb.WriteString(result)
+				sb.WriteString("\n")
+			}
+		default:
+			rendered := renderTextPart(part, width-4, md)
+			if rendered != "" {
+				sb.WriteString(rendered)
+				sb.WriteString("\n")
+			}
+		}
 	}
 
-	parts := renderParts(msg.Parts, width-4, md)
-	sb.WriteString(parts)
+	// Agent/model footer
+	footer := renderAgentFooter(msg)
+	if footer != "" {
+		sb.WriteString(footer)
+	}
 
 	return sb.String()
+}
+
+func renderAgentFooter(msg MessageView) string {
+	var parts []string
+	agent := msg.Info.Agent
+	if agent == "" {
+		agent = "Build"
+	} else {
+		agent = strings.Title(agent)
+	}
+	parts = append(parts, agent)
+	if msg.Info.ModelID != "" {
+		parts = append(parts, msg.Info.ModelID)
+	}
+	label := strings.Join(parts, " · ")
+	return styleAgentFooter.Render("■ " + label)
 }
 
 // renderParts renders all parts of a message.
@@ -47,8 +133,6 @@ func renderParts(parts []PartView, width int, md *render.MarkdownRenderer) strin
 			sb.WriteString(renderToolCallPart(part))
 		case "tool-result":
 			sb.WriteString(renderToolResultPart(part, width))
-		case "reasoning":
-			sb.WriteString(renderTextPart(part, width, md))
 		default:
 			sb.WriteString(renderTextPart(part, width, md))
 		}
@@ -57,8 +141,6 @@ func renderParts(parts []PartView, width int, md *render.MarkdownRenderer) strin
 }
 
 // renderTextPart renders a text part through the markdown renderer.
-// Streaming parts use RenderStreaming (renders complete blocks, leaves trailing
-// text raw). Completed parts use RenderFinal for full glamour rendering.
 func renderTextPart(part PartView, width int, md *render.MarkdownRenderer) string {
 	if part.Text == "" {
 		return ""
@@ -69,8 +151,7 @@ func renderTextPart(part PartView, width int, md *render.MarkdownRenderer) strin
 	return md.RenderFinal(part.Text)
 }
 
-// renderToolCallPart renders a tool call using the render package's inline
-// format, appending a status indicator (done / spinning).
+// renderToolCallPart renders a tool call with a status indicator.
 func renderToolCallPart(part PartView) string {
 	inline := render.RenderToolInline(part.ToolName, part.ToolArgs, part.ToolError)
 	status := toolStatus(part)
@@ -78,9 +159,6 @@ func renderToolCallPart(part PartView) string {
 }
 
 // renderToolResultPart renders a tool result with truncated output.
-// Errors are shown as an inline error indicator. Successful results show
-// up to 10 lines of output with a truncation indicator if needed.
-// Collapsed results show a single-line placeholder.
 func renderToolResultPart(part PartView, width int) string {
 	if part.ToolError {
 		return render.RenderToolInline(part.ToolName, "", true)
@@ -117,7 +195,36 @@ func toolStatus(part PartView) string {
 	return styleSpinner.Render("...")
 }
 
-// renderSuccess renders text in the success color.
 func renderSuccess(s string) string {
 	return lipgloss.NewStyle().Foreground(colorSuccess).Render(s)
+}
+
+func formatTimestamp(ts string) string {
+	if ts == "" {
+		return ""
+	}
+	t, err := time.Parse(time.RFC3339Nano, ts)
+	if err != nil {
+		t, err = time.Parse(time.RFC3339, ts)
+		if err != nil {
+			return ""
+		}
+	}
+	return t.Local().Format("3:04 PM")
+}
+
+func partDuration(part PartView) string {
+	if part.Time == nil {
+		return ""
+	}
+	start, ok1 := part.Time["start"].(float64)
+	end, ok2 := part.Time["end"].(float64)
+	if !ok1 || !ok2 || end <= start {
+		return ""
+	}
+	d := time.Duration(end-start) * time.Millisecond
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
 }

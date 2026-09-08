@@ -197,12 +197,8 @@ func TestModelDialog_NavWraps(t *testing.T) {
 	})
 
 	// Items: [header(0), m1(1), m2(2)].
-	// Initial selection starts at 0 (header).
-	// Press down to get to first model.
-	d, _ = d.Update(keyMsg("j"))
-	// Should be at m1 (index 1).
-
-	// Press up — should wrap to m2 (index 2) since header is skipped.
+	// Initial selection starts at first non-header: m1 (index 1).
+	// Press up — should wrap past header to m2 (index 2).
 	d, _ = d.Update(keyMsg("k"))
 	// Should be at m2 (index 2).
 

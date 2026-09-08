@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
@@ -70,10 +72,12 @@ func (r *Registry) SetDisabled(disabled map[string]bool) {
 func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessage, sessionID string) (string, bool, error) {
 	def, ok := r.tools[name]
 	if !ok {
+		slog.Warn("tool not found", "tool", name, "sessionID", sessionID)
 		return fmt.Sprintf("Unknown tool: %s", name), true, nil
 	}
 
 	if r.disabled[name] {
+		slog.Warn("tool disabled", "tool", name, "sessionID", sessionID)
 		return fmt.Sprintf("Tool %s is disabled", name), true, nil
 	}
 
@@ -93,6 +97,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 			Metadata:   map[string]any{"tool": name, "args": string(args)},
 		})
 		if askErr != nil {
+			slog.Warn("tool permission denied", "tool", name, "sessionID", sessionID, "error", askErr)
 			return askErr.Error(), true, nil
 		}
 	}
@@ -105,8 +110,13 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		})
 	}
 
+	start := time.Now()
+	slog.Info("tool executing", "tool", name, "sessionID", sessionID)
 	result, err := def.Execute(ctx, toolCtx, args)
+	elapsed := time.Since(start)
+
 	if err != nil {
+		slog.Error("tool execution error", "tool", name, "sessionID", sessionID, "elapsed", elapsed, "error", err)
 		if toolCtx.Bus != nil {
 			toolCtx.Bus.Publish("tool.execute.after", map[string]any{
 				"sessionID": sessionID,
@@ -116,6 +126,8 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		}
 		return err.Error(), true, nil
 	}
+
+	slog.Info("tool completed", "tool", name, "sessionID", sessionID, "elapsed", elapsed, "isError", result.IsError, "outputLen", len(result.Output))
 
 	if toolCtx.Bus != nil {
 		toolCtx.Bus.Publish("tool.execute.after", map[string]any{

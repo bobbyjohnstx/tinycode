@@ -78,6 +78,7 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 					mv.Info.Agent, _ = info["agent"].(string)
 					mv.Info.ModelID, _ = info["modelID"].(string)
 					mv.Info.ProviderID, _ = info["providerID"].(string)
+					mv.Info.CreatedAt, _ = info["createdAt"].(string)
 				}
 				if parts, ok := m["parts"].([]any); ok {
 					for _, p := range parts {
@@ -119,6 +120,11 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 	}
 
 	return c, cmd
+}
+
+// HasMessages reports whether any messages have been loaded.
+func (c ChatView) HasMessages() bool {
+	return len(c.messages) > 0
 }
 
 // View implements tea.Model.

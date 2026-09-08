@@ -30,10 +30,30 @@ func NewModelDialog() ModelDialog {
 }
 
 // Show opens the dialog with the given providers.
-func (d *ModelDialog) Show(providers []ProviderInfo) {
+// If current is non-empty, the cursor starts on the matching model.
+func (d *ModelDialog) Show(providers []ProviderInfo, current ...ModelSelection) {
 	d.providers = providers
-	d.selected = 0
 	d.visible = true
+	d.selected = 0
+	items := flattenProviders(providers)
+
+	// Try to land on the currently selected model.
+	if len(current) > 0 && current[0].ModelID != "" {
+		for i, item := range items {
+			if !item.isHeader && item.modelID == current[0].ModelID && item.providerID == current[0].ProviderID {
+				d.selected = i
+				return
+			}
+		}
+	}
+
+	// Fall back to the first non-header item.
+	for i, item := range items {
+		if !item.isHeader {
+			d.selected = i
+			break
+		}
+	}
 }
 
 // Hide closes the dialog.

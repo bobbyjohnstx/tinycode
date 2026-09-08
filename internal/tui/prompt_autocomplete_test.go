@@ -60,6 +60,17 @@ func TestAutocomplete_TypingFilters_NoMatch(t *testing.T) {
 	}
 }
 
+func TestAutocomplete_PrefixMatchOnly(t *testing.T) {
+	ac := NewAutocomplete()
+	ac.SetCommands(testCommands())
+
+	// "el" is a substring of "help" but not a prefix — should not match
+	ac.UpdateInput("/el")
+	if len(ac.filtered) != 0 {
+		t.Fatalf("expected 0 filtered items for /el (prefix match only), got %d", len(ac.filtered))
+	}
+}
+
 func TestAutocomplete_TabSelects(t *testing.T) {
 	ac := NewAutocomplete()
 	ac.SetCommands(testCommands())

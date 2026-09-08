@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"sort"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -78,7 +80,7 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 		if errMsg == "" {
 			errMsg = "unknown error"
 		}
-		return ToastMsg{Text: errMsg, IsError: true}
+		return SessionErrorMsg{SessionID: sessionID, Error: errMsg}
 
 	case "permission.asked":
 		return PermissionRequestedMsg{
@@ -116,8 +118,24 @@ func parseMessageView(props map[string]any) MessageView {
 	mi.SessionID, _ = info["sessionID"].(string)
 	mi.Role, _ = info["role"].(string)
 	mi.Agent, _ = info["agent"].(string)
-	mi.ModelID, _ = info["modelID"].(string)
-	mi.ProviderID, _ = info["providerID"].(string)
+	if model, ok := info["model"].(map[string]any); ok {
+		mi.ModelID, _ = model["modelID"].(string)
+		mi.ProviderID, _ = model["providerID"].(string)
+	}
+	if mi.ModelID == "" {
+		mi.ModelID, _ = info["modelID"].(string)
+	}
+	if mi.ProviderID == "" {
+		mi.ProviderID, _ = info["providerID"].(string)
+	}
+	mi.CreatedAt, _ = info["createdAt"].(string)
+	if mi.CreatedAt == "" {
+		if t, ok := info["time"].(map[string]any); ok {
+			if created, ok := t["created"].(float64); ok && created > 0 {
+				mi.CreatedAt = time.UnixMilli(int64(created)).Format(time.RFC3339)
+			}
+		}
+	}
 	return MessageView{Info: mi}
 }
 
@@ -165,7 +183,23 @@ func fetchProviders(client *api.Client) tea.Cmd {
 		}
 		providers := make([]ProviderInfo, len(resp.All))
 		for i, p := range resp.All {
-			providers[i] = ProviderInfo{ID: p.ID, Name: p.Name}
+			pi := ProviderInfo{ID: p.ID, Name: p.Name}
+			for modelID, raw := range p.Models {
+				m := ModelInfo{ID: modelID, ProviderID: p.ID, Name: modelID}
+				if obj, ok := raw.(map[string]any); ok {
+					if name, ok := obj["name"].(string); ok && name != "" {
+						m.Name = name
+					}
+					if id, ok := obj["id"].(string); ok && id != "" {
+						m.ID = id
+					}
+				}
+				pi.Models = append(pi.Models, m)
+			}
+			sort.Slice(pi.Models, func(a, b int) bool {
+				return pi.Models[a].Name < pi.Models[b].Name
+			})
+			providers[i] = pi
 		}
 		return ProvidersLoadedMsg{Providers: providers}
 	}

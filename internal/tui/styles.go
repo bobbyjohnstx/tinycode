@@ -12,7 +12,8 @@ var (
 	styleSelected     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
 	styleMetadata     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
 	styleDialogBorder = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).Padding(1, 2)
-	stylePromptBorder = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).BorderTop(true)
+	stylePromptBorder = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).BorderTop(true).BorderBottom(false).BorderLeft(false).BorderRight(false)
+	stylePromptAccent = lipgloss.NewStyle().BorderStyle(lipgloss.ThickBorder()).BorderLeft(true).BorderTop(false).BorderRight(false).BorderBottom(false).BorderForeground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"})
 	styleStatusBar    = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#F5F5F5", Dark: "#1A1A1A"}).Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}).Padding(0, 1)
 )
 

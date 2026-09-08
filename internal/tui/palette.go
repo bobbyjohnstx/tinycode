@@ -131,15 +131,15 @@ func (p CommandPalette) View() string {
 		return ""
 	}
 
-	paletteWidth := p.width / 2
-	if paletteWidth < 40 {
-		paletteWidth = 40
-	}
-	if paletteWidth > 80 {
-		paletteWidth = 80
+	paletteWidth := min(p.width*3/4, 90)
+	if paletteWidth < 50 {
+		paletteWidth = 50
 	}
 
+	innerWidth := paletteWidth - 6 // account for border padding
+
 	var sb strings.Builder
+	sb.WriteString("> ")
 	sb.WriteString(p.input.View())
 	sb.WriteString("\n")
 
@@ -148,27 +148,55 @@ func (p CommandPalette) View() string {
 		maxVisible = 3
 	}
 
+	// Calculate name column width for alignment.
+	nameCol := 0
+	for _, item := range p.filtered {
+		if len(item.Label) > nameCol {
+			nameCol = len(item.Label)
+		}
+	}
+	nameCol += 4 // padding (2 for prefix + 2 gap)
+	descCol := innerWidth - nameCol
+	if descCol < 15 {
+		descCol = 15
+	}
+
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
+	highlightBg := lipgloss.NewStyle().
+		Background(lipgloss.AdaptiveColor{Light: "#E8E8E8", Dark: "#2A2A2A"})
+
 	for i, item := range p.filtered {
 		if i >= maxVisible {
 			break
 		}
 		sb.WriteString("\n")
 
-		line := item.Label
-		if item.Description != "" {
-			line += "  " + styleMetadata.Render(item.Description)
+		desc := item.Description
+		if len(desc) > descCol {
+			desc = desc[:descCol-1] + "…"
 		}
 
+		prefix := "  "
 		if i == p.selected {
-			sb.WriteString(styleSelected.Render("▸ " + line))
+			prefix = "▸ "
+			nameStr := highlightBg.Copy().Bold(true).
+				Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).
+				Width(nameCol).Render(prefix + item.Label)
+			descStr := highlightBg.Copy().
+				Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#999999"}).
+				Width(descCol).Render(desc)
+			sb.WriteString(nameStr + descStr)
 		} else {
-			sb.WriteString("  " + line)
+			nameStr := lipgloss.NewStyle().Bold(true).Width(nameCol).Render(prefix + item.Label)
+			descStr := dimStyle.Width(descCol).Render(desc)
+			sb.WriteString(nameStr + descStr)
 		}
 	}
 
 	if len(p.filtered) == 0 {
 		sb.WriteString("\n")
-		sb.WriteString(styleMetadata.Render("  No matches"))
+		sb.WriteString(dimStyle.Render("  No matches"))
 	}
 
 	content := sb.String()

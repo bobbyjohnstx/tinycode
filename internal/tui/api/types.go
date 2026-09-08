@@ -51,11 +51,11 @@ type ProviderInfo struct {
 
 // AgentInfo is a single agent returned by GET /agent.
 type AgentInfo struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	Mode        string         `json:"mode"`
-	Native      bool           `json:"native,omitempty"`
-	Permission  map[string]any `json:"permission,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Mode        string `json:"mode"`
+	Native      bool   `json:"native,omitempty"`
+	Permission  any    `json:"permission,omitempty"`
 }
 
 // CommandInfo is a single command returned by GET /command.

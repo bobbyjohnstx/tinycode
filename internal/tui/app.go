@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"fmt"
+	"log/slog"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -9,6 +12,7 @@ type App struct {
 	chat       ChatView
 	prompt     PromptInput
 	status     StatusBar
+	welcome    WelcomeView
 	dialog     SessionDialog
 	palette    CommandPalette
 	agentDlg   AgentDialog
@@ -35,6 +39,7 @@ func NewApp(serverURL string) App {
 		chat:       NewChatView(80, 24),
 		prompt:     NewPromptInput(80),
 		status:     NewStatusBar(80),
+		welcome:    NewWelcomeView(),
 		dialog:     NewSessionDialog(),
 		palette:    NewCommandPalette(),
 		agentDlg:   NewAgentDialog(),
@@ -65,6 +70,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		if !a.ready {
+			a.prompt.ResetStartupGuard()
+		}
 		a.width = msg.Width
 		a.height = msg.Height
 		a.resize()
@@ -133,6 +141,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.leader.HandleTimeout()
 		return a, nil
 
+	case SessionErrorMsg:
+		cmd := a.toast.Show(msg.Error, true)
+		if msg.SessionID == a.state.ActiveSession || msg.SessionID == "" {
+			a.status.SetWorking(false)
+		}
+		a.state.SessionStatus[msg.SessionID] = SessionStatus{Working: false}
+		return a, cmd
+
 	case ToastMsg:
 		cmd := a.toast.Show(msg.Text, msg.IsError)
 		return a, cmd
@@ -145,18 +161,28 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AgentListMsg:
 		if msg.Err == nil {
 			a.state.Agents = msg.Agents
+			names := make([]string, len(msg.Agents))
+			for i, ag := range msg.Agents {
+				names[i] = ag.Name
+			}
+			slog.Info("agents loaded", "count", len(msg.Agents), "names", names)
+		} else {
+			slog.Error("agent list fetch failed", "error", msg.Err)
 		}
 		return a, nil
 
 	case CommandListMsg:
 		if msg.Err == nil {
 			a.state.Commands = msg.Commands
-			items := make([]AutocompleteItem, len(msg.Commands))
-			for i, cmd := range msg.Commands {
-				items[i] = AutocompleteItem{
+			items := []AutocompleteItem{
+				{Name: "exit", Description: "Exit the app"},
+				{Name: "connect", Description: "Select provider and model"},
+			}
+			for _, cmd := range msg.Commands {
+				items = append(items, AutocompleteItem{
 					Name:        cmd.Name,
 					Description: cmd.Description,
-				}
+				})
 			}
 			a.prompt.SetCommands(items)
 		}
@@ -168,6 +194,38 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case PaletteClosedMsg:
 		a.setFocus(FocusPrompt)
+		return a, nil
+
+	case PaletteSelectedMsg:
+		a.setFocus(FocusPrompt)
+		if cmd, handled := a.handleClientCommand(msg.Item.Value); handled {
+			return a, cmd
+		}
+		return a, nil
+
+	case AgentSelectedMsg:
+		a.state.CurrentAgent = msg.Agent
+		a.prompt.SetMetadata(msg.Agent, a.state.CurrentModel.ModelID, a.state.CurrentModel.ProviderID)
+		a.status.SetAgent(msg.Agent)
+		a.setFocus(FocusPrompt)
+		return a, nil
+
+	case ModelSelectedMsg:
+		a.setFocus(FocusPrompt)
+		a.state.CurrentModel = msg.Selection
+		for _, p := range a.state.Providers {
+			if p.ID == msg.Selection.ProviderID {
+				for _, m := range p.Models {
+					if m.ID == msg.Selection.ModelID {
+						a.prompt.SetMetadata(a.state.CurrentAgent, m.Name, p.Name)
+						a.status.SetModel(m.Name, p.Name)
+						return a, nil
+					}
+				}
+			}
+		}
+		a.prompt.SetMetadata(a.state.CurrentAgent, msg.Selection.ModelID, msg.Selection.ProviderID)
+		a.status.SetModel(msg.Selection.ModelID, msg.Selection.ProviderID)
 		return a, nil
 
 	case PromptSubmittedMsg:
@@ -219,6 +277,24 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state.Connected = false
 		return a, nil
 
+	case PermissionDismissedMsg:
+		a.permPrompt.Hide()
+		a.setFocus(FocusPrompt)
+		slog.Info("permission dismissed", "tool", msg.Request.Tool, "action", msg.Action.String())
+		return a, func() tea.Msg {
+			return PermissionReplyMsg{
+				SessionID:    msg.Request.SessionID,
+				PermissionID: msg.Request.ID,
+				Action:       msg.Action.String(),
+			}
+		}
+
+	case SidebarSessionSelectedMsg:
+		slog.Info("sidebar session selected", "sessionID", msg.SessionID)
+		return a, func() tea.Msg {
+			return SessionSwitchedMsg{SessionID: msg.SessionID}
+		}
+
 	case FocusChangedMsg:
 		if msg.Target == FocusPalette {
 			a.showPalette()
@@ -226,6 +302,24 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.setFocus(msg.Target)
 		return a, nil
+
+	case MessagePartDeltaMsg, MessageUpdatedMsg, MessagePartUpdatedMsg, MessagesLoadedMsg:
+		// SSE messages always go to chat view.
+		var cmd tea.Cmd
+		a.chat, cmd = a.chat.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		// Also forward to status bar for spinner state.
+		var statusCmd tea.Cmd
+		a.status, statusCmd = a.status.Update(msg)
+		if statusCmd != nil {
+			cmds = append(cmds, statusCmd)
+		}
+		return a, tea.Batch(cmds...)
+
+	default:
+		slog.Debug("unhandled msg in App.Update", "type", fmt.Sprintf("%T", msg))
 	}
 
 	// Dispatch to focused component or dialog overlay.
@@ -254,16 +348,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Always forward SSE messages to chat.
-	switch msg.(type) {
-	case MessagePartDeltaMsg, MessageUpdatedMsg, MessagePartUpdatedMsg, MessagesLoadedMsg:
-		var cmd tea.Cmd
-		a.chat, cmd = a.chat.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
 	// Always forward spinner ticks to status bar.
 	var statusCmd tea.Cmd
 	a.status, statusCmd = a.status.Update(msg)
@@ -282,7 +366,13 @@ func (a App) View() string {
 
 	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen())
 
-	chatView := a.chat.View()
+	// Show welcome screen when no messages exist yet.
+	var chatView string
+	if a.hasMessages() {
+		chatView = a.chat.View()
+	} else {
+		chatView = a.welcome.View(l.chatWidth, l.chatHeight)
+	}
 	promptView := a.prompt.View()
 	statusView := a.status.View()
 
@@ -380,11 +470,13 @@ func (a *App) removeSession(id string) {
 }
 
 // syncPromptMetadata updates the prompt's agent/model/provider display
-// from the active session info.
+// and the status bar from the active session info.
 func (a *App) syncPromptMetadata() {
 	sid := a.state.ActiveSession
 	if sid == "" {
 		a.prompt.SetMetadata("build", "", "")
+		a.status.SetModel("", "")
+		a.status.SetAgent("build")
 		return
 	}
 	for _, s := range a.state.Sessions {
@@ -394,15 +486,26 @@ func (a *App) syncPromptMetadata() {
 				agent = "build"
 			}
 			a.prompt.SetMetadata(agent, s.ModelID, s.ProviderID)
+			a.status.SetModel(s.ModelID, s.ProviderID)
+			a.status.SetAgent(agent)
 			return
 		}
 	}
 	a.prompt.SetMetadata("build", "", "")
+	a.status.SetModel("", "")
+	a.status.SetAgent("build")
+}
+
+// hasMessages returns true if the active session has any messages.
+func (a *App) hasMessages() bool {
+	return a.state.ActiveSession != "" && a.chat.HasMessages()
 }
 
 // showPalette opens the command palette with available commands.
 func (a *App) showPalette() {
-	items := make([]PaletteItem, 0, len(a.state.Commands))
+	items := []PaletteItem{
+		{Label: "connect", Description: "Select provider and model", Value: "connect"},
+	}
 	for _, cmd := range a.state.Commands {
 		items = append(items, PaletteItem{
 			Label:       cmd.Name,
@@ -412,6 +515,20 @@ func (a *App) showPalette() {
 	}
 	a.palette.Show(items)
 	a.focus = FocusPalette
+}
+
+// handleClientCommand handles a client-side slash command by name.
+// Returns (cmd, true) if the command was handled, (nil, false) otherwise.
+func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
+	switch name {
+	case "exit":
+		return tea.Quit, true
+	case "connect":
+		a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
+		a.setFocus(FocusDialog)
+		return nil, true
+	}
+	return nil, false
 }
 
 // dispatchLeaderAction handles a resolved leader key action.
@@ -426,7 +543,7 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 		a.agentDlg.Show(a.state.Agents)
 		return nil
 	case LeaderActionModelList:
-		a.modelDlg.Show(a.state.Providers)
+		a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
 		return nil
 	case LeaderActionSessionList:
 		a.dialog.Show(a.state.Sessions)

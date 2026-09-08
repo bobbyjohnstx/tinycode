@@ -3,8 +3,8 @@ package tui
 import "github.com/charmbracelet/lipgloss"
 
 const (
-	statusBarHeight = 1
-	promptHeight    = 6 // textarea (3 lines) + border (2) + metadata (1)
+	statusBarHeight = 2 // hints line + status bar
+	promptHeight    = 5 // textarea (3 lines) + border (1 top) + metadata (1)
 	minSidebarWidth = 30
 	sidebarThreshold = 120
 )

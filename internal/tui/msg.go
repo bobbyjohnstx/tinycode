@@ -91,6 +91,20 @@ type PermissionRepliedMsg struct {
 	Err error
 }
 
+// PermissionReplyMsg is a request to send a permission reply to the server.
+type PermissionReplyMsg struct {
+	SessionID    string
+	PermissionID string
+	Action       string
+}
+
+// SessionErrorMsg is emitted when a session-scoped error arrives via SSE.
+// It carries both an error message (for toast) and session ID (to clear working state).
+type SessionErrorMsg struct {
+	SessionID string
+	Error     string
+}
+
 // --- UI messages ---
 
 type PromptSubmittedMsg struct {

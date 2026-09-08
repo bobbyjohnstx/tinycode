@@ -83,7 +83,7 @@ func (ac *Autocomplete) filter() {
 	q := strings.ToLower(ac.query)
 	ac.filtered = ac.filtered[:0]
 	for _, cmd := range ac.commands {
-		if q == "" || strings.Contains(strings.ToLower(cmd.Name), q) {
+		if q == "" || strings.HasPrefix(strings.ToLower(cmd.Name), q) {
 			ac.filtered = append(ac.filtered, cmd)
 		}
 	}
@@ -141,7 +141,7 @@ func (ac Autocomplete) Update(msg tea.KeyMsg) (Autocomplete, tea.Cmd, bool) {
 	return ac, nil, false
 }
 
-// View renders the autocomplete popover.
+// View renders the autocomplete popover as a two-column table.
 func (ac Autocomplete) View() string {
 	if !ac.visible || len(ac.filtered) == 0 {
 		return ""
@@ -152,17 +152,48 @@ func (ac Autocomplete) View() string {
 		w = 40
 	}
 
+	// Calculate the widest command name for column alignment.
+	nameCol := 0
+	for _, cmd := range ac.filtered {
+		n := len(cmd.Name) + 1 // +1 for "/"
+		if n > nameCol {
+			nameCol = n
+		}
+	}
+	nameCol += 2 // padding after name
+
+	descCol := w - nameCol - 6 // account for border padding
+	if descCol < 10 {
+		descCol = 10
+	}
+
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
+	highlightStyle := lipgloss.NewStyle().
+		Background(lipgloss.AdaptiveColor{Light: "#E8E8E8", Dark: "#2A2A2A"}).
+		Bold(true)
+	highlightDimStyle := lipgloss.NewStyle().
+		Background(lipgloss.AdaptiveColor{Light: "#E8E8E8", Dark: "#2A2A2A"}).
+		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#999999"})
+
 	var lines []string
 	for i, cmd := range ac.filtered {
-		label := "/" + cmd.Name
-		if cmd.Description != "" {
-			label += "  " + cmd.Description
+		name := "/" + cmd.Name
+		desc := cmd.Description
+		if len(desc) > descCol {
+			desc = desc[:descCol-1] + "…"
 		}
+
+		nameStr := lipgloss.NewStyle().Width(nameCol).Render(name)
+		descStr := dimStyle.Width(descCol).Render(desc)
+
 		if i == ac.cursor {
-			lines = append(lines, styleSelected.Width(w).Render(label))
-		} else {
-			lines = append(lines, lipgloss.NewStyle().Width(w).Render(label))
+			nameStr = highlightStyle.Width(nameCol).Render(name)
+			descStr = highlightDimStyle.Width(descCol).Render(desc)
 		}
+
+		row := lipgloss.JoinHorizontal(lipgloss.Top, nameStr, descStr)
+		lines = append(lines, row)
 	}
 
 	return styleDialogBorder.Width(w).Render(

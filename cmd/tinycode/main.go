@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 
+	_ "github.com/bobbyjohnstx/tinycode-go/internal/earlyinit"
+
 	"github.com/bobbyjohnstx/tinycode-go/internal/acp"
 	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"

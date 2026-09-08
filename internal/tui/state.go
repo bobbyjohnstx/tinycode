@@ -41,6 +41,7 @@ type MessageInfo struct {
 	Agent      string `json:"agent,omitempty"`
 	ModelID    string `json:"modelID,omitempty"`
 	ProviderID string `json:"providerID,omitempty"`
+	CreatedAt  string `json:"createdAt,omitempty"`
 }
 
 // MessageView represents a message with its parts.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -114,7 +115,10 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	slog.Info("shell exec", "command", args.Command, "dir", tc.Directory, "timeout", timeout)
+	start := time.Now()
 	err := cmd.Run()
+	elapsed := time.Since(start)
 
 	var output strings.Builder
 	if stdout.Len() > 0 {
@@ -130,15 +134,18 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 
 	if err != nil {
 		if cmdCtx.Err() == context.DeadlineExceeded {
+			slog.Warn("shell timeout", "command", args.Command, "timeout", timeout, "elapsed", elapsed)
 			return &ExecuteResult{
 				Output:  fmt.Sprintf("Command timed out after %v\n%s", timeout, output.String()),
 				IsError: true,
 			}, nil
 		}
+		slog.Warn("shell error", "command", args.Command, "elapsed", elapsed, "error", err, "stderrLen", stderr.Len())
 		exitMsg := fmt.Sprintf("Command exited with error: %v\n%s", err, output.String())
 		return &ExecuteResult{Output: exitMsg, IsError: true}, nil
 	}
 
+	slog.Info("shell done", "command", args.Command, "elapsed", elapsed, "stdoutLen", stdout.Len(), "stderrLen", stderr.Len())
 	return &ExecuteResult{Output: output.String()}, nil
 }
 

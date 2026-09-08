@@ -3,12 +3,13 @@ package llm
 type EventType string
 
 const (
-	EventTextDelta     EventType = "text-delta"
-	EventToolCallBegin EventType = "tool-call-begin"
-	EventToolCallDelta EventType = "tool-call-delta"
-	EventToolCallEnd   EventType = "tool-call-end"
-	EventFinish        EventType = "finish"
-	EventError         EventType = "error"
+	EventTextDelta      EventType = "text-delta"
+	EventReasoningDelta EventType = "reasoning-delta"
+	EventToolCallBegin  EventType = "tool-call-begin"
+	EventToolCallDelta  EventType = "tool-call-delta"
+	EventToolCallEnd    EventType = "tool-call-end"
+	EventFinish         EventType = "finish"
+	EventError          EventType = "error"
 )
 
 type Event struct {
