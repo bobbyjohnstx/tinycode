@@ -2,7 +2,7 @@
 
 Use conventional commit-style messages and PR titles: `type(scope): summary`.
 
-Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes: `tui`, `server`, `llm`, `session`, `provider`, `config`, `tool`, `plugin`, `acp`.
+Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes: `tui`, `server`, `llm`, `session`, `provider`, `config`, `tool`, `plugin`, `acp`, `permission`, `mcp`, `vcs`, `bus`, `storage`, `agent`, `skill`, `command`, `project`.
 
 ## Style Guide
 

@@ -192,7 +192,9 @@ tinycode plugin install notify                                 # From registry
 
 ## Existing Plugin Inventory (30+ plugins)
 
-**General (11):** pilot, code-review, command-inject, context-pruning, handoff, notify, snippets, telemetry, documents, web-search, safety-net, log-sanitizer
+**General (12):** pilot, code-review, command-inject, context-pruning, handoff, notify, snippets, telemetry, documents, web-search, safety-net, log-sanitizer
+
+> All 12 general plugins have been implemented in Go using the `pkg/plugin/` SDK.
 
 **Red Hat (19):** cluster-ops, context-injection, oauth, obs-logging, obs-metrics, eval-trustyai, experiment-tracker, mcp-bridge, mlflow-tools, model-serving, pipelines, quay, rhdh, tekton, rhacm, aap-bridge, eda-events, api-catalog, dev-content, ecosystem-catalog, rhdp-provisioner, lightspeed, container-linter, lightwell, rhacs
 

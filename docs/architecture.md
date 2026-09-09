@@ -1,255 +1,232 @@
 # Architecture
 
-tinycode is a local-LLM-first AI coding assistant. It exposes an HTTP API server, a terminal UI (TUI), and a web UI, all wired to a session engine that orchestrates LLM calls and agent tools. The primary inference targets are Ollama, vLLM, and OpenAI-compatible servers on localhost or LAN. Cloud providers (Anthropic, OpenAI, Google, etc.) are available via API key as a secondary option.
+tinycode is a local-LLM-first AI coding assistant. It ships as a single Go binary that embeds an HTTP server (ephemeral port), a bubbletea terminal UI, session management, LLM streaming, and tool execution. No runtime dependencies beyond the binary itself.
+
+The primary inference targets are Ollama, vLLM, LM Studio, and OpenAI-compatible servers on localhost or LAN. Cloud providers (OpenRouter and any OpenAI-compatible endpoint) are available via API key and config.
 
 ---
 
-## Monorepo Structure
+## Directory Structure
 
-Bun workspaces with Turborepo. All packages live under `packages/`.
+Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/` for public SDK.
 
-| Package                 | Name                              | Purpose                                                                                  |
-| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------------------- |
-| `tinycode`              | `tinycode`                        | Core server, HTTP API, CLI, TUI, session processor, provider abstraction, tools, plugins |
-| `app`                   | `@tinycode/app`                   | SolidJS + TailwindCSS v4 web UI                                                          |
-| `desktop`               | `@tinycode/desktop`               | Electron desktop app wrapping `packages/app`                                             |
-| `llm`                   | `@tinycode/llm`                   | LLM protocol implementations (Anthropic Messages, OpenAI Chat, Bedrock Converse, Gemini) |
-| `ui`                    | `@tinycode/ui`                    | Shared SolidJS component library (icons, themes, i18n, markdown, diffs)                  |
-| `plugin`                | `@tinycode/plugin`                | Public plugin SDK                                                                        |
-| `sdk/js`                | `@tinycode/sdk`                   | Auto-generated TypeScript SDK from OpenAPI spec                                          |
-| `effect-drizzle-sqlite` | `@tinycode/effect-drizzle-sqlite` | Effect wrapper for Drizzle ORM + SQLite                                                  |
-| `http-recorder`         | `@tinycode/http-recorder`         | HTTP/WebSocket recording for tests (VCR-style cassettes)                                 |
-| `script`                | `@tinycode/script`                | Build scripts and release utilities                                                      |
-| `vscode-extension`      | `@tinycode/vscode-extension`      | VS Code extension for ACP integration (editor context, agent routing)                    |
-
-There is no standalone `packages/core` package. Core utilities (logging, git, npm helpers, schema definitions) live at `packages/tinycode/src/core/`.
-
----
-
-## packages/tinycode — Core Server & CLI
-
-The heart of the project. Every directory under `src/`:
-
-| Directory        | Purpose                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `account/`       | User account management and schema                                                                                       |
-| `agent/`         | Agent definitions (25+ agents including architect, debugger, executor, planner, code-reviewer, test-engineer) and subagent permissions |
-| `auth/`          | Authentication for providers and services                                                                                |
-| `background/`    | Background job processing                                                                                                |
-| `bus/`           | Event bus — Effect PubSub for typed event streaming between session processor, TUI, and web clients                      |
-| `cli/`           | CLI entry point, command routing, TUI implementation                                                                     |
-| `command/`       | Custom command configuration                                                                                             |
-| `config/`        | Configuration loading — global, project-local, env overrides, plugin configs, managed configs                            |
-| `control-plane/` | Workspace management and schema                                                                                          |
-| `core/`          | Shared utilities (logging, git, npm, schema, process management)                                                         |
-| `effect/`        | Effect framework utilities (bridges, instance state, runtime flags)                                                      |
-| `env/`           | Environment variable management                                                                                          |
-| `file/`          | File system utilities (ripgrep integration, glob patterns)                                                               |
-| `format/`        | Code formatting integration                                                                                              |
-| `git/`           | Git operations                                                                                                           |
-| `id/`            | ID generation (ULID)                                                                                                     |
-| `ide/`           | IDE integration                                                                                                          |
-| `image/`         | Image processing                                                                                                         |
-| `lsp/`           | Language Server Protocol client                                                                                          |
-| `mcp/`           | Model Context Protocol client (stdio, SSE, HTTP transports; OAuth flow)                                                  |
-| `omt/`           | oh-my-tiny plugin integration                                                                                            |
-| `patch/`         | Diff/patch utilities                                                                                                     |
-| `permission/`    | Tool access control                                                                                                      |
-| `plugin/`        | Plugin system — loader, installer, built-in plugins (azure, cloudflare, digitalocean, github-copilot, xai, openai/codex) |
-| `project/`       | Project context detection and schema                                                                                     |
-| `provider/`      | LLM provider abstraction — wraps Vercel AI SDK, auto-discovers local LLMs, model warmup with tool-call probe              |
-| `pty/`           | Pseudo-terminal — dual runtime (bun-pty / @lydell/node-pty)                                                              |
-| `question/`      | Interactive question/prompt system                                                                                       |
-| `reference/`     | Reference management (repos, directories)                                                                                |
-| `server/`        | HTTP server — Effect HTTP with middleware, route groups, WebSocket, SSE                                                  |
-| `session/`       | Session management — processor loop, LLM streaming, tool execution, compaction, overflow handling                        |
-| `shell/`         | Shell command execution                                                                                                  |
-| `skill/`         | Skills system (slash commands, remote skill indexes)                                                                     |
-| `snapshot/`      | Filesystem snapshot tracking for undo/redo                                                                               |
-| `storage/`       | SQLite via Drizzle ORM — dual runtime (bun:sqlite / node:sqlite)                                                         |
-| `sync/`          | Synchronization events and schema                                                                                        |
-| `tool/`          | Tool implementations — read, write, edit, glob, grep, shell, LSP, webfetch, websearch, MCP, task, plan, skill, etc.      |
-| `util/`          | General utilities                                                                                                        |
-| `worktree/`      | Git worktree management                                                                                                  |
-
-### Server
-
-Effect-based HTTP server using `effect/unstable/http`. Default port 4096. Route groups under `src/server/routes/instance/httpapi/groups/`: config, control, event, experimental, file, global, instance, mcp, metadata, permission, project, provider, pty, query, question, session, tui, v2.
-
-Middleware: authorization, CORS, compression, error handling, workspace routing, schema validation.
-
-Exposes REST endpoints, SSE at `/global/event` for real-time updates, and WebSocket at `/pty/:id/ws` for terminal I/O.
-
-### Session Processor
-
-`src/session/processor.ts` runs the main agent loop: stream LLM response, execute tool calls, manage context overflow (compaction), handle retries, track run state. Each session is independent with its own processor instance.
-
-**Subagent depth limit**: The `subagent_depth` config option (default: 1) prevents infinite recursion. A root session can spawn subagents, but subagents cannot spawn further subagents by default. Set `subagent_depth: 2` or higher to allow nesting.
-
-**Message ordering**: Session message boundaries use `time.created` timestamps for chronological ordering, fixing issues with imported sessions where message IDs may not be monotonically increasing. Affects `latest()`, fork, revert, and prompt loop.
-
-### Tools
-
-Registered in `src/tool/registry.ts`. Each tool is an Effect service. Current tools: read, write, edit, glob, grep, shell, LSP, webfetch, websearch, question, task, todo, skill, plan, swarm, apply_patch, repo_clone, repo_overview. Some tools are conditionally enabled (LSP, repo_clone, repo_overview, plan). Additionally, the omt plugin adds 22 tools (notepad, wiki, state management, AST grep).
-
-**Per-agent tool scoping:** Each agent's `.md` frontmatter declares a `permission:` block using `"*": deny` + explicit allows. This reduces the ~18,500 tokens of tool definitions to ~1,800-2,700 per agent, cutting prompt processing time from ~38s to ~4-8s on local 9B models. The `Permission.disabled()` mechanism at `core/permission.ts` combined with `resolveTools()` at `session/llm/request.ts` handles the filtering.
-
-### Plugins
-
-Plugin registry at `src/plugin/registry.json` provides a curated catalog of known plugins. `tinycode plugin-search [query]` searches by name/description/tags. `tinycode plugin <name>` resolves registry names to npm packages. Plugin install, load, and lifecycle management in `src/plugin/`.
-
----
-
-## Provider Landscape
-
-### Auto-Discovered (no config needed)
-
-| Provider | Default URL                 | Env Override                                  |
-| -------- | --------------------------- | --------------------------------------------- |
-| ollama   | `http://localhost:11434/v1` | `TINYCODE_OLLAMA_HOST`                        |
-| vllm     | `http://localhost:8000/v1`  | `TINYCODE_VLLM_HOST`                          |
-| ramalama | (none — set via env)        | `TINYCODE_RAMALAMA_HOST`                      |
-| maas     | (none — set via env)        | `TINYCODE_MAAS_HOST`, `TINYCODE_MAAS_API_KEY` |
-
-Auto-discovery polls every 30 seconds with a 2-second probe timeout (`src/provider/local-discovery.ts`).
-
-OpenRouter is also auto-discovered when `OPENROUTER_API_KEY` is set. The probe fetches `https://openrouter.ai/api/v1/models` (5-second timeout), filters to tool-capable non-free models, and maps pricing/capabilities/limits. Uses `@openrouter/ai-sdk-provider` SDK with generation cost tracking via OpenRouter's billing API.
-
-On startup, tinycode sends a warmup probe to the configured Ollama model (`src/provider/warmup.ts`). The probe sends a tool-call request to `/api/chat` with `keep_alive: "10m"`, pre-loading the model into GPU memory and verifying tool-calling capability. Results are shown as a toast (TUI) or footer message (direct mode).
-
-**Retry logic**: The `retryable()` function uses regex-based error matching for ~30 scenarios including network failures (fetch failed, connection refused, ECONNRESET, ETIMEDOUT), timeouts, provider overloads, rate limits, and server errors. OpenAI header timeout is increased to 300s (5 minutes) to support reasoning models (o1, o3) that can take minutes to produce the first SSE event.
-
-**Stream error preservation**: Patched `@ai-sdk/openai-compatible` to preserve full error objects during streaming (not just `.message`). `parseStreamError()` now handles both nested envelope and flat error object shapes.
-
-### Bundled Cloud Providers (via Vercel AI SDK)
-
-anthropic, openai, google, amazon-bedrock, azure, google-vertex, xai, mistral, groq, deepinfra, cerebras, cohere, openrouter, togetherai, perplexity, vercel, alibaba, gateway, gitlab, venice, and any generic openai-compatible endpoint. OpenRouter is the only cloud provider with auto-discovery — others require manual model selection from the bundled catalog.
-
-### Plugin Providers
-
-github-copilot (`src/plugin/github-copilot/`), cloudflare (`src/plugin/cloudflare.ts`), digitalocean (`src/plugin/digitalocean.ts`), azure (`src/plugin/azure.ts`), xai (`src/plugin/xai.ts`).
-
----
-
-## Key Patterns
-
-### Effect Framework
-
-All major subsystems are Effect `Context.Service` classes composed via `Layer`:
-
-```ts
-export class Service extends Context.Service<Service, Interface>()("@tinycode/Session") {}
-export const layer = Layer.effect(Service, Effect.gen(function* () { ... }))
+```
+cmd/
+  tinycode/           Main binary entry point
+  plugin-*/           Plugin binaries (12 plugins)
+internal/
+  acp/                Agent Client Protocol (stdio for IDE integration)
+  agent/              Agent definitions and defaults
+  bus/                Event bus for inter-component communication
+  command/            Slash command discovery and merging
+  config/             Config file parsing (JSONC)
+  earlyinit/          Package-init side effects (e.g., lipgloss defaults)
+  frontmatter/        YAML-like frontmatter parser for markdown files
+  id/                 Sortable ID generation with typed prefixes
+  llm/                LLM client abstraction (OpenAI-compatible)
+  mcp/                Model Context Protocol client
+  permission/         Tool permission prompting and rules
+  plugin/             Plugin lifecycle management (server side)
+  project/            Project metadata and directory detection
+  provider/           Provider discovery (Ollama, vLLM, LM Studio, OpenRouter)
+  server/             HTTP server (net/http, REST + SSE)
+  session/            Session lifecycle, processor loop, LLM coordination
+  skill/              Skill discovery and loading
+  static/             Embedded web app file server with SPA fallback
+  storage/            SQLite via modernc.org/sqlite
+  tool/               Tool implementations (read, write, edit, shell, grep, glob, etc.)
+  tui/                Terminal UI (bubbletea, Elm architecture)
+  tui/api/            HTTP client for the embedded server API
+  vcs/                Git operations
+pkg/
+  plugin/             Public plugin SDK (protocol, hooks, tools)
+packages/             Legacy TypeScript packages (app, desktop, etc.)
 ```
 
-Dependencies are injected via Context. Resources are cleaned up via `Scope` and finalizers. Error handling uses typed Effect errors (`Schema.TaggedErrorClass`).
+---
 
-### Event Bus (`src/bus/`)
+## Key Packages
 
-Built on Effect `PubSub`. Typed event definitions via `BusEvent.define()`. Per-instance buses (scoped to project directory) plus a global bus. Events flow from session processor through the bus to TUI and web clients via SSE.
+### `cmd/tinycode/` -- Entry Point
 
-### Dual Runtime
+`main.go` parses CLI commands (`tui`, `serve`, `web`, `acp`, `run`, `models`, `providers`, `session`, `status`, `export`, `agent`, `debug`) and bootstraps dependencies. Each command initializes the bus, database, config, providers, agents, tools, and plugins, then starts the appropriate mode.
 
-Conditional imports via `package.json` `imports` field:
+### `internal/tui/` -- Terminal UI
 
-- `#db`: `db.bun.ts` (bun:sqlite) vs `db.node.ts` (node:sqlite DatabaseSync)
-- `#pty`: `pty.bun.ts` (bun-pty) vs `pty.node.ts` (@lydell/node-pty)
+Bubbletea Elm-architecture UI. `app.go` defines the root `App` model with sub-components: prompt, chat, sidebar, statusbar, dialogs, palette, permission prompt, toast overlay. `run.go` wraps `App` with `connectedApp`, which manages the API client, SSE subscription, prompt submission, session creation, and permission replies. The inner `App` is pure UI state with no network calls.
 
-### TUI (SolidJS + opentui)
+### `internal/tui/api/` -- API Client
 
-`src/cli/cmd/tui/` — Terminal UI built with SolidJS for reactive state and opentui for terminal rendering. Component-based architecture with contexts, routes, themes, and a keymap system with chord/leader key support. The TUI either spawns the server in a worker thread or attaches to an existing one.
+HTTP client for the embedded tinycode server. Types in `types.go` define the wire format for sessions, messages, prompts, and events. Used by `connectedApp` to communicate with the server over HTTP.
+
+### `internal/server/` -- HTTP Server
+
+Standard `net/http` server with middleware (CORS, error handling, logging). REST endpoints for sessions, messages, prompts, providers, models, agents, config, and permissions. SSE endpoints for real-time event streaming. Optional static file serving for the embedded web UI.
+
+### `internal/session/` -- Session Processor
+
+`processor.go` runs the main agent loop: send prompt to LLM, stream response, execute tool calls, manage context overflow via compaction, handle retries, track token usage. Each session gets its own processor instance. `store.go` persists sessions and messages to SQLite.
+
+### `internal/llm/` -- LLM Client
+
+OpenAI-compatible HTTP client with streaming SSE support. Sends chat completion requests, parses streaming deltas, reassembles tool-call arguments across chunks, and handles JSON repair for malformed tool-call output from local models.
+
+### `internal/provider/` -- Provider Discovery
+
+`discovery.go` polls local LLM servers (Ollama, vLLM, LM Studio) at regular intervals, probing for available models. `registry.go` tracks discovered providers and their models. OpenRouter discovery fetches the model list via API when `OPENROUTER_API_KEY` is set. Config-based providers are registered from `config.json`.
+
+### `internal/agent/` -- Agents
+
+`registry.go` loads agent definitions from embedded `.md` files in `defaults/`, user agents from `~/.config/tinycode/agent/`, and project agents from `.tinycode/agent/`. Each agent has a name, mode, description, system prompt, and tool permission rules. Config overrides can adjust model, instructions, and permissions per agent.
+
+### `internal/tool/` -- Tools
+
+`tool.go` defines `Def` (tool definition with ID, description, parameters, permission level, and execute function) and `Registry` (thread-safe tool registration and execution). `builtin.go` registers the core set: read, write, edit, shell, grep, glob, question, webfetch, task, todowrite. Conditional tools (skill, websearch) are registered when their dependencies are available. Execution includes permission checks, bus events, plugin after-hooks, and output truncation.
+
+### `internal/config/` -- Configuration
+
+Parses `~/.config/tinycode/config.json` (JSONC with comments). Project-level config from `.tinycode/tinycode.json`. Supports environment variable overrides (`TINYCODE_PORT`, `TINYCODE_HOST`, `TINYCODE_DB`, `TINYCODE_LOG_LEVEL`). Configs are merged from global, project, and environment sources.
+
+### `internal/storage/` -- Database
+
+SQLite via `modernc.org/sqlite` (pure Go, no CGO). Migrations run automatically on startup. Stores sessions, messages, and project metadata at `~/.local/share/tinycode/tinycode.db`.
+
+### `internal/bus/` -- Event Bus
+
+In-process publish-subscribe event bus. Components publish typed events (session state changes, tool execution, permission requests, provider updates) and subscribe by topic. Used for decoupling the session processor, TUI, permission service, and plugin system.
+
+### `internal/plugin/` -- Plugin Manager (Server Side)
+
+`manager.go` spawns plugin binaries as child processes, performs the JSON-RPC `initialize` handshake, registers plugin-provided tools into the tool registry, and dispatches hook invocations (session lifecycle, permission, tool execution) to plugins.
+
+### `internal/mcp/` -- Model Context Protocol
+
+Client for MCP servers (stdio transport). Configured via `config.json`. Discovers and registers MCP-provided tools into the tool registry at startup.
+
+### `internal/acp/` -- Agent Client Protocol
+
+Stdio-based JSON-RPC transport for IDE integration. Enables IDEs (VS Code, etc.) to communicate with tinycode sessions over stdin/stdout.
+
+### `internal/permission/` -- Permissions
+
+`service.go` manages tool permission prompts. When a tool requires permission, the service publishes a request via the bus, blocks until a reply arrives (from TUI or CLI), and returns the decision. Supports allow-once, allow-always, and reject.
+
+### `internal/skill/` -- Skills
+
+Discovers skill definitions from `~/.config/tinycode/skill/`, project `.tinycode/skill/`, and built-in defaults. Each skill is a directory with a `SKILL.md` file containing YAML frontmatter. Skills surface as slash commands in the TUI.
+
+### `internal/command/` -- Slash Commands
+
+Merges built-in commands, agent names, user skills, and project skills into a unified command list for TUI autocomplete.
+
+### `pkg/plugin/` -- Plugin SDK
+
+Public SDK for building plugin binaries. Defines `Plugin` (ID, tools, hooks), `ToolDef` (name, description, parameters, execute function), and `HookHandlers` (session start/end, permission, shell env, tool before/after, dispose). `Run()` starts the JSON-RPC stdin/stdout loop.
 
 ---
 
-## Web UI (`packages/app`)
+## Data Flows
 
-SolidJS + TailwindCSS v4 + SolidJS Router. Connects to the tinycode API server.
+### TUI Startup
 
-**Routes**: `/` (home), `/:dir` (directory layout), `/:dir/session/:id` (session view).
-
-**Connection**: REST for commands, SSE at `/global/event` for real-time updates (16ms event coalescing, auto-reconnect), WebSocket for terminal I/O.
-
-**Dev**: `bun run --cwd packages/app dev` (Vite dev server, requires tinycode server running).
-
----
-
-## Desktop (`packages/desktop`)
-
-Electron app. Main process spawns the tinycode server as a utility process sidecar (`utilityProcess.fork()`), selects a random port, generates a Basic auth password, and waits for health check. Renderer loads the web UI via `@tinycode/app` with a MemoryRouter.
-
-**Dev**: `bun run --cwd packages/desktop dev` (electron-vite).
-
----
-
-## SDK (`packages/sdk/js`)
-
-Auto-generated from the OpenAPI spec using `@hey-api/openapi-ts`.
-
-**Regenerate**: `./script/generate.ts` (runs `bun dev generate` to produce `openapi.json`, then generates TypeScript client).
-
-**Key exports**: `TinycodeClient` (class), `createTinycodeClient()` (factory), `createTinycodeServer()` (spawns server subprocess), `createTinycodeTui()` (launches TUI).
-
----
-
-## Configuration
-
-### Paths
-
-| Scope        | Location                                                                                                  |
-| ------------ | --------------------------------------------------------------------------------------------------------- |
-| Global       | `~/.config/tinycode/config.json` (also checks `tinycode.json`, `tinycode.jsonc`)                          |
-| Project      | `.tinycode/tinycode.json` (walks up to worktree root)                                                     |
-| Env override | `TINYCODE_CONFIG` (file path), `TINYCODE_CONFIG_DIR` (directory), `TINYCODE_CONFIG_CONTENT` (inline JSON) |
-
-Configs from all sources are deep-merged. Plugin configs are deduplicated by identity.
-
-### Database
-
-SQLite via Drizzle ORM at `~/.local/share/tinycode/tinycode.db` (XDG_DATA_HOME). Schema files: `storage/schema.sql.ts`, `session/session.sql.ts`, `project/project.sql.ts`, `account/account.sql.ts`, `control-plane/workspace.sql.ts`, `sync/event.sql.ts`. Migrations run automatically on startup.
-
-**Forward compatibility**: Config parsing silently ignores unknown fields, enabling newer config files with older tinycode versions and shared configs across teams.
-
-**MCP reconnect loop fix**: Patched `@modelcontextprotocol/sdk` to recognize JSON-RPC error responses, preventing infinite SSE reconnection loops when MCP servers return errors.
-
----
-
-## CLI Commands
-
-| Command                       | Purpose                                                                       |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| `tinycode` (or `bun dev`)     | Interactive TUI (default)                                                     |
-| `tinycode run [message..]`    | Non-interactive prompt execution                                              |
-| `tinycode serve`              | Headless API server on port 4096                                              |
-| `tinycode web`                | Server + open web UI in browser                                               |
-| `tinycode models [provider]`  | List available models                                                         |
-| `tinycode providers`          | List configured providers                                                     |
-| `tinycode mcp`                | MCP server management                                                         |
-| `tinycode plugin <module>`    | Plugin management                                                             |
-| `tinycode session`            | Session management (list, delete, create)                                     |
-| `tinycode export [sessionID]` | Export session                                                                |
-| `tinycode import <file>`      | Import session                                                                |
-| `tinycode setup`              | Initial setup wizard                                                          |
-| `tinycode status`             | System status                                                                 |
-| `tinycode uninstall`          | Uninstall tinycode                                                            |
-| `tinycode db`                 | Database operations                                                           |
-| `tinycode debug <name>`       | Debug utilities (agent, config, file, lsp, ripgrep, skill, snapshot, startup) |
-
----
-
-## Plugin System
-
-Plugins extend tinycode with custom tools, providers, and TUI features.
-
-**Sources**: npm packages (installed to `.tinycode/node_modules/`), local `.ts` files, or directory-based plugins in `.tinycode/plugin/`.
-
-**Hook categories**: auth, provider, chat (message/params/headers), tool (definition/execute), permission, command, shell (env injection), session (compaction), text (completion).
-
-**Config**:
-
-```json
-{
-  "plugin": ["npm-package-name", { "npm": "package-name", "options": {} }, "./local-plugin.ts"]
-}
+```
+cmd/tinycode/main.go
+  -> setupLogger()
+  -> initDependencies()          # bus, database, config
+  -> startDiscovery()            # provider polling goroutines
+  -> initAgentRegistry()         # load agent definitions
+  -> initTooling()               # tool registry + permission service
+  -> plugin.NewManager()         # spawn plugin processes
+  -> server.New() + Listen()     # embedded HTTP server on port 0
+  -> tui.Run()                   # launch bubbletea program
 ```
 
-**Built-in plugins**: azure, cloudflare, digitalocean, github-copilot, xai, openai/codex, omt (oh-my-tiny).
+The embedded server binds to an ephemeral port (port 0). The TUI connects to it via the returned URL.
+
+### Request Flow
+
+```
+User types prompt in TUI
+  -> connectedApp.submitPrompt()     # HTTP POST to /session/:id/prompt
+  -> server handler creates prompt
+  -> session.Processor.Process()     # main agent loop
+    -> llm.Client.ChatCompletionStream()  # SSE to LLM provider
+    -> stream text deltas             # bus publish "session.text.delta"
+    -> parse tool calls               # bus publish "session.tool.begin"
+    -> tool.Registry.Execute()        # permission check + execute
+    -> bus publish "session.tool.end"
+    -> loop until LLM stops calling tools
+  -> SSE events flow to TUI
+    -> api.Client.Subscribe()         # SSE channel
+    -> mapSSEToMsg()                  # convert to tea.Msg
+    -> App.Update()                   # render new state
+```
+
+### Plugin Lifecycle
+
+```
+plugin.Manager.Load(name)
+  -> exec.Command("plugin-<name>")   # spawn binary
+  -> JSON-RPC "initialize" request
+  -> plugin returns manifest (tools, hooks)
+  -> register plugin tools in tool registry
+
+On tool call:
+  -> JSON-RPC "tool/call" request
+  -> plugin executes, returns result
+
+On hook event:
+  -> JSON-RPC "hook/invoke" request
+  -> plugin processes event
+
+On shutdown:
+  -> JSON-RPC "hook/invoke" (dispose)
+  -> kill process
+```
+
+### Tool Execution
+
+```
+Registry.Execute(ctx, name, args, sessionID)
+  -> lookup Def by name
+  -> check disabled map
+  -> permission.Service.Ask()        # blocks for user reply
+  -> bus publish "tool.execute.before"
+  -> def.Execute(ctx, toolCtx, args)
+  -> AfterHook (plugin dispatch)
+  -> bus publish "tool.execute.after"
+  -> Truncate output if needed
+  -> return (output, isError)
+```
+
+---
+
+## Dependencies
+
+Key Go dependencies (see `go.mod` for exact versions):
+
+| Dependency | Purpose |
+|---|---|
+| `github.com/charmbracelet/bubbletea` | Terminal UI framework (Elm architecture) |
+| `github.com/charmbracelet/bubbles` | TUI components (textarea, viewport, etc.) |
+| `github.com/charmbracelet/lipgloss` | Terminal styling and layout |
+| `github.com/charmbracelet/glamour` | Markdown rendering in terminal |
+| `github.com/muesli/reflow` | Text wrapping and word-break |
+| `modernc.org/sqlite` | Pure-Go SQLite (no CGO) |
+| `golang.org/x/term` | Terminal detection and raw mode |
+
+No external router library -- the HTTP server uses standard `net/http` with a custom mux.
+
+---
+
+## Design Decisions
+
+**Why Go.** Single statically-linked binary with no runtime dependencies. Cross-compiles to 5 platforms from a single machine. Fast startup, low memory footprint. The previous TypeScript version required Bun or Node.js at runtime.
+
+**Why bubbletea.** Elm architecture (Model/Update/View) gives deterministic UI state management. All state transitions go through `Update()`, making the TUI testable without a terminal. `tea.Cmd` for async work prevents callback spaghetti. `tea.Msg` for event dispatch replaces ad-hoc event emitters.
+
+**Why JSON-RPC for plugins.** Process isolation -- a crashing plugin cannot take down the host. Language-agnostic wire protocol -- plugins could be written in any language, though the SDK is Go. Stdin/stdout transport avoids network port allocation.
+
+**Why modernc.org/sqlite.** Pure Go, no CGO dependency. Simplifies cross-compilation (CGO + SQLite requires platform-specific C toolchains). Trades some performance for build simplicity -- acceptable for the session/message storage workload.
+
+**Why embedded server.** The TUI communicates with the session engine via HTTP/SSE, the same protocol the web UI and ACP use. This means one code path serves all three interfaces. The server binds to an ephemeral port (port 0) in TUI mode, avoiding conflicts.

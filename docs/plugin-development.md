@@ -1,1282 +1,654 @@
 # Plugin Development Guide
 
-This guide covers everything you need to build, test, and publish plugins for tinycode.
+This guide covers everything you need to build, test, and distribute plugins for tinycode 2.0.
 
 ## Overview
 
-Plugins extend tinycode with custom tools, LLM providers, authentication flows, and lifecycle hooks. A plugin is an npm package (or local file) that exports a `PluginModule` object. When tinycode loads the plugin, it calls the module's `server` function with a `PluginInput` context and receives back a `Hooks` object declaring what the plugin provides.
-
-### What plugins can do
+Plugins are standalone Go binaries that communicate with tinycode over JSON-RPC 2.0 via stdin/stdout. Each plugin is a separate process spawned by the tinycode plugin manager. Plugins can:
 
 - Register custom tools that the LLM can invoke during sessions
-- Add LLM providers with custom model discovery
-- Intercept and modify chat messages, parameters, and headers before they reach the LLM
-- React to session lifecycle events (start, end, switch, model change)
+- Hook into session lifecycle events (start, end)
+- Intercept permission requests
 - Inject environment variables into shell commands
-- Intercept tool execution (before and after)
-- Modify tool definitions sent to the LLM
-- Handle permission requests
-- Add custom authentication flows (OAuth, API key)
-- Stream and react to server events
-- Modify the tinycode config at load time
+- Observe and modify tool execution (before and after)
+- Clean up resources on shutdown
 
-### Plugin module shape
+### Plugin SDK
 
-```typescript
-import type { PluginModule } from "tinycode-plugin"
+The public SDK lives in `pkg/plugin/`. Import it as:
 
-export default {
-  server: async (input, options) => {
-    // Return a Hooks object
-    return {
-      // ... hooks go here
-    }
-  },
-} satisfies PluginModule
+```go
+import "github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
 ```
 
-The `PluginModule` type:
-
-```typescript
-type PluginModule = {
-  id?: string              // Optional unique identifier
-  server: Plugin           // Required: the plugin entry point
-  tui?: never              // Server plugins cannot also be TUI plugins
-  schema?: PluginSchema    // Optional: zod schema to validate plugin options
-}
-```
-
-The current plugin API version is `1`. Plugins can declare compatibility in their `package.json`:
-
-```json
-{
-  "engines": {
-    "tinycode-plugin": "1"
-  }
-}
-```
+The SDK provides three core types:
+- `plugin.Plugin` -- the plugin definition (ID, tools, hooks)
+- `plugin.ToolDef` -- a tool exposed to the LLM
+- `plugin.HookHandlers` -- optional lifecycle callbacks
 
 ---
 
-## Getting Started
+## Quick start
 
-### Minimal plugin structure
+A minimal plugin that provides a single tool:
 
-```
-my-plugin/
-  package.json
-  src/
-    index.ts
-```
+```go
+package main
 
-**package.json:**
+import (
+    "context"
+    "encoding/json"
+    "fmt"
 
-```json
-{
-  "name": "my-tinycode-plugin",
-  "version": "1.0.0",
-  "type": "module",
-  "exports": {
-    "./server": "./src/index.ts"
-  },
-  "dependencies": {
-    "tinycode-plugin": "latest"
-  }
+    "github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+)
+
+func main() {
+    plugin.Run(plugin.Plugin{
+        ID: "greet",
+        Tools: []plugin.ToolDef{{
+            Name:        "greet",
+            Description: "Greet someone by name",
+            Parameters: map[string]any{
+                "type": "object",
+                "properties": map[string]any{
+                    "name": map[string]any{
+                        "type":        "string",
+                        "description": "The name to greet",
+                    },
+                },
+                "required": []string{"name"},
+            },
+            Execute: func(ctx context.Context, args json.RawMessage, tc plugin.ToolContext) (string, error) {
+                var input struct {
+                    Name string `json:"name"`
+                }
+                if err := json.Unmarshal(args, &input); err != nil {
+                    return "", fmt.Errorf("invalid arguments: %w", err)
+                }
+                return fmt.Sprintf("Hello, %s!", input.Name), nil
+            },
+        }},
+    })
 }
 ```
 
-The `./server` export is required for server-side plugins. If your plugin also extends the TUI, add a `./tui` export pointing to a file that exports a `TuiPlugin`.
-
-**src/index.ts:**
-
-```typescript
-import type { PluginModule } from "tinycode-plugin"
-import { tool } from "tinycode-plugin/tool"
-
-export default {
-  server: async (input, options) => {
-    return {
-      tool: {
-        greet: tool({
-          description: "Greet someone by name",
-          args: {
-            name: tool.schema.string().describe("The name to greet"),
-          },
-          async execute(args) {
-            return `Hello, ${args.name}!`
-          },
-        }),
-      },
-    }
-  },
-} satisfies PluginModule
-```
-
-### Install for local development
-
-Use a `file://` path to install a plugin from your local filesystem:
+Build and install:
 
 ```bash
-tinycode plugin file:///path/to/my-plugin
+go build -o ~/.config/tinycode/plugins/greet ./cmd/my-plugin
 ```
 
-Or add it directly to your config file (`~/.config/tinycode/config.json` or `.tinycode/config.json`):
+Add to your tinycode config (`~/.config/tinycode/config.json`):
 
 ```json
 {
-  "plugin": [
-    "file:///path/to/my-plugin"
-  ]
+  "plugins": ["greet"]
 }
 ```
 
-Plugins installed via `file://` paths are resolved directly without npm. This is the fastest way to iterate during development.
-
-### PluginInput
-
-The `server` function receives a `PluginInput` object:
-
-```typescript
-type PluginInput = {
-  client: TinycodeClient   // SDK client connected to the running server
-  project: Project          // Current project info (id, worktree, time)
-  directory: string         // Current working directory
-  worktree: string          // Project worktree root
-  serverUrl: URL            // URL of the running tinycode server
-  $: BunShell               // Bun shell for running commands
-}
-```
-
-The `$` shell supports tagged template literals for running commands:
-
-```typescript
-const result = await input.$`ls -la ${input.directory}`.text()
-```
+Restart tinycode. The `greet` tool is now available to the LLM.
 
 ---
 
-## Hooks Reference
-
-All hooks are optional fields on the `Hooks` object returned by your plugin's `server` function. Hooks follow two patterns:
-
-1. **Observer hooks** receive an `input` object (read-only context) and an `output` object (mutable). Modify `output` to affect behavior.
-2. **Registration hooks** are objects or functions that register capabilities (tools, providers, auth).
-
-### Session Lifecycle
-
-#### `session.start`
-
-Fires when a new session is created.
-
-```typescript
-"session.start"?: (
-  input: { sessionID: string; parentID?: string; agent?: string },
-  output: {},
-) => Promise<void>
-```
-
-- `parentID` is set when the session is a subagent spawned by another session.
-- `agent` is the agent name if the session was started with a specific agent.
-
-```typescript
-"session.start": async (input) => {
-  console.log(`Session started: ${input.sessionID}`)
-  if (input.parentID) {
-    console.log(`  Spawned by: ${input.parentID}`)
-  }
-},
-```
-
-#### `session.end`
-
-Fires when a session is deleted.
-
-```typescript
-"session.end"?: (
-  input: { sessionID: string },
-  output: {},
-) => Promise<void>
-```
-
-```typescript
-"session.end": async (input) => {
-  await cleanup(input.sessionID)
-},
-```
-
-#### `session.switch`
-
-Fires when the user switches to a different session.
-
-```typescript
-"session.switch"?: (
-  input: { sessionID: string; previousSessionID?: string },
-  output: {},
-) => Promise<void>
-```
-
-```typescript
-"session.switch": async (input) => {
-  console.log(`Switched to ${input.sessionID} from ${input.previousSessionID}`)
-},
-```
-
-#### `session.model.change`
-
-Fires when the model is changed for a session.
-
-```typescript
-"session.model.change"?: (
-  input: {
-    sessionID: string
-    providerID: string
-    modelID: string
-    previousModelID?: string
-  },
-  output: {},
-) => Promise<void>
-```
-
-```typescript
-"session.model.change": async (input) => {
-  console.log(`Model changed to ${input.providerID}/${input.modelID}`)
-},
-```
-
-### Chat Interception
-
-#### `chat.message`
-
-Fires when a new user message is received. Mutate `output` to modify the message or its parts before processing.
-
-```typescript
-"chat.message"?: (
-  input: {
-    sessionID: string
-    agent?: string
-    model?: { providerID: string; modelID: string }
-    messageID?: string
-    variant?: string
-  },
-  output: { message: UserMessage; parts: Part[] },
-) => Promise<void>
-```
-
-```typescript
-"chat.message": async (input, output) => {
-  // Prepend context to every message
-  output.parts.push({
-    type: "text",
-    text: `[Context: project=${input.agent}]`,
-  })
-},
-```
-
-#### `chat.params`
-
-Modify the parameters sent to the LLM for a chat request. Mutate `output` fields to change temperature, token limits, and other model parameters.
-
-```typescript
-"chat.params"?: (
-  input: {
-    sessionID: string
-    agent: string
-    model: Model
-    provider: ProviderContext
-    message: UserMessage
-  },
-  output: {
-    temperature: number
-    topP: number
-    topK: number
-    maxOutputTokens: number | undefined
-    options: Record<string, any>
-  },
-) => Promise<void>
-```
-
-The `provider` field contains:
-
-```typescript
-type ProviderContext = {
-  source: "env" | "config" | "custom" | "api"
-  info: Provider
-  options: Record<string, any>
-}
-```
-
-```typescript
-"chat.params": async (input, output) => {
-  // Force low temperature for the architect agent
-  if (input.agent === "architect") {
-    output.temperature = 0.1
-  }
-},
-```
-
-#### `chat.headers`
-
-Add or modify HTTP headers sent with LLM API requests.
-
-```typescript
-"chat.headers"?: (
-  input: {
-    sessionID: string
-    agent: string
-    model: Model
-    provider: ProviderContext
-    message: UserMessage
-  },
-  output: { headers: Record<string, string> },
-) => Promise<void>
-```
-
-```typescript
-"chat.headers": async (input, output) => {
-  output.headers["X-Custom-Header"] = "my-value"
-},
-```
-
-### Tool Hooks
-
-#### `tool`
-
-Register custom tools. This is an object mapping tool names to `ToolDefinition` objects created with the `tool()` helper. See the [Tool API](#tool-api) section for details.
-
-```typescript
-tool?: {
-  [key: string]: ToolDefinition
-}
-```
-
-```typescript
-tool: {
-  "my-tool": tool({
-    description: "Does something useful",
-    args: {
-      query: tool.schema.string().describe("Search query"),
-    },
-    async execute(args, context) {
-      return `Result: ${args.query}`
-    },
-  }),
-},
-```
-
-#### `tool.execute.before`
-
-Fires before a tool executes. Mutate `output.args` to modify the arguments passed to the tool.
-
-```typescript
-"tool.execute.before"?: (
-  input: { tool: string; sessionID: string; callID: string },
-  output: { args: any },
-) => Promise<void>
-```
-
-```typescript
-"tool.execute.before": async (input, output) => {
-  if (input.tool === "shell") {
-    console.log(`Shell command: ${JSON.stringify(output.args)}`)
-  }
-},
-```
-
-#### `tool.execute.after`
-
-Fires after a tool executes. Mutate `output` to modify the tool's result before it reaches the LLM.
-
-```typescript
-"tool.execute.after"?: (
-  input: { tool: string; sessionID: string; callID: string; args: any },
-  output: {
-    title: string
-    output: string
-    metadata: any
-  },
-) => Promise<void>
-```
-
-```typescript
-"tool.execute.after": async (input, output) => {
-  // Truncate very long tool outputs
-  if (output.output.length > 10000) {
-    output.output = output.output.slice(0, 10000) + "\n[truncated]"
-  }
-},
-```
-
-#### `tool.definition`
-
-Modify tool definitions (description and parameters) before they are sent to the LLM. Useful for customizing how tools are presented to models.
-
-```typescript
-"tool.definition"?: (
-  input: { toolID: string },
-  output: { description: string; parameters: any },
-) => Promise<void>
-```
-
-```typescript
-"tool.definition": async (input, output) => {
-  if (input.toolID === "shell") {
-    output.description += "\nPrefer using absolute paths."
-  }
-},
-```
-
-### Permission
-
-#### `permission.ask`
-
-Intercept permission requests. Mutate `output.status` to auto-allow or auto-deny permissions.
-
-```typescript
-"permission.ask"?: (
-  input: Permission,
-  output: { status: "ask" | "deny" | "allow" },
-) => Promise<void>
-```
-
-```typescript
-"permission.ask": async (input, output) => {
-  // Auto-allow read operations
-  if (input.tool === "read") {
-    output.status = "allow"
-  }
-},
-```
-
-### Shell
-
-#### `shell.env`
-
-Inject environment variables into shell commands executed by tinycode.
-
-```typescript
-"shell.env"?: (
-  input: { cwd: string; sessionID?: string; callID?: string },
-  output: { env: Record<string, string> },
-) => Promise<void>
-```
-
-```typescript
-"shell.env": async (input, output) => {
-  output.env["MY_PLUGIN_VAR"] = "some-value"
-  output.env["NODE_OPTIONS"] = "--max-old-space-size=4096"
-},
-```
-
-### Command
-
-#### `command.execute.before`
-
-Fires before a slash command executes. Mutate `output.parts` to inject additional context or modify the command input.
-
-```typescript
-"command.execute.before"?: (
-  input: { command: string; sessionID: string; arguments: string },
-  output: { parts: Part[] },
-) => Promise<void>
-```
-
-```typescript
-"command.execute.before": async (input, output) => {
-  if (input.command === "ask") {
-    output.parts.push({
-      type: "text",
-      text: "Additional context for the agent.",
-    })
-  }
-},
-```
-
-### Auth
-
-#### `auth`
-
-Register a custom authentication flow for a provider. Supports both OAuth and API key methods.
-
-```typescript
-auth?: AuthHook
-```
-
-The `AuthHook` type:
-
-```typescript
-type AuthHook = {
-  provider: string
-  loader?: (auth: () => Promise<Auth>, provider: Provider) => Promise<Record<string, any>>
-  methods: AuthMethod[]
-}
-```
-
-Each method is either `type: "oauth"` or `type: "api"`:
-
-**OAuth method:**
-
-```typescript
-{
-  type: "oauth"
-  label: string
-  prompts?: AuthPrompt[]
-  authorize(inputs?: Record<string, string>): Promise<AuthOAuthResult>
-}
-```
-
-**API key method:**
-
-```typescript
-{
-  type: "api"
-  label: string
-  prompts?: AuthPrompt[]
-  authorize?(inputs?: Record<string, string>): Promise<
-    | { type: "success"; key: string; provider?: string; metadata?: Record<string, string> }
-    | { type: "failed" }
-  >
-}
-```
-
-Both method types support interactive prompts:
-
-```typescript
-type AuthPrompt =
-  | {
-      type: "text"
-      key: string
-      message: string
-      placeholder?: string
-      validate?: (value: string) => string | undefined
-      when?: { key: string; op: "eq" | "neq"; value: string }
-    }
-  | {
-      type: "select"
-      key: string
-      message: string
-      options: Array<{ label: string; value: string; hint?: string }>
-      when?: { key: string; op: "eq" | "neq"; value: string }
-    }
-```
-
-```typescript
-auth: {
-  provider: "my-provider",
-  methods: [
-    {
-      type: "api",
-      label: "API Key",
-      prompts: [
-        {
-          type: "text",
-          key: "apiKey",
-          message: "Enter your API key",
-          placeholder: "sk-...",
-          validate: (value) =>
-            value.startsWith("sk-") ? undefined : "Key must start with sk-",
-        },
-      ],
-      async authorize(inputs) {
-        if (!inputs?.apiKey) return { type: "failed" }
-        return {
-          type: "success",
-          key: inputs.apiKey,
-        }
-      },
-    },
-  ],
-},
-```
-
-### Provider
-
-#### `provider`
-
-Register a custom LLM provider with model discovery.
-
-```typescript
-provider?: ProviderHook
-```
-
-```typescript
-type ProviderHook = {
-  id: string
-  models?: (provider: ProviderV2, ctx: ProviderHookContext) => Promise<Record<string, ModelV2>>
+## Plugin entry point
+
+`plugin.Run()` is the entry point for all plugins. It:
+
+1. Reads an `initialize` request from stdin
+2. Responds with a manifest declaring the plugin's tools and hooks
+3. Enters a dispatch loop, routing `tool/call` and `hook/invoke` requests to handlers
+4. Calls the `Dispose` hook on clean shutdown (stdin closed)
+
+```go
+type Plugin struct {
+    ID    string
+    Tools []ToolDef
+    Hooks HookHandlers
 }
 
-type ProviderHookContext = {
-  auth?: Auth
-}
+func Run(p Plugin)
 ```
 
-```typescript
-provider: {
-  id: "my-provider",
-  async models(provider, ctx) {
-    return {
-      "my-model": {
-        id: "my-model",
-        name: "My Model",
-        // ... model configuration
-      },
-    }
-  },
-},
-```
-
-### Config
-
-#### `config`
-
-Modify the tinycode configuration at load time. Receives the full config object (minus the `plugin` field).
-
-```typescript
-config?: (input: Config) => Promise<void>
-```
-
-The `Config` type is `Omit<SDKConfig, "plugin"> & { plugin?: Array<string | [string, PluginOptions]> }`.
-
-```typescript
-config: async (config) => {
-  // Modify config at load time
-},
-```
-
-### Event
-
-#### `event`
-
-Receive all server events. This is a firehose of every event emitted by the tinycode server.
-
-```typescript
-event?: (input: { event: Event }) => Promise<void>
-```
-
-```typescript
-event: async ({ event }) => {
-  if (event.type === "session.updated") {
-    console.log(`Session updated: ${event.properties.sessionID}`)
-  }
-},
-```
-
-### Dispose
-
-#### `dispose`
-
-Called when the plugin is being unloaded. Use this to clean up resources, close connections, or flush data.
-
-```typescript
-dispose?: () => Promise<void>
-```
-
-```typescript
-dispose: async () => {
-  await db.close()
-  console.log("Plugin cleaned up")
-},
-```
-
-### Experimental Hooks
-
-These hooks are prefixed with `experimental.` and may change in future versions without a major version bump. Use them with caution.
-
-#### `experimental.chat.messages.transform`
-
-Transform the full message history before it is sent to the LLM. Allows rewriting, filtering, or reordering messages.
-
-```typescript
-"experimental.chat.messages.transform"?: (
-  input: {},
-  output: {
-    messages: {
-      info: Message
-      parts: Part[]
-    }[]
-  },
-) => Promise<void>
-```
-
-#### `experimental.chat.system.transform`
-
-Transform the system prompt before it is sent to the LLM.
-
-```typescript
-"experimental.chat.system.transform"?: (
-  input: { sessionID?: string; model: Model },
-  output: { system: string[] },
-) => Promise<void>
-```
-
-```typescript
-"experimental.chat.system.transform": async (input, output) => {
-  output.system.push("Always respond in bullet points.")
-},
-```
-
-#### `experimental.session.compacting`
-
-Called before session compaction starts. Allows customizing or replacing the compaction prompt.
-
-```typescript
-"experimental.session.compacting"?: (
-  input: { sessionID: string },
-  output: { context: string[]; prompt?: string },
-) => Promise<void>
-```
-
-- `context`: additional context strings appended to the default compaction prompt.
-- `prompt`: if set, replaces the default compaction prompt entirely.
-
-#### `experimental.compaction.autocontinue`
-
-Called after compaction succeeds and before a synthetic user auto-continue message is added.
-
-```typescript
-"experimental.compaction.autocontinue"?: (
-  input: {
-    sessionID: string
-    agent: string
-    model: Model
-    provider: ProviderContext
-    message: UserMessage
-    overflow: boolean
-  },
-  output: { enabled: boolean },
-) => Promise<void>
-```
-
-Set `output.enabled = false` to skip the synthetic user "continue" turn after compaction.
-
-#### `experimental.text.complete`
-
-Called when a text part is complete. Allows post-processing of generated text.
-
-```typescript
-"experimental.text.complete"?: (
-  input: { sessionID: string; messageID: string; partID: string },
-  output: { text: string },
-) => Promise<void>
-```
+`Run` blocks until stdin is closed or an unrecoverable error occurs. On error, it prints to stderr and exits with code 1.
 
 ---
 
-## Tool API
+## Tool plugins
 
-Tools are the primary way plugins expose functionality to the LLM. Use the `tool()` helper from `tinycode-plugin/tool` to define tools with validated arguments and typed execution.
+Tools are functions the LLM can invoke during a session. Each tool has a name, description, JSON Schema parameters, and an execute function.
 
-### Defining a tool
+### ToolDef struct
 
-```typescript
-import { tool } from "tinycode-plugin/tool"
-
-const myTool = tool({
-  description: "Search a knowledge base",
-  args: {
-    query: tool.schema.string().describe("The search query"),
-    limit: tool.schema.number().optional().describe("Max results to return"),
-  },
-  async execute(args, context) {
-    const results = await search(args.query, args.limit ?? 10)
-    return {
-      title: `Found ${results.length} results`,
-      output: results.map((r) => r.summary).join("\n"),
-    }
-  },
-})
-```
-
-### Argument schemas with `tool.schema`
-
-`tool.schema` is a re-export of `zod` (`z`). Use it to define argument validation:
-
-```typescript
-args: {
-  name: tool.schema.string().describe("User name"),
-  age: tool.schema.number().int().min(0).describe("User age"),
-  role: tool.schema.enum(["admin", "user"]).describe("User role"),
-  tags: tool.schema.array(tool.schema.string()).optional().describe("Tags"),
+```go
+type ToolDef struct {
+    Name        string
+    Description string
+    Parameters  map[string]any
+    Execute     func(ctx context.Context, args json.RawMessage, tc ToolContext) (string, error)
 }
 ```
 
-Every argument field should include `.describe()` to document the parameter for the LLM.
+| Field | Purpose |
+|-------|---------|
+| `Name` | Unique tool name. The LLM uses this to invoke the tool. |
+| `Description` | Human-readable description shown to the LLM. |
+| `Parameters` | JSON Schema describing the tool's input. Use standard JSON Schema with `type`, `properties`, and `required`. |
+| `Execute` | The function called when the LLM invokes the tool. Receives raw JSON args and a `ToolContext`. Returns a string result or an error. |
 
 ### ToolContext
 
-The `execute` function receives a `ToolContext` as its second argument:
-
-```typescript
-type ToolContext = {
-  sessionID: string       // Current session ID
-  messageID: string       // Current message ID
-  agent: string           // Current agent name
-  directory: string       // Current project directory for this session
-  worktree: string        // Project worktree root
-  abort: AbortSignal      // Abort signal for cancellation
-  metadata(input: {       // Report metadata back to the UI
-    title?: string
-    metadata?: Record<string, any>
-  }): void
-  ask(input: AskInput): Promise<void>  // Request user permission
-  progress: (message: string) => void  // Emit progress during execution
-  messages: () => Promise<ReadonlyArray<{ role: string; content: string }>>  // Conversation history
-  sessionInfo: () => Promise<{ id: string; model: string; agent: string }>   // Session metadata
+```go
+type ToolContext struct {
+    SessionID string `json:"sessionId"`
+    Directory string `json:"directory"`
 }
 ```
 
-The `ask` function requests permission from the user:
+The `ToolContext` provides the current session ID and working directory.
 
-```typescript
-type AskInput = {
-  permission: string            // Permission identifier
-  patterns: string[]            // Patterns this permission covers
-  always: string[]              // Patterns to auto-allow in future
-  metadata: Record<string, any> // Additional context for the permission dialog
-}
+### Parameter schema
+
+Parameters use standard JSON Schema. Define them as `map[string]any`:
+
+```go
+Parameters: map[string]any{
+    "type": "object",
+    "properties": map[string]any{
+        "query": map[string]any{
+            "type":        "string",
+            "description": "The search query",
+        },
+        "limit": map[string]any{
+            "type":        "number",
+            "description": "Maximum number of results",
+        },
+    },
+    "required": []string{"query"},
+},
 ```
 
-Use `metadata()` to update the tool's display title and pass structured data back:
+### Error handling
 
-```typescript
-async execute(args, context) {
-  context.metadata({ title: `Searching for "${args.query}"...` })
-  const results = await search(args.query)
-  context.metadata({
-    title: `Found ${results.length} results`,
-    metadata: { count: results.length },
-  })
-  return results.map((r) => r.text).join("\n")
-}
-```
+Return an error from `Execute` to signal failure. The error message is sent back to the LLM as the tool result with `IsError: true`:
 
-### ToolResult
-
-Tools can return either a plain string or a structured result:
-
-```typescript
-type ToolResult =
-  | string
-  | {
-      title?: string                  // Display title in the UI
-      output: string                  // Text output sent to the LLM
-      metadata?: Record<string, any>  // Structured metadata
-      attachments?: ToolAttachment[]  // File attachments
+```go
+Execute: func(ctx context.Context, args json.RawMessage, tc plugin.ToolContext) (string, error) {
+    var input myArgs
+    if err := json.Unmarshal(args, &input); err != nil {
+        return "", fmt.Errorf("invalid arguments: %w", err)
     }
+    result, err := doWork(input)
+    if err != nil {
+        return "", fmt.Errorf("operation failed: %w", err)
+    }
+    return result, nil
+},
 ```
 
-### ToolAttachment
+### Example: notify plugin
 
-Attach files to tool results:
+The `cmd/plugin-notify/` plugin demonstrates a tool-only plugin. It sends desktop notifications using platform-specific commands (osascript on macOS, notify-send on Linux):
 
-```typescript
-type ToolAttachment = {
-  type: "file"
-  mime: string        // MIME type (e.g. "image/png", "application/json")
-  url: string         // File URL or data URI
-  filename?: string   // Optional display filename
-}
-```
-
-```typescript
-async execute(args) {
-  const chart = await generateChart(args.data)
-  return {
-    output: "Chart generated successfully.",
-    attachments: [
-      {
-        type: "file",
-        mime: "image/png",
-        url: `file://${chart.path}`,
-        filename: "chart.png",
-      },
-    ],
-  }
+```go
+func newPlugin() plugin.Plugin {
+    return plugin.Plugin{
+        ID: "notify",
+        Tools: []plugin.ToolDef{{
+            Name:        "notify",
+            Description: "Send a desktop notification",
+            Parameters: map[string]any{
+                "type": "object",
+                "properties": map[string]any{
+                    "title":   map[string]any{"type": "string", "description": "Notification title"},
+                    "message": map[string]any{"type": "string", "description": "Notification body"},
+                },
+                "required": []string{"title", "message"},
+            },
+            Execute: executeNotify,
+        }},
+    }
 }
 ```
 
 ---
 
-## Configuration
+## Hook plugins
 
-Users configure plugins in their tinycode config file (`~/.config/tinycode/config.json` for global, or `.tinycode/config.json` for project-level):
+Hooks let plugins observe and react to events in the tinycode session lifecycle.
 
-```json
-{
-  "plugin": [
-    "my-plugin-name",
-    ["my-other-plugin", { "apiKey": "sk-...", "verbose": true }]
-  ]
+### HookHandlers struct
+
+```go
+type HookHandlers struct {
+    SessionStart   func(ctx context.Context, event SessionStartEvent) error
+    SessionEnd     func(ctx context.Context, event SessionEndEvent) error
+    PermissionAsk  func(ctx context.Context, input PermissionInput) (*PermissionOutput, error)
+    ShellEnv       func(ctx context.Context, input ShellEnvInput) (*ShellEnvOutput, error)
+    ToolExecBefore func(ctx context.Context, input ToolExecBeforeInput) error
+    ToolExecAfter  func(ctx context.Context, input ToolExecAfterInput) (*ToolExecAfterOutput, error)
+    Dispose        func(ctx context.Context) error
 }
 ```
 
-Plugins listed as a plain string receive no options. Plugins listed as a `[name, options]` tuple receive the options object as the second argument to the `server` function.
+All fields are optional. Set only the hooks your plugin needs.
 
-### Schema validation
+### Available hooks
 
-Plugins can export a `schema` field on their `PluginModule` to validate options before the plugin loads. The schema is a zod type:
+#### SessionStart
 
-```typescript
-import { z } from "zod"
-import type { PluginModule } from "tinycode-plugin"
+Fires when a new session is created.
 
-export default {
-  schema: z.object({
-    apiKey: z.string().min(1, "API key is required"),
-    verbose: z.boolean().optional().default(false),
-  }),
-  server: async (input, options) => {
-    // options is validated against the schema before reaching here
-    const { apiKey, verbose } = options as { apiKey: string; verbose: boolean }
-    return {}
-  },
-} satisfies PluginModule
+```go
+type SessionStartEvent struct {
+    SessionID string `json:"sessionId"`
+    Directory string `json:"directory"`
+}
 ```
 
-When validation fails, tinycode reports the error and skips loading the plugin.
+```go
+SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) error {
+    log.Printf("Session started: %s in %s", event.SessionID, event.Directory)
+    return nil
+},
+```
+
+#### SessionEnd
+
+Fires when a session is destroyed.
+
+```go
+type SessionEndEvent struct {
+    SessionID string `json:"sessionId"`
+}
+```
+
+```go
+SessionEnd: func(ctx context.Context, event plugin.SessionEndEvent) error {
+    return cleanup(event.SessionID)
+},
+```
+
+#### PermissionAsk
+
+Fires when a tool requests permission. Return a `PermissionOutput` to auto-allow or auto-deny:
+
+```go
+type PermissionInput struct {
+    SessionID  string `json:"sessionId"`
+    ToolName   string `json:"toolName"`
+    ToolArgs   string `json:"toolArgs"`
+    Permission string `json:"permission"`
+}
+
+type PermissionOutput struct {
+    Allowed bool   `json:"allowed"`
+    Reason  string `json:"reason,omitempty"`
+}
+```
+
+```go
+PermissionAsk: func(ctx context.Context, input plugin.PermissionInput) (*plugin.PermissionOutput, error) {
+    // Auto-allow read operations
+    if input.ToolName == "read" {
+        return &plugin.PermissionOutput{Allowed: true}, nil
+    }
+    // Return nil to fall through to the default permission prompt
+    return nil, nil
+},
+```
+
+#### ShellEnv
+
+Fires before shell commands execute. Return a `ShellEnvOutput` to inject environment variables:
+
+```go
+type ShellEnvInput struct {
+    SessionID string            `json:"sessionId"`
+    Directory string            `json:"directory"`
+    Env       map[string]string `json:"env,omitempty"`
+}
+
+type ShellEnvOutput struct {
+    Env map[string]string `json:"env"`
+}
+```
+
+```go
+ShellEnv: func(ctx context.Context, input plugin.ShellEnvInput) (*plugin.ShellEnvOutput, error) {
+    return &plugin.ShellEnvOutput{
+        Env: map[string]string{
+            "MY_PLUGIN_VAR": "some-value",
+        },
+    }, nil
+},
+```
+
+#### ToolExecBefore
+
+Fires before any tool executes. Observe-only (cannot modify args from this hook).
+
+```go
+type ToolExecBeforeInput struct {
+    SessionID string `json:"sessionId"`
+    ToolName  string `json:"toolName"`
+    ToolArgs  string `json:"toolArgs"`
+}
+```
+
+```go
+ToolExecBefore: func(ctx context.Context, input plugin.ToolExecBeforeInput) error {
+    log.Printf("Tool %s called in session %s", input.ToolName, input.SessionID)
+    return nil
+},
+```
+
+#### ToolExecAfter
+
+Fires after any tool executes. Can modify the output by returning a `ToolExecAfterOutput`:
+
+```go
+type ToolExecAfterInput struct {
+    SessionID string `json:"sessionId"`
+    ToolName  string `json:"toolName"`
+    Output    string `json:"output"`
+    IsError   bool   `json:"isError"`
+}
+
+type ToolExecAfterOutput struct {
+    Output  string `json:"output"`
+    IsError bool   `json:"isError"`
+}
+```
+
+```go
+ToolExecAfter: func(ctx context.Context, input plugin.ToolExecAfterInput) (*plugin.ToolExecAfterOutput, error) {
+    // Truncate very long outputs
+    if len(input.Output) > 10000 {
+        return &plugin.ToolExecAfterOutput{
+            Output: input.Output[:10000] + "\n[truncated]",
+        }, nil
+    }
+    // Return nil to pass through the original output unchanged
+    return nil, nil
+},
+```
+
+#### Dispose
+
+Fires on clean shutdown (stdin closed). Use this to flush data, close connections, or release resources:
+
+```go
+Dispose: func(ctx context.Context) error {
+    return db.Close()
+},
+```
+
+---
+
+## Combined plugins: tools + hooks
+
+Most real plugins combine tools and hooks. The telemetry plugin (`cmd/plugin-telemetry/`) is a good example:
+
+```go
+func newPlugin() plugin.Plugin {
+    s := &state{}
+    return plugin.Plugin{
+        ID:    "telemetry",
+        Tools: buildTools(s),
+        Hooks: buildHooks(s),
+    }
+}
+```
+
+It provides two tools (`telemetry_report`, `telemetry_query`) and uses hooks (`SessionStart`, `ToolExecAfter`, `SessionEnd`, `Dispose`) to track tool call metrics in a SQLite database:
+
+- **SessionStart** -- records when sessions begin
+- **ToolExecAfter** -- buffers tool call records
+- **SessionEnd** -- flushes buffered records to the database
+- **Dispose** -- closes the database connection
+
+This pattern of shared mutable state (`&state{}`) passed to both tool and hook builders is common in plugins that need coordination between tools and lifecycle events.
+
+---
+
+## Wire protocol
+
+Plugins communicate with tinycode over JSON-RPC 2.0 via stdin/stdout. Each message is a single JSON line.
+
+### Handshake
+
+1. tinycode sends an `initialize` request:
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"version":"2.0","directory":"/path/to/project"}}
+```
+
+2. The plugin responds with its manifest:
+
+```json
+{"jsonrpc":"2.0","id":1,"result":{"id":"my-plugin","tools":[{"name":"greet","description":"Greet someone","inputSchema":{...}}],"hooks":["session.start"]}}
+```
+
+### Tool calls
+
+```json
+{"jsonrpc":"2.0","id":2,"method":"tool/call","params":{"name":"greet","args":{"name":"World"},"context":{"sessionId":"s1","directory":"/tmp"}}}
+```
+
+Response:
+
+```json
+{"jsonrpc":"2.0","id":2,"result":{"content":"Hello, World!","isError":false}}
+```
+
+### Hook invocations
+
+```json
+{"jsonrpc":"2.0","id":3,"method":"hook/invoke","params":{"name":"session.start","input":{"sessionId":"s1","directory":"/tmp"}}}
+```
+
+Response:
+
+```json
+{"jsonrpc":"2.0","id":3,"result":{"output":null}}
+```
+
+Hooks that return output (PermissionAsk, ShellEnv, ToolExecAfter) include the output in the `output` field.
+
+### Notifications
+
+Messages with no `id` field are notifications and receive no response.
 
 ---
 
 ## Testing
 
-The `tinycode-plugin/test` module provides utilities for testing plugins without a running tinycode server.
+The SDK includes test patterns in `pkg/plugin/plugin_test.go`. The core approach is to call `run()` directly with mock stdin/stdout buffers.
 
-### `createMockPluginInput`
+### Test pattern
 
-Creates a mock `PluginInput` with sensible defaults. All fields can be overridden:
+```go
+func TestMyPlugin(t *testing.T) {
+    p := newPlugin()
 
-```typescript
-import { createMockPluginInput } from "tinycode-plugin/test"
+    // Build JSON-RPC requests
+    initParams, _ := json.Marshal(plugin.InitializeParams{
+        Version:   "2.0",
+        Directory: "/tmp",
+    })
+    toolParams, _ := json.Marshal(plugin.ToolCallParams{
+        Name:    "greet",
+        Args:    json.RawMessage(`{"name":"World"}`),
+        Context: plugin.ToolContext{SessionID: "s1", Directory: "/tmp"},
+    })
 
-const input = createMockPluginInput({
-  directory: "/my/project",
-  worktree: "/my/project",
-})
-```
+    // Write requests to stdin buffer
+    var input bytes.Buffer
+    writeRequest(&input, plugin.JSONRPCRequest{
+        JSONRPC: "2.0", ID: 1, Method: "initialize", Params: initParams,
+    })
+    writeRequest(&input, plugin.JSONRPCRequest{
+        JSONRPC: "2.0", ID: 2, Method: "tool/call", Params: toolParams,
+    })
 
-Default values:
-- `client`: empty object stub
-- `project`: `{ id: "test-project", worktree: "/tmp/tinycode-plugin-test", time: { created: Date.now() } }`
-- `directory`: `"/tmp/tinycode-plugin-test"`
-- `worktree`: `"/tmp/tinycode-plugin-test"`
-- `serverUrl`: `new URL("http://localhost:4096")`
-- `$`: no-op shell that returns empty results
-
-### `createMockToolContext`
-
-Creates a mock `ToolContext` for testing tool execution:
-
-```typescript
-import { createMockToolContext } from "tinycode-plugin/test"
-
-const context = createMockToolContext({
-  sessionID: "my-session",
-  agent: "build",
-})
-```
-
-Default values:
-- `sessionID`: `"test-session"`
-- `messageID`: `"test-message"`
-- `agent`: `"test-agent"`
-- `directory`: `"/tmp/tinycode-plugin-test"`
-- `worktree`: `"/tmp/tinycode-plugin-test"`
-- `abort`: `AbortSignal.abort()`
-- `metadata`: no-op function
-- `ask`: no-op async function
-
-### `createTestHarness`
-
-Loads a `PluginModule` with mock input and returns the resolved hooks plus a typed `invoke` helper:
-
-```typescript
-import { createTestHarness } from "tinycode-plugin/test"
-import plugin from "./index"
-
-const { hooks, invoke } = await createTestHarness(plugin, {
-  input: { directory: "/my/project" },
-  pluginOptions: { apiKey: "test-key" },
-})
-```
-
-The `invoke` function calls a hook by name with full type checking:
-
-```typescript
-await invoke(
-  "session.start",
-  { sessionID: "s1", parentID: undefined, agent: "build" },
-  {},
-)
-```
-
-If the hook is not registered, `invoke` throws an error.
-
-### Example test
-
-```typescript
-import { describe, it, expect } from "bun:test"
-import { createTestHarness, createMockToolContext } from "tinycode-plugin/test"
-import plugin from "../src/index"
-
-describe("my-plugin", () => {
-  it("registers the greet tool", async () => {
-    const { hooks } = await createTestHarness(plugin)
-    expect(hooks.tool).toBeDefined()
-    expect(hooks.tool!.greet).toBeDefined()
-  })
-
-  it("greet tool returns greeting", async () => {
-    const { hooks } = await createTestHarness(plugin)
-    const context = createMockToolContext()
-    const result = await hooks.tool!.greet.execute({ name: "World" }, context)
-    expect(result).toBe("Hello, World!")
-  })
-
-  it("session.start hook fires", async () => {
-    const sessions: string[] = []
-    // Test with a plugin that tracks sessions
-    const { invoke } = await createTestHarness(plugin)
-    await invoke(
-      "session.start",
-      { sessionID: "test-1", agent: "build" },
-      {},
-    )
-  })
-})
-```
-
----
-
-## Publishing
-
-### Package requirements
-
-Your `package.json` must include:
-
-1. **`exports`** with a `./server` entry pointing to your plugin module:
-
-   ```json
-   {
-     "exports": {
-       "./server": "./src/index.ts"
-     }
-   }
-   ```
-
-   If your plugin has a TUI component, also include `./tui`:
-
-   ```json
-   {
-     "exports": {
-       "./server": "./src/index.ts",
-       "./tui": "./src/tui.ts"
-     }
-   }
-   ```
-
-2. **`tinycode-plugin`** as a dependency for type support and the `tool()` helper.
-
-3. **`type: "module"`** since tinycode plugins are ESM.
-
-### Publishing to npm
-
-```bash
-npm publish
-```
-
-Users install your plugin with:
-
-```bash
-tinycode plugin your-package-name
-```
-
-### The plugin registry
-
-Tinycode maintains a curated plugin registry. Registry plugins can be installed by short name instead of full npm specifier:
-
-```bash
-tinycode plugin azure           # Resolves to @tinycode/plugin-azure
-tinycode plugin github-copilot  # Resolves to @tinycode/plugin-github-copilot
-```
-
-Users can search the registry:
-
-```bash
-tinycode plugin-search provider
-tinycode plugin-search linter
-```
-
-To submit your plugin to the registry, open a pull request adding an entry to `src/plugin/registry.json`:
-
-```json
-{
-  "name": "your-plugin",
-  "npm": "@yourorg/tinycode-plugin-name",
-  "description": "Short description of what it does",
-  "author": "your-name",
-  "tags": ["relevant", "tags"]
-}
-```
-
----
-
-## Complete Example
-
-A full working plugin that provides a tool, reacts to session events, validates its configuration, and cleans up on dispose.
-
-**package.json:**
-
-```json
-{
-  "name": "tinycode-plugin-metrics",
-  "version": "1.0.0",
-  "type": "module",
-  "exports": {
-    "./server": "./src/index.ts"
-  },
-  "dependencies": {
-    "tinycode-plugin": "latest"
-  }
-}
-```
-
-**src/index.ts:**
-
-```typescript
-import { z } from "zod"
-import type { PluginModule, PluginInput, PluginOptions } from "tinycode-plugin"
-import { tool } from "tinycode-plugin/tool"
-
-type SessionMetrics = {
-  startTime: number
-  toolCalls: number
-  modelChanges: number
-}
-
-export default {
-  schema: z.object({
-    endpoint: z.string().url("Must be a valid URL"),
-    verbose: z.boolean().optional().default(false),
-  }),
-
-  server: async (input: PluginInput, options?: PluginOptions) => {
-    const config = options as { endpoint: string; verbose: boolean }
-    const sessions = new Map<string, SessionMetrics>()
-
-    async function flush(sessionID: string) {
-      const metrics = sessions.get(sessionID)
-      if (!metrics) return
-      if (config.verbose) {
-        console.log(`Flushing metrics for ${sessionID}:`, metrics)
-      }
-      await fetch(config.endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionID, ...metrics }),
-      }).catch(() => {})
-      sessions.delete(sessionID)
+    // Run the plugin
+    var output bytes.Buffer
+    err := run(context.Background(), p, &input, &output)
+    if err != nil {
+        t.Fatalf("run error: %v", err)
     }
 
-    return {
-      tool: {
-        metrics: tool({
-          description: "Show session metrics (tool call count, duration, model changes)",
-          args: {
-            sessionID: tool.schema.string().optional().describe(
-              "Session ID to query. Defaults to current session."
-            ),
-          },
-          async execute(args, context) {
-            const id = args.sessionID ?? context.sessionID
-            const metrics = sessions.get(id)
-            if (!metrics) {
-              return "No metrics found for this session."
-            }
-            const duration = Math.round((Date.now() - metrics.startTime) / 1000)
-            return {
-              title: "Session Metrics",
-              output: [
-                `Duration: ${duration}s`,
-                `Tool calls: ${metrics.toolCalls}`,
-                `Model changes: ${metrics.modelChanges}`,
-              ].join("\n"),
-              metadata: { duration, ...metrics },
-            }
-          },
-        }),
-      },
+    // Parse and verify responses
+    responses := parseResponses(t, output.String())
+    // ... assert on responses
+}
 
-      "session.start": async (input) => {
-        sessions.set(input.sessionID, {
-          startTime: Date.now(),
-          toolCalls: 0,
-          modelChanges: 0,
-        })
-      },
+func writeRequest(buf *bytes.Buffer, req plugin.JSONRPCRequest) {
+    data, _ := json.Marshal(req)
+    buf.Write(data)
+    buf.WriteByte('\n')
+}
+```
 
-      "session.end": async (input) => {
-        await flush(input.sessionID)
-      },
+### Testing hooks
 
-      "session.model.change": async (input) => {
-        const metrics = sessions.get(input.sessionID)
-        if (metrics) {
-          metrics.modelChanges += 1
-        }
-      },
-
-      "tool.execute.after": async (input) => {
-        const metrics = sessions.get(input.sessionID)
-        if (metrics) {
-          metrics.toolCalls += 1
-        }
-      },
-
-      dispose: async () => {
-        // Flush all remaining sessions
-        for (const sessionID of sessions.keys()) {
-          await flush(sessionID)
-        }
-        sessions.clear()
-      },
+```go
+func TestSessionStartHook(t *testing.T) {
+    var receivedID string
+    p := plugin.Plugin{
+        ID: "test",
+        Hooks: plugin.HookHandlers{
+            SessionStart: func(_ context.Context, event plugin.SessionStartEvent) error {
+                receivedID = event.SessionID
+                return nil
+            },
+        },
     }
-  },
-} satisfies PluginModule
-```
 
-Install for development:
+    hookInput, _ := json.Marshal(plugin.SessionStartEvent{
+        SessionID: "ses-123",
+        Directory: "/tmp",
+    })
+    hookParams, _ := json.Marshal(plugin.HookParams{
+        Name:  "session.start",
+        Input: hookInput,
+    })
 
-```bash
-tinycode plugin file:///path/to/tinycode-plugin-metrics
-```
-
-Or configure with options in `~/.config/tinycode/config.json`:
-
-```json
-{
-  "plugin": [
-    ["tinycode-plugin-metrics", {
-      "endpoint": "https://metrics.example.com/collect",
-      "verbose": true
-    }]
-  ]
+    // Send initialize + hook/invoke, verify receivedID == "ses-123"
 }
 ```
 
 ---
 
-## OpenCode Plugin Compatibility
+## Installation and binary resolution
 
-The following OpenCode plugins have been **deprecated** because their functionality is now built into tinycode:
+When tinycode loads a plugin by name, it searches for the binary in this order:
 
-| OpenCode Plugin | Built-in Replacement | Status |
-|---|---|---|
-| `opencode-openai-codex-auth` | Built-in Codex auth | Deprecated since 1.14 |
-| `opencode-copilot-auth` | Built-in Copilot auth | Deprecated since 1.14 |
-| `opencode-gitlab-auth` | Built-in GitLab auth | Deprecated since 1.18 |
-| `opencode-poe-auth` | Built-in Poe auth | Deprecated since 1.18 |
+1. **Config directory**: `~/.config/tinycode/plugins/<name>`
+2. **PATH**: looks for `tinycode-plugin-<name>` on the system PATH
+3. **Registry**: checks the built-in registry for install instructions
 
-### Migration
+### Installing a plugin
 
-If you have any of these plugins in your `config.json` under `plugin_origins`, you can safely remove them. tinycode silently skips deprecated plugins, so no action is required — but removing them avoids unnecessary startup warnings.
+**Option 1: Build to the config directory**
 
-OpenCode plugins that use a different hook interface than tinycode's `Hooks` type are not supported. If you have a custom OpenCode plugin, migrate it to the tinycode plugin SDK (`tinycode-plugin` on npm). See the rest of this guide for the tinycode plugin API.
+```bash
+go build -o ~/.config/tinycode/plugins/my-plugin ./cmd/plugin-my-plugin
+```
+
+**Option 2: Install to PATH**
+
+```bash
+go install github.com/example/tinycode-plugin-my-plugin@latest
+```
+
+The binary name must follow the `tinycode-plugin-<name>` convention.
+
+**Option 3: Registry plugins**
+
+Some plugins are listed in the built-in registry. If a plugin is in the registry but not installed, tinycode reports the error with the repository URL for installation.
+
+---
+
+## Available plugins
+
+These plugins ship with tinycode in `cmd/plugin-*/`:
+
+| Plugin | ID | Type | Description |
+|--------|----|------|-------------|
+| `plugin-notify` | `notify` | Tool | Desktop notifications (macOS/Linux) |
+| `plugin-safety-net` | `safety-net` | Hook | Blocks destructive shell commands via PermissionAsk |
+| `plugin-telemetry` | `telemetry` | Tool + Hook | Session and tool-call analytics with SQLite storage |
+| `plugin-code-review` | `code-review` | Tool | Git diff formatted as markdown for code review |
+| `plugin-handoff` | `handoff` | Tool + Hook | Save/restore session context for handoff between sessions |
+| `plugin-web-search` | `web-search` | Tool | Web search via DuckDuckGo |
+| `plugin-pilot` | `pilot` | Tool | Issue tracker integration (GitHub, GitLab, Gitea) |
+| `plugin-cluster-ops` | `cluster-ops` | Tool | OpenShift cluster authentication via `oc login` |
+| `plugin-snippets` | `snippets` | Tool | Kubernetes resource templates |
+| `plugin-context-pruning` | `context-pruning` | Hook | Deduplicates repeated tool outputs via ToolExecAfter |
+| `plugin-log-sanitizer` | `log-sanitizer` | Hook | Strips secrets and sensitive data from tool output |
+| `plugin-command-inject` | `command-inject` | Hook | Custom slash command injection |
+
+Build all plugins:
+
+```bash
+for dir in cmd/plugin-*/; do
+    name=$(basename "$dir")
+    go build -o ~/.config/tinycode/plugins/${name#plugin-} ./$dir
+done
+```
+
+---
+
+## Key types reference
+
+### Protocol types (pkg/plugin/protocol.go)
+
+```go
+type JSONRPCRequest struct {
+    JSONRPC string          `json:"jsonrpc"`
+    ID      int64           `json:"id,omitempty"`
+    Method  string          `json:"method"`
+    Params  json.RawMessage `json:"params,omitempty"`
+}
+
+type JSONRPCResponse struct {
+    JSONRPC string          `json:"jsonrpc"`
+    ID      int64           `json:"id,omitempty"`
+    Result  json.RawMessage `json:"result,omitempty"`
+    Error   *JSONRPCError   `json:"error,omitempty"`
+}
+
+type JSONRPCError struct {
+    Code    int    `json:"code"`
+    Message string `json:"message"`
+    Data    any    `json:"data,omitempty"`
+}
+
+type InitializeParams struct {
+    Version   string         `json:"version"`
+    Directory string         `json:"directory"`
+    Options   map[string]any `json:"options,omitempty"`
+}
+
+type InitializeResult struct {
+    ID    string         `json:"id"`
+    Tools []ToolManifest `json:"tools"`
+    Hooks []string       `json:"hooks"`
+}
+
+type ToolManifest struct {
+    Name        string         `json:"name"`
+    Description string         `json:"description"`
+    InputSchema map[string]any `json:"inputSchema,omitempty"`
+}
+```
+
+### JSON-RPC error codes
+
+| Code | Meaning |
+|------|---------|
+| `-32601` | Unknown method |
+| `-32602` | Invalid params (bad tool call params, unknown tool) |
+| `-32000` | Hook execution error |

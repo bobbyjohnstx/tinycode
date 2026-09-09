@@ -13,21 +13,19 @@ Run tinycode on your desktop/laptop against local or cloud LLMs.
 ```bash
 # Install — pick one:
 curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
-npx tinycode-ai                          # or: npm install -g tinycode-ai
 brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
 
 # Run
 tinycode                    # TUI against current directory
 tinycode /path/to/project   # TUI against a specific project
 tinycode serve              # headless API server
-tinycode web                # server + web UI
 
-# Development (from source)
-bun install
-bun dev                     # TUI against current directory
-bun dev /path/to/project    # TUI against a specific project
-bun dev serve               # headless API server
-bun dev web                 # server + web UI
+# Build from source
+git clone https://github.com/bobbyjohnstx/tinycode-go.git
+cd tinycode-go
+make build
+./dist/tinycode             # TUI against current directory
+./dist/tinycode serve       # headless API server
 ```
 
 ### LLM Configuration
@@ -81,8 +79,7 @@ spec:
 
 ```bash
 # Inside the container
-bun install
-bun dev serve --hostname 0.0.0.0
+tinycode serve
 
 # Connect to shared vLLM service
 export TINYCODE_VLLM_URLS=http://vllm-service:8000
@@ -139,7 +136,7 @@ spec:
 oc whoami  # verify authentication
 
 # Start tinycode with cluster-admin agent
-bun dev serve --hostname 0.0.0.0
+tinycode serve
 ```
 
 ### Environment Variables

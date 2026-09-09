@@ -4,39 +4,46 @@ How to get help with tinycode.
 
 ## Installation
 
+Build from source or download a pre-built binary from [GitHub Releases](https://github.com/bobbyjohnstx/tinycode/releases).
+
+**From source:**
+
 ```bash
-# Pick one:
-curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
-npx tinycode-ai                          # or: npm install -g tinycode-ai
-brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
+make build        # produces dist/tinycode
 ```
+
+**From releases:**
+
+Download the binary for your platform from the releases page and place it on your `PATH`.
 
 ## Quick Diagnostics
 
-Run this command to check your setup:
+Collect environment information for bug reports:
 
 ```bash
-/tc-doctor
+go version
+./dist/tinycode --version
+uname -a
 ```
-
-This diagnoses configuration, connectivity, permissions, and more. It's the first step for most issues.
 
 ## Getting Help
 
 ### 1. Check the Docs
 
-- **[Getting Started](docs/getting-started.md)** — Step-by-step walkthrough for first-time use
-- **[Cheat Sheet](docs/cheatsheet.md)** — Keyboard shortcuts and common commands
-- **[Troubleshooting](docs/troubleshooting.md)** — Solutions to common problems
-- **[Architecture](docs/architecture.md)** — How tinycode works internally
-- **[CLAUDE.md](CLAUDE.md)** — Development and configuration guidance
+- **[Getting Started](docs/getting-started.md)** -- Step-by-step walkthrough for first-time use
+- **[Cheat Sheet](docs/cheatsheet.md)** -- Keyboard shortcuts and common commands
+- **[Troubleshooting](docs/troubleshooting.md)** -- Solutions to common problems
+- **[Architecture](docs/architecture.md)** -- How tinycode works internally
+- **[CLAUDE.md](CLAUDE.md)** -- Development and configuration guidance
 
-### 2. Search Issues & Discussions
+### 2. Search Issues and Discussions
 
-- **[GitHub Issues](https://github.com/bobbyjohnstx/tinycode/issues)** — Bug reports and feature requests
-- **[GitHub Discussions](https://github.com/bobbyjohnstx/tinycode/discussions)** — Questions and community chat
+- **[GitHub Issues](https://github.com/bobbyjohnstx/tinycode/issues)** -- Bug reports and feature requests
+- **[GitHub Discussions](https://github.com/bobbyjohnstx/tinycode/discussions)** -- Questions and community chat
 
-Chances are someone's hit your issue before.
+Chances are someone has hit your issue before.
 
 ### 3. Ask in Discussions
 
@@ -45,29 +52,70 @@ Open a [new discussion](https://github.com/bobbyjohnstx/tinycode/discussions/new
 1. **Title:** Brief description of your issue
 2. **Category:** Choose from "Help", "Ideas", "General"
 3. **Description:** Include:
-   - What you're trying to do
+   - What you are trying to do
    - What happened instead
    - Steps to reproduce
-   - Output of `/tc-doctor`
+   - Output of `go version` and `./dist/tinycode --version`
    - Your config (`~/.config/tinycode/config.json`)
 
 Community members and maintainers will help.
+
+## Common Issues
+
+### Provider not connecting (Ollama)
+
+Ollama must be running before tinycode can discover models. Start it with:
+
+```bash
+ollama serve
+```
+
+Verify it is reachable:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+If using a non-default Ollama host, set it in your config file (`~/.config/tinycode/config.json`).
+
+### Model not found
+
+tinycode discovers models from configured providers on startup. If a model is missing:
+
+1. Confirm the model is pulled locally (`ollama list`) or available from your provider
+2. Restart tinycode to trigger re-discovery
+3. Check your config for `enabled_providers` or `disabled_providers` filters
+
+### Config file format errors
+
+tinycode supports JSONC (JSON with comments). Common issues:
+
+- Trailing commas after the last item in an object or array
+- Unquoted keys
+- Invalid JSON syntax
+
+Validate your config with:
+
+```bash
+cat ~/.config/tinycode/config.json | python3 -c "import sys,json; json.load(sys.stdin); print('valid')"
+```
+
+Note: This does not validate JSONC comments -- strip `//` lines before checking if needed.
 
 ## Reporting Bugs
 
 File a [bug report](https://github.com/bobbyjohnstx/tinycode/issues/new) if:
 
 - tinycode crashes
-- A feature doesn't work as documented
+- A feature does not work as documented
 - You find a security vulnerability (see Security section below)
 
 **Include:**
 - Steps to reproduce
 - Expected behavior
 - Actual behavior
-- Output of `/tc-doctor`
+- Environment: OS, Go version, tinycode version, LLM provider and model
 - Relevant config and logs
-- Your environment (OS, Bun version, LLM model)
 
 **Good bug report example:**
 
@@ -76,17 +124,17 @@ Title: "Session won't load after export"
 
 Steps to reproduce:
 1. Create a session with 50+ messages
-2. Export with `<leader>x`
+2. Export with <leader>x
 3. Restart tinycode
-4. List sessions with `<leader>l`
+4. List sessions with <leader>l
 
 Expected: Session appears in list
 Actual: Session missing, error in logs
 
 Environment:
 - macOS 14.3
-- Bun 1.1.5
-- tinycode v0.1.7
+- Go 1.23.1
+- tinycode v2.0.0
 ```
 
 ## Feature Requests
@@ -127,79 +175,52 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines and development s
 
 ### macOS
 
-- Ensure Bun is installed: `bun --version`
+- Ensure Go is installed: `go version`
 - If Ollama is slow, check Activity Monitor for CPU/memory usage
-- TTY issues? Try `export TERM=xterm-256color` before `bun dev`
+- TTY issues? Try `export TERM=xterm-256color` before running tinycode
 
 ### Windows
 
 - Use Windows Terminal (not cmd.exe) for better compatibility
-- Ensure Bun for Windows is installed: `bun --version`
 - If terminal rendering looks wrong, try a different font (Cascadia Code works well)
-- Firewall: Open port 4096 if running headless server
 
 ### Linux
 
-- Ensure Bun is installed: `bun --version`
-- If terminal doesn't render colors, check `TERM` variable
-- On headless servers, use `bun dev serve --hostname 0.0.0.0` to bind all interfaces
+- If terminal does not render colors, check `TERM` variable
+- On headless servers, use `./dist/tinycode serve` for the headless API mode
 - SELinux: May need to adjust contexts for file access
-
-## Remote Deployment Help
-
-Deploying tinycode on a remote server or in Kubernetes?
-
-- **Remote server:** See [Getting Started](docs/getting-started.md#step-3-run-tinycode) and [Troubleshooting](docs/troubleshooting.md#server--network-issues)
-- **Container:** See [Container images](README.md#container-images)
-- **Kubernetes:** See [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator)
-
-For cluster-specific issues, check the [operator's troubleshooting guide](https://github.com/bobbyjohnstx/tinycode-operator#troubleshooting).
 
 ## LLM Model Help
 
-### Model Recommendations
-
-- **Coding:** mistral, neural-chat, codellama
-- **General:** llama2, llama3, solar
-- **Multilingual:** qwen, starchat
-- **Small (< 4B):** phi, tinyllama (slower but runs anywhere)
-
-See [OpenRouter](https://openrouter.ai) for a full list and benchmarks.
+For model recommendations, compatibility notes, and provider-specific guidance, see [Model Compatibility](docs/model-compatibility.md).
 
 ### Slow Responses?
 
 1. Check system resources: `top`, `nvidia-smi` (if GPU available)
 2. Try a smaller model for faster inference
 3. Use a quantized version (Q4 instead of Q5)
-4. See [Troubleshooting](docs/troubleshooting.md#model-responses-are-very-slow)
+4. See [Troubleshooting](docs/troubleshooting.md)
 
 ### Model Not Detected?
 
-Run `/tc-doctor` and check the provider status. See [Troubleshooting](docs/troubleshooting.md#llm-connection-issues).
+Verify your provider is running and accessible. See [Troubleshooting](docs/troubleshooting.md) and [Model Compatibility](docs/model-compatibility.md).
 
-## Slack / Chat
+## Remote Deployment Help
 
-No dedicated Slack, but:
+Deploying tinycode on a remote server or in Kubernetes?
 
-- **GitHub Discussions** is the main community forum
-- **Issues** are used for tracked bugs and features
-- Follow the project on GitHub for updates
+- **Remote server:** See [Deployment Guide](docs/deployment.md)
+- **Container:** See [Deployment Guide](docs/deployment.md#container-deployment)
+- **Kubernetes:** See [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator)
 
-## Sponsorship
-
-tinycode is open source and free. If you find it useful:
-
-- Star the repo on GitHub
-- Share it with your team
-- Contribute code or documentation
-- Report bugs and suggest improvements
+For cluster-specific issues, check the [operator's troubleshooting guide](https://github.com/bobbyjohnstx/tinycode-operator#troubleshooting).
 
 ## Learning More
 
-- **[Architecture deep-dive](docs/architecture.md)** — How the system works
-- **[Agent prompt tiers](docs/agent-prompt-tiers.md)** — Small model optimization
-- **[CLAUDE.md](CLAUDE.md)** — Developer guide and project structure
-- **[AGENTS.md](AGENTS.md)** — Coding style and conventions
+- **[Architecture deep-dive](docs/architecture.md)** -- How the system works
+- **[User Guide](docs/user-guide.md)** -- Detailed usage instructions
+- **[CLAUDE.md](CLAUDE.md)** -- Developer guide and project structure
+- **[AGENTS.md](AGENTS.md)** -- Coding style and conventions
 
 ## Contact
 

@@ -1,222 +1,186 @@
 # tinycode
 
+AI coding assistant for the terminal. Single binary, no runtime dependencies.
+
 ![tinycode TUI](tinycode-screenshot.png)
 
-[![CI](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Release](https://img.shields.io/github/v/release/bobbyjohnstx/tinycode)](https://github.com/bobbyjohnstx/tinycode/releases) [![Website](https://img.shields.io/badge/Website-tinycode-blue)](https://bobbyjohnstx.github.io/tinycode.html) [![Discussions](https://img.shields.io/github/discussions/bobbyjohnstx/tinycode)](https://github.com/bobbyjohnstx/tinycode/discussions)
-
-An open-source AI coding assistant that keeps your code on your machine. No cloud accounts, no API keys, no data leaving your network. Just you, your code, and your local models.
+[![CI](https://github.com/bobbyjohnstx/tinycode-go/actions/workflows/ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode-go/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## What it is
 
-tinycode fills the gap between cloud-only AI coding tools and privacy. It's the same kind of tool as Claude Code or Codex — reads your files, runs commands, edits code, and works through multi-step tasks — except it runs against **your own LLMs** on your own hardware. Point it at Ollama, vLLM, or any OpenAI-compatible endpoint and start coding. No sign-up, no subscription, no telemetry by default.
+tinycode is a privacy-first, local-first AI coding assistant. A single Go binary embeds everything: HTTP server, terminal UI, session management, LLM client, and tool execution. No separate server process, no Node.js, no runtime dependencies.
 
-Cloud providers (Anthropic, OpenAI, Google, OpenRouter) are also supported if you want them, but they're optional — not required.
+It connects to local LLM providers (Ollama, vLLM, LM Studio) or cloud endpoints (OpenRouter, any OpenAI-compatible API). No data leaves your machine unless you configure a cloud provider. No telemetry, no sign-up, no subscription.
 
-> **Privacy:** The CLI, TUI, and server make zero outbound network calls except to your configured model provider. The desktop app supports optional crash reporting (Sentry) when configured by the deployer via `VITE_SENTRY_DSN`.
+tinycode reads your files, runs commands, edits code, and works through multi-step tasks --- the same workflow as cloud AI coding tools, but against your own models on your own hardware.
 
 ### Interfaces
 
-The primary interface is the **terminal UI (TUI)** — a full-featured interactive session in your terminal with conversation history, model switching, agent/skill invocation, and inline tool approval. The TUI is the fastest way to work: it starts instantly, runs anywhere a terminal does, and keeps you in the same environment as your code. tinycode automatically handles model limitations: if a model doesn't support tool calling, tinycode detects it and works without tools; if tool calls are malformed, tinycode auto-repairs common JSON issues and warns after 3+ consecutive failures.
+The primary interface is the **terminal UI (TUI)** --- a full-featured interactive session with conversation history, model switching, agent/skill invocation, and inline tool approval. The TUI starts instantly and keeps you in the same environment as your code.
 
-**TUI Features:**
-- **Session tree sidebar** (`<leader>b`): Toggleable ASCII tree showing your session hierarchy — organized by parent-child relationships for easy navigation
-- **Session export** (`tinycode export --format html <session-id>`): Export sessions to self-contained HTML files for sharing or archiving
+tinycode also supports:
 
-For teams or remote access, tinycode also ships a **web UI** (SolidJS + TailwindCSS) that connects to the tinycode API server. Open `http://localhost:4096` after starting the server, or run `bun dev web` to launch both. The web UI provides the same conversation, agent, and tool capabilities in a browser tab.
-
-A **standalone desktop app** (Electron) is available for macOS, Windows, and Linux. It wraps the web UI in a native window with system tray integration, auto-updates via GitHub Releases, and platform-specific features. Run `bun run --cwd packages/desktop dev` to launch in development, or build distributable binaries with `bun run --cwd packages/desktop build`.
-
-**Desktop app features:**
-- **System tray integration**: Access tinycode from the menu bar (macOS) or system tray (Windows/Linux) with Show/Hide and Quit actions
-- **Global hotkey** (Cmd/Ctrl+Shift+T): Bring the window to front or minimize it without closing the app
-- **Auto-updates**: Automatically checks for new releases on GitHub and notifies you with an in-app banner
-- **Platform-specific behaviors**: 
-  - macOS: Closing the window keeps the app running in the dock; Cmd+Q quits fully. Dock badge shows notification count
-  - Windows/Linux: App menu with Help links to GitHub (repo, discussions, issues). Taskbar flashes on background notifications
-- **Persistent settings**: Zoom level and window state persist across app restarts
-- **Theme sync**: Automatically detects OS dark/light mode changes and updates the app appearance
-
-### IDE Integration (ACP)
-
-tinycode supports the [Agent Client Protocol](https://agentclientprotocol.com) for IDE integration. Run `tinycode acp --cwd /path/to/project` to start an ACP server that editors (VS Code, Zed, JetBrains) can connect to via stdio.
-
-A reference [VS Code extension](packages/vscode-extension/) is included. See [docs/acp-integration.md](docs/acp-integration.md) for building custom IDE integrations.
+- **Headless API server** (`tinycode serve`) --- REST + SSE endpoints for programmatic access
+- **Agent Client Protocol** (`tinycode acp`) --- stdio transport for IDE integration (VS Code, Zed, JetBrains)
+- **Non-interactive mode** (`tinycode run`) --- run a prompt and exit, for scripts and CI
 
 ## Quick start
 
 ```bash
-# Install tinycode — pick one:
-npx tinycode-ai                          # or: npm install -g tinycode-ai
-brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
+# Build from source
+git clone https://github.com/bobbyjohnstx/tinycode-go.git && cd tinycode-go
+make build
+./dist/tinycode
 
-# Alternative (deprecated — use npm or Homebrew instead):
-# curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
-
-# Or install from source (development)
-bun install
-
-# Run (TUI mode, against current directory)
-bun dev
-
-# Run against a specific project
-bun dev /path/to/project
+# Or with a specific project directory
+./dist/tinycode /path/to/project
 
 # Headless API server
-bun dev serve
+./dist/tinycode serve
 
-# Server + web UI
-bun dev web
+# IDE integration (Agent Client Protocol)
+./dist/tinycode acp
 ```
-
-## Configuration
-
-Config lives at `~/.config/tinycode/config.json`:
-
-```json
-{
-  "model": "ollama/qwen3.5:9b",
-  "lsp": true
-}
-```
-
-> Local 9B models need ~6GB VRAM or ~12GB RAM; expect 3-8 minutes per task on CPU. See [model-compatibility.md](docs/model-compatibility.md) for hardware tiers.
-
-For a LAN MaaS server (LiteLLM, LiteMaaS, etc.):
-
-```bash
-export TINYCODE_MAAS_HOST=https://your-maas-server
-export TINYCODE_MAAS_API_KEY=your-key
-```
-
-For OpenRouter (with account balance and cost tracking):
-
-```bash
-export OPENROUTER_API_KEY=your-key
-```
-
-tinycode auto-discovers Ollama (`localhost:11434`), vLLM (`localhost:8000`), LM Studio (`localhost:1234`), and MaaS servers from environment variables at startup. Use `/connect` in the TUI to manually connect a provider.
-
-## Documentation
-
-- [Getting Started](docs/getting-started.md)
-- [User Guide](docs/user-guide.md)
-- [Architecture Overview](docs/architecture.md)
-- [Model Compatibility](docs/model-compatibility.md) — hardware tiers & benchmarks
-- [Plugin Development](docs/plugin-development.md) (npm: `tinycode-plugin`)
-- [Adding a Tool](docs/adding-a-tool.md)
-- [Deployment Guide](docs/deployment.md)
-- [OpenShell Integration](docs/openshell-integration.md) — sandboxed execution with NVIDIA OpenShell
 
 ## Architecture
 
-Bun monorepo with Turborepo. Key packages:
+Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/` for public SDK.
 
-| Package             | Description                                                                         |
-| ------------------- | ----------------------------------------------------------------------------------- |
-| `packages/tinycode` | Core server, HTTP API, TUI, session processor, provider abstraction, tools, plugins |
-| `packages/app`      | SolidJS + TailwindCSS v4 web UI                                                     |
-| `packages/desktop`  | Electron desktop app                                                                |
-| `packages/llm`      | LLM protocol implementations (Anthropic, OpenAI, Bedrock, Gemini)                   |
-| `packages/ui`       | Shared SolidJS component library (icons, themes, i18n)                              |
-| `packages/plugin`   | Plugin SDK (`@tinycode/plugin`)                                                     |
-| `packages/sdk/js`   | Auto-generated TypeScript SDK                                                       |
-| `packages/vscode-extension` | Reference VS Code extension for ACP integration                          |
+### `cmd/tinycode/` --- Main binary
 
-See [CLAUDE.md](CLAUDE.md) for development guidance and [AGENTS.md](AGENTS.md) for coding style.
+Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, `models`, `providers`, `session`, `export`, `agent`, `debug`, `version`.
+
+### `internal/` --- Core packages
+
+| Package        | Description                                                                    |
+| -------------- | ------------------------------------------------------------------------------ |
+| `tui/`         | Terminal UI ([bubbletea](https://github.com/charmbracelet/bubbletea), Elm architecture) |
+| `tui/api/`     | HTTP client for the embedded server API                                        |
+| `server/`      | HTTP server (net/http + chi router), REST + SSE endpoints                      |
+| `session/`     | Session lifecycle, processor loop, LLM coordination                            |
+| `llm/`         | LLM client abstraction, OpenAI-compatible streaming, tool-call JSON repair     |
+| `provider/`    | Provider auto-discovery (Ollama, vLLM, LM Studio, OpenRouter)                  |
+| `agent/`       | Agent definitions and prompt files                                             |
+| `tool/`        | Tool implementations (file ops, shell, grep, glob)                             |
+| `config/`      | Config file parsing (`~/.config/tinycode/config.json`), JSONC support          |
+| `storage/`     | SQLite via modernc.org/sqlite, migrations                                      |
+| `bus/`         | Event bus for inter-component communication                                    |
+| `mcp/`         | Model Context Protocol client                                                  |
+| `acp/`         | Agent Client Protocol (stdio transport for IDE integration)                    |
+| `plugin/`      | Plugin lifecycle management                                                    |
+| `permission/`  | Tool permission prompting and rules                                            |
+| `skill/`       | Skill discovery and loading                                                    |
+| `vcs/`         | Git operations                                                                 |
+| `command/`     | Slash command discovery (built-in commands, agents, skills)                     |
+| `project/`     | Project metadata, VCS detection, worktree paths                                |
+| `frontmatter/` | YAML-like frontmatter parser for agent and skill markdown files                |
+| `id/`          | Sortable ID generation with typed prefixes                                     |
+| `static/`      | Embedded web app file server with SPA fallback                                 |
+| `earlyinit/`   | Package-init side effects that run before other imports                        |
+
+### `pkg/plugin/` --- Public Go plugin SDK
+
+Protocol definitions, hook interfaces, and tool registration for building plugins.
+
+## Plugins
+
+12 built-in plugins, each a standalone Go binary communicating over JSON-RPC via stdin/stdout.
+
+| Plugin               | Description                                                             |
+| -------------------- | ----------------------------------------------------------------------- |
+| `plugin-cluster-ops` | OpenShift cluster operations (oc login, status, cluster info)           |
+| `plugin-code-review` | Git diff formatting for code review                                     |
+| `plugin-command-inject` | Discovers and exposes project scripts as tools                       |
+| `plugin-context-pruning` | Detects duplicate tool calls and prunes redundant context           |
+| `plugin-handoff`     | Saves and restores session context for cross-session handoff            |
+| `plugin-log-sanitizer` | Redacts secrets and sensitive data from tool output                   |
+| `plugin-notify`      | Desktop notifications                                                   |
+| `plugin-pilot`       | Issue tracker integration (list, create, update, comment)               |
+| `plugin-safety-net`  | Blocks dangerous shell commands before execution                        |
+| `plugin-snippets`    | Kubernetes/OpenShift manifest templates                                 |
+| `plugin-telemetry`   | Tool call tracking and usage reporting                                  |
+| `plugin-web-search`  | Web search via DuckDuckGo and Red Hat knowledge base                    |
+
+Plugins use the SDK in `pkg/plugin/`. See [docs/plugin-development.md](docs/plugin-development.md) for building custom plugins.
 
 ## Agents
 
-Press **Tab** to cycle through agents, or `<leader>a` to pick from a list. Use `/ask <agent> <prompt>` to invoke any agent as a one-shot subagent without switching.
-
-tinycode has two modes with distinct behavior, plus specialized agent personas:
-
-- **build** (default) — Full tool access. Reads, writes, edits files, runs shell commands, executes tools. This is the normal working mode.
-- **plan** — **Read-only mode with hard permission enforcement.** The LLM can explore the codebase and write only to a plan file (`.tinycode/plans/*.md`). All other edits are blocked at the tool level, not just by prompt instruction. When the plan is ready, `plan_exit` prompts you to approve and switch to build mode for execution.
-
-All other agents (architect, debugger, executor, etc.) are **personas** — they share the same tool permissions as build mode but have specialized system prompts that guide their behavior. An architect agent is *instructed* to be read-only and analytical, but it is not *prevented* from editing files if you ask it to. The permission prompt system provides the safety gate for all tool executions regardless of which agent is active.
+Press **Tab** to cycle through agents, or use `<leader>a` to pick from a list. Use `/ask <agent> <prompt>` to invoke any agent as a one-shot subagent.
 
 ### Built-in agents
 
-| Agent                 | Role                                                              |
-| --------------------- | ----------------------------------------------------------------- |
-| `agent-reviewer`      | Validates agent prompt definitions against the style guide        |
-| `analyst`             | Pre-planning requirements analysis — catches gaps before planning |
-| `architect`           | Read-only code analysis and architectural guidance                |
-| `cluster-admin`       | Cluster administration and Kubernetes/OpenShift operations        |
-| `code-reviewer`       | Severity-rated code review with SOLID principle checks            |
-| `code-simplifier`     | Simplifies recently modified code without changing behavior       |
-| `critic`              | Quality gate — multi-perspective review of plans and code         |
-| `debugger`            | Root-cause analysis and bug fixing                                |
-| `deep-explore`        | Thorough codebase exploration with multi-file analysis            |
-| `designer`            | UI/UX designer-developer for production-grade interfaces          |
-| `document-specialist` | External documentation and reference specialist                   |
-| `executor`            | Focused implementation of scoped tasks                            |
-| `explore`             | Fast codebase search (grep/glob)                                  |
-| `git-master`          | Git expert for atomic commits, rebasing, and history management   |
-| `planner`             | Strategic planning — gather requirements, produce work plans      |
-| `qa-tester`           | Interactive CLI testing via tmux                                  |
-| `rules-reviewer`      | Validates rule definitions against the style guide                |
-| `scientist`           | Data analysis and research — hypothesis-driven, evidence required |
-| `security-reviewer`   | Security vulnerability detection (OWASP Top 10, secrets, CVEs)    |
-| `skills-reviewer`     | Validates skill definitions against the style guide               |
-| `test-engineer`       | Test strategy, integration/e2e coverage, TDD workflows            |
-| `tracer`              | Evidence-driven causal tracing with competing hypotheses          |
-| `verifier`            | Evidence-based verification of completion                         |
-| `workspace`           | Workspace setup and environment configuration                     |
-| `writer`              | Technical documentation                                           |
+| Agent               | Description                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `architect`         | Strategic architecture advisor --- analyzes code, diagnoses bugs (read-only)  |
+| `code-reviewer`     | Severity-rated code review with logic defect detection and SOLID checks       |
+| `code-simplifier`   | Simplifies recently modified code without changing behavior                   |
+| `critic`            | Multi-perspective review of plans and code with gap analysis (read-only)      |
+| `debugger`          | Root-cause analysis, regression isolation, stack trace analysis                |
+| `executor`          | Focused task executor --- smallest viable diff, no scope creep                |
+| `explore`           | Fast read-only codebase search (grep/glob)                                    |
+| `git-master`        | Git expert for atomic commits, rebasing, and history management               |
+| `planner`           | Strategic planning --- gathers requirements, produces actionable work plans   |
+| `scientist`         | Data analysis and research --- hypothesis-driven, evidence required           |
+| `security-reviewer` | Security vulnerability detection (OWASP Top 10, secrets, CVEs)               |
+| `test-engineer`     | Test strategy, coverage authoring, flaky test hardening, TDD workflows        |
+| `verifier`          | Evidence-based verification of completion claims                              |
+| `writer`            | Technical documentation                                                       |
 
-Agents with a `.compact.md` variant automatically use the compact prompt for models ≤8B parameters. See [docs/internal/agent-prompt-tiers.md](docs/internal/agent-prompt-tiers.md) for details.
+Agents with a `.compact.md` variant automatically use a smaller prompt for models with limited context windows.
 
-`@` references files only. To invoke an agent, use `/ask <agent>`.
+## Configuration
 
-## Skills
+Config lives at `~/.config/tinycode/config.json` (JSONC supported):
 
-Type `/` to see available slash commands. Skills (marked `:skill`) inject specialized instructions:
+```jsonc
+{
+  "model": "ollama/qwen3.5:9b",
+  "small_model": "ollama/qwen3.5:1.7b",
+  "default_agent": "build"
+}
+```
 
-| Skill                      | Purpose                                                                                       |
-| -------------------------- | --------------------------------------------------------------------------------------------- |
-| `/ai-slop-cleaner`         | Clean AI-generated code slop with regression-safe, deletion-first workflow                    |
-| `/configure-notifications` | Configure notification integrations (Telegram, Discord, Slack) via natural language           |
-| `/debug`                   | Isolate a single most-likely root cause for a known failure                                   |
-| `/deepinit`                | Deep codebase initialization — generates per-directory AGENTS.md files                        |
-| `/mcp-setup`               | Configure MCP servers via guided menu                                                         |
-| `/remember`                | Triage session findings across memory surfaces (project memory, CLAUDE.md, session notes)     |
-| `/tc-doctor`               | Diagnose tinycode configuration and environment issues                                        |
-| `/trace`                   | Evidence-driven causal tracing with competing hypotheses                                      |
-| `/verify`                  | Confirm a change works before claiming completion — runs tiered evidence ladder               |
+### Provider auto-discovery
 
-## oh-my-tiny
+tinycode probes local LLM providers at startup:
 
-oh-my-tiny is a built-in plugin providing extended orchestration tools. It adds notepad, wiki, project memory, state management, and AST grep tools — all stored under `.tinycode/` in the project directory. The agents listed above ship with tinycode; omt provides the tools they use for state management and knowledge persistence.
+| Provider   | Default address          | Override                     |
+| ---------- | ------------------------ | ---------------------------- |
+| Ollama     | `127.0.0.1:11434`       | `OLLAMA_HOST`                |
+| vLLM       | (none, requires env var) | `TINYCODE_VLLM_HOST`        |
+| LM Studio  | `127.0.0.1:1234`        | `TINYCODE_LMSTUDIO_HOST`    |
+| OpenRouter | ---                      | `OPENROUTER_API_KEY`         |
+
+### Environment variables
+
+| Variable             | Purpose                                 |
+| -------------------- | --------------------------------------- |
+| `TINYCODE_PORT`      | Override default server port (4096)     |
+| `TINYCODE_HOST`      | Override default bind address (127.0.0.1) |
+| `TINYCODE_DB`        | Override database path                  |
+| `TINYCODE_LOG_LEVEL` | Set log level (debug, info, warn, error) |
+| `TINYCODE_WEB_DIR`   | Serve web UI from directory (dev mode)  |
+| `OLLAMA_HOST`        | Ollama server URL                       |
+| `TINYCODE_VLLM_HOST` | vLLM server URL                         |
+| `TINYCODE_LMSTUDIO_HOST` | LM Studio server URL               |
+| `OPENROUTER_API_KEY` | Enable OpenRouter provider              |
 
 ## Building
 
 ```bash
-# Build standalone binary for current platform
-bun ./packages/tinycode/script/build.ts --single
-
-# Output: packages/tinycode/dist/tinycode-darwin-arm64/bin/tinycode
+make build          # Build for current platform -> dist/tinycode
+make build-all      # Cross-compile for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64
+make package        # Create release archives for all platforms
+make test           # Run all tests
+make lint           # Run go vet
+make check          # Run vet + tests
+make embed-webapp   # Embed SolidJS web app into the binary
+make clean          # Remove build artifacts
 ```
-
-## Deployment
-
-For remote servers, containers, and OpenShift/Kubernetes clusters, see the [Deployment Guide](docs/deployment.md). The recommended path for cluster deployments is the [tinycode-operator](https://github.com/bobbyjohnstx/tinycode-operator), which manages `TinycodeInstance` custom resources and handles storage, routing, and security context automatically.
-
-## Ecosystem
-
-tinycode is a family of projects that work together:
-
-| Project | What it does |
-| ------- | ------------ |
-| **tinycode** (this repo) | Core server, TUI, web UI, desktop app, agents, skills, tools, and LLM provider integrations. Everything you need to run tinycode locally. |
-| [**tinycode-container**](https://github.com/bobbyjohnstx/tinycode-container) | Container image that packages tinycode with oh-my-tiny, tmux, git, and optional oc CLI into a single OCI image for Kubernetes and OpenShift deployments. Handles PVC-based config persistence, vLLM auto-discovery, GitOps repo cloning, and OpenShift arbitrary-UID compatibility. |
-| [**tinycode-operator**](https://github.com/bobbyjohnstx/tinycode-operator) | Kubernetes Operator for OpenShift that manages `TinycodeInstance` custom resources. Handles deployment, storage provisioning, Route/Ingress creation, SCC binding, declarative vLLM configuration with auto-probing, cross-namespace model discovery, GitOps mode, shared team workspaces with RWX PVCs, and cluster-admin mode with kubeconfig mounting. Installable via OLM/OperatorHub or Helm. |
-| [**tinycode-plugins**](https://github.com/bobbyjohnstx/tinycode-plugins) | Community plugin registry and supporting materials. Publish your plugins here for discovery via `tinycode plugin-search`. |
-| [**tinycode-plugin-template**](https://github.com/bobbyjohnstx/tinycode-plugin-template) | Starter template for building tinycode plugins. Clone it to scaffold a new plugin with the correct structure, dependencies, and example tool. |
 
 ## Acknowledgments
 
-tinycode is built on [opencode](https://github.com/sst/opencode) by [SST](https://github.com/sst). The core architecture — session processor, provider abstraction, tool system, and TUI — originates from the opencode project. tinycode extends it with local-LLM-first design, bundled agents and skills, MCP integration, web/desktop UIs, container packaging, and a Kubernetes operator for OpenShift deployment.
+tinycode is built on [opencode](https://github.com/sst/opencode) by [SST](https://github.com/sst). The core architecture --- session processor, provider abstraction, tool system, and TUI --- originates from the opencode project.
 
 ## License
 

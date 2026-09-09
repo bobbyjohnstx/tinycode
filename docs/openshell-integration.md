@@ -93,8 +93,7 @@ network:
 process:
   allow:
     - git
-    - bun
-    - node
+    - tinycode
     - grep
     - find
 ```
@@ -123,7 +122,7 @@ This is the most secure approach — the sandbox policy can block all network ac
 
 **Option 2: Install plugins at runtime**
 
-Allow npm registry access in the sandbox policy:
+Allow network access for plugin downloads in the sandbox policy:
 
 ```yaml
 # tinycode-policy.yaml
@@ -135,13 +134,11 @@ filesystem:
 network:
   allow:
     - inference.local
-    - registry.npmjs.org
+    - github.com
 process:
   allow:
     - git
-    - bun
-    - node
-    - npm
+    - tinycode
 ```
 
 Then install plugins inside the running sandbox:

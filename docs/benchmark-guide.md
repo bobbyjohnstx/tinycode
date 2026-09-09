@@ -6,7 +6,7 @@ This guide covers everything you need to run the tinycode LLM benchmark on any m
 
 | Dependency | Version | Check |
 |------------|---------|-------|
-| Bun | 1.3+ | `bun --version` |
+| Go | 1.22+ | `go version` |
 | Ollama | 0.30+ | `ollama --version` |
 | Git | any | `git --version` |
 
@@ -15,9 +15,9 @@ Ollama must be running before you start: `ollama serve` (or the Ollama desktop a
 ## Setup
 
 ```bash
-git clone https://github.com/bobbyjohnstx/tinycode.git
-cd tinycode
-bun install
+git clone https://github.com/bobbyjohnstx/tinycode-go.git
+cd tinycode-go
+make build
 ```
 
 ### Pull models
@@ -38,7 +38,7 @@ Verify with `ollama list`. The benchmark checks this list at startup and exits i
 ## CLI Usage
 
 ```bash
-bun benchmark --models "model1,model2" [options]
+./dist/tinycode benchmark --models "model1,model2" [options]
 ```
 
 | Flag | Default | Description |
@@ -54,19 +54,19 @@ bun benchmark --models "model1,model2" [options]
 
 ```bash
 # Quick smoke test — one model, one task, one run
-bun benchmark --models "qwen3.5:9b" --tasks 2 --runs 1 --timeout 120
+./dist/tinycode benchmark --models "qwen3.5:9b" --tasks 2 --runs 1 --timeout 120
 
 # Full suite for a single model
-bun benchmark --models "qwen3.5:9b" --runs 1 --timeout 600
+./dist/tinycode benchmark --models "qwen3.5:9b" --runs 1 --timeout 600
 
 # Compare multiple models
-bun benchmark --models "qwen3.5:9b,gemma4:12b,llama3.1:8b" --runs 1 --timeout 600
+./dist/tinycode benchmark --models "qwen3.5:9b,gemma4:12b,llama3.1:8b" --runs 1 --timeout 600
 
 # Test with a different agent persona
-bun benchmark --models "qwen3.5:9b" --agent debugger --tasks 5 --runs 3
+./dist/tinycode benchmark --models "qwen3.5:9b" --agent debugger --tasks 5 --runs 3
 
 # Cloud ceiling reference (requires API key in tinycode config)
-bun benchmark --models "anthropic/claude-sonnet-4-20250514" --runs 1
+./dist/tinycode benchmark --models "anthropic/claude-sonnet-4-20250514" --runs 1
 ```
 
 ## Model Warmup

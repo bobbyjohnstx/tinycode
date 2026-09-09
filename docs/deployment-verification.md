@@ -754,7 +754,7 @@ tail -f ~/.local/share/tinycode/logs/*.log
 **Serve mode:**
 
 ```bash
-bun dev serve 2>&1 | tee tinycode.log
+./dist/tinycode serve 2>&1 | tee tinycode.log
 # Log goes to terminal; check for errors at startup
 ```
 
@@ -861,9 +861,9 @@ podman logs -f <container-id>
    }
    ```
 
-3. **Check Bun is installed:**
+3. **Check tinycode binary exists:**
    ```bash
-   bun --version
+   ./dist/tinycode --version
    ```
 
 ---

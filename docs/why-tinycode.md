@@ -119,7 +119,7 @@ Container image: `quay.io/bjohns/tinycode-container:latest` (UBI9, OpenShift-cer
 - **Config secret redaction** — Sensitive values masked in logs
 - **Path traversal protection** — Prevents directory escape attacks
 - **Security headers** — XSS and CSRF mitigations
-- **Input validation** — Zod schemas at all boundaries
+- **Input validation** — Struct validation at all boundaries
 
 ## Zero-Config Local LLM Auto-Discovery
 
@@ -127,47 +127,43 @@ Point tinycode at your network and it finds your models:
 
 ```bash
 # tinycode auto-discovers Ollama at localhost:11434
-bun dev
+tinycode
 
 # Or specify a vLLM endpoint
 export TINYCODE_VLLM_URL=http://your-vllm-server:8000
-bun dev
+tinycode
 ```
 
 No manual endpoint registration. No config file wrestling. Auto-probes model metadata to extract context limits, reasoning capabilities (`<think>` block parsing), and more.
 
 ## Built on Production-Tested Architecture
 
-tinycode inherits its foundation from a mature, proven codebase:
+tinycode-go is a ground-up Go rewrite of the original TypeScript codebase (13,700+ commits), built on proven patterns:
 
-- **Effect framework** — Typed errors, dependency injection, and resource management
-- **Hono HTTP routing** — Multi-environment server framework
-- **SQLite + Drizzle ORM** — Robust data layer with Effect wrappers
-- **SolidJS** — Reactive UI layer, both TUI and web
-- **Bun** — Fast runtime and build toolchain (also Node.js compatible)
-
-13,700+ commits of battle-tested patterns and decisions.
+- **net/http + chi router** — Standard Go HTTP server with middleware
+- **bubbletea** — Elm-architecture TUI framework (Charmbracelet)
+- **modernc.org/sqlite** — Pure-Go SQLite with migrations
+- **slog** — Structured logging via Go standard library
+- **Single binary** — No runtime dependencies, no package manager
 
 ## Getting Started
 
 ```bash
 # Install — pick one:
 curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
-npx tinycode-ai                          # or: npm install -g tinycode-ai
 brew install bobbyjohnstx/tap/tinycode   # macOS / Linux
 
 # Run
 tinycode                                    # TUI mode
 tinycode /path/to/project                   # TUI against a specific project
 tinycode serve                              # headless API server
-tinycode web                                # server + web UI
 tinycode acp --cwd /path/to/project         # Connect from VS Code via ACP
 
-# From source (for development)
-git clone https://github.com/bobbyjohnstx/tinycode.git
-cd tinycode
-bun install
-bun dev
+# Build from source
+git clone https://github.com/bobbyjohnstx/tinycode-go.git
+cd tinycode-go
+make build
+./dist/tinycode
 
 # Deploy to Kubernetes
 kubectl apply -f tinycode-operator/config/samples/tinycode_v1alpha1_basic.yaml
@@ -194,4 +190,4 @@ But if you're building AI assistance that stays on your infrastructure, runs wit
 
 ---
 
-**Ready to build sovereign AI?** Start with `bun install && bun dev`. No account. No cloud dependencies. Just you, your code, and your models.
+**Ready to build sovereign AI?** Start with `make build && ./dist/tinycode`. No account. No cloud dependencies. Just you, your code, and your models.

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code when working with code in this repository.
 
-tinycode-go is a Go rewrite of [tinycode](https://github.com/bobbyjohnstx/tinycode) (TypeScript). It is a standalone Go binary — the TUI connects to a tinycode server (TypeScript, port 4096) for session management, LLM calls, and tool execution.
+tinycode-go is a Go rewrite of [tinycode](https://github.com/bobbyjohnstx/tinycode) (TypeScript). It is a standalone Go binary — a single process embeds the HTTP server (ephemeral port), TUI (bubbletea), session management, LLM client, and tool execution.
 
 ## Commands
 
@@ -10,7 +10,7 @@ tinycode-go is a Go rewrite of [tinycode](https://github.com/bobbyjohnstx/tinyco
 # Build
 make build                      # builds dist/tinycode
 
-# Run (requires tinycode server on port 4096)
+# Run
 ./dist/tinycode                 # TUI mode
 ./dist/tinycode <directory>     # TUI against a different directory
 ./dist/tinycode serve           # headless API proxy
@@ -50,11 +50,17 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 - **`permission/`** — Tool permission prompting and rules.
 - **`skill/`** — Skill discovery and loading.
 - **`vcs/`** — Git operations.
+- **`command/`** — Slash command discovery. Merges built-in commands, agent names, user skills, and project skills into a unified command list.
+- **`earlyinit/`** — Package-init side effects that must run before other imports (e.g., lipgloss dark-background default).
+- **`frontmatter/`** — Simple YAML-like frontmatter parser for markdown files. Used by skill and agent loaders.
+- **`id/`** — Sortable ID generation with typed prefixes (`ses_`, `msg_`, `evt_`, etc.). Supports ascending and descending time ordering.
+- **`project/`** — Project metadata: directory-based ID generation, VCS detection, worktree paths.
+- **`static/`** — Embedded web app file server with SPA fallback. Serves `dist/` assets via `embed.FS` or a dev directory override.
 
 ### Other directories
 
 - **`cmd/tinycode/`** — Main binary entry point.
-- **`cmd/plugin-*/`** — Plugin binaries (notify, cluster-ops, safety-net).
+- **`cmd/plugin-*/`** — Plugin binaries (cluster-ops, code-review, command-inject, context-pruning, handoff, log-sanitizer, notify, pilot, safety-net, snippets, telemetry, web-search).
 - **`pkg/plugin/`** — Public plugin SDK (protocol, hooks, tools).
 - **`packages/`** — Legacy TypeScript packages (app, desktop, etc.) from the original repo. The web app (`packages/app`) can be embedded into the Go binary via `make embed-webapp`.
 
@@ -67,6 +73,7 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 - **Startup guard**: OSC terminal escape responses leak as printable characters on startup. `prompt.go` has a guard that discards rune input for 2 seconds after first render, plus `isTerminalEscape()` regex filtering.
 - **Leader key**: Vim-style `<leader>` key sequences for sidebar toggle, agent/model/session lists. State machine in `leader.go`.
 - **Toast overlay**: Non-blocking notification rendered atop the main view. Used for errors and status messages.
+- **Plugin system**: Plugins are standalone Go binaries in `cmd/plugin-*/` using `pkg/plugin/` SDK. Communication is JSON-RPC over stdin/stdout. The plugin manager (`internal/plugin/`) spawns processes, performs initialize handshake, and dispatches hooks (session lifecycle, permission, tool execution) and tool calls.
 
 ## Agent Delegation
 
@@ -78,10 +85,4 @@ Use specialized agents instead of doing everything inline:
 
 ## Known Issues
 
-See `docs/architecture-review.md` for the full audit. Key hazards when working in the codebase:
-
-- **Plugin subsystem is broken.** `internal/plugin/` (server-side) and `pkg/plugin/` (SDK) use incompatible wire protocols — different JSON-RPC method names, mismatched initialize field names, and the server drops plugin-provided tools. Do not assume plugins work without fixing protocol alignment first.
-- **Path traversal in file handlers.** `handler_file.go` passes raw `path` query params to `os.ReadFile`/`os.ReadDir` — no validation against the working directory.
-- **Data races.** `session_manager.Abort()` reads `processor` without the lock; `maybeWarmup` mutates `Model.Capabilities` from a goroutine; MCP `Configure` has an unlock/relock gap during iteration.
-- **SSE route/handler inversion.** `/event` calls `StreamGlobalEvents` (wrapped) and `/global/event` calls `StreamEvents` (flat) — names are swapped from what the route names suggest.
-- **Dead TUI components.** `DiffView`, `Workspace`, `Theme` (except Toast), escape-to-abort, and `SendPluginEvent` are implemented but never wired into the app.
+See `docs/architecture-review.md` for the original audit. All five issues identified there (plugin wire protocol, path traversal, data races, SSE route inversion, dead TUI components) have been fixed.

@@ -65,7 +65,7 @@ Solutions to common tinycode issues and configuration problems.
 
 ### "Server won't start" or "port already in use"
 
-**Problem:** `bun dev serve` fails with address already in use.
+**Problem:** `./dist/tinycode serve` fails with address already in use.
 
 **Solution:**
 1. Find process using port 4096:
@@ -81,18 +81,16 @@ Solutions to common tinycode issues and configuration problems.
      }
    }
    ```
-3. Restart with `bun dev serve`
+3. Restart with `./dist/tinycode serve`
 
 ### Server won't start on remote machine
 
-**Problem:** `bun dev serve` works locally but fails on remote.
+**Problem:** `./dist/tinycode serve` works locally but fails on remote.
 
 **Solution:**
-1. Ensure Bun is installed: `bun --version`
-2. Bind to all interfaces:
-   ```bash
-   bun dev serve --hostname 0.0.0.0
-   # or in config:
+1. Ensure the tinycode binary is installed: `./dist/tinycode --version`
+2. Bind to all interfaces in config:
+   ```json
    { "server": { "hostname": "0.0.0.0" } }
    ```
 3. Set password for remote access:
@@ -227,7 +225,7 @@ Solutions to common tinycode issues and configuration problems.
    ```
 3. Monitor server CPU/memory:
    ```bash
-   top | grep node  # if running via Node
+   top | grep tinycode
    ```
 4. Try a different browser
 5. Check for browser extensions that might intercept requests (disable temporarily)
@@ -328,9 +326,9 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
    ```bash
    podman logs <container-id>
    ```
-2. Verify image has required dependencies:
+2. Verify image has the tinycode binary:
    ```bash
-   podman run -it quay.io/bjohns/tinycode-container:latest bun --version
+   podman run -it quay.io/bjohns/tinycode-container:latest tinycode --version
    ```
 3. If missing vLLM, set environment variable:
    ```bash

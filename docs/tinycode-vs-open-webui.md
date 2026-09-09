@@ -50,10 +50,10 @@ If you already have Open WebUI + Ollama running:
 
 ```bash
 # tinycode auto-discovers your Ollama instance — just start it
-bun dev
+./dist/tinycode
 
 # Or point at a specific Ollama host
-TINYCODE_OLLAMA_HOST=http://192.168.1.100:11434 bun dev
+OLLAMA_HOST=http://192.168.1.100:11434 ./dist/tinycode
 ```
 
 No additional model downloads needed. tinycode uses the same models you already pulled for Open WebUI.

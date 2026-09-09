@@ -22,7 +22,9 @@ If you discover a security vulnerability, please report it responsibly:
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Yes       |
+| 2.0.x   | Yes       |
+| 1.x     | No        |
+| 0.x     | No        |
 
 ## Security Best Practices
 

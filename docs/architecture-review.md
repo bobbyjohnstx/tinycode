@@ -7,13 +7,13 @@
 
 | Severity | Count |
 |----------|-------|
-| HIGH | 2 |
-| MEDIUM | 18 |
-| LOW | 25 |
+| HIGH | 0 |
+| MEDIUM | 15 |
+| LOW | 24 |
 | **Total** | **45** |
-| Resolved | 5 |
+| Resolved | 11 |
 
-The most consequential issues are: (1) a data race in provider warmup that mutates model capabilities from a background goroutine, and (2) a goroutine leak in the plugin manager's RPC timeout handling. The rest are medium-severity correctness issues, unused/dead code, and minor API inconsistencies.
+Both HIGH-severity issues have been resolved. The remaining open items are medium-severity correctness issues, unused/dead code, and minor API inconsistencies.
 
 ---
 
@@ -31,17 +31,19 @@ These were identified during review and fixed before this document was finalized
 
 ## HIGH
 
-### H1. Data race: maybeWarmup mutates Model.Capabilities from background goroutine
+### H1. Data race: maybeWarmup mutates Model.Capabilities from background goroutine — **[RESOLVED]**
 
 `maybeWarmup` spawns a background goroutine that writes `m.Capabilities.ToolCall = false` on the `Model` struct. The `Registry` protects the map with a mutex, but not the struct fields. Any concurrent reader of `Model.Capabilities` (e.g., provider listing, model selection) races with this write.
 
 - `internal/provider/discovery.go:401`
+- **Fix:** Warmup now copies the Model struct before mutating in the goroutine.
 
-### H2. Goroutine leak on RPC timeout in plugin manager
+### H2. Goroutine leak on RPC timeout in plugin manager — **[RESOLVED in #82]**
 
 When `sendRPC` times out, the goroutine blocked on `p.decoder.Decode()` persists for the process lifetime. Repeated timeouts accumulate leaked goroutines. A timed-out decode goroutine may later write a stale response to the channel, which the next `sendRPC` call reads as a spurious response.
 
 - `internal/plugin/manager.go:387-409`
+- **Fix:** Plugin subsystem rewritten with protocol alignment between `internal/plugin/` and `pkg/plugin/` (#82).
 
 ---
 
@@ -89,23 +91,26 @@ Two concurrent calls for different client IDs could lose writes. The file is rea
 
 - `internal/mcp/oauth.go:297-316`
 
-### M8. Theme ApplyTheme builds styles that are never used by components
+### M8. Theme ApplyTheme builds styles that are never used by components — **[RESOLVED]**
 
 `ApplyTheme` constructs a full `Theme` struct with per-component styles, but the actual rendering code uses package-level `style*` variables from `styles.go`. Only `Toast` actually uses its Theme. The rest is dead code.
 
 - `internal/tui/theme_loader.go` vs `internal/tui/styles.go`
+- **Fix:** Dead theme code removed; Toast theme retained.
 
-### M9. DiffView is unused — defined but never integrated
+### M9. DiffView is unused — defined but never integrated — **[RESOLVED]**
 
 `DiffView`, `DiffOpenMsg`, and `DiffClosedMsg` are defined but never referenced in `app.go`, `run.go`, or any other TUI file. The component is complete but not wired into the app.
 
 - `internal/tui/diffview.go`
+- **Fix:** Dead component removed.
 
-### M10. Workspace is unused — defined but never referenced
+### M10. Workspace is unused — defined but never referenced — **[RESOLVED]**
 
 `Workspace` and `WorkspaceChangedMsg` are defined but never created, updated, or read anywhere in the TUI.
 
 - `internal/tui/workspace.go`
+- **Fix:** Dead component removed.
 
 ### M11. Permission prompt reject/allow styling is identical
 
@@ -308,13 +313,14 @@ When `sub.C` is closed (`ok=false`), the handler reads `evt.ID` from a zero-valu
 
 - `internal/session/session.go:117`
 
-### L25. SSE route naming is confusing
+### L25. SSE route naming is confusing — **[RESOLVED]**
 
 `GET /event` calls `StreamEvents` (flat format), while `GET /global/event` calls `StreamGlobalEvents` (envelope format). The TUI connects to `/global/event` and works correctly, but the naming inverts expectations — the route NOT named "global" uses the handler named with global semantics. No functional bug, but confusing for new contributors.
 
 - `internal/server/router.go:7,12`
 - `internal/server/handler_event.go:11-12`
 - `internal/server/handler_stub.go:18-19`
+- **Fix:** Handler names aligned with route semantics.
 
 ---
 
@@ -330,15 +336,15 @@ The codebase has two systemic patterns:
 
 ## Recommendations
 
-| # | Action | Severity | Effort | Impact |
-|---|--------|----------|--------|--------|
-| 1 | Fix maybeWarmup race — copy Model before goroutine or sync field access (H1) | HIGH | Low | High |
-| 2 | Fix plugin RPC timeout goroutine leak — cancel decode goroutine or use deadline on stream (H2) | HIGH | Medium | Medium |
-| 3 | Fix DispatchShellEnv to pass accumulated env to subsequent plugins (M1) | MEDIUM | Low | Medium |
-| 4 | URL-encode directory in API client (M13) | MEDIUM | Low | Medium |
-| 5 | Cache compiled regexes in WildcardMatch (M17) | MEDIUM | Low | Medium |
-| 6 | Wire DiffView, Workspace, Theme into the app — or remove (M8-M10) | MEDIUM | Medium | Medium |
-| 7 | Extract shared parseFrontmatter and JSON-RPC types (M14, L12) | MEDIUM | Low | Low |
-| 8 | Add stash ref tracking to revert (M3) | MEDIUM | Medium | Medium |
-| 9 | Implement actual summarization in subscribeSummarize or document as intentional (M16) | MEDIUM | High | Medium |
-| 10 | Clean up dead code: Manager.sendHook, AppState unused fields, DB.mu (L2, L13, L23) | LOW | Low | Low |
+| # | Action | Severity | Effort | Impact | Status |
+|---|--------|----------|--------|--------|--------|
+| 1 | Fix maybeWarmup race — copy Model before goroutine or sync field access (H1) | HIGH | Low | High | **DONE** |
+| 2 | Fix plugin RPC timeout goroutine leak — cancel decode goroutine or use deadline on stream (H2) | HIGH | Medium | Medium | **DONE (#82)** |
+| 3 | Fix DispatchShellEnv to pass accumulated env to subsequent plugins (M1) | MEDIUM | Low | Medium | Open |
+| 4 | URL-encode directory in API client (M13) | MEDIUM | Low | Medium | Open |
+| 5 | Cache compiled regexes in WildcardMatch (M17) | MEDIUM | Low | Medium | Open |
+| 6 | Wire DiffView, Workspace, Theme into the app — or remove (M8-M10) | MEDIUM | Medium | Medium | **DONE** (removed) |
+| 7 | Extract shared parseFrontmatter and JSON-RPC types (M14, L12) | MEDIUM | Low | Low | Open |
+| 8 | Add stash ref tracking to revert (M3) | MEDIUM | Medium | Medium | Open |
+| 9 | Implement actual summarization in subscribeSummarize or document as intentional (M16) | MEDIUM | High | Medium | Open |
+| 10 | Clean up dead code: Manager.sendHook, AppState unused fields, DB.mu (L2, L13, L23) | LOW | Low | Low | Open |

@@ -4,37 +4,24 @@ Quick reference for the most common keyboard shortcuts, agents, and commands.
 
 ## Keyboard Shortcuts
 
-**Leader key** = `Ctrl+X` by default (customize in `~/.config/tinycode/config.json`)
+**Leader key** = `Ctrl+X` by default (500ms timeout for follow-up key)
 
 | Key | Action |
 |-----|--------|
-| `Ctrl+C` or `Ctrl+D` or `<leader>q` | Exit tinycode |
-| `F1` | Open help dialog |
+| `Ctrl+C` | Clear prompt / quit (if empty) |
+| `Ctrl+D` | Quit tinycode |
 | `Ctrl+P` | Command palette (commands, agents, sessions, skills) |
+| `Enter` | Submit prompt |
+| `Shift+Enter` / `Alt+Enter` | Insert newline in prompt |
+| `Escape` | Interrupt current session |
+| `Tab` / `Shift+Tab` | Cycle to next/previous agent |
+| `F2` / `Shift+F2` | Cycle to next/previous recent model |
+| `PgUp` / `PgDown` | Scroll chat history |
+| `<leader>b` | Toggle session tree sidebar |
 | `<leader>o` | List all sessions |
 | `<leader>n` | Create a new session |
-| `<leader>h` / `<leader>l` | Previous/next sibling session |
-| `<leader>j` / `<leader>k` | Go to first child / parent session |
 | `<leader>m` | List available models |
-| `F2` / `Shift+F2` | Cycle to next/previous recent model |
 | `<leader>a` | List available agents |
-| `Tab` / `Shift+Tab` | Cycle to next/previous agent |
-| `<leader>b` | Toggle session tree sidebar |
-| `<leader>e` | Open external editor |
-| `<leader>t` | Switch theme |
-| `<leader>s` | View status |
-| `<leader>c` | Compact the session |
-| `<leader>d` | Toggle diff viewer |
-| `<leader>x` | Export session transcript |
-| `<leader>y` | Copy message |
-| `<leader>u` / `<leader>r` | Undo/redo message |
-| `<leader>;` | Toggle code block concealment |
-| `Ctrl+R` | Rename session |
-| `Ctrl+D` | Delete session |
-| `Escape` | Interrupt current session |
-| `Ctrl+F` | Pin/unpin session |
-| `<leader>1` - `<leader>9` | Quick-switch to session slot 1-9 |
-| `Ctrl+Alt+K` | Toggle which-key panel |
 
 ## Agents
 

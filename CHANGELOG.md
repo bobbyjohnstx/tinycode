@@ -1,6 +1,46 @@
 # Changelog
 
-## [Unreleased]
+## [2.0.0] - Unreleased
+
+Complete rewrite from TypeScript to Go. tinycode is now a standalone Go binary -- no TypeScript runtime, no separate server process.
+
+### Added
+- Standalone Go binary embedding HTTP server, TUI, session management, LLM client, and tool execution
+- Embedded HTTP server (net/http + chi router) with REST and SSE endpoints on ephemeral port
+- Bubbletea TUI with Elm architecture (immutable state, tea.Cmd for async, tea.Msg for events)
+- 12 Go plugins converted from TypeScript: cluster-ops, code-review, command-inject, context-pruning, handoff, log-sanitizer, notify, pilot, safety-net, snippets, telemetry, web-search
+- Go plugin SDK (`pkg/plugin/`) with JSON-RPC protocol, lifecycle hooks, and tool definitions
+- Plugin wire protocol alignment between server-side manager and SDK
+- SQLite storage via modernc.org/sqlite (pure Go, no CGO)
+- Provider discovery for Ollama, OpenAI-compatible, and OpenRouter
+- ACP mode for IDE integration (stdio transport)
+- Headless API server mode (`tinycode serve`)
+- Leader-key navigation (vim-style key sequences)
+- Command palette, session tree sidebar, toast overlay system
+- Slash command discovery merging built-in commands, agents, skills, and project skills
+- Sortable ID generation with typed prefixes
+- YAML frontmatter parser for agent and skill definitions
+- Project metadata with VCS detection and worktree paths
+
+### Changed
+- Architecture: single process replaces client-server split (no port 4096)
+- TUI: bubbletea replaces blessed/ink
+- Storage: modernc.org/sqlite replaces better-sqlite3
+- HTTP: net/http + chi replaces Effect HTTP
+- LLM client: native Go OpenAI-compatible client replaces AI SDK
+
+### Fixed
+- Plugin wire protocol mismatch (different JSON-RPC method names, mismatched initialize fields)
+- Path traversal in file handlers (raw path params validated against working directory)
+- Data races in session manager abort, capability warmup, and MCP configure
+- SSE route/handler name inversion
+- 25+ additional bug fixes across all subsystems
+
+---
+
+## Legacy TypeScript Releases
+
+The entries below document the original TypeScript implementation (v0.1.0 through v1.20.0). These releases used a Node.js/Bun runtime with a separate HTTP server process.
 
 ## [1.20.0] — 2026-08-31
 

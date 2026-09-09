@@ -1,379 +1,182 @@
 # Getting Started with tinycode
 
-Step-by-step walkthrough to get tinycode running and productive in 15 minutes.
+Step-by-step walkthrough to get tinycode running and productive in 10 minutes.
 
 ## Prerequisites
 
-- **Bun** 1.1+ ([install here](https://bun.sh))
+- **Go 1.22+** -- [install here](https://go.dev/dl/)
+- **make**
 - **Git**
 - One of:
-  - **Ollama** (local LLM inference) — [install here](https://ollama.ai)
-  - **vLLM** (faster inference) — `pip install vllm`
-  - **API key** to OpenRouter, Anthropic, OpenAI, or Google
+  - **Ollama** (recommended for getting started) -- [install here](https://ollama.ai)
+  - **vLLM** -- fast inference via OpenAI-compatible API
+  - **LM Studio** -- desktop app with OpenAI-compatible API
+  - **API key** to OpenRouter, Anthropic, OpenAI, or another cloud provider
 
 ## Step 1: Install tinycode
 
-### Quick install (recommended)
+### From source
 
 ```bash
-# npm (requires Node.js 20+)
-npx tinycode-ai@latest
-
-# Homebrew (macOS/Linux)
-brew install bobbyjohnstx/tap/tinycode
+git clone https://github.com/bobbyjohnstx/tinycode-go.git
+cd tinycode-go
+make build
 ```
 
-> **Note:** The curl installer (`install.sh`) is deprecated. Use npm or Homebrew instead.
+This produces the binary at `dist/tinycode`.
 
-### From source (development)
+### Verify the build
 
 ```bash
-git clone https://github.com/bobbyjohnstx/tinycode.git
-cd tinycode
-bun install
-bun dev
+./dist/tinycode version
 ```
 
-This starts the interactive TUI immediately. Use `Ctrl+D` or `<leader>q` to exit.
+## Step 2: Start an LLM (local option)
 
-## Step 2: Start an LLM (Local Option)
-
-If you want to run **locally** (no cloud), start Ollama:
+If you want to run locally without cloud providers, start Ollama:
 
 ```bash
 # In a separate terminal
 ollama serve
 
-# In another terminal, pull a model (3-5 min)
-ollama pull qwen3.5:9b  # recommended — 14/15 benchmark, excellent tool calling
-# or north-mini-code-1.0 for MoE alternative (3B active, fast)
-# or mistral, neural-chat, etc. (may struggle with tool calling if <7B)
+# In another terminal, pull a model
+ollama pull qwen3.5:9b
 ```
 
-**Alternative: ramalama** (container-based LLM serving):
-
-```bash
-ramalama serve ollama://qwen3.5:9b
-export TINYCODE_RAMALAMA_HOST=http://localhost:8080
-```
-
-**Note on model selection:** tinycode works best with models that support tool calling. Larger models (≥9B) have better tool-call accuracy. Models <7B may not support tool calling at all — tinycode detects this and works without tools in that case.
-
-**Skip this step** if you're using OpenRouter, Anthropic, or another cloud provider.
+**Skip this step** if you are using OpenRouter, Anthropic, or another cloud provider.
 
 ## Step 3: Run tinycode
 
 ```bash
-# If installed via curl/npm/brew
-tinycode
-
-# If running from source
-bun dev
+./dist/tinycode
 ```
 
-This starts tinycode in **TUI mode** against your current directory. You'll see:
-- Session sidebar on the left
+This starts tinycode in TUI mode against your current directory. You will see:
+- Session sidebar on the left (toggled with `<leader>b`)
 - Conversation area in the center
 - Input prompt at the bottom
 
-**What happened:**
-- Detected Ollama running at `localhost:11434`
-- Auto-discovered available models
-- Warmed up the configured model (pre-loads into GPU memory and verifies tool-call support)
-- Loaded default build agent (full tool access)
+**What happens on startup:**
+- tinycode starts an embedded HTTP server on an ephemeral port
+- Auto-discovers Ollama at `localhost:11434` (and vLLM / LM Studio if running)
+- Polls discovered providers for available models
+- Runs a warmup probe on Ollama models to detect tool-call support
+- Loads the default **build** agent (full tool access)
 
-## Step 4: Select a Model
+To run against a different directory:
 
-Press `<leader>m` (Ctrl+X, then M):
+```bash
+./dist/tinycode /path/to/project
+```
+
+## Step 4: Connect a provider
+
+If tinycode did not auto-discover your LLM provider, use `/connect` in the TUI prompt to add one interactively. Or set environment variables before launching:
+
+```bash
+# Ollama on a non-default host
+export OLLAMA_HOST=http://your-host:11434
+
+# vLLM
+export TINYCODE_VLLM_HOST=http://localhost:8000
+
+# LM Studio
+export TINYCODE_LMSTUDIO_HOST=http://localhost:1234
+
+# Cloud providers
+export OPENROUTER_API_KEY=your-key
+export ANTHROPIC_API_KEY=your-key
+export OPENAI_API_KEY=your-key
+```
+
+## Step 5: Select a model
+
+Press `<leader>m` (Ctrl+X, then M) to open the model list:
 
 ```
 List Models
-────────────
+------------
 ollama/qwen3.5:9b
 ollama/mistral
 ```
 
-Select one with arrow keys, press Enter. The model is ready.
+Select one with arrow keys, press Enter.
 
-## Step 5: Your First Conversation
+## Step 6: Your first conversation
 
-Type a simple prompt:
+Type a prompt and press Enter:
 
 ```
 Explain what this repository does in 2 sentences.
 ```
 
-Press Enter. tinycode will:
+tinycode will:
 1. Read files in the current directory
 2. Ask the LLM to analyze them
-3. Stream the response
+3. Stream the response in real time
 
 Try more prompts:
 
 ```
-What files are in src/?
-Write a bash script that lists all .ts files
+What files are in this project?
+Write a bash script that lists all .go files
 ```
 
-## Step 6: Using Agents
+## Step 7: Using agents
 
-Agents are specialized personas that solve specific problems. Press `Tab` to cycle:
+Agents are specialized personas for different tasks. Press `Tab` to cycle through them, or `<leader>a` to see the full list.
 
-- **architect** — reads code, suggests designs (read-only)
-- **code-reviewer** — severity-rated code review
-- **debugger** — root-cause analysis
-- **executor** — focused task implementation
-- **planner** — break down complex work
-- **test-engineer** — write tests
-
-Try it:
+Use `/ask <agent> <prompt>` to invoke an agent directly:
 
 ```
-Tab                              # Switch to code-reviewer
-Now look at src/index.ts and review it for style
+/ask architect analyze the data flow in this project
+/ask debugger why is this test failing?
+/ask code-reviewer review the changes on this branch
 ```
 
-Or invoke directly:
-
-```
-/ask planner help me refactor this component
-/ask test-engineer write unit tests for auth
-```
-
-## Step 7: Using Skills (Slash Commands)
+## Step 8: Using skills (slash commands)
 
 Skills inject specialized instructions. Type `/` to see available ones:
 
 ```
 /debug          # Isolate a single most-likely root cause
 /trace          # Evidence-driven causal tracing with hypotheses
-/verify         # Confirm changes actually work
-/tc-doctor      # Diagnose tinycode configuration
-/deepinit       # Generate codebase documentation structure
+/verify         # Confirm changes work before claiming completion
 ```
-
-Example:
-
-```
-My tests are failing. Why?
-/debug
-```
-
-This tells the debugger to focus on root-cause analysis, not fix everything.
-
-## Step 8: Work with Your Code
-
-tinycode has full access to read, write, and edit files. Reference files:
-
-```
-Edit @src/auth.ts to add a login function
-```
-
-Or use existing tools:
-
-```
-Show me the structure of packages/cli/
-Find all TODO comments in TypeScript files
-```
-
-Use `<leader>e` to open your editor if you prefer:
-
-```
-<leader>e       # Opens your configured editor
-# Edit, save, return to tinycode
-```
-
-## Step 9: Session Management
-
-Sessions are conversations. Press `<leader>l` to see all:
-
-```
-All Sessions
-────────────
-My first session   (active)
-Code review        (pinned)
-Architecture notes
-```
-
-**Create a new session:** `<leader>n`
-
-**Session hierarchy:** Sessions form a tree. Child sessions inherit context from their parent. Press `<leader>j` (go to first child) or `<leader>k` (go to parent).
-
-**Pin a session:** `Ctrl+F` — keeps it visible when switching
-
-## Step 10: Access the Web UI
-
-The TUI is fast, but you can also use tinycode in a browser:
-
-```bash
-# In a separate terminal (TUI still running)
-bun run --cwd packages/app dev
-
-# Or start server + web in one command
-bun dev web
-```
-
-Open `http://localhost:4096`. Same features as TUI: agents, skills, sessions, model switching.
 
 ## Configuration
 
-Create `~/.config/tinycode/config.json`:
+Create `~/.config/tinycode/config.json` (JSONC supported):
 
 ```json
 {
   "model": "ollama/qwen3.5:9b",
-  "lsp": true
+  "default_agent": "build"
 }
 ```
 
-**Useful settings:**
+See the [User Guide](user-guide.md) for all configuration options.
 
-```json
-{
-  "model": "ollama/mistral",           // default model
-  "lsp": true,                         // enable code intelligence
-  "animations": false,                 // disable if TUI is slow
-  "server": {
-    "port": 4096,
-    "hostname": "127.0.0.1"
-  },
-  "keybinds": {
-    "leader": "space"                  // change leader key to space
-  }
-}
-```
-
-## Next Steps
-
-### 1. Set up a cloud provider (optional)
-
-For higher quality responses, use Anthropic, OpenAI, or OpenRouter:
+## Other run modes
 
 ```bash
-export OPENROUTER_API_KEY=your-key    # auto-discovers 300+ models
+# Headless API proxy (no TUI)
+./dist/tinycode serve
+
+# Agent Client Protocol (IDE integration, stdio)
+./dist/tinycode acp
 ```
 
-Then `<leader>m` and select an OpenRouter model. Or use `/connect` in the TUI to enter an API key interactively.
+## Next steps
 
-### 2. Connect MCP servers
-
-MCP servers add tools (web search, code execution, etc.):
-
-```
-<leader>a          # Switch to an agent
-/mcp-setup         # Configure MCP servers
-```
-
-### 3. Explore agents in depth
-
-Each agent has unique strengths. Try:
-
-```
-/ask architect analyze the data flow in auth.ts
-/ask scientist what's the best testing strategy for this module?
-/ask designer redesign the onboarding screen
-```
-
-### 4. Build a custom workflow
-
-Create a `.tinycode/plans/` directory to keep work structured:
-
-```
-<leader>n          # New session
-/ask planner help me plan the refactor
-(planner writes to .tinycode/plans/my-plan.md)
-/ask executor implement the first step of the plan
-```
-
-### 5. Explore the documentation
-
-- [Architecture overview](architecture.md) — how tinycode works
-- [Cheat sheet](cheatsheet.md) — quick keyboard shortcuts
-- [Troubleshooting](troubleshooting.md) — common issues and fixes
-- [Use cases](use-cases.md) — deployment patterns
-
-## Common Patterns
-
-### Code review workflow
-```
-Tab                                    # Switch to code-reviewer
-Here's my PR: @src/auth.ts
-(reviewer gives feedback)
-Tab                                    # Switch to code-simplifier
-Apply those suggestions
-```
-
-### Build a feature
-```
-<leader>n                              # New session
-/ask planner break down building a login form
-<leader>n                              # Child session for implementation
-/ask executor implement the UI based on the plan
-<leader>n                              # Another child for tests
-/ask test-engineer write tests for login
-```
-
-### Debug a failing test
-```
-/ask debugger why is src/index.test.ts failing?
-/ask executor fix the issue
-```
-
-### Document your code
-```
-/ask writer document the session processor architecture
-```
-
-## Keyboard Shortcuts
-
-**Most important:**
-
-| Key | Purpose |
-|-----|---------|
-| `Ctrl+X` (leader) | Prefix for many commands |
-| `Tab` | Next agent |
-| `<leader>a` | List agents |
-| `<leader>l` | List sessions |
-| `<leader>n` | New session |
-| `<leader>m` | Switch model |
-| `<leader>b` | Toggle sidebar |
-| `Escape` | Stop current operation |
-| `F1` | Help |
-
-See [cheatsheet.md](cheatsheet.md) for complete keyboard reference.
+- [User Guide](user-guide.md) -- keyboard shortcuts, agents, sessions, configuration
+- [Plugin Development](plugin-development.md) -- extend tinycode with custom tools and hooks
+- [Architecture](architecture.md) -- how tinycode works under the hood
 
 ## Troubleshooting
 
-Run `/tc-doctor` for a full diagnostic. It checks 14 areas including Ollama install, model availability, tool-call support, RAM fit, and tinycode integration.
+**Model not found:** Make sure you have pulled the model in Ollama first (`ollama pull <model>`).
 
-**Model not found:** `/tc-doctor` checks if your configured model is actually pulled in Ollama and suggests the closest match if the name is wrong.
+**Cannot connect to Ollama:** Verify `ollama serve` is running. If Ollama is on a different host, set `OLLAMA_HOST`.
 
-**Can't connect to Ollama:** `/tc-doctor` verifies the Ollama process is running, the API is reachable, and there are no port conflicts. In containers, it suggests the correct `TINYCODE_OLLAMA_HOST`.
-
-**Tool calling not working:** The startup warmup probe tests tool-call support. If you see "no tool calling" on startup, the model lacks this capability — `/tc-doctor` recommends models that support it (qwen3.5:9b is the benchmark champion at 14/15).
-
-**Slow responses:** `/tc-doctor` checks model size vs RAM, GPU acceleration (Metal on Mac), swap pressure, and cold-load time.
-
-See [troubleshooting.md](troubleshooting.md) for detailed solutions.
-
-## Tips & Tricks
-
-- Use `@filename` to reference files in your prompt
-- `<leader>h` toggles code block collapse — focus on text, hide code
-- `<leader>c` compacts a session, removing noise
-- `<leader>x` exports to shareable HTML or JSON
-- Sessions form a tree — organize by topic with parent/child relationships
-- Use `/ask <agent>` inline instead of switching agents
-- Press `?` in diff viewer for extra navigation shortcuts
-
-## What's Next?
-
-You're ready to start coding with AI! Explore:
-
-1. **More agents** — try `architect`, `debugger`, `test-engineer`
-2. **Skills** — `/tc-doctor`, `/trace`, `/debug` are powerful
-3. **Web UI** — `bun dev web` for browser access
-4. **Desktop app** — `bun run --cwd packages/desktop dev` for native app
-5. **Remote deployment** — See [use-cases.md](use-cases.md) for server setup
-
-Questions? Check [troubleshooting.md](troubleshooting.md) or file an issue on [GitHub](https://github.com/bobbyjohnstx/tinycode).
+**Tool calling not working:** The warmup probe tests tool-call support. If a model does not support tool calling, tinycode works without tools (text-only responses). Larger models (9B+) tend to have better tool-call support.
