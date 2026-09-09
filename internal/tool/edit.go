@@ -9,7 +9,40 @@ import (
 	"sync"
 )
 
-var fileMutexes sync.Map
+const fileMutexCleanupThreshold = 1000
+
+type fileMutexMap struct {
+	mu sync.Mutex
+	m  map[string]*sync.Mutex
+}
+
+var fileMutexes = fileMutexMap{m: make(map[string]*sync.Mutex)}
+
+func (fm *fileMutexMap) Get(path string) *sync.Mutex {
+	fm.mu.Lock()
+	defer fm.mu.Unlock()
+
+	if mu, ok := fm.m[path]; ok {
+		return mu
+	}
+
+	if len(fm.m) > fileMutexCleanupThreshold {
+		fm.cleanup()
+	}
+
+	mu := &sync.Mutex{}
+	fm.m[path] = mu
+	return mu
+}
+
+func (fm *fileMutexMap) cleanup() {
+	for path, mu := range fm.m {
+		if mu.TryLock() {
+			delete(fm.m, path)
+			mu.Unlock()
+		}
+	}
+}
 
 type editArgs struct {
 	FilePath   string `json:"file_path"`
@@ -110,17 +143,15 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 }
 
 func getFileMutex(path string) *sync.Mutex {
-	v, _ := fileMutexes.LoadOrStore(path, &sync.Mutex{})
-	return v.(*sync.Mutex)
+	return fileMutexes.Get(path)
 }
 
 // ClearFileMutexes removes all entries from the file mutex map.
 // Call at session boundaries to prevent unbounded growth.
 func ClearFileMutexes() {
-	fileMutexes.Range(func(key, _ any) bool {
-		fileMutexes.Delete(key)
-		return true
-	})
+	fileMutexes.mu.Lock()
+	defer fileMutexes.mu.Unlock()
+	fileMutexes.m = make(map[string]*sync.Mutex)
 }
 
 func fuzzyFind(content, needle string) string {

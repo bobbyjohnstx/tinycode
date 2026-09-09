@@ -149,12 +149,14 @@ func executeGlob(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 
 // matchSuffix tries filepath.Match(suffix, subpath) against progressively
 // shorter subpaths of rel so that "src/*.go" matches "foo/src/main.go".
+// Paths are normalized to forward slashes for consistent matching across platforms.
 func matchSuffix(suffix, rel string) bool {
+	rel = filepath.ToSlash(rel)
 	for rel != "" {
 		if matched, _ := filepath.Match(suffix, rel); matched {
 			return true
 		}
-		i := strings.IndexByte(rel, filepath.Separator)
+		i := strings.IndexByte(rel, '/')
 		if i < 0 {
 			break
 		}
