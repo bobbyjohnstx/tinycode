@@ -29,11 +29,16 @@ var (
 
 // renderMessage renders a single message (user or assistant) as a string.
 func renderMessage(msg MessageView, width int, md *render.MarkdownRenderer) string {
+	return renderMessageWithHits(msg, width, md, nil)
+}
+
+// renderMessageWithHits renders a message and optionally collects thought label positions.
+func renderMessageWithHits(msg MessageView, width int, md *render.MarkdownRenderer, hits *[]thoughtHit) string {
 	switch msg.Info.Role {
 	case "user":
 		return renderUserMessage(msg, width)
 	case "assistant":
-		return renderAssistantMessage(msg, width, md)
+		return renderAssistantMessage(msg, width, md, hits)
 	default:
 		return renderParts(msg.Parts, width-4, md)
 	}
@@ -54,8 +59,9 @@ func renderUserMessage(msg MessageView, width int) string {
 	return styleUserBorder.Width(width - 4).Render(inner)
 }
 
-func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRenderer) string {
+func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRenderer, hits *[]thoughtHit) string {
 	var sb strings.Builder
+	lineNum := 0
 
 	for _, part := range msg.Parts {
 		switch part.Type {
@@ -64,8 +70,12 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 			if rendered != "" {
 				sb.WriteString(rendered)
 				sb.WriteString("\n")
+				lineNum += strings.Count(rendered, "\n") + 1
 			}
 		case "reasoning":
+			if hits != nil && part.ID != "" {
+				*hits = append(*hits, thoughtHit{lineOffset: lineNum, partID: part.ID})
+			}
 			prefix := "+"
 			if part.ThoughtExpanded {
 				prefix = "-"
@@ -78,6 +88,7 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 			}
 			sb.WriteString(label)
 			sb.WriteString("\n")
+			lineNum++
 			if part.ThoughtExpanded && part.Text != "" {
 				wrapped := wordwrap.String(part.Text, width-6)
 				for _, line := range strings.Split(wrapped, "\n") {

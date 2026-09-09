@@ -14,6 +14,7 @@ type ChatView struct {
 	viewport     viewport.Model
 	messages     []MessageView
 	renderer     *render.MarkdownRenderer
+	thoughtLines map[int]string // content line number → part ID
 	width        int
 	height       int
 	stickyBottom bool
@@ -76,6 +77,16 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 			c.toggleThought("")
 			c.rebuildContent()
 			return c, nil
+		}
+
+	case tea.MouseMsg:
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			contentLine := c.viewport.YOffset + msg.Y
+			if partID, ok := c.thoughtLines[contentLine]; ok {
+				c.toggleThought(partID)
+				c.rebuildContent()
+				return c, nil
+			}
 		}
 
 	case MessagesLoadedMsg:
@@ -210,14 +221,30 @@ func (c *ChatView) toggleThought(partID string) {
 	}
 }
 
+// thoughtHit records a thought label's line offset within rendered output.
+type thoughtHit struct {
+	lineOffset int
+	partID     string
+}
+
 // rebuildContent renders all messages into the viewport.
 func (c *ChatView) rebuildContent() {
 	var sb strings.Builder
+	c.thoughtLines = make(map[int]string)
+	lineNum := 0
+
 	for i, msg := range c.messages {
 		if i > 0 {
 			sb.WriteString("\n")
+			lineNum++
 		}
-		sb.WriteString(renderMessage(msg, c.width, c.renderer))
+		var hits []thoughtHit
+		rendered := renderMessageWithHits(msg, c.width, c.renderer, &hits)
+		for _, h := range hits {
+			c.thoughtLines[lineNum+h.lineOffset] = h.partID
+		}
+		sb.WriteString(rendered)
+		lineNum += strings.Count(rendered, "\n")
 	}
 
 	c.viewport.SetContent(sb.String())

@@ -41,7 +41,7 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 - **`provider/`** — Provider discovery (Ollama, OpenAI-compatible, OpenRouter).
 - **`agent/`** — Agent definitions and defaults (`defaults/` has `.md` prompt files).
 - **`tool/`** — Tool implementations (file ops, shell, grep, glob).
-- **`config/`** — Config file parsing (`~/.config/tinycode/config.json`). JSONC support.
+- **`config/`** — Config file parsing. On macOS, loads from both `~/Library/Application Support/tinycode/` and `~/.config/tinycode/` (for TS tinycode compatibility). JSONC support. `LSPConfig` accepts both boolean and struct JSON.
 - **`storage/`** — SQLite via modernc.org/sqlite. Migrations in `migrations/`.
 - **`bus/`** — Event bus for inter-component communication.
 - **`lsp/`** — LSP client for code intelligence. Lazy-connects to language servers (gopls, pyright, rust-analyzer, typescript-language-server) and exposes tools: `lsp_diagnostics`, `lsp_hover`, `lsp_definition`, `lsp_references`, `lsp_symbols`. Auto-detects project language from marker files.
@@ -70,7 +70,11 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 - **Bubbletea Elm architecture**: All TUI state is immutable — `Update()` returns a new model. `tea.Cmd` for async work (API calls, SSE). `tea.Msg` for event dispatch.
 - **connectedApp wrapper**: `run.go` wraps `App` with an API client. Handles prompt submission, session creation, SSE event mapping, permission replies. The inner `App` is pure UI state.
 - **SSE event flow**: `api.Client.Subscribe()` returns a channel of `ServerEvent`. `waitForSSE()` converts channel reads to `tea.Cmd`. Events are mapped to TUI messages via `mapSSEToMsg()`.
-- **`/ask <agent> <message>`**: Parsed by `parseAskCommand()`, validated against loaded agent list via `isKnownAgent()`, sent as `agent` field on `PromptInput`.
+- **`/ask <agent> <message>`**: Parsed by `parseAskCommand()`, validated against loaded agent list via `isKnownAgent()`, sent as `agent` field on `PromptInput`. Prompt autocomplete filters `/ask` suggestions to non-primary agents.
+- **`/connect` dialog**: Two-step flow — select provider, then select model. `handleClientCommand("connect")` sets `PendingModelDialog=true` and triggers `ProvidersRefreshMsg` for an async re-fetch. Model list is capped at 8 visible items with scroll and type-to-search filter.
+- **Permission prompt**: Shows tool-specific context via `PermissionRequest.Permission` and `Metadata` fields. Three actions: Allow, Always Allow, Reject.
+- **Thought blocks**: Reasoning parts render as expandable `+/- Thought` blocks. `T` key toggles all, per-part toggle via `ToggleThoughtMsg`.
+- **Spinner tick chain**: `SetWorking(true)` returns a `tea.Cmd` that must be propagated to maintain the spinner animation tick chain.
 - **Startup guard**: OSC terminal escape responses leak as printable characters on startup. `prompt.go` has a guard that discards rune input for 2 seconds after first render, plus `isTerminalEscape()` regex filtering.
 - **Leader key**: Vim-style `<leader>` key sequences for sidebar toggle, agent/model/session lists. State machine in `leader.go`.
 - **Toast overlay**: Non-blocking notification rendered atop the main view. Used for errors and status messages.

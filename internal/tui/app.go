@@ -333,6 +333,17 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, tea.Batch(cmds...)
 
+	case tea.MouseMsg:
+		l := calculateLayout(a.width, a.height, a.sidebar.IsOpen())
+		if msg.Y < l.chatHeight {
+			var cmd tea.Cmd
+			a.chat, cmd = a.chat.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return a, tea.Batch(cmds...)
+		}
+
 	default:
 		slog.Debug("unhandled msg in App.Update", "type", fmt.Sprintf("%T", msg))
 	}

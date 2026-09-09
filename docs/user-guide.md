@@ -245,7 +245,12 @@ tinycode supports local models (via Ollama, vLLM, LM Studio) and cloud providers
 
 ### Selecting a model
 
-Press `<leader>m` to list available models. Arrow keys to navigate, Enter to select.
+Press `<leader>m` or type `/connect` to open the model selector. This is a two-step dialog:
+
+1. **Select provider** — shows all discovered providers with model counts (e.g., "OpenRouter (430 models)")
+2. **Select model** — shows models for the chosen provider in a scrollable list (8 visible at a time)
+
+In the model list, type to search (e.g., "qwen" to filter to Qwen models). Use backspace to clear the filter. Press `Esc` to go back to the provider list.
 
 ### Provider auto-discovery
 
@@ -281,7 +286,13 @@ If a model does not support tool calling, the capability is marked as disabled a
 
 ## Configuration
 
-tinycode reads config from `~/.config/tinycode/config.json` (JSONC supported). Project-level config can be placed in `.tinycode/config.json`.
+tinycode reads config from multiple locations (JSONC supported):
+
+- **macOS**: `~/Library/Application Support/tinycode/config.json` and `~/.config/tinycode/config.json` (both are loaded, for TS tinycode compatibility)
+- **Linux**: `~/.config/tinycode/config.json`
+- **Override**: `TINYCODE_CONFIG_DIR` environment variable
+
+Project-level config can be placed in `.tinycode/config.json`.
 
 ### Example config
 
@@ -382,8 +393,13 @@ See [Plugin Development](plugin-development.md) for details.
 
 ### Local storage
 
-- **Database**: `~/.local/share/tinycode/tinycode.db` (SQLite)
-- **Config**: `~/.config/tinycode/config.json`
+| Path | macOS | Linux |
+|------|-------|-------|
+| **Database** | `~/Library/Application Support/tinycode/tinycode.db` | `~/.local/share/tinycode/tinycode.db` |
+| **Log file** | `~/Library/Application Support/tinycode/tinycode.log` | `~/.local/share/tinycode/tinycode.log` |
+| **Config** | `~/Library/Application Support/tinycode/config.json` | `~/.config/tinycode/config.json` |
+
+Set `TINYCODE_LOG_LEVEL=debug` to enable verbose logging.
 
 ---
 
@@ -501,9 +517,9 @@ See [Plugin Development](plugin-development.md) for building your own.
 ### Diagnostic steps
 
 1. Check that your LLM provider is running and accessible
-2. Verify your config file is valid JSON: `~/.config/tinycode/config.json`
-3. Check the log file if enabled: `tinycode.log`
-4. Try a different model via `<leader>m`
+2. Verify your config file is valid JSON (see [Local storage](#local-storage) for paths)
+3. Check the log file: `TINYCODE_LOG_LEVEL=debug ./dist/tinycode` (see [Local storage](#local-storage) for log path)
+4. Try a different model via `/connect` or `<leader>m`
 
 ### Further reading
 
