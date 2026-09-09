@@ -1,6 +1,6 @@
 # Plugin Migration Guide: TypeScript to Go
 
-Guide for converting TypeScript tinycode plugins (or opencode/similar plugins using the `@tinycode/plugin` npm package) to Go plugins using the `pkg/plugin/` SDK.
+Guide for converting TypeScript tinycode plugins to Go plugins using the `pkg/plugin/` SDK.
 
 ## Overview of differences
 

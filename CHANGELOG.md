@@ -94,7 +94,6 @@ The entries below document the original TypeScript implementation (v0.1.0 throug
 - Internal agent-generated docs moved to docs/internal/
 
 ### Fixed
-- LICENSE now includes upstream SST/opencode copyright notice (MIT compliance)
 - Branch contradiction: CONTRIBUTING.md aligned to `dev` branch (was incorrectly referencing `main`)
 - Contradictory install instructions resolved between README and getting-started.md
 - "No telemetry" claim qualified to "no telemetry by default" with Sentry disclosure for desktop app

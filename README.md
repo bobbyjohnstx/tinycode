@@ -178,10 +178,6 @@ make embed-webapp   # Embed SolidJS web app into the binary
 make clean          # Remove build artifacts
 ```
 
-## Acknowledgments
-
-tinycode is built on [opencode](https://github.com/sst/opencode) by [SST](https://github.com/sst). The core architecture --- session processor, provider abstraction, tool system, and TUI --- originates from the opencode project.
-
 ## License
 
 MIT
