@@ -12,6 +12,14 @@ const (
 
 	compactionCircuitBreakerThreshold = 3
 
+	// Truncation limits for compaction prompt serialization.
+	maxTextChars       = 2000
+	maxToolArgsChars   = 500
+	maxToolOutputChars = 2000
+
+	// Number of most recent tool outputs to preserve when masking observations.
+	preserveRecentOutputs = 5
+
 	summaryTemplate = `<task>
 Summarize the conversation so far. The summary will be used in place of the original conversation to continue assisting the user.
 
@@ -150,6 +158,23 @@ func extractShellFiles(argsJSON string, readSet, modifiedSet map[string]bool) {
 }
 
 func maskObservations(messages []Message) []Message {
+	// Count total tool results to determine which to preserve.
+	var totalResults int
+	for _, msg := range messages {
+		for _, part := range msg.Parts {
+			if part.Type == PartToolResult {
+				totalResults++
+			}
+		}
+	}
+
+	// Preserve the last preserveRecentOutputs tool results.
+	preserveFrom := totalResults - preserveRecentOutputs
+	if preserveFrom < 0 {
+		preserveFrom = 0
+	}
+
+	resultIdx := 0
 	result := make([]Message, len(messages))
 	for i, msg := range messages {
 		result[i] = Message{
@@ -164,18 +189,29 @@ func maskObservations(messages []Message) []Message {
 		copy(parts, msg.Parts)
 		for j := range parts {
 			if parts[j].Type == PartToolResult {
-				parts[j] = Part{
-					Type:       PartToolResult,
-					ToolCallID: parts[j].ToolCallID,
-					ToolName:   parts[j].ToolName,
-					ToolResult: "[output masked for compaction]",
-					ToolError:  parts[j].ToolError,
+				if resultIdx < preserveFrom {
+					parts[j] = Part{
+						Type:       PartToolResult,
+						ToolCallID: parts[j].ToolCallID,
+						ToolName:   parts[j].ToolName,
+						ToolResult: "[output masked for compaction]",
+						ToolError:  parts[j].ToolError,
+					}
 				}
+				resultIdx++
 			}
 		}
 		result[i].Parts = parts
 	}
 	return result
+}
+
+// truncate shortens s to maxLen characters, appending a truncation marker if needed.
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "... [truncated]"
 }
 
 func buildCompactionPrompt(messages []Message, priorSummary string, readFiles, modifiedFiles []string) string {
@@ -195,14 +231,14 @@ func buildCompactionPrompt(messages []Message, priorSummary string, readFiles, m
 		for _, part := range msg.Parts {
 			switch part.Type {
 			case PartText:
-				sb.WriteString(part.Text)
+				sb.WriteString(truncate(part.Text, maxTextChars))
 				sb.WriteString("\n")
 			case PartToolCall:
-				sb.WriteString(fmt.Sprintf("[tool_call: %s(%s)]\n", part.ToolName, part.ToolArgs))
+				sb.WriteString(fmt.Sprintf("[tool_call: %s(%s)]\n", part.ToolName, truncate(part.ToolArgs, maxToolArgsChars)))
 			case PartToolResult:
-				sb.WriteString(fmt.Sprintf("[tool_result: %s = %s]\n", part.ToolName, part.ToolResult))
+				sb.WriteString(fmt.Sprintf("[tool_result: %s = %s]\n", part.ToolName, truncate(part.ToolResult, maxToolOutputChars)))
 			case PartReasoning:
-				sb.WriteString(fmt.Sprintf("[reasoning: %s]\n", part.Text))
+				sb.WriteString(fmt.Sprintf("[reasoning: %s]\n", truncate(part.Text, maxTextChars)))
 			}
 		}
 		sb.WriteString(fmt.Sprintf("</%s>\n", msg.Role))

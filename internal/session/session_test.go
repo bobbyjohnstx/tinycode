@@ -460,6 +460,8 @@ func TestTrackFiles(t *testing.T) {
 }
 
 func TestMaskObservations(t *testing.T) {
+	// With only 1 result, it is within the 5-most-recent preserve window,
+	// so it should NOT be masked.
 	messages := []Message{
 		{Parts: []Part{
 			{Type: PartToolResult, ToolCallID: "c1", ToolName: "read", ToolResult: "file contents here"},
@@ -467,14 +469,14 @@ func TestMaskObservations(t *testing.T) {
 	}
 
 	masked := maskObservations(messages)
-	if masked[0].Parts[0].ToolResult != "[output masked for compaction]" {
-		t.Errorf("expected masked output, got %q", masked[0].Parts[0].ToolResult)
+	if masked[0].Parts[0].ToolResult != "file contents here" {
+		t.Errorf("expected preserved output (within recent window), got %q", masked[0].Parts[0].ToolResult)
 	}
 	if masked[0].Parts[0].ToolCallID != "c1" {
 		t.Error("expected tool call ID preserved")
 	}
 	// Verify original not mutated
-	if messages[0].Parts[0].ToolResult == "[output masked for compaction]" {
+	if messages[0].Parts[0].ToolResult != "file contents here" {
 		t.Error("original should not be mutated")
 	}
 }
@@ -498,6 +500,68 @@ func TestBuildCompactionPrompt(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "<modified-files>") {
 		t.Error("expected modified-files block")
+	}
+}
+
+func TestMaskObservations_PreserveRecent(t *testing.T) {
+	// Create 8 tool results. With preserveRecentOutputs=5, the first 3
+	// should be masked and the last 5 should be preserved.
+	var messages []Message
+	for i := 0; i < 8; i++ {
+		messages = append(messages, Message{
+			Parts: []Part{
+				ToolResultPart("c"+string(rune('0'+i)), "read", "output"+string(rune('0'+i)), false),
+			},
+		})
+	}
+
+	masked := maskObservations(messages)
+
+	// First 3 should be masked
+	for i := 0; i < 3; i++ {
+		if masked[i].Parts[0].ToolResult != "[output masked for compaction]" {
+			t.Errorf("message %d should be masked, got %q", i, masked[i].Parts[0].ToolResult)
+		}
+	}
+
+	// Last 5 should be preserved
+	for i := 3; i < 8; i++ {
+		expected := "output" + string(rune('0'+i))
+		if masked[i].Parts[0].ToolResult != expected {
+			t.Errorf("message %d should be preserved as %q, got %q", i, expected, masked[i].Parts[0].ToolResult)
+		}
+	}
+}
+
+func TestTruncate(t *testing.T) {
+	short := "hello"
+	if truncate(short, 100) != "hello" {
+		t.Error("short string should not be truncated")
+	}
+
+	long := strings.Repeat("x", 3000)
+	result := truncate(long, 2000)
+	if len(result) > 2020 { // 2000 + "... [truncated]"
+		t.Errorf("truncated string too long: %d chars", len(result))
+	}
+	if !strings.HasSuffix(result, "... [truncated]") {
+		t.Error("expected truncation marker")
+	}
+}
+
+func TestBuildCompactionPrompt_TruncatesLongContent(t *testing.T) {
+	longText := strings.Repeat("x", 5000)
+	messages := []Message{
+		{Role: RoleUser, Parts: []Part{TextPart(longText)}},
+	}
+
+	prompt := buildCompactionPrompt(messages, "", nil, nil)
+	// The long text should be truncated to maxTextChars + marker
+	if strings.Contains(prompt, longText) {
+		t.Error("expected long text to be truncated")
+	}
+	if !strings.Contains(prompt, "... [truncated]") {
+		t.Error("expected truncation marker in prompt")
 	}
 }
 
@@ -640,9 +704,10 @@ func TestProcessor_ToolCallLoop(t *testing.T) {
 	defer b.Close()
 
 	p := NewProcessor(ProcessorConfig{
-		SessionID: "ses_test",
-		Model:     &provider.Model{ID: "test-model"},
-		Compaction: DefaultCompactionConfig(),
+		SessionID:       "ses_test",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1, // disable auto-continue for this test
 	}, client, tools, b)
 
 	result := p.Process(context.Background(), "read test.txt")

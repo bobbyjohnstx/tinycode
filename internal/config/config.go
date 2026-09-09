@@ -32,6 +32,15 @@ type Info struct {
 	Plugins           []json.RawMessage         `json:"plugins,omitempty"`
 	MCP               map[string]MCPConfig      `json:"mcp,omitempty"`
 	Agents            map[string]json.RawMessage `json:"agents,omitempty"`
+	Experimental      *ExperimentalConfig        `json:"experimental,omitempty"`
+	Temperature       *float64                   `json:"temperature,omitempty"`
+	TopP              *float64                   `json:"top_p,omitempty"`
+	MaxTokens         *int                       `json:"max_tokens,omitempty"`
+	Skills            *SkillsConfig              `json:"skills,omitempty"`
+	Attachment        *AttachmentConfig           `json:"attachment,omitempty"`
+	Command           map[string]string          `json:"command,omitempty"`
+	Reference         map[string]string          `json:"reference,omitempty"`
+	Watcher           []string                   `json:"watcher,omitempty"`
 }
 
 type MCPConfig struct {
@@ -121,6 +130,32 @@ type CompactionConfig struct {
 	PreserveRecentTokens *int  `json:"preserve_recent_tokens,omitempty"`
 	Reserved             *int  `json:"reserved,omitempty"`
 	MaskObservations     *bool `json:"mask_observations,omitempty"`
+}
+
+// ExperimentalConfig holds experimental feature flags.
+type ExperimentalConfig struct {
+	DoomLoopThreshold int `json:"doom_loop_threshold,omitempty"`
+	AutoContinue      int `json:"auto_continue,omitempty"`
+}
+
+// SkillsConfig defines paths and URLs for skill discovery.
+type SkillsConfig struct {
+	Paths []string `json:"paths,omitempty"`
+	URLs  []string `json:"urls,omitempty"`
+}
+
+// AttachmentConfig controls file/image attachment handling.
+type AttachmentConfig struct {
+	MaxSize *int         `json:"max_size,omitempty"`
+	Image   *ImageConfig `json:"image,omitempty"`
+}
+
+// ImageConfig controls image processing for attachments.
+type ImageConfig struct {
+	MaxWidth  int    `json:"max_width,omitempty"`
+	MaxHeight int    `json:"max_height,omitempty"`
+	Quality   int    `json:"quality,omitempty"`
+	Format    string `json:"format,omitempty"`
 }
 
 // Load reads and merges config from all sources: global config dir, project
@@ -246,6 +281,43 @@ func Merge(dst, src *Info) *Info {
 	}
 	if src.Compaction != nil {
 		result.Compaction = src.Compaction
+	}
+	if src.Experimental != nil {
+		result.Experimental = src.Experimental
+	}
+	if src.Temperature != nil {
+		result.Temperature = src.Temperature
+	}
+	if src.TopP != nil {
+		result.TopP = src.TopP
+	}
+	if src.MaxTokens != nil {
+		result.MaxTokens = src.MaxTokens
+	}
+	if src.Skills != nil {
+		result.Skills = src.Skills
+	}
+	if src.Attachment != nil {
+		result.Attachment = src.Attachment
+	}
+	if len(src.Watcher) > 0 {
+		result.Watcher = dedup(append(result.Watcher, src.Watcher...))
+	}
+	if len(src.Command) > 0 {
+		if result.Command == nil {
+			result.Command = make(map[string]string)
+		}
+		for k, v := range src.Command {
+			result.Command[k] = v
+		}
+	}
+	if len(src.Reference) > 0 {
+		if result.Reference == nil {
+			result.Reference = make(map[string]string)
+		}
+		for k, v := range src.Reference {
+			result.Reference[k] = v
+		}
 	}
 	if src.Permission != nil {
 		if result.Permission == nil {
