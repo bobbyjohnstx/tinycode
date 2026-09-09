@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	maxFetchSize    = 512 * 1024 // 512KB
-	fetchTimeout    = 30 * time.Second
+	maxFetchSize = 5 * 1024 * 1024 // 5MB
+	fetchTimeout = 30 * time.Second
 )
 
 var fetchClient = &http.Client{
@@ -32,6 +32,7 @@ type webfetchArgs struct {
 	Method  string            `json:"method,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
 	Body    string            `json:"body,omitempty"`
+	Format  string            `json:"format,omitempty"` // text, markdown, html
 }
 
 func WebFetchTool() *Def {
@@ -57,6 +58,11 @@ func WebFetchTool() *Def {
 				"body": map[string]any{
 					"type":        "string",
 					"description": "Request body for POST/PUT",
+				},
+				"format": map[string]any{
+					"type":        "string",
+					"description": "Response format: text (default), markdown, or html",
+					"enum":        []string{"text", "markdown", "html"},
 				},
 			},
 			"required": []string{"url"},
@@ -87,6 +93,15 @@ func executeWebFetch(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 	req, err := http.NewRequestWithContext(fetchCtx, method, args.URL, bodyReader)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Error creating request: %v", err), IsError: true}, nil
+	}
+
+	switch args.Format {
+	case "html":
+		req.Header.Set("Accept", "text/html")
+	case "markdown":
+		req.Header.Set("Accept", "text/plain")
+	default:
+		req.Header.Set("Accept", "text/plain, text/html")
 	}
 
 	for k, v := range args.Headers {

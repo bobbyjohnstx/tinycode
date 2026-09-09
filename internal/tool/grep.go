@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -75,7 +76,12 @@ func executeGrep(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		maxMatches = *args.MaxCount
 	}
 
-	var matches []string
+	type fileResult struct {
+		modTime int64
+		matches []string
+	}
+
+	var results []fileResult
 	total := 0
 
 	err = filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
@@ -109,11 +115,12 @@ func executeGrep(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		}
 
 		fileMatches := grepFile(path, re, searchPath)
-		for _, m := range fileMatches {
-			total++
-			if total <= maxMatches {
-				matches = append(matches, m)
-			}
+		if len(fileMatches) > 0 {
+			results = append(results, fileResult{
+				modTime: info.ModTime().UnixNano(),
+				matches: fileMatches,
+			})
+			total += len(fileMatches)
 		}
 
 		if total > maxMatches*2 {
@@ -122,6 +129,20 @@ func executeGrep(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 
 		return nil
 	})
+
+	// Sort by modification time, newest first.
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].modTime > results[j].modTime
+	})
+
+	var matches []string
+	for _, r := range results {
+		for _, m := range r.matches {
+			if len(matches) < maxMatches {
+				matches = append(matches, m)
+			}
+		}
+	}
 
 	if len(matches) == 0 {
 		return &ExecuteResult{Output: "No matches found."}, nil

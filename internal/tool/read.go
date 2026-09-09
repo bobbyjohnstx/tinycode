@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,9 +11,19 @@ import (
 )
 
 const (
-	defaultReadLimit = 2000
-	maxLineLength    = 2000
+	defaultReadLimit    = 2000
+	maxLineLength       = 2000
+	binaryCheckSize     = 8192
+	binaryThreshold     = 0.30
 )
+
+var imageExtensions = map[string]string{
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png":  "image/png",
+	".gif":  "image/gif",
+	".webp": "image/webp",
+}
 
 type readArgs struct {
 	FilePath string `json:"file_path"`
@@ -72,9 +83,30 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		return &ExecuteResult{Output: fmt.Sprintf("%s is a directory, not a file", path), IsError: true}, nil
 	}
 
+	// Image files: return base64-encoded content.
+	ext := strings.ToLower(filepath.Ext(path))
+	if mime, ok := imageExtensions[ext]; ok {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return &ExecuteResult{Output: fmt.Sprintf("Error reading file: %v", err), IsError: true}, nil
+		}
+		encoded := base64.StdEncoding.EncodeToString(data)
+		return &ExecuteResult{
+			Output: fmt.Sprintf("data:%s;base64,%s", mime, encoded),
+		}, nil
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Error reading file: %v", err), IsError: true}, nil
+	}
+
+	// Binary detection: check first 8KB for non-text bytes.
+	if isBinaryData(data) {
+		return &ExecuteResult{
+			Output:  fmt.Sprintf("Binary file detected: %s (%d bytes). Cannot display binary content.", path, len(data)),
+			IsError: true,
+		}, nil
 	}
 
 	content := string(data)
@@ -160,4 +192,30 @@ func commonPrefixLen(a, b string) int {
 		}
 	}
 	return n
+}
+
+// isBinaryData checks the first 8KB of data for non-text bytes.
+// If more than 30% of bytes are non-text, the file is considered binary.
+func isBinaryData(data []byte) bool {
+	checkSize := len(data)
+	if checkSize > binaryCheckSize {
+		checkSize = binaryCheckSize
+	}
+	if checkSize == 0 {
+		return false
+	}
+
+	nonText := 0
+	for i := 0; i < checkSize; i++ {
+		b := data[i]
+		// Allow tab, newline, carriage return, and printable ASCII.
+		if b == 0 {
+			// Null bytes are a strong binary indicator.
+			nonText += 10
+		} else if b < 0x08 || (b > 0x0D && b < 0x20 && b != 0x1B) {
+			nonText++
+		}
+	}
+
+	return float64(nonText)/float64(checkSize) > binaryThreshold
 }
