@@ -84,18 +84,40 @@ type replyResult struct {
 	err error
 }
 
+// RuleStore persists approved permission rules so they survive restarts.
+type RuleStore interface {
+	SaveRules(projectID string, rules Ruleset) error
+	LoadRules(projectID string) (Ruleset, error)
+}
+
 type Service struct {
-	mu       sync.Mutex
-	bus      *bus.Bus
-	pending  map[string]*pendingEntry
-	approved Ruleset
-	closed   bool
+	mu        sync.Mutex
+	bus       *bus.Bus
+	pending   map[string]*pendingEntry
+	approved  Ruleset
+	closed    bool
+	store     RuleStore
+	projectID string
 }
 
 func NewService(b *bus.Bus) *Service {
 	return &Service{
 		bus:     b,
 		pending: make(map[string]*pendingEntry),
+	}
+}
+
+// SetStore configures a persistence backend for "always" approvals.
+func (s *Service) SetStore(store RuleStore, projectID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.store = store
+	s.projectID = projectID
+
+	if store != nil && projectID != "" {
+		if loaded, err := store.LoadRules(projectID); err == nil && len(loaded) > 0 {
+			s.approved = append(s.approved, loaded...)
+		}
 	}
 }
 
@@ -224,6 +246,10 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 			Pattern:    pattern,
 			Action:     ActionAllow,
 		})
+	}
+
+	if s.store != nil && s.projectID != "" {
+		_ = s.store.SaveRules(s.projectID, s.approved)
 	}
 
 	for id, other := range s.pending {
