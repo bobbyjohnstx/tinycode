@@ -191,6 +191,36 @@ func TestMessagePartCascade(t *testing.T) {
 	}
 }
 
+func TestMigration002Tables(t *testing.T) {
+	db, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	tables := []string{
+		"session_message", "workspace", "account", "account_state",
+		"event_sequence", "event", "data_migration",
+	}
+	for _, table := range tables {
+		var name string
+		err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
+		if err != nil {
+			t.Errorf("table %s not found after migration 002: %v", table, err)
+		}
+	}
+
+	// Verify 002 is recorded in _migrations.
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM _migrations WHERE name = ?", "002_missing_tables.sql").Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to check migration record: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("migration 002_missing_tables.sql not recorded, count = %d", count)
+	}
+}
+
 func TestDefaultPath(t *testing.T) {
 	path := DefaultPath()
 	if path == "" {

@@ -120,7 +120,15 @@ func executeGlob(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		}
 	}
 
-	sort.Strings(matches)
+	// Sort by modification time, newest first.
+	sort.Slice(matches, func(i, j int) bool {
+		iInfo, iErr := os.Stat(filepath.Join(searchPath, matches[i]))
+		jInfo, jErr := os.Stat(filepath.Join(searchPath, matches[j]))
+		if iErr != nil || jErr != nil {
+			return matches[i] < matches[j]
+		}
+		return iInfo.ModTime().After(jInfo.ModTime())
+	})
 
 	if len(matches) == 0 {
 		return &ExecuteResult{Output: "No files matched the pattern."}, nil

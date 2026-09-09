@@ -75,8 +75,14 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 
 	content := string(data)
 
-	count := strings.Count(content, args.OldString)
-	if count == 0 {
+	newContent, strategy, count, ok := cascadeReplace(content, args.OldString, args.NewString, args.ReplaceAll)
+	if !ok {
+		if count > 1 {
+			return &ExecuteResult{
+				Output: fmt.Sprintf("old_string appears %d times in %s. Use replace_all or provide more context to make the match unique.", count, path),
+				IsError: true,
+			}, nil
+		}
 		fuzzyMatch := fuzzyFind(content, args.OldString)
 		msg := fmt.Sprintf("old_string not found in %s", path)
 		if fuzzyMatch != "" {
@@ -84,20 +90,7 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		}
 		return &ExecuteResult{Output: msg, IsError: true}, nil
 	}
-
-	if !args.ReplaceAll && count > 1 {
-		return &ExecuteResult{
-			Output: fmt.Sprintf("old_string appears %d times in %s. Use replace_all or provide more context to make the match unique.", count, path),
-			IsError: true,
-		}, nil
-	}
-
-	var newContent string
-	if args.ReplaceAll {
-		newContent = strings.ReplaceAll(content, args.OldString, args.NewString)
-	} else {
-		newContent = strings.Replace(content, args.OldString, args.NewString, 1)
-	}
+	_ = strategy
 
 	if err := os.WriteFile(path, []byte(newContent), 0644); err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Error writing file: %v", err), IsError: true}, nil
@@ -111,13 +104,8 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		})
 	}
 
-	replacements := 1
-	if args.ReplaceAll {
-		replacements = count
-	}
-
 	return &ExecuteResult{
-		Output: fmt.Sprintf("Replaced %d occurrence(s) in %s", replacements, path),
+		Output: fmt.Sprintf("Replaced in %s", path),
 	}, nil
 }
 

@@ -19,6 +19,14 @@ const (
 	maxShellTimeout     = 600 * time.Second
 )
 
+var secretFilePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\b\.env\b`),
+	regexp.MustCompile(`\b\.env\.\w+`),
+	regexp.MustCompile(`\bcredentials\b`),
+	regexp.MustCompile(`.*\.key\b`),
+	regexp.MustCompile(`.*\.pem\b`),
+}
+
 var destructivePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\brm\s+(-[rRf]+\s+|--recursive)`),
 	regexp.MustCompile(`\brm\s+-[^\s]*[rR]`),
@@ -84,6 +92,10 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		if t > 0 {
 			timeout = t
 		}
+	}
+
+	if warning := checkSecretAccess(args.Command); warning != "" {
+		slog.Warn("secret file access", "command", args.Command, "warning", warning)
 	}
 
 	if isDestructive(args.Command) {
@@ -156,4 +168,15 @@ func isDestructive(command string) bool {
 		}
 	}
 	return false
+}
+
+// checkSecretAccess returns a warning message if the command references
+// files that commonly contain secrets.
+func checkSecretAccess(command string) string {
+	for _, p := range secretFilePatterns {
+		if p.MatchString(command) {
+			return fmt.Sprintf("Command may access sensitive file matching pattern %q", p.String())
+		}
+	}
+	return ""
 }
