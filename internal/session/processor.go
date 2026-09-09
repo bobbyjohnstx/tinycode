@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/id"
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
+	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 )
 
@@ -20,6 +22,8 @@ const (
 	maxIterations                   = 200
 	maxConsecutiveToolFailures      = 10
 	consecutiveToolFailureWarnEvery = 3
+	defaultDoomThreshold            = 3
+	defaultAutoContinueMax          = 3
 )
 
 type ToolExecutor interface {
@@ -28,26 +32,44 @@ type ToolExecutor interface {
 }
 
 type ProcessorConfig struct {
-	SessionID      string
-	Agent          string
-	Model          *provider.Model
-	SubagentDepth  int
-	MaxSubagents   int
-	SystemPrompt   string
-	Compaction     CompactionConfig
-	AgentPerms     []string
+	SessionID        string
+	Agent            string
+	Model            *provider.Model
+	SubagentDepth    int
+	MaxSubagents     int
+	SystemPrompt     string
+	Compaction       CompactionConfig
+	AgentPerms       []string
+	DoomThreshold    int
+	AutoContinueMax  int
+	Directory        string
+	CompactionModel  string
+	SmallModel       string
+	Temperature      *float64
+	TopP             *float64
+	MaxTokens        *int
+	Perms            *permission.Service
+	Ruleset          permission.Ruleset
+}
+
+// toolCallSignature captures the identity of a tool call for doom-loop detection.
+type toolCallSignature struct {
+	Name string
+	Args string
 }
 
 type Processor struct {
-	config      ProcessorConfig
-	client      llm.Client
-	tools       ToolExecutor
-	bus         *bus.Bus
-	messages    []Message
-	priorSummary string
-	compactionCount int
-	aborted     bool
-	mu          sync.Mutex
+	config           ProcessorConfig
+	client           llm.Client
+	tools            ToolExecutor
+	bus              *bus.Bus
+	messages         []Message
+	priorSummary     string
+	compactionCount  int
+	aborted          bool
+	recentToolCalls  []toolCallSignature
+	autoContinueCount int
+	mu               sync.Mutex
 }
 
 func NewProcessor(config ProcessorConfig, client llm.Client, tools ToolExecutor, eventBus *bus.Bus) *Processor {
@@ -83,6 +105,38 @@ func (p *Processor) isAborted() bool {
 	return p.aborted
 }
 
+func (p *Processor) doomThreshold() int {
+	if p.config.DoomThreshold > 0 {
+		return p.config.DoomThreshold
+	}
+	return defaultDoomThreshold
+}
+
+func (p *Processor) autoContinueLimit() int {
+	if p.config.AutoContinueMax < 0 {
+		return 0 // explicitly disabled
+	}
+	if p.config.AutoContinueMax > 0 {
+		return p.config.AutoContinueMax
+	}
+	return defaultAutoContinueMax
+}
+
+// isDoomLoop checks if the last N tool call signatures are all identical.
+func isDoomLoop(recent []toolCallSignature, threshold int) bool {
+	if len(recent) < threshold {
+		return false
+	}
+	tail := recent[len(recent)-threshold:]
+	first := tail[0]
+	for _, sig := range tail[1:] {
+		if sig.Name != first.Name || sig.Args != first.Args {
+			return false
+		}
+	}
+	return true
+}
+
 type ProcessResult struct {
 	Messages []Message
 	Usage    TokenUsage
@@ -93,6 +147,7 @@ type ProcessResult struct {
 func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessResult {
 	p.mu.Lock()
 	p.aborted = false
+	p.autoContinueCount = 0
 	p.mu.Unlock()
 
 	userMsgID, _ := id.Ascending("message")
@@ -115,6 +170,7 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 
 	totalUsage := TokenUsage{}
 	var consecutiveToolFailures int
+	var hadPriorToolCalls bool
 	iteration := 0
 
 	for {
@@ -177,6 +233,21 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 		totalUsage.Cache.Read += usage.Cache.Read
 		totalUsage.Cache.Write += usage.Cache.Write
 
+		// Proactive overflow detection: compact before hitting the hard limit.
+		if p.config.Model != nil && p.config.Model.Limit.Context > 0 {
+			outputReserve := p.config.Model.Limit.Output
+			if outputReserve < 20000 {
+				outputReserve = 20000
+			}
+			threshold := p.config.Model.Limit.Context - outputReserve
+			if totalUsage.Input >= threshold {
+				slog.Info("proactive compaction triggered", "sessionID", p.config.SessionID, "inputTokens", totalUsage.Input, "threshold", threshold)
+				if _, compactErr := p.compact(ctx); compactErr != nil {
+					slog.Warn("proactive compaction failed", "sessionID", p.config.SessionID, "error", compactErr)
+				}
+			}
+		}
+
 		p.mu.Lock()
 		p.messages = append(p.messages, *assistantMsg)
 		p.mu.Unlock()
@@ -195,11 +266,55 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 		}
 		slog.Info("LLM response", "sessionID", p.config.SessionID, "iteration", iteration, "toolCalls", len(toolCalls), "textLen", textLen, "parts", len(assistantMsg.Parts), "inputTokens", usage.Input, "outputTokens", usage.Output)
 
+		hadToolCalls := len(toolCalls) > 0
+
 		if len(toolCalls) == 0 {
+			// Auto-continue: if previous iteration had tool calls and we haven't
+			// exceeded the limit, nudge the LLM to keep going.
+			if hadPriorToolCalls && p.autoContinueCount < p.autoContinueLimit() {
+				p.autoContinueCount++
+				nudgeID, _ := id.Ascending("message")
+				nudgeMsg := Message{
+					ID:        nudgeID,
+					SessionID: p.config.SessionID,
+					Role:      RoleUser,
+					Parts:     []Part{TextPart("Continue with your next step.")},
+					CreatedAt: time.Now(),
+				}
+				p.mu.Lock()
+				p.messages = append(p.messages, nudgeMsg)
+				p.mu.Unlock()
+				p.bus.Publish("session.message", map[string]any{
+					"sessionID": p.config.SessionID,
+					"message":   nudgeMsg,
+				})
+				slog.Info("auto-continue nudge", "sessionID", p.config.SessionID, "count", p.autoContinueCount)
+				continue
+			}
+
 			slog.Info("processor done (no tool calls)", "sessionID", p.config.SessionID, "iteration", iteration)
 			return &ProcessResult{
 				Messages: p.Messages(),
 				Usage:    totalUsage,
+			}
+		}
+
+		// Doom-loop detection: check for repeated identical tool calls.
+		for _, tc := range toolCalls {
+			p.recentToolCalls = append(p.recentToolCalls, toolCallSignature{
+				Name: tc.ToolName,
+				Args: tc.ToolArgs,
+			})
+		}
+		threshold := p.doomThreshold()
+		if len(p.recentToolCalls) > threshold {
+			p.recentToolCalls = p.recentToolCalls[len(p.recentToolCalls)-threshold:]
+		}
+		if isDoomLoop(p.recentToolCalls, threshold) {
+			return &ProcessResult{
+				Messages: p.Messages(),
+				Usage:    totalUsage,
+				Error:    fmt.Errorf("doom loop detected: last %d tool calls were identical (%s)", threshold, p.recentToolCalls[0].Name),
 			}
 		}
 
@@ -242,6 +357,8 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 		} else {
 			consecutiveToolFailures = 0
 		}
+
+		hadPriorToolCalls = hadToolCalls
 	}
 }
 
@@ -344,9 +461,12 @@ func (p *Processor) buildRequest() llm.Request {
 	tools := p.tools.ToolDefs(p.config.AgentPerms)
 
 	req := llm.Request{
-		Model:    p.config.Model.ID,
-		Messages: llmMessages,
-		Tools:    tools,
+		Model:       p.config.Model.ID,
+		Messages:    llmMessages,
+		Tools:       tools,
+		Temperature: p.config.Temperature,
+		TopP:        p.config.TopP,
+		MaxTokens:   p.config.MaxTokens,
 	}
 
 	return req
@@ -458,6 +578,17 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 		go func(idx int, call Part) {
 			defer wg.Done()
 
+			// Permission check: if tool args reference paths outside the
+			// configured directory, ask the permission service.
+			if denied := p.checkExternalDirectory(ctx, call); denied != "" {
+				ch <- toolResult{
+					index:  idx,
+					result: ToolResultPart(call.ToolCallID, call.ToolName, denied, true),
+					failed: true,
+				}
+				return
+			}
+
 			output, isErr, err := p.tools.Execute(ctx, call.ToolName, json.RawMessage(call.ToolArgs), p.config.SessionID)
 			if err != nil {
 				ch <- toolResult{
@@ -523,8 +654,15 @@ func (p *Processor) compact(ctx context.Context) (bool, error) {
 	readFiles, modifiedFiles := trackFiles(messages)
 	prompt := buildCompactionPrompt(toCompact, p.priorSummary, readFiles, modifiedFiles)
 
+	compactionModel := p.config.Model.ID
+	if p.config.CompactionModel != "" {
+		compactionModel = p.config.CompactionModel
+	} else if p.config.SmallModel != "" {
+		compactionModel = p.config.SmallModel
+	}
+
 	summaryReq := llm.Request{
-		Model: p.config.Model.ID,
+		Model: compactionModel,
 		Messages: []llm.Message{
 			{Role: "user", Content: prompt},
 		},
@@ -569,6 +707,75 @@ func (p *Processor) compact(ctx context.Context) (bool, error) {
 	})
 
 	return true, nil
+}
+
+// checkExternalDirectory returns a denial message if the tool call targets a
+// path outside the configured directory and the permission service denies it.
+// Returns "" if allowed.
+func (p *Processor) checkExternalDirectory(ctx context.Context, call Part) string {
+	if p.config.Directory == "" || p.config.Perms == nil {
+		return ""
+	}
+
+	paths := extractPathsFromArgs(call.ToolArgs)
+	for _, path := range paths {
+		if !isInsideDirectory(path, p.config.Directory) {
+			askID, _ := id.Ascending("perm")
+			err := p.config.Perms.Ask(ctx, permission.AskInput{
+				ID:         askID,
+				SessionID:  p.config.SessionID,
+				Permission: "external_directory",
+				Patterns:   []string{path},
+				Metadata: map[string]any{
+					"tool": call.ToolName,
+					"path": path,
+				},
+				Ruleset: p.config.Ruleset,
+			})
+			if err != nil {
+				return fmt.Sprintf("permission denied: tool %q targets path %q outside project directory %q", call.ToolName, path, p.config.Directory)
+			}
+		}
+	}
+	return ""
+}
+
+// extractPathsFromArgs extracts file path values from a tool call's JSON args.
+func extractPathsFromArgs(argsJSON string) []string {
+	var paths []string
+	var args map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
+		return nil
+	}
+	for _, key := range []string{"file_path", "path", "file", "directory"} {
+		raw, ok := args[key]
+		if !ok {
+			continue
+		}
+		var val string
+		if json.Unmarshal(raw, &val) == nil && val != "" {
+			paths = append(paths, val)
+		}
+	}
+	return paths
+}
+
+// isInsideDirectory reports whether path is inside the directory (or is the
+// directory itself). Both paths are cleaned before comparison.
+func isInsideDirectory(path, directory string) bool {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	absDir, err := filepath.Abs(directory)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(absDir, absPath)
+	if err != nil {
+		return false
+	}
+	return !strings.HasPrefix(rel, "..")
 }
 
 func extractToolCalls(msg *Message) []Part {

@@ -170,6 +170,141 @@ func TestMerge_NilInputs(t *testing.T) {
 	}
 }
 
+func TestMerge_ExperimentalConfig(t *testing.T) {
+	dst := &Info{}
+	src := &Info{
+		Experimental: &ExperimentalConfig{
+			DoomLoopThreshold: 5,
+			AutoContinue:      2,
+		},
+	}
+	result := Merge(dst, src)
+	if result.Experimental == nil {
+		t.Fatal("expected experimental config to be set")
+	}
+	if result.Experimental.DoomLoopThreshold != 5 {
+		t.Errorf("expected doom_loop_threshold 5, got %d", result.Experimental.DoomLoopThreshold)
+	}
+	if result.Experimental.AutoContinue != 2 {
+		t.Errorf("expected auto_continue 2, got %d", result.Experimental.AutoContinue)
+	}
+}
+
+func TestMerge_TemperatureTopPMaxTokens(t *testing.T) {
+	temp := 0.5
+	topP := 0.8
+	maxTok := 2048
+	dst := &Info{}
+	src := &Info{
+		Temperature: &temp,
+		TopP:        &topP,
+		MaxTokens:   &maxTok,
+	}
+	result := Merge(dst, src)
+	if result.Temperature == nil || *result.Temperature != 0.5 {
+		t.Errorf("expected temperature 0.5, got %v", result.Temperature)
+	}
+	if result.TopP == nil || *result.TopP != 0.8 {
+		t.Errorf("expected top_p 0.8, got %v", result.TopP)
+	}
+	if result.MaxTokens == nil || *result.MaxTokens != 2048 {
+		t.Errorf("expected max_tokens 2048, got %v", result.MaxTokens)
+	}
+}
+
+func TestMerge_SkillsConfig(t *testing.T) {
+	dst := &Info{}
+	src := &Info{
+		Skills: &SkillsConfig{
+			Paths: []string{"/path/to/skills"},
+			URLs:  []string{"https://example.com/skills"},
+		},
+	}
+	result := Merge(dst, src)
+	if result.Skills == nil {
+		t.Fatal("expected skills config")
+	}
+	if len(result.Skills.Paths) != 1 || result.Skills.Paths[0] != "/path/to/skills" {
+		t.Errorf("unexpected skills paths: %v", result.Skills.Paths)
+	}
+}
+
+func TestMerge_AttachmentConfig(t *testing.T) {
+	maxSize := 1024
+	dst := &Info{}
+	src := &Info{
+		Attachment: &AttachmentConfig{
+			MaxSize: &maxSize,
+			Image: &ImageConfig{
+				MaxWidth: 800,
+				Format:   "webp",
+			},
+		},
+	}
+	result := Merge(dst, src)
+	if result.Attachment == nil {
+		t.Fatal("expected attachment config")
+	}
+	if *result.Attachment.MaxSize != 1024 {
+		t.Errorf("expected max_size 1024, got %d", *result.Attachment.MaxSize)
+	}
+	if result.Attachment.Image == nil || result.Attachment.Image.MaxWidth != 800 {
+		t.Error("expected image config with max_width 800")
+	}
+}
+
+func TestMerge_CommandAndReference(t *testing.T) {
+	dst := &Info{
+		Command: map[string]string{"build": "make build"},
+	}
+	src := &Info{
+		Command:   map[string]string{"test": "go test ./..."},
+		Reference: map[string]string{"docs": "https://docs.example.com"},
+	}
+	result := Merge(dst, src)
+	if result.Command["build"] != "make build" {
+		t.Error("expected 'build' command preserved")
+	}
+	if result.Command["test"] != "go test ./..." {
+		t.Error("expected 'test' command added")
+	}
+	if result.Reference["docs"] != "https://docs.example.com" {
+		t.Error("expected 'docs' reference added")
+	}
+}
+
+func TestMerge_Watcher(t *testing.T) {
+	dst := &Info{Watcher: []string{"*.go"}}
+	src := &Info{Watcher: []string{"*.js", "*.go"}}
+	result := Merge(dst, src)
+	if len(result.Watcher) != 2 {
+		t.Errorf("expected 2 deduplicated watchers, got %d: %v", len(result.Watcher), result.Watcher)
+	}
+}
+
+func TestParseConfig_ExperimentalConfig(t *testing.T) {
+	input := `{
+		"experimental": {
+			"doom_loop_threshold": 5,
+			"auto_continue": 3
+		},
+		"temperature": 0.7
+	}`
+	info, err := ParseConfig(input, nil)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if info.Experimental == nil {
+		t.Fatal("expected experimental config")
+	}
+	if info.Experimental.DoomLoopThreshold != 5 {
+		t.Errorf("expected doom_loop_threshold 5, got %d", info.Experimental.DoomLoopThreshold)
+	}
+	if info.Temperature == nil || *info.Temperature != 0.7 {
+		t.Errorf("expected temperature 0.7, got %v", info.Temperature)
+	}
+}
+
 func TestMerge_PermissionsConcatenate(t *testing.T) {
 	dst := &Info{
 		Permission: &PermissionConfig{

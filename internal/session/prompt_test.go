@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
 )
 
 func TestBuildSystemPrompt_AgentPromptOnly(t *testing.T) {
@@ -111,8 +113,9 @@ func TestBuildSystemPrompt_DirectoryWithNoClaudeMD(t *testing.T) {
 		Directory:   dir,
 	})
 
-	if result != "Agent prompt." {
-		t.Errorf("expected agent prompt only when no CLAUDE.md found, got %q", result)
+	// Should only have agent prompt + environment section
+	if !strings.Contains(result, "Agent prompt.") {
+		t.Error("expected agent prompt in result")
 	}
 }
 
@@ -187,5 +190,102 @@ func TestDiscoverClaudeMD_WalkUp(t *testing.T) {
 	}
 	if foundRoot >= foundSub {
 		t.Error("expected root CLAUDE.md before sub CLAUDE.md (outermost first)")
+	}
+}
+
+// --- Issue #121 tests ---
+
+func TestDiscoverInstructionFiles_IncludesAgentsMD(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("claude"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("agents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files := discoverInstructionFiles(dir)
+
+	foundClaude := false
+	foundAgents := false
+	for _, f := range files {
+		if strings.HasSuffix(f, "CLAUDE.md") {
+			foundClaude = true
+		}
+		if strings.HasSuffix(f, "AGENTS.md") {
+			foundAgents = true
+		}
+	}
+	if !foundClaude {
+		t.Error("expected CLAUDE.md in instruction files")
+	}
+	if !foundAgents {
+		t.Error("expected AGENTS.md in instruction files")
+	}
+}
+
+func TestBuildSystemPrompt_WithToolDefs(t *testing.T) {
+	tools := []llm.Tool{
+		{Type: "function", Function: llm.ToolFunction{Name: "read", Description: "Read a file"}},
+		{Type: "function", Function: llm.ToolFunction{Name: "write", Description: "Write a file"}},
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt: "Agent.",
+		ToolDefs:    tools,
+	})
+
+	if !strings.Contains(result, "# Available Tools") {
+		t.Error("expected tools section header")
+	}
+	if !strings.Contains(result, "**read**: Read a file") {
+		t.Error("expected read tool in output")
+	}
+	if !strings.Contains(result, "**write**: Write a file") {
+		t.Error("expected write tool in output")
+	}
+}
+
+func TestBuildSystemPrompt_WithEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt: "Agent.",
+		Directory:   dir,
+		Platform:    "linux",
+		GitBranch:   "main",
+	})
+
+	if !strings.Contains(result, "# Environment") {
+		t.Error("expected environment section")
+	}
+	if !strings.Contains(result, "Platform: linux") {
+		t.Error("expected platform in environment")
+	}
+	if !strings.Contains(result, "Git branch: main") {
+		t.Error("expected git branch in environment")
+	}
+	if !strings.Contains(result, "Working directory:") {
+		t.Error("expected working directory in environment")
+	}
+}
+
+func TestBuildEnvironmentSection_Empty(t *testing.T) {
+	result := buildEnvironmentSection(SystemPromptInput{})
+	if result != "" {
+		t.Errorf("expected empty environment section, got %q", result)
+	}
+}
+
+func TestBuildToolSection(t *testing.T) {
+	tools := []llm.Tool{
+		{Function: llm.ToolFunction{Name: "grep"}},
+	}
+	result := buildToolSection(tools)
+	if !strings.Contains(result, "**grep**") {
+		t.Error("expected tool name in section")
+	}
+	// No description means no colon
+	if strings.Contains(result, ":") {
+		t.Error("expected no colon for tool without description")
 	}
 }
