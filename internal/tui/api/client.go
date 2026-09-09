@@ -7,15 +7,17 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 )
 
 // Client wraps net/http for all tinycode server API endpoints.
 type Client struct {
-	baseURL   string
-	directory string
-	http      *http.Client
+	baseURL    string
+	directory  string
+	http       *http.Client
+	sseBackoff time.Duration
 }
 
 // New creates an API client targeting the given server base URL and working directory.

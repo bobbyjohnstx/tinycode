@@ -2,7 +2,7 @@ package tui
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
 )
@@ -44,9 +44,11 @@ func (p *PluginHooks) fire(event, sessionID string, data any) {
 	if p.client == nil {
 		return
 	}
-	if err := p.client.SendPluginEvent(event, sessionID, data); err != nil {
-		log.Printf("plugin hook %s failed: %v", event, err)
-	}
+	go func() {
+		if err := p.client.SendPluginEvent(event, sessionID, data); err != nil {
+			slog.Warn("plugin hook failed", "event", event, "error", err)
+		}
+	}()
 }
 
 // PluginLoadedMsg signals that a plugin was loaded by the server.

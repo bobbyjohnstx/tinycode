@@ -148,6 +148,26 @@ func (r *Registry) ListProviders() []*Info {
 	return result
 }
 
+// UpdateCapability updates a single capability field on a model under the lock.
+func (r *Registry) UpdateCapability(providerID, modelID, field string, value bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	p, ok := r.providers[providerID]
+	if !ok {
+		return
+	}
+	m, ok := p.Models[modelID]
+	if !ok {
+		return
+	}
+
+	switch field {
+	case "ToolCall":
+		m.Capabilities.ToolCall = value
+	}
+}
+
 // ListModels returns all models across all providers.
 func (r *Registry) ListModels() []*Model {
 	r.mu.RLock()

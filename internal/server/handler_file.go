@@ -8,6 +8,36 @@ import (
 	"strings"
 )
 
+func (s *Server) validatePath(requested string) (string, error) {
+	cleaned := filepath.Clean(requested)
+	if !filepath.IsAbs(cleaned) {
+		cleaned = filepath.Join(s.config.Directory, cleaned)
+	}
+
+	resolvedDir, err := filepath.EvalSymlinks(s.config.Directory)
+	if err != nil {
+		return "", err
+	}
+
+	resolved, err := filepath.EvalSymlinks(cleaned)
+	if err != nil {
+		// If the path doesn't exist, resolve the parent to catch symlink escapes,
+		// then re-append the final component for the cleaned path check.
+		parent := filepath.Dir(cleaned)
+		resolvedParent, evalErr := filepath.EvalSymlinks(parent)
+		if evalErr != nil {
+			return "", err
+		}
+		resolved = filepath.Join(resolvedParent, filepath.Base(cleaned))
+	}
+
+	if resolved != resolvedDir && !strings.HasPrefix(resolved, resolvedDir+string(filepath.Separator)) {
+		return "", os.ErrPermission
+	}
+
+	return resolved, nil
+}
+
 func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
@@ -15,7 +45,17 @@ func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := os.ReadFile(path)
+	resolved, err := s.validatePath(path)
+	if err != nil {
+		if os.IsPermission(err) {
+			respondError(w, http.StatusForbidden, "access denied")
+			return
+		}
+		respondError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+
+	data, err := os.ReadFile(resolved)
 	if err != nil {
 		if os.IsNotExist(err) {
 			respondError(w, http.StatusNotFound, "file not found")
@@ -26,7 +66,7 @@ func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
-		"path":    path,
+		"path":    resolved,
 		"content": string(data),
 		"size":    len(data),
 	})
@@ -39,7 +79,17 @@ func (s *Server) handleFileList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries, err := os.ReadDir(dir)
+	resolved, err := s.validatePath(dir)
+	if err != nil {
+		if os.IsPermission(err) {
+			respondError(w, http.StatusForbidden, "access denied")
+			return
+		}
+		respondError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+
+	entries, err := os.ReadDir(resolved)
 	if err != nil {
 		if os.IsNotExist(err) {
 			respondError(w, http.StatusNotFound, "directory not found")
@@ -65,7 +115,7 @@ func (s *Server) handleFileList(w http.ResponseWriter, r *http.Request) {
 
 		fe := fileEntry{
 			Name:  name,
-			Path:  filepath.Join(dir, name),
+			Path:  filepath.Join(resolved, name),
 			IsDir: entry.IsDir(),
 		}
 

@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -425,9 +427,16 @@ func TestConfigGet(t *testing.T) {
 }
 
 func TestFileList(t *testing.T) {
-	srv, _ := testServer(t)
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "test.txt"), []byte("hello"), 0644)
 
-	req := httptest.NewRequest("GET", "/file?path=/tmp", nil)
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	srv := New(Config{Directory: dir}, Dependencies{Bus: b, DB: db, Registry: reg})
+
+	req := httptest.NewRequest("GET", "/file?path="+dir, nil)
 	w := httptest.NewRecorder()
 	srv.mux.ServeHTTP(w, req)
 
@@ -455,9 +464,15 @@ func TestFileList_MissingPath(t *testing.T) {
 }
 
 func TestFileRead_NotFound(t *testing.T) {
-	srv, _ := testServer(t)
+	dir := t.TempDir()
 
-	req := httptest.NewRequest("GET", "/file/content?path=/nonexistent/file.txt", nil)
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	srv := New(Config{Directory: dir}, Dependencies{Bus: b, DB: db, Registry: reg})
+
+	req := httptest.NewRequest("GET", "/file/content?path="+filepath.Join(dir, "nonexistent.txt"), nil)
 	w := httptest.NewRecorder()
 	srv.mux.ServeHTTP(w, req)
 
@@ -527,8 +542,8 @@ func TestSSEEventStream_ConnectedEvent(t *testing.T) {
 	<-done
 
 	body := w.Body.String()
-	if !strings.Contains(body, `"type":"server.connected"`) {
-		t.Errorf("expected server.connected event in payload, got: %s", body)
+	if !strings.Contains(body, "event: server.connected") {
+		t.Errorf("expected server.connected event in flat SSE format, got: %s", body)
 	}
 }
 

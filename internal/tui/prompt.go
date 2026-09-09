@@ -139,8 +139,9 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 		if p.autocomplete.IsVisible() {
 			switch keyMsg.String() {
 			case "up", "down", "tab", "esc":
-				p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
-				return p, nil
+				var acCmd tea.Cmd
+				p.autocomplete, acCmd, _ = p.autocomplete.Update(keyMsg)
+				return p, acCmd
 			case "enter":
 				selected := p.autocomplete.Selected()
 				if selected != "" {
@@ -241,7 +242,7 @@ func isTerminalEscape(s string) bool {
 	if strings.ContainsAny(s, "\x1b\x9c") {
 		return true
 	}
-	if strings.Contains(s, "rgb:") || strings.Contains(s, "11;") || strings.Contains(s, "10;") {
+	if strings.Contains(s, "rgb:") || strings.HasPrefix(s, "11;") || strings.HasPrefix(s, "10;") {
 		return true
 	}
 	if oscHexFragment.MatchString(s) {

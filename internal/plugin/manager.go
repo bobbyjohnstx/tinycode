@@ -44,14 +44,25 @@ type jsonrpcError struct {
 }
 
 // initializeParams is sent during the initialize handshake.
+// Wire format matches pkg/plugin.InitializeParams.
 type initializeParams struct {
-	ProtocolVersion string `json:"protocolVersion"`
-	Directory       string `json:"directory"`
+	Version   string         `json:"version"`
+	Directory string         `json:"directory"`
+	Options   map[string]any `json:"options,omitempty"`
 }
 
 // initializeResult is returned by the plugin during initialization.
+// Wire format matches pkg/plugin.InitializeResult.
 type initializeResult struct {
-	Hooks []string `json:"hooks"`
+	ID    string         `json:"id"`
+	Tools []toolManifest `json:"tools"`
+	Hooks []string       `json:"hooks"`
+}
+
+type toolManifest struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	InputSchema map[string]any `json:"inputSchema,omitempty"`
 }
 
 // PluginInfo describes a loaded plugin.
@@ -228,8 +239,8 @@ func (m *Manager) Load(name string) (*PluginInfo, error) {
 
 	// Initialize handshake.
 	result, err := proc.sendRPC("initialize", initializeParams{
-		ProtocolVersion: "1.0",
-		Directory:       dir,
+		Version:   "1.0",
+		Directory: dir,
 	})
 	if err != nil {
 		// Kill the process on handshake failure.
@@ -390,7 +401,11 @@ func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, err
 		}
 		return r.resp.Result, nil
 	case <-time.After(hookTimeout):
+		// Close stdout to unblock the decode goroutine
+		_ = p.stdout.Close()
 		return nil, fmt.Errorf("timeout waiting for response to %s", method)
+	case <-p.done:
+		return nil, fmt.Errorf("process exited while waiting for response to %s", method)
 	}
 }
 

@@ -82,7 +82,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		slog.Debug("SSE event", "type", msg.Event.Type)
 		tuiMsg := mapSSEToMsg(msg.Event)
 		model, cmd := c.app.Update(tuiMsg)
-		c.app = model.(App)
+		c.updateApp(model)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -119,7 +119,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Text:    fmt.Sprintf("Unknown agent: %s", agentOverride),
 				IsError: true,
 			})
-			c.app = model.(App)
+			c.updateApp(model)
 			c.app.status.SetWorking(false)
 			return c, cmd
 		}
@@ -155,7 +155,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, sendPrompt(c.client, sessionID, pi))
 		}
 		model, cmd := c.app.Update(msg)
-		c.app = model.(App)
+		c.updateApp(model)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -166,7 +166,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.pendingPrompt = ""
 			c.pendingAgent = ""
 			model, cmd := c.app.Update(SessionErrorMsg{Error: fmt.Sprintf("Failed to create session: %v", msg.Err)})
-			c.app = model.(App)
+			c.updateApp(model)
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -194,7 +194,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SessionSwitchedMsg:
 		model, cmd := c.app.Update(msg)
-		c.app = model.(App)
+		c.updateApp(model)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -207,7 +207,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			slog.Error("prompt send failed", "error", msg.Err)
 			model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Prompt failed: %v", msg.Err), IsError: true})
-			c.app = model.(App)
+			c.updateApp(model)
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -225,7 +225,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			slog.Error("permission reply failed", "error", msg.Err)
 			model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Permission reply failed: %v", msg.Err), IsError: true})
-			c.app = model.(App)
+			c.updateApp(model)
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -236,7 +236,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			slog.Error("abort failed", "error", msg.Err)
 			model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Abort failed: %v", msg.Err), IsError: true})
-			c.app = model.(App)
+			c.updateApp(model)
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -246,14 +246,27 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ProvidersRefreshMsg:
 		cmds = append(cmds, fetchProviders(c.client))
 		return c, tea.Batch(cmds...)
+
+	case AbortRequestMsg:
+		sessionID := c.app.state.ActiveSession
+		if sessionID != "" {
+			return c, abortSession(c.client, sessionID)
+		}
+		return c, nil
 	}
 
 	model, cmd := c.app.Update(msg)
-	c.app = model.(App)
+	c.updateApp(model)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 	return c, tea.Batch(cmds...)
+}
+
+func (c *connectedApp) updateApp(model tea.Model) {
+	if app, ok := model.(App); ok {
+		c.app = app
+	}
 }
 
 // isKnownAgent checks if the agent name exists in the loaded agent list.

@@ -79,6 +79,26 @@ func (s *Server) handlePluginUnload(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) handlePluginEvent(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Event     string `json:"event"`
+		SessionID string `json:"sessionID"`
+		Data      any    `json:"data,omitempty"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	s.deps.Bus.Publish("plugin.event", map[string]any{
+		"event":     body.Event,
+		"sessionID": body.SessionID,
+		"data":      body.Data,
+	})
+
+	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func (s *Server) handlePluginRegistry(w http.ResponseWriter, r *http.Request) {
 	entries := plugin.Registry()
 	respondJSON(w, http.StatusOK, entries)

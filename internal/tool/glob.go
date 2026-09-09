@@ -85,8 +85,8 @@ func executeGlob(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 			}
 
 			if suffix != "" {
-				matched, _ := filepath.Match(suffix, info.Name())
-				if !matched {
+				relFromRoot, _ := filepath.Rel(root, path)
+				if !matchSuffix(suffix, relFromRoot) {
 					return nil
 				}
 			}
@@ -137,4 +137,20 @@ func executeGlob(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	}
 
 	return &ExecuteResult{Output: sb.String()}, nil
+}
+
+// matchSuffix tries filepath.Match(suffix, subpath) against progressively
+// shorter subpaths of rel so that "src/*.go" matches "foo/src/main.go".
+func matchSuffix(suffix, rel string) bool {
+	for rel != "" {
+		if matched, _ := filepath.Match(suffix, rel); matched {
+			return true
+		}
+		i := strings.IndexByte(rel, filepath.Separator)
+		if i < 0 {
+			break
+		}
+		rel = rel[i+1:]
+	}
+	return false
 }

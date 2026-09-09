@@ -92,7 +92,7 @@ func (r *EventRelay) relaySessionStatus(sessionID string, props map[string]any) 
 }
 
 func (r *EventRelay) relayToolEvent(sessionID string, eventType string, props map[string]any) {
-	toolName, _ := props["name"].(string)
+	toolName, _ := props["tool"].(string)
 	toolCallID, _ := props["toolCallID"].(string)
 
 	switch eventType {

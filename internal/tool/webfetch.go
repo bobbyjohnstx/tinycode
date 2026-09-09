@@ -2,9 +2,11 @@ package tool
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +16,16 @@ const (
 	maxFetchSize    = 512 * 1024 // 512KB
 	fetchTimeout    = 30 * time.Second
 )
+
+var fetchClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		TLSHandshakeTimeout:  10 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+		IdleConnTimeout:       30 * time.Second,
+		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12},
+	},
+}
 
 type webfetchArgs struct {
 	URL     string            `json:"url"`
@@ -81,7 +93,7 @@ func executeWebFetch(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 		req.Header.Set(k, v)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fetchClient.Do(req)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Fetch error: %v", err), IsError: true}, nil
 	}

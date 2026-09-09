@@ -87,6 +87,8 @@ type AbortSentMsg struct {
 	Err error
 }
 
+type AbortRequestMsg struct{}
+
 type PermissionRepliedMsg struct {
 	Err error
 }

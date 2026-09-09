@@ -15,9 +15,13 @@ const warmupTimeout = 30 * time.Second
 // WarmupProbe sends a minimal chat completion request with a tool definition
 // to verify that the model supports tool calling. Returns true if the model
 // responded with a valid tool call, false otherwise.
-func WarmupProbe(ctx context.Context, baseURL, modelID string) (bool, error) {
+func WarmupProbe(ctx context.Context, client *http.Client, baseURL, modelID string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, warmupTimeout)
 	defer cancel()
+
+	if client == nil {
+		client = http.DefaultClient
+	}
 
 	payload, _ := json.Marshal(warmupRequest(modelID))
 
@@ -28,7 +32,7 @@ func WarmupProbe(ctx context.Context, baseURL, modelID string) (bool, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return false, fmt.Errorf("warmup probe: %w", err)
 	}

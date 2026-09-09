@@ -16,7 +16,7 @@ import (
 )
 
 func (s *Server) handleGlobalEventStream(w http.ResponseWriter, r *http.Request) {
-	StreamEvents(r.Context(), w, s.deps.Bus, "")
+	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory)
 }
 
 func (s *Server) handleSessionStatus(w http.ResponseWriter, r *http.Request) {

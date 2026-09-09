@@ -242,7 +242,7 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 					delete(existingProfiles, m.Name)
 				} else {
 					// Create new profile (or replace stale one)
-					if err := CreateProfile(ctx, baseURL, m.Name, profName, numCtx); err != nil {
+					if err := CreateProfile(ctx, d.client, baseURL, m.Name, profName, numCtx); err != nil {
 						slog.Warn("failed to create ollama profile",
 							"model", m.Name, "profile", profName, "error", err)
 					} else {
@@ -278,7 +278,7 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 	if d.autoProfileEnabled() {
 		for baseName, profName := range existingProfiles {
 			if _, exists := models[baseName]; !exists {
-				if err := DeleteModel(ctx, baseURL, profName); err != nil {
+				if err := DeleteModel(ctx, d.client, baseURL, profName); err != nil {
 					slog.Warn("failed to delete stale profile",
 						"profile", profName, "error", err)
 				} else {
@@ -362,7 +362,7 @@ func (d *Discovery) resolveNumCtx(ctx context.Context, baseURL, modelName string
 	}
 
 	// Query model details
-	info, err := ShowModel(ctx, baseURL, modelName)
+	info, err := ShowModel(ctx, d.client, baseURL, modelName)
 	if err != nil {
 		slog.Warn("failed to query model info for auto-profiling",
 			"model", modelName, "error", err)
@@ -391,14 +391,14 @@ func (d *Discovery) maybeWarmup(ctx context.Context, m *Model) {
 	d.warmedMu.Unlock()
 
 	go func() {
-		capable, err := WarmupProbe(ctx, m.API.URL, m.API.ID)
+		capable, err := WarmupProbe(ctx, d.client, m.API.URL, m.API.ID)
 		if err != nil {
 			slog.Warn("warmup probe failed", "model", m.ID, "error", err)
 			capable = false
 		}
 
 		if !capable {
-			m.Capabilities.ToolCall = false
+			d.registry.UpdateCapability(m.ProviderID, m.ID, "ToolCall", false)
 			slog.Info("model does not support tool calls", "model", m.ID)
 		}
 

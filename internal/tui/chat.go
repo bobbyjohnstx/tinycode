@@ -110,12 +110,12 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 	}
 
 	// Delegate viewport key/mouse handling.
-	wasAtBottom := c.viewport.AtBottom()
 	var cmd tea.Cmd
 	c.viewport, cmd = c.viewport.Update(msg)
 
-	// Track sticky-bottom: if user scrolled up, disable auto-scroll.
-	if wasAtBottom && !c.viewport.AtBottom() {
+	if c.viewport.AtBottom() {
+		c.stickyBottom = true
+	} else {
 		c.stickyBottom = false
 	}
 

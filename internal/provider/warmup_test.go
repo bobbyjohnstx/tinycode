@@ -37,7 +37,7 @@ func TestWarmupProbe_ToolCallSuccess(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	capable, err := WarmupProbe(t.Context(), srv.URL, "test-model")
+	capable, err := WarmupProbe(t.Context(), nil, srv.URL, "test-model")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestWarmupProbe_TextOnlyResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	capable, err := WarmupProbe(t.Context(), srv.URL, "test-model")
+	capable, err := WarmupProbe(t.Context(), nil, srv.URL, "test-model")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestWarmupProbe_Timeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
-	_, err := WarmupProbe(ctx, srv.URL, "test-model")
+	_, err := WarmupProbe(ctx, nil, srv.URL, "test-model")
 	if err == nil {
 		t.Fatal("expected timeout error")
 	}
@@ -92,7 +92,7 @@ func TestWarmupProbe_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := WarmupProbe(t.Context(), srv.URL, "test-model")
+	_, err := WarmupProbe(t.Context(), nil, srv.URL, "test-model")
 	if err == nil {
 		t.Fatal("expected error for 503 response")
 	}

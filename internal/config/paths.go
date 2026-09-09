@@ -15,7 +15,7 @@ func ConfigDir() string {
 	}
 	home, _ := os.UserHomeDir()
 	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, ".config", "tinycode")
+		return filepath.Join(home, "Library", "Application Support", "tinycode")
 	}
 	return filepath.Join(home, ".config", "tinycode")
 }
@@ -29,7 +29,7 @@ func DataDir() string {
 	}
 	home, _ := os.UserHomeDir()
 	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, ".local", "share", "tinycode")
+		return filepath.Join(home, "Library", "Application Support", "tinycode")
 	}
 	return filepath.Join(home, ".local", "share", "tinycode")
 }

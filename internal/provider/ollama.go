@@ -155,9 +155,13 @@ const (
 )
 
 // ShowModel queries the Ollama API for model metadata.
-func ShowModel(ctx context.Context, baseURL, model string) (*OllamaShowResult, error) {
+func ShowModel(ctx context.Context, client *http.Client, baseURL, model string) (*OllamaShowResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, ollamaAPITimeout)
 	defer cancel()
+
+	if client == nil {
+		client = http.DefaultClient
+	}
 
 	payload, _ := json.Marshal(map[string]string{"name": model})
 	req, err := http.NewRequestWithContext(ctx, "POST", strings.TrimRight(baseURL, "/")+"/api/show", bytes.NewReader(payload))
@@ -166,7 +170,7 @@ func ShowModel(ctx context.Context, baseURL, model string) (*OllamaShowResult, e
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -217,9 +221,13 @@ func findModelInfoInt(info map[string]any, suffix string) int {
 }
 
 // CreateProfile creates a derived Ollama model with a baked-in num_ctx.
-func CreateProfile(ctx context.Context, baseURL, baseName, profName string, numCtx int) error {
+func CreateProfile(ctx context.Context, client *http.Client, baseURL, baseName, profName string, numCtx int) error {
 	ctx, cancel := context.WithTimeout(ctx, ollamaCreateTimeout)
 	defer cancel()
+
+	if client == nil {
+		client = http.DefaultClient
+	}
 
 	payload, _ := json.Marshal(map[string]any{
 		"model":      profName,
@@ -233,7 +241,7 @@ func CreateProfile(ctx context.Context, baseURL, baseName, profName string, numC
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -252,9 +260,13 @@ func CreateProfile(ctx context.Context, baseURL, baseName, profName string, numC
 }
 
 // DeleteModel removes a model from Ollama via the API.
-func DeleteModel(ctx context.Context, baseURL, model string) error {
+func DeleteModel(ctx context.Context, client *http.Client, baseURL, model string) error {
 	ctx, cancel := context.WithTimeout(ctx, ollamaAPITimeout)
 	defer cancel()
+
+	if client == nil {
+		client = http.DefaultClient
+	}
 
 	payload, _ := json.Marshal(map[string]string{"model": model})
 	req, err := http.NewRequestWithContext(ctx, "DELETE", strings.TrimRight(baseURL, "/")+"/api/delete", bytes.NewReader(payload))
@@ -263,7 +275,7 @@ func DeleteModel(ctx context.Context, baseURL, model string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

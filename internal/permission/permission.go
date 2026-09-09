@@ -13,6 +13,7 @@ import (
 )
 
 var (
+	ErrClosed    = errors.New("permission service closed")
 	ErrDenied    = errors.New("permission denied by rule")
 	ErrRejected  = errors.New("user rejected permission")
 	ErrNotFound  = errors.New("permission request not found")
@@ -103,6 +104,11 @@ func NewService(b *bus.Bus) *Service {
 // The ctx controls cancellation of the blocking wait.
 func (s *Service) Ask(ctx context.Context, input AskInput) error {
 	s.mu.Lock()
+
+	if s.closed {
+		s.mu.Unlock()
+		return ErrClosed
+	}
 
 	needsAsk := false
 	for _, pattern := range input.Patterns {

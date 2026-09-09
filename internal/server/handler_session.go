@@ -232,7 +232,10 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	s.sessionManager.StartPrompt(context.Background(), PromptInput{
+	// Detach from request cancellation — this handler returns 204 immediately
+	// while the prompt processes asynchronously. WithoutCancel preserves
+	// request-scoped values without tying the prompt's lifetime to the HTTP request.
+	s.sessionManager.StartPrompt(context.WithoutCancel(r.Context()), PromptInput{
 		SessionID: sessionID,
 		Model:     body.Model,
 		Agent:     body.Agent,

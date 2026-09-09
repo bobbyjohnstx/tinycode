@@ -13,9 +13,10 @@ import (
 
 // options holds the parsed initialize params for cluster-ops.
 type options struct {
-	ClusterID          string
-	APIURL             string
+	ClusterID           string
+	APIURL              string
 	ConsoleOfflineToken string
+	InsecureSkipTLS     bool
 }
 
 func parseOptions(raw map[string]any) options {
@@ -28,6 +29,9 @@ func parseOptions(raw map[string]any) options {
 	}
 	if v, ok := raw["consoleOfflineToken"].(string); ok {
 		opts.ConsoleOfflineToken = v
+	}
+	if v, ok := raw["insecureSkipTLSVerify"].(bool); ok {
+		opts.InsecureSkipTLS = v
 	}
 	return opts
 }
@@ -84,7 +88,11 @@ func buildTools(opts options) []plugin.ToolDef {
 					return "", fmt.Errorf("no token provided and consoleOfflineToken not configured")
 				}
 
-				cmd := exec.CommandContext(ctx, "oc", "login", "--server="+server, "--token="+token, "--insecure-skip-tls-verify")
+				loginArgs := []string{"login", "--server=" + server, "--token=" + token}
+				if opts.InsecureSkipTLS {
+					loginArgs = append(loginArgs, "--insecure-skip-tls-verify")
+				}
+				cmd := exec.CommandContext(ctx, "oc", loginArgs...)
 				out, err := cmd.CombinedOutput()
 				if err != nil {
 					return string(out), fmt.Errorf("oc login failed: %w", err)

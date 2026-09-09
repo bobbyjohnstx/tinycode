@@ -119,7 +119,17 @@ func (t *SSETransport) readSSEStream(body io.ReadCloser) {
 		}
 	}
 
-	// Stream closed - fire disconnect if not intentional
+	// Stream closed — clean up pending requests so callers don't hang
+	t.mu.Lock()
+	for id, ch := range t.pending {
+		ch <- &jsonrpcResponse{
+			Error: &jsonrpcError{Code: -1, Message: "SSE connection closed"},
+		}
+		delete(t.pending, id)
+	}
+	t.mu.Unlock()
+
+	// Fire disconnect if not intentional
 	if t.connCtx != nil && t.connCtx.Err() == nil && t.onDisconnect != nil {
 		t.onDisconnect()
 	}

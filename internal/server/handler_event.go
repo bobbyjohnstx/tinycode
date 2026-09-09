@@ -9,11 +9,7 @@ import (
 )
 
 func (s *Server) handleEventStream(w http.ResponseWriter, r *http.Request) {
-	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory)
-}
-
-func (s *Server) handleGlobalEventStreamWrapped(w http.ResponseWriter, r *http.Request) {
-	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory)
+	StreamEvents(r.Context(), w, s.deps.Bus, "")
 }
 
 func (s *Server) handleSessionEventStream(w http.ResponseWriter, r *http.Request) {

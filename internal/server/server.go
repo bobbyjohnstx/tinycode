@@ -65,6 +65,7 @@ type Server struct {
 	sessionManager  *SessionManager
 	permissionStore *PermissionStore
 	questionStore   *QuestionStore
+	pluginSubs      []*bus.Subscription
 }
 
 func New(cfg Config, deps Dependencies) *Server {
@@ -172,6 +173,7 @@ func (s *Server) wirePluginHooks() {
 	}
 
 	startSub := s.deps.Bus.Subscribe("session.created")
+	s.pluginSubs = append(s.pluginSubs, startSub)
 	go func() {
 		for evt := range startSub.C {
 			props, ok := evt.Properties.(map[string]any)
@@ -190,6 +192,7 @@ func (s *Server) wirePluginHooks() {
 	}()
 
 	endSub := s.deps.Bus.Subscribe("session.deleted")
+	s.pluginSubs = append(s.pluginSubs, endSub)
 	go func() {
 		for evt := range endSub.C {
 			props, ok := evt.Properties.(map[string]any)
@@ -204,6 +207,7 @@ func (s *Server) wirePluginHooks() {
 	}()
 
 	toolBeforeSub := s.deps.Bus.Subscribe("tool.execute.before")
+	s.pluginSubs = append(s.pluginSubs, toolBeforeSub)
 	go func() {
 		for evt := range toolBeforeSub.C {
 			props, ok := evt.Properties.(map[string]any)
@@ -222,6 +226,7 @@ func (s *Server) wirePluginHooks() {
 	}()
 
 	toolAfterSub := s.deps.Bus.Subscribe("tool.execute.after")
+	s.pluginSubs = append(s.pluginSubs, toolAfterSub)
 	go func() {
 		for evt := range toolAfterSub.C {
 			props, ok := evt.Properties.(map[string]any)
@@ -241,5 +246,9 @@ func (s *Server) wirePluginHooks() {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	for _, sub := range s.pluginSubs {
+		sub.Unsubscribe()
+	}
+	s.pluginSubs = nil
 	return s.httpServer.Shutdown(ctx)
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"strings"
 	"sync"
 )
 
@@ -38,10 +39,11 @@ func (rs *RevertState) Stash(dir, sessionID string) error {
 	return nil
 }
 
-// Pop restores the most recent stash associated with the given session.
+// Pop restores the stash associated with the given session, identified by its
+// message to avoid popping the wrong entry when the stack has shifted.
 func (rs *RevertState) Pop(dir, sessionID string) error {
 	rs.mu.Lock()
-	_, ok := rs.stashes[sessionID]
+	msg, ok := rs.stashes[sessionID]
 	if ok {
 		delete(rs.stashes, sessionID)
 	}
@@ -51,15 +53,39 @@ func (rs *RevertState) Pop(dir, sessionID string) error {
 		return fmt.Errorf("no stash found for session %s", sessionID)
 	}
 
-	cmd := exec.Command("git", "stash", "pop")
+	ref, err := findStashByMessage(dir, msg)
+	if err != nil {
+		return fmt.Errorf("locating stash for session %s: %w", sessionID, err)
+	}
+
+	cmd := exec.Command("git", "stash", "pop", ref)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("git stash pop: %s: %w", string(out), err)
 	}
 
-	slog.Debug("revert stash popped", "sessionID", sessionID)
+	slog.Debug("revert stash popped", "sessionID", sessionID, "ref", ref)
 	return nil
+}
+
+func findStashByMessage(dir, message string) (string, error) {
+	cmd := exec.Command("git", "stash", "list")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git stash list: %w", err)
+	}
+
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, message) {
+			colon := strings.Index(line, ":")
+			if colon > 0 {
+				return line[:colon], nil
+			}
+		}
+	}
+	return "", fmt.Errorf("stash with message %q not found", message)
 }
 
 // HasStash reports whether a revert stash exists for the session.

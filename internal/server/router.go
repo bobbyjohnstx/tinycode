@@ -89,5 +89,6 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /plugin", s.handlePluginList)
 	s.mux.HandleFunc("POST /plugin/load", s.handlePluginLoad)
 	s.mux.HandleFunc("POST /plugin/unload", s.handlePluginUnload)
+	s.mux.HandleFunc("POST /plugin/event", s.handlePluginEvent)
 	s.mux.HandleFunc("GET /plugin/registry", s.handlePluginRegistry)
 }

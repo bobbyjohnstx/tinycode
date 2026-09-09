@@ -64,13 +64,11 @@ func NewService(b *bus.Bus) *Service {
 func (s *Service) Configure(ctx context.Context, mcpConfigs map[string]config.MCPConfig) {
 	s.mu.Lock()
 
+	var toStop []*serverConn
 	for name := range s.servers {
 		if _, exists := mcpConfigs[name]; !exists {
-			conn := s.servers[name]
+			toStop = append(toStop, s.servers[name])
 			delete(s.servers, name)
-			s.mu.Unlock()
-			s.stopServer(conn)
-			s.mu.Lock()
 		}
 	}
 
@@ -84,6 +82,10 @@ func (s *Service) Configure(ctx context.Context, mcpConfigs map[string]config.MC
 		}
 	}
 	s.mu.Unlock()
+
+	for _, conn := range toStop {
+		s.stopServer(conn)
+	}
 
 	for name := range mcpConfigs {
 		go s.connectServer(ctx, name)
@@ -175,6 +177,7 @@ func (s *Service) setTransportCallbacks(transport Transport, ctx context.Context
 		t.onNotification = onNotification
 	case *StreamableHTTPTransport:
 		t.onDisconnect = onDisconnect
+		t.onNotification = onNotification
 	}
 }
 

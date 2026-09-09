@@ -38,7 +38,7 @@ func (c *Client) Subscribe(ctx context.Context) (<-chan ServerEvent, error) {
 func (c *Client) sseLoop(ctx context.Context, events chan<- ServerEvent) {
 	defer close(events)
 
-	backoff := initialBackoff
+	c.sseBackoff = initialBackoff
 
 	for {
 		select {
@@ -55,18 +55,22 @@ func (c *Client) sseLoop(ctx context.Context, events chan<- ServerEvent) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(backoff):
+		case <-time.After(c.sseBackoff):
 		}
 
-		backoff = time.Duration(math.Min(
-			float64(backoff)*backoffFactor,
+		c.sseBackoff = time.Duration(math.Min(
+			float64(c.sseBackoff)*backoffFactor,
 			float64(maxBackoff),
 		))
 	}
 }
 
+func (c *Client) resetBackoff() {
+	c.sseBackoff = initialBackoff
+}
+
 func (c *Client) readSSEStream(ctx context.Context, events chan<- ServerEvent) error {
-	url := c.baseURL + "/event"
+	url := c.baseURL + "/global/event"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -86,6 +90,8 @@ func (c *Client) readSSEStream(ctx context.Context, events chan<- ServerEvent) e
 
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	c.resetBackoff()
 
 	for scanner.Scan() {
 		select {

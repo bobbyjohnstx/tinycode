@@ -126,6 +126,15 @@ func getFileMutex(path string) *sync.Mutex {
 	return v.(*sync.Mutex)
 }
 
+// ClearFileMutexes removes all entries from the file mutex map.
+// Call at session boundaries to prevent unbounded growth.
+func ClearFileMutexes() {
+	fileMutexes.Range(func(key, _ any) bool {
+		fileMutexes.Delete(key)
+		return true
+	})
+}
+
 func fuzzyFind(content, needle string) string {
 	needleLines := strings.Split(strings.TrimSpace(needle), "\n")
 	if len(needleLines) == 0 {

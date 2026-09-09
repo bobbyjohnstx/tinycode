@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"strings"
 	"unicode"
@@ -135,6 +136,8 @@ func SubstituteEnvVars(text string, env map[string]string) string {
 					b.WriteString(val)
 				} else if val, ok := lookupEnv(varName); ok {
 					b.WriteString(val)
+				} else {
+					slog.Warn("unresolved env var placeholder", "var", varName)
 				}
 				i += end + 1
 				continue

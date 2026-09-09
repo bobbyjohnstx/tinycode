@@ -77,8 +77,8 @@ func AscendingOrValidate(prefix string, given string) (string, error) {
 	return given, nil
 }
 
-func Create(prefix string, ascending bool) string {
-	return create(prefix, !ascending, 0)
+func Create(prefix string, descending bool) string {
+	return create(prefix, descending, 0)
 }
 
 func create(prefix string, descending bool, ts int64) string {

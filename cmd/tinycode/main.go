@@ -49,6 +49,22 @@ func main() {
 	}
 
 	cmd := os.Args[1]
+
+	// If the first arg is an existing directory, use it as the working directory.
+	if info, err := os.Stat(cmd); err == nil && info.IsDir() {
+		absDir, err := filepath.Abs(cmd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "resolving directory: %v\n", err)
+			os.Exit(1)
+		}
+		if err := os.Chdir(absDir); err != nil {
+			fmt.Fprintf(os.Stderr, "changing directory: %v\n", err)
+			os.Exit(1)
+		}
+		runTUI()
+		return
+	}
+
 	switch cmd {
 	case "tui":
 		runTUI()
@@ -77,7 +93,7 @@ func printVersion() {
 func printUsage() {
 	fmt.Println("tinycode - Local-LLM-first AI coding assistant")
 	fmt.Println()
-	fmt.Println("Usage: tinycode [command] [flags]")
+	fmt.Println("Usage: tinycode [command|directory] [flags]")
 	fmt.Println()
 	fmt.Println("Running with no command starts the terminal UI (same as 'tinycode tui').")
 	fmt.Println()
@@ -198,6 +214,20 @@ func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
 		slog.Warn("failed to load default agents", "error", err)
 	}
 	reg.LoadUserAgents(config.ConfigDir(), directory, defaultPerms, userPerms)
+
+	if len(cfg.Agents) > 0 {
+		overrides := make(map[string]agent.ConfigOverride, len(cfg.Agents))
+		for name, raw := range cfg.Agents {
+			var co agent.ConfigOverride
+			if err := json.Unmarshal(raw, &co); err != nil {
+				slog.Warn("failed to parse agent config override", "agent", name, "error", err)
+				continue
+			}
+			overrides[name] = co
+		}
+		reg.ApplyConfigOverrides(overrides, defaultPerms, userPerms)
+	}
+
 	return reg
 }
 

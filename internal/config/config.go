@@ -31,6 +31,7 @@ type Info struct {
 	Instructions      []string                  `json:"instructions,omitempty"`
 	Plugins           []json.RawMessage         `json:"plugins,omitempty"`
 	MCP               map[string]MCPConfig      `json:"mcp,omitempty"`
+	Agents            map[string]json.RawMessage `json:"agents,omitempty"`
 }
 
 type MCPConfig struct {
@@ -285,6 +286,15 @@ func Merge(dst, src *Info) *Info {
 		}
 		for k, v := range src.MCP {
 			result.MCP[k] = v
+		}
+	}
+
+	if len(src.Agents) > 0 {
+		if result.Agents == nil {
+			result.Agents = make(map[string]json.RawMessage)
+		}
+		for k, v := range src.Agents {
+			result.Agents[k] = v
 		}
 	}
 

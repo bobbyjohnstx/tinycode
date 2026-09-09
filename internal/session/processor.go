@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -16,7 +17,9 @@ import (
 )
 
 const (
-	maxConsecutiveToolFailures = 3
+	maxIterations                   = 200
+	maxConsecutiveToolFailures      = 10
+	consecutiveToolFailureWarnEvery = 3
 )
 
 type ToolExecutor interface {
@@ -116,6 +119,13 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 
 	for {
 		iteration++
+		if iteration > maxIterations {
+			return &ProcessResult{
+				Messages: p.Messages(),
+				Usage:    totalUsage,
+				Error:    fmt.Errorf("processor exceeded %d iterations", maxIterations),
+			}
+		}
 		slog.Info("processor loop iteration", "sessionID", p.config.SessionID, "iteration", iteration, "messageCount", len(p.Messages()))
 
 		if p.isAborted() {
@@ -217,11 +227,17 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 		if allFailed {
 			consecutiveToolFailures++
 			if consecutiveToolFailures >= maxConsecutiveToolFailures {
+				return &ProcessResult{
+					Messages: p.Messages(),
+					Usage:    totalUsage,
+					Error:    fmt.Errorf("%d consecutive tool call failures", consecutiveToolFailures),
+				}
+			}
+			if consecutiveToolFailures%consecutiveToolFailureWarnEvery == 0 {
 				p.bus.Publish("session.warning", map[string]any{
 					"sessionID": p.config.SessionID,
 					"message":   "Multiple consecutive tool call failures. Consider switching to a larger model.",
 				})
-				consecutiveToolFailures = 0
 			}
 		} else {
 			consecutiveToolFailures = 0
@@ -298,10 +314,11 @@ func (p *Processor) buildRequest() llm.Request {
 
 		llmMsg := llm.Message{Role: string(msg.Role)}
 
+		var textParts []string
 		for _, part := range msg.Parts {
 			switch part.Type {
 			case PartText:
-				llmMsg.Content = part.Text
+				textParts = append(textParts, part.Text)
 			case PartToolCall:
 				if llmMsg.ToolCalls == nil {
 					llmMsg.ToolCalls = []llm.ToolCall{}
@@ -315,6 +332,10 @@ func (p *Processor) buildRequest() llm.Request {
 					},
 				})
 			}
+		}
+
+		if len(textParts) > 0 {
+			llmMsg.Content = strings.Join(textParts, "\n")
 		}
 
 		llmMessages = append(llmMessages, llmMsg)
@@ -560,19 +581,16 @@ func extractToolCalls(msg *Message) []Part {
 	return calls
 }
 
+var httpStatusRe = regexp.MustCompile(`\bHTTP (\d{3})\b`)
+
 func statusFromError(err error) int {
-	msg := err.Error()
-	if strings.Contains(msg, "HTTP 429") || strings.Contains(msg, "429") {
-		return 429
+	m := httpStatusRe.FindStringSubmatch(err.Error())
+	if m == nil {
+		return 0
 	}
-	if strings.Contains(msg, "HTTP 500") || strings.Contains(msg, "500") {
-		return 500
+	code := 0
+	for _, c := range m[1] {
+		code = code*10 + int(c-'0')
 	}
-	if strings.Contains(msg, "HTTP 502") || strings.Contains(msg, "502") {
-		return 502
-	}
-	if strings.Contains(msg, "HTTP 503") || strings.Contains(msg, "503") {
-		return 503
-	}
-	return 0
+	return code
 }

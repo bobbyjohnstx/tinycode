@@ -180,10 +180,10 @@ func (p CommandPalette) View() string {
 		prefix := "  "
 		if i == p.selected {
 			prefix = "▸ "
-			nameStr := highlightBg.Copy().Bold(true).
+			nameStr := highlightBg.Bold(true).
 				Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).
 				Width(nameCol).Render(prefix + item.Label)
-			descStr := highlightBg.Copy().
+			descStr := highlightBg.
 				Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#999999"}).
 				Width(descCol).Render(desc)
 			sb.WriteString(nameStr + descStr)

@@ -22,7 +22,8 @@ type StreamableHTTPTransport struct {
 	sessionID string
 	nextID    atomic.Int64
 
-	onDisconnect func()
+	onDisconnect   func()
+	onNotification func(method string)
 }
 
 func NewStreamableHTTPTransport(url string, headers map[string]string) *StreamableHTTPTransport {

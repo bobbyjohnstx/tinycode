@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 
 	_ "modernc.org/sqlite"
 )
@@ -25,7 +24,6 @@ var (
 type DB struct {
 	*sql.DB
 	path string
-	mu   sync.RWMutex
 }
 
 func Open(dbPath string) (*DB, error) {

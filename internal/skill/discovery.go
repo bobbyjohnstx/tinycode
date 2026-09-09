@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/frontmatter"
 )
 
 // Skill represents a discovered skill definition.
@@ -51,7 +53,7 @@ func appendSkillsFromDir(skills []Skill, seen map[string]struct{}, dir, source s
 			continue
 		}
 
-		fm, _ := parseFrontmatter(string(data))
+		fm, _ := frontmatter.Parse(string(data))
 		name := entry.Name()
 		if n, ok := fm["name"].(string); ok && n != "" {
 			name = n
@@ -78,38 +80,6 @@ func appendSkillsFromDir(skills []Skill, seen map[string]struct{}, dir, source s
 	}
 
 	return skills
-}
-
-// parseFrontmatter extracts YAML-like frontmatter from markdown content.
-func parseFrontmatter(content string) (map[string]any, string) {
-	if !strings.HasPrefix(content, "---\n") {
-		return nil, content
-	}
-
-	end := strings.Index(content[4:], "\n---")
-	if end < 0 {
-		return nil, content
-	}
-
-	fm := content[4 : 4+end]
-	body := content[4+end+4:]
-
-	result := make(map[string]any)
-	for _, line := range strings.Split(fm, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		parts := strings.SplitN(trimmed, ":", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-		result[key] = value
-	}
-
-	return result, body
 }
 
 // parseParamsList parses a YAML-style list string like "[name, language]".

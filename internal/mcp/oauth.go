@@ -216,7 +216,9 @@ func (f *OAuthFlow) ensureCallbackServer(cfg *OAuthConfig) error {
 	port := defaultCallbackPort
 	if cfg.CallbackURL != "" {
 		if u, err := url.Parse(cfg.CallbackURL); err == nil && u.Port() != "" {
-			fmt.Sscanf(u.Port(), "%d", &port)
+			if n, scanErr := fmt.Sscanf(u.Port(), "%d", &port); scanErr != nil || n != 1 {
+				return fmt.Errorf("malformed port in callback URL: %s", u.Port())
+			}
 		}
 	}
 
@@ -296,7 +298,8 @@ type OAuthConfig = config.MCPOAuthConfig
 
 func saveOAuthState(clientID string, state *OAuthState) error {
 	path := oauthStorePath()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
 
@@ -312,7 +315,27 @@ func saveOAuthState(clientID string, state *OAuthState) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0o600)
+	tmp, err := os.CreateTemp(dir, ".mcp-auth-*.tmp")
+	if err != nil {
+		return fmt.Errorf("creating temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Chmod(tmpPath, 0o600); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+
+	return os.Rename(tmpPath, path)
 }
 
 func loadOAuthState(clientID string) (*OAuthState, error) {

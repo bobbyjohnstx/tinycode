@@ -256,10 +256,6 @@ func (s *Store) Delete(sessionID string) error {
 	return err
 }
 
-type scanner interface {
-	Scan(dest ...any) error
-}
-
 func scanSession(row *sql.Row) (*Info, error) {
 	var info Info
 	var parentID, agent, modelJSON, summaryDiffs sql.NullString
@@ -277,7 +273,7 @@ func scanSession(row *sql.Row) (*Info, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("session not found: %s", "")
+			return nil, fmt.Errorf("session not found")
 		}
 		return nil, fmt.Errorf("scanning session: %w", err)
 	}

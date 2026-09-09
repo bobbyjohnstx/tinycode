@@ -92,24 +92,20 @@ type PermissionRequest struct {
 
 // AppState holds all shared TUI state, mutated only through the Update path.
 type AppState struct {
-	Route         Route
 	ActiveSession string
 
 	// Server-synced data
 	Sessions      []SessionInfo
 	Messages      map[string][]MessageView
-	Parts         map[string][]PartView
 	Providers     []ProviderInfo
 	Agents        []api.AgentInfo
 	Commands      []api.CommandInfo
-	Permissions   map[string][]PermissionRequest
 	SessionStatus map[string]SessionStatus
 
 	// Local UI state
 	CurrentAgent string
 	CurrentModel ModelSelection
 	SidebarOpen  bool
-	Focus        FocusTarget
 	Connected    bool
 }
 
@@ -130,10 +126,7 @@ type SessionInfo struct {
 // NewAppState returns an AppState with initialized maps.
 func NewAppState() *AppState {
 	return &AppState{
-		Route:         RouteChat,
 		Messages:      make(map[string][]MessageView),
-		Parts:         make(map[string][]PartView),
-		Permissions:   make(map[string][]PermissionRequest),
 		SessionStatus: make(map[string]SessionStatus),
 	}
 }

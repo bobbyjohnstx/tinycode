@@ -242,15 +242,19 @@ type promptPart struct {
 func (sm *SessionManager) Abort(sessionID string) {
 	sm.mu.Lock()
 	active, ok := sm.sessions[sessionID]
-	sm.mu.Unlock()
 	if !ok {
+		sm.mu.Unlock()
 		return
 	}
-	if active.cancel != nil {
-		active.cancel()
+	cancel := active.cancel
+	proc := active.processor
+	sm.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
 	}
-	if active.processor != nil {
-		active.processor.Abort()
+	if proc != nil {
+		proc.Abort()
 	}
 }
 
@@ -690,6 +694,8 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 		delete(sm.sessions, sessionID)
 		sm.mu.Unlock()
 
+		tool.ClearFileMutexes()
+
 		sm.bus.Publish("session.status", map[string]any{
 			"sessionID": sessionID,
 			"status":    map[string]any{"alert": false, "working": false},
@@ -778,7 +784,11 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 
 	// Load existing messages for this session
 	ms := session.NewMessageStore(session.NewStore(sm.db))
-	existingMsgs, _ := ms.List(sessionID)
+	existingMsgs, err := ms.List(sessionID)
+	if err != nil {
+		slog.Warn("failed to load existing messages, starting with empty history", "sessionID", sessionID, "error", err)
+		existingMsgs = nil
+	}
 
 	// Wire SubagentDepth from config
 	subagentDepth := 1
@@ -829,7 +839,12 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) 
 		var idMap map[string]string
 		if active != nil {
 			active.mu.Lock()
-			idMap = active.idMap
+			if len(active.idMap) > 0 {
+				idMap = make(map[string]string, len(active.idMap))
+				for k, v := range active.idMap {
+					idMap[k] = v
+				}
+			}
 			active.mu.Unlock()
 		}
 		sm.mu.Unlock()

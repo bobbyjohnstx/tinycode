@@ -3,6 +3,7 @@ package tool
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -65,9 +66,17 @@ func Truncate(content string, dir TruncDirection) TruncateResult {
 func truncateBytes(content string, dir TruncDirection) string {
 	switch dir {
 	case TruncHead:
-		return content[len(content)-MaxBytes:]
+		s := content[len(content)-MaxBytes:]
+		for len(s) > 0 && !utf8.RuneStart(s[0]) {
+			s = s[1:]
+		}
+		return s
 	default:
-		return content[:MaxBytes]
+		s := content[:MaxBytes]
+		for len(s) > 0 && !utf8.Valid([]byte(s)) {
+			s = s[:len(s)-1]
+		}
+		return s
 	}
 }
 

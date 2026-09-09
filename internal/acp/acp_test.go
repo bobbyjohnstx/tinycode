@@ -691,7 +691,7 @@ func TestEventRelay_ToolEvents(t *testing.T) {
 
 	b.Publish("tool.running", map[string]any{
 		"sessionID":  "ses_1",
-		"name":       "bash",
+		"tool":       "bash",
 		"toolCallID": "tc_1",
 	})
 

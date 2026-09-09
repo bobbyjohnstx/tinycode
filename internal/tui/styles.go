@@ -7,8 +7,8 @@ var (
 	styleAssistantMsg = lipgloss.NewStyle().PaddingLeft(2)
 	styleToolName     = lipgloss.NewStyle().Bold(true)
 	styleSpinner      = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
-	colorError        = lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF6666"}
-	colorSuccess      = lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"}
+	colorError   lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF6666"}
+	colorSuccess lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"}
 	styleSelected     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
 	styleMetadata     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
 	styleDialogBorder = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).Padding(1, 2)
@@ -58,6 +58,21 @@ type Theme struct {
 	Spinner lipgloss.Style
 	Dim     lipgloss.Style
 	Bold    lipgloss.Style
+}
+
+// SetTheme updates the package-level style variables from a Theme,
+// connecting the theme system to actual rendering.
+func SetTheme(t Theme) {
+	styleUserMsg = t.UserMessage
+	styleAssistantMsg = t.AssistantMessage
+	styleSpinner = t.Spinner
+	styleSelected = t.DialogActive
+	styleMetadata = t.Dim
+	styleDialogBorder = t.DialogOverlay
+	stylePromptBorder = t.PromptBorder
+	styleStatusBar = t.StatusBar
+	colorError = t.ToastError.GetForeground()
+	colorSuccess = t.PermissionAllow.GetForeground()
 }
 
 // DefaultTheme returns the default TUI theme.

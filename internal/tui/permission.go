@@ -158,12 +158,14 @@ func (p PermissionPrompt) View() string {
 		{"Reject", PermissionReject},
 	}
 
+	rejectStyle := lipgloss.NewStyle().Bold(true).Foreground(colorError)
+
 	var buttons []string
 	for _, a := range actions {
 		label := fmt.Sprintf(" %s ", a.label)
 		if p.selected == a.action {
 			if a.action == PermissionReject {
-				buttons = append(buttons, styleSelected.Render("["+label+"]"))
+				buttons = append(buttons, rejectStyle.Render("["+label+"]"))
 			} else {
 				buttons = append(buttons, styleSelected.Render("["+label+"]"))
 			}

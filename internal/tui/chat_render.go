@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/wordwrap"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/tui/render"
 )
@@ -105,7 +107,7 @@ func renderAgentFooter(msg MessageView) string {
 	if agent == "" {
 		agent = "Build"
 	} else {
-		agent = strings.Title(agent)
+		agent = cases.Title(language.English).String(agent)
 	}
 	parts = append(parts, agent)
 	if msg.Info.ModelID != "" {

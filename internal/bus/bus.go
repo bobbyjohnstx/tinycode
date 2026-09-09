@@ -48,7 +48,7 @@ func New() *Bus {
 }
 
 func (b *Bus) Publish(eventType string, properties any) string {
-	eventID := id.Create("evt", true)
+	eventID := id.Create("evt", false)
 	evt := Event{
 		ID:         eventID,
 		Type:       eventType,
