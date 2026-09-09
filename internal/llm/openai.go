@@ -197,6 +197,22 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 				if !json.Valid([]byte(args)) {
 					if repaired := RepairToolCallJSON(args); repaired != nil {
 						args = *repaired
+					} else {
+						// Redirect to the "invalid" fallback tool so the LLM gets
+						// a structured error and can retry.
+						invalidArgs, _ := json.Marshal(map[string]string{
+							"error":         "invalid JSON in tool call arguments",
+							"original_name": accum.name,
+							"original_args": args,
+						})
+						ch <- Event{
+							Type:         EventToolCallEnd,
+							ToolCallID:   accum.id,
+							ToolName:     "invalid",
+							ToolCallArgs: string(invalidArgs),
+						}
+						delete(toolCalls, idx)
+						continue
 					}
 				}
 				ch <- Event{

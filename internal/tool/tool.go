@@ -2,14 +2,17 @@ package tool
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
 	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 )
 
 type ExecuteResult struct {
@@ -18,10 +21,13 @@ type ExecuteResult struct {
 }
 
 type Context struct {
-	SessionID string
-	Directory string
-	Perms     *permission.Service
-	Bus       *bus.Bus
+	SessionID     string
+	Directory     string
+	Perms         *permission.Service
+	Bus           *bus.Bus
+	JobManager    *session.JobManager
+	SubagentDepth int
+	DB            *sql.DB
 }
 
 type Def struct {
@@ -44,6 +50,7 @@ func (d *Def) ToLLMTool() llm.Tool {
 }
 
 type Registry struct {
+	mu         sync.RWMutex
 	tools      map[string]*Def
 	order      []string
 	disabled   map[string]bool
@@ -59,6 +66,8 @@ func NewRegistry(toolCtx *Context) *Registry {
 }
 
 func (r *Registry) Register(def *Def) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if _, exists := r.tools[def.ID]; !exists {
 		r.order = append(r.order, def.ID)
 	}
@@ -66,17 +75,23 @@ func (r *Registry) Register(def *Def) {
 }
 
 func (r *Registry) SetDisabled(disabled map[string]bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.disabled = disabled
 }
 
 func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessage, sessionID string) (string, bool, error) {
+	r.mu.RLock()
 	def, ok := r.tools[name]
+	disabled := r.disabled[name]
+	r.mu.RUnlock()
+
 	if !ok {
 		slog.Warn("tool not found", "tool", name, "sessionID", sessionID)
 		return fmt.Sprintf("Unknown tool: %s", name), true, nil
 	}
 
-	if r.disabled[name] {
+	if disabled {
 		slog.Warn("tool disabled", "tool", name, "sessionID", sessionID)
 		return fmt.Sprintf("Tool %s is disabled", name), true, nil
 	}
@@ -147,6 +162,9 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 }
 
 func (r *Registry) ToolDefs(agentPerms []string) []llm.Tool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	permSet := make(map[string]bool)
 	for _, p := range agentPerms {
 		permSet[p] = true
@@ -158,6 +176,10 @@ func (r *Registry) ToolDefs(agentPerms []string) []llm.Tool {
 		if r.disabled[name] {
 			continue
 		}
+		// The "invalid" tool is an internal fallback; never expose it to the LLM.
+		if name == "invalid" {
+			continue
+		}
 		if len(agentPerms) > 0 && !permSet[def.Permission] && !permSet["*"] {
 			continue
 		}
@@ -167,10 +189,14 @@ func (r *Registry) ToolDefs(agentPerms []string) []llm.Tool {
 }
 
 func (r *Registry) Get(name string) *Def {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.tools[name]
 }
 
 func (r *Registry) List() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	var names []string
 	for _, name := range r.order {
 		if !r.disabled[name] {
@@ -178,4 +204,30 @@ func (r *Registry) List() []string {
 		}
 	}
 	return names
+}
+
+// Snapshot returns a shallow copy of the Registry with independent maps and
+// slices. The copy shares *Def pointers but mutations to the copy's
+// maps/slices do not affect the original, making it safe for concurrent use.
+func (r *Registry) Snapshot() *Registry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	tools := make(map[string]*Def, len(r.tools))
+	for k, v := range r.tools {
+		tools[k] = v
+	}
+	order := make([]string, len(r.order))
+	copy(order, r.order)
+	disabled := make(map[string]bool, len(r.disabled))
+	for k, v := range r.disabled {
+		disabled[k] = v
+	}
+
+	return &Registry{
+		tools:    tools,
+		order:    order,
+		disabled: disabled,
+		ctx:      r.ctx,
+	}
 }
