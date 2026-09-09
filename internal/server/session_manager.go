@@ -107,9 +107,12 @@ type SessionManager struct {
 	cfg           *config.Info
 	revertState   *RevertState
 	clientFactory func(*provider.Model) llm.Client
+	ctx           context.Context
+	ctxCancel     context.CancelFunc
 }
 
 func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service, cfg *config.Info) *SessionManager {
+	ctx, cancel := context.WithCancel(context.Background())
 	sm := &SessionManager{
 		sessions:      make(map[string]*activeSession),
 		bus:           b,
@@ -122,6 +125,8 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 		mcpSvc:        mcpSvc,
 		cfg:           cfg,
 		revertState:   NewRevertState(),
+		ctx:           ctx,
+		ctxCancel:     cancel,
 		clientFactory: func(m *provider.Model) llm.Client {
 			apiKey := ""
 			if m.Options != nil {
@@ -165,6 +170,7 @@ func (sm *SessionManager) SetClientFactory(f func(*provider.Model) llm.Client) {
 // Shutdown cancels all active session processors and waits for them
 // to finish persisting before returning.
 func (sm *SessionManager) Shutdown() {
+	sm.ctxCancel()
 	sm.mu.Lock()
 	var doneChans []chan struct{}
 	for sid, active := range sm.sessions {
@@ -244,7 +250,7 @@ func (sm *SessionManager) subscribePrompts() {
 			if err != nil || info.Model == nil {
 				continue
 			}
-			sm.StartPrompt(context.Background(), PromptInput{
+			sm.StartPrompt(sm.ctx, PromptInput{
 				SessionID: sessionID,
 				Model: &promptModel{
 					ProviderID: info.Model.ProviderID,
