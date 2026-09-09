@@ -17,6 +17,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
+	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 
 	_ "modernc.org/sqlite"
 )
@@ -345,6 +346,80 @@ func TestSessionFork(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&forked)
 	if forked["parentID"] != parentID {
 		t.Errorf("expected parentID %s, got %v", parentID, forked["parentID"])
+	}
+}
+
+func TestSessionFork_TruncatesAtMessageID(t *testing.T) {
+	srv, _ := testServer(t)
+
+	// Create parent session
+	req := httptest.NewRequest("POST", "/session?directory=/tmp", strings.NewReader(`{"title":"Parent"}`))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	var parent map[string]any
+	json.NewDecoder(w.Body).Decode(&parent)
+	parentID := parent["id"].(string)
+
+	// Add 4 messages to the parent session
+	ms := srv.messageStore()
+	msgIDs := make([]string, 4)
+	for i := 0; i < 4; i++ {
+		msgIDs[i] = fmt.Sprintf("msg_fork_test_%03d", i)
+		msg := &session.Message{
+			ID:        msgIDs[i],
+			SessionID: parentID,
+			Role:      session.RoleUser,
+			Parts:     []session.Part{session.TextPart(fmt.Sprintf("message %d", i))},
+			CreatedAt: time.Now().Add(time.Duration(i) * time.Second),
+		}
+		if err := ms.Append(msg); err != nil {
+			t.Fatalf("append message %d: %v", i, err)
+		}
+	}
+
+	// Fork with messageID pointing to the second message (index 1)
+	forkBody := fmt.Sprintf(`{"title":"Fork Truncated","messageID":"%s"}`, msgIDs[1])
+	req = httptest.NewRequest("POST", "/session/"+parentID+"/fork", strings.NewReader(forkBody))
+	w = httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var forked map[string]any
+	json.NewDecoder(w.Body).Decode(&forked)
+	forkedID := forked["id"].(string)
+
+	// Verify forked session has only 2 messages (up to and including msgIDs[1])
+	forkedMsgs, err := ms.List(forkedID)
+	if err != nil {
+		t.Fatalf("list forked messages: %v", err)
+	}
+	if len(forkedMsgs) != 2 {
+		t.Fatalf("expected 2 messages in fork (truncated at midpoint), got %d", len(forkedMsgs))
+	}
+
+	// Fork without messageID should copy all messages
+	req = httptest.NewRequest("POST", "/session/"+parentID+"/fork", strings.NewReader(`{"title":"Fork All"}`))
+	w = httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var forkedAll map[string]any
+	json.NewDecoder(w.Body).Decode(&forkedAll)
+	forkedAllID := forkedAll["id"].(string)
+
+	allMsgs, err := ms.List(forkedAllID)
+	if err != nil {
+		t.Fatalf("list forked-all messages: %v", err)
+	}
+	if len(allMsgs) != 4 {
+		t.Fatalf("expected 4 messages in full fork, got %d", len(allMsgs))
 	}
 }
 

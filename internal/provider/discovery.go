@@ -95,9 +95,6 @@ func (d *Discovery) poll(ctx context.Context, ollamaURL, vllmURL, lmStudioURL st
 }
 
 func (d *Discovery) shouldPoll(providerID string) bool {
-	if d.registry.Has(providerID) {
-		return false
-	}
 	d.dormantMu.Lock()
 	defer d.dormantMu.Unlock()
 	return !d.dormant[providerID]

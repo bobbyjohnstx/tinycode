@@ -23,9 +23,13 @@ var editTools = map[string]bool{
 }
 
 // Evaluate finds the last matching rule across all rulesets (last-wins semantics).
+// DefaultRules are prepended as a base so that user/agent rulesets can override them.
 // Returns an "ask" rule if no match is found.
 func Evaluate(permission, pattern string, rulesets ...Ruleset) Rule {
-	flat := Merge(rulesets...)
+	all := make([]Ruleset, 0, len(rulesets)+1)
+	all = append(all, DefaultRules)
+	all = append(all, rulesets...)
+	flat := Merge(all...)
 	for i := len(flat) - 1; i >= 0; i-- {
 		rule := flat[i]
 		if WildcardMatch(permission, rule.Permission) && WildcardMatch(pattern, rule.Pattern) {

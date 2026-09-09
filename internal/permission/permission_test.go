@@ -458,6 +458,149 @@ func TestService_Close(t *testing.T) {
 	}
 }
 
+func TestDefaultRules_ReadAllowed(t *testing.T) {
+	result := Evaluate("read", "/some/file.go")
+	if result.Action != ActionAllow {
+		t.Errorf("expected read to be allowed by default rules, got %s", result.Action)
+	}
+}
+
+func TestDefaultRules_ReadEnvAsk(t *testing.T) {
+	result := Evaluate("read", ".env.local")
+	if result.Action != ActionAsk {
+		t.Errorf("expected read .env* to be ask, got %s", result.Action)
+	}
+}
+
+func TestDefaultRules_DoomLoopAsk(t *testing.T) {
+	result := Evaluate("doom_loop", "anything")
+	if result.Action != ActionAsk {
+		t.Errorf("expected doom_loop to be ask, got %s", result.Action)
+	}
+}
+
+func TestDefaultRules_GuardrailAsk(t *testing.T) {
+	result := Evaluate("guardrail", "anything")
+	if result.Action != ActionAsk {
+		t.Errorf("expected guardrail to be ask, got %s", result.Action)
+	}
+}
+
+func TestDefaultRules_ExternalDirectoryAsk(t *testing.T) {
+	result := Evaluate("external_directory", "/usr/local")
+	if result.Action != ActionAsk {
+		t.Errorf("expected external_directory to be ask, got %s", result.Action)
+	}
+}
+
+func TestDefaultRules_OverriddenByUserRules(t *testing.T) {
+	// User rule denying read should override default allow
+	userRules := Ruleset{{Permission: "read", Pattern: "*", Action: ActionDeny}}
+	result := Evaluate("read", "/some/file", userRules)
+	if result.Action != ActionDeny {
+		t.Errorf("expected user deny to override default allow, got %s", result.Action)
+	}
+}
+
+// mockRuleStore implements RuleStore for testing.
+type mockRuleStore struct {
+	saved map[string]Ruleset
+}
+
+func newMockRuleStore() *mockRuleStore {
+	return &mockRuleStore{saved: make(map[string]Ruleset)}
+}
+
+func (m *mockRuleStore) SaveRules(projectID string, rules Ruleset) error {
+	m.saved[projectID] = append(Ruleset{}, rules...)
+	return nil
+}
+
+func (m *mockRuleStore) LoadRules(projectID string) (Ruleset, error) {
+	return m.saved[projectID], nil
+}
+
+func TestService_AlwaysPersistsToStore(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	store := newMockRuleStore()
+	svc.SetStore(store, "proj_test")
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+			Always:     []string{"/tmp/foo"},
+			Ruleset:    Ruleset{},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	if len(pending) != 1 {
+		t.Fatalf("expected 1 pending, got %d", len(pending))
+	}
+
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyAlways,
+	})
+	if err != nil {
+		t.Fatalf("always reply failed: %v", err)
+	}
+
+	wg.Wait()
+
+	// Verify rules were persisted
+	saved := store.saved["proj_test"]
+	if len(saved) != 1 {
+		t.Fatalf("expected 1 persisted rule, got %d", len(saved))
+	}
+	if saved[0].Permission != "bash" || saved[0].Pattern != "/tmp/foo" || saved[0].Action != ActionAllow {
+		t.Errorf("unexpected persisted rule: %+v", saved[0])
+	}
+}
+
+func TestService_SetStoreLoadsExistingRules(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	store := newMockRuleStore()
+	store.saved["proj_test"] = Ruleset{
+		{Permission: "bash", Pattern: "/tmp/*", Action: ActionAllow},
+	}
+
+	svc.SetStore(store, "proj_test")
+
+	// The loaded rule should auto-allow matching asks
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+		Metadata:   map[string]any{},
+		Ruleset:    Ruleset{},
+	})
+	if err != nil {
+		t.Fatalf("expected nil (auto-allowed by loaded rules), got %v", err)
+	}
+}
+
 func TestFromConfig_AllowDeny(t *testing.T) {
 	rules := FromConfig(
 		[]string{"bash *", "read"},
