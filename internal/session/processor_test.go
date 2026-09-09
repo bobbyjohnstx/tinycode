@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -572,5 +573,91 @@ func TestProcessor_BelowThreshold_NoCompaction(t *testing.T) {
 	}
 	if p.compactionCount != 0 {
 		t.Errorf("expected no compaction, but compactionCount=%d", p.compactionCount)
+	}
+}
+
+// --- Issue #89: statusFromError anchored HTTP matching ---
+
+func TestStatusFromError_PositiveMatches(t *testing.T) {
+	tests := []struct {
+		msg  string
+		want int
+	}{
+		{"HTTP 500: internal server error", 500},
+		{"HTTP 429: too many requests", 429},
+		{"HTTP 400: bad request", 400},
+		{"HTTP 401: unauthorized", 401},
+		{"HTTP 403: forbidden", 403},
+		{"HTTP 404: not found", 404},
+		{"HTTP 413: request entity too large", 413},
+		{"HTTP 503: service unavailable", 503},
+	}
+	for _, tt := range tests {
+		got := statusFromError(fmt.Errorf("%s", tt.msg))
+		if got != tt.want {
+			t.Errorf("statusFromError(%q) = %d, want %d", tt.msg, got, tt.want)
+		}
+	}
+}
+
+func TestStatusFromError_NegativeNonMatches(t *testing.T) {
+	tests := []struct {
+		msg string
+	}{
+		{"5003 tokens remaining"},
+		{"response took 429ms"},
+		{"error code 500"},
+		{"port 4003 is unavailable"},
+		{"processed 413 items"},
+		{"read 503 bytes from stream"},
+	}
+	for _, tt := range tests {
+		got := statusFromError(fmt.Errorf("%s", tt.msg))
+		if got != 0 {
+			t.Errorf("statusFromError(%q) = %d, want 0 (should not match)", tt.msg, got)
+		}
+	}
+}
+
+// --- Issue #95: buildRequest preserves multiple text parts ---
+
+func TestBuildRequest_MultipleTextParts(t *testing.T) {
+	p := &Processor{
+		config: ProcessorConfig{
+			SessionID: "ses-multi-text",
+			Model:     &provider.Model{ID: "test-model"},
+		},
+		tools: &stubToolExecutor{},
+		bus:   bus.New(),
+	}
+
+	p.messages = []Message{
+		{
+			ID:        "msg-1",
+			SessionID: "ses-multi-text",
+			Role:      RoleAssistant,
+			Parts: []Part{
+				TextPart("First thought."),
+				TextPart("Second thought."),
+				TextPart("Third thought."),
+			},
+			CreatedAt: time.Now(),
+		},
+	}
+
+	req := p.buildRequest()
+
+	if len(req.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(req.Messages))
+	}
+
+	content, ok := req.Messages[0].Content.(string)
+	if !ok {
+		t.Fatalf("expected Content to be string, got %T", req.Messages[0].Content)
+	}
+
+	expected := "First thought.\nSecond thought.\nThird thought."
+	if content != expected {
+		t.Errorf("expected content %q, got %q", expected, content)
 	}
 }
