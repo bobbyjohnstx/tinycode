@@ -67,6 +67,7 @@ type Server struct {
 	questionStore   *QuestionStore
 	credentials     *credentialStore
 	pluginSubs      []*bus.Subscription
+	pluginDone      chan struct{}
 	shutdownDone    chan struct{}
 }
 
@@ -153,6 +154,10 @@ func (s *Server) Listen(ctx context.Context) (*Listener, error) {
 		<-ctx.Done()
 		s.logger.Info("shutting down server")
 
+		if s.pluginDone != nil {
+			close(s.pluginDone)
+		}
+
 		s.sessionManager.Shutdown()
 
 		s.deps.Bus.Publish("global.disposed", map[string]any{
@@ -176,21 +181,31 @@ func (s *Server) wirePluginHooks() {
 		return
 	}
 
+	s.pluginDone = make(chan struct{})
+
 	startSub := s.deps.Bus.Subscribe("session.created")
 	s.pluginSubs = append(s.pluginSubs, startSub)
 	go func() {
-		for evt := range startSub.C {
-			props, ok := evt.Properties.(map[string]any)
-			if !ok {
-				continue
-			}
-			info, _ := props["info"].(map[string]any)
-			if info == nil {
-				continue
-			}
-			sid, _ := info["id"].(string)
-			if sid != "" {
-				plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{SessionID: sid})
+		for {
+			select {
+			case <-s.pluginDone:
+				return
+			case evt, ok := <-startSub.C:
+				if !ok {
+					return
+				}
+				props, ok := evt.Properties.(map[string]any)
+				if !ok {
+					continue
+				}
+				info, _ := props["info"].(map[string]any)
+				if info == nil {
+					continue
+				}
+				sid, _ := info["id"].(string)
+				if sid != "" {
+					plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{SessionID: sid})
+				}
 			}
 		}
 	}()
@@ -198,14 +213,22 @@ func (s *Server) wirePluginHooks() {
 	endSub := s.deps.Bus.Subscribe("session.deleted")
 	s.pluginSubs = append(s.pluginSubs, endSub)
 	go func() {
-		for evt := range endSub.C {
-			props, ok := evt.Properties.(map[string]any)
-			if !ok {
-				continue
-			}
-			sid, _ := props["sessionID"].(string)
-			if sid != "" {
-				plugin.DispatchSessionEnd(mgr, plugin.SessionEndEvent{SessionID: sid})
+		for {
+			select {
+			case <-s.pluginDone:
+				return
+			case evt, ok := <-endSub.C:
+				if !ok {
+					return
+				}
+				props, ok := evt.Properties.(map[string]any)
+				if !ok {
+					continue
+				}
+				sid, _ := props["sessionID"].(string)
+				if sid != "" {
+					plugin.DispatchSessionEnd(mgr, plugin.SessionEndEvent{SessionID: sid})
+				}
 			}
 		}
 	}()
@@ -213,38 +236,54 @@ func (s *Server) wirePluginHooks() {
 	toolBeforeSub := s.deps.Bus.Subscribe("tool.execute.before")
 	s.pluginSubs = append(s.pluginSubs, toolBeforeSub)
 	go func() {
-		for evt := range toolBeforeSub.C {
-			props, ok := evt.Properties.(map[string]any)
-			if !ok {
-				continue
+		for {
+			select {
+			case <-s.pluginDone:
+				return
+			case evt, ok := <-toolBeforeSub.C:
+				if !ok {
+					return
+				}
+				props, ok := evt.Properties.(map[string]any)
+				if !ok {
+					continue
+				}
+				sessionID, _ := props["sessionID"].(string)
+				toolName, _ := props["tool"].(string)
+				args, _ := props["args"].(string)
+				plugin.DispatchToolExecBefore(mgr, plugin.ToolExecBeforeEvent{
+					SessionID: sessionID,
+					Tool:      toolName,
+					Args:      args,
+				})
 			}
-			sessionID, _ := props["sessionID"].(string)
-			toolName, _ := props["tool"].(string)
-			args, _ := props["args"].(string)
-			plugin.DispatchToolExecBefore(mgr, plugin.ToolExecBeforeEvent{
-				SessionID: sessionID,
-				Tool:      toolName,
-				Args:      args,
-			})
 		}
 	}()
 
 	toolAfterSub := s.deps.Bus.Subscribe("tool.execute.after")
 	s.pluginSubs = append(s.pluginSubs, toolAfterSub)
 	go func() {
-		for evt := range toolAfterSub.C {
-			props, ok := evt.Properties.(map[string]any)
-			if !ok {
-				continue
+		for {
+			select {
+			case <-s.pluginDone:
+				return
+			case evt, ok := <-toolAfterSub.C:
+				if !ok {
+					return
+				}
+				props, ok := evt.Properties.(map[string]any)
+				if !ok {
+					continue
+				}
+				sessionID, _ := props["sessionID"].(string)
+				toolName, _ := props["tool"].(string)
+				success, _ := props["success"].(bool)
+				plugin.DispatchToolExecAfter(mgr, plugin.ToolExecAfterEvent{
+					SessionID: sessionID,
+					Tool:      toolName,
+					Success:   success,
+				})
 			}
-			sessionID, _ := props["sessionID"].(string)
-			toolName, _ := props["tool"].(string)
-			success, _ := props["success"].(bool)
-			plugin.DispatchToolExecAfter(mgr, plugin.ToolExecAfterEvent{
-				SessionID: sessionID,
-				Tool:      toolName,
-				Success:   success,
-			})
 		}
 	}()
 }
