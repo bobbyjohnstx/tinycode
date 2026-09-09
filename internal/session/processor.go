@@ -204,7 +204,32 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 		default:
 		}
 
+		stepID, _ := id.Ascending("step")
+		p.bus.Publish("session.step.start", map[string]any{
+			"sessionID": p.config.SessionID,
+			"stepID":    stepID,
+			"iteration": iteration,
+			"model":     p.config.Model.ID,
+		})
+
 		assistantMsg, usage, err := p.callLLM(ctx)
+
+		stepUsage := map[string]any{}
+		if usage != nil {
+			stepUsage = map[string]any{"input": usage.Input, "output": usage.Output}
+		}
+		var stepErr string
+		if err != nil {
+			stepErr = err.Error()
+		}
+		p.bus.Publish("session.step.finish", map[string]any{
+			"sessionID": p.config.SessionID,
+			"stepID":    stepID,
+			"iteration": iteration,
+			"usage":     stepUsage,
+			"error":     stepErr,
+		})
+
 		if err != nil {
 			slog.Error("callLLM failed", "sessionID", p.config.SessionID, "iteration", iteration, "error", err)
 			if provider.IsOverflow(err.Error()) {

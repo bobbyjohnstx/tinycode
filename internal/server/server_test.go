@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -878,3 +879,48 @@ func TestDecodeJSON_InvalidBody(t *testing.T) {
 
 // Ensure no import of io is left unused
 var _ = io.EOF
+
+func TestDeltaBatcher_Batches(t *testing.T) {
+	var mu sync.Mutex
+	var flushed []string
+	b := newDeltaBatcher(func(text string) {
+		mu.Lock()
+		flushed = append(flushed, text)
+		mu.Unlock()
+	})
+
+	b.Add("hello ")
+	b.Add("world")
+
+	// Wait for debounce to fire
+	time.Sleep(25 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(flushed) != 1 {
+		t.Fatalf("expected 1 flush, got %d", len(flushed))
+	}
+	if flushed[0] != "hello world" {
+		t.Errorf("expected 'hello world', got %q", flushed[0])
+	}
+}
+
+func TestDeltaBatcher_ExplicitFlush(t *testing.T) {
+	var flushed []string
+	b := newDeltaBatcher(func(text string) {
+		flushed = append(flushed, text)
+	})
+
+	b.Add("abc")
+	b.Flush()
+
+	if len(flushed) != 1 || flushed[0] != "abc" {
+		t.Errorf("expected flush of 'abc', got %v", flushed)
+	}
+
+	// Second flush should be a no-op
+	b.Flush()
+	if len(flushed) != 1 {
+		t.Error("expected no extra flush")
+	}
+}

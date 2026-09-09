@@ -34,6 +34,56 @@ type activeSession struct {
 	streamStarted bool             // whether initial assistant events have been emitted
 	msgStartTime  int64            // timestamp when the current assistant message started
 	idMap         map[string]string // processor msg ID → bridge msg ID
+	deltaBatcher  *deltaBatcher     // 16ms debounce for text deltas
+}
+
+const deltaBatchInterval = 16 * time.Millisecond
+
+type deltaBatcher struct {
+	mu       sync.Mutex
+	buf      strings.Builder
+	timer    *time.Timer
+	flush    func(text string)
+}
+
+func newDeltaBatcher(flush func(string)) *deltaBatcher {
+	return &deltaBatcher{flush: flush}
+}
+
+func (b *deltaBatcher) Add(text string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf.WriteString(text)
+	if b.timer == nil {
+		b.timer = time.AfterFunc(deltaBatchInterval, b.doFlush)
+	} else {
+		b.timer.Reset(deltaBatchInterval)
+	}
+}
+
+func (b *deltaBatcher) Flush() {
+	b.mu.Lock()
+	if b.timer != nil {
+		b.timer.Stop()
+		b.timer = nil
+	}
+	text := b.buf.String()
+	b.buf.Reset()
+	b.mu.Unlock()
+	if text != "" {
+		b.flush(text)
+	}
+}
+
+func (b *deltaBatcher) doFlush() {
+	b.mu.Lock()
+	b.timer = nil
+	text := b.buf.String()
+	b.buf.Reset()
+	b.mu.Unlock()
+	if text != "" {
+		b.flush(text)
+	}
 }
 
 // SessionStatus represents the processing state of a session.
@@ -425,11 +475,19 @@ func (sm *SessionManager) bridgeAssistantMessage(sessionID string, active *activ
 		active.idMap[msg.ID] = bridgeMsgID
 	}
 
+	// Flush any batched deltas before finalizing
+	batcher := active.deltaBatcher
+	active.deltaBatcher = nil
+
 	// Reset streaming state for next potential iteration (tool loop)
 	active.streamStarted = false
 	active.assistMsgID = ""
 	active.textPartID = ""
 	active.mu.Unlock()
+
+	if batcher != nil {
+		batcher.Flush()
+	}
 
 	// If no streaming happened (no text deltas received), use processor's ID directly
 	if bridgeMsgID == "" {
@@ -575,6 +633,17 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 		msgID := active.assistMsgID
 		partID := active.textPartID
 		startTime := active.msgStartTime
+
+		batcher := newDeltaBatcher(func(batched string) {
+			sm.bus.Publish("message.part.delta", map[string]any{
+				"sessionID": sessionID,
+				"messageID": msgID,
+				"partID":    partID,
+				"field":     "text",
+				"delta":     batched,
+			})
+		})
+		active.deltaBatcher = batcher
 		active.mu.Unlock()
 
 		modelID := ""
@@ -616,28 +685,16 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 			"time": startTime,
 		})
 
-		// Emit the delta
-		sm.bus.Publish("message.part.delta", map[string]any{
-			"sessionID": sessionID,
-			"messageID": msgID,
-			"partID":    partID,
-			"field":     "text",
-			"delta":     text,
-		})
+		batcher.Add(text)
 		return
 	}
 
-	msgID := active.assistMsgID
-	partID := active.textPartID
+	batcher := active.deltaBatcher
 	active.mu.Unlock()
 
-	sm.bus.Publish("message.part.delta", map[string]any{
-		"sessionID": sessionID,
-		"messageID": msgID,
-		"partID":    partID,
-		"field":     "text",
-		"delta":     text,
-	})
+	if batcher != nil {
+		batcher.Add(text)
+	}
 }
 
 func (sm *SessionManager) bridgeToolBegin(evt bus.Event) {
