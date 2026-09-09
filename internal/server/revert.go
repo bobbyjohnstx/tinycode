@@ -9,10 +9,10 @@ import (
 )
 
 // RevertState tracks git stashes created by session reverts so they can be
-// popped on unrevert.
+// applied on unrevert.
 type RevertState struct {
 	mu      sync.Mutex
-	stashes map[string]string // sessionID -> stash ref (e.g. "stash@{0}")
+	stashes map[string]string // sessionID -> stash commit SHA
 }
 
 // NewRevertState creates an empty RevertState.
@@ -21,29 +21,50 @@ func NewRevertState() *RevertState {
 }
 
 // Stash pushes the current working tree changes onto the git stash with a
-// tinycode-specific message, and records the sessionID association.
+// tinycode-specific message, captures the stash commit SHA for reliable
+// retrieval, and records the sessionID association.
 func (rs *RevertState) Stash(dir, sessionID string) error {
-	msg := "tinycode-revert-" + sessionID
-	cmd := exec.Command("git", "stash", "push", "-m", msg)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
+	// Create a stash commit object and capture its SHA (does not modify
+	// the working tree or the stash reflog).
+	createCmd := exec.Command("git", "stash", "create")
+	createCmd.Dir = dir
+	createOut, err := createCmd.Output()
 	if err != nil {
-		return fmt.Errorf("git stash push: %s: %w", string(out), err)
+		return fmt.Errorf("git stash create: %w", err)
+	}
+	sha := strings.TrimSpace(string(createOut))
+	if sha == "" {
+		return fmt.Errorf("no changes to stash for session %s", sessionID)
+	}
+
+	// Store the commit in the stash reflog for visibility in git stash list.
+	msg := "tinycode-revert-" + sessionID
+	storeCmd := exec.Command("git", "stash", "store", "-m", msg, sha)
+	storeCmd.Dir = dir
+	if storeOut, err := storeCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git stash store: %s: %w", string(storeOut), err)
+	}
+
+	// Reset tracked files to HEAD (equivalent to what git stash push does).
+	resetCmd := exec.Command("git", "checkout", "--", ".")
+	resetCmd.Dir = dir
+	if _, resetErr := resetCmd.CombinedOutput(); resetErr != nil {
+		slog.Warn("failed to reset working tree after stash", "error", resetErr)
 	}
 
 	rs.mu.Lock()
-	rs.stashes[sessionID] = msg
+	rs.stashes[sessionID] = sha
 	rs.mu.Unlock()
 
-	slog.Debug("revert stash created", "sessionID", sessionID, "message", msg)
+	slog.Debug("revert stash created", "sessionID", sessionID, "sha", sha)
 	return nil
 }
 
-// Pop restores the stash associated with the given session, identified by its
-// message to avoid popping the wrong entry when the stack has shifted.
+// Pop restores the stash associated with the given session using the stored
+// SHA, which is immune to stash stack index shifts.
 func (rs *RevertState) Pop(dir, sessionID string) error {
 	rs.mu.Lock()
-	msg, ok := rs.stashes[sessionID]
+	sha, ok := rs.stashes[sessionID]
 	if ok {
 		delete(rs.stashes, sessionID)
 	}
@@ -53,19 +74,22 @@ func (rs *RevertState) Pop(dir, sessionID string) error {
 		return fmt.Errorf("no stash found for session %s", sessionID)
 	}
 
-	ref, err := findStashByMessage(dir, msg)
-	if err != nil {
-		return fmt.Errorf("locating stash for session %s: %w", sessionID, err)
-	}
-
-	cmd := exec.Command("git", "stash", "pop", ref)
+	cmd := exec.Command("git", "stash", "apply", sha)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git stash pop: %s: %w", string(out), err)
+		return fmt.Errorf("git stash apply: %s: %w", string(out), err)
 	}
 
-	slog.Debug("revert stash popped", "sessionID", sessionID, "ref", ref)
+	// Drop the stash entry from the reflog by message lookup.
+	msg := "tinycode-revert-" + sessionID
+	if ref, findErr := findStashByMessage(dir, msg); findErr == nil {
+		dropCmd := exec.Command("git", "stash", "drop", ref)
+		dropCmd.Dir = dir
+		_ = dropCmd.Run()
+	}
+
+	slog.Debug("revert stash applied", "sessionID", sessionID, "sha", sha)
 	return nil
 }
 
