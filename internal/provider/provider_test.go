@@ -383,6 +383,90 @@ func TestGPUMemoryBudget(t *testing.T) {
 	}
 }
 
+func TestDiscovery_ShouldPollAllowsRepolling(t *testing.T) {
+	reg := NewRegistry()
+	b := bus.New()
+	defer b.Close()
+
+	d := NewDiscovery(reg, b)
+
+	// shouldPoll returns true for a provider that is not dormant
+	if !d.shouldPoll("ollama") {
+		t.Error("expected shouldPoll to return true for unknown provider")
+	}
+
+	// Register the provider — shouldPoll should still return true (allows re-polling)
+	reg.Register(&Info{
+		ID:     "ollama",
+		Name:   "Ollama",
+		Models: map[string]*Model{"m1": {ID: "m1", ProviderID: "ollama"}},
+	})
+	if !d.shouldPoll("ollama") {
+		t.Error("expected shouldPoll to return true for already-registered provider (re-polling)")
+	}
+
+	// Mark dormant — shouldPoll should return false
+	d.dormantMu.Lock()
+	d.dormant["ollama"] = true
+	d.dormantMu.Unlock()
+
+	if d.shouldPoll("ollama") {
+		t.Error("expected shouldPoll to return false for dormant provider")
+	}
+}
+
+func TestDiscovery_RepollingUpdatesModels(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags" {
+			http.NotFound(w, r)
+			return
+		}
+		callCount++
+		models := []ollamaModel{
+			{Name: "llama3:latest", Details: &ollamaModelDetails{ContextLength: 8192}},
+		}
+		if callCount > 1 {
+			models = append(models, ollamaModel{
+				Name:    "qwen3:latest",
+				Details: &ollamaModelDetails{ContextLength: 4096},
+			})
+		}
+		json.NewEncoder(w).Encode(ollamaTagsResponse{Models: models})
+	}))
+	defer srv.Close()
+
+	reg := NewRegistry()
+	b := bus.New()
+	defer b.Close()
+
+	d := NewDiscovery(reg, b)
+
+	// First discovery
+	d.discoverOllama(t.Context(), srv.URL)
+	p, err := reg.GetProvider("ollama")
+	if err != nil {
+		t.Fatalf("first discovery: %v", err)
+	}
+	if len(p.Models) != 1 {
+		t.Fatalf("expected 1 model after first poll, got %d", len(p.Models))
+	}
+
+	// Second discovery (re-poll) should update models
+	d.discoverOllama(t.Context(), srv.URL)
+	p, err = reg.GetProvider("ollama")
+	if err != nil {
+		t.Fatalf("second discovery: %v", err)
+	}
+	if len(p.Models) != 2 {
+		t.Fatalf("expected 2 models after re-poll, got %d", len(p.Models))
+	}
+
+	if callCount != 2 {
+		t.Errorf("expected 2 API calls, got %d", callCount)
+	}
+}
+
 func TestDiscovery_StartStop(t *testing.T) {
 	reg := NewRegistry()
 	b := bus.New()
