@@ -976,6 +976,8 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		}
 
 		// Update session token usage
+		// TODO: cost is always 0 — local models have no pricing data.
+		// Wire cost calculation when provider-specific pricing info is available.
 		store := session.NewStore(sm.db)
 		_ = store.UpdateCost(sessionID, 0, session.TokenUsage{
 			Input:  result.Usage.Input,

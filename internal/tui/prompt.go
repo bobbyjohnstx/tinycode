@@ -249,7 +249,7 @@ func isTerminalEscape(s string) bool {
 	if strings.ContainsAny(s, "\x1b\x9c") {
 		return true
 	}
-	if strings.Contains(s, "rgb:") || strings.HasPrefix(s, "11;") || strings.HasPrefix(s, "10;") {
+	if strings.Contains(s, "rgb:") || strings.HasPrefix(s, "]10;") || strings.HasPrefix(s, "]11;") {
 		return true
 	}
 	if oscHexFragment.MatchString(s) {

@@ -169,7 +169,11 @@ func (s *Store) Get(sessionID string) (*Info, error) {
 	row := s.db.QueryRow(
 		`SELECT `+sessionSelectCols+` FROM session WHERE id = ?`, sessionID,
 	)
-	return scanSession(row)
+	info, err := scanSession(row)
+	if err != nil {
+		return nil, fmt.Errorf("session %s: %w", sessionID, err)
+	}
+	return info, nil
 }
 
 func (s *Store) List(projectID string, limit, offset int) ([]Info, error) {
