@@ -7,6 +7,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /global/event", s.handleGlobalEventStream)
 	s.mux.HandleFunc("GET /global/config", s.handleConfigGet)
 	s.mux.HandleFunc("PATCH /global/config", s.handleConfigUpdate)
+	s.mux.HandleFunc("POST /global/dispose", s.handleGlobalDispose)
 
 	// Instance-scoped event stream
 	s.mux.HandleFunc("GET /event", s.handleEventStream)
@@ -32,6 +33,7 @@ func (s *Server) registerRoutes() {
 
 	// Session read
 	s.mux.HandleFunc("GET /session/{id}/message", s.handleMessageList)
+	s.mux.HandleFunc("GET /session/{id}/message/{messageID}", s.handleMessageGet)
 	s.mux.HandleFunc("GET /session/{id}/children", s.handleSessionChildren)
 	s.mux.HandleFunc("GET /session/{id}/todo", s.handleSessionTodo)
 	s.mux.HandleFunc("GET /session/{id}/diff", s.handleSessionDiff)
@@ -57,13 +59,19 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /question", s.handleQuestionList)
 	s.mux.HandleFunc("POST /question/{id}/reply", s.handleQuestionReply)
 
+	// Auth
+	s.mux.HandleFunc("PUT /auth/{providerID}", s.handleAuthPut)
+	s.mux.HandleFunc("DELETE /auth/{providerID}", s.handleAuthDelete)
+
 	// Config
 	s.mux.HandleFunc("GET /config", s.handleConfigGet)
 	s.mux.HandleFunc("PATCH /config", s.handleConfigUpdate)
+	s.mux.HandleFunc("GET /config/providers", s.handleConfigProviders)
 
 	// File
 	s.mux.HandleFunc("GET /file", s.handleFileList)
 	s.mux.HandleFunc("GET /file/content", s.handleFileRead)
+	s.mux.HandleFunc("GET /file/status", s.handleFileStatus)
 	s.mux.HandleFunc("GET /find", s.handleFileSearch)
 	s.mux.HandleFunc("GET /find/file", s.handleFileFind)
 
@@ -81,6 +89,11 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /vcs", s.handleVCSInfo)
 	s.mux.HandleFunc("GET /vcs/status", s.handleVCSStatus)
 	s.mux.HandleFunc("GET /vcs/diff", s.handleVCSDiff)
+	s.mux.HandleFunc("GET /vcs/diff/raw", s.handleVCSDiffRaw)
+
+	// LSP / Formatter (stubs)
+	s.mux.HandleFunc("GET /lsp", s.handleLSP)
+	s.mux.HandleFunc("GET /formatter", s.handleFormatter)
 
 	// MCP
 	s.mux.HandleFunc("GET /mcp/status", s.handleMCPStatus)

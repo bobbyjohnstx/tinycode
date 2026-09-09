@@ -65,6 +65,7 @@ type Server struct {
 	sessionManager  *SessionManager
 	permissionStore *PermissionStore
 	questionStore   *QuestionStore
+	credentials     *credentialStore
 	pluginSubs      []*bus.Subscription
 	shutdownDone    chan struct{}
 }
@@ -88,6 +89,7 @@ func New(cfg Config, deps Dependencies) *Server {
 		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory, deps.ToolRegistry, deps.PermService, deps.AgentRegistry, deps.MCPService, deps.Config),
 		permissionStore: NewPermissionStore(),
 		questionStore:   NewQuestionStore(),
+		credentials:     newCredentialStore(),
 	}
 
 	s.registerRoutes()

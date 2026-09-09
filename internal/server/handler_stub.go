@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/command"
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
@@ -478,6 +479,110 @@ func (s *Server) handleVCSDiff(w http.ResponseWriter, r *http.Request) {
 	}
 	respondJSON(w, http.StatusOK, map[string]any{
 		"diff": diff,
+	})
+}
+
+func (s *Server) handleGlobalDispose(w http.ResponseWriter, r *http.Request) {
+	s.deps.Bus.Publish("global.disposed", map[string]any{
+		"timestamp": time.Now().UnixMilli(),
+	})
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleMessageGet(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("id")
+	messageID := r.PathValue("messageID")
+
+	ms := s.messageStore()
+	ps := s.partStore()
+
+	messages, err := ms.List(sessionID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	for _, m := range messages {
+		if m.ID != messageID {
+			continue
+		}
+
+		storedParts, _ := ps.ListByMessage(m.ID)
+		var parts any
+		if len(storedParts) > 0 {
+			parts = storedParts
+		} else if len(m.Parts) > 0 {
+			parts = m.Parts
+		} else {
+			parts = []session.StoredPart{}
+		}
+
+		respondJSON(w, http.StatusOK, map[string]any{
+			"info":  m,
+			"parts": parts,
+		})
+		return
+	}
+
+	respondError(w, http.StatusNotFound, "message not found")
+}
+
+func (s *Server) handleConfigProviders(w http.ResponseWriter, r *http.Request) {
+	providers := s.deps.Registry.ListProviders()
+
+	type providerSummary struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Source string `json:"source"`
+		Models int    `json:"models"`
+	}
+
+	result := make([]providerSummary, 0, len(providers))
+	for _, p := range providers {
+		result = append(result, providerSummary{
+			ID:     p.ID,
+			Name:   p.Name,
+			Source: p.Source,
+			Models: len(p.Models),
+		})
+	}
+
+	respondJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleFileStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := vcs.GitStatus(s.config.Directory)
+	if err != nil {
+		respondJSON(w, http.StatusOK, map[string]any{
+			"clean":   true,
+			"changes": []any{},
+		})
+		return
+	}
+	respondJSON(w, http.StatusOK, status)
+}
+
+func (s *Server) handleVCSDiffRaw(w http.ResponseWriter, r *http.Request) {
+	diff, err := vcs.GitDiff(s.config.Directory)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(diff))
+}
+
+func (s *Server) handleLSP(w http.ResponseWriter, _ *http.Request) {
+	respondJSON(w, http.StatusOK, map[string]any{
+		"status": "unavailable",
+	})
+}
+
+func (s *Server) handleFormatter(w http.ResponseWriter, _ *http.Request) {
+	respondJSON(w, http.StatusOK, map[string]any{
+		"status": "unavailable",
 	})
 }
 
