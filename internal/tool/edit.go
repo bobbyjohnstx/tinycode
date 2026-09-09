@@ -75,8 +75,14 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 
 	content := string(data)
 
-	newContent, strategy, ok := cascadeReplace(content, args.OldString, args.NewString, args.ReplaceAll)
+	newContent, strategy, count, ok := cascadeReplace(content, args.OldString, args.NewString, args.ReplaceAll)
 	if !ok {
+		if count > 1 {
+			return &ExecuteResult{
+				Output: fmt.Sprintf("old_string appears %d times in %s. Use replace_all or provide more context to make the match unique.", count, path),
+				IsError: true,
+			}, nil
+		}
 		fuzzyMatch := fuzzyFind(content, args.OldString)
 		msg := fmt.Sprintf("old_string not found in %s", path)
 		if fuzzyMatch != "" {

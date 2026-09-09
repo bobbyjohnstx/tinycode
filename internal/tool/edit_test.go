@@ -383,7 +383,7 @@ func TestCascadeReplace(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, _, ok := cascadeReplace(tt.content, tt.old, tt.new, false)
+			got, _, _, ok := cascadeReplace(tt.content, tt.old, tt.new, false)
 			if ok != tt.wantOK {
 				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
 			}
@@ -392,6 +392,17 @@ func TestCascadeReplace(t *testing.T) {
 			}
 		})
 	}
+
+	// Test multiple exact matches returns count.
+	t.Run("multiple exact matches returns count", func(t *testing.T) {
+		_, _, count, ok := cascadeReplace("aa bb aa", "aa", "cc", false)
+		if ok {
+			t.Fatal("expected failure for multiple exact matches")
+		}
+		if count != 2 {
+			t.Errorf("count = %d, want 2", count)
+		}
+	})
 }
 
 func TestEscapeNormalizedReplacer(t *testing.T) {

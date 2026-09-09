@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"fmt"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -30,16 +31,28 @@ var replacerChain = []Replacer{
 	&MultiOccurrenceReplacer{},
 }
 
+// ErrMultipleExactMatches is returned when oldString appears multiple times
+// and replaceAll is false.
+var ErrMultipleExactMatches = fmt.Errorf("multiple exact matches")
+
 // cascadeReplace tries each replacer in order and returns the first success.
-func cascadeReplace(content, oldString, newString string, replaceAll bool) (string, string, bool) {
+// Returns (newContent, strategyName, matchCount, ok).
+// When matchCount > 1 and ok is false, the caller should report the count.
+func cascadeReplace(content, oldString, newString string, replaceAll bool) (string, string, int, bool) {
+	// Check for multiple exact matches upfront so we can report count.
+	exactCount := strings.Count(content, oldString)
+	if exactCount > 1 && !replaceAll {
+		return "", "", exactCount, false
+	}
+
 	for _, r := range replacerChain {
 		result, ok := r.Replace(content, oldString, newString, replaceAll)
 		if ok {
 			slog.Info("edit replacer matched", "strategy", r.Name())
-			return result, r.Name(), true
+			return result, r.Name(), 1, true
 		}
 	}
-	return "", "", false
+	return "", "", 0, false
 }
 
 // --- Strategy 1: SimpleReplacer (exact match) ---
