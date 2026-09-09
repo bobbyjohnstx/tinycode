@@ -30,6 +30,8 @@ type Discovery struct {
 	gpuOnce     sync.Once
 	warmedMu    sync.Mutex
 	warmedModels map[string]bool
+	dormantMu   sync.Mutex
+	dormant     map[string]bool // providers removed after consecutive failures
 }
 
 func NewDiscovery(registry *Registry, b *bus.Bus) *Discovery {
@@ -38,6 +40,7 @@ func NewDiscovery(registry *Registry, b *bus.Bus) *Discovery {
 		bus:          b,
 		detectGPU:    DetectGPUMemory,
 		warmedModels: make(map[string]bool),
+		dormant:      make(map[string]bool),
 		client: &http.Client{
 			Timeout: probeTimeout,
 		},
@@ -80,15 +83,24 @@ func (d *Discovery) Stop() {
 }
 
 func (d *Discovery) poll(ctx context.Context, ollamaURL, vllmURL, lmStudioURL string) {
-	if ollamaURL != "" {
+	if ollamaURL != "" && d.shouldPoll("ollama") {
 		d.discoverOllama(ctx, ollamaURL)
 	}
-	if vllmURL != "" {
+	if vllmURL != "" && d.shouldPoll("vllm") {
 		d.discoverVLLM(ctx, vllmURL)
 	}
-	if lmStudioURL != "" {
+	if lmStudioURL != "" && d.shouldPoll("lm-studio") {
 		d.discoverLMStudio(ctx, lmStudioURL)
 	}
+}
+
+func (d *Discovery) shouldPoll(providerID string) bool {
+	if d.registry.Has(providerID) {
+		return false
+	}
+	d.dormantMu.Lock()
+	defer d.dormantMu.Unlock()
+	return !d.dormant[providerID]
 }
 
 type ollamaTagsResponse struct {
@@ -118,13 +130,16 @@ func (d *Discovery) handleDiscoveryFailure(providerID, providerName string, err 
 	)
 	if count >= maxConsecutiveFailures {
 		d.registry.Remove(providerID)
+		d.dormantMu.Lock()
+		d.dormant[providerID] = true
+		d.dormantMu.Unlock()
 		d.bus.Publish("provider.removed", map[string]any{
 			"providerID":   providerID,
 			"providerName": providerName,
 			"reason":       "consecutive_failures",
 			"failures":     count,
 		})
-		slog.Warn("provider removed after consecutive failures",
+		slog.Warn("provider removed after consecutive failures, polling suspended",
 			"provider", providerID,
 			"failures", count,
 		)
@@ -134,8 +149,13 @@ func (d *Discovery) handleDiscoveryFailure(providerID, providerName string, err 
 // handleDiscoverySuccess resets the failure counter and publishes a
 // reconnected event if the provider was previously failing.
 func (d *Discovery) handleDiscoverySuccess(providerID string) {
+	d.dormantMu.Lock()
+	wasDormant := d.dormant[providerID]
+	delete(d.dormant, providerID)
+	d.dormantMu.Unlock()
+
 	prev := d.registry.ResetFailures(providerID)
-	if prev > 0 {
+	if prev > 0 || wasDormant {
 		d.bus.Publish("provider.reconnected", map[string]any{
 			"providerID":        providerID,
 			"previous_failures": prev,

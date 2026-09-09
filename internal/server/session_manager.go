@@ -26,6 +26,7 @@ type activeSession struct {
 	processor *session.Processor
 	model     *provider.Model
 	agent     string
+	done      chan struct{} // closed when processPrompt returns
 
 	mu            sync.Mutex
 	assistMsgID   string            // bridge-generated assistant message ID during streaming
@@ -96,16 +97,24 @@ func (sm *SessionManager) SetClientFactory(f func(*provider.Model) llm.Client) {
 	sm.clientFactory = f
 }
 
-// Shutdown cancels all active session processors so they can drain
-// before the server exits.
+// Shutdown cancels all active session processors and waits for them
+// to finish persisting before returning.
 func (sm *SessionManager) Shutdown() {
 	sm.mu.Lock()
-	defer sm.mu.Unlock()
+	var doneChans []chan struct{}
 	for sid, active := range sm.sessions {
 		if active.cancel != nil {
 			active.cancel()
 		}
+		if active.done != nil {
+			doneChans = append(doneChans, active.done)
+		}
 		delete(sm.sessions, sid)
+	}
+	sm.mu.Unlock()
+
+	for _, done := range doneChans {
+		<-done
 	}
 }
 
@@ -260,17 +269,27 @@ func (sm *SessionManager) Abort(sessionID string) {
 
 func (sm *SessionManager) StartPrompt(ctx context.Context, input PromptInput) {
 	sm.mu.Lock()
-	if active, ok := sm.sessions[input.SessionID]; ok && active.cancel != nil {
-		active.cancel()
+	var oldDone chan struct{}
+	if active, ok := sm.sessions[input.SessionID]; ok {
+		if active.cancel != nil {
+			active.cancel()
+		}
+		oldDone = active.done
 	}
+	done := make(chan struct{})
 	pctx, cancel := context.WithCancel(ctx)
 	sm.sessions[input.SessionID] = &activeSession{
 		cancel: cancel,
+		done:   done,
 		idMap:  make(map[string]string),
 	}
 	sm.mu.Unlock()
 
-	go sm.processPrompt(pctx, input)
+	if oldDone != nil {
+		<-oldDone
+	}
+
+	go sm.processPrompt(pctx, input, done)
 }
 
 // subscribeProcessorEvents subscribes to Processor bus events and re-publishes
@@ -687,7 +706,8 @@ func (sm *SessionManager) bridgeWarning(evt bus.Event) {
 	})
 }
 
-func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput) {
+func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, done chan struct{}) {
+	defer close(done)
 	sessionID := input.SessionID
 	defer func() {
 		sm.mu.Lock()

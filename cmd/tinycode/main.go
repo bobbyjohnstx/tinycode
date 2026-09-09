@@ -457,6 +457,9 @@ func runTUI() {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		os.Exit(1)
 	}
+
+	cancel()
+	srv.WaitForShutdown()
 }
 
 func runServe() {
@@ -511,6 +514,7 @@ func runServe() {
 	slog.Info("server ready", "url", listener.URL.String())
 
 	<-ctx.Done()
+	srv.WaitForShutdown()
 	slog.Info("server stopped")
 }
 
@@ -569,6 +573,7 @@ func runWeb() {
 	openBrowser(url)
 
 	<-ctx.Done()
+	srv.WaitForShutdown()
 	slog.Info("server stopped")
 }
 

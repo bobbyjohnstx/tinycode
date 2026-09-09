@@ -66,6 +66,7 @@ type Server struct {
 	permissionStore *PermissionStore
 	questionStore   *QuestionStore
 	pluginSubs      []*bus.Subscription
+	shutdownDone    chan struct{}
 }
 
 func New(cfg Config, deps Dependencies) *Server {
@@ -144,11 +145,12 @@ func (s *Server) Listen(ctx context.Context) (*Listener, error) {
 		"url": u.String(),
 	})
 
+	s.shutdownDone = make(chan struct{})
 	go func() {
+		defer close(s.shutdownDone)
 		<-ctx.Done()
 		s.logger.Info("shutting down server")
 
-		// Drain active session processors before closing HTTP.
 		s.sessionManager.Shutdown()
 
 		s.deps.Bus.Publish("global.disposed", map[string]any{
@@ -243,6 +245,15 @@ func (s *Server) wirePluginHooks() {
 			})
 		}
 	}()
+}
+
+// WaitForShutdown blocks until the server's background shutdown goroutine
+// (triggered by context cancellation in Listen) has finished draining
+// all active session processors and closing the HTTP server.
+func (s *Server) WaitForShutdown() {
+	if s.shutdownDone != nil {
+		<-s.shutdownDone
+	}
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

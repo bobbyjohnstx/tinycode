@@ -102,6 +102,14 @@ func (r *Registry) Failures(id string) int {
 	return r.failures[id]
 }
 
+// Has returns true if a provider is registered.
+func (r *Registry) Has(id string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, ok := r.providers[id]
+	return ok
+}
+
 // GetProvider returns provider info by ID.
 func (r *Registry) GetProvider(id string) (*Info, error) {
 	r.mu.RLock()

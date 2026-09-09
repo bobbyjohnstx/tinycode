@@ -138,10 +138,17 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 		// for navigation keys so the user can browse and select commands.
 		if p.autocomplete.IsVisible() {
 			switch keyMsg.String() {
-			case "up", "down", "tab", "esc":
+			case "up", "down", "esc":
 				var acCmd tea.Cmd
 				p.autocomplete, acCmd, _ = p.autocomplete.Update(keyMsg)
 				return p, acCmd
+			case "tab":
+				selected := p.autocomplete.Selected()
+				if selected != "" {
+					p.textarea.SetValue("/" + selected + " ")
+				}
+				p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
+				return p, nil
 			case "enter":
 				selected := p.autocomplete.Selected()
 				if selected != "" {
