@@ -44,6 +44,7 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 - **`config/`** — Config file parsing (`~/.config/tinycode/config.json`). JSONC support.
 - **`storage/`** — SQLite via modernc.org/sqlite. Migrations in `migrations/`.
 - **`bus/`** — Event bus for inter-component communication.
+- **`lsp/`** — LSP client for code intelligence. Lazy-connects to language servers (gopls, pyright, rust-analyzer, typescript-language-server) and exposes tools: `lsp_diagnostics`, `lsp_hover`, `lsp_definition`, `lsp_references`, `lsp_symbols`. Auto-detects project language from marker files.
 - **`mcp/`** — Model Context Protocol client.
 - **`acp/`** — Agent Client Protocol (stdio transport for IDE integration).
 - **`plugin/`** — Plugin lifecycle management.

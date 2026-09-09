@@ -41,6 +41,39 @@ type Info struct {
 	Command           map[string]string          `json:"command,omitempty"`
 	Reference         map[string]string          `json:"reference,omitempty"`
 	Watcher           []string                   `json:"watcher,omitempty"`
+	LSP               *LSPConfig                 `json:"lsp,omitempty"`
+}
+
+// LSPConfig holds language server protocol client settings.
+// Accepts both a boolean (e.g. "lsp": true) and an object in JSON.
+type LSPConfig struct {
+	Enabled *bool                       `json:"enabled,omitempty"`
+	Servers map[string]LSPServerConfig  `json:"servers,omitempty"`
+	Timeout *int                        `json:"timeout,omitempty"`
+}
+
+func (c *LSPConfig) UnmarshalJSON(data []byte) error {
+	var b bool
+	if err := json.Unmarshal(data, &b); err == nil {
+		c.Enabled = &b
+		return nil
+	}
+
+	type lspAlias LSPConfig
+	var alias lspAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	*c = LSPConfig(alias)
+	return nil
+}
+
+// LSPServerConfig holds per-language server overrides.
+type LSPServerConfig struct {
+	Command  string            `json:"command"`
+	Args     []string          `json:"args,omitempty"`
+	Disabled *bool             `json:"disabled,omitempty"`
+	Env      map[string]string `json:"env,omitempty"`
 }
 
 type MCPConfig struct {
@@ -169,14 +202,17 @@ func Load(directory string) (*Info, error) {
 		slog.Warn("failed to load global config", "path", globalFile, "error", err)
 	}
 
-	configDir := ConfigDir()
-	for _, name := range []string{"config.json", "tinycode.json", "tinycode.jsonc"} {
-		f := filepath.Join(configDir, name)
-		if f == globalFile {
-			continue
-		}
-		if err := loadAndMerge(result, f, nil); err != nil {
-			slog.Warn("failed to load config file", "path", f, "error", err)
+	loaded := map[string]bool{globalFile: true}
+	for _, configDir := range configDirs() {
+		for _, name := range []string{"config.json", "tinycode.json", "tinycode.jsonc"} {
+			f := filepath.Join(configDir, name)
+			if loaded[f] {
+				continue
+			}
+			loaded[f] = true
+			if err := loadAndMerge(result, f, nil); err != nil {
+				slog.Warn("failed to load config file", "path", f, "error", err)
+			}
 		}
 	}
 
@@ -302,6 +338,9 @@ func Merge(dst, src *Info) *Info {
 	}
 	if len(src.Watcher) > 0 {
 		result.Watcher = dedup(append(result.Watcher, src.Watcher...))
+	}
+	if src.LSP != nil {
+		result.LSP = src.LSP
 	}
 	if len(src.Command) > 0 {
 		if result.Command == nil {

@@ -66,7 +66,11 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 				sb.WriteString("\n")
 			}
 		case "reasoning":
-			label := styleReasoningLabel.Render("+ Thought")
+			prefix := "+"
+			if part.ThoughtExpanded {
+				prefix = "-"
+			}
+			label := styleReasoningLabel.Render(prefix + " Thought")
 			if part.Time != nil {
 				if dur := partDuration(part); dur != "" {
 					label += styleReasoningLabel.Render(": " + dur)
@@ -74,6 +78,14 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 			}
 			sb.WriteString(label)
 			sb.WriteString("\n")
+			if part.ThoughtExpanded && part.Text != "" {
+				wrapped := wordwrap.String(part.Text, width-6)
+				for _, line := range strings.Split(wrapped, "\n") {
+					sb.WriteString(styleReasoningLabel.Render("  " + line))
+					sb.WriteString("\n")
+				}
+				sb.WriteString("\n")
+			}
 		case "tool-call":
 			sb.WriteString(renderToolCallPart(part))
 			sb.WriteString("\n")

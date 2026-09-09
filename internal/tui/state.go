@@ -66,6 +66,8 @@ type PartView struct {
 	Streaming bool `json:"-"`
 	// Collapsed hides tool result output when true.
 	Collapsed bool `json:"-"`
+	// ThoughtExpanded shows reasoning content when true.
+	ThoughtExpanded bool `json:"-"`
 }
 
 // ProviderInfo is the TUI's view of a provider.
@@ -84,10 +86,10 @@ type ModelInfo struct {
 
 // PermissionRequest represents a pending permission prompt.
 type PermissionRequest struct {
-	ID        string `json:"id"`
-	SessionID string `json:"sessionID"`
-	Tool      string `json:"tool"`
-	Input     any    `json:"input"`
+	ID         string         `json:"id"`
+	SessionID  string         `json:"sessionID"`
+	Permission string         `json:"permission"`
+	Metadata   map[string]any `json:"metadata"`
 }
 
 // AppState holds all shared TUI state, mutated only through the Update path.
@@ -103,10 +105,11 @@ type AppState struct {
 	SessionStatus map[string]SessionStatus
 
 	// Local UI state
-	CurrentAgent string
-	CurrentModel ModelSelection
-	SidebarOpen  bool
-	Connected    bool
+	CurrentAgent       string
+	CurrentModel       ModelSelection
+	SidebarOpen        bool
+	Connected          bool
+	PendingModelDialog bool
 }
 
 // SessionInfo is a lightweight view of session.Info for the TUI layer,

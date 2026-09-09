@@ -289,7 +289,10 @@ func TestModelDialog_CursorStartsOnCurrentModel(t *testing.T) {
 		},
 	}, ModelSelection{ProviderID: "lm-studio", ModelID: "ornith-1.0-9b-mlx"})
 
-	// Press enter immediately — should select ornith, not the embedding model.
+	// Phase 1: provider is pre-selected, press enter to open models.
+	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Phase 2: cursor should be on ornith (the current model), press enter.
 	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("expected cmd from enter")
@@ -421,17 +424,17 @@ func TestPermissionDismissed_RestoresFocusAndEmitsReply(t *testing.T) {
 	app.height = 30
 	app.ready = true
 	app.permPrompt.Show(PermissionRequest{
-		ID:        "perm-1",
-		SessionID: "ses_123",
-		Tool:      "shell",
+		ID:         "perm-1",
+		SessionID:  "ses_123",
+		Permission: "shell",
 	})
 	app.focus = FocusDialog
 
 	result, cmd := app.Update(PermissionDismissedMsg{
 		Request: PermissionRequest{
-			ID:        "perm-1",
-			SessionID: "ses_123",
-			Tool:      "shell",
+			ID:         "perm-1",
+			SessionID:  "ses_123",
+			Permission: "shell",
 		},
 		Action: PermissionAllow,
 	})

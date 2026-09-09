@@ -12,7 +12,7 @@ import (
 
 func TestPermissionPrompt_DefaultIsAllow(t *testing.T) {
 	p := NewPermissionPrompt()
-	p.Show(PermissionRequest{ID: "1", Tool: "shell"})
+	p.Show(PermissionRequest{ID: "1", Permission: "shell"})
 
 	// Press enter immediately — should default to Allow.
 	p, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -35,7 +35,7 @@ func TestPermissionPrompt_DefaultIsAllow(t *testing.T) {
 
 func TestPermissionPrompt_NavigateAndSelect(t *testing.T) {
 	p := NewPermissionPrompt()
-	p.Show(PermissionRequest{ID: "2", Tool: "write"})
+	p.Show(PermissionRequest{ID: "2", Permission: "edit"})
 
 	// Navigate right twice to reach Reject.
 	p, _ = p.Update(keyMsg("right"))
@@ -55,7 +55,7 @@ func TestPermissionPrompt_NavigateAndSelect(t *testing.T) {
 
 func TestPermissionPrompt_EscapeRejects(t *testing.T) {
 	p := NewPermissionPrompt()
-	p.Show(PermissionRequest{ID: "3", Tool: "edit"})
+	p.Show(PermissionRequest{ID: "3", Permission: "edit"})
 
 	p, cmd := p.Update(keyMsg("esc"))
 	if cmd == nil {
@@ -74,7 +74,7 @@ func TestPermissionPrompt_EscapeRejects(t *testing.T) {
 
 func TestPermissionPrompt_LeftBoundsCheck(t *testing.T) {
 	p := NewPermissionPrompt()
-	p.Show(PermissionRequest{ID: "4", Tool: "shell"})
+	p.Show(PermissionRequest{ID: "4", Permission: "shell"})
 
 	// Already at Allow (index 0); pressing left should stay at Allow.
 	p, _ = p.Update(keyMsg("left"))
@@ -196,11 +196,11 @@ func TestModelDialog_NavWraps(t *testing.T) {
 		},
 	})
 
-	// Items: [header(0), m1(1), m2(2)].
-	// Initial selection starts at first non-header: m1 (index 1).
-	// Press up — should wrap past header to m2 (index 2).
+	// Phase 1: provider list. Enter selects the provider.
+	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Phase 2: model list. Navigate up to wrap to m2.
 	d, _ = d.Update(keyMsg("k"))
-	// Should be at m2 (index 2).
 
 	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
@@ -241,8 +241,10 @@ func TestModelDialog_EnterOnModel(t *testing.T) {
 		},
 	})
 
-	// Navigate to the model (skip header).
-	d, _ = d.Update(keyMsg("j"))
+	// Phase 1: select provider.
+	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Phase 2: first model is pre-selected, press enter.
 	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("expected cmd from enter on model")

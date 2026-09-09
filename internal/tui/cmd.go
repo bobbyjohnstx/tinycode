@@ -83,12 +83,13 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 		return SessionErrorMsg{SessionID: sessionID, Error: errMsg}
 
 	case "permission.asked":
+		metadata, _ := props["metadata"].(map[string]any)
 		return PermissionRequestedMsg{
 			Request: PermissionRequest{
-				ID:        stringProp(props, "id"),
-				SessionID: sessionID,
-				Tool:      stringProp(props, "tool"),
-				Input:     props["input"],
+				ID:         stringProp(props, "id"),
+				SessionID:  sessionID,
+				Permission: stringProp(props, "permission"),
+				Metadata:   metadata,
 			},
 		}
 

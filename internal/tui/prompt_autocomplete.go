@@ -23,10 +23,13 @@ type AutocompleteDismissMsg struct{}
 
 // Autocomplete is a popover that triggers on "/" at input start,
 // filters by typed text, and allows selection via Up/Down/Tab/Enter/Escape.
+// It supports two modes: "/" for slash commands and "/ask" for agent selection.
 type Autocomplete struct {
 	commands []AutocompleteItem
+	agents   []AutocompleteItem
 	filtered []AutocompleteItem
 	visible  bool
+	mode     string // "/" or "/ask"
 	cursor   int
 	query    string
 	width    int
@@ -42,6 +45,11 @@ func (ac *Autocomplete) SetCommands(cmds []AutocompleteItem) {
 	ac.commands = cmds
 }
 
+// SetAgents sets the available agents for /ask completion.
+func (ac *Autocomplete) SetAgents(agents []AutocompleteItem) {
+	ac.agents = agents
+}
+
 // SetWidth sets the popover width.
 func (ac *Autocomplete) SetWidth(w int) {
 	ac.width = w
@@ -50,6 +58,11 @@ func (ac *Autocomplete) SetWidth(w int) {
 // IsVisible returns whether the autocomplete popover is showing.
 func (ac *Autocomplete) IsVisible() bool {
 	return ac.visible
+}
+
+// Mode returns the current autocomplete mode ("/" or "/ask").
+func (ac *Autocomplete) Mode() string {
+	return ac.mode
 }
 
 // Selected returns the currently highlighted command name, or "" if none.
@@ -70,10 +83,38 @@ func (ac *Autocomplete) UpdateInput(text string) {
 		ac.visible = false
 		ac.cursor = 0
 		ac.query = ""
+		ac.mode = ""
 		return
 	}
 
+	// "/ask <partial>" → agent mode
+	if strings.HasPrefix(text, "/ask ") {
+		afterAsk := text[5:]
+		trimmed := strings.TrimSpace(afterAsk)
+		// If the user typed a complete agent name followed by a space (ready to type message),
+		// or typed "agent message" (space within the non-whitespace part), dismiss
+		if trimmed != "" && strings.HasSuffix(afterAsk, " ") {
+			ac.visible = false
+			ac.cursor = 0
+			ac.query = ""
+			ac.mode = ""
+			return
+		}
+		if ac.mode != "/ask" {
+			ac.cursor = 0
+		}
+		ac.visible = true
+		ac.mode = "/ask"
+		ac.query = afterAsk
+		ac.filter()
+		return
+	}
+
+	if ac.mode == "/ask" {
+		ac.cursor = 0
+	}
 	ac.visible = true
+	ac.mode = "/"
 	ac.query = strings.TrimPrefix(text, "/")
 	ac.filter()
 }
@@ -81,10 +122,14 @@ func (ac *Autocomplete) UpdateInput(text string) {
 // filter recalculates the filtered list based on the current query.
 func (ac *Autocomplete) filter() {
 	q := strings.ToLower(ac.query)
+	source := ac.commands
+	if ac.mode == "/ask" {
+		source = ac.agents
+	}
 	ac.filtered = ac.filtered[:0]
-	for _, cmd := range ac.commands {
-		if q == "" || strings.HasPrefix(strings.ToLower(cmd.Name), q) {
-			ac.filtered = append(ac.filtered, cmd)
+	for _, item := range source {
+		if q == "" || strings.HasPrefix(strings.ToLower(item.Name), q) {
+			ac.filtered = append(ac.filtered, item)
 		}
 	}
 	if ac.cursor >= len(ac.filtered) {
@@ -152,17 +197,22 @@ func (ac Autocomplete) View() string {
 		w = 40
 	}
 
-	// Calculate the widest command name for column alignment.
+	isAskMode := ac.mode == "/ask"
+	prefix := "/"
+	if isAskMode {
+		prefix = ""
+	}
+
 	nameCol := 0
 	for _, cmd := range ac.filtered {
-		n := len(cmd.Name) + 1 // +1 for "/"
+		n := len(cmd.Name) + len(prefix)
 		if n > nameCol {
 			nameCol = n
 		}
 	}
-	nameCol += 2 // padding after name
+	nameCol += 2
 
-	descCol := w - nameCol - 6 // account for border padding
+	descCol := w - nameCol - 6
 	if descCol < 10 {
 		descCol = 10
 	}
@@ -178,7 +228,7 @@ func (ac Autocomplete) View() string {
 
 	var lines []string
 	for i, cmd := range ac.filtered {
-		name := "/" + cmd.Name
+		name := prefix + cmd.Name
 		desc := cmd.Description
 		if len(desc) > descCol {
 			desc = desc[:descCol-1] + "…"

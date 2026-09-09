@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,15 +32,14 @@ type PromptInput struct {
 // NewPromptInput creates a PromptInput with the given width.
 func NewPromptInput(width int) PromptInput {
 	ta := textarea.New()
-	ta.Placeholder = "Type a message..."
+	ta.Placeholder = `Ask anything... "Fix a TODO in the codebase"`
 	ta.Prompt = ""
 	ta.ShowLineNumbers = false
-	ta.SetWidth(width - 4)
+	ta.SetWidth(width - 6)
 	ta.SetHeight(3)
 	ta.Focus()
 	ta.CharLimit = 0
 
-	// Strip all default textarea chrome — the prompt accent bar handles the visual frame.
 	noBorder := lipgloss.NewStyle()
 	ta.FocusedStyle.Base = noBorder
 	ta.FocusedStyle.CursorLine = noBorder
@@ -79,7 +79,7 @@ func (p *PromptInput) ResetStartupGuard() {
 // SetSize updates the prompt width.
 func (p *PromptInput) SetSize(width int) {
 	p.width = width
-	p.textarea.SetWidth(width - 4)
+	p.textarea.SetWidth(width - 6)
 	p.autocomplete.SetWidth(width)
 }
 
@@ -87,6 +87,11 @@ func (p *PromptInput) SetSize(width int) {
 func (p *PromptInput) SetCommands(cmds []AutocompleteItem) {
 	p.autocomplete.SetCommands(cmds)
 	p.autocomplete.SetWidth(p.width)
+}
+
+// SetAgents sets the available agents for /ask autocomplete.
+func (p *PromptInput) SetAgents(agents []AutocompleteItem) {
+	p.autocomplete.SetAgents(agents)
 }
 
 // SetMetadata updates the agent/model display below the textarea.
@@ -145,21 +150,20 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 			case "tab":
 				selected := p.autocomplete.Selected()
 				if selected != "" {
-					p.textarea.SetValue("/" + selected + " ")
+					p.textarea.SetValue(p.formatSelection(selected))
 				}
 				p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
 				return p, nil
 			case "enter":
 				selected := p.autocomplete.Selected()
 				if selected != "" {
-					current := strings.TrimPrefix(strings.TrimSpace(p.textarea.Value()), "/")
-					if current != selected && !strings.HasPrefix(current, selected+" ") {
-						// Still completing — fill in the command name
-						p.textarea.SetValue("/" + selected + " ")
+					current := strings.TrimSpace(p.textarea.Value())
+					formatted := strings.TrimSpace(p.formatSelection(selected))
+					if current != formatted && !strings.HasPrefix(current, formatted+" ") {
+						p.textarea.SetValue(p.formatSelection(selected))
 						p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
 						return p, nil
 					}
-					// User already typed the full command — dismiss and fall through to submit
 					p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
 				}
 				// Fall through to normal enter handling.
@@ -214,32 +218,80 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 
 // View implements tea.Model.
 func (p PromptInput) View() string {
-	innerWidth := p.width - 4 // account for accent border + padding
+	accentColor := lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"}
+	surfaceColor := lipgloss.AdaptiveColor{Light: "#F0F0F0", Dark: "#1E293B"}
+
+	innerWidth := p.width - 3 // ┃ + padding
 
 	taView := p.textarea.View()
 	meta := p.renderMetadata()
-	inner := lipgloss.JoinVertical(lipgloss.Left, taView, meta)
 
-	box := stylePromptAccent.Width(innerWidth).Render(inner)
-	top := stylePromptBorder.Width(p.width - 2).Render(box)
+	composerBody := lipgloss.JoinVertical(lipgloss.Left, taView, meta)
+	paddedBody := lipgloss.NewStyle().PaddingLeft(1).Width(innerWidth).Render(composerBody)
+
+	// Spacer row above prompt
+	spacerLine := ""
+
+	// Left border: ┃ with accent color, indented from left edge
+	indent := "  "
+	bodyLines := strings.Split(paddedBody, "\n")
+	borderChar := lipgloss.NewStyle().Foreground(accentColor).Render("┃")
+	var bordered []string
+	bordered = append(bordered, spacerLine)
+	for _, line := range bodyLines {
+		bordered = append(bordered, indent+borderChar+line)
+	}
+
+	// Bottom: indented ╹ + ▀▀▀▀ fill
+	bottomLeft := lipgloss.NewStyle().Foreground(accentColor).Render("╹")
+	fillWidth := p.width - 3
+	if fillWidth < 1 {
+		fillWidth = 1
+	}
+	fillChar := lipgloss.NewStyle().Foreground(surfaceColor).Render(strings.Repeat("▀", fillWidth))
+	bordered = append(bordered, indent+bottomLeft+fillChar)
+
+	result := strings.Join(bordered, "\n")
 
 	if p.autocomplete.IsVisible() {
 		acView := p.autocomplete.View()
-		return lipgloss.JoinVertical(lipgloss.Left, acView, top)
+		return lipgloss.JoinVertical(lipgloss.Left, acView, result)
 	}
 
-	return top
+	return result
 }
 
 // renderMetadata renders the status line below the textarea.
 func (p PromptInput) renderMetadata() string {
-	agentPrefix := "  " + p.agent
-	modelProvider := truncatedModelProvider(p.model, p.provider, p.width-len(agentPrefix)-5)
-	label := agentPrefix
-	if modelProvider != "" {
-		label = fmt.Sprintf("%s · %s", agentPrefix, modelProvider)
+	accentColor := lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"}
+	dimColor := lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}
+
+	agentStyle := lipgloss.NewStyle().Foreground(accentColor)
+	dimStyle := lipgloss.NewStyle().Foreground(dimColor)
+
+	agentName := p.agent
+	if len(agentName) > 0 {
+		runes := []rune(agentName)
+		runes[0] = unicode.ToUpper(runes[0])
+		agentName = string(runes)
 	}
-	return styleMetadata.Width(p.width).Render(label)
+	agent := agentStyle.Render(agentName)
+
+	modelInfo := truncatedModelProvider(p.model, p.provider, p.width-len(p.agent)-10)
+	if modelInfo == "" {
+		modelInfo = "No provider selected"
+	}
+
+	return fmt.Sprintf("  %s %s %s", agent, dimStyle.Render("·"), dimStyle.Render(modelInfo))
+}
+
+// formatSelection returns the text to fill into the prompt for a selected
+// autocomplete item, accounting for the current mode ("/" vs "/ask").
+func (p PromptInput) formatSelection(selected string) string {
+	if p.autocomplete.Mode() == "/ask" {
+		return "/ask " + selected + " "
+	}
+	return "/" + selected + " "
 }
 
 // isTerminalEscape returns true if the string looks like a terminal escape

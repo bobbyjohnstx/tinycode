@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,13 +24,59 @@ type StatusBar struct {
 // NewStatusBar creates a StatusBar with the given width.
 func NewStatusBar(width int) StatusBar {
 	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"})
+	sp.Spinner = knightRiderSpinner()
+	sp.Style = lipgloss.NewStyle()
 
 	return StatusBar{
 		spinner: sp,
 		width:   width,
 		agent:   "build",
+	}
+}
+
+// knightRiderSpinner creates a Knight Rider-style bouncing block scanner.
+func knightRiderSpinner() spinner.Spinner {
+	const width = 8
+	accentColor := lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"}
+	dimColor := lipgloss.AdaptiveColor{Light: "#552222", Dark: "#441111"}
+
+	accent := lipgloss.NewStyle().Foreground(accentColor)
+	dim := lipgloss.NewStyle().Foreground(dimColor)
+
+	// Forward (0→7) + backward (6→1) = 14 frames
+	var frames []string
+	positions := make([]int, 0, width*2-2)
+	for i := 0; i < width; i++ {
+		positions = append(positions, i)
+	}
+	for i := width - 2; i > 0; i-- {
+		positions = append(positions, i)
+	}
+
+	for _, pos := range positions {
+		var frame strings.Builder
+		for i := 0; i < width; i++ {
+			dist := pos - i
+			if dist < 0 {
+				dist = -dist
+			}
+			switch {
+			case dist == 0:
+				frame.WriteString(accent.Render("█"))
+			case dist == 1:
+				frame.WriteString(accent.Render("▓"))
+			case dist == 2:
+				frame.WriteString(dim.Render("▒"))
+			default:
+				frame.WriteString(dim.Render("·"))
+			}
+		}
+		frames = append(frames, frame.String())
+	}
+
+	return spinner.Spinner{
+		Frames: frames,
+		FPS:    time.Second / 25,
 	}
 }
 
@@ -54,9 +101,15 @@ func (s *StatusBar) SetAgent(agent string) {
 	s.agent = agent
 }
 
-// SetWorking updates the working state.
-func (s *StatusBar) SetWorking(working bool) {
+// SetWorking updates the working state and returns a command to restart
+// the spinner tick chain when transitioning to working.
+func (s *StatusBar) SetWorking(working bool) tea.Cmd {
+	wasWorking := s.working
 	s.working = working
+	if working && !wasWorking {
+		return s.spinner.Tick
+	}
+	return nil
 }
 
 // Init implements tea.Model.
@@ -78,6 +131,8 @@ func (s StatusBar) Update(msg tea.Msg) (StatusBar, tea.Cmd) {
 func (s StatusBar) View() string {
 	dim := lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#666666"})
+	accent := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
 
 	// Hints line
 	var hintsLeft string
@@ -92,8 +147,7 @@ func (s StatusBar) View() string {
 	}
 	hintsLine := hintsLeft + strings.Repeat(" ", hintsGap) + hintsRight
 
-	// Status bar: cwd left, model+provider right.
-	// styleStatusBar has Padding(0,1) so content area is width-2.
+	// Status bar: cwd left, model right.
 	innerWidth := s.width - 2
 
 	left := ""
@@ -101,7 +155,14 @@ func (s StatusBar) View() string {
 		left = shortenCwd(s.cwd)
 	}
 
-	right := truncatedModelProvider(s.model, s.provider, innerWidth-lipgloss.Width(left)-2)
+	var rightParts []string
+	if s.model != "" {
+		rightParts = append(rightParts, accent.Render(s.model))
+	}
+	if s.provider != "" {
+		rightParts = append(rightParts, dim.Render(s.provider))
+	}
+	right := strings.Join(rightParts, "  ")
 
 	statusGap := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
 	if statusGap < 1 {

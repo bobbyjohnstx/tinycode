@@ -63,12 +63,19 @@ func BuildSystemPrompt(input SystemPromptInput) string {
 func buildToolSection(tools []llm.Tool) string {
 	var sb strings.Builder
 	sb.WriteString("# Available Tools\n")
+	hasLSP := false
 	for _, tool := range tools {
 		sb.WriteString(fmt.Sprintf("- **%s**", tool.Function.Name))
 		if tool.Function.Description != "" {
 			sb.WriteString(fmt.Sprintf(": %s", tool.Function.Description))
 		}
 		sb.WriteString("\n")
+		if !hasLSP && strings.HasPrefix(tool.Function.Name, "lsp_") {
+			hasLSP = true
+		}
+	}
+	if hasLSP {
+		sb.WriteString("\nUse `lsp_diagnostics` to check files for errors after writing or editing code. Use `lsp_hover` and `lsp_definition` to understand APIs before coding against them.\n")
 	}
 	return sb.String()
 }

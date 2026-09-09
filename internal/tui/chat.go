@@ -66,6 +66,18 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 		c.rebuildContent()
 		return c, nil
 
+	case ToggleThoughtMsg:
+		c.toggleThought(msg.PartID)
+		c.rebuildContent()
+		return c, nil
+
+	case tea.KeyMsg:
+		if msg.String() == "T" {
+			c.toggleThought("")
+			c.rebuildContent()
+			return c, nil
+		}
+
 	case MessagesLoadedMsg:
 		if msg.Err == nil {
 			views := make([]MessageView, 0, len(msg.Messages))
@@ -179,6 +191,22 @@ func (c *ChatView) upsertPart(msg MessagePartUpdatedMsg) {
 		}
 		c.messages[i].Parts = append(c.messages[i].Parts, msg.Part)
 		return
+	}
+}
+
+// toggleThought toggles the expanded state of reasoning parts.
+// If partID is empty, toggles all reasoning parts.
+func (c *ChatView) toggleThought(partID string) {
+	for i := range c.messages {
+		for j := range c.messages[i].Parts {
+			p := &c.messages[i].Parts[j]
+			if p.Type != "reasoning" {
+				continue
+			}
+			if partID == "" || p.ID == partID {
+				p.ThoughtExpanded = !p.ThoughtExpanded
+			}
+		}
 	}
 }
 

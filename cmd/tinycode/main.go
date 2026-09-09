@@ -22,6 +22,7 @@ import (
 	_ "github.com/bobbyjohnstx/tinycode-go/internal/earlyinit"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/acp"
+	"github.com/bobbyjohnstx/tinycode-go/internal/lsp"
 	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
@@ -52,11 +53,17 @@ func main() {
 	}()
 
 	if len(os.Args) < 2 {
-		runTUI()
+		runTUI(nil)
 		return
 	}
 
 	cmd := os.Args[1]
+
+	// If the first arg is a flag, treat it as a TUI invocation with flags.
+	if strings.HasPrefix(cmd, "-") {
+		runTUI(os.Args[1:])
+		return
+	}
 
 	// If the first arg is an existing directory, use it as the working directory.
 	if info, err := os.Stat(cmd); err == nil && info.IsDir() {
@@ -69,13 +76,13 @@ func main() {
 			fmt.Fprintf(os.Stderr, "changing directory: %v\n", err)
 			os.Exit(1)
 		}
-		runTUI()
+		runTUI(os.Args[2:])
 		return
 	}
 
 	switch cmd {
 	case "tui":
-		runTUI()
+		runTUI(os.Args[2:])
 	case "serve":
 		runServe()
 	case "web":
@@ -137,8 +144,10 @@ func printUsage() {
 	fmt.Println("  version    Print version information")
 	fmt.Println("  help       Show this help message")
 	fmt.Println()
-	fmt.Println("Run flags:")
+	fmt.Println("Global flags (tui, run, serve, web):")
 	fmt.Println("  -m, --model       Model to use (provider/model)")
+	fmt.Println()
+	fmt.Println("Run flags:")
 	fmt.Println("  --agent           Agent to use (default: build)")
 	fmt.Println("  --format          Output format: default, json")
 	fmt.Println("  -c, --continue    Continue an existing session")
@@ -146,6 +155,14 @@ func printUsage() {
 	fmt.Println("  --title           Session title")
 	fmt.Println("  --dangerously-skip-permissions  Auto-approve all tool permissions")
 	fmt.Println("  -i, --interactive  Show permission prompts (default: auto-deny)")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  tinycode                              Start TUI in current directory")
+	fmt.Println("  tinycode ~/projects/myapp              Start TUI in specified directory")
+	fmt.Println("  tinycode -m ollama/qwen3:8b            Start TUI with specific model")
+	fmt.Println("  tinycode run -m ollama/qwen3:8b \"fix the bug\"")
+	fmt.Println("  tinycode run ~/projects/myapp \"fix the bug\"")
+	fmt.Println("  tinycode serve -m ollama/qwen3:8b      Start server with specific model")
 	fmt.Println()
 	fmt.Println("Environment:")
 	fmt.Println("  TINYCODE_PORT       Override default server port (4096)")
@@ -282,6 +299,30 @@ func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Serv
 	toolReg := tool.NewRegistry(toolCtx)
 	tool.RegisterBuiltins(toolReg)
 	return toolReg, permSvc, toolCtx
+}
+
+func initLSP(dir string, cfg *config.Info, toolReg *tool.Registry) *lsp.Manager {
+	var lspCfg *lsp.Config
+	if cfg.LSP != nil {
+		lspCfg = &lsp.Config{
+			Enabled: cfg.LSP.Enabled,
+			Timeout: cfg.LSP.Timeout,
+		}
+		if cfg.LSP.Servers != nil {
+			lspCfg.Servers = make(map[string]lsp.ServerConfig, len(cfg.LSP.Servers))
+			for k, v := range cfg.LSP.Servers {
+				lspCfg.Servers[k] = lsp.ServerConfig{
+					Command:  v.Command,
+					Args:     v.Args,
+					Disabled: v.Disabled,
+					Env:      v.Env,
+				}
+			}
+		}
+	}
+	mgr := lsp.NewManager(dir, lspCfg)
+	lsp.RegisterTools(toolReg, mgr)
+	return mgr
 }
 
 func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager) {
@@ -454,8 +495,22 @@ func loadConfigPlugins(mgr *plugin.Manager, cfg *config.Info, dir string) {
 	}
 }
 
-func runTUI() {
+type commonFlags struct {
+	model string
+}
+
+func parseCommonFlags(name string, args []string) commonFlags {
+	fs := flag.NewFlagSet(name, flag.ExitOnError)
+	modelFlag := fs.String("m", "", "model to use (provider/model)")
+	fs.StringVar(modelFlag, "model", "", "model to use (provider/model)")
+	_ = fs.Parse(args)
+	return commonFlags{model: *modelFlag}
+}
+
+func runTUI(args []string) {
 	setupLogger()
+
+	flags := parseCommonFlags("tui", args)
 
 	b, db, cfg := initDependencies()
 	defer db.Close()
@@ -480,10 +535,17 @@ func runTUI() {
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir)
 
+	lspMgr := initLSP(dir, cfg, toolReg)
+	defer lspMgr.Close()
+
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
 	wireToolAfterHook(toolCtx, pluginMgr)
+
+	if flags.model != "" {
+		cfg.Model = flags.model
+	}
 
 	srvCfg := serverConfig(cfg, false)
 	srvCfg.Port = 0
@@ -524,6 +586,8 @@ func runServe() {
 	setupLogger()
 	slog.Info("starting tinycode server", "version", version)
 
+	flags := parseCommonFlags("serve", os.Args[2:])
+
 	b, db, cfg := initDependencies()
 	defer db.Close()
 	defer b.Close()
@@ -547,10 +611,17 @@ func runServe() {
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir)
 
+	lspMgr := initLSP(dir, cfg, toolReg)
+	defer lspMgr.Close()
+
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
 	wireToolAfterHook(toolCtx, pluginMgr)
+
+	if flags.model != "" {
+		cfg.Model = flags.model
+	}
 
 	srv := server.New(serverConfig(cfg, false), server.Dependencies{
 		Bus:           b,
@@ -581,6 +652,8 @@ func runWeb() {
 	setupLogger()
 	slog.Info("starting tinycode web", "version", version)
 
+	flags := parseCommonFlags("web", os.Args[2:])
+
 	b, db, cfg := initDependencies()
 	defer db.Close()
 	defer b.Close()
@@ -604,10 +677,17 @@ func runWeb() {
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir)
 
+	lspMgr := initLSP(dir, cfg, toolReg)
+	defer lspMgr.Close()
+
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
 	wireToolAfterHook(toolCtx, pluginMgr)
+
+	if flags.model != "" {
+		cfg.Model = flags.model
+	}
 
 	srv := server.New(serverConfig(cfg, true), server.Dependencies{
 		Bus:           b,
@@ -678,8 +758,25 @@ func runRun() {
 	fs.BoolVar(interactiveFlag, "interactive", false, "show permission prompts (default: auto-deny)")
 	_ = fs.Parse(os.Args[2:])
 
+	// If the first positional arg is a directory, chdir to it.
+	positional := fs.Args()
+	if len(positional) > 0 {
+		if info, err := os.Stat(positional[0]); err == nil && info.IsDir() {
+			absDir, err := filepath.Abs(positional[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "resolving directory: %v\n", err)
+				os.Exit(1)
+			}
+			if err := os.Chdir(absDir); err != nil {
+				fmt.Fprintf(os.Stderr, "changing directory: %v\n", err)
+				os.Exit(1)
+			}
+			positional = positional[1:]
+		}
+	}
+
 	// Collect prompt from remaining args + stdin
-	prompt := strings.Join(fs.Args(), " ")
+	prompt := strings.Join(positional, " ")
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		stdinData, err := io.ReadAll(os.Stdin)
 		if err != nil {
@@ -720,6 +817,9 @@ func runRun() {
 	agentReg := initAgentRegistry(cfg, dir)
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir)
+
+	lspMgr := initLSP(dir, cfg, toolReg)
+	defer lspMgr.Close()
 
 	// Configure permission behavior via bus subscriber
 	if *skipPermsFlag || !*interactiveFlag {

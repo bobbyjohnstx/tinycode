@@ -29,17 +29,14 @@ func TestWelcomeScreen(t *testing.T) {
 	out := readOutput(t, tm)
 	s := string(out)
 
-	if !contains(out, "████") {
-		t.Error("expected TINY CODE logo in welcome screen")
+	if !contains(out, "Getting Started") {
+		t.Error("expected Getting Started in welcome screen")
 	}
-	if !contains(out, "Tip") {
-		t.Error("expected a tip in welcome screen")
-	}
-	if !contains(out, "Type a message") {
+	if !contains(out, "Ask anything") {
 		t.Error("expected placeholder text in prompt")
 	}
-	if !contains(out, "build") {
-		t.Error("expected 'build' agent label in prompt metadata")
+	if !contains(out, "Build") {
+		t.Error("expected 'Build' agent label in prompt metadata")
 	}
 	if !contains(out, "tab agents") {
 		t.Error("expected hints in status bar")

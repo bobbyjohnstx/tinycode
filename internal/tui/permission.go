@@ -125,26 +125,27 @@ func (p PermissionPrompt) View() string {
 		return ""
 	}
 
-	dialogWidth := p.width / 2
+	dialogWidth := p.width - 4
 	if dialogWidth < 50 {
 		dialogWidth = 50
 	}
-	if dialogWidth > 80 {
-		dialogWidth = 80
+	if dialogWidth > 100 {
+		dialogWidth = 100
 	}
 
-	var sb strings.Builder
-	sb.WriteString("Permission Required\n\n")
-	sb.WriteString(fmt.Sprintf("Tool: %s\n", styleToolName.Render(p.request.Tool)))
+	warningColor := lipgloss.AdaptiveColor{Light: "#CC8800", Dark: "#FFAA33"}
+	warningStyle := lipgloss.NewStyle().Foreground(warningColor)
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
 
-	if p.request.Input != nil {
-		if data, err := json.MarshalIndent(p.request.Input, "", "  "); err == nil {
-			args := string(data)
-			if len(args) > 200 {
-				args = args[:197] + "..."
-			}
-			sb.WriteString(fmt.Sprintf("\n%s\n", styleMetadata.Render(args)))
-		}
+	icon, title, body := p.toolDescription()
+
+	var sb strings.Builder
+	sb.WriteString(warningStyle.Render("△") + " Permission required\n")
+	sb.WriteString("  " + dimStyle.Render(icon) + " " + title + "\n")
+
+	if body != "" {
+		sb.WriteString("\n" + dimStyle.Render(body) + "\n")
 	}
 
 	sb.WriteString("\n")
@@ -153,8 +154,8 @@ func (p PermissionPrompt) View() string {
 		label  string
 		action PermissionAction
 	}{
-		{"Allow", PermissionAllow},
-		{"Always", PermissionAlways},
+		{"Allow once", PermissionAllow},
+		{"Allow always", PermissionAlways},
 		{"Reject", PermissionReject},
 	}
 
@@ -167,19 +168,126 @@ func (p PermissionPrompt) View() string {
 			if a.action == PermissionReject {
 				buttons = append(buttons, rejectStyle.Render("["+label+"]"))
 			} else {
-				buttons = append(buttons, styleSelected.Render("["+label+"]"))
+				buttons = append(buttons, warningStyle.Render("["+label+"]"))
 			}
 		} else {
 			buttons = append(buttons, " "+label+" ")
 		}
 	}
 	sb.WriteString(strings.Join(buttons, "  "))
+	sb.WriteString("    " + dimStyle.Render("⇆ select  enter confirm"))
 
 	content := sb.String()
+
+	borderStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(warningColor).
+		Padding(1, 2)
 
 	return lipgloss.Place(
 		p.width, p.height,
 		lipgloss.Center, lipgloss.Center,
-		styleDialogBorder.Width(dialogWidth).Render(content),
+		borderStyle.Width(dialogWidth).Render(content),
 	)
+}
+
+// toolDescription returns an icon, title, and body for the permission request
+// based on the permission type and metadata, matching the TS TUI's contextual display.
+func (p PermissionPrompt) toolDescription() (icon, title, body string) {
+	args := p.parseArgs()
+	toolName, _ := p.request.Metadata["tool"].(string)
+
+	switch p.request.Permission {
+	case "shell", "destructive-shell":
+		title = "Shell command"
+		if desc, ok := args["description"].(string); ok && desc != "" {
+			title = desc
+		}
+		if cmd, ok := args["command"].(string); ok && cmd != "" {
+			body = "  $ " + cmd
+		}
+		return "#", title, body
+
+	case "edit":
+		fp := p.argPath(args, "file_path")
+		if fp != "" {
+			title = "Edit " + fp
+		} else {
+			title = "Edit file"
+		}
+		return "→", title, body
+
+	case "read":
+		fp := p.argPath(args, "file_path")
+		if fp == "" {
+			fp = p.argPath(args, "filePath")
+		}
+		if fp != "" {
+			title = "Read " + fp
+		} else {
+			title = "Read file"
+		}
+		return "→", title, body
+
+	case "glob":
+		if pattern, ok := args["pattern"].(string); ok && pattern != "" {
+			title = fmt.Sprintf("Glob \"%s\"", pattern)
+		} else {
+			title = "Glob"
+		}
+		return "✱", title, body
+
+	case "grep":
+		if pattern, ok := args["pattern"].(string); ok && pattern != "" {
+			title = fmt.Sprintf("Grep \"%s\"", pattern)
+		} else {
+			title = "Grep"
+		}
+		return "✱", title, body
+
+	default:
+		if toolName != "" {
+			title = fmt.Sprintf("Call tool %s", toolName)
+		} else {
+			title = fmt.Sprintf("Permission: %s", p.request.Permission)
+		}
+		if len(args) > 0 {
+			if raw, err := json.MarshalIndent(args, "  ", "  "); err == nil {
+				s := string(raw)
+				if len(s) > 200 {
+					s = s[:197] + "..."
+				}
+				body = "  " + s
+			}
+		}
+		return "⚙", title, body
+	}
+}
+
+// parseArgs extracts the tool arguments from metadata. The server stores
+// args as a JSON string in metadata["args"].
+func (p PermissionPrompt) parseArgs() map[string]any {
+	if p.request.Metadata == nil {
+		return nil
+	}
+	raw, ok := p.request.Metadata["args"].(string)
+	if !ok || raw == "" {
+		return nil
+	}
+	var args map[string]any
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		return nil
+	}
+	return args
+}
+
+// argPath extracts a file path from args and shortens it for display.
+func (p PermissionPrompt) argPath(args map[string]any, key string) string {
+	if args == nil {
+		return ""
+	}
+	if fp, ok := args[key].(string); ok && fp != "" {
+		return shortenCwd(fp)
+	}
+	return ""
 }

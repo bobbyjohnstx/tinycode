@@ -149,6 +149,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state.SessionStatus[msg.SessionID] = SessionStatus{Working: false}
 		return a, cmd
 
+
 	case ToastMsg:
 		cmd := a.toast.Show(msg.Text, msg.IsError)
 		return a, cmd
@@ -162,9 +163,17 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil {
 			a.state.Agents = msg.Agents
 			names := make([]string, len(msg.Agents))
+			agentItems := make([]AutocompleteItem, 0, len(msg.Agents))
 			for i, ag := range msg.Agents {
 				names[i] = ag.Name
+				if ag.Mode != "primary" {
+					agentItems = append(agentItems, AutocompleteItem{
+						Name:        ag.Name,
+						Description: ag.Description,
+					})
+				}
 			}
+			a.prompt.SetAgents(agentItems)
 			slog.Info("agents loaded", "count", len(msg.Agents), "names", names)
 		} else {
 			slog.Error("agent list fetch failed", "error", msg.Err)
@@ -230,15 +239,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case PromptSubmittedMsg:
 		a.state.SessionStatus[a.state.ActiveSession] = SessionStatus{Working: true}
-		a.status.SetWorking(true)
-		return a, nil
+		spinCmd := a.status.SetWorking(true)
+		return a, spinCmd
 
 	case SessionStatusMsg:
 		a.state.SessionStatus[msg.SessionID] = msg.Status
+		var spinCmd tea.Cmd
 		if msg.SessionID == a.state.ActiveSession {
-			a.status.SetWorking(msg.Status.Working)
+			spinCmd = a.status.SetWorking(msg.Status.Working)
 		}
-		return a, nil
+		return a, spinCmd
 
 	case SessionsLoadedMsg:
 		if msg.Err == nil {
@@ -267,6 +277,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil {
 			a.state.Providers = msg.Providers
 		}
+		if a.state.PendingModelDialog {
+			a.state.PendingModelDialog = false
+			a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
+			a.setFocus(FocusDialog)
+		}
 		return a, nil
 
 	case SSEConnectedMsg:
@@ -280,7 +295,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PermissionDismissedMsg:
 		a.permPrompt.Hide()
 		a.setFocus(FocusPrompt)
-		slog.Info("permission dismissed", "tool", msg.Request.Tool, "action", msg.Action.String())
+		slog.Info("permission dismissed", "permission", msg.Request.Permission, "action", msg.Action.String())
 		return a, func() tea.Msg {
 			return PermissionReplyMsg{
 				SessionID:    msg.Request.SessionID,
@@ -537,9 +552,8 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	case "exit":
 		return tea.Quit, true
 	case "connect":
-		a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
-		a.setFocus(FocusDialog)
-		return nil, true
+		a.state.PendingModelDialog = true
+		return func() tea.Msg { return ProvidersRefreshMsg{} }, true
 	}
 	return nil, false
 }
@@ -556,8 +570,8 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 		a.agentDlg.Show(a.state.Agents)
 		return nil
 	case LeaderActionModelList:
-		a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
-		return nil
+		a.state.PendingModelDialog = true
+		return func() tea.Msg { return ProvidersRefreshMsg{} }
 	case LeaderActionSessionList:
 		a.dialog.Show(a.state.Sessions)
 		return nil

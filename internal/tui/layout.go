@@ -4,7 +4,7 @@ import "github.com/charmbracelet/lipgloss"
 
 const (
 	statusBarHeight = 2 // hints line + status bar
-	promptHeight    = 5 // textarea (3 lines) + border (1 top) + metadata (1)
+	promptHeight    = 7 // spacer (1) + textarea (3 lines) + metadata (1) + bottom border ╹▀▀▀ (1) + blank (1)
 	minSidebarWidth = 30
 	sidebarThreshold = 120
 )

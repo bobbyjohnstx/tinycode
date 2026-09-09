@@ -7,17 +7,27 @@ import (
 )
 
 func ConfigDir() string {
+	return configDirs()[0]
+}
+
+// configDirs returns config directories in priority order. On macOS, both the
+// Application Support path and ~/.config/tinycode are checked so that config
+// files from the TS tinycode (which uses ~/.config) are found automatically.
+func configDirs() []string {
 	if v := os.Getenv("TINYCODE_CONFIG_DIR"); v != "" {
-		return v
+		return []string{v}
 	}
 	if v := os.Getenv("XDG_CONFIG_HOME"); v != "" {
-		return filepath.Join(v, "tinycode")
+		return []string{filepath.Join(v, "tinycode")}
 	}
 	home, _ := os.UserHomeDir()
 	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, "Library", "Application Support", "tinycode")
+		return []string{
+			filepath.Join(home, "Library", "Application Support", "tinycode"),
+			filepath.Join(home, ".config", "tinycode"),
+		}
 	}
-	return filepath.Join(home, ".config", "tinycode")
+	return []string{filepath.Join(home, ".config", "tinycode")}
 }
 
 func DataDir() string {

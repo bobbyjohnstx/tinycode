@@ -215,3 +215,77 @@ func TestAutocomplete_CursorClampOnFilter(t *testing.T) {
 		t.Fatalf("expected 1 filtered item, got %d", len(ac.filtered))
 	}
 }
+
+func testAgents() []AutocompleteItem {
+	return []AutocompleteItem{
+		{Name: "architect", Description: "Strategic architecture advisor"},
+		{Name: "debugger", Description: "Root-cause analysis"},
+		{Name: "executor", Description: "Focused task executor"},
+	}
+}
+
+func TestAutocomplete_AskModeTransition(t *testing.T) {
+	ac := NewAutocomplete()
+	ac.SetCommands(testCommands())
+	ac.SetAgents(testAgents())
+
+	ac.UpdateInput("/ask ")
+	if !ac.IsVisible() {
+		t.Fatal("expected autocomplete visible in /ask mode")
+	}
+	if ac.Mode() != "/ask" {
+		t.Fatalf("expected mode '/ask', got %q", ac.Mode())
+	}
+	if len(ac.filtered) != 3 {
+		t.Fatalf("expected 3 agents, got %d", len(ac.filtered))
+	}
+	if ac.filtered[0].Name != "architect" {
+		t.Errorf("expected first agent 'architect', got %q", ac.filtered[0].Name)
+	}
+}
+
+func TestAutocomplete_AskModeFilters(t *testing.T) {
+	ac := NewAutocomplete()
+	ac.SetCommands(testCommands())
+	ac.SetAgents(testAgents())
+
+	ac.UpdateInput("/ask de")
+	if ac.Mode() != "/ask" {
+		t.Fatalf("expected mode '/ask', got %q", ac.Mode())
+	}
+	if len(ac.filtered) != 1 {
+		t.Fatalf("expected 1 filtered agent, got %d", len(ac.filtered))
+	}
+	if ac.filtered[0].Name != "debugger" {
+		t.Errorf("expected 'debugger', got %q", ac.filtered[0].Name)
+	}
+}
+
+func TestAutocomplete_AskModeDismissesAfterAgentSelected(t *testing.T) {
+	ac := NewAutocomplete()
+	ac.SetCommands(testCommands())
+	ac.SetAgents(testAgents())
+
+	// Once the user has typed "/ask architect " (agent + space), dismiss
+	ac.UpdateInput("/ask architect ")
+	if ac.IsVisible() {
+		t.Fatal("expected autocomplete dismissed after full agent name + space")
+	}
+}
+
+func TestAutocomplete_AskModeBackToSlash(t *testing.T) {
+	ac := NewAutocomplete()
+	ac.SetCommands(testCommands())
+	ac.SetAgents(testAgents())
+
+	ac.UpdateInput("/ask ")
+	if ac.Mode() != "/ask" {
+		t.Fatal("expected /ask mode")
+	}
+
+	// User deletes back to just "/"
+	ac.UpdateInput("/as")
+	if ac.Mode() != "/" {
+		t.Fatalf("expected mode '/', got %q", ac.Mode())
+	}
+}

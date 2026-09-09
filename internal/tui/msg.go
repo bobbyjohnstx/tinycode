@@ -135,6 +135,12 @@ type WindowSizeMsg struct {
 	Height int
 }
 
+// ToggleThoughtMsg toggles the expanded state of a reasoning part.
+// If PartID is empty, toggles all reasoning parts in the active session.
+type ToggleThoughtMsg struct {
+	PartID string
+}
+
 type TickMsg struct{}
 
 // ProvidersRefreshMsg signals that the provider list should be re-fetched.
