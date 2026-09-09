@@ -41,8 +41,9 @@ type PermissionOutput struct {
 
 // ShellEnvInput is the payload for shell.env hooks.
 type ShellEnvInput struct {
-	SessionID string `json:"sessionId"`
-	Directory string `json:"directory"`
+	SessionID string            `json:"sessionId"`
+	Directory string            `json:"directory"`
+	Env       map[string]string `json:"env,omitempty"`
 }
 
 // ShellEnvOutput is the response from a shell.env hook.

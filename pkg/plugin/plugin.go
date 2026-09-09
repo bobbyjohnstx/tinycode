@@ -240,6 +240,10 @@ func dispatchHook(ctx context.Context, req JSONRPCRequest, hooks *HookHandlers) 
 			_ = json.Unmarshal(params.Input, &input)
 			hookErr = hooks.ToolExecAfter(ctx, input)
 		}
+	case "dispose":
+		if hooks.Dispose != nil {
+			hookErr = hooks.Dispose(ctx)
+		}
 	}
 
 	if hookErr != nil {

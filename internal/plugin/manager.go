@@ -71,6 +71,32 @@ type PluginInfo struct {
 	Name string `json:"name"`
 }
 
+// ToolManifest describes a tool exposed by a plugin. Mirrors pkg/plugin.ToolManifest.
+type ToolManifest struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	InputSchema map[string]any `json:"inputSchema,omitempty"`
+}
+
+// toolCallParams matches pkg/plugin.ToolCallParams for wire compatibility.
+type toolCallParams struct {
+	Name    string          `json:"name"`
+	Args    json.RawMessage `json:"args"`
+	Context toolCallContext `json:"context"`
+}
+
+// toolCallContext matches pkg/plugin.ToolContext for wire compatibility.
+type toolCallContext struct {
+	SessionID string `json:"sessionId"`
+	Directory string `json:"directory"`
+}
+
+// toolCallResult matches pkg/plugin.ToolCallResult for wire compatibility.
+type toolCallResult struct {
+	Content string `json:"content"`
+	IsError bool   `json:"isError,omitempty"`
+}
+
 // pluginProcess tracks a running plugin subprocess.
 type pluginProcess struct {
 	info    *PluginInfo
@@ -81,6 +107,7 @@ type pluginProcess struct {
 	decoder *json.Decoder
 	mu      sync.Mutex // protects writes/reads to stdin/stdout
 	hooks   []string   // hooks declared during initialize
+	tools   []ToolManifest
 	nextID  atomic.Int64
 	dead    atomic.Bool
 	done    chan struct{} // closed when the process exits
@@ -256,6 +283,7 @@ func (m *Manager) Load(name string) (*PluginInfo, error) {
 		_ = json.Unmarshal(result, &initResult)
 	}
 	proc.hooks = initResult.Hooks
+	proc.tools = convertTools(initResult.Tools)
 
 	m.mu.Lock()
 	m.plugins[pid] = proc
@@ -323,9 +351,9 @@ func (m *Manager) Shutdown() {
 	m.logger.Info("plugin manager shut down", "count", len(procs))
 }
 
-// sendHook sends a JSON-RPC hook to a specific plugin. Returns the result
+// broadcastHook sends a JSON-RPC hook to a specific plugin. Returns the result
 // field from the response. Goroutine-safe via per-process mutex.
-func (m *Manager) sendHook(pluginID, method string, params any) (json.RawMessage, error) {
+func (m *Manager) broadcastHook(pluginID, method string, params any) (json.RawMessage, error) {
 	m.mu.RLock()
 	proc, ok := m.plugins[pluginID]
 	m.mu.RUnlock()
@@ -409,14 +437,76 @@ func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, err
 	}
 }
 
+// convertTools converts internal toolManifest to exported ToolManifest.
+func convertTools(internal []toolManifest) []ToolManifest {
+	out := make([]ToolManifest, len(internal))
+	for i, t := range internal {
+		out[i] = ToolManifest{
+			Name:        t.Name,
+			Description: t.Description,
+			InputSchema: t.InputSchema,
+		}
+	}
+	return out
+}
+
+// Tools returns the tools declared by all loaded plugins.
+func (m *Manager) Tools() []ToolManifest {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var out []ToolManifest
+	for _, proc := range m.plugins {
+		out = append(out, proc.tools...)
+	}
+	return out
+}
+
+// CallTool invokes a tool on the plugin that owns it. Returns the tool output
+// as raw JSON, or an error if the plugin or tool is not found.
+func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage) (json.RawMessage, error) {
+	m.mu.RLock()
+	proc, ok := m.plugins[pluginID]
+	m.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("plugin %s not found", pluginID)
+	}
+
+	raw, err := proc.sendRPC("tool/call", toolCallParams{
+		Name: toolName,
+		Args: args,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var result toolCallResult
+	if raw != nil {
+		if err := json.Unmarshal(raw, &result); err != nil {
+			return nil, fmt.Errorf("unmarshal tool result: %w", err)
+		}
+	}
+
+	if result.IsError {
+		return nil, fmt.Errorf("tool %s error: %s", toolName, result.Content)
+	}
+
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("marshal tool result: %w", err)
+	}
+	return resultJSON, nil
+}
+
 // stopProcess sends dispose (best-effort) and then kills the process.
 func (m *Manager) stopProcess(proc *pluginProcess) {
 	if proc.dead.Load() {
 		return
 	}
 
-	// Best-effort dispose.
-	_, err := proc.sendRPC("dispose", nil)
+	// Best-effort dispose via hook/invoke so the SDK's dispatchHook handles it.
+	_, err := proc.sendHook("dispose", nil)
 	if err != nil {
 		m.logger.Debug("dispose hook failed", "plugin", proc.info.Name, "error", err)
 	}

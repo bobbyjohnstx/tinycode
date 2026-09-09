@@ -33,6 +33,7 @@ func TestDispatchPermissionAsk_EmptyManager(t *testing.T) {
 	out, err := DispatchPermissionAsk(mgr, PermissionInput{
 		SessionID: "ses_1",
 		ToolName:  "bash",
+		ToolArgs:  `{"command":"ls"}`,
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -188,7 +189,7 @@ func TestDispatchPermissionAsk_Allowed(t *testing.T) {
 	out, err := DispatchPermissionAsk(mgr, PermissionInput{
 		SessionID: "ses_1",
 		ToolName:  "bash",
-		Args:      map[string]any{"command": "ls"},
+		ToolArgs:  `{"command":"ls"}`,
 	})
 	if err != nil {
 		t.Fatalf("DispatchPermissionAsk: %v", err)
@@ -213,7 +214,7 @@ func TestDispatchPermissionAsk_Denied(t *testing.T) {
 	out, err := DispatchPermissionAsk(mgr, PermissionInput{
 		SessionID: "ses_1",
 		ToolName:  "bash",
-		Args:      map[string]any{"command": "rm -rf /"},
+		ToolArgs:  `{"command":"rm -rf /"}`,
 	})
 	if err != nil {
 		t.Fatalf("DispatchPermissionAsk: %v", err)
@@ -288,8 +289,8 @@ func TestDispatchToolExecBefore_WithPlugin(t *testing.T) {
 
 	err = DispatchToolExecBefore(mgr, ToolExecBeforeEvent{
 		SessionID: "ses_1",
-		Tool:      "bash",
-		Args:      `{"command":"ls"}`,
+		ToolName:  "bash",
+		ToolArgs:  `{"command":"ls"}`,
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolExecBefore: %v", err)
@@ -307,8 +308,9 @@ func TestDispatchToolExecAfter_WithPlugin(t *testing.T) {
 
 	err = DispatchToolExecAfter(mgr, ToolExecAfterEvent{
 		SessionID: "ses_1",
-		Tool:      "bash",
-		Success:   true,
+		ToolName:  "bash",
+		Output:    "file1\nfile2",
+		IsError:   false,
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolExecAfter: %v", err)
@@ -316,14 +318,14 @@ func TestDispatchToolExecAfter_WithPlugin(t *testing.T) {
 }
 
 func TestDispatchToolExecBefore_NilManager(t *testing.T) {
-	err := DispatchToolExecBefore(nil, ToolExecBeforeEvent{SessionID: "ses_1", Tool: "bash"})
+	err := DispatchToolExecBefore(nil, ToolExecBeforeEvent{SessionID: "ses_1", ToolName: "bash"})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 }
 
 func TestDispatchToolExecAfter_NilManager(t *testing.T) {
-	err := DispatchToolExecAfter(nil, ToolExecAfterEvent{SessionID: "ses_1", Tool: "bash"})
+	err := DispatchToolExecAfter(nil, ToolExecAfterEvent{SessionID: "ses_1", ToolName: "bash"})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -340,8 +342,8 @@ func TestDispatchToolExecBefore_NoHook(t *testing.T) {
 
 	err = DispatchToolExecBefore(mgr, ToolExecBeforeEvent{
 		SessionID: "ses_1",
-		Tool:      "bash",
-		Args:      `{"command":"ls"}`,
+		ToolName:  "bash",
+		ToolArgs:  `{"command":"ls"}`,
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolExecBefore: %v", err)

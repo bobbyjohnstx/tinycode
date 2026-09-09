@@ -233,6 +233,62 @@ func (s *Server) wirePluginHooks() {
 		}
 	}()
 
+	permAskSub := s.deps.Bus.Subscribe("permission.ask")
+	s.pluginSubs = append(s.pluginSubs, permAskSub)
+	go func() {
+		for {
+			select {
+			case <-s.pluginDone:
+				return
+			case evt, ok := <-permAskSub.C:
+				if !ok {
+					return
+				}
+				props, ok := evt.Properties.(map[string]any)
+				if !ok {
+					continue
+				}
+				sessionID, _ := props["sessionID"].(string)
+				toolName, _ := props["toolName"].(string)
+				toolArgs, _ := props["toolArgs"].(string)
+				permission, _ := props["permission"].(string)
+				plugin.DispatchPermissionAsk(mgr, plugin.PermissionInput{
+					SessionID:  sessionID,
+					ToolName:   toolName,
+					ToolArgs:   toolArgs,
+					Permission: permission,
+				})
+			}
+		}
+	}()
+
+	shellEnvSub := s.deps.Bus.Subscribe("shell.env")
+	s.pluginSubs = append(s.pluginSubs, shellEnvSub)
+	go func() {
+		for {
+			select {
+			case <-s.pluginDone:
+				return
+			case evt, ok := <-shellEnvSub.C:
+				if !ok {
+					return
+				}
+				props, ok := evt.Properties.(map[string]any)
+				if !ok {
+					continue
+				}
+				sessionID, _ := props["sessionID"].(string)
+				directory, _ := props["directory"].(string)
+				env, _ := props["env"].(map[string]string)
+				plugin.DispatchShellEnv(mgr, plugin.ShellEnvInput{
+					SessionID: sessionID,
+					Directory: directory,
+					Env:       env,
+				})
+			}
+		}
+	}()
+
 	toolBeforeSub := s.deps.Bus.Subscribe("tool.execute.before")
 	s.pluginSubs = append(s.pluginSubs, toolBeforeSub)
 	go func() {
@@ -250,11 +306,11 @@ func (s *Server) wirePluginHooks() {
 				}
 				sessionID, _ := props["sessionID"].(string)
 				toolName, _ := props["tool"].(string)
-				args, _ := props["args"].(string)
+				toolArgs, _ := props["args"].(string)
 				plugin.DispatchToolExecBefore(mgr, plugin.ToolExecBeforeEvent{
 					SessionID: sessionID,
-					Tool:      toolName,
-					Args:      args,
+					ToolName:  toolName,
+					ToolArgs:  toolArgs,
 				})
 			}
 		}
@@ -277,11 +333,19 @@ func (s *Server) wirePluginHooks() {
 				}
 				sessionID, _ := props["sessionID"].(string)
 				toolName, _ := props["tool"].(string)
-				success, _ := props["success"].(bool)
+				output, _ := props["output"].(string)
+				isError, _ := props["isError"].(bool)
+				if !isError {
+					// Derive from legacy "success" field if "isError" not present.
+					if success, ok := props["success"].(bool); ok {
+						isError = !success
+					}
+				}
 				plugin.DispatchToolExecAfter(mgr, plugin.ToolExecAfterEvent{
 					SessionID: sessionID,
-					Tool:      toolName,
-					Success:   success,
+					ToolName:  toolName,
+					Output:    output,
+					IsError:   isError,
 				})
 			}
 		}

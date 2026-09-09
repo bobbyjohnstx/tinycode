@@ -78,9 +78,15 @@ func TestHelperProcess(t *testing.T) {
 			if behavior == "session_hooks_only" {
 				hooks = []string{"session.start", "session.end"}
 			}
+			tools := []toolManifest{}
+			if behavior == "with_tools" {
+				tools = []toolManifest{
+					{Name: "greet", Description: "Greet someone", InputSchema: map[string]any{"type": "object"}},
+				}
+			}
 			result := initializeResult{
 				ID:    "test-plugin",
-				Tools: []toolManifest{},
+				Tools: tools,
 				Hooks: hooks,
 			}
 			raw, _ := json.Marshal(result)
@@ -99,6 +105,15 @@ func TestHelperProcess(t *testing.T) {
 			switch params.Name {
 			case "session.start", "session.end", "tool.execute.before", "tool.execute.after":
 				resultOutput = nil
+			case "dispose":
+				hr := hookResult{Output: nil}
+				raw, _ := json.Marshal(hr)
+				encoder.Encode(jsonrpcResponse{
+					JSONRPC: "2.0",
+					ID:      req.ID,
+					Result:  raw,
+				})
+				os.Exit(0)
 			case "permission.ask":
 				if behavior == "deny_permission" {
 					resultOutput, _ = json.Marshal(permissionResult{Allowed: false, Reason: "blocked by test"})
@@ -131,14 +146,6 @@ func TestHelperProcess(t *testing.T) {
 				ID:      req.ID,
 				Result:  raw,
 			})
-
-		case "dispose":
-			encoder.Encode(jsonrpcResponse{
-				JSONRPC: "2.0",
-				ID:      req.ID,
-				Result:  json.RawMessage(`{}`),
-			})
-			os.Exit(0)
 
 		default:
 			encoder.Encode(jsonrpcResponse{
@@ -253,7 +260,7 @@ func TestUnload_StopsProcess(t *testing.T) {
 	}
 }
 
-func TestSendHook_Timeout(t *testing.T) {
+func TestBroadcastHook_UnknownMethod(t *testing.T) {
 	mgr := newTestManager("")
 
 	info, err := mgr.Load("test-plugin")
@@ -263,13 +270,13 @@ func TestSendHook_Timeout(t *testing.T) {
 	defer mgr.Shutdown()
 
 	// Send a method the helper doesn't handle well (returns error).
-	_, err = mgr.sendHook(info.ID, "unknown.method", nil)
+	_, err = mgr.broadcastHook(info.ID, "unknown.method", nil)
 	if err == nil {
 		t.Fatal("expected error for unknown method")
 	}
 }
 
-func TestSendHook_DeadProcess(t *testing.T) {
+func TestBroadcastHook_DeadProcess(t *testing.T) {
 	mgr := newTestManager("")
 
 	info, err := mgr.Load("test-plugin")
@@ -283,7 +290,7 @@ func TestSendHook_DeadProcess(t *testing.T) {
 	mgr.mu.RUnlock()
 	proc.dead.Store(true)
 
-	_, err = mgr.sendHook(info.ID, "session.start", nil)
+	_, err = mgr.broadcastHook(info.ID, "session.start", nil)
 	if err == nil {
 		t.Fatal("expected error for dead process")
 	}
@@ -315,5 +322,60 @@ func TestSetDirectory(t *testing.T) {
 	mgr.SetDirectory("/test/dir")
 	if mgr.directory != "/test/dir" {
 		t.Errorf("expected /test/dir, got %s", mgr.directory)
+	}
+}
+
+func TestShutdown_DisposeViaHookInvoke(t *testing.T) {
+	// Verifies dispose goes through hook/invoke, not a raw "dispose" RPC method.
+	// The test helper process handles dispose in the hook/invoke case and exits;
+	// if it were sent as a raw method, the helper would return "method not found".
+	mgr := newTestManager("")
+
+	_, err := mgr.Load("test-plugin")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	mgr.Shutdown()
+
+	list := mgr.List()
+	if len(list) != 0 {
+		t.Errorf("expected 0 plugins after shutdown, got %d", len(list))
+	}
+}
+
+func TestLoadPlugin_StoresTools(t *testing.T) {
+	mgr := newTestManager("with_tools")
+
+	_, err := mgr.Load("test-plugin")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	tools := mgr.Tools()
+	if len(tools) != 1 {
+		t.Fatalf("expected 1 tool, got %d", len(tools))
+	}
+	if tools[0].Name != "greet" {
+		t.Errorf("expected tool name 'greet', got %q", tools[0].Name)
+	}
+	if tools[0].Description != "Greet someone" {
+		t.Errorf("expected description 'Greet someone', got %q", tools[0].Description)
+	}
+}
+
+func TestTools_Empty(t *testing.T) {
+	mgr := newTestManager("")
+
+	_, err := mgr.Load("test-plugin")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	tools := mgr.Tools()
+	if len(tools) != 0 {
+		t.Errorf("expected 0 tools, got %d", len(tools))
 	}
 }

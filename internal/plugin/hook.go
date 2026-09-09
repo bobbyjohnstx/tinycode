@@ -45,51 +45,61 @@ func (p *pluginProcess) sendHook(hookName string, input any) (json.RawMessage, e
 }
 
 // SessionStartEvent is emitted when a session is created.
+// JSON tags match pkg/plugin.SessionStartEvent for wire compatibility.
 type SessionStartEvent struct {
-	SessionID string
+	SessionID string `json:"sessionId"`
+	Directory string `json:"directory"`
 }
 
 // SessionEndEvent is emitted when a session is deleted.
+// JSON tags match pkg/plugin.SessionEndEvent for wire compatibility.
 type SessionEndEvent struct {
-	SessionID string
+	SessionID string `json:"sessionId"`
 }
 
 // PermissionInput is the input for a permission hook.
+// JSON tags match pkg/plugin.PermissionInput for wire compatibility.
 type PermissionInput struct {
-	SessionID string
-	ToolName  string
-	Args      map[string]any
+	SessionID  string `json:"sessionId"`
+	ToolName   string `json:"toolName"`
+	ToolArgs   string `json:"toolArgs"`
+	Permission string `json:"permission"`
 }
 
 // PermissionOutput is the aggregated result of permission hooks.
 type PermissionOutput struct {
-	Allowed bool
-	Reason  string
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
 }
 
 // ShellEnvInput is the input for a shell environment hook.
+// JSON tags match pkg/plugin.ShellEnvInput for wire compatibility.
 type ShellEnvInput struct {
-	SessionID string
-	Env       map[string]string
+	SessionID string            `json:"sessionId"`
+	Directory string            `json:"directory"`
+	Env       map[string]string `json:"env,omitempty"`
 }
 
 // ShellEnvOutput is the aggregated result of shell environment hooks.
 type ShellEnvOutput struct {
-	Env map[string]string
+	Env map[string]string `json:"env"`
 }
 
 // ToolExecBeforeEvent is emitted before a tool executes.
+// JSON tags match pkg/plugin.ToolExecBeforeInput for wire compatibility.
 type ToolExecBeforeEvent struct {
-	SessionID string
-	Tool      string
-	Args      string
+	SessionID string `json:"sessionId"`
+	ToolName  string `json:"toolName"`
+	ToolArgs  string `json:"toolArgs"`
 }
 
 // ToolExecAfterEvent is emitted after a tool executes.
+// JSON tags match pkg/plugin.ToolExecAfterInput for wire compatibility.
 type ToolExecAfterEvent struct {
-	SessionID string
-	Tool      string
-	Success   bool
+	SessionID string `json:"sessionId"`
+	ToolName  string `json:"toolName"`
+	Output    string `json:"output"`
+	IsError   bool   `json:"isError"`
 }
 
 // permissionResult is the JSON structure returned by a permission.ask hook.
@@ -114,9 +124,7 @@ func DispatchSessionStart(mgr *Manager, evt SessionStartEvent) error {
 	}
 
 	for _, proc := range procs {
-		_, err := proc.sendHook("session.start", map[string]string{
-			"sessionID": evt.SessionID,
-		})
+		_, err := proc.sendHook("session.start", evt)
 		if err != nil {
 			mgr.logger.Warn("session.start hook failed", "plugin", proc.info.Name, "error", err)
 		}
@@ -135,9 +143,7 @@ func DispatchSessionEnd(mgr *Manager, evt SessionEndEvent) error {
 	}
 
 	for _, proc := range procs {
-		_, err := proc.sendHook("session.end", map[string]string{
-			"sessionID": evt.SessionID,
-		})
+		_, err := proc.sendHook("session.end", evt)
 		if err != nil {
 			mgr.logger.Warn("session.end hook failed", "plugin", proc.info.Name, "error", err)
 		}
@@ -158,11 +164,7 @@ func DispatchPermissionAsk(mgr *Manager, input PermissionInput) (*PermissionOutp
 	}
 
 	for _, proc := range procs {
-		raw, err := proc.sendHook("permission.ask", map[string]any{
-			"sessionID": input.SessionID,
-			"toolName":  input.ToolName,
-			"args":      input.Args,
-		})
+		raw, err := proc.sendHook("permission.ask", input)
 		if err != nil {
 			mgr.logger.Warn("permission.ask hook failed", "plugin", proc.info.Name, "error", err)
 			continue
@@ -199,9 +201,10 @@ func DispatchShellEnv(mgr *Manager, input ShellEnvInput) (*ShellEnvOutput, error
 	}
 
 	for _, proc := range procs {
-		raw, err := proc.sendHook("shell.env", map[string]any{
-			"sessionID": input.SessionID,
-			"env":       merged,
+		raw, err := proc.sendHook("shell.env", ShellEnvInput{
+			SessionID: input.SessionID,
+			Directory: input.Directory,
+			Env:       merged,
 		})
 		if err != nil {
 			mgr.logger.Warn("shell.env hook failed", "plugin", proc.info.Name, "error", err)
@@ -233,11 +236,7 @@ func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent) error {
 	}
 
 	for _, proc := range procs {
-		_, err := proc.sendHook("tool.execute.before", map[string]any{
-			"sessionID": evt.SessionID,
-			"tool":      evt.Tool,
-			"args":      evt.Args,
-		})
+		_, err := proc.sendHook("tool.execute.before", evt)
 		if err != nil {
 			mgr.logger.Warn("tool.execute.before hook failed", "plugin", proc.info.Name, "error", err)
 		}
@@ -256,11 +255,7 @@ func DispatchToolExecAfter(mgr *Manager, evt ToolExecAfterEvent) error {
 	}
 
 	for _, proc := range procs {
-		_, err := proc.sendHook("tool.execute.after", map[string]any{
-			"sessionID": evt.SessionID,
-			"tool":      evt.Tool,
-			"success":   evt.Success,
-		})
+		_, err := proc.sendHook("tool.execute.after", evt)
 		if err != nil {
 			mgr.logger.Warn("tool.execute.after hook failed", "plugin", proc.info.Name, "error", err)
 		}
