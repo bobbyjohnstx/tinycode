@@ -48,7 +48,7 @@ func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 	resolved, err := s.validatePath(path)
 	if err != nil {
 		if os.IsPermission(err) {
-			respondError(w, http.StatusForbidden, "access denied")
+			respondError(w, http.StatusForbidden, "access denied: path outside working directory")
 			return
 		}
 		respondError(w, http.StatusBadRequest, "invalid path")
@@ -82,7 +82,7 @@ func (s *Server) handleFileList(w http.ResponseWriter, r *http.Request) {
 	resolved, err := s.validatePath(dir)
 	if err != nil {
 		if os.IsPermission(err) {
-			respondError(w, http.StatusForbidden, "access denied")
+			respondError(w, http.StatusForbidden, "access denied: path outside working directory")
 			return
 		}
 		respondError(w, http.StatusBadRequest, "invalid path")
