@@ -92,6 +92,11 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 						pv.MessageID, _ = pm["messageID"].(string)
 						pv.Type, _ = pm["type"].(string)
 						pv.Text, _ = pm["text"].(string)
+						if pv.Text == "" {
+							if tr, ok := pm["toolResult"].(string); ok {
+								pv.Text = tr
+							}
+						}
 						pv.ToolName, _ = pm["toolName"].(string)
 						pv.ToolArgs, _ = pm["toolArgs"].(string)
 						pv.ToolError, _ = pm["toolError"].(bool)

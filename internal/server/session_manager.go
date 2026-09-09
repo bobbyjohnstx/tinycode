@@ -472,6 +472,20 @@ func (sm *SessionManager) bridgeAssistantMessage(sessionID string, active *activ
 				},
 				"time": completedAt,
 			})
+		case session.PartReasoning:
+			rPartID, _ := id.Ascending("part")
+			sm.bus.Publish("message.part.updated", map[string]any{
+				"sessionID": sessionID,
+				"part": map[string]any{
+					"id":        rPartID,
+					"sessionID": sessionID,
+					"messageID": bridgeMsgID,
+					"type":      "reasoning",
+					"text":      part.Text,
+					"time":      map[string]any{"start": startTime, "end": completedAt},
+				},
+				"time": completedAt,
+			})
 		case session.PartToolCall:
 			tcPartID, _ := id.Ascending("part")
 			sm.bus.Publish("message.part.updated", map[string]any{

@@ -151,6 +151,11 @@ func parsePartView(props map[string]any) PartView {
 	pv.MessageID, _ = part["messageID"].(string)
 	pv.Type, _ = part["type"].(string)
 	pv.Text, _ = part["text"].(string)
+	if pv.Text == "" {
+		if tr, ok := part["toolResult"].(string); ok {
+			pv.Text = tr
+		}
+	}
 	pv.ToolName, _ = part["toolName"].(string)
 	pv.ToolArgs, _ = part["toolArgs"].(string)
 	pv.ToolError, _ = part["toolError"].(bool)
