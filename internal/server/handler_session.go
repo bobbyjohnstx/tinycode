@@ -294,6 +294,7 @@ func (s *Server) handleSessionFork(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Copy messages from parent to forked session.
+	// If body.MessageID is set, copy only up to and including that message.
 	ms := s.messageStore()
 	parentMsgs, err := ms.List(id)
 	if err == nil {
@@ -306,6 +307,10 @@ func (s *Server) handleSessionFork(w http.ResponseWriter, r *http.Request) {
 			}
 			msg.ID = newID
 			_ = ms.Append(&msg)
+
+			if body.MessageID != "" && parentMsgs[i].ID == body.MessageID {
+				break
+			}
 		}
 	}
 
