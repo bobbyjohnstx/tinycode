@@ -306,7 +306,7 @@ func TestDispatchToolExecAfter_WithPlugin(t *testing.T) {
 	}
 	defer mgr.Shutdown()
 
-	err = DispatchToolExecAfter(mgr, ToolExecAfterEvent{
+	_, err = DispatchToolExecAfter(mgr, ToolExecAfterEvent{
 		SessionID: "ses_1",
 		ToolName:  "bash",
 		Output:    "file1\nfile2",
@@ -325,7 +325,7 @@ func TestDispatchToolExecBefore_NilManager(t *testing.T) {
 }
 
 func TestDispatchToolExecAfter_NilManager(t *testing.T) {
-	err := DispatchToolExecAfter(nil, ToolExecAfterEvent{SessionID: "ses_1", ToolName: "bash"})
+	_, err := DispatchToolExecAfter(nil, ToolExecAfterEvent{SessionID: "ses_1", ToolName: "bash"})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}

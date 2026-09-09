@@ -244,21 +244,55 @@ func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent) error {
 	return nil
 }
 
-// DispatchToolExecAfter notifies plugins that a tool has finished executing.
-func DispatchToolExecAfter(mgr *Manager, evt ToolExecAfterEvent) error {
+// ToolExecAfterOutput is the aggregated result of tool.execute.after hooks.
+type ToolExecAfterOutput struct {
+	Output  string `json:"output"`
+	IsError bool   `json:"isError"`
+}
+
+// toolExecAfterResult is the JSON structure returned by a tool.execute.after hook.
+type toolExecAfterResult struct {
+	Output  string `json:"output"`
+	IsError bool   `json:"isError"`
+}
+
+// DispatchToolExecAfter sends tool output through all plugins that handle
+// tool.execute.after. Each plugin can transform the output; the result chains
+// through so later plugins see earlier plugins' modifications.
+func DispatchToolExecAfter(mgr *Manager, evt ToolExecAfterEvent) (*ToolExecAfterOutput, error) {
 	if mgr == nil {
-		return nil
+		return nil, nil
 	}
 	procs := mgr.pluginsWithHook("tool.execute.after")
 	if len(procs) == 0 {
-		return nil
+		return nil, nil
 	}
 
+	current := evt
+	modified := false
 	for _, proc := range procs {
-		_, err := proc.sendHook("tool.execute.after", evt)
+		raw, err := proc.sendHook("tool.execute.after", current)
 		if err != nil {
 			mgr.logger.Warn("tool.execute.after hook failed", "plugin", proc.info.Name, "error", err)
+			continue
+		}
+		if raw == nil {
+			continue
+		}
+		var result toolExecAfterResult
+		if err := json.Unmarshal(raw, &result); err != nil {
+			mgr.logger.Warn("tool.execute.after invalid response", "plugin", proc.info.Name, "error", err)
+			continue
+		}
+		if result.Output != "" {
+			current.Output = result.Output
+			current.IsError = result.IsError
+			modified = true
 		}
 	}
-	return nil
+
+	if !modified {
+		return nil, nil
+	}
+	return &ToolExecAfterOutput{Output: current.Output, IsError: current.IsError}, nil
 }

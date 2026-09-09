@@ -48,13 +48,15 @@ func main() {
 	plugin.Run(plugin.Plugin{
 		ID: "log-sanitizer",
 		Hooks: plugin.HookHandlers{
-			ToolExecAfter: func(_ context.Context, input plugin.ToolExecAfterInput) error {
-				// Detect sensitive content in tool output.
-				// Note: the current ToolExecAfter hook signature returns only
-				// error, so output cannot be modified through the protocol.
-				// The sanitize function is validated via unit tests.
-				_ = sanitize(input.Output)
-				return nil
+			ToolExecAfter: func(_ context.Context, input plugin.ToolExecAfterInput) (*plugin.ToolExecAfterOutput, error) {
+				sanitized := sanitize(input.Output)
+				if sanitized == input.Output {
+					return nil, nil
+				}
+				return &plugin.ToolExecAfterOutput{
+					Output:  sanitized,
+					IsError: input.IsError,
+				}, nil
 			},
 		},
 	})

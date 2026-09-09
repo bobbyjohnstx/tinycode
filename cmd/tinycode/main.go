@@ -273,7 +273,7 @@ func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
 	return reg
 }
 
-func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Service) {
+func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Service, *tool.Context) {
 	permSvc := permission.NewService(b)
 	toolCtx := &tool.Context{
 		Directory: directory,
@@ -281,7 +281,22 @@ func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Serv
 	}
 	toolReg := tool.NewRegistry(toolCtx)
 	tool.RegisterBuiltins(toolReg)
-	return toolReg, permSvc
+	return toolReg, permSvc, toolCtx
+}
+
+func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager) {
+	toolCtx.AfterHook = func(sessionID, toolName, output string, isError bool) (string, bool, bool) {
+		result, err := plugin.DispatchToolExecAfter(mgr, plugin.ToolExecAfterEvent{
+			SessionID: sessionID,
+			ToolName:  toolName,
+			Output:    output,
+			IsError:   isError,
+		})
+		if err != nil || result == nil {
+			return "", false, false
+		}
+		return result.Output, result.IsError, true
+	}
 }
 
 func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg *config.Info) *provider.Discovery {
@@ -463,11 +478,12 @@ func runTUI() {
 	dir, _ := os.Getwd()
 	agentReg := initAgentRegistry(cfg, dir)
 
-	toolReg, permSvc := initTooling(b, dir)
+	toolReg, permSvc, toolCtx := initTooling(b, dir)
 
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
+	wireToolAfterHook(toolCtx, pluginMgr)
 
 	srvCfg := serverConfig(cfg, false)
 	srvCfg.Port = 0
@@ -529,11 +545,12 @@ func runServe() {
 	dir, _ := os.Getwd()
 	agentReg := initAgentRegistry(cfg, dir)
 
-	toolReg, permSvc := initTooling(b, dir)
+	toolReg, permSvc, toolCtx := initTooling(b, dir)
 
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
+	wireToolAfterHook(toolCtx, pluginMgr)
 
 	srv := server.New(serverConfig(cfg, false), server.Dependencies{
 		Bus:           b,
@@ -585,11 +602,12 @@ func runWeb() {
 	dir, _ := os.Getwd()
 	agentReg := initAgentRegistry(cfg, dir)
 
-	toolReg, permSvc := initTooling(b, dir)
+	toolReg, permSvc, toolCtx := initTooling(b, dir)
 
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
+	wireToolAfterHook(toolCtx, pluginMgr)
 
 	srv := server.New(serverConfig(cfg, true), server.Dependencies{
 		Bus:           b,
@@ -701,7 +719,7 @@ func runRun() {
 	dir, _ := os.Getwd()
 	agentReg := initAgentRegistry(cfg, dir)
 
-	toolReg, permSvc := initTooling(b, dir)
+	toolReg, permSvc, toolCtx := initTooling(b, dir)
 
 	// Configure permission behavior via bus subscriber
 	if *skipPermsFlag || !*interactiveFlag {
@@ -748,6 +766,7 @@ func runRun() {
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
+	wireToolAfterHook(toolCtx, pluginMgr)
 
 	// Resolve model
 	modelStr := *modelFlag

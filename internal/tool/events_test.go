@@ -84,8 +84,11 @@ func TestExecuteAfterEvent_Success(t *testing.T) {
 	}
 
 	props := events[0].Properties.(map[string]any)
-	if props["success"] != true {
-		t.Errorf("expected success=true, got %v", props["success"])
+	if props["isError"] != false {
+		t.Errorf("expected isError=false, got %v", props["isError"])
+	}
+	if props["output"] != "done" {
+		t.Errorf("expected output='done', got %v", props["output"])
 	}
 }
 
@@ -114,8 +117,11 @@ func TestExecuteAfterEvent_ToolError(t *testing.T) {
 	}
 
 	props := events[0].Properties.(map[string]any)
-	if props["success"] != false {
-		t.Errorf("expected success=false, got %v", props["success"])
+	if props["isError"] != true {
+		t.Errorf("expected isError=true, got %v", props["isError"])
+	}
+	if props["output"] != "bad" {
+		t.Errorf("expected output='bad', got %v", props["output"])
 	}
 }
 

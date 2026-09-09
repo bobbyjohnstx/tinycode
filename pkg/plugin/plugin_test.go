@@ -59,7 +59,7 @@ func TestRegisteredHooks_AllSet(t *testing.T) {
 		PermissionAsk:  func(_ context.Context, _ PermissionInput) (*PermissionOutput, error) { return nil, nil },
 		ShellEnv:       func(_ context.Context, _ ShellEnvInput) (*ShellEnvOutput, error) { return nil, nil },
 		ToolExecBefore: func(_ context.Context, _ ToolExecBeforeInput) error { return nil },
-		ToolExecAfter:  func(_ context.Context, _ ToolExecAfterInput) error { return nil },
+		ToolExecAfter:  func(_ context.Context, _ ToolExecAfterInput) (*ToolExecAfterOutput, error) { return nil, nil },
 		Dispose:        func(_ context.Context) error { return nil },
 	}
 

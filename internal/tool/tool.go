@@ -20,6 +20,10 @@ type ExecuteResult struct {
 	IsError bool
 }
 
+// AfterHookFunc is called after tool execution with the tool output.
+// If it returns non-empty modifiedOutput, that replaces the original.
+type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool)
+
 type Context struct {
 	SessionID     string
 	Directory     string
@@ -28,6 +32,7 @@ type Context struct {
 	JobManager    *session.JobManager
 	SubagentDepth int
 	DB            *sql.DB
+	AfterHook     AfterHookFunc
 }
 
 type Def struct {
@@ -144,21 +149,31 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 
 	slog.Info("tool completed", "tool", name, "sessionID", sessionID, "elapsed", elapsed, "isError", result.IsError, "outputLen", len(result.Output))
 
+	output := result.Output
+	isError := result.IsError
+
+	if toolCtx.AfterHook != nil {
+		if mod, modErr, changed := toolCtx.AfterHook(sessionID, name, output, isError); changed {
+			output = mod
+			isError = modErr
+		}
+	}
+
 	if toolCtx.Bus != nil {
 		toolCtx.Bus.Publish("tool.execute.after", map[string]any{
 			"sessionID": sessionID,
 			"tool":      name,
-			"success":   !result.IsError,
+			"output":    output,
+			"isError":   isError,
 		})
 	}
 
-	output := result.Output
-	if !result.IsError {
+	if !isError {
 		truncated := Truncate(output, TruncTail)
 		output = truncated.Content
 	}
 
-	return output, result.IsError, nil
+	return output, isError, nil
 }
 
 func (r *Registry) ToolDefs(agentPerms []string) []llm.Tool {

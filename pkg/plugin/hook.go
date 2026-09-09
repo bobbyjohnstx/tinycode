@@ -10,7 +10,7 @@ type HookHandlers struct {
 	PermissionAsk func(ctx context.Context, input PermissionInput) (*PermissionOutput, error)
 	ShellEnv      func(ctx context.Context, input ShellEnvInput) (*ShellEnvOutput, error)
 	ToolExecBefore func(ctx context.Context, input ToolExecBeforeInput) error
-	ToolExecAfter  func(ctx context.Context, input ToolExecAfterInput) error
+	ToolExecAfter  func(ctx context.Context, input ToolExecAfterInput) (*ToolExecAfterOutput, error)
 	Dispose       func(ctx context.Context) error
 }
 
@@ -64,4 +64,11 @@ type ToolExecAfterInput struct {
 	ToolName  string `json:"toolName"`
 	Output    string `json:"output"`
 	IsError   bool   `json:"isError"`
+}
+
+// ToolExecAfterOutput is the response from a tool.execute.after hook.
+// If non-nil, the Output field replaces the original tool output.
+type ToolExecAfterOutput struct {
+	Output  string `json:"output"`
+	IsError bool   `json:"isError"`
 }

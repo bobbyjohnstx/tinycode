@@ -316,40 +316,8 @@ func (s *Server) wirePluginHooks() {
 		}
 	}()
 
-	toolAfterSub := s.deps.Bus.Subscribe("tool.execute.after")
-	s.pluginSubs = append(s.pluginSubs, toolAfterSub)
-	go func() {
-		for {
-			select {
-			case <-s.pluginDone:
-				return
-			case evt, ok := <-toolAfterSub.C:
-				if !ok {
-					return
-				}
-				props, ok := evt.Properties.(map[string]any)
-				if !ok {
-					continue
-				}
-				sessionID, _ := props["sessionID"].(string)
-				toolName, _ := props["tool"].(string)
-				output, _ := props["output"].(string)
-				isError, _ := props["isError"].(bool)
-				if !isError {
-					// Derive from legacy "success" field if "isError" not present.
-					if success, ok := props["success"].(bool); ok {
-						isError = !success
-					}
-				}
-				plugin.DispatchToolExecAfter(mgr, plugin.ToolExecAfterEvent{
-					SessionID: sessionID,
-					ToolName:  toolName,
-					Output:    output,
-					IsError:   isError,
-				})
-			}
-		}
-	}()
+	// tool.execute.after dispatch is handled synchronously via tool.Context.AfterHook
+	// to allow plugins to transform output before it's returned to the LLM.
 }
 
 // WaitForShutdown blocks until the server's background shutdown goroutine
