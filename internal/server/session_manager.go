@@ -50,6 +50,7 @@ type SessionManager struct {
 	db            *sql.DB
 	dir           string
 	tools         *tool.Registry
+	toolSnapshot  *tool.Registry
 	perms         *permission.Service
 	agentRegistry *agent.Registry
 	mcpSvc        *mcp.Service
@@ -88,7 +89,21 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 	sm.subscribeRevert()
 	sm.subscribeUnrevert()
 	sm.subscribeSummarize()
+
+	// Take a baseline snapshot of the tool registry before any MCP tools are
+	// registered. Session processing should use ToolSnapshot() to get a
+	// point-in-time copy that is safe from concurrent MCP mutations.
+	if sm.tools != nil {
+		sm.toolSnapshot = sm.tools.Snapshot()
+	}
+
 	return sm
+}
+
+// ToolSnapshot returns a point-in-time snapshot of the tool registry that is
+// safe from concurrent MCP registration mutations.
+func (sm *SessionManager) ToolSnapshot() *tool.Registry {
+	return sm.toolSnapshot
 }
 
 // SetClientFactory overrides the default LLM client factory.
