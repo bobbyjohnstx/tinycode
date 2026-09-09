@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // App is the root bubbletea model composing all TUI components.
@@ -21,8 +20,6 @@ type App struct {
 	permPrompt PermissionPrompt
 	toast      Toast
 	sidebar    Sidebar
-	diffView   DiffView
-	workspace  Workspace
 	leader     LeaderState
 	state      *AppState
 	focus      FocusTarget
@@ -50,8 +47,6 @@ func NewApp(serverURL string) App {
 		permPrompt: NewPermissionPrompt(),
 		toast:      NewToast(DefaultTheme()),
 		sidebar:    NewSidebar(),
-		diffView:   NewDiffView(),
-		workspace:  NewWorkspace(""),
 		leader:     NewLeaderState(keys),
 		state:      state,
 		focus:      FocusPrompt,
@@ -104,17 +99,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Route keys to visible overlay (priority order).
-		if a.diffView.LineCount() > 0 {
-			switch msg.String() {
-			case "esc", "q":
-				a.diffView.SetDiff("", "")
-			case "up", "k":
-				a.diffView.ScrollUp()
-			case "down", "j":
-				a.diffView.ScrollDown()
-			}
-			return a, nil
-		}
 		if a.permPrompt.IsVisible() {
 			var cmd tea.Cmd
 			a.permPrompt, cmd = a.permPrompt.Update(msg)
@@ -319,18 +303,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.setFocus(msg.Target)
 		return a, nil
 
-	case DiffOpenMsg:
-		a.diffView.SetDiff(msg.FilePath, msg.Content)
-		return a, nil
-
-	case DiffClosedMsg:
-		a.diffView.SetDiff("", "")
-		return a, nil
-
-	case WorkspaceChangedMsg:
-		a.workspace.Add(msg.Path)
-		return a, nil
-
 	case MessagePartDeltaMsg, MessageUpdatedMsg, MessagePartUpdatedMsg, MessagesLoadedMsg:
 		// SSE messages always go to chat view.
 		var cmd tea.Cmd
@@ -417,13 +389,6 @@ func (a App) View() string {
 	if a.modelDlg.IsVisible() {
 		return a.modelDlg.View()
 	}
-	if a.diffView.LineCount() > 0 {
-		return lipgloss.Place(
-			a.width, a.height,
-			lipgloss.Center, lipgloss.Center,
-			styleDialogBorder.Width(a.width-4).Render(a.diffView.View()),
-		)
-	}
 	if a.dialog.IsVisible() {
 		return a.dialog.View()
 	}
@@ -491,7 +456,6 @@ func (a *App) resize() {
 	a.permPrompt.SetSize(a.width, a.height)
 	a.toast.SetSize(a.width)
 	a.sidebar.SetSize(l.sidebarWidth, l.chatHeight)
-	a.diffView.SetSize(a.width-6, a.height-4)
 }
 
 // setFocus changes the focused component.

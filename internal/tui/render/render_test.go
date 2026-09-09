@@ -172,58 +172,6 @@ func TestMarkdownRenderer_RenderStreaming_MultipleBlocks(t *testing.T) {
 	}
 }
 
-// --- Diff tests ---
-
-func TestRenderDiff_Empty(t *testing.T) {
-	got := RenderDiff("", 80)
-	if got != "" {
-		t.Errorf("RenderDiff('') = %q, want empty", got)
-	}
-}
-
-func TestRenderDiff_ColorsAdditions(t *testing.T) {
-	diff := "+added line"
-	got := RenderDiff(diff, 80)
-	if !strings.Contains(got, "added line") {
-		t.Error("diff should contain added line text")
-	}
-}
-
-func TestRenderDiff_ColorsDeletions(t *testing.T) {
-	diff := "-removed line"
-	got := RenderDiff(diff, 80)
-	if !strings.Contains(got, "removed line") {
-		t.Error("diff should contain removed line text")
-	}
-}
-
-func TestRenderDiff_ContextLines(t *testing.T) {
-	diff := " context line"
-	got := RenderDiff(diff, 80)
-	if !strings.Contains(got, "context line") {
-		t.Error("diff should contain context line text")
-	}
-}
-
-func TestRenderDiff_Headers(t *testing.T) {
-	diff := "--- a/file.go\n+++ b/file.go\n@@ -1,3 +1,3 @@"
-	got := RenderDiff(diff, 80)
-	if !strings.Contains(got, "file.go") {
-		t.Error("diff should contain file path from header")
-	}
-	if !strings.Contains(got, "@@") {
-		t.Error("diff should contain hunk header")
-	}
-}
-
-func TestRenderDiff_SmallWidth(t *testing.T) {
-	diff := "+short"
-	got := RenderDiff(diff, 5)
-	if got == "" {
-		t.Error("should handle small width")
-	}
-}
-
 // --- truncate tests ---
 
 func TestTruncate_ShortString(t *testing.T) {
