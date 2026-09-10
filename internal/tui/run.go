@@ -16,13 +16,14 @@ import (
 type RunConfig struct {
 	ServerURL string
 	Directory string
+	Theme     string
 }
 
 // Run starts the bubbletea TUI program connected to the given server.
 func Run(ctx context.Context, cfg RunConfig) error {
 	client := api.New(cfg.ServerURL, cfg.Directory)
 
-	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory)
+	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme)
 
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
@@ -47,10 +48,17 @@ type connectedApp struct {
 	pendingAgent  string
 }
 
-func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory string) *connectedApp {
+func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName string) *connectedApp {
 	app := NewApp(serverURL)
 	app.status.SetCwd(directory)
+	app.sidebar.SetCwd(directory)
 	app.prompt.EnableStartupGuard()
+	if themeName != "" {
+		if theme := app.themes.Get(themeName); theme != nil {
+			app.state.CurrentTheme = themeName
+			ApplyColorTheme(theme)
+		}
+	}
 	return &connectedApp{
 		app:    app,
 		client: client,
@@ -101,6 +109,17 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle client-side commands before sending to server.
 		trimmed := strings.TrimSpace(msg.Content)
+
+		// ! shell command: run locally and feed output to model.
+		if strings.HasPrefix(trimmed, "!") {
+			shellCmd := strings.TrimSpace(trimmed[1:])
+			if shellCmd != "" {
+				slog.Info("user shell command", "cmd", shellCmd)
+				dir := c.app.status.Cwd()
+				return c, runUserShell(shellCmd, dir)
+			}
+		}
+
 		if strings.HasPrefix(trimmed, "/") {
 			cmdName := strings.TrimPrefix(strings.Fields(trimmed)[0], "/")
 			if cmd, handled := c.app.handleClientCommand(cmdName); handled {
@@ -245,6 +264,42 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ProvidersRefreshMsg:
 		cmds = append(cmds, fetchProviders(c.client))
+		return c, tea.Batch(cmds...)
+
+	case ShellResultMsg:
+		var promptText string
+		if msg.Err != nil {
+			promptText = fmt.Sprintf("$ %s\n%s\n[exit error: %v]", msg.Command, msg.Output, msg.Err)
+		} else {
+			promptText = fmt.Sprintf("$ %s\n%s", msg.Command, msg.Output)
+		}
+
+		sessionID := c.app.state.ActiveSession
+		if sessionID == "" {
+			c.pendingPrompt = promptText
+			input := api.SessionCreateInput{
+				Title: "New Session",
+				Agent: c.app.state.CurrentAgent,
+			}
+			if input.Agent == "" {
+				input.Agent = "build"
+			}
+			if c.app.state.CurrentModel.ModelID != "" {
+				input.Model = &session.ModelRef{
+					ProviderID: c.app.state.CurrentModel.ProviderID,
+					ID:         c.app.state.CurrentModel.ModelID,
+				}
+			}
+			cmds = append(cmds, createSession(c.client, input))
+		} else {
+			pi := c.buildPromptInput(promptText)
+			cmds = append(cmds, sendPrompt(c.client, sessionID, pi))
+		}
+
+		spinCmd := c.app.status.SetWorking(true)
+		if spinCmd != nil {
+			cmds = append(cmds, spinCmd)
+		}
 		return c, tea.Batch(cmds...)
 
 	case AbortRequestMsg:

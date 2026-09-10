@@ -42,6 +42,7 @@ type Info struct {
 	Reference         map[string]string          `json:"reference,omitempty"`
 	Watcher           []string                   `json:"watcher,omitempty"`
 	LSP               *LSPConfig                 `json:"lsp,omitempty"`
+	Theme             string                     `json:"theme,omitempty"`
 }
 
 // LSPConfig holds language server protocol client settings.

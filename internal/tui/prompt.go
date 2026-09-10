@@ -23,6 +23,8 @@ type PromptInput struct {
 	agent        string
 	model        string
 	provider     string
+	agentColor   lipgloss.AdaptiveColor
+	cycleAgents  []string
 	width        int
 	keys         KeyMap
 	guardEnabled bool
@@ -57,6 +59,7 @@ func NewPromptInput(width int) PromptInput {
 		autocomplete: NewAutocomplete(),
 		history:      NewPromptHistory(),
 		agent:        "build",
+		agentColor:   AgentColor("build"),
 		width:        width,
 		keys:         DefaultKeyMap(),
 	}
@@ -94,11 +97,17 @@ func (p *PromptInput) SetAgents(agents []AutocompleteItem) {
 	p.autocomplete.SetAgents(agents)
 }
 
+// SetCycleAgents sets the ordered list of agent names for tab cycling.
+func (p *PromptInput) SetCycleAgents(names []string) {
+	p.cycleAgents = names
+}
+
 // SetMetadata updates the agent/model display below the textarea.
 func (p *PromptInput) SetMetadata(agent, model, provider string) {
 	p.agent = agent
 	p.model = model
 	p.provider = provider
+	p.agentColor = AgentColor(agent)
 }
 
 // Value returns the current text content.
@@ -188,6 +197,24 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 			p.textarea, _ = p.textarea.Update(msg)
 			return p, nil
 
+		case "tab":
+			if len(p.cycleAgents) > 0 {
+				next := p.nextAgent(1)
+				return p, func() tea.Msg {
+					return AgentSelectedMsg{Agent: next}
+				}
+			}
+			return p, nil
+
+		case "shift+tab":
+			if len(p.cycleAgents) > 0 {
+				next := p.nextAgent(-1)
+				return p, func() tea.Msg {
+					return AgentSelectedMsg{Agent: next}
+				}
+			}
+			return p, nil
+
 		case "up":
 			// Navigate history when autocomplete is not visible.
 			if prev, ok := p.history.Previous(p.textarea.Value()); ok {
@@ -218,7 +245,7 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 
 // View implements tea.Model.
 func (p PromptInput) View() string {
-	accentColor := lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"}
+	accentColor := p.agentColor
 	surfaceColor := lipgloss.AdaptiveColor{Light: "#F0F0F0", Dark: "#1E293B"}
 
 	innerWidth := p.width - 3 // ┃ + padding
@@ -263,10 +290,9 @@ func (p PromptInput) View() string {
 
 // renderMetadata renders the status line below the textarea.
 func (p PromptInput) renderMetadata() string {
-	accentColor := lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"}
 	dimColor := lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}
 
-	agentStyle := lipgloss.NewStyle().Foreground(accentColor)
+	agentStyle := lipgloss.NewStyle().Foreground(p.agentColor)
 	dimStyle := lipgloss.NewStyle().Foreground(dimColor)
 
 	agentName := p.agent
@@ -292,6 +318,22 @@ func (p PromptInput) formatSelection(selected string) string {
 		return "/ask " + selected + " "
 	}
 	return "/" + selected + " "
+}
+
+// nextAgent returns the agent name dir positions from the current agent.
+func (p *PromptInput) nextAgent(dir int) string {
+	if len(p.cycleAgents) == 0 {
+		return p.agent
+	}
+	idx := 0
+	for i, name := range p.cycleAgents {
+		if name == p.agent {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + dir + len(p.cycleAgents)) % len(p.cycleAgents)
+	return p.cycleAgents[idx]
 }
 
 // isTerminalEscape returns true if the string looks like a terminal escape

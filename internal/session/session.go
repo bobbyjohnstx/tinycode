@@ -21,7 +21,7 @@ type Info struct {
 	Version   string     `json:"version"`
 	Summary   *Summary   `json:"summary,omitempty"`
 	Cost      float64    `json:"cost,omitempty"`
-	Tokens    TokenUsage `json:"tokens,omitempty"`
+	Tokens    TokenUsage `json:"tokens"`
 	Time      TimeInfo   `json:"time"`
 	CreatedAt    time.Time `json:"-"`
 	UpdatedAt    time.Time `json:"-"`

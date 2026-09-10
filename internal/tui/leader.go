@@ -19,11 +19,12 @@ const leaderTimeout = 500 * time.Millisecond
 
 // Leader actions returned by HandleKey.
 const (
-	LeaderActionSidebar    = "toggle-sidebar"
-	LeaderActionNewSession = "new-session"
-	LeaderActionSessionList = "session-list"
-	LeaderActionModelList  = "model-list"
-	LeaderActionAgentList  = "agent-list"
+	LeaderActionSidebar       = "toggle-sidebar"
+	LeaderActionNewSession    = "new-session"
+	LeaderActionSessionList   = "session-list"
+	LeaderActionModelList     = "model-list"
+	LeaderActionAgentList     = "agent-list"
+	LeaderActionExportSession = "export-session"
 )
 
 // LeaderState implements the ctrl+x leader key state machine.
@@ -107,6 +108,8 @@ func (l *LeaderState) matchBinding(msg tea.KeyMsg) string {
 		return LeaderActionModelList
 	case key.Matches(msg, l.keys.AgentList):
 		return LeaderActionAgentList
+	case key.Matches(msg, l.keys.ExportSession):
+		return LeaderActionExportSession
 	default:
 		return ""
 	}

@@ -243,6 +243,9 @@ func (r *Registry) List(defaultAgent string) []Info {
 		if strings.Contains(agent.Name, ".compact") {
 			continue
 		}
+		if agent.Hidden {
+			continue
+		}
 		result = append(result, *agent)
 	}
 

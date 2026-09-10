@@ -18,13 +18,27 @@ PLATFORMS := \
   darwin/arm64 \
   windows/amd64
 
-.PHONY: build build-all clean test vet lint check embed-webapp
+PLUGIN_DIRS := $(wildcard cmd/plugin-*)
+PLUGIN_NAMES := $(notdir $(PLUGIN_DIRS))
 
-## build: Build for the current platform
+.PHONY: build build-all build-plugins build-full clean test vet lint check embed-webapp package
+
+## build: Build tinycode for the current platform
 build:
 	go build -ldflags "$(LDFLAGS)" -o dist/$(BINARY) $(MAIN)
 
-## build-all: Cross-compile for all supported platforms
+## build-plugins: Build all plugins for the current platform
+build-plugins:
+	@for dir in $(PLUGIN_DIRS); do \
+		name=$$(basename $$dir); \
+		echo "Building plugin $$name ..."; \
+		go build -ldflags "-s -w" -o dist/plugins/$$name ./$$dir; \
+	done
+
+## build-full: Build tinycode and all plugins for the current platform
+build-full: build build-plugins
+
+## build-all: Cross-compile tinycode for all supported platforms
 build-all:
 	@for platform in $(PLATFORMS); do \
 		os=$${platform%/*}; \
@@ -36,24 +50,49 @@ build-all:
 		GOOS=$$os GOARCH=$$arch go build -ldflags "$(LDFLAGS)" -o $$output $(MAIN); \
 	done
 
-## package: Create release archives for all platforms
-package: build-all
+## build-all-plugins: Cross-compile all plugins for all supported platforms
+build-all-plugins:
+	@for platform in $(PLATFORMS); do \
+		os=$${platform%/*}; \
+		arch=$${platform#*/}; \
+		ext=""; \
+		if [ "$$os" = "windows" ]; then ext=".exe"; fi; \
+		for dir in $(PLUGIN_DIRS); do \
+			name=$$(basename $$dir); \
+			output="dist/plugins/$${name}-$${os}-$${arch}$${ext}"; \
+			echo "Building plugin $$output ..."; \
+			GOOS=$$os GOARCH=$$arch go build -ldflags "-s -w" -o $$output ./$$dir; \
+		done; \
+	done
+
+## build-all-full: Cross-compile tinycode and all plugins for all platforms
+build-all-full: build-all build-all-plugins
+
+## package: Create release archives with tinycode + all plugins for all platforms
+package: build-all-full
 	@mkdir -p dist/release
 	@for platform in $(PLATFORMS); do \
 		os=$${platform%/*}; \
 		arch=$${platform#*/}; \
 		ext=""; \
 		if [ "$$os" = "windows" ]; then ext=".exe"; fi; \
-		binary="dist/$(BINARY)-$${os}-$${arch}$${ext}"; \
 		archiveName="$(BINARY)-$${os}-$${arch}"; \
-		mkdir -p "dist/release/$$archiveName"; \
-		cp "$$binary" "dist/release/$$archiveName/$(BINARY)$${ext}"; \
+		stageDir="dist/release/$$archiveName"; \
+		mkdir -p "$$stageDir/plugins"; \
+		cp "dist/$(BINARY)-$${os}-$${arch}$${ext}" "$$stageDir/$(BINARY)$${ext}"; \
+		for dir in $(PLUGIN_DIRS); do \
+			name=$$(basename $$dir); \
+			pluginBin="dist/plugins/$${name}-$${os}-$${arch}$${ext}"; \
+			if [ -f "$$pluginBin" ]; then \
+				cp "$$pluginBin" "$$stageDir/plugins/$${name}$${ext}"; \
+			fi; \
+		done; \
 		if [ "$$os" = "windows" ]; then \
-			(cd dist/release && zip -q "$$archiveName.zip" "$$archiveName/$(BINARY)$${ext}"); \
+			(cd dist/release && zip -qr "$$archiveName.zip" "$$archiveName"); \
 		else \
 			tar -czf "dist/release/$$archiveName.tar.gz" -C dist/release "$$archiveName"; \
 		fi; \
-		rm -rf "dist/release/$$archiveName"; \
+		rm -rf "$$stageDir"; \
 	done
 
 ## test: Run all tests

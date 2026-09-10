@@ -3,6 +3,8 @@ package tui
 import (
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -17,10 +19,12 @@ type App struct {
 	palette    CommandPalette
 	agentDlg   AgentDialog
 	modelDlg   ModelDialog
+	themeDlg   ThemeDialog
 	permPrompt PermissionPrompt
 	toast      Toast
 	sidebar    Sidebar
 	leader     LeaderState
+	themes     *ThemeRegistry
 	state      *AppState
 	focus      FocusTarget
 	width      int
@@ -35,6 +39,9 @@ func NewApp(serverURL string) App {
 	state := NewAppState()
 	keys := DefaultKeyMap()
 
+	themes := NewThemeRegistry()
+	themes.LoadEmbedded()
+
 	return App{
 		chat:       NewChatView(80, 24),
 		prompt:     NewPromptInput(80),
@@ -44,10 +51,12 @@ func NewApp(serverURL string) App {
 		palette:    NewCommandPalette(),
 		agentDlg:   NewAgentDialog(),
 		modelDlg:   NewModelDialog(),
+		themeDlg:   NewThemeDialog(),
 		permPrompt: NewPermissionPrompt(),
 		toast:      NewToast(DefaultTheme()),
 		sidebar:    NewSidebar(),
 		leader:     NewLeaderState(keys),
+		themes:     themes,
 		state:      state,
 		focus:      FocusPrompt,
 		serverURL:  serverURL,
@@ -131,6 +140,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, tea.Batch(cmds...)
 		}
+		if a.themeDlg.IsVisible() {
+			var cmd tea.Cmd
+			a.themeDlg, cmd = a.themeDlg.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return a, tea.Batch(cmds...)
+		}
 
 		// Global keys handled before component dispatch.
 		if cmd := a.handleGlobalKey(msg); cmd != nil {
@@ -149,6 +166,21 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state.SessionStatus[msg.SessionID] = SessionStatus{Working: false}
 		return a, cmd
 
+
+	case CopiedToClipboardMsg:
+		if msg.Err != nil {
+			return a, nil
+		}
+		cmd := a.toast.Show(fmt.Sprintf("Copied %d chars", msg.Chars), false)
+		return a, cmd
+
+	case ExportSessionMsg:
+		if msg.Err != nil {
+			cmd := a.toast.Show(fmt.Sprintf("Export failed: %v", msg.Err), true)
+			return a, cmd
+		}
+		cmd := a.toast.Show("Exported to "+filepath.Base(msg.Path), false)
+		return a, cmd
 
 	case ToastMsg:
 		cmd := a.toast.Show(msg.Text, msg.IsError)
@@ -174,6 +206,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			a.prompt.SetAgents(agentItems)
+			a.prompt.SetCycleAgents(names)
 			slog.Info("agents loaded", "count", len(msg.Agents), "names", names)
 		} else {
 			slog.Error("agent list fetch failed", "error", msg.Err)
@@ -186,8 +219,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			items := []AutocompleteItem{
 				{Name: "exit", Description: "Exit the app"},
 				{Name: "connect", Description: "Select provider and model"},
+				{Name: "export", Description: "Export session as Markdown"},
+				{Name: "theme", Description: "Change color theme"},
 			}
 			for _, cmd := range msg.Commands {
+				if strings.HasPrefix(cmd.Description, "Switch to ") {
+					continue
+				}
 				items = append(items, AutocompleteItem{
 					Name:        cmd.Name,
 					Description: cmd.Description,
@@ -219,6 +257,29 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.setFocus(FocusPrompt)
 		return a, nil
 
+	case ThemePreviewMsg:
+		if theme := a.themes.Get(msg.ThemeID); theme != nil {
+			ApplyColorTheme(theme)
+		}
+		return a, nil
+
+	case ThemeRevertMsg:
+		a.setFocus(FocusPrompt)
+		if theme := a.themes.Get(msg.ThemeID); theme != nil {
+			ApplyColorTheme(theme)
+		}
+		return a, nil
+
+	case ThemeSelectedMsg:
+		a.setFocus(FocusPrompt)
+		a.state.CurrentTheme = msg.ThemeID
+		if theme := a.themes.Get(msg.ThemeID); theme != nil {
+			ApplyColorTheme(theme)
+			cmd := a.toast.Show("Theme: "+theme.Name, false)
+			return a, cmd
+		}
+		return a, nil
+
 	case ModelSelectedMsg:
 		a.setFocus(FocusPrompt)
 		a.state.CurrentModel = msg.Selection
@@ -228,6 +289,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.ID == msg.Selection.ModelID {
 						a.prompt.SetMetadata(a.state.CurrentAgent, m.Name, p.Name)
 						a.status.SetModel(m.Name, p.Name)
+						a.updateSidebarContext()
 						return a, nil
 					}
 				}
@@ -235,6 +297,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.prompt.SetMetadata(a.state.CurrentAgent, msg.Selection.ModelID, msg.Selection.ProviderID)
 		a.status.SetModel(msg.Selection.ModelID, msg.Selection.ProviderID)
+		a.updateSidebarContext()
 		return a, nil
 
 	case PromptSubmittedMsg:
@@ -277,11 +340,34 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil {
 			a.state.Providers = msg.Providers
 		}
+		if a.state.CurrentModel.ModelID == "" && msg.DefaultProvider != "" && msg.DefaultModel != "" {
+			a.state.CurrentModel = ModelSelection{
+				ProviderID: msg.DefaultProvider,
+				ModelID:    msg.DefaultModel,
+			}
+			modelName := msg.DefaultModel
+			providerName := msg.DefaultProvider
+			for _, p := range a.state.Providers {
+				if p.ID == msg.DefaultProvider {
+					providerName = p.Name
+					for _, m := range p.Models {
+						if m.ID == msg.DefaultModel {
+							modelName = m.Name
+							break
+						}
+					}
+					break
+				}
+			}
+			a.prompt.SetMetadata(a.state.CurrentAgent, modelName, providerName)
+			a.status.SetModel(modelName, providerName)
+		}
 		if a.state.PendingModelDialog {
 			a.state.PendingModelDialog = false
 			a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
 			a.setFocus(FocusDialog)
 		}
+		a.updateSidebarContext()
 		return a, nil
 
 	case SSEConnectedMsg:
@@ -331,6 +417,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if statusCmd != nil {
 			cmds = append(cmds, statusCmd)
 		}
+		a.updateSidebarContext()
 		return a, tea.Batch(cmds...)
 
 	case tea.MouseMsg:
@@ -415,6 +502,9 @@ func (a App) View() string {
 	if a.modelDlg.IsVisible() {
 		return a.modelDlg.View()
 	}
+	if a.themeDlg.IsVisible() {
+		return a.themeDlg.View()
+	}
 	if a.dialog.IsVisible() {
 		return a.dialog.View()
 	}
@@ -479,6 +569,7 @@ func (a *App) resize() {
 	a.palette.SetSize(a.width, a.height)
 	a.agentDlg.SetSize(a.width, a.height)
 	a.modelDlg.SetSize(a.width, a.height)
+	a.themeDlg.SetSize(a.width, a.height)
 	a.permPrompt.SetSize(a.width, a.height)
 	a.toast.SetSize(a.width)
 	a.sidebar.SetSize(l.sidebarWidth, l.chatHeight)
@@ -535,6 +626,62 @@ func (a *App) syncPromptMetadata() {
 	a.status.SetAgent("build")
 }
 
+// updateSidebarContext recomputes token stats from chat messages and pushes them to the sidebar.
+func (a *App) updateSidebarContext() {
+	msgs := a.chat.Messages()
+	var lastTokens int
+	var totalCost float64
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
+		if m.Info.Role == "assistant" {
+			t := m.Info.Tokens
+			total := t.Input + t.Output
+			if total > 0 && lastTokens == 0 {
+				lastTokens = total
+			}
+		}
+		totalCost += m.Info.Cost
+	}
+
+	contextLimit := 0
+	for _, p := range a.state.Providers {
+		for _, m := range p.Models {
+			if m.ID == a.state.CurrentModel.ModelID && m.ProviderID == a.state.CurrentModel.ProviderID {
+				contextLimit = m.ContextLimit
+				break
+			}
+		}
+		if contextLimit > 0 {
+			break
+		}
+	}
+
+	pct := 0
+	if contextLimit > 0 && lastTokens > 0 {
+		pct = lastTokens * 100 / contextLimit
+	}
+
+	a.sidebar.SetContext(ContextStats{
+		Tokens:       lastTokens,
+		ContextLimit: contextLimit,
+		Percent:      pct,
+		Cost:         totalCost,
+	})
+}
+
+// activeSessionInfo returns the SessionInfo for the currently active session, or nil.
+func (a *App) activeSessionInfo() *SessionInfo {
+	if a.state.ActiveSession == "" {
+		return nil
+	}
+	for _, s := range a.state.Sessions {
+		if s.ID == a.state.ActiveSession {
+			return &s
+		}
+	}
+	return nil
+}
+
 // hasMessages returns true if the active session has any messages.
 func (a *App) hasMessages() bool {
 	return a.state.ActiveSession != "" && a.chat.HasMessages()
@@ -544,6 +691,8 @@ func (a *App) hasMessages() bool {
 func (a *App) showPalette() {
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
+		{Label: "export", Description: "Export session as Markdown", Value: "export"},
+		{Label: "theme", Description: "Change color theme", Value: "theme"},
 	}
 	for _, cmd := range a.state.Commands {
 		items = append(items, PaletteItem{
@@ -565,6 +714,17 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	case "connect":
 		a.state.PendingModelDialog = true
 		return func() tea.Msg { return ProvidersRefreshMsg{} }, true
+	case "theme":
+		a.themeDlg.Show(a.themes.List(), a.state.CurrentTheme)
+		a.setFocus(FocusDialog)
+		return nil, true
+	case "export":
+		session := a.activeSessionInfo()
+		if session == nil {
+			return a.toast.Show("No active session to export", true), true
+		}
+		msgs := a.chat.Messages()
+		return exportSession(msgs, *session, a.status.Cwd()), true
 	}
 	return nil, false
 }
@@ -587,9 +747,12 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 		a.dialog.Show(a.state.Sessions)
 		return nil
 	case LeaderActionNewSession:
-		// Emit a SessionSwitchedMsg with empty ID to trigger new session creation.
 		return func() tea.Msg {
 			return SessionSwitchedMsg{SessionID: ""}
+		}
+	case LeaderActionExportSession:
+		if cmd, handled := a.handleClientCommand("export"); handled {
+			return cmd
 		}
 	}
 	return nil

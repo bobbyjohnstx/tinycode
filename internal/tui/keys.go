@@ -30,6 +30,7 @@ type KeyMap struct {
 	NewSession    key.Binding // ctrl+x n
 	ModelList     key.Binding // ctrl+x m
 	AgentList     key.Binding // ctrl+x a
+	ExportSession key.Binding // ctrl+x x
 	Undo          key.Binding // ctrl+x u
 	Redo          key.Binding // ctrl+x r
 }
@@ -115,6 +116,10 @@ func DefaultKeyMap() KeyMap {
 		AgentList: key.NewBinding(
 			key.WithKeys("a"),
 			key.WithHelp("ctrl+x a", "agent list"),
+		),
+		ExportSession: key.NewBinding(
+			key.WithKeys("x"),
+			key.WithHelp("ctrl+x x", "export session"),
 		),
 		Undo: key.NewBinding(
 			key.WithKeys("u"),

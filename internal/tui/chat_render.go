@@ -25,6 +25,8 @@ var (
 		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
 	styleReasoningLabel = lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"})
+	styleReasoningText = lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#999999"})
 )
 
 // renderMessage renders a single message (user or assistant) as a string.
@@ -63,6 +65,13 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 	var sb strings.Builder
 	lineNum := 0
 
+	agentThoughtStyle := styleReasoningLabel
+	agent := msg.Info.Agent
+	if agent == "" {
+		agent = "build"
+	}
+	agentThoughtStyle = lipgloss.NewStyle().Foreground(AgentColor(agent))
+
 	for _, part := range msg.Parts {
 		switch part.Type {
 		case "text":
@@ -80,10 +89,10 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 			if part.ThoughtExpanded {
 				prefix = "-"
 			}
-			label := styleReasoningLabel.Render(prefix + " Thought")
+			label := agentThoughtStyle.Render(prefix + " Thought")
 			if part.Time != nil {
 				if dur := partDuration(part); dur != "" {
-					label += styleReasoningLabel.Render(": " + dur)
+					label += agentThoughtStyle.Render(": " + dur)
 				}
 			}
 			sb.WriteString(label)
@@ -91,26 +100,32 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 			lineNum++
 			if part.ThoughtExpanded && part.Text != "" {
 				wrapped := wordwrap.String(part.Text, width-6)
-				for _, line := range strings.Split(wrapped, "\n") {
-					sb.WriteString(styleReasoningLabel.Render("  " + line))
+				expandedLines := strings.Split(wrapped, "\n")
+				for _, line := range expandedLines {
+					sb.WriteString(styleReasoningText.Render("  " + line))
 					sb.WriteString("\n")
 				}
 				sb.WriteString("\n")
+				lineNum += len(expandedLines) + 1
 			}
 		case "tool-call":
-			sb.WriteString(renderToolCallPart(part))
+			tc := renderToolCallPart(part)
+			sb.WriteString(tc)
 			sb.WriteString("\n")
+			lineNum += strings.Count(tc, "\n") + 1
 		case "tool-result":
 			result := renderToolResultPart(part, width-4)
 			if result != "" {
 				sb.WriteString(result)
 				sb.WriteString("\n")
+				lineNum += strings.Count(result, "\n") + 1
 			}
 		default:
 			rendered := renderTextPart(part, width-4, md)
 			if rendered != "" {
 				sb.WriteString(rendered)
 				sb.WriteString("\n")
+				lineNum += strings.Count(rendered, "\n") + 1
 			}
 		}
 	}
@@ -125,19 +140,20 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 }
 
 func renderAgentFooter(msg MessageView) string {
-	var parts []string
 	agent := msg.Info.Agent
 	if agent == "" {
-		agent = "Build"
-	} else {
-		agent = cases.Title(language.English).String(agent)
+		agent = "build"
 	}
-	parts = append(parts, agent)
+	agentLabel := cases.Title(language.English).String(agent)
+	agentStyle := lipgloss.NewStyle().Foreground(AgentColor(agent))
+
+	var parts []string
+	parts = append(parts, agentLabel)
 	if msg.Info.ModelID != "" {
 		parts = append(parts, msg.Info.ModelID)
 	}
 	label := strings.Join(parts, " · ")
-	return styleAgentFooter.Render("■ " + label)
+	return agentStyle.Render("■") + " " + styleAgentFooter.Render(label)
 }
 
 // renderParts renders all parts of a message.

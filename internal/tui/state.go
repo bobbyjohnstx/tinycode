@@ -35,13 +35,21 @@ type ModelSelection struct {
 
 // MessageInfo is the metadata of a message (role, model, etc.).
 type MessageInfo struct {
-	ID         string `json:"id"`
-	SessionID  string `json:"sessionID"`
-	Role       string `json:"role"`
-	Agent      string `json:"agent,omitempty"`
-	ModelID    string `json:"modelID,omitempty"`
-	ProviderID string `json:"providerID,omitempty"`
-	CreatedAt  string `json:"createdAt,omitempty"`
+	ID         string    `json:"id"`
+	SessionID  string    `json:"sessionID"`
+	Role       string    `json:"role"`
+	Agent      string    `json:"agent,omitempty"`
+	ModelID    string    `json:"modelID,omitempty"`
+	ProviderID string    `json:"providerID,omitempty"`
+	CreatedAt  string    `json:"createdAt,omitempty"`
+	Tokens     TokenInfo `json:"tokens,omitempty"`
+	Cost       float64   `json:"cost,omitempty"`
+}
+
+// TokenInfo holds token usage for a single message.
+type TokenInfo struct {
+	Input  int `json:"input"`
+	Output int `json:"output"`
 }
 
 // MessageView represents a message with its parts.
@@ -79,9 +87,12 @@ type ProviderInfo struct {
 
 // ModelInfo is the TUI's view of a model.
 type ModelInfo struct {
-	ID         string `json:"id"`
-	ProviderID string `json:"providerID"`
-	Name       string `json:"name"`
+	ID           string  `json:"id"`
+	ProviderID   string  `json:"providerID"`
+	Name         string  `json:"name"`
+	ContextLimit int     `json:"contextLimit,omitempty"`
+	CostInput    float64 `json:"costInput,omitempty"`
+	CostOutput   float64 `json:"costOutput,omitempty"`
 }
 
 // PermissionRequest represents a pending permission prompt.
@@ -107,6 +118,7 @@ type AppState struct {
 	// Local UI state
 	CurrentAgent       string
 	CurrentModel       ModelSelection
+	CurrentTheme       string
 	SidebarOpen        bool
 	Connected          bool
 	PendingModelDialog bool

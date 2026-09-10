@@ -59,8 +59,10 @@ type SessionCreatedLocalMsg struct {
 }
 
 type ProvidersLoadedMsg struct {
-	Providers []ProviderInfo
-	Err       error
+	Providers       []ProviderInfo
+	DefaultProvider string
+	DefaultModel    string
+	Err             error
 }
 
 type AgentListMsg struct {
@@ -142,6 +144,13 @@ type ToggleThoughtMsg struct {
 }
 
 type TickMsg struct{}
+
+// ShellResultMsg carries the output of a user-initiated `! command`.
+type ShellResultMsg struct {
+	Command string
+	Output  string
+	Err     error
+}
 
 // ProvidersRefreshMsg signals that the provider list should be re-fetched.
 type ProvidersRefreshMsg struct{}

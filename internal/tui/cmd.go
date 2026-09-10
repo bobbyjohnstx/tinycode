@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"bytes"
+	"context"
 	"fmt"
+	"os/exec"
 	"sort"
 	"time"
 
@@ -137,6 +140,11 @@ func parseMessageView(props map[string]any) MessageView {
 			}
 		}
 	}
+	if tokens, ok := info["tokens"].(map[string]any); ok {
+		mi.Tokens.Input, _ = intFromAny(tokens["input"])
+		mi.Tokens.Output, _ = intFromAny(tokens["output"])
+	}
+	mi.Cost, _ = info["cost"].(float64)
 	return MessageView{Info: mi}
 }
 
@@ -199,6 +207,15 @@ func fetchProviders(client *api.Client) tea.Cmd {
 					if id, ok := obj["id"].(string); ok && id != "" {
 						m.ID = id
 					}
+					if limit, ok := obj["limit"].(map[string]any); ok {
+						if ctx, ok := limit["context"].(float64); ok {
+							m.ContextLimit = int(ctx)
+						}
+					}
+					if cost, ok := obj["cost"].(map[string]any); ok {
+						m.CostInput, _ = cost["input"].(float64)
+						m.CostOutput, _ = cost["output"].(float64)
+					}
 				}
 				pi.Models = append(pi.Models, m)
 			}
@@ -207,7 +224,12 @@ func fetchProviders(client *api.Client) tea.Cmd {
 			})
 			providers[i] = pi
 		}
-		return ProvidersLoadedMsg{Providers: providers}
+		msg := ProvidersLoadedMsg{Providers: providers}
+		if resp.Default != nil {
+			msg.DefaultProvider = resp.Default["provider"]
+			msg.DefaultModel = resp.Default["model"]
+		}
+		return msg
 	}
 }
 
@@ -303,6 +325,17 @@ func stringProp(props map[string]any, key string) string {
 	return v
 }
 
+// intFromAny extracts an int from a JSON number (float64) or int.
+func intFromAny(v any) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case int:
+		return n, true
+	}
+	return 0, false
+}
+
 func parseSessionInfo(props map[string]any) SessionInfo {
 	info, _ := props["info"].(map[string]any)
 	if info == nil {
@@ -327,4 +360,26 @@ func parseSessionInfo(props map[string]any) SessionInfo {
 		}
 	}
 	return si
+}
+
+// runUserShell executes a shell command and returns a ShellResultMsg.
+func runUserShell(command, dir string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "sh", "-c", command)
+		cmd.Dir = dir
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+		output := stdout.String()
+		if stderr.Len() > 0 {
+			if output != "" {
+				output += "\n"
+			}
+			output += stderr.String()
+		}
+		return ShellResultMsg{Command: command, Output: output, Err: err}
+	}
 }

@@ -95,6 +95,8 @@ func executeWebFetch(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 		return &ExecuteResult{Output: fmt.Sprintf("Error creating request: %v", err), IsError: true}, nil
 	}
 
+	req.Header.Set("User-Agent", "tinycode/1.0 (compatible; fetch tool)")
+
 	switch args.Format {
 	case "html":
 		req.Header.Set("Accept", "text/html")

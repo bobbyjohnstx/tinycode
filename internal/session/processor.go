@@ -23,7 +23,7 @@ const (
 	maxConsecutiveToolFailures      = 10
 	consecutiveToolFailureWarnEvery = 3
 	defaultDoomThreshold            = 3
-	defaultAutoContinueMax          = 3
+	defaultAutoContinueMax          = 0
 )
 
 type ToolExecutor interface {
@@ -259,13 +259,12 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 		totalUsage.Cache.Write += usage.Cache.Write
 
 		// Proactive overflow detection: compact before hitting the hard limit.
-		if p.config.Model != nil && p.config.Model.Limit.Context > 0 {
-			outputReserve := p.config.Model.Limit.Output
-			if outputReserve < 20000 {
-				outputReserve = 20000
-			}
+		// Skip when the model doesn't report token usage (totalUsage.Input == 0)
+		// to avoid spurious compaction with local models.
+		if p.config.Model != nil && p.config.Model.Limit.Context > 0 && totalUsage.Input > 0 {
+			outputReserve := max(p.config.Model.Limit.Output, 20000)
 			threshold := p.config.Model.Limit.Context - outputReserve
-			if totalUsage.Input >= threshold {
+			if threshold > 0 && totalUsage.Input >= threshold {
 				slog.Info("proactive compaction triggered", "sessionID", p.config.SessionID, "inputTokens", totalUsage.Input, "threshold", threshold)
 				if _, compactErr := p.compact(ctx); compactErr != nil {
 					slog.Warn("proactive compaction failed", "sessionID", p.config.SessionID, "error", compactErr)

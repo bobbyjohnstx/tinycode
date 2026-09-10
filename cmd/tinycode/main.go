@@ -101,6 +101,8 @@ func main() {
 		runStatus()
 	case "export":
 		runExport()
+	case "plugin":
+		runPlugin()
 	case "agent":
 		runAgent()
 	case "debug":
@@ -139,6 +141,7 @@ func printUsage() {
 	fmt.Println("  session    Manage sessions (list, delete)")
 	fmt.Println("  status     Show server health and status")
 	fmt.Println("  export     Export session messages as JSON")
+	fmt.Println("  plugin     Manage plugins (list, install, uninstall)")
 	fmt.Println("  agent      List available agents")
 	fmt.Println("  debug      Debug info (config, paths)")
 	fmt.Println("  version    Print version information")
@@ -573,6 +576,7 @@ func runTUI(args []string) {
 	if err := tui.Run(ctx, tui.RunConfig{
 		ServerURL: serverURL,
 		Directory: dir,
+		Theme:     cfg.Theme,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		os.Exit(1)
@@ -859,6 +863,9 @@ func runRun() {
 					RequestID: req.ID,
 					Reply:     reply,
 				})
+			}
+			if err := scanner.Err(); err != nil {
+				slog.Warn("stdin scanner error", "error", err)
 			}
 		}()
 	}
@@ -1268,6 +1275,127 @@ func runExport() {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func runPlugin() {
+	setupLogger()
+
+	args := os.Args[2:]
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: tinycode plugin <list|install|uninstall> [args]\n")
+		os.Exit(1)
+	}
+
+	switch args[0] {
+	case "list":
+		entries := plugin.Registry()
+		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tDESCRIPTION\tINSTALLED")
+		pluginDir := filepath.Join(config.ConfigDir(), "plugins")
+		for _, e := range entries {
+			installed := "no"
+			binPath := filepath.Join(pluginDir, e.Name)
+			if info, err := os.Stat(binPath); err == nil && info.Mode()&0o111 != 0 {
+				installed = "yes"
+			} else if _, err := exec.LookPath("tinycode-plugin-" + e.Name); err == nil {
+				installed = "yes (PATH)"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.Description, installed)
+		}
+		w.Flush()
+
+	case "install":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: tinycode plugin install <name> [--from <path>]\n")
+			os.Exit(1)
+		}
+		name := args[1]
+
+		entry, ok := plugin.LookupRegistry(name)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Unknown plugin: %s\nRun 'tinycode plugin list' to see available plugins.\n", name)
+			os.Exit(1)
+		}
+
+		pluginDir := filepath.Join(config.ConfigDir(), "plugins")
+		if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "error creating plugin directory: %v\n", err)
+			os.Exit(1)
+		}
+		destPath := filepath.Join(pluginDir, name)
+
+		// --from flag: copy from a local path (e.g. dist/plugins/plugin-notify)
+		if len(args) >= 4 && args[2] == "--from" {
+			srcPath := args[3]
+			if err := copyFile(srcPath, destPath); err != nil {
+				fmt.Fprintf(os.Stderr, "error installing plugin: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("Installed plugin %s from %s\n", name, srcPath)
+			return
+		}
+
+		// Default: build from source if cmd/plugin-<name> exists
+		pluginSrc := filepath.Join("cmd", "plugin-"+name)
+		if info, err := os.Stat(pluginSrc); err == nil && info.IsDir() {
+			fmt.Printf("Building plugin %s from source ...\n", name)
+			cmd := exec.Command("go", "build", "-ldflags", "-s -w", "-o", destPath, "./"+pluginSrc)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "build failed: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("Installed plugin %s to %s\n", name, destPath)
+			return
+		}
+
+		fmt.Fprintf(os.Stderr, "Plugin %s (%s) source not found locally.\n", name, entry.Description)
+		fmt.Fprintf(os.Stderr, "Use --from <path> to install from a pre-built binary.\n")
+		os.Exit(1)
+
+	case "uninstall":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: tinycode plugin uninstall <name>\n")
+			os.Exit(1)
+		}
+		name := args[1]
+		pluginDir := filepath.Join(config.ConfigDir(), "plugins")
+		binPath := filepath.Join(pluginDir, name)
+		if err := os.Remove(binPath); err != nil {
+			if os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "Plugin %s is not installed in %s\n", name, pluginDir)
+			} else {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			}
+			os.Exit(1)
+		}
+		fmt.Printf("Uninstalled plugin %s\n", name)
+
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown plugin subcommand: %s\nUsage: tinycode plugin <list|install|uninstall> [args]\n", args[0])
+		os.Exit(1)
+	}
+}
+
+// copyFile copies src to dst, preserving executable permissions.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source: %w", err)
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return fmt.Errorf("create destination: %w", err)
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return fmt.Errorf("copy: %w", err)
+	}
+	return nil
 }
 
 func runAgent() {

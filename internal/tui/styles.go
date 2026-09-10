@@ -1,6 +1,10 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 var (
 	styleUserMsg      = lipgloss.NewStyle().Bold(true).PaddingLeft(2)
@@ -16,6 +20,53 @@ var (
 	stylePromptAccent = lipgloss.NewStyle().BorderStyle(lipgloss.ThickBorder()).BorderLeft(true).BorderTop(false).BorderRight(false).BorderBottom(false).BorderForeground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"})
 	styleStatusBar    = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#F5F5F5", Dark: "#1A1A1A"}).Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}).Padding(0, 1)
 )
+
+var agentColorMap = map[string]lipgloss.AdaptiveColor{
+	"build":             {Light: "#CC0000", Dark: "#CC4444"},
+	"architect":         {Light: "#0055AA", Dark: "#58A6FF"},
+	"debugger":          {Light: "#CC6600", Dark: "#FFAA33"},
+	"executor":          {Light: "#006600", Dark: "#66FF66"},
+	"planner":           {Light: "#8833AA", Dark: "#C882E7"},
+	"plan":              {Light: "#8833AA", Dark: "#C882E7"},
+	"code-reviewer":     {Light: "#997700", Dark: "#FFD700"},
+	"code-simplifier":   {Light: "#997700", Dark: "#FFD700"},
+	"test-engineer":     {Light: "#007777", Dark: "#00CED1"},
+	"explore":           {Light: "#007755", Dark: "#2ED8A3"},
+	"writer":            {Light: "#AA7700", Dark: "#FCB239"},
+	"critic":            {Light: "#AA3366", Dark: "#FF6699"},
+	"security-reviewer": {Light: "#CC3300", Dark: "#FF6633"},
+	"scientist":         {Light: "#335599", Dark: "#6699CC"},
+	"git-master":        {Light: "#664400", Dark: "#CC8844"},
+	"verifier":          {Light: "#336644", Dark: "#55AA77"},
+}
+
+var agentPalette = []lipgloss.AdaptiveColor{
+	{Light: "#CC0000", Dark: "#CC4444"},
+	{Light: "#0055AA", Dark: "#58A6FF"},
+	{Light: "#CC6600", Dark: "#FFAA33"},
+	{Light: "#006600", Dark: "#66FF66"},
+	{Light: "#8833AA", Dark: "#C882E7"},
+	{Light: "#997700", Dark: "#FFD700"},
+	{Light: "#007777", Dark: "#00CED1"},
+	{Light: "#AA3366", Dark: "#FF6699"},
+	{Light: "#335599", Dark: "#6699CC"},
+	{Light: "#664400", Dark: "#CC8844"},
+	{Light: "#007755", Dark: "#2ED8A3"},
+	{Light: "#AA7700", Dark: "#FCB239"},
+}
+
+// AgentColor returns the color for a given agent name.
+func AgentColor(name string) lipgloss.AdaptiveColor {
+	lower := strings.ToLower(name)
+	if c, ok := agentColorMap[lower]; ok {
+		return c
+	}
+	var hash uint32
+	for _, ch := range lower {
+		hash = hash*31 + uint32(ch)
+	}
+	return agentPalette[hash%uint32(len(agentPalette))]
+}
 
 // Theme holds all lipgloss styles for the TUI.
 type Theme struct {

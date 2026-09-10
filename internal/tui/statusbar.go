@@ -90,6 +90,11 @@ func (s *StatusBar) SetCwd(cwd string) {
 	s.cwd = cwd
 }
 
+// Cwd returns the current working directory.
+func (s StatusBar) Cwd() string {
+	return s.cwd
+}
+
 // SetModel updates the model/provider display.
 func (s *StatusBar) SetModel(model, provider string) {
 	s.model = model
