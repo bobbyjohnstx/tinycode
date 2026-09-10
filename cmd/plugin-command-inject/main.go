@@ -119,7 +119,7 @@ func buildTools(scripts []scriptInfo) []plugin.ToolDef {
 
 				var cmd *exec.Cmd
 				if args.Args != "" {
-					cmd = exec.CommandContext(ctx, "sh", "-c", script.Path+" "+args.Args)
+					cmd = exec.CommandContext(ctx, script.Path, strings.Split(args.Args, " ")...)
 				} else {
 					cmd = exec.CommandContext(ctx, script.Path)
 				}

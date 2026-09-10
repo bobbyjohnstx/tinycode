@@ -511,6 +511,25 @@ func TestExtractPathsFromArgs(t *testing.T) {
 	}
 }
 
+func TestExtractPathsFromArgs_ExpandedKeys(t *testing.T) {
+	keys := []string{
+		"file_path", "path", "file", "directory", "dir", "folder",
+		"target", "destination", "source", "src", "dest", "location",
+		"root", "base_path", "working_directory", "cwd",
+	}
+	for _, key := range keys {
+		args := fmt.Sprintf(`{%q: "/outside/path"}`, key)
+		paths := extractPathsFromArgs(args)
+		if len(paths) != 1 {
+			t.Errorf("key %q: expected 1 path, got %d: %v", key, len(paths), paths)
+			continue
+		}
+		if paths[0] != "/outside/path" {
+			t.Errorf("key %q: expected /outside/path, got %q", key, paths[0])
+		}
+	}
+}
+
 // --- Issue #128: Proactive overflow detection ---
 
 func TestProcessor_ProactiveCompaction(t *testing.T) {

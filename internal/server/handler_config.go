@@ -26,7 +26,7 @@ func (s *Server) handleConfigGet(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 	var body map[string]any
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

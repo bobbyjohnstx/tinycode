@@ -31,7 +31,7 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 		Model    *session.ModelRef `json:"model,omitempty"`
 	}
 
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -134,7 +134,7 @@ func (s *Server) handleSessionUpdate(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Title string `json:"title,omitempty"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -179,7 +179,7 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Content string `json:"content"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -210,7 +210,7 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 		Parts     []promptPart `json:"parts"`
 		Variant   string       `json:"variant,omitempty"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -268,7 +268,7 @@ func (s *Server) handleSessionFork(w http.ResponseWriter, r *http.Request) {
 		MessageID string `json:"messageID,omitempty"`
 		Title     string `json:"title,omitempty"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

@@ -25,7 +25,7 @@ func (s *Server) handlePluginLoad(w http.ResponseWriter, r *http.Request) {
 		Name    string         `json:"name"`
 		Options map[string]any `json:"options"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -56,7 +56,7 @@ func (s *Server) handlePluginUnload(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ID string `json:"id"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -85,7 +85,7 @@ func (s *Server) handlePluginEvent(w http.ResponseWriter, r *http.Request) {
 		SessionID string `json:"sessionID"`
 		Data      any    `json:"data,omitempty"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

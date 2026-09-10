@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
@@ -227,6 +228,36 @@ func TestToolExecutionFailingScript(t *testing.T) {
 	}
 	if out == "" {
 		t.Error("expected error output, got empty string")
+	}
+}
+
+func TestToolExecution_ShellMetacharsNotInterpreted(t *testing.T) {
+	dir := t.TempDir()
+	// Script that echoes its arguments literally, one per line
+	script := filepath.Join(dir, "echo_args.sh")
+	os.WriteFile(script, []byte("#!/bin/bash\nfor arg in \"$@\"; do echo \"$arg\"; done\n"), 0o755)
+
+	scripts := []scriptInfo{{Path: script, Filename: "echo_args.sh"}}
+	tools := buildTools(scripts)
+
+	ctx := context.Background()
+	tc := plugin.ToolContext{SessionID: "test", Directory: dir}
+
+	// Pass args with shell metacharacters that would be dangerous if shell-interpreted
+	raw := json.RawMessage(`{"args":"hello; echo injected"}`)
+	out, err := tools[0].Execute(ctx, raw, tc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// With direct exec (no shell), the semicolon is a literal arg, not a command separator.
+	// The script receives ["hello;", "echo", "injected"] as separate args.
+	if strings.Contains(out, "injected\n") {
+		// If "injected" appeared on its own line, the shell interpreted the semicolon
+		t.Errorf("shell metacharacters were interpreted: output = %q", out)
+	}
+	// The output should contain "hello;" as a literal argument
+	if !strings.Contains(out, "hello;") {
+		t.Errorf("expected literal 'hello;' in output, got %q", out)
 	}
 }
 
