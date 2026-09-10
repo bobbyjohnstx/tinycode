@@ -458,6 +458,156 @@ func TestService_Close(t *testing.T) {
 	}
 }
 
+func TestWildcardMatch_QuestionMarkNoMatchEmpty(t *testing.T) {
+	if WildcardMatch("a", "a?") {
+		t.Error("expected a? not to match single char 'a' (? requires one more char)")
+	}
+}
+
+func TestWildcardMatch_EnvPattern(t *testing.T) {
+	tests := []struct {
+		input   string
+		pattern string
+		want    bool
+	}{
+		{".env", ".env*", true},
+		{".env.local", ".env*", true},
+		{".envrc", ".env*", true},
+		{"env", ".env*", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := WildcardMatch(tt.input, tt.pattern)
+			if got != tt.want {
+				t.Errorf("WildcardMatch(%q, %q) = %v, want %v", tt.input, tt.pattern, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWildcardMatch_EmptyInputAndPattern(t *testing.T) {
+	if !WildcardMatch("", "") {
+		t.Error("expected empty input to match empty pattern")
+	}
+}
+
+func TestWildcardMatch_PathWildcardMiddle(t *testing.T) {
+	if !WildcardMatch("/home/user/file.txt", "/home/*/file.txt") {
+		t.Error("expected wildcard in middle of path to match")
+	}
+	if WildcardMatch("/home/user/other.txt", "/home/*/file.txt") {
+		t.Error("expected non-matching filename to fail")
+	}
+}
+
+func TestEvaluate_ReadEnvExact(t *testing.T) {
+	result := Evaluate("read", ".env")
+	if result.Action != ActionAsk {
+		t.Errorf("expected .env to match .env* ask rule, got %s", result.Action)
+	}
+}
+
+func TestEvaluate_WriteNoDefaultRule(t *testing.T) {
+	result := Evaluate("write", "/some/file.go")
+	if result.Action != ActionAsk {
+		t.Errorf("expected write with no rules to default to ask, got %s", result.Action)
+	}
+}
+
+func TestEvaluate_CustomWriteAllow(t *testing.T) {
+	rules := Ruleset{{Permission: "write", Pattern: "*", Action: ActionAllow}}
+	result := Evaluate("write", "/any/path", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected custom write allow, got %s", result.Action)
+	}
+}
+
+func TestEvaluate_CustomOverridesEnvDefault(t *testing.T) {
+	rules := Ruleset{{Permission: "read", Pattern: ".env*", Action: ActionAllow}}
+	result := Evaluate("read", ".env.local", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected custom rule to override .env* ask default, got %s", result.Action)
+	}
+}
+
+func TestEvaluate_UnknownPermissionFallback(t *testing.T) {
+	result := Evaluate("completely_unknown", "/any/path")
+	if result.Action != ActionAsk {
+		t.Errorf("expected unknown permission to default to ask, got %s", result.Action)
+	}
+	if result.Permission != "completely_unknown" {
+		t.Errorf("expected fallback to preserve permission, got %s", result.Permission)
+	}
+}
+
+func TestDefaultRules_Structure(t *testing.T) {
+	if len(DefaultRules) != 5 {
+		t.Fatalf("expected 5 default rules, got %d", len(DefaultRules))
+	}
+
+	expected := []struct {
+		permission string
+		pattern    string
+		action     Action
+	}{
+		{"read", "*", ActionAllow},
+		{"read", ".env*", ActionAsk},
+		{"doom_loop", "*", ActionAsk},
+		{"guardrail", "*", ActionAsk},
+		{"external_directory", "*", ActionAsk},
+	}
+
+	for i, want := range expected {
+		got := DefaultRules[i]
+		if got.Permission != want.permission || got.Pattern != want.pattern || got.Action != want.action {
+			t.Errorf("DefaultRules[%d] = {%s, %s, %s}, want {%s, %s, %s}",
+				i, got.Permission, got.Pattern, got.Action, want.permission, want.pattern, want.action)
+		}
+	}
+}
+
+func TestMerge_Empty(t *testing.T) {
+	merged := Merge()
+	if len(merged) != 0 {
+		t.Errorf("expected empty merge to return 0 rules, got %d", len(merged))
+	}
+}
+
+func TestMerge_PreservesOrder(t *testing.T) {
+	a := Ruleset{
+		{Permission: "first", Pattern: "*", Action: ActionAllow},
+		{Permission: "second", Pattern: "*", Action: ActionDeny},
+	}
+	b := Ruleset{
+		{Permission: "third", Pattern: "*", Action: ActionAsk},
+	}
+	merged := Merge(a, b)
+	if len(merged) != 3 {
+		t.Fatalf("expected 3 rules, got %d", len(merged))
+	}
+	if merged[0].Permission != "first" || merged[1].Permission != "second" || merged[2].Permission != "third" {
+		t.Error("merge did not preserve rule order across rulesets")
+	}
+}
+
+func TestDisabled_EditAliases(t *testing.T) {
+	rules := Ruleset{{Permission: "edit", Pattern: "*", Action: ActionDeny}}
+	aliases := []string{"edit", "write", "apply_patch"}
+	disabled := Disabled(aliases, rules)
+	for _, tool := range aliases {
+		if !disabled[tool] {
+			t.Errorf("expected %s to be disabled (maps to edit permission)", tool)
+		}
+	}
+}
+
+func TestDisabled_EmptyRuleset(t *testing.T) {
+	disabled := Disabled([]string{"bash", "edit", "read"}, Ruleset{})
+	if len(disabled) != 0 {
+		t.Errorf("expected no disabled tools with empty ruleset, got %d", len(disabled))
+	}
+}
+
 func TestDefaultRules_ReadAllowed(t *testing.T) {
 	result := Evaluate("read", "/some/file.go")
 	if result.Action != ActionAllow {
