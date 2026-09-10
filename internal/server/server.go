@@ -36,6 +36,7 @@ type Config struct {
 	Directory    string
 	DefaultModel string
 	DefaultAgent string
+	Token        string
 }
 
 type Listener struct {
@@ -101,7 +102,7 @@ func New(cfg Config, deps Dependencies) *Server {
 	}
 
 	corsConfig := middleware.DefaultCORSConfig()
-	handler := middleware.CORS(corsConfig)(middleware.SecurityHeaders(mux))
+	handler := middleware.CORS(corsConfig)(middleware.TokenAuth(cfg.Token)(middleware.SecurityHeaders(mux)))
 
 	s.httpServer = &http.Server{
 		Handler:           handler,

@@ -3,22 +3,35 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
 type CORSConfig struct {
-	AllowOrigins []string
-	AllowMethods []string
-	AllowHeaders []string
-	MaxAge       int
+	AllowOrigins    []string
+	AllowOriginFunc func(origin string) bool
+	AllowMethods    []string
+	AllowHeaders    []string
+	MaxAge          int
+}
+
+// isLocalhostOrigin returns true if the origin is http://localhost or
+// http://127.0.0.1 on any port.
+func isLocalhostOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	return host == "localhost" || host == "127.0.0.1"
 }
 
 func DefaultCORSConfig() CORSConfig {
 	return CORSConfig{
-		AllowOrigins: []string{"*"},
-		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"Content-Type", "Authorization", "X-Request-ID"},
-		MaxAge:       86400,
+		AllowOriginFunc: isLocalhostOrigin,
+		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:    []string{"Content-Type", "Authorization", "X-Request-ID"},
+		MaxAge:          86400,
 	}
 }
 
@@ -35,10 +48,15 @@ func CORS(cfg CORSConfig) func(http.Handler) http.Handler {
 			}
 
 			allowed := false
-			for _, o := range cfg.AllowOrigins {
-				if o == "*" || o == origin {
-					allowed = true
-					break
+			if cfg.AllowOriginFunc != nil && cfg.AllowOriginFunc(origin) {
+				allowed = true
+			}
+			if !allowed {
+				for _, o := range cfg.AllowOrigins {
+					if o == "*" || o == origin {
+						allowed = true
+						break
+					}
 				}
 			}
 

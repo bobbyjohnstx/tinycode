@@ -9,8 +9,11 @@ import (
 func TestDefaultCORSConfig(t *testing.T) {
 	cfg := DefaultCORSConfig()
 
-	if len(cfg.AllowOrigins) != 1 || cfg.AllowOrigins[0] != "*" {
-		t.Errorf("AllowOrigins = %v, want [*]", cfg.AllowOrigins)
+	if cfg.AllowOriginFunc == nil {
+		t.Error("AllowOriginFunc should be set")
+	}
+	if len(cfg.AllowOrigins) != 0 {
+		t.Errorf("AllowOrigins = %v, want empty (localhost-only via AllowOriginFunc)", cfg.AllowOrigins)
 	}
 
 	expectedMethods := []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
@@ -55,8 +58,67 @@ func TestCORS_NoOriginHeader(t *testing.T) {
 	}
 }
 
-func TestCORS_WildcardAllowsAnyOrigin(t *testing.T) {
+func TestCORS_DefaultAllowsLocalhost(t *testing.T) {
 	handler := CORS(DefaultCORSConfig())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "http://localhost:3000" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want %q", v, "http://localhost:3000")
+	}
+	if v := rec.Header().Get("Access-Control-Allow-Credentials"); v != "true" {
+		t.Errorf("Access-Control-Allow-Credentials = %q, want %q", v, "true")
+	}
+	if v := rec.Header().Get("Access-Control-Allow-Methods"); v == "" {
+		t.Error("Access-Control-Allow-Methods should be set")
+	}
+	if v := rec.Header().Get("Access-Control-Allow-Headers"); v == "" {
+		t.Error("Access-Control-Allow-Headers should be set")
+	}
+}
+
+func TestCORS_DefaultAllows127001(t *testing.T) {
+	handler := CORS(DefaultCORSConfig())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Origin", "http://127.0.0.1:4096")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "http://127.0.0.1:4096" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want %q", v, "http://127.0.0.1:4096")
+	}
+}
+
+func TestCORS_DefaultRejectsExternalOrigin(t *testing.T) {
+	handler := CORS(DefaultCORSConfig())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Origin", "https://evil.com")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "" {
+		t.Errorf("Access-Control-Allow-Origin should be empty for external origin, got %q", v)
+	}
+}
+
+func TestCORS_WildcardAllowsAnyOrigin(t *testing.T) {
+	cfg := CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{"GET", "POST"},
+		AllowHeaders: []string{"Content-Type"},
+	}
+	handler := CORS(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -67,15 +129,6 @@ func TestCORS_WildcardAllowsAnyOrigin(t *testing.T) {
 
 	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "https://example.com" {
 		t.Errorf("Access-Control-Allow-Origin = %q, want %q", v, "https://example.com")
-	}
-	if v := rec.Header().Get("Access-Control-Allow-Credentials"); v != "true" {
-		t.Errorf("Access-Control-Allow-Credentials = %q, want %q", v, "true")
-	}
-	if v := rec.Header().Get("Access-Control-Allow-Methods"); v == "" {
-		t.Error("Access-Control-Allow-Methods should be set")
-	}
-	if v := rec.Header().Get("Access-Control-Allow-Headers"); v == "" {
-		t.Error("Access-Control-Allow-Headers should be set")
 	}
 }
 
@@ -127,7 +180,7 @@ func TestCORS_OptionsPreflight(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodOptions, "/test", nil)
-	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Origin", "http://localhost:3000")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -137,8 +190,8 @@ func TestCORS_OptionsPreflight(t *testing.T) {
 	if v := rec.Header().Get("Access-Control-Max-Age"); v != "86400" {
 		t.Errorf("Access-Control-Max-Age = %q, want %q", v, "86400")
 	}
-	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "https://example.com" {
-		t.Errorf("Access-Control-Allow-Origin = %q, want %q", v, "https://example.com")
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "http://localhost:3000" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want %q", v, "http://localhost:3000")
 	}
 }
 
@@ -174,7 +227,7 @@ func TestCORS_NonOptionsCallsNextHandler(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodPost, "/test", nil)
-	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Origin", "http://localhost:3000")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 

@@ -79,7 +79,7 @@ func TestSubscribe_ReceivesEvents(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -131,7 +131,7 @@ func TestSubscribe_SkipsHeartbeatsAndComments(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -178,7 +178,7 @@ func TestSubscribe_ContextCancellation(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	ctx, cancel := context.WithCancel(context.Background())
 
 	ch, err := c.Subscribe(ctx)

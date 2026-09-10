@@ -17,11 +17,12 @@ type RunConfig struct {
 	ServerURL string
 	Directory string
 	Theme     string
+	Token     string
 }
 
 // Run starts the bubbletea TUI program connected to the given server.
 func Run(ctx context.Context, cfg RunConfig) error {
-	client := api.New(cfg.ServerURL, cfg.Directory)
+	client := api.New(cfg.ServerURL, cfg.Directory, cfg.Token)
 
 	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme)
 

@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -222,6 +224,17 @@ func initDependencies() (*bus.Bus, *storage.DB, *config.Info) {
 	}
 
 	return b, db, cfg
+}
+
+// generateToken produces a cryptographically random 64-character hex token
+// for authenticating HTTP requests between the TUI client and the embedded server.
+func generateToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		slog.Error("failed to generate auth token", "error", err)
+		os.Exit(1)
+	}
+	return hex.EncodeToString(b)
 }
 
 func serverConfig(cfg *config.Info, serveWebUI bool) server.Config {
@@ -550,8 +563,12 @@ func runTUI(args []string) {
 		cfg.Model = flags.model
 	}
 
+	token := generateToken()
+	slog.Debug("generated auth token", "token", token)
+
 	srvCfg := serverConfig(cfg, false)
 	srvCfg.Port = 0
+	srvCfg.Token = token
 	srv := server.New(srvCfg, server.Dependencies{
 		Bus:           b,
 		DB:            db.DB,
@@ -577,6 +594,7 @@ func runTUI(args []string) {
 		ServerURL: serverURL,
 		Directory: dir,
 		Theme:     cfg.Theme,
+		Token:     token,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		os.Exit(1)
@@ -627,7 +645,12 @@ func runServe() {
 		cfg.Model = flags.model
 	}
 
-	srv := server.New(serverConfig(cfg, false), server.Dependencies{
+	serveToken := generateToken()
+	slog.Debug("generated auth token for serve mode", "token", serveToken)
+
+	serveCfg := serverConfig(cfg, false)
+	serveCfg.Token = serveToken
+	srv := server.New(serveCfg, server.Dependencies{
 		Bus:           b,
 		DB:            db.DB,
 		Registry:      reg,
@@ -693,7 +716,12 @@ func runWeb() {
 		cfg.Model = flags.model
 	}
 
-	srv := server.New(serverConfig(cfg, true), server.Dependencies{
+	webToken := generateToken()
+	slog.Debug("generated auth token for web mode", "token", webToken)
+
+	webCfg := serverConfig(cfg, true)
+	webCfg.Token = webToken
+	srv := server.New(webCfg, server.Dependencies{
 		Bus:           b,
 		DB:            db.DB,
 		Registry:      reg,

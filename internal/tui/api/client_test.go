@@ -9,7 +9,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	c := New("http://localhost:8080", "/tmp/project")
+	c := New("http://localhost:8080", "/tmp/project", "")
 	if c.baseURL != "http://localhost:8080" {
 		t.Errorf("baseURL = %q, want %q", c.baseURL, "http://localhost:8080")
 	}
@@ -44,7 +44,7 @@ func TestCreateSession(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp/project")
+	c := New(srv.URL, "/tmp/project", "")
 	info, err := c.CreateSession(SessionCreateInput{Title: "Test Session"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -87,7 +87,7 @@ func TestListSessions(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp/project")
+	c := New(srv.URL, "/tmp/project", "")
 	sessions, err := c.ListSessions(10, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -118,7 +118,7 @@ func TestGetSession(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	info, err := c.GetSession("ses_xyz")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -142,7 +142,7 @@ func TestDeleteSession(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	err := c.DeleteSession("ses_del")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -165,7 +165,7 @@ func TestSendPrompt_204(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	err := c.SendPrompt("ses_1", PromptInput{
 		Parts: []PromptPart{{Type: "text", Text: "hello"}},
 	})
@@ -190,7 +190,7 @@ func TestAbortSession(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	err := c.AbortSession("ses_abort")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -216,7 +216,7 @@ func TestListProviders(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	resp, err := c.ListProviders()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -238,7 +238,7 @@ func TestListAgents(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	agents, err := c.ListAgents()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -257,7 +257,7 @@ func TestListCommands(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	commands, err := c.ListCommands()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -277,7 +277,7 @@ func TestListMessages(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	msgs, err := c.ListMessages("ses_1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -300,7 +300,7 @@ func TestReplyPermission(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	err := c.ReplyPermission("ses_1", "perm_42", "allow")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -324,7 +324,7 @@ func TestErrorResponse_WithJSONBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	_, err := c.GetSession("bad")
 	if err == nil {
 		t.Fatal("expected error for 400 response")
@@ -341,7 +341,7 @@ func TestErrorResponse_WithoutJSONBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	_, err := c.GetSession("bad")
 	if err == nil {
 		t.Fatal("expected error for 500 response")
@@ -357,7 +357,7 @@ func TestContentType_SetForPOST(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	c.SendPrompt("ses_1", PromptInput{Parts: []PromptPart{{Type: "text"}}})
 
 	if gotContentType != "application/json" {
@@ -375,7 +375,7 @@ func TestContentType_NotSetForGET(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(srv.URL, "/tmp")
+	c := New(srv.URL, "/tmp", "")
 	c.ListAgents()
 
 	if gotContentType != "" {

@@ -16,15 +16,18 @@ import (
 type Client struct {
 	baseURL    string
 	directory  string
+	token      string
 	http       *http.Client
 	sseBackoff time.Duration
 }
 
 // New creates an API client targeting the given server base URL and working directory.
-func New(baseURL, directory string) *Client {
+// An optional token enables Bearer authentication on all requests.
+func New(baseURL, directory, token string) *Client {
 	return &Client{
 		baseURL:   baseURL,
 		directory: directory,
+		token:     token,
 		http:      &http.Client{},
 	}
 }
@@ -185,6 +188,9 @@ func (c *Client) doRequest(method, path string, reqBody io.Reader) (io.ReadClose
 
 	if reqBody != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
 
 	resp, err := c.http.Do(req)

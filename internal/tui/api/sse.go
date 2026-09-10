@@ -77,6 +77,9 @@ func (c *Client) readSSEStream(ctx context.Context, events chan<- ServerEvent) e
 		return fmt.Errorf("creating SSE request: %w", err)
 	}
 	req.Header.Set("Accept", "text/event-stream")
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
