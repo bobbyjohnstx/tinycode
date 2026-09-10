@@ -429,13 +429,13 @@ section:last-of-type { border-bottom: none; }
   border-radius: var(--radius-lg);
   padding: 40px;
   position: relative;
-  overflow: hidden;
 }
 
 .arch-diagram::before {
   content: '';
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   background:
     linear-gradient(rgba(30, 41, 55, 0.3) 1px, transparent 1px),
     linear-gradient(90deg, rgba(30, 41, 55, 0.3) 1px, transparent 1px);
@@ -1007,19 +1007,7 @@ section:last-of-type { border-bottom: none; }
 .badge-tool { background: rgba(88, 166, 255, 0.1); color: var(--accent-blue); }
 .badge-hook { background: rgba(240, 136, 62, 0.1); color: var(--accent-amber); }
 .badge-both { background: rgba(57, 211, 83, 0.1); color: var(--accent-green); }
-.badge-planned { background: rgba(188, 140, 255, 0.08); color: var(--accent-purple); }
-.badge-converted { background: rgba(57, 211, 83, 0.08); color: var(--accent-green); }
-
-.plugin-placeholder {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  font-style: italic;
-  padding: 10px 14px;
-  background: var(--bg-code);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-}
+.badge-converted { background: rgba(52, 211, 153, 0.08); color: var(--accent-green); }
 
 /* Red Hat plugin tables */
 .plugin-rh-group {
@@ -1505,7 +1493,7 @@ section:last-of-type { border-bottom: none; }
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
-            <span>12 plugins, extensible</span>
+            <span>36 plugins, extensible</span>
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
@@ -1663,6 +1651,10 @@ section:last-of-type { border-bottom: none; }
             </div>
             <div class="arch-node" data-component="mcp" tabindex="0" role="button" aria-label="MCP Client component">
               MCP
+              <span class="node-tag tag-ext">EXT</span>
+            </div>
+            <div class="arch-node" data-component="lsp" tabindex="0" role="button" aria-label="LSP Client component">
+              LSP
               <span class="node-tag tag-ext">EXT</span>
             </div>
             <div class="arch-node" data-component="skill" tabindex="0" role="button" aria-label="Skills component">
@@ -1933,12 +1925,12 @@ section:last-of-type { border-bottom: none; }
     <div class="section-label animate-in">Packages</div>
     <h2 class="section-title animate-in">Package explorer</h2>
     <p class="section-desc animate-in">
-      22 internal packages organized by domain. Click any package to expand its details, key types, and file locations.
+      24 internal packages organized by domain. Click any package to expand its details, key types, and file locations.
     </p>
 
     <div class="pkg-search animate-in">
       <input type="text" class="pkg-search-input" placeholder="Filter packages..." id="pkg-filter" aria-label="Filter packages by name or description">
-      <span class="pkg-count" id="pkg-count">22 packages</span>
+      <span class="pkg-count" id="pkg-count">24 packages</span>
     </div>
 
     <div id="pkg-container">
@@ -2141,6 +2133,32 @@ section:last-of-type { border-bottom: none; }
               <div class="pkg-card-detail-value">Client for MCP servers (stdio transport). Discovers and registers MCP-provided tools at startup.</div>
             </div>
           </div>
+          <div class="pkg-card" data-pkg="lsp" data-search="lsp language server protocol gopls pyright diagnostics hover definition references symbols">
+            <div class="pkg-card-header">
+              <span class="pkg-card-name">lsp/</span>
+              <span class="pkg-card-arrow">&rsaquo;</span>
+            </div>
+            <div class="pkg-card-desc">LSP client for code intelligence</div>
+            <div class="pkg-card-details">
+              <div class="pkg-card-detail-label">Key Types</div>
+              <div class="pkg-card-detail-value"><code>Manager</code>, <code>Client</code>, language detection, 5 tools</div>
+              <div class="pkg-card-detail-label">Pattern</div>
+              <div class="pkg-card-detail-value">Lazy-connects to language servers (gopls, pyright, rust-analyzer, typescript-language-server). Exposes <code>lsp_diagnostics</code>, <code>lsp_hover</code>, <code>lsp_definition</code>, <code>lsp_references</code>, <code>lsp_symbols</code></div>
+            </div>
+          </div>
+          <div class="pkg-card" data-pkg="redhat" data-search="redhat openshift oc api promql containerfile mlflow console auth">
+            <div class="pkg-card-header">
+              <span class="pkg-card-name">redhat/</span>
+              <span class="pkg-card-arrow">&rsaquo;</span>
+            </div>
+            <div class="pkg-card-desc">Red Hat shared library for all 24 Red Hat plugins</div>
+            <div class="pkg-card-details">
+              <div class="pkg-card-detail-label">Key Types</div>
+              <div class="pkg-card-detail-value"><code>OcClient</code>, <code>APIClient</code>, <code>ConsoleAuthClient</code>, <code>PromQLClient</code>, <code>MlflowClient</code>, <code>ContainerfileParser</code></div>
+              <div class="pkg-card-detail-label">Pattern</div>
+              <div class="pkg-card-detail-value">Shared HTTP clients with retry/auth, oc CLI wrapper, Prometheus/AlertManager queries, Containerfile parsing, HTML stripping</div>
+            </div>
+          </div>
           <div class="pkg-card" data-pkg="skill" data-search="skill discovery loading slash command SKILL.md frontmatter">
             <div class="pkg-card-header">
               <span class="pkg-card-name">skill/</span>
@@ -2278,7 +2296,7 @@ section:last-of-type { border-bottom: none; }
 <section id="plugins">
   <div class="container">
     <div class="section-label animate-in">Plugin System</div>
-    <h2 class="section-title animate-in">37 plugins across two collections</h2>
+    <h2 class="section-title animate-in">36 plugins across two collections</h2>
     <p class="section-desc animate-in">
       Plugins are standalone binaries communicating over JSON-RPC via stdin/stdout. Three patterns cover all use cases: tool-only, hook-only, and combined.
     </p>
@@ -2405,14 +2423,20 @@ section:last-of-type { border-bottom: none; }
         </div>
       </div>
 
-      <!-- Productivity -->
+      <!-- Kubernetes -->
       <div class="plugin-category">
         <div class="plugin-category-title">
           <span class="plugin-category-dot" style="background: var(--accent-purple)"></span>
-          Productivity
+          Kubernetes
         </div>
         <div class="plugin-card-grid">
-          <div class="plugin-placeholder">documents plugin &mdash; not yet converted to Go</div>
+          <div class="plugin-card">
+            <div class="plugin-card-header">
+              <span class="plugin-card-name">cluster-ops</span>
+              <span class="plugin-badge badge-tool">Tool</span>
+            </div>
+            <div class="plugin-card-desc">Direct cluster visibility &mdash; get resources, tail logs, describe objects, view events, apply manifests</div>
+          </div>
         </div>
       </div>
     </div>
@@ -2420,17 +2444,16 @@ section:last-of-type { border-bottom: none; }
     <!-- Red Hat Plugins -->
     <div class="plugin-subsection animate-in">
       <div class="plugin-subsection-title">Red Hat Plugins</div>
-      <div class="plugin-subsection-meta">25 plugins &mdash; conversion planned</div>
+      <div class="plugin-subsection-meta">24 plugins &mdash; all converted to Go</div>
 
       <!-- OpenShift -->
       <div class="plugin-rh-group">
-        <div class="plugin-rh-domain">OpenShift <span class="plugin-rh-count">(5)</span></div>
+        <div class="plugin-rh-domain">OpenShift <span class="plugin-rh-count">(4)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">oauth</td><td class="rh-desc">Shared OpenShift authentication &mdash; API token login via oc login</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">context</td><td class="rh-desc">Injects cluster metadata (version, nodes, namespace, operators) into the system prompt</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">cluster-ops</td><td class="rh-desc">Direct cluster visibility &mdash; get resources, tail logs, describe objects, view events, apply manifests</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">obs-metrics</td><td class="rh-desc">Observability metrics and alerts &mdash; PromQL queries, alert listing, alert silencing</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">obs-logging</td><td class="rh-desc">Observability logging and tracing &mdash; Loki logs, Tempo traces, network flows</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
+          <tr><td class="rh-name">ocp-oauth</td><td class="rh-desc">OpenShift OAuth login via oc CLI and shell environment setup</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ocp-context-injection</td><td class="rh-desc">Injects cluster metadata (version, nodes, operators, alerts, cost) as a tool</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ocp-obs-metrics</td><td class="rh-desc">Observability metrics and alerts &mdash; PromQL queries, alert listing, alert silencing</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ocp-obs-logging</td><td class="rh-desc">Observability logging and tracing &mdash; Loki logs, Tempo traces, network flows</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
@@ -2438,9 +2461,9 @@ section:last-of-type { border-bottom: none; }
       <div class="plugin-rh-group">
         <div class="plugin-rh-domain">Security <span class="plugin-rh-count">(3)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">rhacs</td><td class="rh-desc">RHACS security scanning via Central API &mdash; scan images, check policies, validate deployments, list violations</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">lightwell</td><td class="rh-desc">Red Hat Lightwell dependency checker &mdash; SLSA provenance, OSV vulnerabilities, build config auditing</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">container-linter</td><td class="rh-desc">Containerfile/Dockerfile linter with Red Hat best practices &mdash; UBI base image checks, bootc validation</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
+          <tr><td class="rh-name">rhacs</td><td class="rh-desc">RHACS security scanning via Central API &mdash; scan images, check policies, validate deployments, list violations</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">lightwell</td><td class="rh-desc">Red Hat Lightwell dependency checker &mdash; SLSA provenance, OSV vulnerabilities, build config auditing</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">container-linter</td><td class="rh-desc">Containerfile/Dockerfile linter with Red Hat best practices &mdash; UBI base image checks, bootc validation</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
@@ -2448,9 +2471,9 @@ section:last-of-type { border-bottom: none; }
       <div class="plugin-rh-group">
         <div class="plugin-rh-domain">DevEx <span class="plugin-rh-count">(3)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">tekton</td><td class="rh-desc">Tekton pipeline management &mdash; list pipelines, start runs, check status, view logs</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">quay</td><td class="rh-desc">Quay container registry &mdash; search repos, list tags, inspect manifests, Clair vulnerability scans</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">rhdh</td><td class="rh-desc">Red Hat Developer Hub catalog &mdash; search software catalog, fetch entity details, pull OpenAPI specs</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
+          <tr><td class="rh-name">tekton</td><td class="rh-desc">Tekton pipeline management &mdash; list pipelines, start runs, check status, view logs</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">quay</td><td class="rh-desc">Quay container registry &mdash; search repos, list tags, inspect manifests, Clair vulnerability scans</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhdh</td><td class="rh-desc">Red Hat Developer Hub catalog &mdash; search software catalog, fetch entity details, pull OpenAPI specs</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
@@ -2458,8 +2481,8 @@ section:last-of-type { border-bottom: none; }
       <div class="plugin-rh-group">
         <div class="plugin-rh-domain">Automation <span class="plugin-rh-count">(2)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">aap-bridge</td><td class="rh-desc">Ansible Automation Platform tools &mdash; list/launch job templates, check status, search Automation Hub</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">eda-events</td><td class="rh-desc">Bridges tinycode session events to Event-Driven Ansible webhooks</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
+          <tr><td class="rh-name">aap-bridge</td><td class="rh-desc">Ansible Automation Platform tools &mdash; list/launch job templates, check status, search Automation Hub</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">eda-events</td><td class="rh-desc">Bridges tinycode session events to Event-Driven Ansible webhooks</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
@@ -2467,7 +2490,7 @@ section:last-of-type { border-bottom: none; }
       <div class="plugin-rh-group">
         <div class="plugin-rh-domain">Fleet <span class="plugin-rh-count">(1)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">rhacm</td><td class="rh-desc">RHACM multi-cluster management &mdash; managed clusters, governance policies, violations, observability via Thanos</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
+          <tr><td class="rh-name">rhacm</td><td class="rh-desc">RHACM multi-cluster management &mdash; managed clusters, governance policies, violations, observability via Thanos</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
@@ -2475,12 +2498,12 @@ section:last-of-type { border-bottom: none; }
       <div class="plugin-rh-group">
         <div class="plugin-rh-domain">RHOAI <span class="plugin-rh-count">(6)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">models</td><td class="rh-desc">Discover RHOAI model serving infrastructure &mdash; list InferenceServices, check model status</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">experiments</td><td class="rh-desc">Track session metrics to MLFlow &mdash; tool call counts, session duration, model switches</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">mcp-bridge</td><td class="rh-desc">Bridge to RHOAI MCP server &mdash; list and call tools exposed by the RHOAI MCP endpoint</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">mlflow-tools</td><td class="rh-desc">MLFlow experiment and model registry tools &mdash; list experiments, compare runs, browse artifacts</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">pipelines</td><td class="rh-desc">RHOAI Data Science Pipelines (Kubeflow) &mdash; list pipelines, trigger runs, check status</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">eval-trustyai</td><td class="rh-desc">RHOAI evaluation, TrustyAI fairness/drift monitoring, and workbench management</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
+          <tr><td class="rh-name">rhoai-model-serving</td><td class="rh-desc">RHOAI model serving and sandbox provisioning &mdash; list InferenceServices, check model status</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhoai-experiment-tracker</td><td class="rh-desc">Track session metrics to MLflow &mdash; tool call counts, session duration, model switches</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhoai-mcp-bridge</td><td class="rh-desc">Bridge to RHOAI MCP server &mdash; list and call tools exposed by the RHOAI MCP endpoint</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhoai-mlflow-tools</td><td class="rh-desc">MLflow experiment and model registry tools &mdash; list experiments, compare runs, browse artifacts</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhoai-pipelines</td><td class="rh-desc">RHOAI Data Science Pipelines (Kubeflow) &mdash; list pipelines, trigger runs, check status</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhoai-eval-trustyai</td><td class="rh-desc">RHOAI evaluation, TrustyAI fairness/drift monitoring, and workbench management</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
@@ -2488,7 +2511,7 @@ section:last-of-type { border-bottom: none; }
       <div class="plugin-rh-group">
         <div class="plugin-rh-domain">Satellite <span class="plugin-rh-count">(1)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">lightspeed</td><td class="rh-desc">Satellite Lightspeed AI assistant and host management &mdash; RHEL/Satellite knowledge, host search, errata</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
+          <tr><td class="rh-name">satellite-lightspeed</td><td class="rh-desc">Satellite Lightspeed AI assistant and host management &mdash; RHEL/Satellite knowledge, host search, errata</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
@@ -2496,10 +2519,10 @@ section:last-of-type { border-bottom: none; }
       <div class="plugin-rh-group">
         <div class="plugin-rh-domain">Reference <span class="plugin-rh-count">(4)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">dev-content</td><td class="rh-desc">Red Hat developer content browser &mdash; browse articles by topic, read full articles, RSS feed</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">ecosystem-catalog</td><td class="rh-desc">Red Hat Ecosystem Catalog &mdash; search certified container images and operators via Pyxis API</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">api-catalog</td><td class="rh-desc">Red Hat API catalog &mdash; browse 25 console.redhat.com APIs, fetch OpenAPI specs, list endpoints</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
-          <tr><td class="rh-name">rhdp-provisioner</td><td class="rh-desc">RHDP demo environment provisioner &mdash; search catalog, provision environments, check status</td><td class="rh-badge"><span class="plugin-badge badge-planned">Planned</span></td></tr>
+          <tr><td class="rh-name">rh-dev-content</td><td class="rh-desc">Red Hat developer content browser &mdash; browse articles by topic, read full articles, RSS feed</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rh-ecosystem-catalog</td><td class="rh-desc">Red Hat Ecosystem Catalog &mdash; search certified container images and operators via Pyxis API</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rh-api-catalog</td><td class="rh-desc">Red Hat API catalog &mdash; browse 25 console.redhat.com APIs, fetch OpenAPI specs, list endpoints</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhdp-provisioner</td><td class="rh-desc">RHDP demo environment provisioner &mdash; search catalog, provision environments, check status</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
     </div>
@@ -2920,7 +2943,7 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
     },
     tool: {
       title: 'Tool Registry (internal/tool/)',
-      desc: 'Thread-safe registry for tool definitions. Built-in tools: read, write, edit, shell, grep, glob, question, webfetch, task, todowrite. Execution includes permission checks, bus events, plugin after-hooks, and output truncation.',
+      desc: 'Thread-safe registry for tool definitions. Built-in tools: read, write, edit, shell, grep, glob, question, webfetch, task, todowrite, skill, websearch. Execution includes permission checks, bus events, plugin after-hooks, and output truncation.',
       files: 'tool/tool.go, tool/builtin.go, tool/shell.go, tool/file_*.go'
     },
     permission: {
@@ -2947,6 +2970,11 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
       title: 'MCP Client (internal/mcp/)',
       desc: 'Client for Model Context Protocol servers (stdio transport). Configured via config.json. Discovers and registers MCP-provided tools into the tool registry at startup.',
       files: 'mcp/client.go'
+    },
+    lsp: {
+      title: 'LSP Client (internal/lsp/)',
+      desc: 'Language Server Protocol client for code intelligence. Lazy-connects to language servers (gopls, pyright, rust-analyzer, typescript-language-server) based on project language detection. Registers 5 tools: lsp_diagnostics, lsp_hover, lsp_definition, lsp_references, lsp_symbols.',
+      files: 'lsp/manager.go, lsp/client.go, lsp/tools.go, lsp/detect.go'
     },
     skill: {
       title: 'Skills (internal/skill/)',

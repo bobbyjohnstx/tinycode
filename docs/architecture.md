@@ -13,7 +13,7 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 ```
 cmd/
   tinycode/           Main binary entry point
-  plugin-*/           Plugin binaries (12 plugins)
+  plugin-*/           Plugin binaries (36 plugins)
 internal/
   acp/                Agent Client Protocol (stdio for IDE integration)
   agent/              Agent definitions and defaults
@@ -29,6 +29,7 @@ internal/
   plugin/             Plugin lifecycle management (server side)
   project/            Project metadata and directory detection
   provider/           Provider discovery (Ollama, vLLM, LM Studio, OpenRouter)
+  redhat/             Red Hat product integrations (shared library for RH plugins)
   server/             HTTP server (net/http, REST + SSE)
   session/            Session lifecycle, processor loop, LLM coordination
   skill/              Skill discovery and loading
@@ -98,6 +99,10 @@ In-process publish-subscribe event bus. Components publish typed events (session
 ### `internal/plugin/` -- Plugin Manager (Server Side)
 
 `manager.go` spawns plugin binaries as child processes, performs the JSON-RPC `initialize` handshake, registers plugin-provided tools into the tool registry, and dispatches hook invocations (session lifecycle, permission, tool execution) to plugins.
+
+### `internal/redhat/` -- Red Hat Product Integrations
+
+Shared library for the 24 Red Hat plugins. Provides common helpers for OpenShift API access, Red Hat SSO/OAuth token management, UBI container conventions, and product-specific client wrappers (RHACM, RHACS, Quay, RHOAI, Satellite, etc.). Plugins in `cmd/plugin-rh*`, `cmd/plugin-ocp-*`, and other Red Hat-specific plugin directories import this package instead of duplicating integration logic.
 
 ### `internal/mcp/` -- Model Context Protocol
 

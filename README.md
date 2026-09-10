@@ -75,6 +75,7 @@ Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, 
 | `project/`     | Project metadata, VCS detection, worktree paths                                |
 | `frontmatter/` | YAML-like frontmatter parser for agent and skill markdown files                |
 | `id/`          | Sortable ID generation with typed prefixes                                     |
+| `redhat/`      | Red Hat shared library (OcClient, APIClient, PromQL, Containerfile parser)     |
 | `static/`      | Embedded web app file server with SPA fallback                                 |
 | `earlyinit/`   | Package-init side effects that run before other imports                        |
 
@@ -84,7 +85,7 @@ Protocol definitions, hook interfaces, and tool registration for building plugin
 
 ## Plugins
 
-12 built-in plugins, each a standalone Go binary communicating over JSON-RPC via stdin/stdout.
+36 built-in plugins, each a standalone Go binary communicating over JSON-RPC via stdin/stdout.
 
 | Plugin               | Description                                                             |
 | -------------------- | ----------------------------------------------------------------------- |
@@ -100,6 +101,50 @@ Protocol definitions, hook interfaces, and tool registration for building plugin
 | `plugin-snippets`    | Kubernetes/OpenShift manifest templates                                 |
 | `plugin-telemetry`   | Tool call tracking and usage reporting                                  |
 | `plugin-web-search`  | Web search via DuckDuckGo and Red Hat knowledge base                    |
+
+#### Red Hat --- OpenShift
+
+| Plugin                        | Description                                                        |
+| ----------------------------- | ------------------------------------------------------------------ |
+| `plugin-ocp-context-injection` | Injects current OpenShift cluster/project context into sessions   |
+| `plugin-ocp-oauth`            | OpenShift OAuth token management and refresh                       |
+| `plugin-ocp-obs-logging`      | OpenShift observability: log queries via Loki/LokiStack            |
+| `plugin-ocp-obs-metrics`      | OpenShift observability: PromQL queries and alert inspection       |
+
+#### Red Hat --- Ansible
+
+| Plugin                   | Description                                                             |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `plugin-aap-bridge`     | Ansible Automation Platform bridge (job templates, inventories, credentials) |
+| `plugin-eda-events`     | Event-Driven Ansible event stream and rulebook activation               |
+
+#### Red Hat --- RHOAI
+
+| Plugin                          | Description                                                       |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `plugin-rhoai-eval-trustyai`   | TrustyAI model evaluation (bias, fairness, explainability)         |
+| `plugin-rhoai-experiment-tracker` | ML experiment tracking (metrics, parameters, runs)              |
+| `plugin-rhoai-mcp-bridge`      | MCP-to-RHOAI bridge for model context protocol integration        |
+| `plugin-rhoai-mlflow-tools`    | MLflow experiment and model registry operations                    |
+| `plugin-rhoai-model-serving`   | RHOAI model serving management (deploy, scale, monitor)            |
+| `plugin-rhoai-pipelines`       | RHOAI/Kubeflow pipeline management (create, run, monitor)          |
+
+#### Red Hat --- Platform
+
+| Plugin                          | Description                                                       |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `plugin-satellite-lightspeed`  | Satellite content management with Lightspeed AI assistance         |
+| `plugin-quay`                   | Quay container registry operations (repos, tags, security scans)  |
+| `plugin-rhdh`                   | Red Hat Developer Hub catalog and template operations              |
+| `plugin-tekton`                 | Tekton pipeline and task management                                |
+| `plugin-rhacm`                  | Red Hat Advanced Cluster Management (fleet, policies, placement)  |
+| `plugin-rhacs`                  | Red Hat Advanced Cluster Security (vulnerabilities, compliance)    |
+| `plugin-rh-api-catalog`        | Red Hat API catalog discovery and documentation                    |
+| `plugin-rh-dev-content`        | Red Hat developer content and learning resources                   |
+| `plugin-rh-ecosystem-catalog`  | Red Hat ecosystem and partner integration catalog                  |
+| `plugin-rhdp-provisioner`      | Red Hat Developer Platform environment provisioning                |
+| `plugin-container-linter`      | Containerfile/Dockerfile linting and best practice checks          |
+| `plugin-lightwell`             | Lightwell integration for Red Hat product lifecycle data           |
 
 Plugins use the SDK in `pkg/plugin/`. See [docs/plugin-development.md](docs/plugin-development.md) for building custom plugins.
 

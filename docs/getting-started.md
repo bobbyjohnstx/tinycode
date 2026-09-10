@@ -4,7 +4,7 @@ Step-by-step walkthrough to get tinycode running and productive in 10 minutes.
 
 ## Prerequisites
 
-- **Go 1.22+** -- [install here](https://go.dev/dl/)
+- **Go 1.27+** -- [install here](https://go.dev/dl/)
 - **make**
 - **Git**
 - One of:

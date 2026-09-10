@@ -35,6 +35,8 @@ Run it:
 | `vet` | Run `go vet` |
 | `lint` | Run `go vet` (add golangci-lint when configured) |
 | `check` | Run vet + tests |
+| `build-plugins` | Build all 36 plugin binaries for the current platform |
+| `build-full` | Build tinycode + all plugins (`build` + `build-plugins`) |
 | `embed-webapp` | Build SolidJS web app and embed into Go binary |
 | `clean` | Remove build artifacts |
 | `help` | Show all targets with descriptions |
@@ -120,14 +122,62 @@ Available plugins:
 | `plugin-snippets` | Code snippet management |
 | `plugin-telemetry` | Usage telemetry |
 | `plugin-web-search` | Web search via Exa API |
+| `plugin-aap-bridge` | Ansible Automation Platform bridge |
+| `plugin-container-linter` | Container/Dockerfile linting |
+| `plugin-eda-events` | Event-Driven Ansible event integration |
+| `plugin-lightwell` | Lightwell data pipeline integration |
+| `plugin-ocp-context-injection` | OpenShift context injection into sessions |
+| `plugin-ocp-oauth` | OpenShift OAuth token management |
+| `plugin-ocp-obs-logging` | OpenShift observability logging |
+| `plugin-ocp-obs-metrics` | OpenShift observability metrics |
+| `plugin-quay` | Quay container registry operations |
+| `plugin-rh-api-catalog` | Red Hat API catalog discovery |
+| `plugin-rh-dev-content` | Red Hat developer content integration |
+| `plugin-rh-ecosystem-catalog` | Red Hat ecosystem catalog lookups |
+| `plugin-rhacm` | Red Hat Advanced Cluster Management |
+| `plugin-rhacs` | Red Hat Advanced Cluster Security |
+| `plugin-rhdh` | Red Hat Developer Hub integration |
+| `plugin-rhdp-provisioner` | Red Hat Developer Platform provisioning |
+| `plugin-rhoai-eval-trustyai` | RHOAI TrustyAI model evaluation |
+| `plugin-rhoai-experiment-tracker` | RHOAI experiment tracking |
+| `plugin-rhoai-mcp-bridge` | RHOAI Model Context Protocol bridge |
+| `plugin-rhoai-mlflow-tools` | RHOAI MLflow tooling |
+| `plugin-rhoai-model-serving` | RHOAI model serving management |
+| `plugin-rhoai-pipelines` | RHOAI pipeline orchestration |
+| `plugin-satellite-lightspeed` | Satellite Lightspeed integration |
+| `plugin-tekton` | Tekton pipeline operations |
 
 Build all plugins:
+
+```bash
+make build-plugins
+```
+
+Or build tinycode and all plugins together:
+
+```bash
+make build-full
+```
+
+To build a single plugin manually:
 
 ```bash
 for dir in cmd/plugin-*/; do
   name=$(basename "$dir")
   go build -o "dist/$name" "./$dir"
 done
+```
+
+### Container Plugin Testing
+
+`script/test-plugins-container.sh` cross-compiles all plugins for `linux/amd64`, copies them into a disposable UBI9 podman container, and verifies each binary responds to the JSON-RPC `initialize` handshake. This catches linking issues, missing symbols, and startup crashes without requiring a Linux host.
+
+```bash
+# Test all plugins
+./script/test-plugins-container.sh
+
+# Test a single plugin
+./script/test-plugins-container.sh ocp-oauth
 ```
 
 ## Testing

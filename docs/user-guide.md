@@ -484,6 +484,8 @@ Add plugin names to the config:
 
 ### Available plugins
 
+**General (12)**
+
 | Plugin | Description |
 |--------|-------------|
 | `notify` | Desktop notifications for session events |
@@ -498,6 +500,50 @@ Add plugin names to the config:
 | `context-pruning` | Deduplicates repeated tool outputs |
 | `log-sanitizer` | Strips secrets from tool output |
 | `command-inject` | Custom slash command injection |
+
+**Red Hat — OpenShift (4)**
+
+| Plugin | Description |
+|--------|-------------|
+| `ocp-context-injection` | Cluster context injection |
+| `ocp-oauth` | OAuth login + shell env |
+| `ocp-obs-logging` | Loki/Tempo/NetObserv |
+| `ocp-obs-metrics` | PromQL/alerts/silencing |
+
+**Red Hat — Ansible (2)**
+
+| Plugin | Description |
+|--------|-------------|
+| `aap-bridge` | Job templates/inventories/lint |
+| `eda-events` | Event-Driven Ansible bridge |
+
+**Red Hat — RHOAI (6)**
+
+| Plugin | Description |
+|--------|-------------|
+| `rhoai-eval-trustyai` | Model evaluation/fairness |
+| `rhoai-experiment-tracker` | MLflow experiments |
+| `rhoai-mcp-bridge` | Model Context Protocol |
+| `rhoai-mlflow-tools` | MLflow tools |
+| `rhoai-model-serving` | Model serving/sandbox |
+| `rhoai-pipelines` | Data science pipelines |
+
+**Red Hat — Platform (12)**
+
+| Plugin | Description |
+|--------|-------------|
+| `satellite-lightspeed` | Satellite query/hosts/errata |
+| `quay` | Registry search/tags/vulns |
+| `rhdh` | Developer Hub catalog/APIs |
+| `tekton` | Pipelines/runs/logs |
+| `rhacm` | ACM fleet management |
+| `rhacs` | ACS security scanning |
+| `rh-api-catalog` | API catalog |
+| `rh-dev-content` | Developer content |
+| `rh-ecosystem-catalog` | Ecosystem catalog via Pyxis |
+| `rhdp-provisioner` | Developer platform provisioner |
+| `container-linter` | Containerfile linting/bootc |
+| `lightwell` | Package security/CVEs |
 
 See [Plugin Development](plugin-development.md) for building your own.
 

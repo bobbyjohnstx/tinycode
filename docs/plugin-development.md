@@ -575,6 +575,8 @@ Some plugins are listed in the built-in registry. If a plugin is in the registry
 
 These plugins ship with tinycode in `cmd/plugin-*/`:
 
+**General (12)**
+
 | Plugin | ID | Type | Description |
 |--------|----|------|-------------|
 | `plugin-notify` | `notify` | Tool | Desktop notifications (macOS/Linux) |
@@ -589,6 +591,50 @@ These plugins ship with tinycode in `cmd/plugin-*/`:
 | `plugin-context-pruning` | `context-pruning` | Hook | Deduplicates repeated tool outputs via ToolExecAfter |
 | `plugin-log-sanitizer` | `log-sanitizer` | Hook | Strips secrets and sensitive data from tool output |
 | `plugin-command-inject` | `command-inject` | Hook | Custom slash command injection |
+
+**Red Hat — OpenShift (4)**
+
+| Plugin | ID | Type | Description |
+|--------|----|------|-------------|
+| `plugin-ocp-context-injection` | `ocp-context-injection` | Hook | Cluster context injection |
+| `plugin-ocp-oauth` | `ocp-oauth` | Tool | OAuth login + shell env |
+| `plugin-ocp-obs-logging` | `ocp-obs-logging` | Tool | Loki/Tempo/NetObserv |
+| `plugin-ocp-obs-metrics` | `ocp-obs-metrics` | Tool | PromQL/alerts/silencing |
+
+**Red Hat — Ansible (2)**
+
+| Plugin | ID | Type | Description |
+|--------|----|------|-------------|
+| `plugin-aap-bridge` | `aap-bridge` | Tool | Job templates/inventories/lint |
+| `plugin-eda-events` | `eda-events` | Tool | Event-Driven Ansible bridge |
+
+**Red Hat — RHOAI (6)**
+
+| Plugin | ID | Type | Description |
+|--------|----|------|-------------|
+| `plugin-rhoai-eval-trustyai` | `rhoai-eval-trustyai` | Tool | Model evaluation/fairness |
+| `plugin-rhoai-experiment-tracker` | `rhoai-experiment-tracker` | Tool | MLflow experiments |
+| `plugin-rhoai-mcp-bridge` | `rhoai-mcp-bridge` | Tool | Model Context Protocol |
+| `plugin-rhoai-mlflow-tools` | `rhoai-mlflow-tools` | Tool | MLflow tools |
+| `plugin-rhoai-model-serving` | `rhoai-model-serving` | Tool | Model serving/sandbox |
+| `plugin-rhoai-pipelines` | `rhoai-pipelines` | Tool | Data science pipelines |
+
+**Red Hat — Platform (12)**
+
+| Plugin | ID | Type | Description |
+|--------|----|------|-------------|
+| `plugin-satellite-lightspeed` | `satellite-lightspeed` | Tool | Satellite query/hosts/errata |
+| `plugin-quay` | `quay` | Tool | Registry search/tags/vulns |
+| `plugin-rhdh` | `rhdh` | Tool | Developer Hub catalog/APIs |
+| `plugin-tekton` | `tekton` | Tool | Pipelines/runs/logs |
+| `plugin-rhacm` | `rhacm` | Tool | ACM fleet management |
+| `plugin-rhacs` | `rhacs` | Tool | ACS security scanning |
+| `plugin-rh-api-catalog` | `rh-api-catalog` | Tool | API catalog |
+| `plugin-rh-dev-content` | `rh-dev-content` | Tool | Developer content |
+| `plugin-rh-ecosystem-catalog` | `rh-ecosystem-catalog` | Tool | Ecosystem catalog via Pyxis |
+| `plugin-rhdp-provisioner` | `rhdp-provisioner` | Tool | Developer platform provisioner |
+| `plugin-container-linter` | `container-linter` | Tool | Containerfile linting/bootc |
+| `plugin-lightwell` | `lightwell` | Tool | Package security/CVEs |
 
 Build all plugins:
 

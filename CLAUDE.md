@@ -56,12 +56,13 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 - **`frontmatter/`** — Simple YAML-like frontmatter parser for markdown files. Used by skill and agent loaders.
 - **`id/`** — Sortable ID generation with typed prefixes (`ses_`, `msg_`, `evt_`, etc.). Supports ascending and descending time ordering.
 - **`project/`** — Project metadata: directory-based ID generation, VCS detection, worktree paths.
+- **`redhat/`** — Red Hat shared library: OcClient (oc CLI wrapper), APIClient (HTTP with retry/auth), ConsoleAuthClient (SSO token exchange), PromQLClient (Prometheus/AlertManager), ContainerfileParser, MLflow client, HTML stripping.
 - **`static/`** — Embedded web app file server with SPA fallback. Serves `dist/` assets via `embed.FS` or a dev directory override.
 
 ### Other directories
 
 - **`cmd/tinycode/`** — Main binary entry point.
-- **`cmd/plugin-*/`** — Plugin binaries (cluster-ops, code-review, command-inject, context-pruning, handoff, log-sanitizer, notify, pilot, safety-net, snippets, telemetry, web-search).
+- **`cmd/plugin-*/`** — Plugin binaries (cluster-ops, code-review, command-inject, context-pruning, handoff, log-sanitizer, notify, pilot, safety-net, snippets, telemetry, web-search, ocp-context-injection, ocp-oauth, ocp-obs-logging, ocp-obs-metrics, aap-bridge, eda-events, rhoai-eval-trustyai, rhoai-experiment-tracker, rhoai-mcp-bridge, rhoai-mlflow-tools, rhoai-model-serving, rhoai-pipelines, satellite-lightspeed, quay, rhdh, tekton, rhacm, rhacs, rh-api-catalog, rh-dev-content, rh-ecosystem-catalog, rhdp-provisioner, container-linter, lightwell).
 - **`pkg/plugin/`** — Public plugin SDK (protocol, hooks, tools).
 - **`packages/`** — Legacy TypeScript packages (app, desktop, etc.) from the original repo. The web app (`packages/app`) can be embedded into the Go binary via `make embed-webapp`.
 
