@@ -42,7 +42,7 @@ func GitInfo(dir string) (*Info, error) {
 
 // GitStatus returns the working tree status for the git repo at dir.
 func GitStatus(dir string) (*Status, error) {
-	out, err := gitCommand(dir, "status", "--porcelain")
+	out, err := gitCommandRaw(dir, "status", "--porcelain")
 	if err != nil {
 		return nil, err
 	}
@@ -79,4 +79,14 @@ func gitCommand(dir string, args ...string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func gitCommandRaw(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(out), "\n"), nil
 }
