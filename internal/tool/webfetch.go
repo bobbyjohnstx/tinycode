@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -16,6 +19,66 @@ const (
 	maxFetchSize = 5 * 1024 * 1024 // 5MB
 	fetchTimeout = 30 * time.Second
 )
+
+var errSSRFBlocked = errors.New("blocked: URL resolves to private/internal network address")
+
+// ssrfBlockedPrefixes lists the CIDR ranges that must never be reached by webfetch.
+var ssrfBlockedPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("127.0.0.0/8"),    // loopback
+	netip.MustParsePrefix("10.0.0.0/8"),     // private
+	netip.MustParsePrefix("172.16.0.0/12"),  // private
+	netip.MustParsePrefix("192.168.0.0/16"), // private
+	netip.MustParsePrefix("169.254.0.0/16"), // link-local / cloud metadata
+	netip.MustParsePrefix("0.0.0.0/8"),      // unspecified
+	netip.MustParsePrefix("::1/128"),        // IPv6 loopback
+	netip.MustParsePrefix("fc00::/7"),       // IPv6 private
+	netip.MustParsePrefix("fe80::/10"),      // IPv6 link-local
+}
+
+// checkSSRF resolves the hostname of u and returns errSSRFBlocked if any
+// resolved address falls within a private/loopback/link-local range.
+func checkSSRF(ctx context.Context, rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return fmt.Errorf("invalid URL: missing hostname")
+	}
+
+	addrs, err := net.DefaultResolver.LookupHost(ctx, host)
+	if err != nil {
+		return fmt.Errorf("DNS lookup failed: %w", err)
+	}
+
+	for _, addr := range addrs {
+		ip, err := netip.ParseAddr(addr)
+		if err != nil {
+			continue
+		}
+		for _, prefix := range ssrfBlockedPrefixes {
+			if prefix.Contains(ip) {
+				return errSSRFBlocked
+			}
+		}
+	}
+	return nil
+}
+
+// ssrfSafeClient returns an http.Client that validates each redirect target
+// against the SSRF blocklist before following it.
+func ssrfSafeClient(ctx context.Context) *http.Client {
+	return &http.Client{
+		Transport: fetchClient.Transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			return checkSSRF(ctx, req.URL.String())
+		},
+	}
+}
 
 var fetchClient = &http.Client{
 	Transport: &http.Transport{
@@ -39,7 +102,7 @@ func WebFetchTool() *Def {
 	return &Def{
 		ID:          "webfetch",
 		Description: "Fetch content from a URL. Returns the response body.",
-		Permission:  "read",
+		Permission:  "webfetch",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -85,6 +148,11 @@ func executeWebFetch(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 
+	// SSRF check: block requests to private/internal network addresses.
+	if err := checkSSRF(fetchCtx, args.URL); err != nil {
+		return &ExecuteResult{Output: fmt.Sprintf("Fetch error: %v", err), IsError: true}, nil
+	}
+
 	var bodyReader io.Reader
 	if args.Body != "" {
 		bodyReader = strings.NewReader(args.Body)
@@ -110,7 +178,9 @@ func executeWebFetch(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 		req.Header.Set(k, v)
 	}
 
-	resp, err := fetchClient.Do(req)
+	// Use a client with redirect validation to prevent SSRF via redirects.
+	client := ssrfSafeClient(fetchCtx)
+	resp, err := client.Do(req)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Fetch error: %v", err), IsError: true}, nil
 	}

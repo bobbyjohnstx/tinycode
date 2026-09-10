@@ -6,6 +6,7 @@ package permission
 var DefaultRules = Ruleset{
 	{Permission: "read", Pattern: "*", Action: ActionAllow},
 	{Permission: "read", Pattern: ".env*", Action: ActionAsk},
+	{Permission: "webfetch", Pattern: "*", Action: ActionAsk},
 	{Permission: "doom_loop", Pattern: "*", Action: ActionAsk},
 	{Permission: "guardrail", Pattern: "*", Action: ActionAsk},
 	{Permission: "external_directory", Pattern: "*", Action: ActionAsk},
