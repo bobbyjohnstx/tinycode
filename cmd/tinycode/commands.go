@@ -1,0 +1,379 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"text/tabwriter"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/config"
+	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode-go/internal/project"
+	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
+	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode-go/internal/storage"
+)
+
+func runModels() {
+	setupLogger()
+
+	b, _, cfg := initDependencies()
+	defer b.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reg := provider.NewRegistry()
+	disc := startDiscovery(ctx, reg, b, cfg)
+	defer disc.Stop()
+
+	models := reg.ListModels()
+	if len(models) == 0 {
+		fmt.Println("No models discovered.")
+		return
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "PROVIDER\tMODEL\tCONTEXT\tSTATUS")
+	for _, m := range models {
+		ctxStr := "-"
+		if m.Limit.Context > 0 {
+			ctxStr = fmt.Sprintf("%dk", m.Limit.Context/1000)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", m.ProviderID, m.ID, ctxStr, m.Status)
+	}
+	w.Flush()
+}
+
+func runProviders() {
+	setupLogger()
+
+	b, _, cfg := initDependencies()
+	defer b.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reg := provider.NewRegistry()
+	disc := startDiscovery(ctx, reg, b, cfg)
+	defer disc.Stop()
+
+	providers := reg.ListProviders()
+	if len(providers) == 0 {
+		fmt.Println("No providers discovered.")
+		return
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tNAME\tSOURCE\tMODELS")
+	for _, p := range providers {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%d\n", p.ID, p.Name, p.Source, len(p.Models))
+	}
+	w.Flush()
+}
+
+func runSession() {
+	setupLogger()
+
+	args := os.Args[2:]
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: tinycode session <list|delete> [args]\n")
+		os.Exit(1)
+	}
+
+	_, db, _ := initDependencies()
+	defer db.Close()
+
+	dir, _ := os.Getwd()
+	store := session.NewStore(db.DB)
+	projectID := project.IDFromDirectory(dir)
+
+	switch args[0] {
+	case "list":
+		sessions, err := store.List(projectID, 50, 0)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		if len(sessions) == 0 {
+			fmt.Println("No sessions.")
+			return
+		}
+		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(w, "ID\tTITLE\tAGENT\tCREATED")
+		for _, s := range sessions {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.ID, truncateStr(s.Title, 40), s.Agent, s.CreatedAt.Format("2006-01-02 15:04"))
+		}
+		w.Flush()
+
+	case "delete":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: tinycode session delete <session-id>\n")
+			os.Exit(1)
+		}
+		if err := store.Delete(args[1]); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Deleted session %s\n", args[1])
+
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown session subcommand: %s\nUsage: tinycode session <list|delete> [args]\n", args[0])
+		os.Exit(1)
+	}
+}
+
+func runStatus() {
+	setupLogger()
+
+	b, db, cfg := initDependencies()
+	defer db.Close()
+	defer b.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reg := provider.NewRegistry()
+	disc := startDiscovery(ctx, reg, b, cfg)
+	defer disc.Stop()
+
+	providers := reg.ListProviders()
+	models := reg.ListModels()
+
+	fmt.Printf("tinycode %s (%s)\n", version, commit)
+	fmt.Printf("Providers: %d\n", len(providers))
+	fmt.Printf("Models:    %d\n", len(models))
+	fmt.Printf("Database:  %s\n", storage.DefaultPath())
+	fmt.Printf("Config:    %s\n", config.GlobalConfigFile())
+	fmt.Printf("Data dir:  %s\n", config.DataDir())
+
+	dir, _ := os.Getwd()
+	store := session.NewStore(db.DB)
+	projectID := project.IDFromDirectory(dir)
+	sessions, err := store.List(projectID, 1000, 0)
+	if err == nil {
+		fmt.Printf("Sessions:  %d (this project)\n", len(sessions))
+	}
+
+	if cfg.Model != "" {
+		fmt.Printf("Default model: %s\n", cfg.Model)
+	}
+}
+
+func runExport() {
+	setupLogger()
+
+	args := os.Args[2:]
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: tinycode export <session-id>\n")
+		os.Exit(1)
+	}
+
+	_, db, _ := initDependencies()
+	defer db.Close()
+
+	store := session.NewStore(db.DB)
+	ms := session.NewMessageStore(store)
+
+	sessionID := args[0]
+	info, err := store.Get(sessionID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: session %q not found: %v\n", sessionID, err)
+		os.Exit(1)
+	}
+
+	messages, err := ms.List(sessionID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	export := map[string]any{
+		"session":  info,
+		"messages": messages,
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(export); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runPlugin() {
+	setupLogger()
+
+	args := os.Args[2:]
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: tinycode plugin <list|install|uninstall> [args]\n")
+		os.Exit(1)
+	}
+
+	switch args[0] {
+	case "list":
+		entries := plugin.Registry()
+		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tDESCRIPTION\tINSTALLED")
+		pluginDir := filepath.Join(config.ConfigDir(), "plugins")
+		for _, e := range entries {
+			installed := "no"
+			binPath := filepath.Join(pluginDir, e.Name)
+			if info, err := os.Stat(binPath); err == nil && info.Mode()&0o111 != 0 {
+				installed = "yes"
+			} else if _, err := exec.LookPath("tinycode-plugin-" + e.Name); err == nil {
+				installed = "yes (PATH)"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.Description, installed)
+		}
+		w.Flush()
+
+	case "install":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: tinycode plugin install <name> [--from <path>]\n")
+			os.Exit(1)
+		}
+		name := args[1]
+
+		entry, ok := plugin.LookupRegistry(name)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Unknown plugin: %s\nRun 'tinycode plugin list' to see available plugins.\n", name)
+			os.Exit(1)
+		}
+
+		pluginDir := filepath.Join(config.ConfigDir(), "plugins")
+		if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "error creating plugin directory: %v\n", err)
+			os.Exit(1)
+		}
+		destPath := filepath.Join(pluginDir, name)
+
+		// --from flag: copy from a local path (e.g. dist/plugins/plugin-notify)
+		if len(args) >= 4 && args[2] == "--from" {
+			srcPath := args[3]
+			if err := copyFile(srcPath, destPath); err != nil {
+				fmt.Fprintf(os.Stderr, "error installing plugin: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("Installed plugin %s from %s\n", name, srcPath)
+			return
+		}
+
+		// Default: build from source if cmd/plugin-<name> exists
+		pluginSrc := filepath.Join("cmd", "plugin-"+name)
+		if info, err := os.Stat(pluginSrc); err == nil && info.IsDir() {
+			fmt.Printf("Building plugin %s from source ...\n", name)
+			cmd := exec.Command("go", "build", "-ldflags", "-s -w", "-o", destPath, "./"+pluginSrc)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "build failed: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("Installed plugin %s to %s\n", name, destPath)
+			return
+		}
+
+		fmt.Fprintf(os.Stderr, "Plugin %s (%s) source not found locally.\n", name, entry.Description)
+		fmt.Fprintf(os.Stderr, "Use --from <path> to install from a pre-built binary.\n")
+		os.Exit(1)
+
+	case "uninstall":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: tinycode plugin uninstall <name>\n")
+			os.Exit(1)
+		}
+		name := args[1]
+		pluginDir := filepath.Join(config.ConfigDir(), "plugins")
+		binPath := filepath.Join(pluginDir, name)
+		if err := os.Remove(binPath); err != nil {
+			if os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "Plugin %s is not installed in %s\n", name, pluginDir)
+			} else {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			}
+			os.Exit(1)
+		}
+		fmt.Printf("Uninstalled plugin %s\n", name)
+
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown plugin subcommand: %s\nUsage: tinycode plugin <list|install|uninstall> [args]\n", args[0])
+		os.Exit(1)
+	}
+}
+
+func runAgent() {
+	setupLogger()
+
+	_, _, cfg := initDependencies()
+
+	dir, _ := os.Getwd()
+	agentReg := initAgentRegistry(cfg, dir)
+
+	agents := agentReg.List(cfg.DefaultAgent)
+	if len(agents) == 0 {
+		fmt.Println("No agents available.")
+		return
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "NAME\tMODE\tDESCRIPTION")
+	for _, a := range agents {
+		desc := truncateStr(a.Description, 50)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", a.Name, a.Mode, desc)
+	}
+	w.Flush()
+}
+
+func runDebug() {
+	setupLogger()
+
+	args := os.Args[2:]
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: tinycode debug <config|paths>\n")
+		os.Exit(1)
+	}
+
+	switch args[0] {
+	case "config":
+		dir, _ := os.Getwd()
+		cfg, err := config.Load(dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
+			os.Exit(1)
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(cfg)
+
+	case "paths":
+		dir, _ := os.Getwd()
+		fmt.Printf("Config dir:  %s\n", config.ConfigDir())
+		fmt.Printf("Data dir:    %s\n", config.DataDir())
+		fmt.Printf("Config file: %s\n", config.GlobalConfigFile())
+		fmt.Printf("Database:    %s\n", storage.DefaultPath())
+		fmt.Printf("Working dir: %s\n", dir)
+
+		projectFiles := config.ProjectConfigFiles("tinycode", dir)
+		if len(projectFiles) > 0 {
+			fmt.Println("Project config files:")
+			for _, f := range projectFiles {
+				fmt.Printf("  %s\n", f)
+			}
+		}
+		dotDirs := config.ProjectDotDirs(dir)
+		if len(dotDirs) > 0 {
+			fmt.Println("Project .tinycode dirs:")
+			for _, d := range dotDirs {
+				fmt.Printf("  %s\n", d)
+			}
+		}
+
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown debug subcommand: %s\nUsage: tinycode debug <config|paths>\n", args[0])
+		os.Exit(1)
+	}
+}
+
