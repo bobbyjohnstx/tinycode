@@ -209,8 +209,17 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 		return
 	}
 
-	// Separate base models from existing profiles
-	existingProfiles := make(map[string]string) // base name -> profile name
+	models := d.buildOllamaModels(ctx, baseURL, tags)
+
+	d.diffModels("ollama", models)
+	d.handleDiscoverySuccess("ollama")
+	d.registerOllamaProvider(ctx, models)
+}
+
+// buildOllamaModels converts the Ollama tags response into a model map,
+// handling profile creation and stale profile cleanup.
+func (d *Discovery) buildOllamaModels(ctx context.Context, baseURL string, tags ollamaTagsResponse) map[string]*Model {
+	existingProfiles := make(map[string]string)
 	var baseModels []ollamaModel
 	for _, m := range tags.Models {
 		if IsProfile(m.Name) {
@@ -222,57 +231,7 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 
 	models := make(map[string]*Model, len(baseModels))
 	for _, m := range baseModels {
-		contextLen := 0
-		family := ""
-		if m.Details != nil {
-			contextLen = m.Details.ContextLength
-			family = m.Details.Family
-		}
-		if contextLen == 0 {
-			contextLen = 8192
-		}
-
-		caps := ModelCaps{
-			Temperature: true,
-			ToolCall:    true,
-			Input:       ModalityCaps{Text: true},
-			Output:      ModalityCaps{Text: true},
-		}
-		for _, c := range m.Capabilities {
-			if c == "vision" {
-				caps.Input.Image = true
-				caps.Attachment = true
-			}
-		}
-
-		apiID := m.Name
-		profileCtx := contextLen
-
-		if d.autoProfileEnabled() && !d.isModelSkipped(m.Name) {
-			numCtx := d.resolveNumCtx(ctx, baseURL, m.Name, contextLen)
-			if numCtx >= minNumCtx {
-				profName := ProfileName(m.Name, numCtx)
-				if existing, ok := existingProfiles[m.Name]; ok && existing == profName {
-					// Profile already exists with the right num_ctx
-					apiID = profName
-					profileCtx = numCtx
-					delete(existingProfiles, m.Name)
-				} else {
-					// Create new profile (or replace stale one)
-					if err := CreateProfile(ctx, d.client, baseURL, m.Name, profName, numCtx); err != nil {
-						slog.Warn("failed to create ollama profile",
-							"model", m.Name, "profile", profName, "error", err)
-					} else {
-						slog.Info("created ollama profile",
-							"model", m.Name, "profile", profName, "num_ctx", numCtx)
-						apiID = profName
-						profileCtx = numCtx
-						delete(existingProfiles, m.Name)
-					}
-				}
-			}
-		}
-
+		apiID, profileCtx, caps, family := d.buildSingleOllamaModel(ctx, baseURL, m, existingProfiles)
 		models[m.Name] = &Model{
 			ID:         m.Name,
 			ProviderID: "ollama",
@@ -282,11 +241,11 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 				ID:  apiID,
 				URL: baseURL,
 			},
-			Status:  "active",
-			Headers: make(map[string]string),
-			Options: make(map[string]any),
-			Cost:    ModelCost{},
-			Limit:   ModelLimit{Context: profileCtx, Output: profileCtx / 2},
+			Status:       "active",
+			Headers:      make(map[string]string),
+			Options:      make(map[string]any),
+			Cost:         ModelCost{},
+			Limit:        ModelLimit{Context: profileCtx, Output: profileCtx / 2},
 			Capabilities: caps,
 		}
 	}
@@ -305,9 +264,66 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 		}
 	}
 
-	d.diffModels("ollama", models)
-	d.handleDiscoverySuccess("ollama")
+	return models
+}
 
+// buildSingleOllamaModel resolves capabilities, context length, and auto-profiling
+// for a single Ollama model. It may mutate existingProfiles to track consumed profiles.
+func (d *Discovery) buildSingleOllamaModel(ctx context.Context, baseURL string, m ollamaModel, existingProfiles map[string]string) (apiID string, profileCtx int, caps ModelCaps, family string) {
+	contextLen := 0
+	if m.Details != nil {
+		contextLen = m.Details.ContextLength
+		family = m.Details.Family
+	}
+	if contextLen == 0 {
+		contextLen = 8192
+	}
+
+	caps = ModelCaps{
+		Temperature: true,
+		ToolCall:    true,
+		Input:       ModalityCaps{Text: true},
+		Output:      ModalityCaps{Text: true},
+	}
+	for _, c := range m.Capabilities {
+		if c == "vision" {
+			caps.Input.Image = true
+			caps.Attachment = true
+		}
+	}
+
+	apiID = m.Name
+	profileCtx = contextLen
+
+	if d.autoProfileEnabled() && !d.isModelSkipped(m.Name) {
+		numCtx := d.resolveNumCtx(ctx, baseURL, m.Name, contextLen)
+		if numCtx >= minNumCtx {
+			profName := ProfileName(m.Name, numCtx)
+			if existing, ok := existingProfiles[m.Name]; ok && existing == profName {
+				apiID = profName
+				profileCtx = numCtx
+				delete(existingProfiles, m.Name)
+			} else {
+				if err := CreateProfile(ctx, d.client, baseURL, m.Name, profName, numCtx); err != nil {
+					slog.Warn("failed to create ollama profile",
+						"model", m.Name, "profile", profName, "error", err)
+				} else {
+					slog.Info("created ollama profile",
+						"model", m.Name, "profile", profName, "num_ctx", numCtx)
+					apiID = profName
+					profileCtx = numCtx
+					delete(existingProfiles, m.Name)
+				}
+			}
+		}
+	}
+
+	return
+}
+
+// registerOllamaProvider registers the discovered Ollama models with the
+// registry and triggers warmup probes.
+func (d *Discovery) registerOllamaProvider(ctx context.Context, models map[string]*Model) {
 	d.registry.Register(&Info{
 		ID:      "ollama",
 		Name:    "Ollama",
@@ -322,7 +338,6 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 		"modelCount": len(models),
 	})
 
-	// Trigger warmup probes for newly discovered models
 	for _, m := range models {
 		d.maybeWarmup(ctx, m)
 	}
@@ -599,83 +614,7 @@ func (d *Discovery) DiscoverOpenRouter(ctx context.Context, apiKey string) error
 
 	models := make(map[string]*Model, len(body.Data))
 	for _, entry := range body.Data {
-		params := make(map[string]bool)
-		for _, p := range entry.SupportedParameters {
-			params[p] = true
-		}
-
-		contextLen := entry.ContextLength
-		if entry.TopProvider != nil && entry.TopProvider.ContextLength > 0 {
-			contextLen = entry.TopProvider.ContextLength
-		}
-
-		maxOutput := 0
-		if entry.TopProvider != nil && entry.TopProvider.MaxCompletionTokens != nil {
-			maxOutput = *entry.TopProvider.MaxCompletionTokens
-		}
-		if maxOutput == 0 {
-			maxOutput = min(16384, contextLen/5)
-		}
-
-		var promptCost, completionCost float64
-		if entry.Pricing != nil {
-			if v, err := parseFloat(entry.Pricing.Prompt); err == nil {
-				promptCost = v * 1_000_000
-			}
-			if v, err := parseFloat(entry.Pricing.Completion); err == nil {
-				completionCost = v * 1_000_000
-			}
-		}
-
-		inputMods := make(map[string]bool)
-		if entry.Architecture != nil {
-			for _, m := range entry.Architecture.InputModalities {
-				inputMods[m] = true
-			}
-		}
-		if len(inputMods) == 0 {
-			inputMods["text"] = true
-		}
-
-		hasReasoning := false
-		if entry.Reasoning != nil {
-			hasReasoning = entry.Reasoning.Mandatory || entry.Reasoning.DefaultEnabled
-		}
-
-		family := ""
-		if parts := strings.SplitN(entry.ID, "/", 2); len(parts) == 2 {
-			family = parts[0]
-		}
-
-		models[entry.ID] = &Model{
-			ID:         entry.ID,
-			ProviderID: "openrouter",
-			Name:       entry.Name,
-			Family:     family,
-			API: ModelAPI{
-				ID:  entry.ID,
-				URL: "https://openrouter.ai/api/v1",
-			},
-			Status:  "active",
-			Headers: make(map[string]string),
-			Options: make(map[string]any),
-			Cost:    ModelCost{Input: promptCost, Output: completionCost},
-			Limit:   ModelLimit{Context: contextLen, Output: maxOutput},
-			Capabilities: ModelCaps{
-				Temperature: params["temperature"],
-				Reasoning:   hasReasoning,
-				Attachment:  inputMods["image"] || inputMods["file"],
-				ToolCall:    params["tools"],
-				Input: ModalityCaps{
-					Text:  inputMods["text"],
-					Audio: inputMods["audio"],
-					Image: inputMods["image"],
-					Video: inputMods["video"],
-					PDF:   inputMods["file"],
-				},
-				Output: ModalityCaps{Text: true},
-			},
-		}
+		models[entry.ID] = buildOpenRouterModel(entry)
 	}
 
 	d.registry.Register(&Info{
@@ -693,6 +632,87 @@ func (d *Discovery) DiscoverOpenRouter(ctx context.Context, apiKey string) error
 	})
 
 	return nil
+}
+
+// buildOpenRouterModel constructs a Model from a single OpenRouter API entry.
+func buildOpenRouterModel(entry openRouterModel) *Model {
+	params := make(map[string]bool)
+	for _, p := range entry.SupportedParameters {
+		params[p] = true
+	}
+
+	contextLen := entry.ContextLength
+	if entry.TopProvider != nil && entry.TopProvider.ContextLength > 0 {
+		contextLen = entry.TopProvider.ContextLength
+	}
+
+	maxOutput := 0
+	if entry.TopProvider != nil && entry.TopProvider.MaxCompletionTokens != nil {
+		maxOutput = *entry.TopProvider.MaxCompletionTokens
+	}
+	if maxOutput == 0 {
+		maxOutput = min(16384, contextLen/5)
+	}
+
+	var promptCost, completionCost float64
+	if entry.Pricing != nil {
+		if v, err := parseFloat(entry.Pricing.Prompt); err == nil {
+			promptCost = v * 1_000_000
+		}
+		if v, err := parseFloat(entry.Pricing.Completion); err == nil {
+			completionCost = v * 1_000_000
+		}
+	}
+
+	inputMods := make(map[string]bool)
+	if entry.Architecture != nil {
+		for _, m := range entry.Architecture.InputModalities {
+			inputMods[m] = true
+		}
+	}
+	if len(inputMods) == 0 {
+		inputMods["text"] = true
+	}
+
+	hasReasoning := false
+	if entry.Reasoning != nil {
+		hasReasoning = entry.Reasoning.Mandatory || entry.Reasoning.DefaultEnabled
+	}
+
+	family := ""
+	if parts := strings.SplitN(entry.ID, "/", 2); len(parts) == 2 {
+		family = parts[0]
+	}
+
+	return &Model{
+		ID:         entry.ID,
+		ProviderID: "openrouter",
+		Name:       entry.Name,
+		Family:     family,
+		API: ModelAPI{
+			ID:  entry.ID,
+			URL: "https://openrouter.ai/api/v1",
+		},
+		Status:  "active",
+		Headers: make(map[string]string),
+		Options: make(map[string]any),
+		Cost:    ModelCost{Input: promptCost, Output: completionCost},
+		Limit:   ModelLimit{Context: contextLen, Output: maxOutput},
+		Capabilities: ModelCaps{
+			Temperature: params["temperature"],
+			Reasoning:   hasReasoning,
+			Attachment:  inputMods["image"] || inputMods["file"],
+			ToolCall:    params["tools"],
+			Input: ModalityCaps{
+				Text:  inputMods["text"],
+				Audio: inputMods["audio"],
+				Image: inputMods["image"],
+				Video: inputMods["video"],
+				PDF:   inputMods["file"],
+			},
+			Output: ModalityCaps{Text: true},
+		},
+	}
 }
 
 type openRouterResponse struct {

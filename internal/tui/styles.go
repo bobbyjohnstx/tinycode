@@ -126,116 +126,58 @@ func SetTheme(t Theme) {
 	colorSuccess = t.PermissionAllow.GetForeground()
 }
 
+type themeColors struct {
+	accent     lipgloss.TerminalColor
+	user       lipgloss.TerminalColor
+	assistant  lipgloss.TerminalColor
+	errorC     lipgloss.TerminalColor
+	success    lipgloss.TerminalColor
+	subtle     lipgloss.TerminalColor
+	bg         lipgloss.TerminalColor
+	highlight  lipgloss.TerminalColor
+	permBorder lipgloss.TerminalColor
+}
+
+func buildTheme(c themeColors) Theme {
+	return Theme{
+		UserMessage:      lipgloss.NewStyle().Foreground(c.user).Bold(true).PaddingLeft(2),
+		AssistantMessage: lipgloss.NewStyle().Foreground(c.assistant).PaddingLeft(2),
+		ChatBorder:       lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(c.subtle),
+		SidebarBox:       lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(c.subtle).Padding(0, 1),
+		PromptBorder:     lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(c.accent).BorderTop(true),
+		StatusBar:        lipgloss.NewStyle().Background(c.bg).Foreground(c.subtle).Padding(0, 1),
+		StatusBarModel:   lipgloss.NewStyle().Foreground(c.accent).Bold(true),
+		StatusBarAgent:   lipgloss.NewStyle().Foreground(c.success),
+		StatusBarCwd:     lipgloss.NewStyle().Foreground(c.subtle).Italic(true),
+		ToastInfo:        lipgloss.NewStyle().Foreground(c.accent).Padding(0, 1),
+		ToastError:       lipgloss.NewStyle().Foreground(c.errorC).Padding(0, 1),
+		DialogOverlay:    lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(c.accent).Padding(1, 2),
+		DialogTitle:      lipgloss.NewStyle().Foreground(c.accent).Bold(true).MarginBottom(1),
+		DialogItem:       lipgloss.NewStyle().PaddingLeft(2),
+		DialogActive:     lipgloss.NewStyle().Foreground(c.accent).Bold(true).PaddingLeft(2),
+		PermissionBorder: lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(c.permBorder),
+		PermissionAllow:  lipgloss.NewStyle().Foreground(c.success).Bold(true),
+		PermissionDeny:   lipgloss.NewStyle().Foreground(c.errorC).Bold(true),
+		PaletteInput:     lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(c.accent).Padding(0, 1),
+		PaletteItem:      lipgloss.NewStyle().PaddingLeft(2),
+		PaletteActive:    lipgloss.NewStyle().Background(c.highlight).Foreground(c.accent).Bold(true).PaddingLeft(2),
+		Spinner:          lipgloss.NewStyle().Foreground(c.accent),
+		Dim:              lipgloss.NewStyle().Foreground(c.subtle),
+		Bold:             lipgloss.NewStyle().Bold(true),
+	}
+}
+
 // DefaultTheme returns the default TUI theme.
 func DefaultTheme() Theme {
-	subtle := lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}
-	accent := lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}
-	userColor := lipgloss.AdaptiveColor{Light: "#1A1A1A", Dark: "#E1E1E1"}
-	assistantColor := lipgloss.AdaptiveColor{Light: "#333333", Dark: "#CCCCCC"}
-	errorColor := lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF6666"}
-	successColor := lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"}
-	bgDim := lipgloss.AdaptiveColor{Light: "#F5F5F5", Dark: "#1A1A1A"}
-	bgHighlight := lipgloss.AdaptiveColor{Light: "#E8E8E8", Dark: "#2A2A2A"}
-
-	return Theme{
-		UserMessage: lipgloss.NewStyle().
-			Foreground(userColor).
-			Bold(true).
-			PaddingLeft(2),
-
-		AssistantMessage: lipgloss.NewStyle().
-			Foreground(assistantColor).
-			PaddingLeft(2),
-
-		ChatBorder: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(subtle),
-
-		SidebarBox: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(subtle).
-			Padding(0, 1),
-
-		PromptBorder: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(accent).
-			BorderTop(true),
-
-		StatusBar: lipgloss.NewStyle().
-			Background(bgDim).
-			Foreground(subtle).
-			Padding(0, 1),
-
-		StatusBarModel: lipgloss.NewStyle().
-			Foreground(accent).
-			Bold(true),
-
-		StatusBarAgent: lipgloss.NewStyle().
-			Foreground(successColor),
-
-		StatusBarCwd: lipgloss.NewStyle().
-			Foreground(subtle).
-			Italic(true),
-
-		ToastInfo: lipgloss.NewStyle().
-			Foreground(accent).
-			Padding(0, 1),
-
-		ToastError: lipgloss.NewStyle().
-			Foreground(errorColor).
-			Padding(0, 1),
-
-		DialogOverlay: lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(accent).
-			Padding(1, 2),
-
-		DialogTitle: lipgloss.NewStyle().
-			Foreground(accent).
-			Bold(true).
-			MarginBottom(1),
-
-		DialogItem: lipgloss.NewStyle().
-			PaddingLeft(2),
-
-		DialogActive: lipgloss.NewStyle().
-			Foreground(accent).
-			Bold(true).
-			PaddingLeft(2),
-
-		PermissionBorder: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.AdaptiveColor{Light: "#CC8800", Dark: "#FFAA33"}),
-
-		PermissionAllow: lipgloss.NewStyle().
-			Foreground(successColor).
-			Bold(true),
-
-		PermissionDeny: lipgloss.NewStyle().
-			Foreground(errorColor).
-			Bold(true),
-
-		PaletteInput: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(accent).
-			Padding(0, 1),
-
-		PaletteItem: lipgloss.NewStyle().
-			PaddingLeft(2),
-
-		PaletteActive: lipgloss.NewStyle().
-			Background(bgHighlight).
-			Foreground(accent).
-			Bold(true).
-			PaddingLeft(2),
-
-		Spinner: lipgloss.NewStyle().
-			Foreground(accent),
-
-		Dim: lipgloss.NewStyle().
-			Foreground(subtle),
-
-		Bold: lipgloss.NewStyle().
-			Bold(true),
-	}
+	return buildTheme(themeColors{
+		accent:     lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"},
+		user:       lipgloss.AdaptiveColor{Light: "#1A1A1A", Dark: "#E1E1E1"},
+		assistant:  lipgloss.AdaptiveColor{Light: "#333333", Dark: "#CCCCCC"},
+		errorC:     lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF6666"},
+		success:    lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"},
+		subtle:     lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"},
+		bg:         lipgloss.AdaptiveColor{Light: "#F5F5F5", Dark: "#1A1A1A"},
+		highlight:  lipgloss.AdaptiveColor{Light: "#E8E8E8", Dark: "#2A2A2A"},
+		permBorder: lipgloss.AdaptiveColor{Light: "#CC8800", Dark: "#FFAA33"},
+	})
 }

@@ -3,8 +3,6 @@ package tui
 import (
 	"fmt"
 	"log/slog"
-	"path/filepath"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -73,10 +71,8 @@ func (a App) Init() tea.Cmd {
 }
 
 // Update implements tea.Model. Dispatches messages to focused component
-// and handles global keys.
+// and handles global keys. Handler methods are in app_update.go.
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		if !a.ready {
@@ -87,388 +83,26 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.resize()
 		a.ready = true
 		return a, nil
-
 	case tea.KeyMsg:
-		// Leader key state machine runs first.
-		if a.leader.IsPending() {
-			action, consumed := a.leader.HandleKey(msg)
-			if consumed {
-				if action != "" {
-					cmd := a.dispatchLeaderAction(action)
-					return a, cmd
-				}
-				return a, nil
-			}
-		} else {
-			_, consumed := a.leader.HandleKey(msg)
-			if consumed {
-				// Leader key was just pressed; start timeout.
-				return a, a.leader.TimeoutCmd()
-			}
-		}
-
-		// Route keys to visible overlay (priority order).
-		if a.permPrompt.IsVisible() {
-			var cmd tea.Cmd
-			a.permPrompt, cmd = a.permPrompt.Update(msg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			return a, tea.Batch(cmds...)
-		}
-		if a.palette.IsVisible() {
-			var cmd tea.Cmd
-			a.palette, cmd = a.palette.Update(msg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			return a, tea.Batch(cmds...)
-		}
-		if a.agentDlg.IsVisible() {
-			var cmd tea.Cmd
-			a.agentDlg, cmd = a.agentDlg.Update(msg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			return a, tea.Batch(cmds...)
-		}
-		if a.modelDlg.IsVisible() {
-			var cmd tea.Cmd
-			a.modelDlg, cmd = a.modelDlg.Update(msg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			return a, tea.Batch(cmds...)
-		}
-		if a.themeDlg.IsVisible() {
-			var cmd tea.Cmd
-			a.themeDlg, cmd = a.themeDlg.Update(msg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			return a, tea.Batch(cmds...)
-		}
-
-		// Global keys handled before component dispatch.
-		if cmd := a.handleGlobalKey(msg); cmd != nil {
-			return a, cmd
-		}
-
-	case LeaderTimeoutMsg:
-		a.leader.HandleTimeout()
-		return a, nil
-
-	case SessionErrorMsg:
-		cmd := a.toast.Show(msg.Error, true)
-		if msg.SessionID == a.state.ActiveSession || msg.SessionID == "" {
-			a.status.SetWorking(false)
-		}
-		a.state.SessionStatus[msg.SessionID] = SessionStatus{Working: false}
-		return a, cmd
-
-
-	case CopiedToClipboardMsg:
-		if msg.Err != nil {
-			return a, nil
-		}
-		cmd := a.toast.Show(fmt.Sprintf("Copied %d chars", msg.Chars), false)
-		return a, cmd
-
-	case ExportSessionMsg:
-		if msg.Err != nil {
-			cmd := a.toast.Show(fmt.Sprintf("Export failed: %v", msg.Err), true)
-			return a, cmd
-		}
-		cmd := a.toast.Show("Exported to "+filepath.Base(msg.Path), false)
-		return a, cmd
-
-	case ToastMsg:
-		cmd := a.toast.Show(msg.Text, msg.IsError)
-		return a, cmd
-
-	case ToastExpiredMsg:
-		var cmd tea.Cmd
-		a.toast, cmd = a.toast.Update(msg)
-		return a, cmd
-
-	case AgentListMsg:
-		if msg.Err == nil {
-			a.state.Agents = msg.Agents
-			names := make([]string, len(msg.Agents))
-			agentItems := make([]AutocompleteItem, 0, len(msg.Agents))
-			for i, ag := range msg.Agents {
-				names[i] = ag.Name
-				if ag.Mode != "primary" {
-					agentItems = append(agentItems, AutocompleteItem{
-						Name:        ag.Name,
-						Description: ag.Description,
-					})
-				}
-			}
-			a.prompt.SetAgents(agentItems)
-			a.prompt.SetCycleAgents(names)
-			slog.Info("agents loaded", "count", len(msg.Agents), "names", names)
-		} else {
-			slog.Error("agent list fetch failed", "error", msg.Err)
-		}
-		return a, nil
-
-	case CommandListMsg:
-		if msg.Err == nil {
-			a.state.Commands = msg.Commands
-			items := []AutocompleteItem{
-				{Name: "exit", Description: "Exit the app"},
-				{Name: "connect", Description: "Select provider and model"},
-				{Name: "export", Description: "Export session as Markdown"},
-				{Name: "theme", Description: "Change color theme"},
-			}
-			for _, cmd := range msg.Commands {
-				if strings.HasPrefix(cmd.Description, "Switch to ") {
-					continue
-				}
-				items = append(items, AutocompleteItem{
-					Name:        cmd.Name,
-					Description: cmd.Description,
-				})
-			}
-			a.prompt.SetCommands(items)
-		}
-		return a, nil
-
-	case PermissionRequestedMsg:
-		a.permPrompt.Show(msg.Request)
-		return a, nil
-
-	case PaletteClosedMsg:
-		a.setFocus(FocusPrompt)
-		return a, nil
-
-	case PaletteSelectedMsg:
-		a.setFocus(FocusPrompt)
-		if cmd, handled := a.handleClientCommand(msg.Item.Value); handled {
-			return a, cmd
-		}
-		return a, nil
-
-	case AgentSelectedMsg:
-		a.state.CurrentAgent = msg.Agent
-		a.prompt.SetMetadata(msg.Agent, a.state.CurrentModel.ModelID, a.state.CurrentModel.ProviderID)
-		a.status.SetAgent(msg.Agent)
-		a.setFocus(FocusPrompt)
-		return a, nil
-
-	case ThemePreviewMsg:
-		if theme := a.themes.Get(msg.ThemeID); theme != nil {
-			ApplyColorTheme(theme)
-		}
-		return a, nil
-
-	case ThemeRevertMsg:
-		a.setFocus(FocusPrompt)
-		if theme := a.themes.Get(msg.ThemeID); theme != nil {
-			ApplyColorTheme(theme)
-		}
-		return a, nil
-
-	case ThemeSelectedMsg:
-		a.setFocus(FocusPrompt)
-		a.state.CurrentTheme = msg.ThemeID
-		if theme := a.themes.Get(msg.ThemeID); theme != nil {
-			ApplyColorTheme(theme)
-			cmd := a.toast.Show("Theme: "+theme.Name, false)
-			return a, cmd
-		}
-		return a, nil
-
-	case ModelSelectedMsg:
-		a.setFocus(FocusPrompt)
-		a.state.CurrentModel = msg.Selection
-		for _, p := range a.state.Providers {
-			if p.ID == msg.Selection.ProviderID {
-				for _, m := range p.Models {
-					if m.ID == msg.Selection.ModelID {
-						a.prompt.SetMetadata(a.state.CurrentAgent, m.Name, p.Name)
-						a.status.SetModel(m.Name, p.Name)
-						a.updateSidebarContext()
-						return a, nil
-					}
-				}
-			}
-		}
-		a.prompt.SetMetadata(a.state.CurrentAgent, msg.Selection.ModelID, msg.Selection.ProviderID)
-		a.status.SetModel(msg.Selection.ModelID, msg.Selection.ProviderID)
-		a.updateSidebarContext()
-		return a, nil
-
-	case PromptSubmittedMsg:
-		a.state.SessionStatus[a.state.ActiveSession] = SessionStatus{Working: true}
-		spinCmd := a.status.SetWorking(true)
-		return a, spinCmd
-
-	case SessionStatusMsg:
-		a.state.SessionStatus[msg.SessionID] = msg.Status
-		var spinCmd tea.Cmd
-		if msg.SessionID == a.state.ActiveSession {
-			spinCmd = a.status.SetWorking(msg.Status.Working)
-		}
-		return a, spinCmd
-
-	case SessionsLoadedMsg:
-		if msg.Err == nil {
-			a.state.Sessions = msg.Sessions
-			a.sidebar.SetSessions(msg.Sessions)
-		}
-		return a, nil
-
-	case SessionCreatedMsg:
-		a.state.Sessions = append([]SessionInfo{msg.Info}, a.state.Sessions...)
-		a.sidebar.SetSessions(a.state.Sessions)
-		return a, nil
-
-	case SessionDeletedMsg:
-		a.removeSession(msg.SessionID)
-		a.sidebar.SetSessions(a.state.Sessions)
-		return a, nil
-
-	case SessionSwitchedMsg:
-		a.state.ActiveSession = msg.SessionID
-		a.state.Messages[msg.SessionID] = nil // clear, will reload
-		a.syncPromptMetadata()
-		return a, nil
-
-	case ProvidersLoadedMsg:
-		if msg.Err == nil {
-			a.state.Providers = msg.Providers
-		}
-		if a.state.CurrentModel.ModelID == "" && msg.DefaultProvider != "" && msg.DefaultModel != "" {
-			a.state.CurrentModel = ModelSelection{
-				ProviderID: msg.DefaultProvider,
-				ModelID:    msg.DefaultModel,
-			}
-			modelName := msg.DefaultModel
-			providerName := msg.DefaultProvider
-			for _, p := range a.state.Providers {
-				if p.ID == msg.DefaultProvider {
-					providerName = p.Name
-					for _, m := range p.Models {
-						if m.ID == msg.DefaultModel {
-							modelName = m.Name
-							break
-						}
-					}
-					break
-				}
-			}
-			a.prompt.SetMetadata(a.state.CurrentAgent, modelName, providerName)
-			a.status.SetModel(modelName, providerName)
-		}
-		if a.state.PendingModelDialog {
-			a.state.PendingModelDialog = false
-			a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
-			a.setFocus(FocusDialog)
-		}
-		a.updateSidebarContext()
-		return a, nil
-
-	case SSEConnectedMsg:
-		a.state.Connected = true
-		return a, nil
-
-	case SSEDisconnectedMsg:
-		a.state.Connected = false
-		return a, nil
-
-	case PermissionDismissedMsg:
-		a.permPrompt.Hide()
-		a.setFocus(FocusPrompt)
-		slog.Info("permission dismissed", "permission", msg.Request.Permission, "action", msg.Action.String())
-		return a, func() tea.Msg {
-			return PermissionReplyMsg{
-				SessionID:    msg.Request.SessionID,
-				PermissionID: msg.Request.ID,
-				Action:       msg.Action.String(),
-			}
-		}
-
-	case SidebarSessionSelectedMsg:
-		slog.Info("sidebar session selected", "sessionID", msg.SessionID)
-		return a, func() tea.Msg {
-			return SessionSwitchedMsg{SessionID: msg.SessionID}
-		}
-
-	case FocusChangedMsg:
-		if msg.Target == FocusPalette {
-			a.showPalette()
-			return a, nil
-		}
-		a.setFocus(msg.Target)
-		return a, nil
-
-	case MessagePartDeltaMsg, MessageUpdatedMsg, MessagePartUpdatedMsg, MessagesLoadedMsg:
-		// SSE messages always go to chat view.
-		var cmd tea.Cmd
-		a.chat, cmd = a.chat.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		// Also forward to status bar for spinner state.
-		var statusCmd tea.Cmd
-		a.status, statusCmd = a.status.Update(msg)
-		if statusCmd != nil {
-			cmds = append(cmds, statusCmd)
-		}
-		a.updateSidebarContext()
-		return a, tea.Batch(cmds...)
-
+		return a.handleKeyMsg(msg)
 	case tea.MouseMsg:
-		l := calculateLayout(a.width, a.height, a.sidebar.IsOpen())
-		if msg.Y < l.chatHeight {
-			var cmd tea.Cmd
-			a.chat, cmd = a.chat.Update(msg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			return a, tea.Batch(cmds...)
-		}
-
-	default:
-		slog.Debug("unhandled msg in App.Update", "type", fmt.Sprintf("%T", msg))
+		return a.handleMouseMsg(msg)
+	case MessagePartDeltaMsg, MessageUpdatedMsg, MessagePartUpdatedMsg, MessagesLoadedMsg:
+		return a.forwardSSEMessages(msg)
 	}
 
-	// Dispatch to focused component or dialog overlay.
-	if a.dialog.IsVisible() {
-		var cmd tea.Cmd
-		a.dialog, cmd = a.dialog.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-		return a, tea.Batch(cmds...)
+	if model, cmd, ok := a.handleStateMsg(msg); ok {
+		return model, cmd
+	}
+	if model, cmd, ok := a.handleNotificationMsg(msg); ok {
+		return model, cmd
+	}
+	if model, cmd, ok := a.handleDialogMsg(msg); ok {
+		return model, cmd
 	}
 
-	switch a.focus {
-	case FocusPrompt:
-		var cmd tea.Cmd
-		a.prompt, cmd = a.prompt.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	default:
-		// ChatView handles scroll keys when not in prompt focus.
-		var cmd tea.Cmd
-		a.chat, cmd = a.chat.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	// Always forward spinner ticks to status bar.
-	var statusCmd tea.Cmd
-	a.status, statusCmd = a.status.Update(msg)
-	if statusCmd != nil {
-		cmds = append(cmds, statusCmd)
-	}
-
-	return a, tea.Batch(cmds...)
+	slog.Debug("unhandled msg in App.Update", "type", fmt.Sprintf("%T", msg))
+	return a.dispatchToFocused(msg)
 }
 
 // View implements tea.Model. Composes all component views.

@@ -76,59 +76,7 @@ func executeGrep(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		maxMatches = *args.MaxCount
 	}
 
-	type fileResult struct {
-		modTime int64
-		matches []string
-	}
-
-	var results []fileResult
-	total := 0
-
-	err = filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		if info.IsDir() {
-			base := info.Name()
-			if base == ".git" || base == "node_modules" || base == ".tinycode" || base == "vendor" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		if args.Include != "" {
-			matched, _ := filepath.Match(args.Include, info.Name())
-			if !matched {
-				return nil
-			}
-		}
-
-		if info.Size() > 1024*1024 {
-			return nil
-		}
-
-		fileMatches := grepFile(path, re, searchPath)
-		if len(fileMatches) > 0 {
-			results = append(results, fileResult{
-				modTime: info.ModTime().UnixNano(),
-				matches: fileMatches,
-			})
-			total += len(fileMatches)
-		}
-
-		if total > maxMatches*2 {
-			return fmt.Errorf("too many matches")
-		}
-
-		return nil
-	})
+	results, total := walkGrepFiles(ctx, searchPath, re, args.Include, maxMatches)
 
 	// Sort by modification time, newest first.
 	sort.Slice(results, func(i, j int) bool {
@@ -159,6 +107,55 @@ func executeGrep(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	}
 
 	return &ExecuteResult{Output: sb.String()}, nil
+}
+
+type grepFileResult struct {
+	modTime int64
+	matches []string
+}
+
+func walkGrepFiles(ctx context.Context, searchPath string, re *regexp.Regexp, include string, maxMatches int) ([]grepFileResult, int) {
+	var results []grepFileResult
+	total := 0
+
+	_ = filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if info.IsDir() {
+			if skipDirs[info.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if include != "" {
+			matched, _ := filepath.Match(include, info.Name())
+			if !matched {
+				return nil
+			}
+		}
+		if info.Size() > 1024*1024 {
+			return nil
+		}
+		fileMatches := grepFile(path, re, searchPath)
+		if len(fileMatches) > 0 {
+			results = append(results, grepFileResult{
+				modTime: info.ModTime().UnixNano(),
+				matches: fileMatches,
+			})
+			total += len(fileMatches)
+		}
+		if total > maxMatches*2 {
+			return fmt.Errorf("too many matches")
+		}
+		return nil
+	})
+	return results, total
 }
 
 func grepFile(path string, re *regexp.Regexp, baseDir string) []string {

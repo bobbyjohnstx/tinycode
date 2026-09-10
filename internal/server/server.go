@@ -184,141 +184,85 @@ func (s *Server) wirePluginHooks() {
 
 	s.pluginDone = make(chan struct{})
 
-	startSub := s.deps.Bus.Subscribe("session.created")
-	s.pluginSubs = append(s.pluginSubs, startSub)
-	go func() {
-		for {
-			select {
-			case <-s.pluginDone:
-				return
-			case evt, ok := <-startSub.C:
-				if !ok {
-					return
-				}
-				props, ok := evt.Properties.(map[string]any)
-				if !ok {
-					continue
-				}
-				info, _ := props["info"].(map[string]any)
-				if info == nil {
-					continue
-				}
-				sid, _ := info["id"].(string)
-				if sid != "" {
-					plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{SessionID: sid})
-				}
-			}
+	s.wirePluginEventLoop("session.created", func(props map[string]any) {
+		info, _ := props["info"].(map[string]any)
+		if info == nil {
+			return
 		}
-	}()
+		sid, _ := info["id"].(string)
+		if sid != "" {
+			plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{SessionID: sid})
+		}
+	})
 
-	endSub := s.deps.Bus.Subscribe("session.deleted")
-	s.pluginSubs = append(s.pluginSubs, endSub)
-	go func() {
-		for {
-			select {
-			case <-s.pluginDone:
-				return
-			case evt, ok := <-endSub.C:
-				if !ok {
-					return
-				}
-				props, ok := evt.Properties.(map[string]any)
-				if !ok {
-					continue
-				}
-				sid, _ := props["sessionID"].(string)
-				if sid != "" {
-					plugin.DispatchSessionEnd(mgr, plugin.SessionEndEvent{SessionID: sid})
-				}
-			}
+	s.wirePluginEventLoop("session.deleted", func(props map[string]any) {
+		sid, _ := props["sessionID"].(string)
+		if sid != "" {
+			plugin.DispatchSessionEnd(mgr, plugin.SessionEndEvent{SessionID: sid})
 		}
-	}()
+	})
 
-	permAskSub := s.deps.Bus.Subscribe("permission.ask")
-	s.pluginSubs = append(s.pluginSubs, permAskSub)
-	go func() {
-		for {
-			select {
-			case <-s.pluginDone:
-				return
-			case evt, ok := <-permAskSub.C:
-				if !ok {
-					return
-				}
-				props, ok := evt.Properties.(map[string]any)
-				if !ok {
-					continue
-				}
-				sessionID, _ := props["sessionID"].(string)
-				toolName, _ := props["toolName"].(string)
-				toolArgs, _ := props["toolArgs"].(string)
-				permission, _ := props["permission"].(string)
-				plugin.DispatchPermissionAsk(mgr, plugin.PermissionInput{
-					SessionID:  sessionID,
-					ToolName:   toolName,
-					ToolArgs:   toolArgs,
-					Permission: permission,
-				})
-			}
-		}
-	}()
+	s.wirePluginEventLoop("permission.ask", func(props map[string]any) {
+		sessionID, _ := props["sessionID"].(string)
+		toolName, _ := props["toolName"].(string)
+		toolArgs, _ := props["toolArgs"].(string)
+		perm, _ := props["permission"].(string)
+		plugin.DispatchPermissionAsk(mgr, plugin.PermissionInput{
+			SessionID:  sessionID,
+			ToolName:   toolName,
+			ToolArgs:   toolArgs,
+			Permission: perm,
+		})
+	})
 
-	shellEnvSub := s.deps.Bus.Subscribe("shell.env")
-	s.pluginSubs = append(s.pluginSubs, shellEnvSub)
-	go func() {
-		for {
-			select {
-			case <-s.pluginDone:
-				return
-			case evt, ok := <-shellEnvSub.C:
-				if !ok {
-					return
-				}
-				props, ok := evt.Properties.(map[string]any)
-				if !ok {
-					continue
-				}
-				sessionID, _ := props["sessionID"].(string)
-				directory, _ := props["directory"].(string)
-				env, _ := props["env"].(map[string]string)
-				plugin.DispatchShellEnv(mgr, plugin.ShellEnvInput{
-					SessionID: sessionID,
-					Directory: directory,
-					Env:       env,
-				})
-			}
-		}
-	}()
+	s.wirePluginEventLoop("shell.env", func(props map[string]any) {
+		sessionID, _ := props["sessionID"].(string)
+		directory, _ := props["directory"].(string)
+		env, _ := props["env"].(map[string]string)
+		plugin.DispatchShellEnv(mgr, plugin.ShellEnvInput{
+			SessionID: sessionID,
+			Directory: directory,
+			Env:       env,
+		})
+	})
 
-	toolBeforeSub := s.deps.Bus.Subscribe("tool.execute.before")
-	s.pluginSubs = append(s.pluginSubs, toolBeforeSub)
-	go func() {
-		for {
-			select {
-			case <-s.pluginDone:
-				return
-			case evt, ok := <-toolBeforeSub.C:
-				if !ok {
-					return
-				}
-				props, ok := evt.Properties.(map[string]any)
-				if !ok {
-					continue
-				}
-				sessionID, _ := props["sessionID"].(string)
-				toolName, _ := props["tool"].(string)
-				toolArgs, _ := props["args"].(string)
-				plugin.DispatchToolExecBefore(mgr, plugin.ToolExecBeforeEvent{
-					SessionID: sessionID,
-					ToolName:  toolName,
-					ToolArgs:  toolArgs,
-				})
-			}
-		}
-	}()
+	s.wirePluginEventLoop("tool.execute.before", func(props map[string]any) {
+		sessionID, _ := props["sessionID"].(string)
+		toolName, _ := props["tool"].(string)
+		toolArgs, _ := props["args"].(string)
+		plugin.DispatchToolExecBefore(mgr, plugin.ToolExecBeforeEvent{
+			SessionID: sessionID,
+			ToolName:  toolName,
+			ToolArgs:  toolArgs,
+		})
+	})
 
 	// tool.execute.after dispatch is handled synchronously via tool.Context.AfterHook
 	// to allow plugins to transform output before it's returned to the LLM.
+}
+
+// wirePluginEventLoop subscribes to a bus topic and runs the handler in a
+// goroutine that exits when pluginDone is closed.
+func (s *Server) wirePluginEventLoop(topic string, handler func(map[string]any)) {
+	sub := s.deps.Bus.Subscribe(topic)
+	s.pluginSubs = append(s.pluginSubs, sub)
+	go func() {
+		for {
+			select {
+			case <-s.pluginDone:
+				return
+			case evt, ok := <-sub.C:
+				if !ok {
+					return
+				}
+				props, ok := evt.Properties.(map[string]any)
+				if !ok {
+					continue
+				}
+				handler(props)
+			}
+		}
+	}()
 }
 
 // WaitForShutdown blocks until the server's background shutdown goroutine

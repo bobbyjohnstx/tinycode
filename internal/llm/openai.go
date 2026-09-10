@@ -132,7 +132,6 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 		if !strings.HasPrefix(line, "data: ") {
 			continue
 		}
-
 		data := line[6:]
 		if data == "[DONE]" {
 			return
@@ -143,92 +142,98 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 			continue
 		}
 
-		if len(chunk.Choices) == 0 {
-			if chunk.Usage != nil {
-				ch <- Event{
-					Type: EventFinish,
-					Usage: &Usage{
-						PromptTokens:     chunk.Usage.PromptTokens,
-						CompletionTokens: chunk.Usage.CompletionTokens,
-						TotalTokens:      chunk.Usage.TotalTokens,
-					},
-				}
-			}
-			continue
-		}
+		c.processOpenAIChunk(chunk, toolCalls, ch)
+	}
+}
 
-		choice := chunk.Choices[0]
-		delta := choice.Delta
-
-		if delta.Content != "" {
-			ch <- Event{Type: EventTextDelta, Text: delta.Content}
-		}
-
-		if delta.ReasoningContent != "" {
-			ch <- Event{Type: EventReasoningDelta, Text: delta.ReasoningContent}
-		}
-
-		for _, tc := range delta.ToolCalls {
-			accum, exists := toolCalls[tc.Index]
-			if !exists {
-				accum = &toolCallAccum{id: tc.ID, name: tc.Function.Name}
-				toolCalls[tc.Index] = accum
-
-				ch <- Event{
-					Type:       EventToolCallBegin,
-					ToolCallID: tc.ID,
-					ToolName:   tc.Function.Name,
-				}
-			}
-
-			if tc.Function.Arguments != "" {
-				accum.args += tc.Function.Arguments
-				ch <- Event{
-					Type:         EventToolCallDelta,
-					ToolCallID:   accum.id,
-					ToolCallArgs: tc.Function.Arguments,
-				}
+// processOpenAIChunk handles a single parsed SSE chunk: emits text/reasoning
+// deltas, accumulates tool call arguments, and finalizes tool calls on finish.
+func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls map[int]*toolCallAccum, ch chan<- Event) {
+	if len(chunk.Choices) == 0 {
+		if chunk.Usage != nil {
+			ch <- Event{
+				Type: EventFinish,
+				Usage: &Usage{
+					PromptTokens:     chunk.Usage.PromptTokens,
+					CompletionTokens: chunk.Usage.CompletionTokens,
+					TotalTokens:      chunk.Usage.TotalTokens,
+				},
 			}
 		}
+		return
+	}
 
-		if choice.FinishReason != "" {
-			for idx, accum := range toolCalls {
-				args := accum.args
-				if !json.Valid([]byte(args)) {
-					if repaired := RepairToolCallJSON(args); repaired != nil {
-						args = *repaired
-					} else {
-						// Redirect to the "invalid" fallback tool so the LLM gets
-						// a structured error and can retry.
-						invalidArgs, _ := json.Marshal(map[string]string{
-							"error":         "invalid JSON in tool call arguments",
-							"original_name": accum.name,
-							"original_args": args,
-						})
-						ch <- Event{
-							Type:         EventToolCallEnd,
-							ToolCallID:   accum.id,
-							ToolName:     "invalid",
-							ToolCallArgs: string(invalidArgs),
-						}
-						delete(toolCalls, idx)
-						continue
-					}
-				}
+	choice := chunk.Choices[0]
+	delta := choice.Delta
+
+	if delta.Content != "" {
+		ch <- Event{Type: EventTextDelta, Text: delta.Content}
+	}
+	if delta.ReasoningContent != "" {
+		ch <- Event{Type: EventReasoningDelta, Text: delta.ReasoningContent}
+	}
+
+	for _, tc := range delta.ToolCalls {
+		accum, exists := toolCalls[tc.Index]
+		if !exists {
+			accum = &toolCallAccum{id: tc.ID, name: tc.Function.Name}
+			toolCalls[tc.Index] = accum
+			ch <- Event{
+				Type:       EventToolCallBegin,
+				ToolCallID: tc.ID,
+				ToolName:   tc.Function.Name,
+			}
+		}
+		if tc.Function.Arguments != "" {
+			accum.args += tc.Function.Arguments
+			ch <- Event{
+				Type:         EventToolCallDelta,
+				ToolCallID:   accum.id,
+				ToolCallArgs: tc.Function.Arguments,
+			}
+		}
+	}
+
+	if choice.FinishReason != "" {
+		c.finalizeOpenAIToolCalls(toolCalls, ch)
+		ch <- Event{
+			Type:         EventFinish,
+			FinishReason: choice.FinishReason,
+		}
+	}
+}
+
+// finalizeOpenAIToolCalls emits EventToolCallEnd for each accumulated tool call,
+// repairing or redirecting invalid JSON arguments.
+func (c *OpenAIClient) finalizeOpenAIToolCalls(toolCalls map[int]*toolCallAccum, ch chan<- Event) {
+	for idx, accum := range toolCalls {
+		args := accum.args
+		if !json.Valid([]byte(args)) {
+			if repaired := RepairToolCallJSON(args); repaired != nil {
+				args = *repaired
+			} else {
+				invalidArgs, _ := json.Marshal(map[string]string{
+					"error":         "invalid JSON in tool call arguments",
+					"original_name": accum.name,
+					"original_args": args,
+				})
 				ch <- Event{
 					Type:         EventToolCallEnd,
 					ToolCallID:   accum.id,
-					ToolName:     accum.name,
-					ToolCallArgs: args,
+					ToolName:     "invalid",
+					ToolCallArgs: string(invalidArgs),
 				}
 				delete(toolCalls, idx)
-			}
-
-			ch <- Event{
-				Type:         EventFinish,
-				FinishReason: choice.FinishReason,
+				continue
 			}
 		}
+		ch <- Event{
+			Type:         EventToolCallEnd,
+			ToolCallID:   accum.id,
+			ToolName:     accum.name,
+			ToolCallArgs: args,
+		}
+		delete(toolCalls, idx)
 	}
 }
 

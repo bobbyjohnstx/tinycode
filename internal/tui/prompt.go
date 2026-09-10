@@ -148,34 +148,9 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 		if keyMsg.Type == tea.KeyRunes && p.guardEnabled && time.Since(p.startTime) < 2*time.Second {
 			return p, nil
 		}
-		// When the autocomplete popover is visible, it gets priority
-		// for navigation keys so the user can browse and select commands.
 		if p.autocomplete.IsVisible() {
-			switch keyMsg.String() {
-			case "up", "down", "esc":
-				var acCmd tea.Cmd
-				p.autocomplete, acCmd, _ = p.autocomplete.Update(keyMsg)
-				return p, acCmd
-			case "tab":
-				selected := p.autocomplete.Selected()
-				if selected != "" {
-					p.textarea.SetValue(p.formatSelection(selected))
-				}
-				p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
-				return p, nil
-			case "enter":
-				selected := p.autocomplete.Selected()
-				if selected != "" {
-					current := strings.TrimSpace(p.textarea.Value())
-					formatted := strings.TrimSpace(p.formatSelection(selected))
-					if current != formatted && !strings.HasPrefix(current, formatted+" ") {
-						p.textarea.SetValue(p.formatSelection(selected))
-						p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
-						return p, nil
-					}
-					p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
-				}
-				// Fall through to normal enter handling.
+			if result, cmd, handled := p.handleAutocompleteKey(keyMsg); handled {
+				return result, cmd
 			}
 		}
 
@@ -309,6 +284,37 @@ func (p PromptInput) renderMetadata() string {
 	}
 
 	return fmt.Sprintf("  %s %s %s", agent, dimStyle.Render("·"), dimStyle.Render(modelInfo))
+}
+
+// handleAutocompleteKey handles key events when the autocomplete popover is
+// visible. Returns (model, cmd, true) if the key was consumed.
+func (p PromptInput) handleAutocompleteKey(keyMsg tea.KeyMsg) (PromptInput, tea.Cmd, bool) {
+	switch keyMsg.String() {
+	case "up", "down", "esc":
+		var acCmd tea.Cmd
+		p.autocomplete, acCmd, _ = p.autocomplete.Update(keyMsg)
+		return p, acCmd, true
+	case "tab":
+		selected := p.autocomplete.Selected()
+		if selected != "" {
+			p.textarea.SetValue(p.formatSelection(selected))
+		}
+		p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
+		return p, nil, true
+	case "enter":
+		selected := p.autocomplete.Selected()
+		if selected != "" {
+			current := strings.TrimSpace(p.textarea.Value())
+			formatted := strings.TrimSpace(p.formatSelection(selected))
+			if current != formatted && !strings.HasPrefix(current, formatted+" ") {
+				p.textarea.SetValue(p.formatSelection(selected))
+				p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
+				return p, nil, true
+			}
+			p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
+		}
+	}
+	return p, nil, false
 }
 
 // formatSelection returns the text to fill into the prompt for a selected

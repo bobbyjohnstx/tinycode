@@ -128,6 +128,15 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 	return ar
 }
 
+// anthropicBlockState tracks a content block's type and tool call accumulation
+// during Anthropic SSE streaming.
+type anthropicBlockState struct {
+	blockType string
+	toolID    string
+	toolName  string
+	args      string
+}
+
 func (c *AnthropicClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<- Event) {
 	defer close(ch)
 	defer body.Close()
@@ -144,15 +153,7 @@ func (c *AnthropicClient) readSSE(ctx context.Context, body io.ReadCloser, ch ch
 		scanDone <- scanner.Err()
 	}()
 
-	// Track current content block index and tool call state.
-	type blockState struct {
-		blockType string
-		toolID    string
-		toolName  string
-		args      string
-	}
-	blocks := make(map[int]*blockState)
-
+	blocks := make(map[int]*anthropicBlockState)
 	timer := time.NewTimer(chunkTimeout)
 	defer timer.Stop()
 
@@ -185,11 +186,9 @@ func (c *AnthropicClient) readSSE(ctx context.Context, body io.ReadCloser, ch ch
 			eventType = line[7:]
 			continue
 		}
-
 		if !strings.HasPrefix(line, "data: ") {
 			continue
 		}
-
 		data := line[6:]
 		if data == "[DONE]" {
 			return
@@ -200,95 +199,99 @@ func (c *AnthropicClient) readSSE(ctx context.Context, body io.ReadCloser, ch ch
 			continue
 		}
 
-		switch eventType {
-		case "content_block_start":
-			var evt anthropicContentBlockStart
-			if err := json.Unmarshal(raw, &evt); err != nil {
-				continue
+		c.handleAnthropicSSEEvent(eventType, raw, blocks, ch)
+	}
+}
+
+// handleAnthropicSSEEvent processes a single parsed Anthropic SSE event.
+func (c *AnthropicClient) handleAnthropicSSEEvent(eventType string, raw json.RawMessage, blocks map[int]*anthropicBlockState, ch chan<- Event) {
+	switch eventType {
+	case "content_block_start":
+		var evt anthropicContentBlockStart
+		if err := json.Unmarshal(raw, &evt); err != nil {
+			return
+		}
+		bs := &anthropicBlockState{blockType: evt.ContentBlock.Type}
+		if evt.ContentBlock.Type == "tool_use" {
+			bs.toolID = evt.ContentBlock.ID
+			bs.toolName = evt.ContentBlock.Name
+			ch <- Event{
+				Type:       EventToolCallBegin,
+				ToolCallID: evt.ContentBlock.ID,
+				ToolName:   evt.ContentBlock.Name,
 			}
-			bs := &blockState{blockType: evt.ContentBlock.Type}
-			if evt.ContentBlock.Type == "tool_use" {
-				bs.toolID = evt.ContentBlock.ID
-				bs.toolName = evt.ContentBlock.Name
+		}
+		blocks[evt.Index] = bs
+
+	case "content_block_delta":
+		var evt anthropicContentBlockDelta
+		if err := json.Unmarshal(raw, &evt); err != nil {
+			return
+		}
+		switch evt.Delta.Type {
+		case "text_delta":
+			ch <- Event{Type: EventTextDelta, Text: evt.Delta.Text}
+		case "thinking_delta":
+			ch <- Event{Type: EventReasoningDelta, Text: evt.Delta.Thinking}
+		case "input_json_delta":
+			if bs, ok := blocks[evt.Index]; ok {
+				bs.args += evt.Delta.PartialJSON
 				ch <- Event{
-					Type:       EventToolCallBegin,
-					ToolCallID: evt.ContentBlock.ID,
-					ToolName:   evt.ContentBlock.Name,
-				}
-			}
-			blocks[evt.Index] = bs
-
-		case "content_block_delta":
-			var evt anthropicContentBlockDelta
-			if err := json.Unmarshal(raw, &evt); err != nil {
-				continue
-			}
-
-			switch evt.Delta.Type {
-			case "text_delta":
-				ch <- Event{Type: EventTextDelta, Text: evt.Delta.Text}
-			case "thinking_delta":
-				ch <- Event{Type: EventReasoningDelta, Text: evt.Delta.Thinking}
-			case "input_json_delta":
-				if bs, ok := blocks[evt.Index]; ok {
-					bs.args += evt.Delta.PartialJSON
-					ch <- Event{
-						Type:         EventToolCallDelta,
-						ToolCallID:   bs.toolID,
-						ToolCallArgs: evt.Delta.PartialJSON,
-					}
-				}
-			}
-
-		case "content_block_stop":
-			var evt anthropicContentBlockStop
-			if err := json.Unmarshal(raw, &evt); err != nil {
-				continue
-			}
-			if bs, ok := blocks[evt.Index]; ok && bs.blockType == "tool_use" {
-				args := bs.args
-				if !json.Valid([]byte(args)) {
-					if repaired := RepairToolCallJSON(args); repaired != nil {
-						args = *repaired
-					}
-				}
-				ch <- Event{
-					Type:         EventToolCallEnd,
+					Type:         EventToolCallDelta,
 					ToolCallID:   bs.toolID,
-					ToolName:     bs.toolName,
-					ToolCallArgs: args,
+					ToolCallArgs: evt.Delta.PartialJSON,
 				}
-				delete(blocks, evt.Index)
 			}
+		}
 
-		case "message_delta":
-			var evt anthropicMessageDelta
-			if err := json.Unmarshal(raw, &evt); err != nil {
-				continue
-			}
-			ev := Event{
-				Type:         EventFinish,
-				FinishReason: evt.Delta.StopReason,
-			}
-			if evt.Usage != nil {
-				ev.Usage = &Usage{
-					CompletionTokens: evt.Usage.OutputTokens,
+	case "content_block_stop":
+		var evt anthropicContentBlockStop
+		if err := json.Unmarshal(raw, &evt); err != nil {
+			return
+		}
+		if bs, ok := blocks[evt.Index]; ok && bs.blockType == "tool_use" {
+			args := bs.args
+			if !json.Valid([]byte(args)) {
+				if repaired := RepairToolCallJSON(args); repaired != nil {
+					args = *repaired
 				}
 			}
-			ch <- ev
+			ch <- Event{
+				Type:         EventToolCallEnd,
+				ToolCallID:   bs.toolID,
+				ToolName:     bs.toolName,
+				ToolCallArgs: args,
+			}
+			delete(blocks, evt.Index)
+		}
 
-		case "message_start":
-			var evt anthropicMessageStart
-			if err := json.Unmarshal(raw, &evt); err != nil {
-				continue
+	case "message_delta":
+		var evt anthropicMessageDelta
+		if err := json.Unmarshal(raw, &evt); err != nil {
+			return
+		}
+		ev := Event{
+			Type:         EventFinish,
+			FinishReason: evt.Delta.StopReason,
+		}
+		if evt.Usage != nil {
+			ev.Usage = &Usage{
+				CompletionTokens: evt.Usage.OutputTokens,
 			}
-			if evt.Message.Usage != nil {
-				ch <- Event{
-					Type: EventFinish,
-					Usage: &Usage{
-						PromptTokens: evt.Message.Usage.InputTokens,
-					},
-				}
+		}
+		ch <- ev
+
+	case "message_start":
+		var evt anthropicMessageStart
+		if err := json.Unmarshal(raw, &evt); err != nil {
+			return
+		}
+		if evt.Message.Usage != nil {
+			ch <- Event{
+				Type: EventFinish,
+				Usage: &Usage{
+					PromptTokens: evt.Message.Usage.InputTokens,
+				},
 			}
 		}
 	}

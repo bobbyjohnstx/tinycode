@@ -139,13 +139,18 @@ func (sm *SessionManager) bridgeAssistantMessage(sessionID string, active *activ
 		},
 	})
 
-	for _, part := range msg.Parts {
+	sm.publishAssistantParts(sessionID, bridgeMsgID, bridgePartID, msg.Parts, startTime, completedAt)
+}
+
+// publishAssistantParts emits message.part.updated events for each part of an assistant message.
+func (sm *SessionManager) publishAssistantParts(sessionID, bridgeMsgID, textPartID string, parts []session.Part, startTime, completedAt int64) {
+	for _, part := range parts {
 		switch part.Type {
 		case session.PartText:
 			sm.bus.Publish("message.part.updated", map[string]any{
 				"sessionID": sessionID,
 				"part": map[string]any{
-					"id":        bridgePartID,
+					"id":        textPartID,
 					"sessionID": sessionID,
 					"messageID": bridgeMsgID,
 					"type":      "text",

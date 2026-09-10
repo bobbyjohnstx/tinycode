@@ -71,82 +71,9 @@ func TestHelperProcess(t *testing.T) {
 
 		switch req.Method {
 		case "initialize":
-			hooks := []string{"session.start", "session.end", "permission.ask", "shell.env", "tool.execute.before", "tool.execute.after"}
-			if behavior == "no_hooks" {
-				hooks = nil
-			}
-			if behavior == "session_hooks_only" {
-				hooks = []string{"session.start", "session.end"}
-			}
-			tools := []toolManifest{}
-			if behavior == "with_tools" {
-				tools = []toolManifest{
-					{Name: "greet", Description: "Greet someone", InputSchema: map[string]any{"type": "object"}},
-				}
-			}
-			result := initializeResult{
-				ID:    "test-plugin",
-				Tools: tools,
-				Hooks: hooks,
-			}
-			raw, _ := json.Marshal(result)
-			encoder.Encode(jsonrpcResponse{
-				JSONRPC: "2.0",
-				ID:      req.ID,
-				Result:  raw,
-			})
-
+			helperHandleInitialize(encoder, req, behavior)
 		case "hook/invoke":
-			var params hookInvokeParams
-			paramsBytes, _ := json.Marshal(req.Params)
-			json.Unmarshal(paramsBytes, &params)
-
-			var resultOutput json.RawMessage
-			switch params.Name {
-			case "session.start", "session.end", "tool.execute.before", "tool.execute.after":
-				resultOutput = nil
-			case "dispose":
-				hr := hookResult{Output: nil}
-				raw, _ := json.Marshal(hr)
-				encoder.Encode(jsonrpcResponse{
-					JSONRPC: "2.0",
-					ID:      req.ID,
-					Result:  raw,
-				})
-				os.Exit(0)
-			case "permission.ask":
-				if behavior == "deny_permission" {
-					resultOutput, _ = json.Marshal(permissionResult{Allowed: false, Reason: "blocked by test"})
-				} else {
-					resultOutput, _ = json.Marshal(permissionResult{Allowed: true})
-				}
-			case "shell.env":
-				var envResult shellEnvResult
-				if behavior == "env_contrib_1" {
-					envResult = shellEnvResult{Env: map[string]string{"PLUGIN_A": "a_value"}}
-				} else if behavior == "env_contrib_2" {
-					envResult = shellEnvResult{Env: map[string]string{"PLUGIN_B": "b_value"}}
-				} else {
-					envResult = shellEnvResult{Env: map[string]string{"TEST_VAR": "from_plugin"}}
-				}
-				resultOutput, _ = json.Marshal(envResult)
-			default:
-				encoder.Encode(jsonrpcResponse{
-					JSONRPC: "2.0",
-					ID:      req.ID,
-					Error:   &jsonrpcError{Code: -32601, Message: "unknown hook: " + params.Name},
-				})
-				continue
-			}
-
-			hr := hookResult{Output: resultOutput}
-			raw, _ := json.Marshal(hr)
-			encoder.Encode(jsonrpcResponse{
-				JSONRPC: "2.0",
-				ID:      req.ID,
-				Result:  raw,
-			})
-
+			helperHandleHookInvoke(encoder, req, behavior)
 		default:
 			encoder.Encode(jsonrpcResponse{
 				JSONRPC: "2.0",
@@ -155,6 +82,85 @@ func TestHelperProcess(t *testing.T) {
 			})
 		}
 	}
+}
+
+func helperHandleInitialize(encoder *json.Encoder, req jsonrpcRequest, behavior string) {
+	hooks := []string{"session.start", "session.end", "permission.ask", "shell.env", "tool.execute.before", "tool.execute.after"}
+	if behavior == "no_hooks" {
+		hooks = nil
+	}
+	if behavior == "session_hooks_only" {
+		hooks = []string{"session.start", "session.end"}
+	}
+	tools := []toolManifest{}
+	if behavior == "with_tools" {
+		tools = []toolManifest{
+			{Name: "greet", Description: "Greet someone", InputSchema: map[string]any{"type": "object"}},
+		}
+	}
+	result := initializeResult{
+		ID:    "test-plugin",
+		Tools: tools,
+		Hooks: hooks,
+	}
+	raw, _ := json.Marshal(result)
+	encoder.Encode(jsonrpcResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result:  raw,
+	})
+}
+
+func helperHandleHookInvoke(encoder *json.Encoder, req jsonrpcRequest, behavior string) {
+	var params hookInvokeParams
+	paramsBytes, _ := json.Marshal(req.Params)
+	json.Unmarshal(paramsBytes, &params)
+
+	var resultOutput json.RawMessage
+	switch params.Name {
+	case "session.start", "session.end", "tool.execute.before", "tool.execute.after":
+		resultOutput = nil
+	case "dispose":
+		hr := hookResult{Output: nil}
+		raw, _ := json.Marshal(hr)
+		encoder.Encode(jsonrpcResponse{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  raw,
+		})
+		os.Exit(0)
+	case "permission.ask":
+		if behavior == "deny_permission" {
+			resultOutput, _ = json.Marshal(permissionResult{Allowed: false, Reason: "blocked by test"})
+		} else {
+			resultOutput, _ = json.Marshal(permissionResult{Allowed: true})
+		}
+	case "shell.env":
+		var envResult shellEnvResult
+		if behavior == "env_contrib_1" {
+			envResult = shellEnvResult{Env: map[string]string{"PLUGIN_A": "a_value"}}
+		} else if behavior == "env_contrib_2" {
+			envResult = shellEnvResult{Env: map[string]string{"PLUGIN_B": "b_value"}}
+		} else {
+			envResult = shellEnvResult{Env: map[string]string{"TEST_VAR": "from_plugin"}}
+		}
+		resultOutput, _ = json.Marshal(envResult)
+	default:
+		encoder.Encode(jsonrpcResponse{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Error:   &jsonrpcError{Code: -32601, Message: "unknown hook: " + params.Name},
+		})
+		return
+	}
+
+	hr := hookResult{Output: resultOutput}
+	raw, _ := json.Marshal(hr)
+	encoder.Encode(jsonrpcResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result:  raw,
+	})
 }
 
 // helperCommandFactory returns a CommandFactory that spawns TestHelperProcess

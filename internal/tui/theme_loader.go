@@ -49,116 +49,17 @@ func ApplyTheme(cfg *ThemeConfig) Theme {
 		return DefaultTheme()
 	}
 
-	accent := colorOrDefault(cfg.Colors.Accent, "#58A6FF")
-	user := colorOrDefault(cfg.Colors.User, "#E1E1E1")
-	assistant := colorOrDefault(cfg.Colors.Assistant, "#CCCCCC")
-	errorC := colorOrDefault(cfg.Colors.Error, "#FF6666")
-	success := colorOrDefault(cfg.Colors.Success, "#66FF66")
-	subtle := colorOrDefault(cfg.Colors.Subtle, "#777777")
-	bg := colorOrDefault(cfg.Colors.Background, "#1A1A1A")
-	highlight := colorOrDefault(cfg.Colors.Highlight, "#2A2A2A")
-
-	return Theme{
-		UserMessage: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(user)).
-			Bold(true).
-			PaddingLeft(2),
-
-		AssistantMessage: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(assistant)).
-			PaddingLeft(2),
-
-		ChatBorder: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color(subtle)),
-
-		SidebarBox: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color(subtle)).
-			Padding(0, 1),
-
-		PromptBorder: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color(accent)).
-			BorderTop(true),
-
-		StatusBar: lipgloss.NewStyle().
-			Background(lipgloss.Color(bg)).
-			Foreground(lipgloss.Color(subtle)).
-			Padding(0, 1),
-
-		StatusBarModel: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(accent)).
-			Bold(true),
-
-		StatusBarAgent: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(success)),
-
-		StatusBarCwd: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(subtle)).
-			Italic(true),
-
-		ToastInfo: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(accent)).
-			Padding(0, 1),
-
-		ToastError: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(errorC)).
-			Padding(0, 1),
-
-		DialogOverlay: lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(accent)).
-			Padding(1, 2),
-
-		DialogTitle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(accent)).
-			Bold(true).
-			MarginBottom(1),
-
-		DialogItem: lipgloss.NewStyle().
-			PaddingLeft(2),
-
-		DialogActive: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(accent)).
-			Bold(true).
-			PaddingLeft(2),
-
-		PermissionBorder: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("#FFAA33")),
-
-		PermissionAllow: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(success)).
-			Bold(true),
-
-		PermissionDeny: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(errorC)).
-			Bold(true),
-
-		PaletteInput: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color(accent)).
-			Padding(0, 1),
-
-		PaletteItem: lipgloss.NewStyle().
-			PaddingLeft(2),
-
-		PaletteActive: lipgloss.NewStyle().
-			Background(lipgloss.Color(highlight)).
-			Foreground(lipgloss.Color(accent)).
-			Bold(true).
-			PaddingLeft(2),
-
-		Spinner: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(accent)),
-
-		Dim: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(subtle)),
-
-		Bold: lipgloss.NewStyle().
-			Bold(true),
-	}
+	return buildTheme(themeColors{
+		accent:     lipgloss.Color(colorOrDefault(cfg.Colors.Accent, "#58A6FF")),
+		user:       lipgloss.Color(colorOrDefault(cfg.Colors.User, "#E1E1E1")),
+		assistant:  lipgloss.Color(colorOrDefault(cfg.Colors.Assistant, "#CCCCCC")),
+		errorC:     lipgloss.Color(colorOrDefault(cfg.Colors.Error, "#FF6666")),
+		success:    lipgloss.Color(colorOrDefault(cfg.Colors.Success, "#66FF66")),
+		subtle:     lipgloss.Color(colorOrDefault(cfg.Colors.Subtle, "#777777")),
+		bg:         lipgloss.Color(colorOrDefault(cfg.Colors.Background, "#1A1A1A")),
+		highlight:  lipgloss.Color(colorOrDefault(cfg.Colors.Highlight, "#2A2A2A")),
+		permBorder: lipgloss.Color("#FFAA33"),
+	})
 }
 
 // BuiltinDarkTheme returns the built-in dark theme config.

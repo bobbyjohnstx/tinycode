@@ -293,16 +293,19 @@ func (r *Registry) DefaultAgent(configDefault string) (string, error) {
 
 func (r *Registry) registerNativeAgents(defaultPerms, userPerms permission.Ruleset) {
 	buildPrompt := readEmbeddedTxt("build.txt")
-	compactionPrompt := readEmbeddedTxt("compaction.txt")
 	generalPrompt := readEmbeddedTxt("general.txt")
 	explorePrompt := readEmbeddedTxt("explore.txt")
 	scoutPrompt := readEmbeddedTxt("scout.txt")
+	compactionPrompt := readEmbeddedTxt("compaction.txt")
 	titlePrompt := readEmbeddedTxt("title.txt")
 	summaryPrompt := readEmbeddedTxt("summary.txt")
 
-	denyAll := permission.Ruleset{{Permission: "*", Pattern: "*", Action: permission.ActionDeny}}
-	temp05 := 0.5
+	r.registerPrimaryAgents(buildPrompt, defaultPerms, userPerms)
+	r.registerSubagents(generalPrompt, explorePrompt, scoutPrompt, defaultPerms, userPerms)
+	r.registerUtilityAgents(compactionPrompt, titlePrompt, summaryPrompt, defaultPerms, userPerms)
+}
 
+func (r *Registry) registerPrimaryAgents(buildPrompt string, defaultPerms, userPerms permission.Ruleset) {
 	r.agents["build"] = &Info{
 		Name:        "build",
 		Description: "The default agent. Executes tools based on configured permissions.",
@@ -338,7 +341,9 @@ func (r *Registry) registerNativeAgents(defaultPerms, userPerms permission.Rules
 		Native:  true,
 		Options: make(map[string]any),
 	}
+}
 
+func (r *Registry) registerSubagents(generalPrompt, explorePrompt, scoutPrompt string, defaultPerms, userPerms permission.Ruleset) {
 	r.agents["general"] = &Info{
 		Name:        "general",
 		Description: "General-purpose agent for researching complex questions and executing multi-step tasks.",
@@ -400,6 +405,11 @@ func (r *Registry) registerNativeAgents(defaultPerms, userPerms permission.Rules
 		Native:  true,
 		Options: make(map[string]any),
 	}
+}
+
+func (r *Registry) registerUtilityAgents(compactionPrompt, titlePrompt, summaryPrompt string, defaultPerms, userPerms permission.Ruleset) {
+	denyAll := permission.Ruleset{{Permission: "*", Pattern: "*", Action: permission.ActionDeny}}
+	temp05 := 0.5
 
 	r.agents["compaction"] = &Info{
 		Name:       "compaction",

@@ -283,7 +283,12 @@ func Merge(dst, src *Info) *Info {
 	}
 
 	result := *dst
+	mergeScalarFields(&result, src)
+	mergeCollectionFields(&result, src)
+	return &result
+}
 
+func mergeScalarFields(result, src *Info) {
 	if src.Shell != "" {
 		result.Shell = src.Shell
 	}
@@ -338,11 +343,14 @@ func Merge(dst, src *Info) *Info {
 	if src.Attachment != nil {
 		result.Attachment = src.Attachment
 	}
-	if len(src.Watcher) > 0 {
-		result.Watcher = dedup(append(result.Watcher, src.Watcher...))
-	}
 	if src.LSP != nil {
 		result.LSP = src.LSP
+	}
+}
+
+func mergeCollectionFields(result, src *Info) {
+	if len(src.Watcher) > 0 {
+		result.Watcher = dedup(append(result.Watcher, src.Watcher...))
 	}
 	if len(src.Command) > 0 {
 		if result.Command == nil {
@@ -370,7 +378,6 @@ func Merge(dst, src *Info) *Info {
 			result.Permission = &merged
 		}
 	}
-
 	if len(src.DisabledProviders) > 0 {
 		result.DisabledProviders = dedup(append(result.DisabledProviders, src.DisabledProviders...))
 	}
@@ -383,7 +390,6 @@ func Merge(dst, src *Info) *Info {
 	if len(src.Plugins) > 0 {
 		result.Plugins = src.Plugins
 	}
-
 	if len(src.Provider) > 0 {
 		if result.Provider == nil {
 			result.Provider = make(map[string]ProviderConfig)
@@ -392,7 +398,6 @@ func Merge(dst, src *Info) *Info {
 			result.Provider[k] = v
 		}
 	}
-
 	if len(src.MCP) > 0 {
 		if result.MCP == nil {
 			result.MCP = make(map[string]MCPConfig)
@@ -401,7 +406,6 @@ func Merge(dst, src *Info) *Info {
 			result.MCP[k] = v
 		}
 	}
-
 	if len(src.Agents) > 0 {
 		if result.Agents == nil {
 			result.Agents = make(map[string]json.RawMessage)
@@ -410,8 +414,6 @@ func Merge(dst, src *Info) *Info {
 			result.Agents[k] = v
 		}
 	}
-
-	return &result
 }
 
 func loadAndMerge(dst *Info, path string, env map[string]string) error {

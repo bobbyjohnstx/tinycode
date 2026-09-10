@@ -57,51 +57,8 @@ func executeGlob(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	isDoubleGlob := strings.Contains(pattern, "**")
 
 	if isDoubleGlob {
-		parts := strings.SplitN(pattern, "**", 2)
-		prefix := parts[0]
-		suffix := ""
-		if len(parts) > 1 {
-			suffix = strings.TrimPrefix(parts[1], "/")
-		}
-
-		root := filepath.Join(searchPath, prefix)
-		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil
-			}
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
-			if info.IsDir() {
-				base := info.Name()
-				if base == ".git" || base == "node_modules" || base == "vendor" || base == ".tinycode" {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-
-			if suffix != "" {
-				relFromRoot, _ := filepath.Rel(root, path)
-				if !matchSuffix(suffix, relFromRoot) {
-					return nil
-				}
-			}
-
-			relPath, err := filepath.Rel(searchPath, path)
-			if err != nil {
-				return nil
-			}
-			matches = append(matches, relPath)
-
-			if len(matches) > maxGlobResults {
-				return fmt.Errorf("too many results")
-			}
-			return nil
-		})
+		var err error
+		matches, err = walkDoubleGlob(ctx, searchPath, pattern)
 		if err != nil && len(matches) == 0 {
 			return &ExecuteResult{Output: fmt.Sprintf("Error: %v", err), IsError: true}, nil
 		}
@@ -145,6 +102,54 @@ func executeGlob(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	}
 
 	return &ExecuteResult{Output: sb.String()}, nil
+}
+
+var skipDirs = map[string]bool{
+	".git": true, "node_modules": true, "vendor": true, ".tinycode": true,
+}
+
+func walkDoubleGlob(ctx context.Context, searchPath, pattern string) ([]string, error) {
+	parts := strings.SplitN(pattern, "**", 2)
+	prefix := parts[0]
+	suffix := ""
+	if len(parts) > 1 {
+		suffix = strings.TrimPrefix(parts[1], "/")
+	}
+
+	root := filepath.Join(searchPath, prefix)
+	var matches []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if info.IsDir() {
+			if skipDirs[info.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if suffix != "" {
+			relFromRoot, _ := filepath.Rel(root, path)
+			if !matchSuffix(suffix, relFromRoot) {
+				return nil
+			}
+		}
+		relPath, err := filepath.Rel(searchPath, path)
+		if err != nil {
+			return nil
+		}
+		matches = append(matches, relPath)
+		if len(matches) > maxGlobResults {
+			return fmt.Errorf("too many results")
+		}
+		return nil
+	})
+	return matches, err
 }
 
 // matchSuffix tries filepath.Match(suffix, subpath) against progressively
