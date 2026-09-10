@@ -83,9 +83,10 @@ func TestDecodeJSON_Valid(t *testing.T) {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
 	}
+	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"alice","age":30}`))
 	var v input
-	if err := decodeJSON(req, &v); err != nil {
+	if err := decodeJSON(w, req, &v); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if v.Name != "alice" || v.Age != 30 {
@@ -94,9 +95,21 @@ func TestDecodeJSON_Valid(t *testing.T) {
 }
 
 func TestDecodeJSON_InvalidJSON(t *testing.T) {
+	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`not json`))
 	var v map[string]string
-	if err := decodeJSON(req, &v); err == nil {
+	if err := decodeJSON(w, req, &v); err == nil {
 		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestDecodeJSON_OversizedBody(t *testing.T) {
+	// Create a body larger than 1 MB
+	body := strings.Repeat("x", 1<<20+1)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"data":"`+body+`"}`))
+	var v map[string]string
+	if err := decodeJSON(w, req, &v); err == nil {
+		t.Error("expected error for oversized body")
 	}
 }

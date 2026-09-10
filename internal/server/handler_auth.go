@@ -40,7 +40,7 @@ func (s *Server) handleAuthPut(w http.ResponseWriter, r *http.Request) {
 	providerID := r.PathValue("providerID")
 
 	var body map[string]string
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

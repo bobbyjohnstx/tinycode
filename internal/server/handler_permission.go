@@ -16,7 +16,7 @@ func (s *Server) handlePermissionReply(w http.ResponseWriter, r *http.Request) {
 		Action    string `json:"action"`
 		SessionID string `json:"sessionID,omitempty"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

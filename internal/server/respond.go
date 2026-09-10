@@ -17,7 +17,8 @@ func respondError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, map[string]string{"error": message})
 }
 
-func decodeJSON(r *http.Request, v any) error {
+func decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB limit
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(v)
 }

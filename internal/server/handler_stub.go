@@ -65,7 +65,7 @@ func (s *Server) handleSessionCommand(w http.ResponseWriter, r *http.Request) {
 		Command string `json:"command"`
 		Args    string `json:"args,omitempty"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -235,7 +235,7 @@ func (s *Server) handleSessionPermissionReply(w http.ResponseWriter, r *http.Req
 	var body struct {
 		Action string `json:"action"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -266,7 +266,7 @@ func (s *Server) handleQuestionReply(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Answer string `json:"answer"`
 	}
-	if err := decodeJSON(r, &body); err != nil {
+	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}

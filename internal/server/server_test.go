@@ -858,7 +858,7 @@ func TestDecodeJSON(t *testing.T) {
 	var body struct {
 		Key string `json:"key"`
 	}
-	err := decodeJSON(req, &body)
+	err := decodeJSON(httptest.NewRecorder(), req, &body)
 	if err != nil {
 		t.Fatalf("decode error: %v", err)
 	}
@@ -871,7 +871,7 @@ func TestDecodeJSON(t *testing.T) {
 func TestDecodeJSON_InvalidBody(t *testing.T) {
 	req := httptest.NewRequest("POST", "/", strings.NewReader("not json"))
 	var body struct{}
-	err := decodeJSON(req, &body)
+	err := decodeJSON(httptest.NewRecorder(), req, &body)
 	if err == nil {
 		t.Error("expected error for invalid JSON")
 	}
