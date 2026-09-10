@@ -27,6 +27,11 @@ tinycode.log
 .scripts
 .direnv/
 
+# Stray binaries / test artifacts
+/plugin-*
+/app.py
+.plugin-test-build/
+
 # Local dev files
 opencode-dev
 UPCOMING_CHANGELOG.md

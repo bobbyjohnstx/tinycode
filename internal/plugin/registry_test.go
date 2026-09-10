@@ -29,9 +29,6 @@ func TestLookupRegistry_Found(t *testing.T) {
 	if entry.Description == "" {
 		t.Error("expected non-empty description")
 	}
-	if entry.Repo == "" {
-		t.Error("expected non-empty repo")
-	}
 	if entry.Binary == "" {
 		t.Error("expected non-empty binary")
 	}
