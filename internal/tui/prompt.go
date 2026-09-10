@@ -137,84 +137,89 @@ func (p PromptInput) Init() tea.Cmd {
 
 // Update implements tea.Model.
 func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		// Discard terminal escape sequences that leak through bubbletea's input parser.
-		if s := keyMsg.String(); isTerminalEscape(s) {
-			return p, nil
-		}
-		// Discard rune-only input during startup grace period — terminal
-		// responses (OSC color, CSI cursor reports) arrive as printable
-		// characters indistinguishable from typing.
-		if keyMsg.Type == tea.KeyRunes && p.guardEnabled && time.Since(p.startTime) < 2*time.Second {
-			return p, nil
-		}
-		if p.autocomplete.IsVisible() {
-			if result, cmd, handled := p.handleAutocompleteKey(keyMsg); handled {
-				return result, cmd
-			}
-		}
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return p.forwardToTextarea(msg)
+	}
 
-		switch keyMsg.String() {
-		case "enter":
-			// Submit on Enter (plain, no modifier).
-			content := p.textarea.Value()
-			if content != "" {
-				p.history.Add(content)
-				p.textarea.Reset()
-				return p, func() tea.Msg {
-					return PromptSubmittedMsg{Content: content}
-				}
-			}
-			return p, nil
-
-		case "shift+enter", "alt+enter":
-			// Insert newline.
-			p.textarea, _ = p.textarea.Update(msg)
-			return p, nil
-
-		case "tab":
-			if len(p.cycleAgents) > 0 {
-				next := p.nextAgent(1)
-				return p, func() tea.Msg {
-					return AgentSelectedMsg{Agent: next}
-				}
-			}
-			return p, nil
-
-		case "shift+tab":
-			if len(p.cycleAgents) > 0 {
-				next := p.nextAgent(-1)
-				return p, func() tea.Msg {
-					return AgentSelectedMsg{Agent: next}
-				}
-			}
-			return p, nil
-
-		case "up":
-			// Navigate history when autocomplete is not visible.
-			if prev, ok := p.history.Previous(p.textarea.Value()); ok {
-				p.textarea.SetValue(prev)
-				return p, nil
-			}
-			return p, nil
-
-		case "down":
-			// Navigate history forward.
-			if next, ok := p.history.Next(p.textarea.Value()); ok {
-				p.textarea.SetValue(next)
-			} else {
-				p.textarea.SetValue(p.history.StashValue())
-			}
-			return p, nil
+	// Discard terminal escape sequences that leak through bubbletea's input parser.
+	if s := keyMsg.String(); isTerminalEscape(s) {
+		return p, nil
+	}
+	// Discard rune-only input during startup grace period — terminal
+	// responses (OSC color, CSI cursor reports) arrive as printable
+	// characters indistinguishable from typing.
+	if keyMsg.Type == tea.KeyRunes && p.guardEnabled && time.Since(p.startTime) < 2*time.Second {
+		return p, nil
+	}
+	if p.autocomplete.IsVisible() {
+		if result, cmd, handled := p.handleAutocompleteKey(keyMsg); handled {
+			return result, cmd
 		}
 	}
 
+	switch keyMsg.String() {
+	case "enter":
+		// Submit on Enter (plain, no modifier).
+		content := p.textarea.Value()
+		if content != "" {
+			p.history.Add(content)
+			p.textarea.Reset()
+			return p, func() tea.Msg {
+				return PromptSubmittedMsg{Content: content}
+			}
+		}
+		return p, nil
+
+	case "shift+enter", "alt+enter":
+		// Insert newline.
+		p.textarea, _ = p.textarea.Update(msg)
+		return p, nil
+
+	case "tab":
+		if len(p.cycleAgents) > 0 {
+			next := p.nextAgent(1)
+			return p, func() tea.Msg {
+				return AgentSelectedMsg{Agent: next}
+			}
+		}
+		return p, nil
+
+	case "shift+tab":
+		if len(p.cycleAgents) > 0 {
+			next := p.nextAgent(-1)
+			return p, func() tea.Msg {
+				return AgentSelectedMsg{Agent: next}
+			}
+		}
+		return p, nil
+
+	case "up":
+		// Navigate history when autocomplete is not visible.
+		if prev, ok := p.history.Previous(p.textarea.Value()); ok {
+			p.textarea.SetValue(prev)
+			return p, nil
+		}
+		return p, nil
+
+	case "down":
+		// Navigate history forward.
+		if next, ok := p.history.Next(p.textarea.Value()); ok {
+			p.textarea.SetValue(next)
+		} else {
+			p.textarea.SetValue(p.history.StashValue())
+		}
+		return p, nil
+	}
+
+	return p.forwardToTextarea(msg)
+}
+
+// forwardToTextarea passes a message to the underlying textarea and updates autocomplete.
+func (p PromptInput) forwardToTextarea(msg tea.Msg) (PromptInput, tea.Cmd) {
 	var cmd tea.Cmd
 	p.textarea, cmd = p.textarea.Update(msg)
-
-	// Update autocomplete based on current input text.
 	p.autocomplete.UpdateInput(p.textarea.Value())
-
 	return p, cmd
 }
 

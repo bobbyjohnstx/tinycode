@@ -209,9 +209,8 @@ func (c *OpenAIClient) finalizeOpenAIToolCalls(toolCalls map[int]*toolCallAccum,
 	for idx, accum := range toolCalls {
 		args := accum.args
 		if !json.Valid([]byte(args)) {
-			if repaired := RepairToolCallJSON(args); repaired != nil {
-				args = *repaired
-			} else {
+			repaired := RepairToolCallJSON(args)
+			if repaired == nil {
 				invalidArgs, _ := json.Marshal(map[string]string{
 					"error":         "invalid JSON in tool call arguments",
 					"original_name": accum.name,
@@ -226,6 +225,7 @@ func (c *OpenAIClient) finalizeOpenAIToolCalls(toolCalls map[int]*toolCallAccum,
 				delete(toolCalls, idx)
 				continue
 			}
+			args = *repaired
 		}
 		ch <- Event{
 			Type:         EventToolCallEnd,

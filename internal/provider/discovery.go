@@ -253,13 +253,14 @@ func (d *Discovery) buildOllamaModels(ctx context.Context, baseURL string, tags 
 	// Clean up stale profiles (profile exists but base model is gone)
 	if d.autoProfileEnabled() {
 		for baseName, profName := range existingProfiles {
-			if _, exists := models[baseName]; !exists {
-				if err := DeleteModel(ctx, d.client, baseURL, profName); err != nil {
-					slog.Warn("failed to delete stale profile",
-						"profile", profName, "error", err)
-				} else {
-					slog.Info("deleted stale ollama profile", "profile", profName)
-				}
+			if _, exists := models[baseName]; exists {
+				continue
+			}
+			if err := DeleteModel(ctx, d.client, baseURL, profName); err != nil {
+				slog.Warn("failed to delete stale profile",
+					"profile", profName, "error", err)
+			} else {
+				slog.Info("deleted stale ollama profile", "profile", profName)
 			}
 		}
 	}
@@ -295,28 +296,30 @@ func (d *Discovery) buildSingleOllamaModel(ctx context.Context, baseURL string, 
 	apiID = m.Name
 	profileCtx = contextLen
 
-	if d.autoProfileEnabled() && !d.isModelSkipped(m.Name) {
-		numCtx := d.resolveNumCtx(ctx, baseURL, m.Name, contextLen)
-		if numCtx >= minNumCtx {
-			profName := ProfileName(m.Name, numCtx)
-			if existing, ok := existingProfiles[m.Name]; ok && existing == profName {
-				apiID = profName
-				profileCtx = numCtx
-				delete(existingProfiles, m.Name)
-			} else {
-				if err := CreateProfile(ctx, d.client, baseURL, m.Name, profName, numCtx); err != nil {
-					slog.Warn("failed to create ollama profile",
-						"model", m.Name, "profile", profName, "error", err)
-				} else {
-					slog.Info("created ollama profile",
-						"model", m.Name, "profile", profName, "num_ctx", numCtx)
-					apiID = profName
-					profileCtx = numCtx
-					delete(existingProfiles, m.Name)
-				}
-			}
-		}
+	if !d.autoProfileEnabled() || d.isModelSkipped(m.Name) {
+		return
 	}
+	numCtx := d.resolveNumCtx(ctx, baseURL, m.Name, contextLen)
+	if numCtx < minNumCtx {
+		return
+	}
+	profName := ProfileName(m.Name, numCtx)
+	if existing, ok := existingProfiles[m.Name]; ok && existing == profName {
+		apiID = profName
+		profileCtx = numCtx
+		delete(existingProfiles, m.Name)
+		return
+	}
+	if err := CreateProfile(ctx, d.client, baseURL, m.Name, profName, numCtx); err != nil {
+		slog.Warn("failed to create ollama profile",
+			"model", m.Name, "profile", profName, "error", err)
+		return
+	}
+	slog.Info("created ollama profile",
+		"model", m.Name, "profile", profName, "num_ctx", numCtx)
+	apiID = profName
+	profileCtx = numCtx
+	delete(existingProfiles, m.Name)
 
 	return
 }

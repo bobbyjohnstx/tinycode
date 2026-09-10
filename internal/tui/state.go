@@ -95,6 +95,27 @@ type ModelInfo struct {
 	CostOutput   float64 `json:"costOutput,omitempty"`
 }
 
+// lookupModelDisplay returns the display name and provider name for a model,
+// falling back to the raw IDs if not found.
+func lookupModelDisplay(providers []ProviderInfo, providerID, modelID string) (modelName, providerName string) {
+	modelName = modelID
+	providerName = providerID
+	for _, p := range providers {
+		if p.ID != providerID {
+			continue
+		}
+		providerName = p.Name
+		for _, m := range p.Models {
+			if m.ID == modelID {
+				modelName = m.Name
+				break
+			}
+		}
+		break
+	}
+	return
+}
+
 // PermissionRequest represents a pending permission prompt.
 type PermissionRequest struct {
 	ID         string         `json:"id"`

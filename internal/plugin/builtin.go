@@ -81,24 +81,27 @@ func (m *BuiltinManager) DispatchHook(name string, input any) error {
 		hooks := p.Hooks()
 		switch name {
 		case "session.start":
-			if hooks.SessionStart != nil {
-				sessionID, _ := input.(string)
-				if err := hooks.SessionStart(context.Background(), sessionID); err != nil {
-					return fmt.Errorf("plugin %s hook %s: %w", p.ID(), name, err)
-				}
+			if hooks.SessionStart == nil {
+				break
+			}
+			sessionID, _ := input.(string)
+			if err := hooks.SessionStart(context.Background(), sessionID); err != nil {
+				return fmt.Errorf("plugin %s hook %s: %w", p.ID(), name, err)
 			}
 		case "session.end":
-			if hooks.SessionEnd != nil {
-				sessionID, _ := input.(string)
-				if err := hooks.SessionEnd(context.Background(), sessionID); err != nil {
-					return fmt.Errorf("plugin %s hook %s: %w", p.ID(), name, err)
-				}
+			if hooks.SessionEnd == nil {
+				break
+			}
+			sessionID, _ := input.(string)
+			if err := hooks.SessionEnd(context.Background(), sessionID); err != nil {
+				return fmt.Errorf("plugin %s hook %s: %w", p.ID(), name, err)
 			}
 		case "dispose":
-			if hooks.Dispose != nil {
-				if err := hooks.Dispose(context.Background()); err != nil {
-					return fmt.Errorf("plugin %s hook %s: %w", p.ID(), name, err)
-				}
+			if hooks.Dispose == nil {
+				break
+			}
+			if err := hooks.Dispose(context.Background()); err != nil {
+				return fmt.Errorf("plugin %s hook %s: %w", p.ID(), name, err)
 			}
 		}
 	}

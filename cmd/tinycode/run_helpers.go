@@ -65,47 +65,44 @@ func collectRunPrompt(positional []string) string {
 
 // setupRunPermissions configures the permission behavior for headless mode.
 func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, interactive bool) {
-	if skipPerms || !interactive {
-		permSub := b.Subscribe("permission.asked")
-		go func() {
-			for evt := range permSub.C {
-				req, ok := evt.Properties.(permission.Request)
-				if !ok {
-					continue
-				}
-				reply := permission.ReplyReject
-				if skipPerms {
-					reply = permission.ReplyOnce
-				}
-				permSvc.RespondToAsk(permission.ReplyInput{
-					RequestID: req.ID,
-					Reply:     reply,
-				})
+	permSub := b.Subscribe("permission.asked")
+	go handlePermissionEvents(permSub, permSvc, skipPerms, interactive)
+}
+
+// handlePermissionEvents processes permission requests from the event bus.
+// In non-interactive or skip-permissions mode, it auto-replies. In interactive
+// mode, it prompts the user on stderr.
+func handlePermissionEvents(permSub *bus.Subscription, permSvc *permission.Service, skipPerms, interactive bool) {
+	var scanner *bufio.Scanner
+	if interactive && !skipPerms {
+		scanner = bufio.NewScanner(os.Stdin)
+	}
+	autoReply := permission.ReplyReject
+	if skipPerms {
+		autoReply = permission.ReplyOnce
+	}
+
+	for evt := range permSub.C {
+		req, ok := evt.Properties.(permission.Request)
+		if !ok {
+			continue
+		}
+		reply := autoReply
+		if scanner != nil {
+			fmt.Fprintf(os.Stderr, "Permission requested: %s %v\nAllow? [y/N]: ", req.Permission, req.Patterns)
+			if scanner.Scan() && strings.TrimSpace(strings.ToLower(scanner.Text())) == "y" {
+				reply = permission.ReplyOnce
 			}
-		}()
-	} else {
-		permSub := b.Subscribe("permission.asked")
-		go func() {
-			scanner := bufio.NewScanner(os.Stdin)
-			for evt := range permSub.C {
-				req, ok := evt.Properties.(permission.Request)
-				if !ok {
-					continue
-				}
-				fmt.Fprintf(os.Stderr, "Permission requested: %s %v\nAllow? [y/N]: ", req.Permission, req.Patterns)
-				reply := permission.ReplyReject
-				if scanner.Scan() && strings.TrimSpace(strings.ToLower(scanner.Text())) == "y" {
-					reply = permission.ReplyOnce
-				}
-				permSvc.RespondToAsk(permission.ReplyInput{
-					RequestID: req.ID,
-					Reply:     reply,
-				})
-			}
-			if err := scanner.Err(); err != nil {
-				slog.Warn("stdin scanner error", "error", err)
-			}
-		}()
+		}
+		permSvc.RespondToAsk(permission.ReplyInput{
+			RequestID: req.ID,
+			Reply:     reply,
+		})
+	}
+	if scanner != nil {
+		if err := scanner.Err(); err != nil {
+			slog.Warn("stdin scanner error", "error", err)
+		}
 	}
 }
 

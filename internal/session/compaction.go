@@ -84,20 +84,20 @@ func trackFiles(messages []Message) (readFiles, modifiedFiles []string) {
 
 	for _, msg := range messages {
 		for _, part := range msg.Parts {
-			switch part.Type {
-			case PartToolCall:
-				switch part.ToolName {
-				case "read":
-					if path := extractToolArgPath(part.ToolArgs); path != "" {
-						readSet[path] = true
-					}
-				case "write", "edit", "patch", "apply_patch":
-					if path := extractToolArgPath(part.ToolArgs); path != "" {
-						modifiedSet[path] = true
-					}
-				case "shell", "bash":
-					extractShellFiles(part.ToolArgs, readSet, modifiedSet)
+			if part.Type != PartToolCall {
+				continue
+			}
+			switch part.ToolName {
+			case "read":
+				if path := extractToolArgPath(part.ToolArgs); path != "" {
+					readSet[path] = true
 				}
+			case "write", "edit", "patch", "apply_patch":
+				if path := extractToolArgPath(part.ToolArgs); path != "" {
+					modifiedSet[path] = true
+				}
+			case "shell", "bash":
+				extractShellFiles(part.ToolArgs, readSet, modifiedSet)
 			}
 		}
 	}

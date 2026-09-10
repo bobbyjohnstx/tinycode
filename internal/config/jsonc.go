@@ -57,12 +57,11 @@ func stripComments(s string) string {
 		if s[i] == '/' && i+1 < len(s) && s[i+1] == '*' {
 			// Block comment — skip to */
 			i += 2
-			for i+1 < len(s) {
-				if s[i] == '*' && s[i+1] == '/' {
-					i += 2
-					break
-				}
+			for i+1 < len(s) && !(s[i] == '*' && s[i+1] == '/') {
 				i++
+			}
+			if i+1 < len(s) {
+				i += 2 // skip closing */
 			}
 			continue
 		}
@@ -128,29 +127,32 @@ func SubstituteEnvVars(text string, env map[string]string) string {
 	i := 0
 
 	for i < len(text) {
-		if i+5 < len(text) && text[i:i+5] == "{env:" {
-			end := strings.IndexByte(text[i:], '}')
-			if end > 0 {
-				varName := text[i+5 : i+end]
-				if val, ok := env[varName]; ok {
-					b.WriteString(val)
-				} else if val, ok := lookupEnv(varName); ok {
-					b.WriteString(val)
-				} else {
-					slog.Warn("unresolved env var placeholder", "var", varName)
-				}
-				i += end + 1
-				continue
+		if i+5 >= len(text) || text[i:i+5] != "{env:" {
+			r, size := utf8.DecodeRuneInString(text[i:])
+			if r == utf8.RuneError && size <= 1 {
+				b.WriteByte(text[i])
+				i++
+			} else {
+				b.WriteRune(r)
+				i += size
 			}
+			continue
 		}
-		r, size := utf8.DecodeRuneInString(text[i:])
-		if r == utf8.RuneError && size <= 1 {
+		end := strings.IndexByte(text[i:], '}')
+		if end <= 0 {
 			b.WriteByte(text[i])
 			i++
-		} else {
-			b.WriteRune(r)
-			i += size
+			continue
 		}
+		varName := text[i+5 : i+end]
+		if val, ok := env[varName]; ok {
+			b.WriteString(val)
+		} else if val, ok := lookupEnv(varName); ok {
+			b.WriteString(val)
+		} else {
+			slog.Warn("unresolved env var placeholder", "var", varName)
+		}
+		i += end + 1
 	}
 
 	return b.String()

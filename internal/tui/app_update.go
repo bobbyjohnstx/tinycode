@@ -284,20 +284,7 @@ func (a App) handleProvidersLoadedMsg(msg ProvidersLoadedMsg) (App, tea.Cmd) {
 			ProviderID: msg.DefaultProvider,
 			ModelID:    msg.DefaultModel,
 		}
-		modelName := msg.DefaultModel
-		providerName := msg.DefaultProvider
-		for _, p := range a.state.Providers {
-			if p.ID == msg.DefaultProvider {
-				providerName = p.Name
-				for _, m := range p.Models {
-					if m.ID == msg.DefaultModel {
-						modelName = m.Name
-						break
-					}
-				}
-				break
-			}
-		}
+		modelName, providerName := lookupModelDisplay(a.state.Providers, msg.DefaultProvider, msg.DefaultModel)
 		a.prompt.SetMetadata(a.state.CurrentAgent, modelName, providerName)
 		a.status.SetModel(modelName, providerName)
 	}
@@ -314,20 +301,9 @@ func (a App) handleProvidersLoadedMsg(msg ProvidersLoadedMsg) (App, tea.Cmd) {
 func (a App) handleModelSelectedMsg(msg ModelSelectedMsg) (App, tea.Cmd) {
 	a.setFocus(FocusPrompt)
 	a.state.CurrentModel = msg.Selection
-	for _, p := range a.state.Providers {
-		if p.ID == msg.Selection.ProviderID {
-			for _, m := range p.Models {
-				if m.ID == msg.Selection.ModelID {
-					a.prompt.SetMetadata(a.state.CurrentAgent, m.Name, p.Name)
-					a.status.SetModel(m.Name, p.Name)
-					a.updateSidebarContext()
-					return a, nil
-				}
-			}
-		}
-	}
-	a.prompt.SetMetadata(a.state.CurrentAgent, msg.Selection.ModelID, msg.Selection.ProviderID)
-	a.status.SetModel(msg.Selection.ModelID, msg.Selection.ProviderID)
+	modelName, providerName := lookupModelDisplay(a.state.Providers, msg.Selection.ProviderID, msg.Selection.ModelID)
+	a.prompt.SetMetadata(a.state.CurrentAgent, modelName, providerName)
+	a.status.SetModel(modelName, providerName)
 	a.updateSidebarContext()
 	return a, nil
 }

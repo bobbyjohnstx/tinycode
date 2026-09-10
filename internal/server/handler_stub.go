@@ -154,14 +154,15 @@ func (s *Server) handleSessionTodo(w http.ResponseWriter, r *http.Request) {
 			lines := strings.Split(part.Text, "\n")
 			for i, line := range lines {
 				trimmed := strings.TrimSpace(line)
-				if strings.Contains(strings.ToUpper(trimmed), "TODO") ||
-					strings.Contains(strings.ToUpper(trimmed), "FIXME") {
-					todos = append(todos, todoItem{
-						Text:      trimmed,
-						MessageID: msg.ID,
-						Line:      i + 1,
-					})
+				upper := strings.ToUpper(trimmed)
+				if !strings.Contains(upper, "TODO") && !strings.Contains(upper, "FIXME") {
+					continue
 				}
+				todos = append(todos, todoItem{
+					Text:      trimmed,
+					MessageID: msg.ID,
+					Line:      i + 1,
+				})
 			}
 		}
 	}
@@ -332,15 +333,16 @@ func (s *Server) handleFileSearch(w http.ResponseWriter, r *http.Request) {
 		for scanner.Scan() {
 			lineNum++
 			line := scanner.Text()
-			if strings.Contains(line, query) {
-				results = append(results, searchResult{
-					File:    rel,
-					Line:    lineNum,
-					Content: line,
-				})
-				if len(results) >= maxResults {
-					break
-				}
+			if !strings.Contains(line, query) {
+				continue
+			}
+			results = append(results, searchResult{
+				File:    rel,
+				Line:    lineNum,
+				Content: line,
+			})
+			if len(results) >= maxResults {
+				break
 			}
 		}
 		return nil

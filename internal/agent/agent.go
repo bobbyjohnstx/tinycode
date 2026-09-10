@@ -597,13 +597,15 @@ func permissionFromConfigMap(m map[string]any) permission.Ruleset {
 			})
 		case map[string]any:
 			for pattern, action := range v {
-				if actionStr, ok := action.(string); ok {
-					rules = append(rules, permission.Rule{
-						Permission: key,
-						Pattern:    pattern,
-						Action:     permission.Action(actionStr),
-					})
+				actionStr, ok := action.(string)
+				if !ok {
+					continue
 				}
+				rules = append(rules, permission.Rule{
+					Permission: key,
+					Pattern:    pattern,
+					Action:     permission.Action(actionStr),
+				})
 			}
 		}
 	}

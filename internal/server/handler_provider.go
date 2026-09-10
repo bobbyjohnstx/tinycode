@@ -31,14 +31,15 @@ func (s *Server) handleProviderList(w http.ResponseWriter, r *http.Request) {
 
 	if len(defaults) == 0 && len(connected) > 0 {
 		for _, p := range providers {
-			if len(p.Models) > 0 {
-				for modelID := range p.Models {
-					defaults["provider"] = p.ID
-					defaults["model"] = modelID
-					break
-				}
+			if len(p.Models) == 0 {
+				continue
+			}
+			for modelID := range p.Models {
+				defaults["provider"] = p.ID
+				defaults["model"] = modelID
 				break
 			}
+			break
 		}
 	}
 

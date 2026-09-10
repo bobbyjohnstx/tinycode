@@ -251,15 +251,18 @@ func (p PermissionPrompt) toolDescription() (icon, title, body string) {
 		} else {
 			title = fmt.Sprintf("Permission: %s", p.request.Permission)
 		}
-		if len(args) > 0 {
-			if raw, err := json.MarshalIndent(args, "  ", "  "); err == nil {
-				s := string(raw)
-				if len(s) > 200 {
-					s = s[:197] + "..."
-				}
-				body = "  " + s
-			}
+		if len(args) == 0 {
+			return "⚙", title, body
 		}
+		raw, err := json.MarshalIndent(args, "  ", "  ")
+		if err != nil {
+			return "⚙", title, body
+		}
+		s := string(raw)
+		if len(s) > 200 {
+			s = s[:197] + "..."
+		}
+		body = "  " + s
 		return "⚙", title, body
 	}
 }

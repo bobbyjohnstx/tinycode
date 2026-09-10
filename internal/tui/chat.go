@@ -241,13 +241,14 @@ func (c *ChatView) applyDelta(msg MessagePartDeltaMsg) {
 			continue
 		}
 		for j := range c.messages[i].Parts {
-			if c.messages[i].Parts[j].ID == msg.PartID {
-				if msg.Field == "text" {
-					c.messages[i].Parts[j].Text += msg.Delta
-					c.messages[i].Parts[j].Streaming = true
-				}
-				return
+			if c.messages[i].Parts[j].ID != msg.PartID {
+				continue
 			}
+			if msg.Field == "text" {
+				c.messages[i].Parts[j].Text += msg.Delta
+				c.messages[i].Parts[j].Streaming = true
+			}
+			return
 		}
 	}
 }

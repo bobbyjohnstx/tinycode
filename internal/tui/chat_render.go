@@ -90,24 +90,23 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 				prefix = "-"
 			}
 			label := agentThoughtStyle.Render(prefix + " Thought")
-			if part.Time != nil {
-				if dur := partDuration(part); dur != "" {
-					label += agentThoughtStyle.Render(": " + dur)
-				}
+			if dur := partDuration(part); dur != "" {
+				label += agentThoughtStyle.Render(": " + dur)
 			}
 			sb.WriteString(label)
 			sb.WriteString("\n")
 			lineNum++
-			if part.ThoughtExpanded && part.Text != "" {
-				wrapped := wordwrap.String(part.Text, width-6)
-				expandedLines := strings.Split(wrapped, "\n")
-				for _, line := range expandedLines {
-					sb.WriteString(styleReasoningText.Render("  " + line))
-					sb.WriteString("\n")
-				}
-				sb.WriteString("\n")
-				lineNum += len(expandedLines) + 1
+			if !part.ThoughtExpanded || part.Text == "" {
+				break
 			}
+			wrapped := wordwrap.String(part.Text, width-6)
+			expandedLines := strings.Split(wrapped, "\n")
+			for _, line := range expandedLines {
+				sb.WriteString(styleReasoningText.Render("  " + line))
+				sb.WriteString("\n")
+			}
+			sb.WriteString("\n")
+			lineNum += len(expandedLines) + 1
 		case "tool-call":
 			tc := renderToolCallPart(part)
 			sb.WriteString(tc)

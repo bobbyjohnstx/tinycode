@@ -249,21 +249,23 @@ func (c *AnthropicClient) handleAnthropicSSEEvent(eventType string, raw json.Raw
 		if err := json.Unmarshal(raw, &evt); err != nil {
 			return
 		}
-		if bs, ok := blocks[evt.Index]; ok && bs.blockType == "tool_use" {
-			args := bs.args
-			if !json.Valid([]byte(args)) {
-				if repaired := RepairToolCallJSON(args); repaired != nil {
-					args = *repaired
-				}
-			}
-			ch <- Event{
-				Type:         EventToolCallEnd,
-				ToolCallID:   bs.toolID,
-				ToolName:     bs.toolName,
-				ToolCallArgs: args,
-			}
-			delete(blocks, evt.Index)
+		bs, ok := blocks[evt.Index]
+		if !ok || bs.blockType != "tool_use" {
+			break
 		}
+		args := bs.args
+		if !json.Valid([]byte(args)) {
+			if repaired := RepairToolCallJSON(args); repaired != nil {
+				args = *repaired
+			}
+		}
+		ch <- Event{
+			Type:         EventToolCallEnd,
+			ToolCallID:   bs.toolID,
+			ToolName:     bs.toolName,
+			ToolCallArgs: args,
+		}
+		delete(blocks, evt.Index)
 
 	case "message_delta":
 		var evt anthropicMessageDelta

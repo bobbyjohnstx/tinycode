@@ -152,21 +152,22 @@ func (d ModelDialog) updateProviders(keyMsg tea.KeyMsg) (ModelDialog, tea.Cmd) {
 		d.selectedProv = wrapIndex(d.selectedProv+1, len(d.providers))
 		d.scrollProv = ensureScrollVisible(d.selectedProv, d.scrollProv, d.maxVisibleProviders(), len(d.providers))
 	case "enter":
-		if d.selectedProv < len(d.providers) {
-			d.phase = phaseModels
-			d.selectedModel = 0
-			d.scrollModel = 0
-			d.filter = ""
-			if d.pendingModelID != "" {
-				for i, m := range d.providers[d.selectedProv].Models {
-					if m.ID == d.pendingModelID {
-						d.selectedModel = i
-						d.scrollModel = ensureScrollVisible(i, 0, d.maxVisibleModels(), len(d.providers[d.selectedProv].Models))
-						break
-					}
+		if d.selectedProv >= len(d.providers) {
+			break
+		}
+		d.phase = phaseModels
+		d.selectedModel = 0
+		d.scrollModel = 0
+		d.filter = ""
+		if d.pendingModelID != "" {
+			for i, m := range d.providers[d.selectedProv].Models {
+				if m.ID == d.pendingModelID {
+					d.selectedModel = i
+					d.scrollModel = ensureScrollVisible(i, 0, d.maxVisibleModels(), len(d.providers[d.selectedProv].Models))
+					break
 				}
-				d.pendingModelID = ""
 			}
+			d.pendingModelID = ""
 		}
 	}
 	return d, nil

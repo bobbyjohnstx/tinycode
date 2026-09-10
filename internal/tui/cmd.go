@@ -199,25 +199,7 @@ func fetchProviders(client *api.Client) tea.Cmd {
 		for i, p := range resp.All {
 			pi := ProviderInfo{ID: p.ID, Name: p.Name}
 			for modelID, raw := range p.Models {
-				m := ModelInfo{ID: modelID, ProviderID: p.ID, Name: modelID}
-				if obj, ok := raw.(map[string]any); ok {
-					if name, ok := obj["name"].(string); ok && name != "" {
-						m.Name = name
-					}
-					if id, ok := obj["id"].(string); ok && id != "" {
-						m.ID = id
-					}
-					if limit, ok := obj["limit"].(map[string]any); ok {
-						if ctx, ok := limit["context"].(float64); ok {
-							m.ContextLimit = int(ctx)
-						}
-					}
-					if cost, ok := obj["cost"].(map[string]any); ok {
-						m.CostInput, _ = cost["input"].(float64)
-						m.CostOutput, _ = cost["output"].(float64)
-					}
-				}
-				pi.Models = append(pi.Models, m)
+				pi.Models = append(pi.Models, parseModelInfo(modelID, p.ID, raw))
 			}
 			sort.Slice(pi.Models, func(a, b int) bool {
 				return pi.Models[a].Name < pi.Models[b].Name
@@ -231,6 +213,29 @@ func fetchProviders(client *api.Client) tea.Cmd {
 		}
 		return msg
 	}
+}
+
+// parseModelInfo converts a raw model map from the API into a ModelInfo.
+func parseModelInfo(modelID, providerID string, raw any) ModelInfo {
+	m := ModelInfo{ID: modelID, ProviderID: providerID, Name: modelID}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		return m
+	}
+	if name, ok := obj["name"].(string); ok && name != "" {
+		m.Name = name
+	}
+	if id, ok := obj["id"].(string); ok && id != "" {
+		m.ID = id
+	}
+	limit, _ := obj["limit"].(map[string]any)
+	if ctx, ok := limit["context"].(float64); ok {
+		m.ContextLimit = int(ctx)
+	}
+	cost, _ := obj["cost"].(map[string]any)
+	m.CostInput, _ = cost["input"].(float64)
+	m.CostOutput, _ = cost["output"].(float64)
+	return m
 }
 
 // fetchAgents fetches the agent list from the server.

@@ -125,12 +125,7 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 		ctx:           ctx,
 		ctxCancel:     cancel,
 		clientFactory: func(m *provider.Model) llm.Client {
-			apiKey := ""
-			if m.Options != nil {
-				if key, ok := m.Options["api_key"].(string); ok {
-					apiKey = key
-				}
-			}
+			apiKey, _ := m.Options["api_key"].(string)
 			return llm.NewOpenAIClient(m.API.URL+"/v1", apiKey)
 		},
 	}
