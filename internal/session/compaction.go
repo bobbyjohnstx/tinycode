@@ -55,13 +55,17 @@ type CompactionConfig struct {
 	MaskObservations bool
 	MinPreserve      int
 	MaxPreserve      int
+	MaxMessages      int
 }
+
+const defaultMaxMessages = 80
 
 func DefaultCompactionConfig() CompactionConfig {
 	return CompactionConfig{
 		MaskObservations: true,
 		MinPreserve:      MinPreserveRecentTokens,
 		MaxPreserve:      MaxPreserveRecentTokens,
+		MaxMessages:      defaultMaxMessages,
 	}
 }
 

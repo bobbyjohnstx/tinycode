@@ -272,6 +272,16 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 			}
 		}
 
+		// Message-count compaction: compact when conversation exceeds MaxMessages.
+		// This catches cases where the model doesn't report token usage (local
+		// models) or the context limit isn't known, preventing unbounded growth.
+		if maxMsg := p.config.Compaction.MaxMessages; maxMsg > 0 && len(p.Messages()) >= maxMsg {
+			slog.Info("message-count compaction triggered", "sessionID", p.config.SessionID, "messages", len(p.Messages()), "maxMessages", maxMsg)
+			if _, compactErr := p.compact(ctx); compactErr != nil {
+				slog.Warn("message-count compaction failed", "sessionID", p.config.SessionID, "error", compactErr)
+			}
+		}
+
 		p.mu.Lock()
 		p.messages = append(p.messages, *assistantMsg)
 		p.mu.Unlock()

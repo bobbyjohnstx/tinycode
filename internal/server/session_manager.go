@@ -917,6 +917,9 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		if sm.cfg.Compaction.PreserveRecentTokens != nil {
 			compactionCfg.MaxPreserve = *sm.cfg.Compaction.PreserveRecentTokens
 		}
+		if sm.cfg.Compaction.MaxMessages != nil && *sm.cfg.Compaction.MaxMessages > 0 {
+			compactionCfg.MaxMessages = *sm.cfg.Compaction.MaxMessages
+		}
 	}
 
 	// Create LLM client and Processor

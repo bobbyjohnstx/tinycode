@@ -164,6 +164,7 @@ type CompactionConfig struct {
 	PreserveRecentTokens *int  `json:"preserve_recent_tokens,omitempty"`
 	Reserved             *int  `json:"reserved,omitempty"`
 	MaskObservations     *bool `json:"mask_observations,omitempty"`
+	MaxMessages          *int  `json:"max_messages,omitempty"`
 }
 
 // ExperimentalConfig holds experimental feature flags.
