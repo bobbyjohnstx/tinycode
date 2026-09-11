@@ -80,6 +80,7 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 - **Leader key**: Vim-style `<leader>` key sequences for sidebar toggle, agent/model/session lists. State machine in `leader.go`.
 - **Toast overlay**: Non-blocking notification rendered atop the main view. Used for errors and status messages.
 - **Plugin system**: Plugins are standalone Go binaries in `cmd/plugin-*/` using `pkg/plugin/` SDK. Communication is JSON-RPC over stdin/stdout. The plugin manager (`internal/plugin/`) spawns processes, performs initialize handshake, and dispatches hooks (session lifecycle, permission, tool execution) and tool calls.
+- **Run mode**: `cmd/tinycode/run.go` and `run_helpers.go` implement headless CLI. Single-prompt or multi-turn (`--multi-turn`). NDJSON output (`--format json`) emits 8 event types (text, tool_begin, tool_end, reasoning, step_start, step_finish, warning, compacted). JSON permission protocol (`--permissions json`) emits requests on stdout, reads replies from stdin via `readNextPrompt()` routing to `permReplyCh`. Config permission rules loaded via `permission.FromConfig()` → `permSvc.SetBaseRules()`. Iteration budget via `--max-iterations` → `ProcessorConfig.MaxIterations`.
 
 ## Agent Delegation
 

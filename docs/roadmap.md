@@ -21,6 +21,14 @@ The Go rewrite (2.0) replaces the TypeScript 1.x codebase with a standalone Go b
 - **Plugin wire protocol alignment** -- Server-side and SDK protocols unified.
 - **Red Hat plugin conversion** -- 24 plugins ported from TypeScript with `internal/redhat/` shared library and containerized test harness.
 
+### Run Mode (Non-Interactive CLI)
+- **Single prompt** -- `tinycode run "prompt"` processes a prompt and exits
+- **Multi-turn** -- `--multi-turn` loops on stdin for conversational flows
+- **NDJSON output** -- `--format json` emits structured events (text, tool_begin, tool_end, reasoning, step_start, step_finish, warning, compacted)
+- **JSON permission protocol** -- `--permissions json` enables programmatic permission handling via stdin/stdout
+- **Iteration budget** -- `--max-iterations` caps LLM round-trips per prompt
+- **Config permission rules** -- `permission.allow`/`permission.deny` in config.json loaded at runtime
+
 ### Tools
 - File operations (read, write, edit)
 - Shell execution

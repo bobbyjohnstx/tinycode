@@ -75,6 +75,12 @@ Type `/` to autocomplete. Use before or after your prompt.
 
 | Command | Purpose |
 |---------|---------|
+| `tinycode run "prompt"` | Run a prompt non-interactively and exit |
+| `tinycode run --format json` | NDJSON event output (for programmatic consumers) |
+| `tinycode run --multi-turn` | Multi-turn mode: loop on stdin after initial prompt |
+| `tinycode run --max-iterations N` | Cap processor iterations per prompt |
+| `tinycode run --permissions json` | Programmatic permission handling via stdin/stdout |
+| `tinycode run --dangerously-skip-permissions` | Auto-approve all tool permissions |
 | `tinycode plugin-search [query]` | Search available plugins in the curated registry |
 | `tinycode plugin <name>` | Install a plugin (resolves registry names or raw npm specifiers) |
 
@@ -126,6 +132,18 @@ Write guide for new developers on session architecture
 <leader>j          # Go to first child session
 <leader>k          # Go to parent session
 <leader>l          # Go to next sibling session
+```
+
+### Scripted / CI usage (run mode)
+```bash
+# Single prompt, auto-approve tools
+tinycode run --dangerously-skip-permissions -m ollama/qwen3:8b "fix lint errors"
+
+# Pipe input, JSON output
+echo "explain main.go" | tinycode run --format json -m ollama/qwen3:8b
+
+# Multi-turn with iteration cap
+tinycode run --multi-turn --max-iterations 20 -m ollama/qwen3:8b
 ```
 
 ## Configuration

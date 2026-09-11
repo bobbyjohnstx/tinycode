@@ -160,12 +160,23 @@ See the [User Guide](user-guide.md) for all configuration options.
 ## Other run modes
 
 ```bash
+# Non-interactive: run a single prompt and exit
+./dist/tinycode run -m ollama/qwen3.5:9b "explain the main function"
+
+# Pipe input from stdin
+echo "fix the lint errors" | ./dist/tinycode run -m ollama/qwen3.5:9b
+
+# Multi-turn: loop on stdin for multiple prompts
+./dist/tinycode run --multi-turn --format json -m ollama/qwen3.5:9b
+
 # Headless API proxy (no TUI)
 ./dist/tinycode serve
 
 # Agent Client Protocol (IDE integration, stdio)
 ./dist/tinycode acp
 ```
+
+See the [User Guide](user-guide.md#run-mode) for full run mode documentation including NDJSON output, permission handling, and programmatic integration.
 
 ## Next steps
 

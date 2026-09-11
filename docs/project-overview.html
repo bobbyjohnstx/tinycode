@@ -2814,7 +2814,14 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
 ./dist/tinycode serve
 
 <span class="comment"># Non-interactive (scripts, CI)</span>
-./dist/tinycode run <span class="string">"explain the main function"</span></div>
+./dist/tinycode run <span class="string">"explain the main function"</span>
+
+<span class="comment"># Multi-turn with NDJSON output</span>
+./dist/tinycode run --multi-turn --format json
+
+<span class="comment"># Cap iterations, skip permissions</span>
+./dist/tinycode run --max-iterations 20 \
+  --dangerously-skip-permissions <span class="string">"summarize"</span></div>
           </div>
         </div>
       </div>
@@ -2918,8 +2925,8 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
     },
     cli: {
       title: 'CLI Non-interactive (cmd/tinycode/)',
-      desc: 'The "tinycode run" subcommand processes a single prompt and exits. Designed for scripts, CI pipelines, and automation. No interactive TUI.',
-      files: 'cmd/tinycode/main.go'
+      desc: 'The "tinycode run" subcommand processes prompts non-interactively. Supports single-shot and multi-turn modes, NDJSON structured output (--format json), programmatic permission handling (--permissions json), config-based permission rules, and iteration budgets (--max-iterations). Designed for scripts, CI pipelines, and programmatic integration.',
+      files: 'cmd/tinycode/run.go, cmd/tinycode/run_helpers.go, cmd/tinycode/run_test.go'
     },
     server: {
       title: 'HTTP Server (internal/server/)',
