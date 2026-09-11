@@ -30,7 +30,7 @@ func calculateLayout(width, height int, sidebarOpen bool) layout {
 	}
 
 	// Sidebar: show when wide enough and enabled.
-	if sidebarOpen && width > sidebarThreshold {
+	if sidebarOpen && width >= sidebarThreshold {
 		l.hasSidebar = true
 		l.sidebarWidth = minSidebarWidth
 		l.chatWidth = width - l.sidebarWidth

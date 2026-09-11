@@ -68,7 +68,10 @@ func runRun() {
 	defer lspMgr.Close()
 
 	if cfg.Permission != nil {
-		permSvc.SetBaseRules(permission.FromConfig(cfg.Permission.Allow, cfg.Permission.Deny))
+		configRules := permission.FromConfig(cfg.Permission.Allow, cfg.Permission.Deny)
+		permSvc.SetBaseRules(configRules)
+		disabled := permission.Disabled(toolReg.List(), configRules)
+		toolReg.SetDisabled(disabled)
 	}
 
 	permReplyCh := setupRunPermissions(b, permSvc, *skipPermsFlag, *interactiveFlag, *permsFlag)

@@ -109,7 +109,7 @@ func CalculateNumCtx(gpuMemoryBytes int64, info OllamaShowResult, advertisedCtx 
 		kvBudgetBytes = minKVBudget
 	}
 
-	if info.HeadCount <= 0 || info.BlockCount <= 0 || info.EmbeddingLength <= 0 {
+	if info.HeadCount <= 0 || info.HeadCountKV <= 0 || info.BlockCount <= 0 || info.EmbeddingLength <= 0 {
 		if advertisedCtx < 8192 {
 			return advertisedCtx
 		}

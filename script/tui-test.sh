@@ -12,6 +12,7 @@
 set -euo pipefail
 
 TINYCODE_BIN="${TINYCODE_BIN:-./dist/tinycode}"
+TINYCODE_BIN="$(cd "$(dirname "$TINYCODE_BIN")" && pwd)/$(basename "$TINYCODE_BIN")"
 SESSION_PREFIX="tui-test"
 WORK_DIR=""
 PASS=0
@@ -28,7 +29,7 @@ NC='\033[0m'
 cleanup_all() {
     tmux list-sessions -F '#{session_name}' 2>/dev/null | grep "^${SESSION_PREFIX}" | while read -r s; do
         tmux kill-session -t "$s" 2>/dev/null || true
-    done
+    done || true
     [ -n "$WORK_DIR" ] && rm -rf "$WORK_DIR" 2>/dev/null || true
 }
 
@@ -192,7 +193,7 @@ test_T02() {
     if ! tmux has-session -t "$session" 2>/dev/null; then
         echo -e "  ${GREEN}PASS${NC}: Session terminated (tinycode exited)"
         PASS=$((PASS + 1))
-    elif echo "$captured" | grep -qE '\$\s*$'; then
+    elif echo "$captured" | grep -qE '(\$|❯|%)\s*$'; then
         echo -e "  ${GREEN}PASS${NC}: Shell prompt visible (tinycode exited)"
         PASS=$((PASS + 1))
     else
@@ -241,9 +242,9 @@ test_T05() {
     session=$(new_session "T05")
     sleep 3
 
-    # Send leader key (Ctrl+X) then b
+    # Send leader key (Ctrl+X) then b — must arrive within 500ms leader timeout
     send_keys "$session" C-x
-    sleep 0.6
+    sleep 0.2
     send_keys "$session" b
     sleep 1
 
@@ -252,7 +253,7 @@ test_T05() {
 
     # Toggle off
     send_keys "$session" C-x
-    sleep 0.6
+    sleep 0.2
     send_keys "$session" b
     sleep 1
 
@@ -294,7 +295,7 @@ test_T07() {
     sleep 3
 
     send_keys "$session" C-x
-    sleep 0.6
+    sleep 0.2
     send_keys "$session" n
     sleep 2
 
@@ -311,7 +312,7 @@ test_T08() {
     sleep 3
 
     send_keys "$session" C-x
-    sleep 0.6
+    sleep 0.2
     send_keys "$session" m
     sleep 2
 

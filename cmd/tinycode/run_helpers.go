@@ -197,6 +197,10 @@ func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Reg
 				agentPerms = append(agentPerms, rule.Permission)
 			}
 		}
+		// Exclude tools denied by the agent's permission rules so the LLM
+		// never attempts to call them (deny rules are evaluated last-wins).
+		disabled := permission.Disabled(toolReg.List(), agentInfo.Permission)
+		toolReg.SetDisabled(disabled)
 	}
 
 	var instructions string
