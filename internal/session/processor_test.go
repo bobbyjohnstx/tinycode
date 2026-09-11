@@ -741,3 +741,144 @@ func TestBuildRequest_MultipleTextParts(t *testing.T) {
 		t.Errorf("expected content %q, got %q", expected, content)
 	}
 }
+
+func TestProcessor_MultiTurnAccumulation(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "Response 1"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 10, CompletionTokens: 5}},
+			}},
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "Response 2"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 20, CompletionTokens: 5}},
+			}},
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "Response 3"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 30, CompletionTokens: 5}},
+			}},
+		},
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_multi",
+		Model:      &provider.Model{ID: "test-model"},
+		Compaction: DefaultCompactionConfig(),
+	}, client, &mockToolExecutor{}, b)
+
+	// Turn 1
+	r1 := p.Process(context.Background(), "turn 1")
+	if r1.Error != nil {
+		t.Fatalf("turn 1 error: %v", r1.Error)
+	}
+	if len(r1.Messages) != 2 {
+		t.Fatalf("turn 1: expected 2 messages (user+assistant), got %d", len(r1.Messages))
+	}
+
+	// Turn 2 — processor already holds turn 1 messages
+	r2 := p.Process(context.Background(), "turn 2")
+	if r2.Error != nil {
+		t.Fatalf("turn 2 error: %v", r2.Error)
+	}
+	if len(r2.Messages) != 4 {
+		t.Fatalf("turn 2: expected 4 messages, got %d", len(r2.Messages))
+	}
+
+	expectedRoles := []Role{RoleUser, RoleAssistant, RoleUser, RoleAssistant}
+	for i, msg := range r2.Messages {
+		if msg.Role != expectedRoles[i] {
+			t.Errorf("message[%d] role=%s, want %s", i, msg.Role, expectedRoles[i])
+		}
+	}
+
+	// Turn 3
+	r3 := p.Process(context.Background(), "turn 3")
+	if r3.Error != nil {
+		t.Fatalf("turn 3 error: %v", r3.Error)
+	}
+	if len(r3.Messages) != 6 {
+		t.Fatalf("turn 3: expected 6 messages, got %d", len(r3.Messages))
+	}
+
+	lastMsg := r3.Messages[len(r3.Messages)-1]
+	if lastMsg.Role != RoleAssistant {
+		t.Errorf("last message role=%s, want assistant", lastMsg.Role)
+	}
+	var text string
+	for _, part := range lastMsg.Parts {
+		if part.Type == PartText {
+			text = part.Text
+		}
+	}
+	if text != "Response 3" {
+		t.Errorf("last message text=%q, want %q", text, "Response 3")
+	}
+}
+
+func TestProcessor_MultiTurnWithToolCalls(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			// Turn 1: tool call then text
+			{events: []llm.Event{
+				{Type: llm.EventToolCallBegin, ToolCallID: "call_1", ToolName: "read"},
+				{Type: llm.EventToolCallEnd, ToolCallID: "call_1", ToolName: "read", ToolCallArgs: `{"path":"a.go"}`},
+				{Type: llm.EventFinish, FinishReason: "tool_calls"},
+			}},
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "Read a.go"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 10, CompletionTokens: 5}},
+			}},
+			// Turn 2: text only
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "No tools needed"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 20, CompletionTokens: 3}},
+			}},
+		},
+	}
+
+	tools := &mockToolExecutor{results: map[string]string{"read": "package main"}}
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_multi_tool",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, client, tools, b)
+
+	// Turn 1: user → tool_call → tool_result → assistant
+	r1 := p.Process(context.Background(), "read a.go")
+	if r1.Error != nil {
+		t.Fatalf("turn 1 error: %v", r1.Error)
+	}
+	if len(r1.Messages) != 4 {
+		t.Fatalf("turn 1: expected 4 messages (user, assistant-tool, tool-result, assistant-text), got %d", len(r1.Messages))
+	}
+
+	// Turn 2: processor has all 4 prior messages
+	r2 := p.Process(context.Background(), "summarize")
+	if r2.Error != nil {
+		t.Fatalf("turn 2 error: %v", r2.Error)
+	}
+	// 4 from turn 1 + user + assistant = 6
+	if len(r2.Messages) != 6 {
+		t.Fatalf("turn 2: expected 6 messages, got %d", len(r2.Messages))
+	}
+
+	// Verify the tool result from turn 1 is still present
+	toolResultFound := false
+	for _, msg := range r2.Messages {
+		for _, part := range msg.Parts {
+			if part.Type == PartToolResult && part.ToolResult == "package main" {
+				toolResultFound = true
+			}
+		}
+	}
+	if !toolResultFound {
+		t.Error("tool result from turn 1 not found in turn 2 messages")
+	}
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -310,4 +311,184 @@ func (c *stdoutCapture) read() string {
 	buf := make([]byte, 64*1024)
 	n, _ := c.r.Read(buf)
 	return string(buf[:n])
+}
+
+func TestMultiTurnLoop_ReadySignals(t *testing.T) {
+	// Simulate the multi-turn ready/prompt loop with JSON format.
+	// Verify ready signals are emitted between turns and loop exits on exit message.
+	input := `{"type":"prompt","text":"turn 2"}` + "\n" +
+		`{"type":"exit"}` + "\n"
+	scanner := bufio.NewScanner(strings.NewReader(input))
+
+	cap := captureStdout(t)
+
+	// Simulate what runRun's multi-turn loop does: emit ready, read prompt, repeat
+	var prompts []string
+	for {
+		// Emit ready signal (as runRun does)
+		line, _ := json.Marshal(map[string]string{"type": "ready"})
+		fmt.Println(string(line))
+
+		prompt, ok := readNextPrompt(scanner, true, nil)
+		if !ok {
+			break
+		}
+		if prompt != "" {
+			prompts = append(prompts, prompt)
+		}
+	}
+
+	output := cap.read()
+
+	// Should have collected "turn 2" before exit
+	if len(prompts) != 1 || prompts[0] != "turn 2" {
+		t.Errorf("prompts = %v, want [turn 2]", prompts)
+	}
+
+	// Should have emitted 2 ready signals (one before turn 2, one before exit)
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	readyCount := 0
+	for _, l := range lines {
+		var evt map[string]string
+		if err := json.Unmarshal([]byte(l), &evt); err == nil && evt["type"] == "ready" {
+			readyCount++
+		}
+	}
+	if readyCount != 2 {
+		t.Errorf("ready signals = %d, want 2", readyCount)
+	}
+}
+
+func TestStreamRunOutput_ToolCallFlow(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	cap := captureStdout(t)
+	streamRunOutput(b, true)
+
+	// Simulate a complete tool call sequence as the processor emits it
+	b.Publish("session.step.start", map[string]any{
+		"sessionID": "ses_1", "stepID": "step_1", "iteration": 1, "model": "test-model",
+	})
+	b.Publish("session.text.delta", map[string]any{
+		"sessionID": "ses_1", "text": "Let me read that file.",
+	})
+	b.Publish("session.tool.begin", map[string]any{
+		"sessionID": "ses_1", "toolName": "read", "toolCallID": "call_1",
+	})
+	b.Publish("session.tool.end", map[string]any{
+		"sessionID": "ses_1", "toolName": "read", "toolCallID": "call_1",
+		"toolArgs": `{"path":"main.go"}`,
+	})
+	b.Publish("session.step.finish", map[string]any{
+		"sessionID": "ses_1", "stepID": "step_1", "iteration": 1,
+		"usage": map[string]any{"input": 100, "output": 50}, "error": "",
+	})
+
+	time.Sleep(50 * time.Millisecond)
+	output := cap.read()
+
+	// Each subscriber goroutine runs independently, so ordering across
+	// different event types is non-deterministic. Verify all expected types
+	// are present.
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	typeCounts := make(map[string]int)
+	for _, l := range lines {
+		var evt map[string]any
+		if err := json.Unmarshal([]byte(l), &evt); err != nil {
+			t.Errorf("invalid JSON: %q", l)
+			continue
+		}
+		if typ, ok := evt["type"].(string); ok {
+			typeCounts[typ]++
+		}
+	}
+
+	for _, want := range []string{"step_start", "text", "tool_begin", "tool_end", "step_finish"} {
+		if typeCounts[want] != 1 {
+			t.Errorf("event type %q: count=%d, want 1; all types: %v", want, typeCounts[want], typeCounts)
+		}
+	}
+
+	// Verify tool_end contains the args
+	foundToolArgs := false
+	for _, l := range lines {
+		var evt map[string]any
+		json.Unmarshal([]byte(l), &evt)
+		if evt["type"] == "tool_end" {
+			foundToolArgs = true
+			if evt["toolArgs"] != `{"path":"main.go"}` {
+				t.Errorf("tool_end toolArgs = %v, want %q", evt["toolArgs"], `{"path":"main.go"}`)
+			}
+		}
+	}
+	if !foundToolArgs {
+		t.Error("tool_end event not found")
+	}
+}
+
+func TestJSONPermissionProtocol_EndToEnd(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	permSvc := permission.NewService(b)
+
+	cap := captureStdout(t)
+
+	// Set up JSON permission mode — returns the reply channel
+	permReplyCh := setupRunPermissions(b, permSvc, false, false, "json")
+	if permReplyCh == nil {
+		t.Fatal("expected non-nil permReplyCh for json mode")
+	}
+
+	// Ask for permission in a goroutine (it will block until reply)
+	askDone := make(chan error, 1)
+	go func() {
+		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+			ID:         "perm_test_1",
+			SessionID:  "ses_1",
+			Permission: "shell",
+			Patterns:   []string{"ls -la"},
+		})
+	}()
+
+	// Wait for the permission event to be emitted on stdout
+	time.Sleep(50 * time.Millisecond)
+
+	// Send the reply through the channel (simulating readNextPrompt routing)
+	permReplyCh <- permission.ReplyInput{
+		RequestID: "perm_test_1",
+		Reply:     permission.ReplyOnce,
+	}
+
+	// Wait for the Ask to resolve
+	select {
+	case err := <-askDone:
+		if err != nil {
+			t.Errorf("Ask returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not resolve within timeout")
+	}
+
+	output := cap.read()
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	// Verify the permission request was emitted as NDJSON
+	found := false
+	for _, l := range lines {
+		var evt map[string]any
+		if err := json.Unmarshal([]byte(l), &evt); err != nil {
+			continue
+		}
+		if evt["type"] == "permission" && evt["id"] == "perm_test_1" {
+			found = true
+			if evt["permission"] != "shell" {
+				t.Errorf("permission field = %v, want 'shell'", evt["permission"])
+			}
+		}
+	}
+	if !found {
+		t.Errorf("permission event not found in output: %q", output)
+	}
 }
