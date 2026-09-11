@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -34,9 +37,10 @@ func runRun() {
 	interactiveFlag := fs.Bool("i", false, "show permission prompts (default: auto-deny)")
 	fs.BoolVar(interactiveFlag, "interactive", false, "show permission prompts (default: auto-deny)")
 	maxIterFlag := fs.Int("max-iterations", 0, "maximum processor iterations (0 = default 200)")
+	multiTurnFlag := fs.Bool("multi-turn", false, "multi-turn mode: loop on stdin after initial prompt")
 	_ = fs.Parse(os.Args[2:])
 
-	prompt := collectRunPrompt(fs.Args())
+	prompt := collectRunPrompt(fs.Args(), *multiTurnFlag)
 
 	b, db, cfg := initDependencies()
 	defer db.Close()
@@ -115,6 +119,56 @@ func runRun() {
 	isJSON := *formatFlag == "json"
 	streamRunOutput(b, isJSON)
 
+	// In multi-turn mode with no initial prompt from args, read the first line.
+	if *multiTurnFlag && prompt == "" {
+		scanner := bufio.NewScanner(os.Stdin)
+		p, ok := readNextPrompt(scanner, isJSON)
+		if !ok || p == "" {
+			return
+		}
+		prompt = p
+	}
+
 	result := proc.Process(ctx, prompt)
-	finishRun(result, existingMsgs, ms, db, sessionID, isJSON)
+
+	if !*multiTurnFlag {
+		finishRun(result, existingMsgs, ms, db, sessionID, isJSON)
+		return
+	}
+
+	// Multi-turn: persist results without exiting, then loop.
+	existingMsgs = persistRunResult(result, existingMsgs, ms, db, sessionID)
+	if !isJSON {
+		fmt.Println()
+	}
+	if result != nil && result.Error != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", result.Error)
+	}
+
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		if isJSON {
+			line, _ := json.Marshal(map[string]string{"type": "ready"})
+			fmt.Println(string(line))
+		} else {
+			fmt.Println()
+		}
+
+		prompt, ok := readNextPrompt(scanner, isJSON)
+		if !ok {
+			break
+		}
+		if prompt == "" {
+			continue
+		}
+
+		result = proc.Process(ctx, prompt)
+		existingMsgs = persistRunResult(result, existingMsgs, ms, db, sessionID)
+		if !isJSON {
+			fmt.Println()
+		}
+		if result != nil && result.Error != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", result.Error)
+		}
+	}
 }

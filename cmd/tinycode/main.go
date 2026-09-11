@@ -130,6 +130,7 @@ func printUsage() {
 	fmt.Println("  --title           Session title")
 	fmt.Println("  --dangerously-skip-permissions  Auto-approve all tool permissions")
 	fmt.Println("  -i, --interactive  Show permission prompts (default: auto-deny)")
+	fmt.Println("  --multi-turn       Multi-turn mode: loop on stdin after initial prompt")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  tinycode                              Start TUI in current directory")

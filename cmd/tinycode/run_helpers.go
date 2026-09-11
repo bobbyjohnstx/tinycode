@@ -25,8 +25,10 @@ import (
 )
 
 // collectRunPrompt handles directory changes from positional args and collects
-// the prompt text from remaining args and/or stdin.
-func collectRunPrompt(positional []string) string {
+// the prompt text from remaining args and/or stdin. When multiTurn is true,
+// stdin is not consumed (it will be read line-by-line in the multi-turn loop)
+// and an empty prompt is returned instead of exiting.
+func collectRunPrompt(positional []string, multiTurn bool) string {
 	if len(positional) > 0 {
 		if info, err := os.Stat(positional[0]); err == nil && info.IsDir() {
 			absDir, err := filepath.Abs(positional[0])
@@ -43,7 +45,7 @@ func collectRunPrompt(positional []string) string {
 	}
 
 	prompt := strings.Join(positional, " ")
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
+	if !multiTurn && !term.IsTerminal(int(os.Stdin.Fd())) {
 		stdinData, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "reading stdin: %v\n", err)
@@ -56,7 +58,7 @@ func collectRunPrompt(positional []string) string {
 			prompt += s
 		}
 	}
-	if prompt == "" {
+	if prompt == "" && !multiTurn {
 		fmt.Fprintf(os.Stderr, "error: no prompt provided\n")
 		os.Exit(1)
 	}
@@ -275,8 +277,41 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 	}()
 }
 
-// finishRun persists processor results and handles errors.
-func finishRun(result *session.ProcessResult, existingMsgs []session.Message, ms *session.MessageStore, db *storage.DB, sessionID string, isJSON bool) {
+// readNextPrompt reads one prompt from the scanner. In JSON mode it expects
+// {"type":"prompt","text":"..."} and returns false on {"type":"exit"} or EOF.
+// In text mode it returns the trimmed line and false on EOF.
+func readNextPrompt(scanner *bufio.Scanner, isJSON bool) (string, bool) {
+	if !scanner.Scan() {
+		return "", false
+	}
+	line := scanner.Text()
+
+	if !isJSON {
+		return strings.TrimSpace(line), true
+	}
+
+	var msg struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		return "", true
+	}
+
+	switch msg.Type {
+	case "prompt":
+		return msg.Text, true
+	case "exit":
+		return "", false
+	default:
+		// Ignore unknown types (e.g. permission_reply for future #148)
+		return "", true
+	}
+}
+
+// persistRunResult saves processor results to the message store and updates
+// session cost. Returns the updated existing messages slice for the next turn.
+func persistRunResult(result *session.ProcessResult, existingMsgs []session.Message, ms *session.MessageStore, db *storage.DB, sessionID string) []session.Message {
 	if result != nil && len(result.Messages) > len(existingMsgs) {
 		newMsgs := result.Messages[len(existingMsgs):]
 		for i := range newMsgs {
@@ -287,7 +322,14 @@ func finishRun(result *session.ProcessResult, existingMsgs []session.Message, ms
 			Input:  result.Usage.Input,
 			Output: result.Usage.Output,
 		})
+		return result.Messages
 	}
+	return existingMsgs
+}
+
+// finishRun persists processor results and handles errors.
+func finishRun(result *session.ProcessResult, existingMsgs []session.Message, ms *session.MessageStore, db *storage.DB, sessionID string, isJSON bool) {
+	persistRunResult(result, existingMsgs, ms, db, sessionID)
 
 	if !isJSON {
 		fmt.Println() // ensure trailing newline
