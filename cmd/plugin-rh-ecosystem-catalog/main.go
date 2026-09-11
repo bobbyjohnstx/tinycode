@@ -66,14 +66,14 @@ type pyxisRepo struct {
 }
 
 type pyxisOperatorBundle struct {
-	CSVDisplayName string `json:"csv_display_name"`
-	CSVDescription string `json:"csv_description"`
-	Package        string `json:"package"`
-	Version        string `json:"version"`
-	OCPVersion     string `json:"ocp_version"`
-	Organization   string `json:"organization"`
-	ChannelName    string `json:"channel_name"`
-	Capabilities   string `json:"capabilities"`
+	CSVDisplayName string          `json:"csv_display_name"`
+	CSVDescription string          `json:"csv_description"`
+	Package        string          `json:"package"`
+	Version        string          `json:"version"`
+	OCPVersion     string          `json:"ocp_version"`
+	Organization   string          `json:"organization"`
+	ChannelName    string          `json:"channel_name"`
+	Capabilities   json.RawMessage `json:"capabilities"`
 }
 
 type pyxisResponse[T any] struct {

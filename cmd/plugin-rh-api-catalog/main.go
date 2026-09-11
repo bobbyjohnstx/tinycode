@@ -178,6 +178,7 @@ func formatSpec(spec map[string]any) string {
 
 type options struct {
 	ConsoleOfflineToken string
+	ClientID            string
 	CatalogPath         string
 }
 
@@ -185,6 +186,9 @@ func parseOptions(raw map[string]any) options {
 	var opts options
 	if v, ok := raw["consoleOfflineToken"].(string); ok {
 		opts.ConsoleOfflineToken = v
+	}
+	if v, ok := raw["clientId"].(string); ok {
+		opts.ClientID = v
 	}
 	if v, ok := raw["catalogPath"].(string); ok {
 		opts.CatalogPath = v
@@ -343,12 +347,12 @@ func buildTools(consoleClient *redhat.APIClient, catalogPath string) []plugin.To
 func newPlugin(opts options) plugin.Plugin {
 	var consoleClient *redhat.APIClient
 	if opts.ConsoleOfflineToken != "" {
-		authClient := redhat.NewConsoleAuthClient(redhat.ConsoleAuthConfig{
+		authCfg := redhat.ConsoleAuthConfig{
 			OfflineToken: opts.ConsoleOfflineToken,
-		})
-		consoleClient = redhat.NewConsoleAPIClient(redhat.ConsoleAuthConfig{
-			OfflineToken: opts.ConsoleOfflineToken,
-		}, "", authClient)
+			ClientID:     opts.ClientID,
+		}
+		authClient := redhat.NewConsoleAuthClient(authCfg)
+		consoleClient = redhat.NewConsoleAPIClient(authCfg, "", authClient)
 	}
 
 	return plugin.Plugin{
@@ -358,6 +362,8 @@ func newPlugin(opts options) plugin.Plugin {
 }
 
 func main() {
-	opts := options{}
-	plugin.Run(newPlugin(opts))
+	plugin.RunWithOptions(func(params plugin.InitializeParams) (plugin.Plugin, error) {
+		opts := parseOptions(params.Options)
+		return newPlugin(opts), nil
+	})
 }

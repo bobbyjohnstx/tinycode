@@ -196,7 +196,7 @@ func (m *Manager) List() []PluginInfo {
 
 // Load resolves a plugin binary, starts it as a subprocess, performs the
 // JSON-RPC initialize handshake, and registers the plugin.
-func (m *Manager) Load(name string) (*PluginInfo, error) {
+func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error) {
 	if name == "" {
 		return nil, errors.New("plugin name is required")
 	}
@@ -268,6 +268,7 @@ func (m *Manager) Load(name string) (*PluginInfo, error) {
 	result, err := proc.sendRPC("initialize", initializeParams{
 		Version:   "1.0",
 		Directory: dir,
+		Options:   options,
 	})
 	if err != nil {
 		// Kill the process on handshake failure.

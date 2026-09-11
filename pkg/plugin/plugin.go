@@ -20,14 +20,29 @@ type Plugin struct {
 // closed or the context is cancelled. This is the entry point for external
 // plugin binaries.
 func Run(p Plugin) {
-	if err := run(context.Background(), p, os.Stdin, os.Stdout); err != nil {
-		fmt.Fprintf(os.Stderr, "plugin %s: %v\n", p.ID, err)
+	RunWithOptions(func(_ InitializeParams) (Plugin, error) {
+		return p, nil
+	})
+}
+
+// RunWithOptions starts the plugin using a factory that receives initialize params.
+func RunWithOptions(factory func(InitializeParams) (Plugin, error)) {
+	if err := runWithFactory(context.Background(), factory, os.Stdin, os.Stdout); err != nil {
+		fmt.Fprintf(os.Stderr, "plugin: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 // run is the testable core of Run.
 func run(ctx context.Context, p Plugin, stdin io.Reader, stdout io.Writer) error {
+	return runWithFactory(ctx, func(_ InitializeParams) (Plugin, error) {
+		return p, nil
+	}, stdin, stdout)
+}
+
+// runWithFactory is the core JSON-RPC loop that uses a factory to create the plugin
+// after receiving initialize params.
+func runWithFactory(ctx context.Context, factory func(InitializeParams) (Plugin, error), stdin io.Reader, stdout io.Writer) error {
 	scanner := bufio.NewScanner(stdin)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	enc := json.NewEncoder(stdout)
@@ -46,6 +61,16 @@ func run(ctx context.Context, p Plugin, stdin io.Reader, stdout io.Writer) error
 	}
 	if initReq.Method != "initialize" {
 		return fmt.Errorf("expected initialize, got %q", initReq.Method)
+	}
+
+	var params InitializeParams
+	if initReq.Params != nil {
+		_ = json.Unmarshal(initReq.Params, &params)
+	}
+
+	p, err := factory(params)
+	if err != nil {
+		return fmt.Errorf("creating plugin: %w", err)
 	}
 
 	result := buildManifest(p)

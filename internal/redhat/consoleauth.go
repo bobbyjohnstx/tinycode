@@ -21,12 +21,16 @@ const (
 
 type ConsoleAuthConfig struct {
 	OfflineToken string
+	ClientID     string
 	SSOURL       string
 	APIBaseURL   string
 }
 
+const DefaultClientID = "cloud-services"
+
 type ConsoleAuthClient struct {
 	ssoURL       string
+	clientID     string
 	offlineToken string
 	mu           sync.Mutex
 	accessToken  string
@@ -39,8 +43,13 @@ func NewConsoleAuthClient(cfg ConsoleAuthConfig) *ConsoleAuthClient {
 	if ssoURL == "" {
 		ssoURL = DefaultSSOURL
 	}
+	clientID := cfg.ClientID
+	if clientID == "" {
+		clientID = DefaultClientID
+	}
 	return &ConsoleAuthClient{
 		ssoURL:       ssoURL,
+		clientID:     clientID,
 		offlineToken: cfg.OfflineToken,
 		httpClient:   &http.Client{Timeout: 30 * time.Second},
 	}
@@ -72,7 +81,7 @@ func (c *ConsoleAuthClient) exchangeToken(ctx context.Context) (string, int, err
 	reqURL := c.ssoURL + tokenPath
 	form := url.Values{
 		"grant_type":    {"refresh_token"},
-		"client_id":     {"cloud-services"},
+		"client_id":     {c.clientID},
 		"refresh_token": {c.offlineToken},
 	}
 

@@ -177,27 +177,45 @@ test_T01() {
 }
 
 test_T02() {
-    echo -e "${BOLD}T02: Ctrl+D exits cleanly${NC}"
+    echo -e "${BOLD}T02: Ctrl+D and /exit both exit cleanly${NC}"
+
+    # --- Part 1: Ctrl+D exits ---
     local session
     session=$(new_session "T02")
     sleep 3
 
     send_keys "$session" C-d
-    sleep 2
 
-    # After Ctrl+D, tinycode exits and the shell prompt should appear
-    local captured
-    captured=$(capture_pane "$session" 2>/dev/null || echo "session ended")
     TOTAL=$((TOTAL + 1))
-
-    if ! tmux has-session -t "$session" 2>/dev/null; then
-        echo -e "  ${GREEN}PASS${NC}: Session terminated (tinycode exited)"
+    if wait_for_regex "$session" '(\$|❯|%)\s*$' 5; then
+        echo -e "  ${GREEN}PASS${NC}: Ctrl+D — shell prompt visible"
         PASS=$((PASS + 1))
-    elif echo "$captured" | grep -qE '(\$|❯|%)\s*$'; then
-        echo -e "  ${GREEN}PASS${NC}: Shell prompt visible (tinycode exited)"
+    elif ! tmux has-session -t "$session" 2>/dev/null; then
+        echo -e "  ${GREEN}PASS${NC}: Ctrl+D — session terminated"
         PASS=$((PASS + 1))
     else
         echo -e "  ${RED}FAIL${NC}: tinycode did not exit on Ctrl+D"
+        FAIL=$((FAIL + 1))
+    fi
+
+    kill_session "$session"
+    sleep 1
+
+    # --- Part 2: /exit command exits ---
+    session=$(new_session "T02b")
+    sleep 3
+
+    send_text "$session" "/exit"
+
+    TOTAL=$((TOTAL + 1))
+    if wait_for_regex "$session" '(\$|❯|%)\s*$' 5; then
+        echo -e "  ${GREEN}PASS${NC}: /exit — shell prompt visible"
+        PASS=$((PASS + 1))
+    elif ! tmux has-session -t "$session" 2>/dev/null; then
+        echo -e "  ${GREEN}PASS${NC}: /exit — session terminated"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC}: tinycode did not exit on /exit"
         FAIL=$((FAIL + 1))
     fi
 
@@ -261,7 +279,7 @@ test_T05() {
 }
 
 test_T06() {
-    echo -e "${BOLD}T06: Tab cycles agent name in status bar${NC}"
+    echo -e "${BOLD}T06: Tab/Shift+Tab cycle agent in status bar${NC}"
     local session
     session=$(new_session "T06")
     sleep 3
@@ -273,15 +291,30 @@ test_T06() {
     send_keys "$session" Tab
     sleep 1
 
-    # The status bar or agent indicator should change
+    # Tab should cycle agent forward
     TOTAL=$((TOTAL + 1))
-    local after
-    after=$(capture_pane "$session")
-    if [ "$before" != "$after" ]; then
-        echo -e "  ${GREEN}PASS${NC}: pane content changed after Tab (agent cycled)"
+    local after_tab
+    after_tab=$(capture_pane "$session")
+    if [ "$before" != "$after_tab" ]; then
+        echo -e "  ${GREEN}PASS${NC}: pane content changed after Tab (agent cycled forward)"
         PASS=$((PASS + 1))
     else
         echo -e "  ${YELLOW}SKIP${NC}: pane unchanged — may need model connected to show agent"
+        SKIP=$((SKIP + 1))
+    fi
+
+    # Shift+Tab should cycle agent backward (back to the original)
+    send_keys "$session" BTab
+    sleep 1
+
+    TOTAL=$((TOTAL + 1))
+    local after_btab
+    after_btab=$(capture_pane "$session")
+    if [ "$after_tab" != "$after_btab" ]; then
+        echo -e "  ${GREEN}PASS${NC}: pane content changed after Shift+Tab (agent cycled backward)"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${YELLOW}SKIP${NC}: pane unchanged after Shift+Tab"
         SKIP=$((SKIP + 1))
     fi
 
@@ -318,6 +351,571 @@ test_T08() {
 
     # Model list or connect dialog should appear
     assert_regex "$session" "(model|Model|provider|Provider|connect|Connect|No models)" "model list visible"
+
+    kill_session "$session"
+}
+
+test_T09() {
+    echo -e "${BOLD}T09: Terminal resize${NC}"
+    local session
+    session=$(new_session "T09")
+    sleep 3
+
+    # Resize the tmux window (resize-pane has no effect on single-pane sessions)
+    tmux resize-window -t "$session" -x 80 -y 30
+    sleep 1
+
+    # The TUI handles tea.WindowSizeMsg and calls resize() — it should still render
+    assert_regex "$session" "." "TUI still renders after resize"
+
+    kill_session "$session"
+}
+
+test_T10() {
+    echo -e "${BOLD}T10: Slash command autocomplete${NC}"
+    local session
+    session=$(new_session "T10")
+    sleep 3
+
+    # Type "/" to trigger autocomplete
+    send_keys "$session" "/"
+    sleep 1
+
+    # Autocomplete should show command names (ask, connect, review, init, compact, clear, etc.)
+    assert_regex "$session" "(ask|connect|review|init|compact|clear)" "autocomplete shows commands"
+
+    kill_session "$session"
+}
+
+test_T11() {
+    echo -e "${BOLD}T11: Escape dismisses palette${NC}"
+    local session
+    session=$(new_session "T11")
+    sleep 3
+
+    send_keys "$session" C-p
+    sleep 1
+
+    # Palette should be open — it shows "Type to filter" placeholder or command labels
+    assert_regex "$session" "(Type to filter|ask|review|init|swarm)" "palette is open"
+
+    send_keys "$session" Escape
+    sleep 1
+
+    # After Escape, the palette should be gone — "Type to filter" is unique to the palette
+    assert_not_contains "$session" "Type to filter" "palette dismissed after Escape"
+
+    kill_session "$session"
+}
+
+test_T12() {
+    echo -e "${BOLD}T12: Leader key timeout${NC}"
+    local session
+    session=$(new_session "T12")
+    sleep 3
+
+    send_keys "$session" C-x
+    sleep 0.8  # Exceeds 500ms leader timeout
+    send_keys "$session" b  # Should NOT toggle sidebar since leader expired
+    sleep 1
+
+    # The sidebar should NOT have appeared because leader timed out
+    assert_not_contains "$session" "Sessions" "leader timeout: no sidebar"
+
+    kill_session "$session"
+}
+
+test_T13() {
+    echo -e "${BOLD}T13: Welcome screen content${NC}"
+    local session
+    session=$(new_session "T13")
+    sleep 3
+
+    # Welcome screen shows "Getting Started" heading and tips
+    assert_contains "$session" "Getting Started" "welcome screen has Getting Started heading"
+
+    kill_session "$session"
+}
+
+test_T14() {
+    echo -e "${BOLD}T14: Text input renders in prompt${NC}"
+    local session
+    session=$(new_session "T14")
+    sleep 3
+
+    # The startup guard discards rune input for 2 seconds; new_session sleeps 3s
+    send_keys "$session" "hello world test"
+    sleep 1
+
+    assert_contains "$session" "hello world test" "typed text appears in prompt"
+
+    kill_session "$session"
+}
+
+test_T15() {
+    echo -e "${BOLD}T15: Sidebar hides at narrow width${NC}"
+    local name="${SESSION_PREFIX}-T15"
+    WORK_DIR=$(mktemp -d)
+
+    # Create a narrow session (80 cols, below sidebarThreshold of 120)
+    tmux new-session -d -s "$name" -x 80 -y 40
+    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN" Enter
+    local session="$name"
+    sleep 3
+
+    # Try to open sidebar with leader+b
+    send_keys "$session" C-x
+    sleep 0.2
+    send_keys "$session" b
+    sleep 1
+
+    # Sidebar should NOT appear because width (80) < threshold (120)
+    assert_not_contains "$session" "Sessions" "sidebar hidden at narrow width"
+
+    kill_session "$session"
+}
+
+test_T16() {
+    echo -e "${BOLD}T16: Multiple Ctrl+C does not crash${NC}"
+    local session
+    session=$(new_session "T16")
+    sleep 3
+
+    send_keys "$session" "some text"
+    sleep 0.5
+    send_keys "$session" C-c
+    send_keys "$session" C-c
+    send_keys "$session" C-c
+    sleep 1
+
+    # Triple Ctrl+C may exit the TUI (first clears text, second on empty prompt exits).
+    # The key assertion: no panic or goroutine stack trace in the output.
+    TOTAL=$((TOTAL + 1))
+    local captured
+    captured=$(capture_pane "$session" 2>/dev/null || echo "")
+    if echo "$captured" | grep -qE "(panic|goroutine|fatal)"; then
+        echo -e "  ${RED}FAIL${NC}: TUI crashed with panic after Ctrl+C spam"
+        FAIL=$((FAIL + 1))
+    else
+        echo -e "  ${GREEN}PASS${NC}: no panic after multiple Ctrl+C"
+        PASS=$((PASS + 1))
+    fi
+
+    kill_session "$session"
+}
+
+test_T17() {
+    echo -e "${BOLD}T17: Resize with sidebar open${NC}"
+    local session
+    session=$(new_session "T17")
+    sleep 3
+
+    # Open sidebar
+    send_keys "$session" C-x
+    sleep 0.2
+    send_keys "$session" b
+    sleep 1
+
+    assert_regex "$session" "(Sessions|session)" "sidebar visible before resize"
+
+    # Resize window to below sidebarThreshold (120)
+    tmux resize-window -t "$session" -x 80 -y 40
+    sleep 1
+
+    # Sidebar should be hidden by calculateLayout since width < sidebarThreshold
+    assert_not_contains "$session" "Sessions" "sidebar hidden after resize below threshold"
+
+    kill_session "$session"
+}
+
+test_T18() {
+    echo -e "${BOLD}T18: Shift+Enter inserts newline (multiline prompt)${NC}"
+    local session
+    session=$(new_session "T18")
+    sleep 3
+
+    send_keys "$session" "line one"
+    sleep 0.3
+    # Send Shift+Enter escape sequence (kitty keyboard protocol / xterm modifyOtherKeys)
+    send_keys "$session" S-Enter
+    sleep 0.3
+    send_keys "$session" "line two"
+    sleep 1
+
+    # Both lines should appear in the prompt area
+    TOTAL=$((TOTAL + 1))
+    local captured
+    captured=$(capture_pane "$session")
+    if echo "$captured" | grep -qF "line one" && echo "$captured" | grep -qF "line two"; then
+        echo -e "  ${GREEN}PASS${NC}: multiline prompt shows both lines"
+        PASS=$((PASS + 1))
+    else
+        # Shift+Enter may not work reliably in all tmux versions
+        skip_test "Shift+Enter multiline" "tmux may not send S-Enter correctly"
+        # Undo the TOTAL increment from above since skip_test increments it too
+        TOTAL=$((TOTAL - 1))
+    fi
+
+    kill_session "$session"
+}
+
+test_T19() {
+    echo -e "${BOLD}T19: Leader+a opens agent list dialog${NC}"
+    local session
+    session=$(new_session "T19")
+    sleep 3
+
+    send_keys "$session" C-x
+    sleep 0.2
+    send_keys "$session" a
+    sleep 1
+
+    # Agent dialog renders "Select Agent" heading
+    assert_contains "$session" "Select Agent" "agent dialog visible after <leader>a"
+
+    kill_session "$session"
+}
+
+test_T20() {
+    echo -e "${BOLD}T20: Leader+o opens session list dialog${NC}"
+    local session
+    session=$(new_session "T20")
+    sleep 3
+
+    send_keys "$session" C-x
+    sleep 0.2
+    send_keys "$session" o
+    sleep 1
+
+    # Session dialog renders "Sessions" heading
+    assert_contains "$session" "Sessions" "session dialog visible after <leader>o"
+
+    kill_session "$session"
+}
+
+test_T21() {
+    echo -e "${BOLD}T21: Status bar shows hints text${NC}"
+    local session
+    session=$(new_session "T21")
+    sleep 3
+
+    assert_contains "$session" "agents" "hints line contains agents"
+    assert_contains "$session" "commands" "hints line contains commands"
+
+    kill_session "$session"
+}
+
+test_T22() {
+    echo -e "${BOLD}T22: Prompt metadata line renders${NC}"
+    local session
+    session=$(new_session "T22")
+    sleep 3
+
+    # The metadata line below the textarea shows: Agent · model  provider
+    # Agent name color may not survive tmux capture, but the · separator
+    # and model/provider info are always visible.
+    TOTAL=$((TOTAL + 1))
+    local captured
+    captured=$(capture_pane "$session")
+    if echo "$captured" | grep -qF "·"; then
+        echo -e "  ${GREEN}PASS${NC}: prompt metadata line renders with separator"
+        PASS=$((PASS + 1))
+    elif echo "$captured" | grep -qF "No provider selected"; then
+        echo -e "  ${GREEN}PASS${NC}: prompt metadata line renders (no provider)"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC}: prompt metadata line not visible"
+        echo "    Last 5 lines of pane:"
+        echo "$captured" | tail -5 | sed 's/^/      /'
+        FAIL=$((FAIL + 1))
+    fi
+
+    kill_session "$session"
+}
+
+test_T23() {
+    echo -e "${BOLD}T23: Escape is no-op when idle${NC}"
+    local session
+    session=$(new_session "T23")
+    sleep 3
+
+    local before
+    before=$(capture_pane "$session")
+
+    send_keys "$session" Escape
+    sleep 1
+
+    # TUI should still render normally — Getting Started should still be visible
+    assert_contains "$session" "Getting Started" "TUI intact after Escape when idle"
+
+    kill_session "$session"
+}
+
+test_T24() {
+    echo -e "${BOLD}T24: Prompt history (Up arrow)${NC}"
+    local session
+    session=$(new_session "T24")
+    sleep 3
+
+    # Type text and press Enter — without a connected model, submission may fail
+    # but prompt history should still record the entry
+    send_keys "$session" "alpha test phrase"
+    sleep 0.5
+    send_keys "$session" Enter
+    sleep 2
+
+    # Press Up to recall history
+    send_keys "$session" Up
+    sleep 1
+
+    TOTAL=$((TOTAL + 1))
+    local captured
+    captured=$(capture_pane "$session")
+    if echo "$captured" | grep -qF "alpha test phrase"; then
+        echo -e "  ${GREEN}PASS${NC}: Up arrow recalls prompt history"
+        PASS=$((PASS + 1))
+    else
+        skip_test "Up arrow history" "may require connected model for history"
+        TOTAL=$((TOTAL - 1))
+    fi
+
+    kill_session "$session"
+}
+
+test_T25() {
+    echo -e "${BOLD}T25: Palette type-to-filter${NC}"
+    local session
+    session=$(new_session "T25")
+    sleep 3
+
+    send_keys "$session" C-p
+    sleep 1
+
+    # Type "con" to filter palette items
+    send_keys "$session" "con"
+    sleep 1
+
+    # "connect" should appear, "theme" should be filtered out
+    assert_contains "$session" "connect" "palette shows connect after filtering"
+    assert_not_contains "$session" "theme" "palette hides theme after filtering"
+
+    kill_session "$session"
+}
+
+test_T26() {
+    echo -e "${BOLD}T26: Agent dialog Escape dismisses${NC}"
+    local session
+    session=$(new_session "T26")
+    sleep 3
+
+    # Open agent dialog
+    send_keys "$session" C-x
+    sleep 0.2
+    send_keys "$session" a
+    sleep 1
+
+    assert_contains "$session" "Select Agent" "agent dialog is open"
+
+    # Dismiss with Escape
+    send_keys "$session" Escape
+    sleep 1
+
+    assert_not_contains "$session" "Select Agent" "agent dialog dismissed after Escape"
+
+    kill_session "$session"
+}
+
+test_T33() {
+    echo -e "${BOLD}T33: Very small terminal (40x10) doesn't crash${NC}"
+    local name="${SESSION_PREFIX}-T33"
+    WORK_DIR=$(mktemp -d)
+
+    # Create a very small tmux session
+    tmux new-session -d -s "$name" -x 40 -y 10
+    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN" Enter
+    local session="$name"
+    sleep 3
+
+    # Verify TUI renders without crashing — any content means no crash
+    TOTAL=$((TOTAL + 1))
+    local captured
+    captured=$(capture_pane "$session" 2>/dev/null || echo "")
+    if echo "$captured" | grep -qE "(panic|goroutine|fatal)"; then
+        echo -e "  ${RED}FAIL${NC}: TUI crashed at 40x10"
+        FAIL=$((FAIL + 1))
+    elif [ -n "$captured" ]; then
+        echo -e "  ${GREEN}PASS${NC}: TUI renders at 40x10 without crash"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC}: no output captured at 40x10"
+        FAIL=$((FAIL + 1))
+    fi
+
+    kill_session "$session"
+}
+
+# ─── LLM-connected helpers ──────────────────────────────────────
+
+# new_session_with_model creates a tmux session running tinycode with
+# an Ollama model pre-selected via the -m flag.  Waits for the model
+# name to appear in the status bar before returning.
+new_session_with_model() {
+    local name="${SESSION_PREFIX}-${1}"
+    WORK_DIR=$(mktemp -d)
+
+    tmux new-session -d -s "$name" -x 120 -y 40
+    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN -m ollama/qwen3.5:9b" Enter
+
+    # Wait for startup guard (2s) + buffer
+    sleep 3
+
+    # Wait for model name to appear in status bar (provider discovery + auto-select)
+    if ! wait_for_text "$name" "qwen3.5" 30; then
+        echo "  WARNING: model connection may have timed out"
+    fi
+
+    echo "$name"
+}
+
+# wait_response_complete waits for the spinner to appear ("interrupt" hint)
+# and then disappear (response finished).  Returns 1 on timeout.
+wait_response_complete() {
+    local session="$1" timeout="${2:-120}"
+
+    # Wait for response to start (spinner hint appears)
+    wait_for_text "$session" "interrupt" 30 || return 1
+
+    # Wait for response to finish (spinner hint disappears)
+    local deadline=$((SECONDS + timeout))
+    while [ $SECONDS -lt $deadline ]; do
+        if ! capture_pane "$session" | grep -qF "interrupt"; then
+            return 0
+        fi
+        sleep 2
+    done
+    return 1
+}
+
+# ─── LLM-connected Test Cases ──────────────────────────────────
+
+test_T28() {
+    echo -e "${BOLD}T28: Chat renders LLM response with agent footer${NC}"
+    local session
+    session=$(new_session_with_model "T28")
+
+    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
+        skip_test "Chat LLM response" "model not connected (Ollama may not be running)"
+        kill_session "$session"
+        return
+    fi
+
+    # Welcome screen should be visible before submitting
+    assert_contains "$session" "Getting Started" "welcome screen visible before prompt"
+
+    # Submit a prompt and wait for the full response
+    send_text "$session" "What is the capital of France? Answer in one sentence."
+
+    if ! wait_response_complete "$session" 90; then
+        skip_test "Chat LLM response" "response did not complete within timeout"
+        kill_session "$session"
+        return
+    fi
+    sleep 2
+
+    # The welcome screen should be gone (replaced by chat messages)
+    assert_not_contains "$session" "Getting Started" "welcome screen replaced by chat"
+
+    # The agent footer should be visible indicating the message was received
+    # and fully rendered.  The footer format is: "Build" with the model ID.
+    assert_regex "$session" "Build.*qwen3" "agent footer with model visible"
+
+    kill_session "$session"
+}
+
+test_T29() {
+    echo -e "${BOLD}T29: Thought block toggle (T key)${NC}"
+    local session
+    session=$(new_session_with_model "T29")
+
+    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
+        skip_test "Thought toggle" "model not connected (Ollama may not be running)"
+        kill_session "$session"
+        return
+    fi
+
+    # Submit a prompt that triggers reasoning/thinking
+    send_text "$session" "Think step by step: what is 347 times 28?"
+
+    # Wait for the response to complete
+    if ! wait_response_complete "$session" 120; then
+        skip_test "Thought toggle" "response did not complete within timeout"
+        kill_session "$session"
+        return
+    fi
+    sleep 2
+
+    # Check if thought blocks are present in the rendered output
+    local captured
+    captured=$(capture_pane "$session")
+
+    if ! echo "$captured" | grep -qF "Thought"; then
+        skip_test "Thought toggle" "model did not produce reasoning blocks"
+        kill_session "$session"
+        return
+    fi
+
+    # Press T to toggle all thought blocks
+    send_keys "$session" T
+    sleep 1
+
+    local after_toggle
+    after_toggle=$(capture_pane "$session")
+
+    TOTAL=$((TOTAL + 1))
+    if [ "$captured" != "$after_toggle" ]; then
+        echo -e "  ${GREEN}PASS${NC}: T key toggled thought blocks"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC}: T key did not change thought block state"
+        FAIL=$((FAIL + 1))
+    fi
+
+    kill_session "$session"
+}
+
+test_T30() {
+    echo -e "${BOLD}T30: Permission prompt overlay${NC}"
+    local session
+    session=$(new_session_with_model "T30")
+
+    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
+        skip_test "Permission prompt" "model not connected (Ollama may not be running)"
+        kill_session "$session"
+        return
+    fi
+
+    # Submit a prompt that should trigger a shell tool call.
+    # The default permission evaluation returns "ask" for the shell permission,
+    # so the permission prompt should appear.
+    send_text "$session" "Run the shell command: echo PERM-TEST-OK"
+
+    # Wait for the permission prompt to appear (the TUI replaces the full
+    # view with the permission overlay showing "Permission required")
+    if ! wait_for_text "$session" "Permission" 90; then
+        skip_test "Permission prompt" "permission prompt did not appear (model may not have called shell tool)"
+        kill_session "$session"
+        return
+    fi
+
+    assert_regex "$session" "Allow once|Allow always" "permission buttons visible"
+
+    # Press Enter to approve with the default selection ("Allow once")
+    send_keys "$session" Enter
+    sleep 3
+
+    # After approval, the permission overlay should be dismissed and the
+    # normal TUI should be visible (status bar with model name or chat content)
+    assert_not_contains "$session" "Permission required" "permission prompt dismissed after approval"
 
     kill_session "$session"
 }

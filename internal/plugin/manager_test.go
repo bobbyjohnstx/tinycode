@@ -192,7 +192,7 @@ func newTestManager(behavior string) *Manager {
 func TestLoadPlugin_InitializeHandshake(t *testing.T) {
 	mgr := newTestManager("")
 
-	info, err := mgr.Load("test-plugin")
+	info, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestLoadPlugin_InitializeHandshake(t *testing.T) {
 func TestLoadPlugin_NoHooks(t *testing.T) {
 	mgr := newTestManager("no_hooks")
 
-	info, err := mgr.Load("test-plugin")
+	info, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestLoadPlugin_NoHooks(t *testing.T) {
 func TestShutdown_SendsDispose(t *testing.T) {
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestShutdown_SendsDispose(t *testing.T) {
 func TestUnload_StopsProcess(t *testing.T) {
 	mgr := newTestManager("")
 
-	info, err := mgr.Load("test-plugin")
+	info, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -269,7 +269,7 @@ func TestUnload_StopsProcess(t *testing.T) {
 func TestBroadcastHook_UnknownMethod(t *testing.T) {
 	mgr := newTestManager("")
 
-	info, err := mgr.Load("test-plugin")
+	info, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestBroadcastHook_UnknownMethod(t *testing.T) {
 func TestBroadcastHook_DeadProcess(t *testing.T) {
 	mgr := newTestManager("")
 
-	info, err := mgr.Load("test-plugin")
+	info, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestBroadcastHook_DeadProcess(t *testing.T) {
 func TestPluginsWithHook(t *testing.T) {
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestShutdown_DisposeViaHookInvoke(t *testing.T) {
 	// if it were sent as a raw method, the helper would return "method not found".
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestShutdown_DisposeViaHookInvoke(t *testing.T) {
 func TestLoadPlugin_StoresTools(t *testing.T) {
 	mgr := newTestManager("with_tools")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestLoadPlugin_StoresTools(t *testing.T) {
 func TestTools_Empty(t *testing.T) {
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

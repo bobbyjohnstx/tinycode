@@ -347,7 +347,7 @@ func loadConfigPlugins(mgr *plugin.Manager, cfg *config.Info, dir string) {
 		return
 	}
 	for _, spec := range specs {
-		if _, err := mgr.Load(spec.Name); err != nil {
+		if _, err := mgr.Load(spec.Name, spec.Options); err != nil {
 			slog.Warn("failed to load plugin", "name", spec.Name, "error", err)
 		}
 	}

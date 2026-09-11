@@ -10,17 +10,17 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
 )
 
-const defaultRHDPAPIURL = "https://demo.redhat.com/api/v1"
+const defaultRHDPAPIURL = "https://catalog.demo.redhat.com/api/v1"
 
 type options struct {
-	ConsoleOfflineToken string
-	RHDPApiURL          string
+	SessionCookie string
+	RHDPApiURL    string
 }
 
 func parseOptions(raw map[string]any) options {
 	var opts options
-	if v, ok := raw["consoleOfflineToken"].(string); ok {
-		opts.ConsoleOfflineToken = v
+	if v, ok := raw["sessionCookie"].(string); ok {
+		opts.SessionCookie = v
 	}
 	if v, ok := raw["rhdpApiUrl"].(string); ok {
 		opts.RHDPApiURL = v
@@ -67,11 +67,13 @@ type rhdpClient struct {
 	api *redhat.APIClient
 }
 
-func newRHDPClient(apiURL string, authClient *redhat.ConsoleAuthClient) *rhdpClient {
+func newRHDPClient(apiURL, sessionCookie string) *rhdpClient {
 	return &rhdpClient{
 		api: redhat.NewAPIClient(redhat.APIClientConfig{
 			BaseURL: apiURL,
-			TokenFn: authClient.GetAccessToken,
+			Headers: map[string]string{
+				"Cookie": sessionCookie,
+			},
 		}),
 	}
 }
@@ -190,7 +192,7 @@ func formatActiveEnvironment(env activeEnvironment) string {
 	return strings.Join(parts, " | ")
 }
 
-const notConfiguredMsg = "RHDP Provisioner not configured. Set consoleOfflineToken in plugin options."
+const notConfiguredMsg = "RHDP Provisioner not configured. Set sessionCookie in plugin options (extract from browser session at demo.redhat.com — see docs/plugin-credentials.md)."
 
 func stubTool(name, description string) plugin.ToolDef {
 	return plugin.ToolDef{
@@ -323,15 +325,12 @@ func buildTools(client *rhdpClient) []plugin.ToolDef {
 
 func newPlugin(opts options) plugin.Plugin {
 	var client *rhdpClient
-	if opts.ConsoleOfflineToken != "" {
+	if opts.SessionCookie != "" {
 		apiURL := opts.RHDPApiURL
 		if apiURL == "" {
 			apiURL = defaultRHDPAPIURL
 		}
-		authClient := redhat.NewConsoleAuthClient(redhat.ConsoleAuthConfig{
-			OfflineToken: opts.ConsoleOfflineToken,
-		})
-		client = newRHDPClient(apiURL, authClient)
+		client = newRHDPClient(apiURL, opts.SessionCookie)
 	}
 
 	return plugin.Plugin{
@@ -341,6 +340,8 @@ func newPlugin(opts options) plugin.Plugin {
 }
 
 func main() {
-	opts := options{}
-	plugin.Run(newPlugin(opts))
+	plugin.RunWithOptions(func(params plugin.InitializeParams) (plugin.Plugin, error) {
+		opts := parseOptions(params.Options)
+		return newPlugin(opts), nil
+	})
 }

@@ -40,7 +40,7 @@ func (s *Server) handlePluginLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := mgr.Load(body.Name); err != nil {
+	if _, err := mgr.Load(body.Name, body.Options); err != nil {
 		if errors.Is(err, plugin.ErrPluginNotFound) {
 			respondError(w, http.StatusNotFound, err.Error())
 		} else {

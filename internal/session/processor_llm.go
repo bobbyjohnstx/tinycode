@@ -104,6 +104,12 @@ func (p *Processor) buildRequest() llm.Request {
 
 		if len(textParts) > 0 {
 			llmMsg.Content = strings.Join(textParts, "\n")
+		} else {
+			llmMsg.Content = ""
+		}
+
+		if llmMsg.Content == "" && len(llmMsg.ToolCalls) == 0 {
+			continue
 		}
 
 		llmMessages = append(llmMessages, llmMsg)

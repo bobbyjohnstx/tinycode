@@ -387,7 +387,7 @@ func TestE2E_PluginLifecycleHooks(t *testing.T) {
 	h := newTestHarness(t, nil)
 
 	pluginMgr := h.server.deps.PluginManager
-	_, err := pluginMgr.Load("test-plugin")
+	_, err := pluginMgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("load plugin: %v", err)
 	}

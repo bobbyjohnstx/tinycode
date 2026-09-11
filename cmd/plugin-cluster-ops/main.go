@@ -157,10 +157,8 @@ func buildHooks(opts options) plugin.HookHandlers {
 }
 
 func main() {
-	// In a real plugin, options come from the initialize handshake.
-	// The SDK handles this internally — the plugin registers tools/hooks
-	// with default options, and the server passes options during initialize.
-	// For now, we build with empty options; the server populates them.
-	opts := options{}
-	plugin.Run(newPlugin(opts))
+	plugin.RunWithOptions(func(params plugin.InitializeParams) (plugin.Plugin, error) {
+		opts := parseOptions(params.Options)
+		return newPlugin(opts), nil
+	})
 }

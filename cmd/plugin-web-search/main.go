@@ -25,8 +25,8 @@ type searchResult struct {
 }
 
 var (
-	resultAPattern   = regexp.MustCompile(`<a\s+class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)</a>`)
-	snippetPattern   = regexp.MustCompile(`<a\s+class="result__snippet"[^>]*>([\s\S]*?)</a>`)
+	resultAPattern   = regexp.MustCompile(`<a\s[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)</a>`)
+	snippetPattern   = regexp.MustCompile(`<a\s[^>]*class="result__snippet"[^>]*>([\s\S]*?)</a>`)
 	htmlTagPattern   = regexp.MustCompile(`<[^>]*>`)
 	htmlEntityDecode = strings.NewReplacer(
 		"&amp;", "&",
@@ -78,13 +78,13 @@ func formatResults(results []searchResult) string {
 
 // doSearch performs a web search via DuckDuckGo HTML endpoint.
 func doSearch(ctx context.Context, client *http.Client, query string, maxResults int) (string, error) {
-	params := url.Values{"q": {query}}
-	reqURL := ddgHTMLURL + "?" + params.Encode()
+	form := url.Values{"q": {query}}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ddgHTMLURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", fmt.Errorf("creating request: %w", err)
 	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "text/html")
 	req.Header.Set("User-Agent", userAgent)
 

@@ -59,7 +59,7 @@ func TestDispatchShellEnv_EmptyManager(t *testing.T) {
 
 func TestManagerLoad_EmptyName(t *testing.T) {
 	mgr := NewManagerWithRegistry(nil)
-	_, err := mgr.Load("")
+	_, err := mgr.Load("", nil)
 	if err == nil {
 		t.Fatal("expected error for empty name")
 	}
@@ -67,7 +67,7 @@ func TestManagerLoad_EmptyName(t *testing.T) {
 
 func TestManagerLoad_NotInRegistry(t *testing.T) {
 	mgr := NewManagerWithRegistry(nil)
-	_, err := mgr.Load("nonexistent")
+	_, err := mgr.Load("nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error for unknown plugin")
 	}
@@ -78,7 +78,7 @@ func TestManagerLoad_NotInRegistry(t *testing.T) {
 
 func TestManagerUnload(t *testing.T) {
 	mgr := newTestManager("")
-	info, err := mgr.Load("test-plugin")
+	info, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestManagerRegistry_WithEntries(t *testing.T) {
 func TestDispatchSessionStart_WithPlugin(t *testing.T) {
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestDispatchSessionStart_WithPlugin(t *testing.T) {
 func TestDispatchSessionEnd_WithPlugin(t *testing.T) {
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestDispatchSessionEnd_WithPlugin(t *testing.T) {
 func TestDispatchSessionStart_NoMatchingHook(t *testing.T) {
 	mgr := newTestManager("no_hooks")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestDispatchSessionStart_NoMatchingHook(t *testing.T) {
 func TestDispatchPermissionAsk_Allowed(t *testing.T) {
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestDispatchPermissionAsk_Allowed(t *testing.T) {
 func TestDispatchPermissionAsk_Denied(t *testing.T) {
 	mgr := newTestManager("deny_permission")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestDispatchPermissionAsk_Denied(t *testing.T) {
 func TestDispatchPermissionAsk_NoHook(t *testing.T) {
 	mgr := newTestManager("session_hooks_only")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestDispatchPermissionAsk_NoHook(t *testing.T) {
 func TestDispatchShellEnv_MergesEnv(t *testing.T) {
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestDispatchShellEnv_MergesEnv(t *testing.T) {
 func TestDispatchToolExecBefore_WithPlugin(t *testing.T) {
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestDispatchToolExecBefore_WithPlugin(t *testing.T) {
 func TestDispatchToolExecAfter_WithPlugin(t *testing.T) {
 	mgr := newTestManager("")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestDispatchToolExecAfter_NilManager(t *testing.T) {
 func TestDispatchToolExecBefore_NoHook(t *testing.T) {
 	mgr := newTestManager("session_hooks_only")
 
-	_, err := mgr.Load("test-plugin")
+	_, err := mgr.Load("test-plugin", nil)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

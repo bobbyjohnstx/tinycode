@@ -42,12 +42,16 @@ type costContext struct {
 
 type options struct {
 	ConsoleOfflineToken string
+	ClientID            string
 }
 
 func parseOptions(raw map[string]any) options {
 	var opts options
 	if v, ok := raw["consoleOfflineToken"].(string); ok {
 		opts.ConsoleOfflineToken = v
+	}
+	if v, ok := raw["clientId"].(string); ok {
+		opts.ClientID = v
 	}
 	return opts
 }
@@ -161,6 +165,7 @@ func queryClusterContext(ctx context.Context, oc *redhat.OcClient) *clusterConte
 			} `json:"items"`
 		}
 		if json.Unmarshal([]byte(csvOut), &csvData) == nil {
+			seen := make(map[string]bool)
 			for _, item := range csvData.Items {
 				name := item.Spec.DisplayName
 				if name == "" {
@@ -169,7 +174,8 @@ func queryClusterContext(ctx context.Context, oc *redhat.OcClient) *clusterConte
 						name = name[:idx]
 					}
 				}
-				if name != "" {
+				if name != "" && !seen[name] {
+					seen[name] = true
 					operators = append(operators, name)
 				}
 			}
@@ -286,7 +292,7 @@ func newPlugin(opts options) plugin.Plugin {
 
 				if opts.ConsoleOfflineToken != "" && cc != nil {
 					apiClient := redhat.NewConsoleAPIClient(
-						redhat.ConsoleAuthConfig{OfflineToken: opts.ConsoleOfflineToken},
+						redhat.ConsoleAuthConfig{OfflineToken: opts.ConsoleOfflineToken, ClientID: opts.ClientID},
 						"/api/cost-management/v1",
 						nil,
 					)
@@ -319,6 +325,8 @@ func newPlugin(opts options) plugin.Plugin {
 }
 
 func main() {
-	opts := options{}
-	plugin.Run(newPlugin(opts))
+	plugin.RunWithOptions(func(params plugin.InitializeParams) (plugin.Plugin, error) {
+		opts := parseOptions(params.Options)
+		return newPlugin(opts), nil
+	})
 }

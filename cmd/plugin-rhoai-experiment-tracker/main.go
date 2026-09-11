@@ -300,6 +300,8 @@ func newPlugin(opts options) plugin.Plugin {
 }
 
 func main() {
-	opts := options{}
-	plugin.Run(newPlugin(opts))
+	plugin.RunWithOptions(func(params plugin.InitializeParams) (plugin.Plugin, error) {
+		opts := parseOptions(params.Options)
+		return newPlugin(opts), nil
+	})
 }
