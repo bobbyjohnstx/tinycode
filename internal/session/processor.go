@@ -35,6 +35,7 @@ type ProcessorConfig struct {
 	Temperature      *float64
 	TopP             *float64
 	MaxTokens        *int
+	MaxIterations    int
 	Perms            *permission.Service
 	Ruleset          permission.Ruleset
 }
@@ -86,6 +87,13 @@ func (p *Processor) isAborted() bool {
 	return p.aborted
 }
 
+func (p *Processor) maxIter() int {
+	if p.config.MaxIterations > 0 {
+		return p.config.MaxIterations
+	}
+	return maxIterations
+}
+
 type ProcessResult struct {
 	Messages []Message
 	Usage    TokenUsage
@@ -109,11 +117,11 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 
 	for {
 		iteration++
-		if iteration > maxIterations {
+		if iteration > p.maxIter() {
 			return &ProcessResult{
 				Messages: p.Messages(),
 				Usage:    totalUsage,
-				Error:    fmt.Errorf("processor exceeded %d iterations", maxIterations),
+				Error:    fmt.Errorf("processor exceeded %d iterations", p.maxIter()),
 			}
 		}
 		slog.Info("processor loop iteration", "sessionID", p.config.SessionID, "iteration", iteration, "messageCount", len(p.Messages()))
