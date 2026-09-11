@@ -36,6 +36,7 @@ func runRun() {
 	skipPermsFlag := fs.Bool("dangerously-skip-permissions", false, "auto-approve all tool permissions")
 	interactiveFlag := fs.Bool("i", false, "show permission prompts (default: auto-deny)")
 	fs.BoolVar(interactiveFlag, "interactive", false, "show permission prompts (default: auto-deny)")
+	permsFlag := fs.String("permissions", "default", "permission handling: default, json")
 	maxIterFlag := fs.Int("max-iterations", 0, "maximum processor iterations (0 = default 200)")
 	multiTurnFlag := fs.Bool("multi-turn", false, "multi-turn mode: loop on stdin after initial prompt")
 	_ = fs.Parse(os.Args[2:])
@@ -70,7 +71,7 @@ func runRun() {
 		permSvc.SetBaseRules(permission.FromConfig(cfg.Permission.Allow, cfg.Permission.Deny))
 	}
 
-	setupRunPermissions(b, permSvc, *skipPermsFlag, *interactiveFlag)
+	permReplyCh := setupRunPermissions(b, permSvc, *skipPermsFlag, *interactiveFlag, *permsFlag)
 
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
@@ -122,7 +123,7 @@ func runRun() {
 	// In multi-turn mode with no initial prompt from args, read the first line.
 	if *multiTurnFlag && prompt == "" {
 		scanner := bufio.NewScanner(os.Stdin)
-		p, ok := readNextPrompt(scanner, isJSON)
+		p, ok := readNextPrompt(scanner, isJSON, permReplyCh)
 		if !ok || p == "" {
 			return
 		}
@@ -154,7 +155,7 @@ func runRun() {
 			fmt.Println()
 		}
 
-		prompt, ok := readNextPrompt(scanner, isJSON)
+		prompt, ok := readNextPrompt(scanner, isJSON, permReplyCh)
 		if !ok {
 			break
 		}

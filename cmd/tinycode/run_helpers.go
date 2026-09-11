@@ -66,9 +66,46 @@ func collectRunPrompt(positional []string, multiTurn bool) string {
 }
 
 // setupRunPermissions configures the permission behavior for headless mode.
-func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, interactive bool) {
+// When permsMode is "json", permission requests are emitted as NDJSON on stdout
+// and replies are expected via the returned channel. Returns a channel for
+// routing permission replies (nil when not in JSON mode).
+func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, interactive bool, permsMode string) chan<- permission.ReplyInput {
 	permSub := b.Subscribe("permission.asked")
+	if permsMode == "json" {
+		permReplyCh := make(chan permission.ReplyInput, 16)
+		go handleJSONPermissionEvents(permSub, permSvc, permReplyCh)
+		return permReplyCh
+	}
 	go handlePermissionEvents(permSub, permSvc, skipPerms, interactive)
+	return nil
+}
+
+// handleJSONPermissionEvents emits permission requests as NDJSON on stdout and
+// reads replies from the permReplyCh channel.
+func handleJSONPermissionEvents(permSub *bus.Subscription, permSvc *permission.Service, permReplyCh <-chan permission.ReplyInput) {
+	pending := make(map[string]bool)
+	go func() {
+		for reply := range permReplyCh {
+			if pending[reply.RequestID] {
+				delete(pending, reply.RequestID)
+				permSvc.RespondToAsk(reply)
+			}
+		}
+	}()
+	for evt := range permSub.C {
+		req, ok := evt.Properties.(permission.Request)
+		if !ok {
+			continue
+		}
+		pending[req.ID] = true
+		line, _ := json.Marshal(map[string]any{
+			"type":       "permission",
+			"id":         req.ID,
+			"permission": req.Permission,
+			"patterns":   req.Patterns,
+		})
+		fmt.Println(string(line))
+	}
 }
 
 // handlePermissionEvents processes permission requests from the event bus.
@@ -226,6 +263,11 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 	deltaSub := b.Subscribe("session.text.delta")
 	toolBeginSub := b.Subscribe("session.tool.begin")
 	toolEndSub := b.Subscribe("session.tool.end")
+	msgSub := b.Subscribe("session.message")
+	stepStartSub := b.Subscribe("session.step.start")
+	stepFinishSub := b.Subscribe("session.step.finish")
+	warnSub := b.Subscribe("session.warning")
+	compactSub := b.Subscribe("session.compacted")
 
 	go func() {
 		for evt := range deltaSub.C {
@@ -275,12 +317,110 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 			}
 		}
 	}()
+	go func() {
+		for evt := range msgSub.C {
+			if !isJSON {
+				continue
+			}
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			msg, ok := props["message"].(session.Message)
+			if !ok {
+				continue
+			}
+			for _, part := range msg.Parts {
+				if part.Type == session.PartReasoning {
+					line, _ := json.Marshal(map[string]any{
+						"type":      "reasoning",
+						"sessionID": msg.SessionID,
+						"text":      part.Text,
+					})
+					fmt.Println(string(line))
+				}
+			}
+		}
+	}()
+	go func() {
+		for evt := range stepStartSub.C {
+			if !isJSON {
+				continue
+			}
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			line, _ := json.Marshal(map[string]any{
+				"type":      "step_start",
+				"stepID":    props["stepID"],
+				"iteration": props["iteration"],
+				"model":     props["model"],
+			})
+			fmt.Println(string(line))
+		}
+	}()
+	go func() {
+		for evt := range stepFinishSub.C {
+			if !isJSON {
+				continue
+			}
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			line, _ := json.Marshal(map[string]any{
+				"type":      "step_finish",
+				"stepID":    props["stepID"],
+				"iteration": props["iteration"],
+				"usage":     props["usage"],
+				"error":     props["error"],
+			})
+			fmt.Println(string(line))
+		}
+	}()
+	go func() {
+		for evt := range warnSub.C {
+			if !isJSON {
+				continue
+			}
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			line, _ := json.Marshal(map[string]any{
+				"type":    "warning",
+				"message": props["message"],
+			})
+			fmt.Println(string(line))
+		}
+	}()
+	go func() {
+		for evt := range compactSub.C {
+			if !isJSON {
+				continue
+			}
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			line, _ := json.Marshal(map[string]any{
+				"type":          "compacted",
+				"compactionNum": props["compactionNum"],
+				"preMessages":   props["preMessages"],
+				"postMessages":  props["postMessages"],
+			})
+			fmt.Println(string(line))
+		}
+	}()
 }
 
 // readNextPrompt reads one prompt from the scanner. In JSON mode it expects
 // {"type":"prompt","text":"..."} and returns false on {"type":"exit"} or EOF.
+// When permReplyCh is non-nil, JSON messages with type "permission_reply" are
+// parsed and sent to the channel for the permission handler goroutine.
 // In text mode it returns the trimmed line and false on EOF.
-func readNextPrompt(scanner *bufio.Scanner, isJSON bool) (string, bool) {
+func readNextPrompt(scanner *bufio.Scanner, isJSON bool, permReplyCh chan<- permission.ReplyInput) (string, bool) {
 	if !scanner.Scan() {
 		return "", false
 	}
@@ -291,8 +431,10 @@ func readNextPrompt(scanner *bufio.Scanner, isJSON bool) (string, bool) {
 	}
 
 	var msg struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
+		Type      string `json:"type"`
+		Text      string `json:"text"`
+		ID        string `json:"id"`
+		Reply     string `json:"reply"`
 	}
 	if err := json.Unmarshal([]byte(line), &msg); err != nil {
 		return "", true
@@ -303,8 +445,15 @@ func readNextPrompt(scanner *bufio.Scanner, isJSON bool) (string, bool) {
 		return msg.Text, true
 	case "exit":
 		return "", false
+	case "permission_reply":
+		if permReplyCh != nil {
+			permReplyCh <- permission.ReplyInput{
+				RequestID: msg.ID,
+				Reply:     permission.Reply(msg.Reply),
+			}
+		}
+		return "", true
 	default:
-		// Ignore unknown types (e.g. permission_reply for future #148)
 		return "", true
 	}
 }
