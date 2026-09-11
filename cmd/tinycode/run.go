@@ -32,6 +32,7 @@ func runRun() {
 	skipPermsFlag := fs.Bool("dangerously-skip-permissions", false, "auto-approve all tool permissions")
 	interactiveFlag := fs.Bool("i", false, "show permission prompts (default: auto-deny)")
 	fs.BoolVar(interactiveFlag, "interactive", false, "show permission prompts (default: auto-deny)")
+	maxIterFlag := fs.Int("max-iterations", 0, "maximum processor iterations (0 = default 200)")
 	_ = fs.Parse(os.Args[2:])
 
 	prompt := collectRunPrompt(fs.Args())
@@ -96,12 +97,13 @@ func runRun() {
 
 	compactionCfg := session.DefaultCompactionConfig()
 	proc := session.NewProcessor(session.ProcessorConfig{
-		SessionID:    sessionID,
-		Agent:        agentName,
-		Model:        model,
-		SystemPrompt: systemPrompt,
-		Compaction:   compactionCfg,
-		AgentPerms:   agentPerms,
+		SessionID:     sessionID,
+		Agent:         agentName,
+		Model:         model,
+		SystemPrompt:  systemPrompt,
+		Compaction:    compactionCfg,
+		AgentPerms:    agentPerms,
+		MaxIterations: *maxIterFlag,
 	}, client, toolReg, b)
 	proc.SetMessages(existingMsgs)
 

@@ -640,6 +640,67 @@ func TestStatusFromError_NegativeNonMatches(t *testing.T) {
 
 // --- Issue #95: buildRequest preserves multiple text parts ---
 
+// --- Issue #149: MaxIterations budget ---
+
+func TestMaxIter_DefaultWhenZero(t *testing.T) {
+	p := &Processor{
+		config: ProcessorConfig{MaxIterations: 0},
+	}
+	if p.maxIter() != 200 {
+		t.Errorf("expected default 200, got %d", p.maxIter())
+	}
+}
+
+func TestMaxIter_CustomValue(t *testing.T) {
+	p := &Processor{
+		config: ProcessorConfig{MaxIterations: 5},
+	}
+	if p.maxIter() != 5 {
+		t.Errorf("expected 5, got %d", p.maxIter())
+	}
+}
+
+func TestProcessor_MaxIterationsExceeded(t *testing.T) {
+	// Mock client that always returns tool calls, forcing iteration.
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventToolCallBegin, ToolCallID: "call_1", ToolName: "read"},
+				{Type: llm.EventToolCallEnd, ToolCallID: "call_1", ToolName: "read", ToolCallArgs: `{"path":"a.go"}`},
+				{Type: llm.EventFinish, FinishReason: "tool_calls"},
+			}},
+			{events: []llm.Event{
+				{Type: llm.EventToolCallBegin, ToolCallID: "call_2", ToolName: "read"},
+				{Type: llm.EventToolCallEnd, ToolCallID: "call_2", ToolName: "read", ToolCallArgs: `{"path":"b.go"}`},
+				{Type: llm.EventFinish, FinishReason: "tool_calls"},
+			}},
+		},
+	}
+
+	tools := &mockToolExecutor{
+		results: map[string]string{"read": "file contents"},
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_maxiter",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+		MaxIterations:   1,
+	}, client, tools, b)
+
+	result := p.Process(context.Background(), "read file")
+	if result.Error == nil {
+		t.Fatal("expected error for exceeding max iterations")
+	}
+	if result.Error.Error() != "processor exceeded 1 iterations" {
+		t.Errorf("unexpected error message: %v", result.Error)
+	}
+}
+
 func TestBuildRequest_MultipleTextParts(t *testing.T) {
 	p := &Processor{
 		config: ProcessorConfig{
