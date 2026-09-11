@@ -771,3 +771,96 @@ func TestFromConfig_AllowDeny(t *testing.T) {
 	}
 }
 
+func TestService_SetBaseRules_AllowsWithoutBlocking(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	svc.SetBaseRules(Ruleset{
+		{Permission: "bash", Pattern: "*", Action: ActionAllow},
+	})
+
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+		Metadata:   map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("expected nil (allowed by base rules), got %v", err)
+	}
+}
+
+func TestService_SetBaseRules_DeniesWithError(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	svc.SetBaseRules(Ruleset{
+		{Permission: "bash", Pattern: "*", Action: ActionDeny},
+	})
+
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+		Metadata:   map[string]any{},
+	})
+	var de *DeniedError
+	if !errors.As(err, &de) {
+		t.Fatalf("expected DeniedError from base rules deny, got %v", err)
+	}
+}
+
+func TestService_BaseRulesOverriddenByAgentRules(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	// Base rules deny bash
+	svc.SetBaseRules(Ruleset{
+		{Permission: "bash", Pattern: "*", Action: ActionDeny},
+	})
+
+	// Agent rules (via AskInput.Ruleset) allow bash — should override base
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+		Metadata:   map[string]any{},
+		Ruleset:    Ruleset{{Permission: "bash", Pattern: "*", Action: ActionAllow}},
+	})
+	if err != nil {
+		t.Fatalf("expected nil (agent rules override base deny), got %v", err)
+	}
+}
+
+func TestService_BaseRulesOverriddenByAlwaysApproved(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	// Base rules deny bash
+	svc.SetBaseRules(Ruleset{
+		{Permission: "bash", Pattern: "*", Action: ActionDeny},
+	})
+
+	// Simulate a prior "always" approval by loading into the store
+	store := newMockRuleStore()
+	store.saved["proj_test"] = Ruleset{
+		{Permission: "bash", Pattern: "*", Action: ActionAllow},
+	}
+	svc.SetStore(store, "proj_test")
+
+	// "Always" approved rules should override base deny
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+		Metadata:   map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("expected nil (always-approved overrides base deny), got %v", err)
+	}
+}
+

@@ -94,6 +94,7 @@ type Service struct {
 	mu        sync.Mutex
 	bus       *bus.Bus
 	pending   map[string]*pendingEntry
+	baseRules Ruleset
 	approved  Ruleset
 	closed    bool
 	store     RuleStore
@@ -121,6 +122,14 @@ func (s *Service) SetStore(store RuleStore, projectID string) {
 	}
 }
 
+// SetBaseRules configures config-level permission rules that sit between
+// DefaultRules and agent/always-approved rules in the evaluation chain.
+func (s *Service) SetBaseRules(rules Ruleset) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.baseRules = rules
+}
+
 // Ask evaluates rules and either allows, denies, or blocks waiting for user reply.
 // Returns nil if allowed, an error if denied or rejected.
 // The ctx controls cancellation of the blocking wait.
@@ -134,7 +143,7 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 
 	needsAsk := false
 	for _, pattern := range input.Patterns {
-		rule := Evaluate(input.Permission, pattern, input.Ruleset, s.approved)
+		rule := Evaluate(input.Permission, pattern, s.baseRules, input.Ruleset, s.approved)
 		if rule.Action == ActionDeny {
 			matching := filterMatching(input.Permission, input.Ruleset)
 			s.mu.Unlock()

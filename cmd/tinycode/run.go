@@ -10,6 +10,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
 	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
+	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
@@ -59,6 +60,10 @@ func runRun() {
 	toolReg, permSvc, toolCtx := initTooling(b, dir)
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()
+
+	if cfg.Permission != nil {
+		permSvc.SetBaseRules(permission.FromConfig(cfg.Permission.Allow, cfg.Permission.Deny))
+	}
 
 	setupRunPermissions(b, permSvc, *skipPermsFlag, *interactiveFlag)
 
