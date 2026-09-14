@@ -406,6 +406,12 @@ test_ocp_obs_metrics() {
         "obs_alerts: list firing alerts" \
         "alert"
 
+    assert_tool_contains_opts ocp-obs-metrics "obs_health" \
+        '{}' \
+        "$opts" \
+        "obs_health: services reachable" \
+        "OK"
+
     echo ""
 }
 
@@ -727,6 +733,11 @@ test_rhoai_model_serving() {
         "rhoai_sandbox_status: unconfigured returns message" \
         "not configured"
 
+    assert_tool_contains rhoai-model-serving "rhoai_health" \
+        '{}' \
+        "rhoai_health: cluster API reachable" \
+        "OK"
+
     echo ""
 }
 
@@ -755,6 +766,11 @@ test_rhoai_eval_trustyai() {
         '{}' \
         "rhoai_workbench_list: list workbenches (oc)" \
         "workbench"
+
+    assert_tool_contains rhoai-eval-trustyai "rhoai_eval_health" \
+        '{}' \
+        "rhoai_eval_health: health check reports status" \
+        "Service Health"
 
     echo ""
 }

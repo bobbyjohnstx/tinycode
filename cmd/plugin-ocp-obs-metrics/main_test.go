@@ -23,7 +23,7 @@ func TestPluginID(t *testing.T) {
 func TestToolDefinitions_Unconfigured(t *testing.T) {
 	p := newPlugin(options{})
 	if len(p.Tools) != 3 {
-		t.Fatalf("got %d tools, want 3", len(p.Tools))
+		t.Fatalf("got %d tools, want 3 (unconfigured has no health tool)", len(p.Tools))
 	}
 	wantNames := []string{"obs_promql", "obs_alerts", "obs_alert_silence"}
 	for i, want := range wantNames {
@@ -394,5 +394,71 @@ func TestMock_Alerts_NoAlerts(t *testing.T) {
 	}
 	if !strings.Contains(result, "No active alerts") {
 		t.Errorf("expected 'No active alerts', got:\n%s", result)
+	}
+}
+
+func TestMock_Health_AllUp(t *testing.T) {
+	promHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/query" {
+			fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up"},"value":[1234567890,"1"]}]}}`)
+			return
+		}
+		http.Error(w, "not found", 404)
+	})
+	amHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/alerts" {
+			fmt.Fprint(w, `[]`)
+			return
+		}
+		http.Error(w, "not found", 404)
+	})
+
+	client, promSrv, amSrv := newMockPromQLClient(promHandler, amHandler)
+	defer promSrv.Close()
+	defer amSrv.Close()
+
+	healthTool := buildHealthTool(client)
+	result, err := healthTool.Execute(context.Background(), json.RawMessage(`{}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "[OK] Prometheus/Thanos") {
+		t.Errorf("expected '[OK] Prometheus/Thanos', got:\n%s", result)
+	}
+	if !strings.Contains(result, "[OK] AlertManager") {
+		t.Errorf("expected '[OK] AlertManager', got:\n%s", result)
+	}
+	if !strings.Contains(result, "Service Health:") {
+		t.Errorf("expected 'Service Health:', got:\n%s", result)
+	}
+}
+
+func TestMock_Health_PromDown(t *testing.T) {
+	promHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`error`))
+	})
+	amHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/alerts" {
+			fmt.Fprint(w, `[]`)
+			return
+		}
+		http.Error(w, "not found", 404)
+	})
+
+	client, promSrv, amSrv := newMockPromQLClient(promHandler, amHandler)
+	defer promSrv.Close()
+	defer amSrv.Close()
+
+	healthTool := buildHealthTool(client)
+	result, err := healthTool.Execute(context.Background(), json.RawMessage(`{}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "[DOWN] Prometheus/Thanos") {
+		t.Errorf("expected '[DOWN] Prometheus/Thanos', got:\n%s", result)
+	}
+	if !strings.Contains(result, "[OK] AlertManager") {
+		t.Errorf("expected '[OK] AlertManager', got:\n%s", result)
 	}
 }

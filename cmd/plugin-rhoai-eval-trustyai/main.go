@@ -15,6 +15,8 @@ type options struct {
 	TrustyAIURL string
 	Namespace   string
 	Token       string
+	Username    string
+	Password    string
 }
 
 func parseOptions(raw map[string]any) options {
@@ -30,6 +32,12 @@ func parseOptions(raw map[string]any) options {
 	}
 	if v, ok := raw["token"].(string); ok {
 		opts.Token = v
+	}
+	if v, ok := raw["username"].(string); ok {
+		opts.Username = v
+	}
+	if v, ok := raw["password"].(string); ok {
+		opts.Password = v
 	}
 	return opts
 }
@@ -440,34 +448,82 @@ func unconfiguredTrustyTools() []plugin.ToolDef {
 	}
 }
 
+func buildHealthTool(oc *redhat.OcClient, evalClient, trustyClient *redhat.APIClient) plugin.ToolDef {
+	return plugin.ToolDef{
+		Name:        "rhoai_eval_health",
+		Description: "Check connectivity to dependent services (eval API, TrustyAI, workbenches).",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+		Execute: func(ctx context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
+			var lines []string
+
+			if evalClient != nil {
+				if _, err := evalClient.Get(ctx, "/api/v1/evaluations", nil); err != nil {
+					lines = append(lines, fmt.Sprintf("[DOWN] Eval API: %v", err))
+				} else {
+					lines = append(lines, "[OK] Eval API")
+				}
+			} else {
+				lines = append(lines, "[SKIP] Eval API (not configured)")
+			}
+
+			if trustyClient != nil {
+				if _, err := trustyClient.Get(ctx, "/api/v1/alerts", nil); err != nil {
+					lines = append(lines, fmt.Sprintf("[DOWN] TrustyAI API: %v", err))
+				} else {
+					lines = append(lines, "[OK] TrustyAI API")
+				}
+			} else {
+				lines = append(lines, "[SKIP] TrustyAI API (not configured)")
+			}
+
+			if _, err := oc.Get(ctx, "notebooks.kubeflow.org", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] Workbenches (notebooks CRD): %v", err))
+			} else {
+				lines = append(lines, "[OK] Workbenches (notebooks CRD)")
+			}
+
+			return "Service Health:\n" + strings.Join(lines, "\n"), nil
+		},
+	}
+}
+
 func newPlugin(opts options) plugin.Plugin {
 	oc := redhat.NewOcClient()
 
 	var tools []plugin.ToolDef
+	var evalClient, trustyClient *redhat.APIClient
 
 	if opts.EvalAPIURL != "" {
-		tokenFn := func(_ context.Context) (string, error) { return opts.Token, nil }
-		evalClient := redhat.NewAPIClient(redhat.APIClientConfig{
-			BaseURL: opts.EvalAPIURL,
-			TokenFn: tokenFn,
-		})
+		cfg := redhat.APIClientConfig{BaseURL: opts.EvalAPIURL}
+		if opts.Username != "" && opts.Password != "" {
+			cfg.BasicAuth = &redhat.BasicAuthConfig{Username: opts.Username, Password: opts.Password}
+		} else if opts.Token != "" {
+			cfg.TokenFn = func(_ context.Context) (string, error) { return opts.Token, nil }
+		}
+		evalClient = redhat.NewAPIClient(cfg)
 		tools = append(tools, buildEvalTools(evalClient)...)
 	} else {
 		tools = append(tools, unconfiguredEvalTools()...)
 	}
 
 	if opts.TrustyAIURL != "" {
-		tokenFn := func(_ context.Context) (string, error) { return opts.Token, nil }
-		trustyClient := redhat.NewAPIClient(redhat.APIClientConfig{
-			BaseURL: opts.TrustyAIURL,
-			TokenFn: tokenFn,
-		})
+		cfg := redhat.APIClientConfig{BaseURL: opts.TrustyAIURL}
+		if opts.Username != "" && opts.Password != "" {
+			cfg.BasicAuth = &redhat.BasicAuthConfig{Username: opts.Username, Password: opts.Password}
+		} else if opts.Token != "" {
+			cfg.TokenFn = func(_ context.Context) (string, error) { return opts.Token, nil }
+		}
+		trustyClient = redhat.NewAPIClient(cfg)
 		tools = append(tools, buildTrustyTools(trustyClient)...)
 	} else {
 		tools = append(tools, unconfiguredTrustyTools()...)
 	}
 
 	tools = append(tools, buildWorkbenchTools(oc, opts.Namespace)...)
+	tools = append(tools, buildHealthTool(oc, evalClient, trustyClient))
 
 	return plugin.Plugin{
 		ID:    "rhoai-eval-trustyai",

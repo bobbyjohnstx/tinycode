@@ -440,16 +440,49 @@ func unconfiguredSandboxTools() []plugin.ToolDef {
 	}
 }
 
+func buildHealthTool(oc *redhat.OcClient, sandboxClient *redhat.APIClient) plugin.ToolDef {
+	return plugin.ToolDef{
+		Name:        "rhoai_health",
+		Description: "Check connectivity to dependent services (cluster API, sandbox API).",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+		Execute: func(ctx context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
+			var lines []string
+
+			if _, err := oc.Get(ctx, "inferenceservices", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] Cluster API (InferenceService access): %v", err))
+			} else {
+				lines = append(lines, "[OK] Cluster API (InferenceService access)")
+			}
+
+			if sandboxClient != nil {
+				if _, err := sandboxClient.Get(ctx, "/signup", nil); err != nil {
+					lines = append(lines, fmt.Sprintf("[DOWN] Sandbox API: %v", err))
+				} else {
+					lines = append(lines, "[OK] Sandbox API")
+				}
+			} else {
+				lines = append(lines, "[SKIP] Sandbox API (not configured)")
+			}
+
+			return "Service Health:\n" + strings.Join(lines, "\n"), nil
+		},
+	}
+}
+
 func newPlugin(opts options) plugin.Plugin {
 	oc := redhat.NewOcClient()
 
 	tools := buildModelTools(oc, opts.Namespace)
 
+	var sandboxClient *redhat.APIClient
 	if opts.ConsoleOfflineToken != "" {
 		authClient := redhat.NewConsoleAuthClient(redhat.ConsoleAuthConfig{
 			OfflineToken: opts.ConsoleOfflineToken,
 		})
-		sandboxClient := redhat.NewAPIClient(redhat.APIClientConfig{
+		sandboxClient = redhat.NewAPIClient(redhat.APIClientConfig{
 			BaseURL: opts.SandboxURL,
 			TokenFn: authClient.GetAccessToken,
 		})
@@ -457,6 +490,8 @@ func newPlugin(opts options) plugin.Plugin {
 	} else {
 		tools = append(tools, unconfiguredSandboxTools()...)
 	}
+
+	tools = append(tools, buildHealthTool(oc, sandboxClient))
 
 	return plugin.Plugin{
 		ID:    "rhoai-model-serving",

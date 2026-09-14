@@ -16,6 +16,8 @@ import (
 type options struct {
 	CentralURL string
 	APIToken   string
+	Username   string
+	Password   string
 }
 
 func parseOptions(raw map[string]any) options {
@@ -26,6 +28,12 @@ func parseOptions(raw map[string]any) options {
 	if v, ok := raw["apiToken"].(string); ok {
 		opts.APIToken = v
 	}
+	if v, ok := raw["username"].(string); ok {
+		opts.Username = v
+	}
+	if v, ok := raw["password"].(string); ok {
+		opts.Password = v
+	}
 	return opts
 }
 
@@ -34,12 +42,9 @@ type centralClient struct {
 	api *redhat.APIClient
 }
 
-func newCentralClient(centralURL, token string) *centralClient {
+func newCentralClient(cfg redhat.APIClientConfig) *centralClient {
 	return &centralClient{
-		api: redhat.NewAPIClient(redhat.APIClientConfig{
-			BaseURL: centralURL,
-			TokenFn: func(_ context.Context) (string, error) { return token, nil },
-		}),
+		api: redhat.NewAPIClient(cfg),
 	}
 }
 
@@ -777,8 +782,16 @@ func stubTool(name, description, message string) plugin.ToolDef {
 
 func newPlugin(opts options) plugin.Plugin {
 	var client *centralClient
-	if opts.CentralURL != "" && opts.APIToken != "" {
-		client = newCentralClient(opts.CentralURL, opts.APIToken)
+	if opts.CentralURL != "" {
+		cfg := redhat.APIClientConfig{BaseURL: opts.CentralURL}
+		if opts.Username != "" && opts.Password != "" {
+			cfg.BasicAuth = &redhat.BasicAuthConfig{Username: opts.Username, Password: opts.Password}
+		} else if opts.APIToken != "" {
+			cfg.TokenFn = func(_ context.Context) (string, error) { return opts.APIToken, nil }
+		}
+		if cfg.BasicAuth != nil || cfg.TokenFn != nil {
+			client = newCentralClient(cfg)
+		}
 	}
 
 	return plugin.Plugin{

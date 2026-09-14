@@ -267,6 +267,34 @@ func buildObsTools(client *redhat.PromQLClient) []plugin.ToolDef {
 	}
 }
 
+func buildHealthTool(client *redhat.PromQLClient) plugin.ToolDef {
+	return plugin.ToolDef{
+		Name:        "obs_health",
+		Description: "Check connectivity to Prometheus/Thanos and AlertManager.",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+		Execute: func(ctx context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
+			var lines []string
+
+			if _, err := client.InstantQuery(ctx, "up", ""); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] Prometheus/Thanos: %v", err))
+			} else {
+				lines = append(lines, "[OK] Prometheus/Thanos")
+			}
+
+			if _, err := client.Alerts(ctx, nil, nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] AlertManager: %v", err))
+			} else {
+				lines = append(lines, "[OK] AlertManager")
+			}
+
+			return "Service Health:\n" + strings.Join(lines, "\n"), nil
+		},
+	}
+}
+
 func unconfiguredObsTools() []plugin.ToolDef {
 	msg := "Observability plugin not configured. Set prometheusUrl in plugin options to your Prometheus/Thanos endpoint."
 	return []plugin.ToolDef{
@@ -333,9 +361,12 @@ func newPlugin(opts options) plugin.Plugin {
 
 	as := &alertState{}
 
+	tools := buildObsTools(client)
+	tools = append(tools, buildHealthTool(client))
+
 	return plugin.Plugin{
 		ID:    "ocp-obs-metrics",
-		Tools: buildObsTools(client),
+		Tools: tools,
 		Hooks: plugin.HookHandlers{
 			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) error {
 				slog.Info("ocp-obs-metrics: fetching alert summary", "sessionId", event.SessionID)

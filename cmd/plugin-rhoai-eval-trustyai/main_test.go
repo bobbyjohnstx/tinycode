@@ -21,12 +21,13 @@ func TestPluginID(t *testing.T) {
 
 func TestToolDefinitions_Unconfigured(t *testing.T) {
 	p := newPlugin(options{})
-	if len(p.Tools) != 6 {
-		t.Fatalf("got %d tools, want 6", len(p.Tools))
+	if len(p.Tools) != 7 {
+		t.Fatalf("got %d tools, want 7", len(p.Tools))
 	}
 	wantNames := []string{
 		"rhoai_eval_run", "rhoai_eval_status", "rhoai_eval_compare",
 		"rhoai_trusty_metrics", "rhoai_trusty_alerts", "rhoai_workbench_list",
+		"rhoai_eval_health",
 	}
 	for i, want := range wantNames {
 		if p.Tools[i].Name != want {
@@ -35,6 +36,28 @@ func TestToolDefinitions_Unconfigured(t *testing.T) {
 		if p.Tools[i].Execute == nil {
 			t.Errorf("tool[%d] Execute is nil", i)
 		}
+	}
+}
+
+func TestHealthToolExists_Unconfigured(t *testing.T) {
+	p := newPlugin(options{})
+	tool := findTool(&p, "rhoai_eval_health")
+	if tool == nil {
+		t.Fatal("rhoai_eval_health tool not found")
+	}
+	if tool.Execute == nil {
+		t.Error("rhoai_eval_health Execute is nil")
+	}
+}
+
+func TestHealthToolExists_Configured(t *testing.T) {
+	p := newPlugin(options{EvalAPIURL: "http://eval:8080", TrustyAIURL: "http://trusty:8080", Token: "t"})
+	tool := findTool(&p, "rhoai_eval_health")
+	if tool == nil {
+		t.Fatal("rhoai_eval_health tool not found")
+	}
+	if tool.Execute == nil {
+		t.Error("rhoai_eval_health Execute is nil")
 	}
 }
 

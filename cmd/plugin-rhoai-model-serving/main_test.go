@@ -14,12 +14,12 @@ func TestPluginID(t *testing.T) {
 
 func TestToolDefinitions_Unconfigured(t *testing.T) {
 	p := newPlugin(options{})
-	if len(p.Tools) != 5 {
-		t.Fatalf("got %d tools, want 5", len(p.Tools))
+	if len(p.Tools) != 6 {
+		t.Fatalf("got %d tools, want 6", len(p.Tools))
 	}
 	wantNames := []string{
 		"rhoai_list_models", "rhoai_model_status", "rhoai_list_runtimes",
-		"rhoai_sandbox_status", "rhoai_sandbox_provision",
+		"rhoai_sandbox_status", "rhoai_sandbox_provision", "rhoai_health",
 	}
 	for i, want := range wantNames {
 		if p.Tools[i].Name != want {
@@ -28,6 +28,27 @@ func TestToolDefinitions_Unconfigured(t *testing.T) {
 		if p.Tools[i].Execute == nil {
 			t.Errorf("tool[%d] Execute is nil", i)
 		}
+	}
+}
+
+func TestHealthToolExists(t *testing.T) {
+	p := newPlugin(options{})
+	var found bool
+	for _, tool := range p.Tools {
+		if tool.Name == "rhoai_health" {
+			found = true
+			if tool.Execute == nil {
+				t.Error("rhoai_health Execute is nil")
+			}
+			params := tool.Parameters
+			if params["type"] != "object" {
+				t.Errorf("params type = %v, want %q", params["type"], "object")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("rhoai_health tool not found in plugin tools")
 	}
 }
 

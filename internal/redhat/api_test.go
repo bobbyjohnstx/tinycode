@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -481,5 +482,64 @@ func TestAPIResponse_DataPreserved(t *testing.T) {
 	}
 	if _, ok := raw["nested"]; !ok {
 		t.Error("expected nested key in response data")
+	}
+}
+
+func TestAPIClient_BasicAuth(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := NewAPIClient(APIClientConfig{
+		BaseURL: srv.URL,
+		BasicAuth: &BasicAuthConfig{
+			Username: "admin",
+			Password: "s3cret",
+		},
+	})
+	_, err := c.Get(context.Background(), "/test", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotAuth == "" {
+		t.Fatal("expected Authorization header, got empty")
+	}
+	if !strings.HasPrefix(gotAuth, "Basic ") {
+		t.Errorf("Authorization = %q, want Basic prefix", gotAuth)
+	}
+}
+
+func TestAPIClient_BasicAuthOverridesTokenFn(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := NewAPIClient(APIClientConfig{
+		BaseURL: srv.URL,
+		BasicAuth: &BasicAuthConfig{
+			Username: "admin",
+			Password: "s3cret",
+		},
+		TokenFn: func(ctx context.Context) (string, error) {
+			return "should-not-be-used", nil
+		},
+	})
+	_, err := c.Get(context.Background(), "/test", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.HasPrefix(gotAuth, "Bearer ") {
+		t.Error("BasicAuth should take precedence over TokenFn, but got Bearer header")
+	}
+	if !strings.HasPrefix(gotAuth, "Basic ") {
+		t.Errorf("Authorization = %q, want Basic prefix", gotAuth)
 	}
 }

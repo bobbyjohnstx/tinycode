@@ -11,9 +11,14 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
 )
 
+const defaultAPIPrefix = "/api/v2"
+
 type options struct {
 	ControllerURL string
 	OAuthToken    string
+	Username      string
+	Password      string
+	APIPrefix     string
 }
 
 func parseOptions(raw map[string]any) options {
@@ -24,19 +29,36 @@ func parseOptions(raw map[string]any) options {
 	if v, ok := raw["oauthToken"].(string); ok {
 		opts.OAuthToken = v
 	}
+	if v, ok := raw["username"].(string); ok {
+		opts.Username = v
+	}
+	if v, ok := raw["password"].(string); ok {
+		opts.Password = v
+	}
+	if v, ok := raw["apiPrefix"].(string); ok {
+		opts.APIPrefix = v
+	}
 	return opts
 }
 
 type aapClient struct {
-	api *redhat.APIClient
+	api       *redhat.APIClient
+	apiPrefix string
 }
 
-func newAapClient(controllerURL, token string) *aapClient {
+func newAapClient(controllerURL, token, username, password, apiPrefix string) *aapClient {
+	if apiPrefix == "" {
+		apiPrefix = defaultAPIPrefix
+	}
+	cfg := redhat.APIClientConfig{BaseURL: controllerURL}
+	if username != "" && password != "" {
+		cfg.BasicAuth = &redhat.BasicAuthConfig{Username: username, Password: password}
+	} else if token != "" {
+		cfg.TokenFn = func(_ context.Context) (string, error) { return token, nil }
+	}
 	return &aapClient{
-		api: redhat.NewAPIClient(redhat.APIClientConfig{
-			BaseURL: controllerURL,
-			TokenFn: func(_ context.Context) (string, error) { return token, nil },
-		}),
+		api:       redhat.NewAPIClient(cfg),
+		apiPrefix: apiPrefix,
 	}
 }
 
@@ -78,7 +100,7 @@ func (c *aapClient) listTemplates(ctx context.Context, search string) ([]jobTemp
 	if search != "" {
 		query = map[string]string{"search": search}
 	}
-	resp, err := c.api.Get(ctx, "/api/v2/job_templates/", query)
+	resp, err := c.api.Get(ctx, c.apiPrefix+"/job_templates/", query)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +116,7 @@ func (c *aapClient) launchJob(ctx context.Context, templateID int, extraVars str
 	if extraVars != "" {
 		body = map[string]string{"extra_vars": extraVars}
 	}
-	resp, err := c.api.Post(ctx, fmt.Sprintf("/api/v2/job_templates/%d/launch/", templateID), body)
+	resp, err := c.api.Post(ctx, fmt.Sprintf(c.apiPrefix+"/job_templates/%d/launch/", templateID), body)
 	if err != nil {
 		return 0, err
 	}
@@ -113,7 +135,7 @@ func (c *aapClient) launchJob(ctx context.Context, templateID int, extraVars str
 }
 
 func (c *aapClient) getJobStatus(ctx context.Context, jobID int) (*job, error) {
-	resp, err := c.api.Get(ctx, fmt.Sprintf("/api/v2/jobs/%d/", jobID), nil)
+	resp, err := c.api.Get(ctx, fmt.Sprintf(c.apiPrefix+"/jobs/%d/", jobID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +147,7 @@ func (c *aapClient) getJobStatus(ctx context.Context, jobID int) (*job, error) {
 }
 
 func (c *aapClient) getJobOutput(ctx context.Context, jobID int) (string, error) {
-	resp, err := c.api.Get(ctx, fmt.Sprintf("/api/v2/jobs/%d/stdout/?format=txt", jobID), nil)
+	resp, err := c.api.Get(ctx, fmt.Sprintf(c.apiPrefix+"/jobs/%d/stdout/?format=txt", jobID), nil)
 	if err != nil {
 		return "", err
 	}
@@ -137,7 +159,7 @@ func (c *aapClient) listInventories(ctx context.Context, search string) ([]inven
 	if search != "" {
 		query = map[string]string{"search": search}
 	}
-	resp, err := c.api.Get(ctx, "/api/v2/inventories/", query)
+	resp, err := c.api.Get(ctx, c.apiPrefix+"/inventories/", query)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +171,7 @@ func (c *aapClient) listInventories(ctx context.Context, search string) ([]inven
 }
 
 func (c *aapClient) searchCollections(ctx context.Context, keyword string) ([]collection, error) {
-	resp, err := c.api.Get(ctx, "/api/v2/collections/", map[string]string{"keyword": keyword})
+	resp, err := c.api.Get(ctx, c.apiPrefix+"/collections/", map[string]string{"keyword": keyword})
 	if err != nil {
 		return nil, err
 	}
@@ -492,8 +514,8 @@ func lintTool() plugin.ToolDef {
 
 func newPlugin(opts options) plugin.Plugin {
 	var client *aapClient
-	if opts.ControllerURL != "" && opts.OAuthToken != "" {
-		client = newAapClient(opts.ControllerURL, opts.OAuthToken)
+	if opts.ControllerURL != "" && (opts.OAuthToken != "" || (opts.Username != "" && opts.Password != "")) {
+		client = newAapClient(opts.ControllerURL, opts.OAuthToken, opts.Username, opts.Password, opts.APIPrefix)
 	}
 
 	tools := buildTools(client)

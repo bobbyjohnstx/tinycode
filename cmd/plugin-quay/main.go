@@ -16,6 +16,8 @@ import (
 type options struct {
 	RegistryURL string
 	APIToken    string
+	Username    string
+	Password    string
 }
 
 func parseOptions(raw map[string]any) options {
@@ -26,6 +28,12 @@ func parseOptions(raw map[string]any) options {
 	if v, ok := raw["apiToken"].(string); ok {
 		opts.APIToken = v
 	}
+	if v, ok := raw["username"].(string); ok {
+		opts.Username = v
+	}
+	if v, ok := raw["password"].(string); ok {
+		opts.Password = v
+	}
 	return opts
 }
 
@@ -33,16 +41,15 @@ type quayClient struct {
 	api *redhat.APIClient
 }
 
-func newQuayClient(registryURL, token string) *quayClient {
-	var tokenFn func(context.Context) (string, error)
-	if token != "" {
-		tokenFn = func(_ context.Context) (string, error) { return token, nil }
+func newQuayClient(registryURL, token, username, password string) *quayClient {
+	cfg := redhat.APIClientConfig{BaseURL: registryURL}
+	if username != "" && password != "" {
+		cfg.BasicAuth = &redhat.BasicAuthConfig{Username: username, Password: password}
+	} else if token != "" {
+		cfg.TokenFn = func(_ context.Context) (string, error) { return token, nil }
 	}
 	return &quayClient{
-		api: redhat.NewAPIClient(redhat.APIClientConfig{
-			BaseURL: registryURL,
-			TokenFn: tokenFn,
-		}),
+		api: redhat.NewAPIClient(cfg),
 	}
 }
 
@@ -570,7 +577,7 @@ func newPlugin(opts options) plugin.Plugin {
 		}
 	}
 
-	client := newQuayClient(opts.RegistryURL, opts.APIToken)
+	client := newQuayClient(opts.RegistryURL, opts.APIToken, opts.Username, opts.Password)
 	return plugin.Plugin{
 		ID:    "quay",
 		Tools: buildTools(client),

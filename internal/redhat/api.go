@@ -11,9 +11,15 @@ import (
 	"time"
 )
 
+type BasicAuthConfig struct {
+	Username string
+	Password string
+}
+
 type APIClientConfig struct {
 	BaseURL    string
 	TokenFn    func(ctx context.Context) (string, error)
+	BasicAuth  *BasicAuthConfig
 	Headers    map[string]string
 	MaxRetries int
 	Timeout    time.Duration
@@ -28,6 +34,7 @@ type APIResponse struct {
 type APIClient struct {
 	baseURL    string
 	tokenFn    func(ctx context.Context) (string, error)
+	basicAuth  *BasicAuthConfig
 	headers    map[string]string
 	maxRetries int
 	httpClient *http.Client
@@ -45,6 +52,7 @@ func NewAPIClient(cfg APIClientConfig) *APIClient {
 	return &APIClient{
 		baseURL:    strings.TrimRight(cfg.BaseURL, "/"),
 		tokenFn:    cfg.TokenFn,
+		basicAuth:  cfg.BasicAuth,
 		headers:    cfg.Headers,
 		maxRetries: maxRetries,
 		httpClient: &http.Client{Timeout: timeout},
@@ -97,7 +105,9 @@ func (c *APIClient) request(ctx context.Context, method, path string, query map[
 			req.Header.Set(k, v)
 		}
 
-		if c.tokenFn != nil {
+		if c.basicAuth != nil {
+			req.SetBasicAuth(c.basicAuth.Username, c.basicAuth.Password)
+		} else if c.tokenFn != nil {
 			token, err := c.tokenFn(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("getting auth token: %w", err)
