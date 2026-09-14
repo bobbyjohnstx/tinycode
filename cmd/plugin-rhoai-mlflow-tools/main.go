@@ -563,8 +563,112 @@ func buildMlflowTools(readClient *mlflowReadClient, writeClient *redhat.MlflowCl
 	}
 }
 
+const mlflowSetupGuide = `MLflow is not included in RHOAI by default. Deploy it on OpenShift with:
+
+1. Create a project:
+   oc new-project mlflow
+
+2. Apply the deployment (PVC + Deployment + Service + Route):
+   oc apply -n mlflow -f - <<'EOF'
+   apiVersion: v1
+   kind: PersistentVolumeClaim
+   metadata:
+     name: mlflow-data
+   spec:
+     accessModes: [ReadWriteOnce]
+     resources:
+       requests:
+         storage: 5Gi
+   ---
+   apiVersion: apps/v1
+   kind: Deployment
+   metadata:
+     name: mlflow
+     labels:
+       app: mlflow
+   spec:
+     replicas: 1
+     selector:
+       matchLabels:
+         app: mlflow
+     template:
+       metadata:
+         labels:
+           app: mlflow
+       spec:
+         containers:
+         - name: mlflow
+           image: ghcr.io/mlflow/mlflow:v2.16.2
+           command: ["mlflow", "server"]
+           args:
+           - "--host=0.0.0.0"
+           - "--port=5000"
+           - "--backend-store-uri=sqlite:///data/mlflow.db"
+           - "--default-artifact-root=/data/artifacts"
+           ports:
+           - containerPort: 5000
+           volumeMounts:
+           - name: data
+             mountPath: /data
+           resources:
+             requests:
+               cpu: 200m
+               memory: 512Mi
+             limits:
+               cpu: "1"
+               memory: 1Gi
+           readinessProbe:
+             httpGet:
+               path: /health
+               port: 5000
+             initialDelaySeconds: 10
+             periodSeconds: 10
+           livenessProbe:
+             httpGet:
+               path: /health
+               port: 5000
+             initialDelaySeconds: 15
+             periodSeconds: 30
+         volumes:
+         - name: data
+           persistentVolumeClaim:
+             claimName: mlflow-data
+   ---
+   apiVersion: v1
+   kind: Service
+   metadata:
+     name: mlflow
+   spec:
+     selector:
+       app: mlflow
+     ports:
+     - port: 5000
+       targetPort: 5000
+   ---
+   apiVersion: route.openshift.io/v1
+   kind: Route
+   metadata:
+     name: mlflow
+   spec:
+     to:
+       kind: Service
+       name: mlflow
+     port:
+       targetPort: 5000
+     tls:
+       termination: edge
+       insecureEdgeTerminationPolicy: Redirect
+   EOF
+
+3. Get the route URL:
+   oc get route mlflow -n mlflow -o jsonpath='https://{.spec.host}'
+
+4. Set mlflowUrl in plugin options to that URL.
+
+For production use, replace SQLite with PostgreSQL and add S3-compatible storage for artifacts.`
+
 func unconfiguredMlflowTools() []plugin.ToolDef {
-	msg := "MLflow tools not configured. Set mlflowUrl in plugin options."
+	msg := "MLflow tools not configured. Set mlflowUrl in plugin options. Use mlflow_setup for installation instructions."
 	names := []struct {
 		name string
 		desc string
@@ -594,6 +698,17 @@ func unconfiguredMlflowTools() []plugin.ToolDef {
 			},
 		})
 	}
+	tools = append(tools, plugin.ToolDef{
+		Name:        "mlflow_setup",
+		Description: "Get instructions for deploying MLflow on OpenShift. MLflow is not included in RHOAI by default and must be deployed separately.",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+		Execute: func(_ context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
+			return mlflowSetupGuide, nil
+		},
+	})
 	return tools
 }
 

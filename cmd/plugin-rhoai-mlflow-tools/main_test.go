@@ -20,8 +20,8 @@ func TestPluginID(t *testing.T) {
 
 func TestToolCountUnconfigured(t *testing.T) {
 	p := newPlugin(options{})
-	if len(p.Tools) != 8 {
-		t.Fatalf("expected 8 unconfigured tools, got %d", len(p.Tools))
+	if len(p.Tools) != 9 {
+		t.Fatalf("expected 9 unconfigured tools, got %d", len(p.Tools))
 	}
 }
 
@@ -36,6 +36,7 @@ func TestToolDefinitions(t *testing.T) {
 		"mlflow_model_version",
 		"mlflow_promote",
 		"mlflow_log_metric",
+		"mlflow_setup",
 	}
 
 	if len(p.Tools) != len(expectedNames) {
