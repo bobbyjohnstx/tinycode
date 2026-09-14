@@ -1,7 +1,13 @@
 package main
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
 )
 
 func TestPluginID(t *testing.T) {
@@ -230,4 +236,222 @@ func stringContains(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// --- httptest mock-based tests (issue #152) ---
+
+func newMockPipelineClient(handler http.Handler) (*pipelineClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	return &pipelineClient{
+		api:       redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL}),
+		apiPrefix: "/apis/v2beta1",
+	}, srv
+}
+
+func TestListPipelines_Mock(t *testing.T) {
+	client, srv := newMockPipelineClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if !strings.HasPrefix(r.URL.Path, "/apis/v2beta1/pipelines") {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"pipelines":[
+			{"pipeline_id":"p-1","display_name":"Train","description":"ML training","created_at":"2026-01-01"},
+			{"pipeline_id":"p-2","display_name":"Eval","description":"Evaluation","created_at":"2026-01-02"}
+		]}`))
+	}))
+	defer srv.Close()
+
+	pipelines, err := client.listPipelines(context.Background(), "")
+	if err != nil {
+		t.Fatalf("listPipelines() error: %v", err)
+	}
+	if len(pipelines) != 2 {
+		t.Fatalf("got %d pipelines, want 2", len(pipelines))
+	}
+	if pipelines[0].PipelineID != "p-1" {
+		t.Errorf("pipeline[0].PipelineID = %q, want %q", pipelines[0].PipelineID, "p-1")
+	}
+	if pipelines[0].DisplayName != "Train" {
+		t.Errorf("pipeline[0].DisplayName = %q, want %q", pipelines[0].DisplayName, "Train")
+	}
+	if pipelines[1].PipelineID != "p-2" {
+		t.Errorf("pipeline[1].PipelineID = %q, want %q", pipelines[1].PipelineID, "p-2")
+	}
+}
+
+func TestListPipelines_WithNamespace(t *testing.T) {
+	var gotNamespace string
+	client, srv := newMockPipelineClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotNamespace = r.URL.Query().Get("namespace")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"pipelines":[]}`))
+	}))
+	defer srv.Close()
+
+	_, err := client.listPipelines(context.Background(), "my-ns")
+	if err != nil {
+		t.Fatalf("listPipelines() error: %v", err)
+	}
+	if gotNamespace != "my-ns" {
+		t.Errorf("namespace query param = %q, want %q", gotNamespace, "my-ns")
+	}
+}
+
+func TestListPipelines_Empty(t *testing.T) {
+	client, srv := newMockPipelineClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"pipelines":[]}`))
+	}))
+	defer srv.Close()
+
+	pipelines, err := client.listPipelines(context.Background(), "")
+	if err != nil {
+		t.Fatalf("listPipelines() error: %v", err)
+	}
+	if len(pipelines) != 0 {
+		t.Errorf("got %d pipelines, want 0", len(pipelines))
+	}
+}
+
+func TestCreateRun_Mock(t *testing.T) {
+	var gotPath string
+	client, srv := newMockPipelineClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"run_id":"run-abc","display_name":"test-run","state":"PENDING","created_at":"2026-01-01"}`))
+	}))
+	defer srv.Close()
+
+	run, err := client.createRun(context.Background(), "p-1", nil)
+	if err != nil {
+		t.Fatalf("createRun() error: %v", err)
+	}
+	if gotPath != "/apis/v2beta1/runs" {
+		t.Errorf("path = %q, want %q", gotPath, "/apis/v2beta1/runs")
+	}
+	if run.RunID != "run-abc" {
+		t.Errorf("RunID = %q, want %q", run.RunID, "run-abc")
+	}
+	if run.State != "PENDING" {
+		t.Errorf("State = %q, want %q", run.State, "PENDING")
+	}
+}
+
+func TestCreateRun_WithParams(t *testing.T) {
+	client, srv := newMockPipelineClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"run_id":"run-xyz","state":"PENDING"}`))
+	}))
+	defer srv.Close()
+
+	params := map[string]any{"learning_rate": 0.01, "epochs": 10}
+	run, err := client.createRun(context.Background(), "p-1", params)
+	if err != nil {
+		t.Fatalf("createRun() error: %v", err)
+	}
+	if run.RunID != "run-xyz" {
+		t.Errorf("RunID = %q, want %q", run.RunID, "run-xyz")
+	}
+}
+
+func TestGetRunStatus_Mock(t *testing.T) {
+	var gotPath string
+	client, srv := newMockPipelineClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"run_id":"run-abc",
+			"display_name":"Training Run",
+			"state":"SUCCEEDED",
+			"created_at":"2026-01-01",
+			"finished_at":"2026-01-02",
+			"tasks":[
+				{"run_id":"run-abc","task_id":"t-1","display_name":"preprocess","state":"SUCCEEDED"},
+				{"run_id":"run-abc","task_id":"t-2","display_name":"train","state":"SUCCEEDED"}
+			]
+		}`))
+	}))
+	defer srv.Close()
+
+	detail, err := client.getRunStatus(context.Background(), "run-abc")
+	if err != nil {
+		t.Fatalf("getRunStatus() error: %v", err)
+	}
+	if gotPath != "/apis/v2beta1/runs/run-abc" {
+		t.Errorf("path = %q, want %q", gotPath, "/apis/v2beta1/runs/run-abc")
+	}
+	if detail.RunID != "run-abc" {
+		t.Errorf("RunID = %q, want %q", detail.RunID, "run-abc")
+	}
+	if detail.State != "SUCCEEDED" {
+		t.Errorf("State = %q, want %q", detail.State, "SUCCEEDED")
+	}
+	if len(detail.Tasks) != 2 {
+		t.Fatalf("got %d tasks, want 2", len(detail.Tasks))
+	}
+	if detail.Tasks[0].DisplayName != "preprocess" {
+		t.Errorf("task[0].DisplayName = %q, want %q", detail.Tasks[0].DisplayName, "preprocess")
+	}
+	if detail.Tasks[1].State != "SUCCEEDED" {
+		t.Errorf("task[1].State = %q, want %q", detail.Tasks[1].State, "SUCCEEDED")
+	}
+}
+
+func TestCreatePipeline_Mock(t *testing.T) {
+	var gotPath string
+	client, srv := newMockPipelineClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"pipeline_id":"p-new","display_name":"New Pipeline"}`))
+	}))
+	defer srv.Close()
+
+	p, err := client.createPipeline(context.Background(), "apiVersion: v2beta1\nkind: Pipeline")
+	if err != nil {
+		t.Fatalf("createPipeline() error: %v", err)
+	}
+	if gotPath != "/apis/v2beta1/pipelines" {
+		t.Errorf("path = %q, want %q", gotPath, "/apis/v2beta1/pipelines")
+	}
+	if p.PipelineID != "p-new" {
+		t.Errorf("PipelineID = %q, want %q", p.PipelineID, "p-new")
+	}
+	if p.DisplayName != "New Pipeline" {
+		t.Errorf("DisplayName = %q, want %q", p.DisplayName, "New Pipeline")
+	}
+}
+
+func TestPipelineClient_ServerError(t *testing.T) {
+	client, srv := newMockPipelineClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"internal server error"}`))
+	}))
+	defer srv.Close()
+
+	_, err := client.listPipelines(context.Background(), "")
+	if err == nil {
+		t.Error("expected error for 500 response, got nil")
+	}
+}
+
+func TestPipelineClient_InvalidJSON(t *testing.T) {
+	client, srv := newMockPipelineClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`not valid json`))
+	}))
+	defer srv.Close()
+
+	_, err := client.listPipelines(context.Background(), "")
+	if err == nil {
+		t.Error("expected error for invalid JSON, got nil")
+	}
 }

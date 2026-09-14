@@ -14,6 +14,7 @@ type options struct {
 	PipelinesURL string
 	Namespace    string
 	Token        string
+	APIPrefix    string
 }
 
 func parseOptions(raw map[string]any) options {
@@ -26,6 +27,12 @@ func parseOptions(raw map[string]any) options {
 	}
 	if v, ok := raw["token"].(string); ok {
 		opts.Token = v
+	}
+	if v, ok := raw["apiPrefix"].(string); ok {
+		opts.APIPrefix = v
+	}
+	if opts.APIPrefix == "" {
+		opts.APIPrefix = "/apis/v2beta1"
 	}
 	return opts
 }
@@ -63,10 +70,11 @@ type pipelineRunDetail struct {
 // --- pipeline client ---
 
 type pipelineClient struct {
-	api *redhat.APIClient
+	api       *redhat.APIClient
+	apiPrefix string
 }
 
-func newPipelineClient(apiURL, token string) *pipelineClient {
+func newPipelineClient(apiURL, token, apiPrefix string) *pipelineClient {
 	var tokenFn func(context.Context) (string, error)
 	if token != "" {
 		tokenFn = func(_ context.Context) (string, error) { return token, nil }
@@ -75,7 +83,7 @@ func newPipelineClient(apiURL, token string) *pipelineClient {
 		BaseURL: strings.TrimRight(apiURL, "/"),
 		TokenFn: tokenFn,
 	})
-	return &pipelineClient{api: api}
+	return &pipelineClient{api: api, apiPrefix: apiPrefix}
 }
 
 func (c *pipelineClient) listPipelines(ctx context.Context, namespace string) ([]pipeline, error) {
@@ -83,7 +91,7 @@ func (c *pipelineClient) listPipelines(ctx context.Context, namespace string) ([
 	if namespace != "" {
 		query = map[string]string{"namespace": namespace}
 	}
-	resp, err := c.api.Get(ctx, "/apis/v2beta1/pipelines", query)
+	resp, err := c.api.Get(ctx, c.apiPrefix+"/pipelines", query)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +113,7 @@ func (c *pipelineClient) createRun(ctx context.Context, pipelineID string, param
 			"parameters": params,
 		}
 	}
-	resp, err := c.api.Post(ctx, "/apis/v2beta1/runs", body)
+	resp, err := c.api.Post(ctx, c.apiPrefix+"/runs", body)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +137,7 @@ func (c *pipelineClient) getRunStatus(ctx context.Context, runID string) (*pipel
 }
 
 func (c *pipelineClient) createPipeline(ctx context.Context, yaml string) (*pipeline, error) {
-	resp, err := c.api.Post(ctx, "/apis/v2beta1/pipelines", map[string]any{
+	resp, err := c.api.Post(ctx, c.apiPrefix+"/pipelines", map[string]any{
 		"pipeline_spec": yaml,
 	})
 	if err != nil {
@@ -356,7 +364,7 @@ func newPlugin(opts options) plugin.Plugin {
 		}
 	}
 
-	client := newPipelineClient(opts.PipelinesURL, opts.Token)
+	client := newPipelineClient(opts.PipelinesURL, opts.Token, opts.APIPrefix)
 	return plugin.Plugin{
 		ID:    "rhoai-pipelines",
 		Tools: buildPipelineTools(client, opts.Namespace),

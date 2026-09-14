@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
+	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
 )
 
 func TestPluginID(t *testing.T) {
@@ -196,5 +201,198 @@ func TestFormatAlertSummary(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// --- httptest mock tests ---
+
+func newMockPromQLClient(promHandler, amHandler http.Handler) (*redhat.PromQLClient, *httptest.Server, *httptest.Server) {
+	promSrv := httptest.NewServer(promHandler)
+	amSrv := httptest.NewServer(amHandler)
+	client := redhat.NewPromQLClient(redhat.PromQLClientConfig{
+		BaseURL:         promSrv.URL,
+		AlertManagerURL: amSrv.URL,
+	})
+	return client, promSrv, amSrv
+}
+
+func findTool(tools []plugin.ToolDef, name string) *plugin.ToolDef {
+	for i := range tools {
+		if tools[i].Name == name {
+			return &tools[i]
+		}
+	}
+	return nil
+}
+
+func TestMock_PromQL_InstantQuery(t *testing.T) {
+	promHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/query" {
+			http.Error(w, "not found", 404)
+			return
+		}
+		q := r.URL.Query().Get("query")
+		if q == "" {
+			http.Error(w, "missing query", 400)
+			return
+		}
+		fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"__name__":"up","job":"prometheus"},"value":[1234567890,"1"]},{"metric":{"__name__":"up","job":"node"},"value":[1234567890,"0"]}]}}`)
+	})
+	amHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[]`)
+	})
+
+	client, promSrv, amSrv := newMockPromQLClient(promHandler, amHandler)
+	defer promSrv.Close()
+	defer amSrv.Close()
+
+	tools := buildObsTools(client)
+	tool := findTool(tools, "obs_promql")
+	if tool == nil {
+		t.Fatal("obs_promql tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{"query":"up"}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "2 vectors") {
+		t.Errorf("expected '2 vectors', got:\n%s", result)
+	}
+	if !strings.Contains(result, "prometheus") {
+		t.Errorf("expected 'prometheus' label, got:\n%s", result)
+	}
+}
+
+func TestMock_PromQL_RangeQuery(t *testing.T) {
+	promHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/query_range" {
+			http.Error(w, "not found", 404)
+			return
+		}
+		fmt.Fprint(w, `{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"__name__":"cpu_usage"},"values":[[1000,"0.5"],[1060,"0.7"],[1120,"0.6"]]}]}}`)
+	})
+	amHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[]`)
+	})
+
+	client, promSrv, amSrv := newMockPromQLClient(promHandler, amHandler)
+	defer promSrv.Close()
+	defer amSrv.Close()
+
+	tools := buildObsTools(client)
+	tool := findTool(tools, "obs_promql")
+	if tool == nil {
+		t.Fatal("obs_promql tool not found")
+	}
+
+	args := `{"query":"cpu_usage","start":"2026-01-01T00:00:00Z","end":"2026-01-01T01:00:00Z","step":"60s"}`
+	result, err := tool.Execute(context.Background(), json.RawMessage(args), plugin.ToolContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "1 series") {
+		t.Errorf("expected '1 series', got:\n%s", result)
+	}
+	if !strings.Contains(result, "cpu_usage") {
+		t.Errorf("expected 'cpu_usage' label, got:\n%s", result)
+	}
+}
+
+func TestMock_PromQL_EmptyResults(t *testing.T) {
+	promHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
+	})
+	amHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[]`)
+	})
+
+	client, promSrv, amSrv := newMockPromQLClient(promHandler, amHandler)
+	defer promSrv.Close()
+	defer amSrv.Close()
+
+	tools := buildObsTools(client)
+	tool := findTool(tools, "obs_promql")
+	if tool == nil {
+		t.Fatal("obs_promql tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{"query":"nonexistent_metric"}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "no results") {
+		t.Errorf("expected 'no results', got:\n%s", result)
+	}
+}
+
+func TestMock_Alerts_WithSeverityFilter(t *testing.T) {
+	amHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v2/alerts" {
+			http.Error(w, "not found", 404)
+			return
+		}
+		fmt.Fprint(w, `[
+			{"labels":{"alertname":"HighCPU","severity":"critical","namespace":"monitoring"},"annotations":{"description":"CPU too high"},"state":"firing","activeAt":"2026-01-01T00:00:00Z"},
+			{"labels":{"alertname":"DiskLow","severity":"warning","namespace":"storage"},"annotations":{"description":"Disk space low"},"state":"firing","activeAt":"2026-01-01T01:00:00Z"},
+			{"labels":{"alertname":"OOMKilled","severity":"critical","namespace":"apps"},"annotations":{"description":"OOM killed"},"state":"firing","activeAt":"2026-01-01T02:00:00Z"}
+		]`)
+	})
+	promHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
+	})
+
+	client, promSrv, amSrv := newMockPromQLClient(promHandler, amHandler)
+	defer promSrv.Close()
+	defer amSrv.Close()
+
+	tools := buildObsTools(client)
+	tool := findTool(tools, "obs_alerts")
+	if tool == nil {
+		t.Fatal("obs_alerts tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{"severity":"critical"}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "Active Alerts: 2") {
+		t.Errorf("expected 'Active Alerts: 2', got:\n%s", result)
+	}
+	if !strings.Contains(result, "HighCPU") {
+		t.Errorf("expected 'HighCPU', got:\n%s", result)
+	}
+	if !strings.Contains(result, "OOMKilled") {
+		t.Errorf("expected 'OOMKilled', got:\n%s", result)
+	}
+	if strings.Contains(result, "DiskLow") {
+		t.Errorf("should not contain 'DiskLow' (warning severity), got:\n%s", result)
+	}
+}
+
+func TestMock_Alerts_NoAlerts(t *testing.T) {
+	amHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `[]`)
+	})
+	promHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, `{"status":"success","data":{"resultType":"vector","result":[]}}`)
+	})
+
+	client, promSrv, amSrv := newMockPromQLClient(promHandler, amHandler)
+	defer promSrv.Close()
+	defer amSrv.Close()
+
+	tools := buildObsTools(client)
+	tool := findTool(tools, "obs_alerts")
+	if tool == nil {
+		t.Fatal("obs_alerts tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "No active alerts") {
+		t.Errorf("expected 'No active alerts', got:\n%s", result)
 	}
 }

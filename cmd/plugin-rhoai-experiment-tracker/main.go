@@ -18,6 +18,7 @@ import (
 type options struct {
 	MlflowURL      string
 	ExperimentName string
+	APIPrefix      string
 }
 
 func parseOptions(raw map[string]any) options {
@@ -27,6 +28,12 @@ func parseOptions(raw map[string]any) options {
 	}
 	if v, ok := raw["experimentName"].(string); ok {
 		opts.ExperimentName = v
+	}
+	if v, ok := raw["apiPrefix"].(string); ok {
+		opts.APIPrefix = v
+	}
+	if opts.APIPrefix == "" {
+		opts.APIPrefix = "/api/2.0/mlflow"
 	}
 	return opts
 }
@@ -48,8 +55,8 @@ type trackerState struct {
 	experimentName string
 }
 
-func fetchLastRun(ctx context.Context, api *redhat.APIClient, experimentName string) (*lastRunInfo, error) {
-	expResp, err := api.Get(ctx, "/api/2.0/mlflow/experiments/get-by-name", map[string]string{
+func fetchLastRun(ctx context.Context, api *redhat.APIClient, experimentName, apiPrefix string) (*lastRunInfo, error) {
+	expResp, err := api.Get(ctx, apiPrefix+"/experiments/get-by-name", map[string]string{
 		"experiment_name": experimentName,
 	})
 	if err != nil {
@@ -64,7 +71,7 @@ func fetchLastRun(ctx context.Context, api *redhat.APIClient, experimentName str
 		return nil, err
 	}
 
-	runsResp, err := api.Post(ctx, "/api/2.0/mlflow/runs/search", map[string]any{
+	runsResp, err := api.Post(ctx, apiPrefix+"/runs/search", map[string]any{
 		"experiment_ids": []string{expResult.Experiment.ExperimentID},
 		"filter":         "status = 'FINISHED'",
 		"order_by":       []string{"start_time DESC"},
@@ -219,7 +226,7 @@ func newPlugin(opts options) plugin.Plugin {
 				st.mu.Unlock()
 
 				// Fetch last run (best-effort).
-				if info, err := fetchLastRun(ctx, api, expName); err == nil {
+				if info, err := fetchLastRun(ctx, api, expName, opts.APIPrefix); err == nil {
 					st.mu.Lock()
 					st.lastRun = info
 					st.mu.Unlock()

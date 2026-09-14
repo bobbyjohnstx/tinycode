@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
 )
 
 func TestPluginID(t *testing.T) {
@@ -258,5 +264,417 @@ func TestFormatModelVersion(t *testing.T) {
 	}
 	if !strings.Contains(result, "Source: s3://bucket/model") {
 		t.Errorf("expected source, got %q", result)
+	}
+}
+
+// --- httptest mock-based tests ---
+
+func newMockMlflowClient(handler http.Handler) (*mlflowReadClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	api := redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL})
+	return newMlflowReadClient(api, "/api/2.0/mlflow"), srv
+}
+
+func TestMock_ListExperiments(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/experiments/search" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"experiments": []map[string]any{
+				{"experiment_id": "1", "name": "fraud-detection", "lifecycle_stage": "active"},
+				{"experiment_id": "2", "name": "sentiment-v2", "lifecycle_stage": "active"},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	exps, err := client.listExperiments(context.Background())
+	if err != nil {
+		t.Fatalf("listExperiments error: %v", err)
+	}
+	if len(exps) != 2 {
+		t.Fatalf("expected 2 experiments, got %d", len(exps))
+	}
+	if exps[0].Name != "fraud-detection" {
+		t.Errorf("expected name 'fraud-detection', got %q", exps[0].Name)
+	}
+	if exps[1].ExperimentID != "2" {
+		t.Errorf("expected experiment_id '2', got %q", exps[1].ExperimentID)
+	}
+}
+
+func TestMock_ListRuns(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/runs/search" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		ids, _ := body["experiment_ids"].([]any)
+		if len(ids) == 0 || ids[0] != "exp-1" {
+			t.Errorf("expected experiment_ids=[exp-1], got %v", ids)
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"runs": []map[string]any{
+				{
+					"info": map[string]any{
+						"run_id":        "run-aaa",
+						"experiment_id": "exp-1",
+						"status":        "FINISHED",
+						"start_time":    1700000000000,
+					},
+					"data": map[string]any{
+						"metrics": []map[string]any{
+							{"key": "accuracy", "value": 0.95},
+							{"key": "loss", "value": 0.12},
+						},
+						"params": []map[string]any{
+							{"key": "lr", "value": "0.001"},
+						},
+					},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	runs, err := client.listRuns(context.Background(), "exp-1", "")
+	if err != nil {
+		t.Fatalf("listRuns error: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runs))
+	}
+	if runs[0].Info.RunID != "run-aaa" {
+		t.Errorf("expected run_id 'run-aaa', got %q", runs[0].Info.RunID)
+	}
+	if runs[0].Info.Status != "FINISHED" {
+		t.Errorf("expected status FINISHED, got %q", runs[0].Info.Status)
+	}
+	if len(runs[0].Data.Metrics) != 2 {
+		t.Errorf("expected 2 metrics, got %d", len(runs[0].Data.Metrics))
+	}
+	if len(runs[0].Data.Params) != 1 {
+		t.Errorf("expected 1 param, got %d", len(runs[0].Data.Params))
+	}
+}
+
+func TestMock_ListRuns_WithFilter(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["filter"] != "status = 'FINISHED'" {
+			t.Errorf("expected filter, got %v", body["filter"])
+		}
+		json.NewEncoder(w).Encode(map[string]any{"runs": []any{}})
+	}))
+	defer srv.Close()
+
+	runs, err := client.listRuns(context.Background(), "exp-1", "status = 'FINISHED'")
+	if err != nil {
+		t.Fatalf("listRuns error: %v", err)
+	}
+	if len(runs) != 0 {
+		t.Errorf("expected 0 runs, got %d", len(runs))
+	}
+}
+
+func TestMock_CompareRuns(t *testing.T) {
+	callCount := 0
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/runs/get" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		runID := r.URL.Query().Get("run_id")
+		callCount++
+		json.NewEncoder(w).Encode(map[string]any{
+			"run": map[string]any{
+				"info": map[string]any{
+					"run_id": runID,
+					"status": "FINISHED",
+				},
+				"data": map[string]any{
+					"metrics": []map[string]any{
+						{"key": "accuracy", "value": 0.9 + float64(callCount)*0.01},
+					},
+					"params": []map[string]any{
+						{"key": "epochs", "value": "10"},
+					},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	comparisons, err := client.compareRuns(context.Background(), []string{"run-1", "run-2"})
+	if err != nil {
+		t.Fatalf("compareRuns error: %v", err)
+	}
+	if len(comparisons) != 2 {
+		t.Fatalf("expected 2 comparisons, got %d", len(comparisons))
+	}
+	if comparisons[0]["runId"] != "run-1" {
+		t.Errorf("expected runId 'run-1', got %v", comparisons[0]["runId"])
+	}
+	metrics, ok := comparisons[0]["metrics"].(map[string]float64)
+	if !ok {
+		t.Fatal("expected metrics map")
+	}
+	if _, exists := metrics["accuracy"]; !exists {
+		t.Error("expected accuracy metric")
+	}
+	params, ok := comparisons[0]["params"].(map[string]string)
+	if !ok {
+		t.Fatal("expected params map")
+	}
+	if params["epochs"] != "10" {
+		t.Errorf("expected epochs=10, got %q", params["epochs"])
+	}
+}
+
+func TestMock_ListArtifacts(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/artifacts/list" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		if r.URL.Query().Get("run_id") != "run-abc" {
+			t.Errorf("expected run_id=run-abc, got %q", r.URL.Query().Get("run_id"))
+		}
+		if r.URL.Query().Get("path") != "models" {
+			t.Errorf("expected path=models, got %q", r.URL.Query().Get("path"))
+		}
+		size := int64(2048)
+		json.NewEncoder(w).Encode(map[string]any{
+			"files": []map[string]any{
+				{"path": "models/model.pkl", "is_dir": false, "file_size": size},
+				{"path": "models/config", "is_dir": true},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	artifacts, err := client.listArtifacts(context.Background(), "run-abc", "models")
+	if err != nil {
+		t.Fatalf("listArtifacts error: %v", err)
+	}
+	if len(artifacts) != 2 {
+		t.Fatalf("expected 2 artifacts, got %d", len(artifacts))
+	}
+	if artifacts[0].Path != "models/model.pkl" {
+		t.Errorf("expected path 'models/model.pkl', got %q", artifacts[0].Path)
+	}
+	if artifacts[0].IsDir {
+		t.Error("expected file, not dir")
+	}
+	if artifacts[0].FileSize == nil || *artifacts[0].FileSize != 2048 {
+		t.Errorf("expected file_size 2048, got %v", artifacts[0].FileSize)
+	}
+	if !artifacts[1].IsDir {
+		t.Error("expected dir for second artifact")
+	}
+}
+
+func TestMock_ListArtifacts_NoPath(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("path") != "" {
+			t.Errorf("expected no path param, got %q", r.URL.Query().Get("path"))
+		}
+		json.NewEncoder(w).Encode(map[string]any{"files": []any{}})
+	}))
+	defer srv.Close()
+
+	artifacts, err := client.listArtifacts(context.Background(), "run-abc", "")
+	if err != nil {
+		t.Fatalf("listArtifacts error: %v", err)
+	}
+	if len(artifacts) != 0 {
+		t.Errorf("expected 0 artifacts, got %d", len(artifacts))
+	}
+}
+
+func TestMock_ListRegisteredModels(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/registered-models/search" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"registered_models": []map[string]any{
+				{
+					"name": "bert-classifier",
+					"latest_versions": []map[string]any{
+						{"name": "bert-classifier", "version": "1", "current_stage": "Production", "status": "READY", "run_id": "run-111", "source": "s3://models/bert"},
+						{"name": "bert-classifier", "version": "2", "current_stage": "Staging", "status": "READY", "run_id": "run-222", "source": "s3://models/bert-v2"},
+					},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	models, err := client.listRegisteredModels(context.Background())
+	if err != nil {
+		t.Fatalf("listRegisteredModels error: %v", err)
+	}
+	if len(models) != 1 {
+		t.Fatalf("expected 1 model, got %d", len(models))
+	}
+	if models[0].Name != "bert-classifier" {
+		t.Errorf("expected name 'bert-classifier', got %q", models[0].Name)
+	}
+	if len(models[0].LatestVersions) != 2 {
+		t.Fatalf("expected 2 versions, got %d", len(models[0].LatestVersions))
+	}
+	if models[0].LatestVersions[0].CurrentStage != "Production" {
+		t.Errorf("expected stage Production, got %q", models[0].LatestVersions[0].CurrentStage)
+	}
+	if models[0].LatestVersions[1].RunID != "run-222" {
+		t.Errorf("expected run_id 'run-222', got %q", models[0].LatestVersions[1].RunID)
+	}
+}
+
+func TestMock_GetModelVersion(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/model-versions/get" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		if r.URL.Query().Get("name") != "my-model" {
+			t.Errorf("expected name=my-model, got %q", r.URL.Query().Get("name"))
+		}
+		if r.URL.Query().Get("version") != "3" {
+			t.Errorf("expected version=3, got %q", r.URL.Query().Get("version"))
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"model_version": map[string]any{
+				"name":               "my-model",
+				"version":            "3",
+				"current_stage":      "Production",
+				"status":             "READY",
+				"source":             "s3://bucket/my-model/3",
+				"run_id":             "run-xyz",
+				"creation_timestamp": 1700000000000,
+			},
+		})
+	}))
+	defer srv.Close()
+
+	v, err := client.getModelVersion(context.Background(), "my-model", "3")
+	if err != nil {
+		t.Fatalf("getModelVersion error: %v", err)
+	}
+	if v.Name != "my-model" {
+		t.Errorf("expected name 'my-model', got %q", v.Name)
+	}
+	if v.Version != "3" {
+		t.Errorf("expected version '3', got %q", v.Version)
+	}
+	if v.CurrentStage != "Production" {
+		t.Errorf("expected stage Production, got %q", v.CurrentStage)
+	}
+	if v.Status != "READY" {
+		t.Errorf("expected status READY, got %q", v.Status)
+	}
+	if v.RunID != "run-xyz" {
+		t.Errorf("expected run_id 'run-xyz', got %q", v.RunID)
+	}
+	if v.Source != "s3://bucket/my-model/3" {
+		t.Errorf("expected source 's3://bucket/my-model/3', got %q", v.Source)
+	}
+}
+
+func TestMock_TransitionModelStage(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/2.0/mlflow/model-versions/transition-stage" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["name"] != "my-model" {
+			t.Errorf("expected name 'my-model', got %v", body["name"])
+		}
+		if body["version"] != "2" {
+			t.Errorf("expected version '2', got %v", body["version"])
+		}
+		if body["stage"] != "Production" {
+			t.Errorf("expected stage 'Production', got %v", body["stage"])
+		}
+		if body["archive_existing_versions"] != true {
+			t.Errorf("expected archive_existing_versions=true, got %v", body["archive_existing_versions"])
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"model_version": map[string]any{
+				"name":          "my-model",
+				"version":       "2",
+				"current_stage": "Production",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	err := client.transitionModelStage(context.Background(), "my-model", "2", "Production")
+	if err != nil {
+		t.Fatalf("transitionModelStage error: %v", err)
+	}
+}
+
+func TestMock_TransitionModelStage_Error(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error_code":"RESOURCE_DOES_NOT_EXIST","message":"Model not found"}`, 404)
+	}))
+	defer srv.Close()
+
+	err := client.transitionModelStage(context.Background(), "nonexistent", "1", "Production")
+	if err == nil {
+		t.Fatal("expected error for missing model")
+	}
+}
+
+func TestMock_ListExperiments_Empty(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"experiments": []any{}})
+	}))
+	defer srv.Close()
+
+	exps, err := client.listExperiments(context.Background())
+	if err != nil {
+		t.Fatalf("listExperiments error: %v", err)
+	}
+	if len(exps) != 0 {
+		t.Errorf("expected 0 experiments, got %d", len(exps))
+	}
+}
+
+func TestMock_CompareRuns_Error(t *testing.T) {
+	client, srv := newMockMlflowClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "server error", 500)
+	}))
+	defer srv.Close()
+
+	_, err := client.compareRuns(context.Background(), []string{"run-1"})
+	if err == nil {
+		t.Fatal("expected error on 500 response")
 	}
 }

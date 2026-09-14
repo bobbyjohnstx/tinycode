@@ -10,12 +10,13 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
 )
 
-const sandboxAPIBaseURL = "https://api.sandbox.devshift.net/api/v1"
+const defaultSandboxAPIBaseURL = "https://api.sandbox.devshift.net/api/v1"
 
 type options struct {
 	Namespace           string
 	RouteHost           string
 	ConsoleOfflineToken string
+	SandboxURL          string
 }
 
 func parseOptions(raw map[string]any) options {
@@ -28,6 +29,12 @@ func parseOptions(raw map[string]any) options {
 	}
 	if v, ok := raw["consoleOfflineToken"].(string); ok {
 		opts.ConsoleOfflineToken = v
+	}
+	if v, ok := raw["sandboxUrl"].(string); ok {
+		opts.SandboxURL = v
+	}
+	if opts.SandboxURL == "" {
+		opts.SandboxURL = defaultSandboxAPIBaseURL
 	}
 	return opts
 }
@@ -443,7 +450,7 @@ func newPlugin(opts options) plugin.Plugin {
 			OfflineToken: opts.ConsoleOfflineToken,
 		})
 		sandboxClient := redhat.NewAPIClient(redhat.APIClientConfig{
-			BaseURL: sandboxAPIBaseURL,
+			BaseURL: opts.SandboxURL,
 			TokenFn: authClient.GetAccessToken,
 		})
 		tools = append(tools, buildSandboxTools(sandboxClient)...)

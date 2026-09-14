@@ -510,6 +510,87 @@ test_tekton() {
     echo ""
 }
 
+test_ocp_odf() {
+    if ! command -v oc &>/dev/null; then
+        skip_test "ocp-odf: all tests" "oc CLI not available"
+        return
+    fi
+    if ! oc whoami &>/dev/null 2>&1; then
+        skip_test "ocp-odf: all tests" "not logged in to cluster (oc whoami failed)"
+        return
+    fi
+    if ! oc get crd storageclusters.ocs.openshift.io &>/dev/null 2>&1; then
+        skip_test "ocp-odf: all tests" "ODF not installed (no storagecluster CRD)"
+        return
+    fi
+    echo -e "${BOLD}ocp-odf${NC} (OpenShift Data Foundation)"
+
+    assert_tool_contains ocp-odf "odf_status" \
+        '{}' \
+        "odf_status: StorageCluster status" \
+        ""
+
+    assert_tool_contains ocp-odf "odf_ceph_status" \
+        '{}' \
+        "odf_ceph_status: Ceph cluster health" \
+        ""
+
+    assert_tool_contains ocp-odf "odf_pools" \
+        '{}' \
+        "odf_pools: list Ceph pools" \
+        ""
+
+    assert_tool_contains ocp-odf "odf_storage_classes" \
+        '{}' \
+        "odf_storage_classes: list ODF storage classes" \
+        ""
+
+    assert_tool_contains ocp-odf "odf_pvcs" \
+        '{"namespace":"all"}' \
+        "odf_pvcs: list ODF-backed PVCs" \
+        ""
+
+    echo ""
+}
+
+test_ocp_virt() {
+    if ! command -v oc &>/dev/null; then
+        skip_test "ocp-virt: all tests" "oc CLI not available"
+        return
+    fi
+    if ! oc whoami &>/dev/null 2>&1; then
+        skip_test "ocp-virt: all tests" "not logged in to cluster (oc whoami failed)"
+        return
+    fi
+    if ! oc get crd virtualmachines.kubevirt.io &>/dev/null 2>&1; then
+        skip_test "ocp-virt: all tests" "OpenShift Virtualization not installed (no kubevirt CRD)"
+        return
+    fi
+    echo -e "${BOLD}ocp-virt${NC} (OpenShift Virtualization)"
+
+    assert_tool_contains ocp-virt "virt_vms" \
+        '{"namespace":"all"}' \
+        "virt_vms: list all VMs" \
+        ""
+
+    assert_tool_contains ocp-virt "virt_templates" \
+        '{}' \
+        "virt_templates: list VM templates" \
+        ""
+
+    assert_tool_contains ocp-virt "virt_datavolumes" \
+        '{"namespace":"all"}' \
+        "virt_datavolumes: list DataVolumes" \
+        ""
+
+    assert_tool_contains ocp-virt "virt_network" \
+        '{"namespace":"all"}' \
+        "virt_network: list NetworkAttachmentDefinitions" \
+        ""
+
+    echo ""
+}
+
 test_rhacm() {
     if ! command -v oc &>/dev/null; then
         skip_test "rhacm: all tests" "oc CLI not available"
@@ -533,6 +614,266 @@ test_rhacm() {
         "$opts" \
         "acm_policies: list governance policies" \
         "polic"
+
+    echo ""
+}
+
+test_ocp_oauth() {
+    if ! command -v oc &>/dev/null; then
+        skip_test "ocp-oauth: all tests" "oc CLI not available"
+        return
+    fi
+    if [ -z "${OCP_API_URL:-}" ] || [ -z "${OC_TOKEN:-}" ]; then
+        skip_test "ocp-oauth: all tests" "OCP_API_URL and OC_TOKEN not set"
+        return
+    fi
+    echo -e "${BOLD}ocp-oauth${NC} (OpenShift OAuth login)"
+    local opts='{"insecureSkipTlsVerify":true}'
+
+    assert_tool_contains_opts ocp-oauth "oc-login" \
+        "$(jq -cn --arg server "$OCP_API_URL" --arg token "$OC_TOKEN" '{"server":$server,"token":$token}')" \
+        "$opts" \
+        "oc-login: authenticate to cluster" \
+        "Logged into"
+
+    echo ""
+}
+
+test_ocp_obs_logging() {
+    if [ -z "${LOKI_URL:-}" ] || [ -z "${OC_TOKEN:-}" ]; then
+        skip_test "ocp-obs-logging: all tests" "LOKI_URL and OC_TOKEN not set"
+        return
+    fi
+    echo -e "${BOLD}ocp-obs-logging${NC} (Loki log queries)"
+    local opts
+    opts=$(jq -cn --arg url "$LOKI_URL" --arg token "$OC_TOKEN" \
+        '{"lokiUrl":$url,"token":$token}')
+
+    assert_tool_contains_opts ocp-obs-logging "obs_logs" \
+        '{"query":"{log_type=~\".+\"}","limit":3}' \
+        "$opts" \
+        "obs_logs: query infrastructure logs" \
+        "Log entries"
+
+    assert_tool_contains_opts ocp-obs-logging "obs_traces" \
+        '{"service":"test"}' \
+        "$opts" \
+        "obs_traces: returns unconfigured without tempoUrl" \
+        "not configured"
+
+    echo ""
+}
+
+test_aap_bridge() {
+    if [ -z "${AAP_URL:-}" ] || [ -z "${AAP_TOKEN:-}" ]; then
+        skip_test "aap-bridge: all tests" "AAP_URL and AAP_TOKEN not set"
+        return
+    fi
+    echo -e "${BOLD}aap-bridge${NC} (Ansible Automation Platform)"
+    local api_prefix="${AAP_API_PREFIX:-/api/v2}"
+    local opts
+    opts=$(jq -cn --arg url "$AAP_URL" --arg token "$AAP_TOKEN" --arg prefix "$api_prefix" \
+        '{"controllerUrl":$url,"oauthToken":$token,"apiPrefix":$prefix}')
+
+    assert_tool_contains_opts aap-bridge "aap_list_templates" \
+        '{}' \
+        "$opts" \
+        "aap_list_templates: list job templates" \
+        "template"
+
+    assert_tool_contains_opts aap-bridge "aap_list_inventories" \
+        '{}' \
+        "$opts" \
+        "aap_list_inventories: list inventories" \
+        "inventor"
+
+    assert_tool_contains_opts aap-bridge "aap_job_status" \
+        '{"jobId":999}' \
+        "$opts" \
+        "aap_job_status: error on missing job" \
+        "404"
+
+    echo ""
+}
+
+test_rhoai_model_serving() {
+    if ! command -v oc &>/dev/null; then
+        skip_test "rhoai-model-serving: all tests" "oc CLI not available"
+        return
+    fi
+    if ! oc whoami &>/dev/null 2>&1; then
+        skip_test "rhoai-model-serving: all tests" "not logged in to cluster (oc whoami failed)"
+        return
+    fi
+    echo -e "${BOLD}rhoai-model-serving${NC} (OpenShift AI model serving)"
+
+    assert_tool_contains rhoai-model-serving "rhoai_list_models" \
+        '{"namespace":"my-first-model"}' \
+        "rhoai_list_models: list inference services" \
+        "Inference Services"
+
+    assert_tool_contains rhoai-model-serving "rhoai_model_status" \
+        '{"name":"llama-32-3b-instruct","namespace":"my-first-model"}' \
+        "rhoai_model_status: get model status with pods" \
+        "Ready"
+
+    assert_tool_contains rhoai-model-serving "rhoai_list_runtimes" \
+        '{"namespace":"my-first-model"}' \
+        "rhoai_list_runtimes: list serving runtimes" \
+        "Serving Runtimes"
+
+    assert_tool_contains rhoai-model-serving "rhoai_sandbox_status" \
+        '{}' \
+        "rhoai_sandbox_status: unconfigured returns message" \
+        "not configured"
+
+    echo ""
+}
+
+test_rhoai_eval_trustyai() {
+    if ! command -v oc &>/dev/null; then
+        skip_test "rhoai-eval-trustyai: all tests" "oc CLI not available"
+        return
+    fi
+    if ! oc whoami &>/dev/null 2>&1; then
+        skip_test "rhoai-eval-trustyai: all tests" "not logged in to cluster (oc whoami failed)"
+        return
+    fi
+    echo -e "${BOLD}rhoai-eval-trustyai${NC} (OpenShift AI evaluation + TrustyAI)"
+
+    assert_tool_contains rhoai-eval-trustyai "rhoai_eval_run" \
+        '{"model":"test","provider":"vllm"}' \
+        "rhoai_eval_run: unconfigured returns message" \
+        "not configured"
+
+    assert_tool_contains rhoai-eval-trustyai "rhoai_trusty_metrics" \
+        '{"model":"test"}' \
+        "rhoai_trusty_metrics: unconfigured returns message" \
+        "not configured"
+
+    assert_tool_contains rhoai-eval-trustyai "rhoai_workbench_list" \
+        '{}' \
+        "rhoai_workbench_list: list workbenches (oc)" \
+        "workbench"
+
+    echo ""
+}
+
+test_rhoai_pipelines() {
+    if [ -z "${PIPELINES_URL:-}" ]; then
+        skip_test "rhoai-pipelines: all tests" "PIPELINES_URL not set"
+        return
+    fi
+    echo -e "${BOLD}rhoai-pipelines${NC} (Kubeflow pipelines on OpenShift AI)"
+    local opts
+    opts=$(printf '{"pipelinesUrl":"%s","token":"%s"}' "$PIPELINES_URL" "${OC_TOKEN:-}")
+
+    assert_tool_contains_opts rhoai-pipelines "rhoai_pipeline_list" \
+        '{}' \
+        "$opts" \
+        "rhoai_pipeline_list: list pipelines" \
+        "ipeline"
+
+    echo ""
+}
+
+test_rhoai_mlflow_tools() {
+    if [ -z "${MLFLOW_URL:-}" ]; then
+        skip_test "rhoai-mlflow-tools: all tests" "MLFLOW_URL not set"
+        return
+    fi
+    echo -e "${BOLD}rhoai-mlflow-tools${NC} (MLflow on OpenShift AI)"
+    local opts
+    opts=$(printf '{"mlflowUrl":"%s"}' "$MLFLOW_URL")
+
+    assert_tool_contains_opts rhoai-mlflow-tools "mlflow_experiments" \
+        '{}' \
+        "$opts" \
+        "mlflow_experiments: list experiments" \
+        "xperiment"
+
+    echo ""
+}
+
+test_satellite() {
+    if [ -z "${SATELLITE_URL:-}" ]; then
+        skip_test "satellite: all tests" "SATELLITE_URL not set"
+        return
+    fi
+    if [ -z "${SATELLITE_USER:-}" ] || [ -z "${SATELLITE_PASSWORD:-}" ]; then
+        skip_test "satellite: all tests" "SATELLITE_USER and SATELLITE_PASSWORD not set"
+        return
+    fi
+    echo -e "${BOLD}satellite${NC} (Red Hat Satellite)"
+    local opts
+    opts=$(jq -cn --arg url "$SATELLITE_URL" --arg user "$SATELLITE_USER" --arg pass "$SATELLITE_PASSWORD" \
+        '{"satelliteUrl":$url,"username":$user,"password":$pass}')
+
+    assert_tool_contains_opts satellite "satellite_health_check" \
+        '{}' \
+        "$opts" \
+        "satellite_health_check: multi-port connectivity" \
+        "Satellite Health Check"
+
+    assert_tool_contains_opts satellite "satellite_hosts" \
+        '{}' \
+        "$opts" \
+        "satellite_hosts: list managed hosts" \
+        "Hosts:"
+
+    assert_tool_contains_opts satellite "satellite_host_facts" \
+        '{"hostname":"satellite.wgvcz.sandbox5406.opentlc.com","search":"memory"}' \
+        "$opts" \
+        "satellite_host_facts: get host memory facts" \
+        "memorysize"
+
+    assert_tool_contains_opts satellite "satellite_errata" \
+        '{"type":"security"}' \
+        "$opts" \
+        "satellite_errata: list security errata" \
+        "Errata:"
+
+    assert_tool_contains_opts satellite "satellite_content_views" \
+        '{}' \
+        "$opts" \
+        "satellite_content_views: list content views" \
+        "Content views:"
+
+    assert_tool_contains_opts satellite "satellite_services" \
+        '{}' \
+        "$opts" \
+        "satellite_services: check service health" \
+        "Katello overall:"
+
+    assert_tool_contains_opts satellite "satellite_proxies" \
+        '{}' \
+        "$opts" \
+        "satellite_proxies: list smart proxies" \
+        "Smart proxies:"
+
+    assert_tool_contains_opts satellite "satellite_tasks" \
+        '{"perPage":3}' \
+        "$opts" \
+        "satellite_tasks: list recent tasks" \
+        "Tasks:"
+
+    assert_tool_contains_opts satellite "satellite_repositories" \
+        '{}' \
+        "$opts" \
+        "satellite_repositories: list repos" \
+        "Repositories"
+
+    assert_tool_contains_opts satellite "satellite_rex_run" \
+        '{"host":"name = satellite.wgvcz.internal","command":"hostname -f"}' \
+        "$opts" \
+        "satellite_rex_run: run remote command" \
+        "Job submitted"
+
+    assert_tool_contains_opts satellite "satellite_rex_result" \
+        '{"jobId":3}' \
+        "$opts" \
+        "satellite_rex_result: get job output" \
+        "REX Job"
 
     echo ""
 }
@@ -680,10 +1021,22 @@ main() {
         echo "  rhacs                StackRox Central (RHACS_URL, RHACS_API_TOKEN)"
         echo "  quay                 Quay registry (QUAY_URL, QUAY_TOKEN)"
         echo "  ocp-obs-metrics      Prometheus/Thanos (PROMETHEUS_HOST, OC_TOKEN)"
+        echo "  ocp-oauth            OpenShift OAuth login (OCP_API_URL, OC_TOKEN)"
+        echo "  ocp-obs-logging      Loki log queries (LOKI_URL, OC_TOKEN)"
+        echo "  aap-bridge           Ansible Automation Platform (AAP_URL, AAP_TOKEN)"
         echo "  ocp-context-injection  Cluster context via oc CLI"
         echo "  tekton               OpenShift Pipelines via oc CLI"
+        echo "  ocp-odf              OpenShift Data Foundation via oc CLI"
+        echo "  ocp-virt             OpenShift Virtualization via oc CLI"
         echo "  rhacm                Advanced Cluster Management via oc CLI"
         echo "  cluster-ops          Basic cluster operations via oc/kubectl"
+        echo ""
+        echo "RHOAI cluster (require oc login or credentials):"
+        echo "  rhoai-model-serving  RHOAI model serving via oc CLI"
+        echo "  rhoai-eval-trustyai  RHOAI evaluation + TrustyAI via oc CLI"
+        echo "  rhoai-pipelines      Kubeflow pipelines (PIPELINES_URL)"
+        echo "  rhoai-mlflow-tools   MLflow tools (MLFLOW_URL)"
+        echo "  satellite            Satellite hosts, errata, content views (SATELLITE_URL, SATELLITE_USER, SATELLITE_PASSWORD)"
         exit 0
     fi
 
@@ -720,17 +1073,49 @@ main() {
     if [ -z "$filter" ] || [ "$filter" = "ocp-obs-metrics" ]; then
         test_ocp_obs_metrics
     fi
+    if [ -z "$filter" ] || [ "$filter" = "ocp-oauth" ]; then
+        test_ocp_oauth
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "ocp-obs-logging" ]; then
+        test_ocp_obs_logging
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "aap-bridge" ]; then
+        test_aap_bridge
+    fi
     if [ -z "$filter" ] || [ "$filter" = "ocp-context-injection" ]; then
         test_ocp_context_injection
     fi
     if [ -z "$filter" ] || [ "$filter" = "tekton" ]; then
         test_tekton
     fi
+    if [ -z "$filter" ] || [ "$filter" = "ocp-odf" ]; then
+        test_ocp_odf
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "ocp-virt" ]; then
+        test_ocp_virt
+    fi
     if [ -z "$filter" ] || [ "$filter" = "rhacm" ]; then
         test_rhacm
     fi
     if [ -z "$filter" ] || [ "$filter" = "cluster-ops" ]; then
         test_cluster_ops
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "satellite" ]; then
+        test_satellite
+    fi
+
+    # RHOAI tests
+    if [ -z "$filter" ] || [ "$filter" = "rhoai-model-serving" ]; then
+        test_rhoai_model_serving
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "rhoai-eval-trustyai" ]; then
+        test_rhoai_eval_trustyai
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "rhoai-pipelines" ]; then
+        test_rhoai_pipelines
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "rhoai-mlflow-tools" ]; then
+        test_rhoai_mlflow_tools
     fi
 
     echo "===================================="

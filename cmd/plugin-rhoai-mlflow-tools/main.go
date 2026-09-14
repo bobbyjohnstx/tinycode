@@ -12,12 +12,19 @@ import (
 
 type options struct {
 	MlflowURL string
+	APIPrefix string
 }
 
 func parseOptions(raw map[string]any) options {
 	var opts options
 	if v, ok := raw["mlflowUrl"].(string); ok {
 		opts.MlflowURL = v
+	}
+	if v, ok := raw["apiPrefix"].(string); ok {
+		opts.APIPrefix = v
+	}
+	if opts.APIPrefix == "" {
+		opts.APIPrefix = "/api/2.0/mlflow"
 	}
 	return opts
 }
@@ -84,15 +91,16 @@ type registeredModel struct {
 // --- mlflow read client ---
 
 type mlflowReadClient struct {
-	api *redhat.APIClient
+	api       *redhat.APIClient
+	apiPrefix string
 }
 
-func newMlflowReadClient(api *redhat.APIClient) *mlflowReadClient {
-	return &mlflowReadClient{api: api}
+func newMlflowReadClient(api *redhat.APIClient, apiPrefix string) *mlflowReadClient {
+	return &mlflowReadClient{api: api, apiPrefix: apiPrefix}
 }
 
 func (c *mlflowReadClient) listExperiments(ctx context.Context) ([]experiment, error) {
-	resp, err := c.api.Get(ctx, "/api/2.0/mlflow/experiments/search", nil)
+	resp, err := c.api.Get(ctx, c.apiPrefix+"/experiments/search", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +120,7 @@ func (c *mlflowReadClient) listRuns(ctx context.Context, experimentID, filter st
 	if filter != "" {
 		body["filter"] = filter
 	}
-	resp, err := c.api.Post(ctx, "/api/2.0/mlflow/runs/search", body)
+	resp, err := c.api.Post(ctx, c.apiPrefix+"/runs/search", body)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +136,7 @@ func (c *mlflowReadClient) listRuns(ctx context.Context, experimentID, filter st
 func (c *mlflowReadClient) compareRuns(ctx context.Context, runIDs []string) ([]map[string]any, error) {
 	var comparisons []map[string]any
 	for _, id := range runIDs {
-		resp, err := c.api.Get(ctx, "/api/2.0/mlflow/runs/get", map[string]string{"run_id": id})
+		resp, err := c.api.Get(ctx, c.apiPrefix+"/runs/get", map[string]string{"run_id": id})
 		if err != nil {
 			return nil, fmt.Errorf("fetching run %s: %w", id, err)
 		}
@@ -160,7 +168,7 @@ func (c *mlflowReadClient) listArtifacts(ctx context.Context, runID, path string
 	if path != "" {
 		query["path"] = path
 	}
-	resp, err := c.api.Get(ctx, "/api/2.0/mlflow/artifacts/list", query)
+	resp, err := c.api.Get(ctx, c.apiPrefix+"/artifacts/list", query)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +182,7 @@ func (c *mlflowReadClient) listArtifacts(ctx context.Context, runID, path string
 }
 
 func (c *mlflowReadClient) listRegisteredModels(ctx context.Context) ([]registeredModel, error) {
-	resp, err := c.api.Get(ctx, "/api/2.0/mlflow/registered-models/search", nil)
+	resp, err := c.api.Get(ctx, c.apiPrefix+"/registered-models/search", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +196,7 @@ func (c *mlflowReadClient) listRegisteredModels(ctx context.Context) ([]register
 }
 
 func (c *mlflowReadClient) getModelVersion(ctx context.Context, name, version string) (*modelVersion, error) {
-	resp, err := c.api.Get(ctx, "/api/2.0/mlflow/model-versions/get", map[string]string{
+	resp, err := c.api.Get(ctx, c.apiPrefix+"/model-versions/get", map[string]string{
 		"name":    name,
 		"version": version,
 	})
@@ -205,7 +213,7 @@ func (c *mlflowReadClient) getModelVersion(ctx context.Context, name, version st
 }
 
 func (c *mlflowReadClient) transitionModelStage(ctx context.Context, name, version, stage string) error {
-	_, err := c.api.Post(ctx, "/api/2.0/mlflow/model-versions/transition-stage", map[string]any{
+	_, err := c.api.Post(ctx, c.apiPrefix+"/model-versions/transition-stage", map[string]any{
 		"name":                      name,
 		"version":                   version,
 		"stage":                     stage,
@@ -602,7 +610,7 @@ func newPlugin(opts options) plugin.Plugin {
 		BaseURL: opts.MlflowURL,
 		TokenFn: tokenFn,
 	})
-	readClient := newMlflowReadClient(api)
+	readClient := newMlflowReadClient(api, opts.APIPrefix)
 	writeClient := redhat.NewMlflowClient(api)
 
 	return plugin.Plugin{

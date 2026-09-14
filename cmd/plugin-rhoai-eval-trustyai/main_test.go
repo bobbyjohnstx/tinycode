@@ -1,8 +1,15 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
 )
 
 func TestPluginID(t *testing.T) {
@@ -167,5 +174,225 @@ func TestFormatAlert(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q in: %q", want, got)
 		}
+	}
+}
+
+// --- httptest mock tests ---
+
+func findTool(p *plugin.Plugin, name string) *plugin.ToolDef {
+	for i := range p.Tools {
+		if p.Tools[i].Name == name {
+			return &p.Tools[i]
+		}
+	}
+	return nil
+}
+
+func TestMock_EvalRun(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/evaluations" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["model"] != "llama-3" {
+			t.Errorf("expected model=llama-3, got %v", body["model"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"eval_id":"eval-abc123"}`)
+	}))
+	defer srv.Close()
+
+	p := newPlugin(options{EvalAPIURL: srv.URL, Token: "test-token"})
+	tool := findTool(&p, "rhoai_eval_run")
+	if tool == nil {
+		t.Fatal("rhoai_eval_run tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{"model":"llama-3","provider":"vllm"}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result, "eval-abc123") {
+		t.Errorf("expected eval ID in output, got: %s", result)
+	}
+	if !strings.Contains(result, "Evaluation started") {
+		t.Errorf("expected 'Evaluation started' in output, got: %s", result)
+	}
+}
+
+func TestMock_EvalStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/evaluations/eval-42" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{
+			"eval_id":"eval-42",
+			"model":"mistral-7b",
+			"provider":"vllm",
+			"status":"completed",
+			"created_at":"2026-09-14T12:00:00Z",
+			"completed_at":"2026-09-14T12:05:00Z",
+			"results":[
+				{"metric":"accuracy","score":0.92,"detail":"good"},
+				{"metric":"latency_p99","score":1.5,"detail":"ms"}
+			]
+		}`)
+	}))
+	defer srv.Close()
+
+	p := newPlugin(options{EvalAPIURL: srv.URL, Token: "test-token"})
+	tool := findTool(&p, "rhoai_eval_status")
+	if tool == nil {
+		t.Fatal("rhoai_eval_status tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{"evalId":"eval-42"}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"eval-42", "mistral-7b", "completed", "accuracy", "0.9200", "latency_p99", "1.5000"} {
+		if !strings.Contains(result, want) {
+			t.Errorf("output missing %q in:\n%s", want, result)
+		}
+	}
+}
+
+func TestMock_EvalCompare(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/evaluations/e1":
+			fmt.Fprint(w, `{"eval_id":"e1","model":"llama","provider":"vllm","status":"completed","created_at":"2026-01-01","results":[{"metric":"acc","score":0.9}]}`)
+		case "/api/v1/evaluations/e2":
+			fmt.Fprint(w, `{"eval_id":"e2","model":"mistral","provider":"tgis","status":"completed","created_at":"2026-01-02","results":[{"metric":"acc","score":0.85}]}`)
+		default:
+			http.Error(w, "not found", 404)
+		}
+	}))
+	defer srv.Close()
+
+	p := newPlugin(options{EvalAPIURL: srv.URL, Token: "test-token"})
+	tool := findTool(&p, "rhoai_eval_compare")
+	if tool == nil {
+		t.Fatal("rhoai_eval_compare tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{"evalIds":["e1","e2"]}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Comparison of 2", "e1", "e2", "llama", "mistral", "0.9000", "0.8500"} {
+		if !strings.Contains(result, want) {
+			t.Errorf("output missing %q in:\n%s", want, result)
+		}
+	}
+}
+
+func TestMock_EvalCompare_TooFew(t *testing.T) {
+	p := newPlugin(options{EvalAPIURL: "http://unused", Token: "t"})
+	tool := findTool(&p, "rhoai_eval_compare")
+	if tool == nil {
+		t.Fatal("rhoai_eval_compare tool not found")
+	}
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{"evalIds":["e1"]}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result, "At least 2") {
+		t.Errorf("expected minimum count message, got: %s", result)
+	}
+}
+
+func TestMock_TrustyMetrics(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/models/llama-3/metrics" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{
+			"model":"llama-3",
+			"driftScore":0.042,
+			"biasMetrics":{"gender":0.03,"age":0.01},
+			"featureDistributions":{"input_length":{"mean":128.5,"stddev":42.3}}
+		}`)
+	}))
+	defer srv.Close()
+
+	p := newPlugin(options{TrustyAIURL: srv.URL, Token: "test-token"})
+	tool := findTool(&p, "rhoai_trusty_metrics")
+	if tool == nil {
+		t.Fatal("rhoai_trusty_metrics tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{"model":"llama-3"}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"llama-3", "0.0420", "gender", "0.0300", "age", "0.0100", "input_length", "128.5000", "42.3000"} {
+		if !strings.Contains(result, want) {
+			t.Errorf("output missing %q in:\n%s", want, result)
+		}
+	}
+}
+
+func TestMock_TrustyAlerts(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/alerts" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			http.Error(w, "not found", 404)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[
+			{"id":"a1","type":"drift","model":"llama-3","metric":"accuracy","threshold":0.1,"currentValue":0.25,"severity":"critical","triggeredAt":"2026-09-14"},
+			{"id":"a2","type":"bias","model":"mistral","metric":"gender","threshold":0.05,"currentValue":0.08,"severity":"warning","triggeredAt":"2026-09-14"}
+		]`)
+	}))
+	defer srv.Close()
+
+	p := newPlugin(options{TrustyAIURL: srv.URL, Token: "test-token"})
+	tool := findTool(&p, "rhoai_trusty_alerts")
+	if tool == nil {
+		t.Fatal("rhoai_trusty_alerts tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Active Alerts: 2", "CRITICAL", "drift", "llama-3", "WARNING", "bias", "mistral"} {
+		if !strings.Contains(result, want) {
+			t.Errorf("output missing %q in:\n%s", want, result)
+		}
+	}
+}
+
+func TestMock_TrustyAlerts_Empty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `[]`)
+	}))
+	defer srv.Close()
+
+	p := newPlugin(options{TrustyAIURL: srv.URL, Token: "test-token"})
+	tool := findTool(&p, "rhoai_trusty_alerts")
+	if tool == nil {
+		t.Fatal("rhoai_trusty_alerts tool not found")
+	}
+
+	result, err := tool.Execute(context.Background(), json.RawMessage(`{}`), plugin.ToolContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result, "No active TrustyAI alerts") {
+		t.Errorf("expected no alerts message, got: %s", result)
 	}
 }
