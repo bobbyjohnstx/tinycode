@@ -956,6 +956,21 @@ test_rh_api_catalog() {
         "rh_api_list: list all APIs" \
         "rbac"
 
+    # Validate token before auth-dependent tests
+    local token_valid=true
+    if ! curl -sf -o /dev/null -d "grant_type=refresh_token&client_id=ocm-cli&refresh_token=$refresh_token" \
+        "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token" 2>/dev/null; then
+        token_valid=false
+    fi
+
+    if [ "$token_valid" = false ]; then
+        skip_test "rh_api_spec: fetch RBAC spec (live)" "OCM token expired (run 'ocm login' to refresh)"
+        skip_test "rh_api_endpoints: list RBAC endpoints" "OCM token expired"
+        skip_test "rh_api_spec: not showing 'not available' message" "OCM token expired"
+        echo ""
+        return
+    fi
+
     # Live API spec fetch (requires auth)
     assert_tool_contains_opts rh-api-catalog "rh_api_spec" \
         '{"api":"rbac"}' \
