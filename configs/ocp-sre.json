@@ -1,0 +1,16 @@
+{
+  "$comment": "OpenShift SRE / Platform Admin — cluster troubleshooting, observability, and diagnostics",
+  "plugins": [
+    "ocp-context-injection",
+    "ocp-must-gather",
+    "etcd-diag",
+    "ingress-inspect",
+    "audit-logs",
+    "ocp-obs-metrics",
+    "ocp-obs-logging",
+    "ocp-virt",
+    "insights",
+    "ocp-odf",
+    "safety-net"
+  ]
+}

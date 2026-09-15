@@ -1,0 +1,12 @@
+{
+  "$comment": "Developer — container registry, developer hub, API discovery, CI/CD, and content",
+  "plugins": [
+    "quay",
+    "rhdh",
+    "rh-api-catalog",
+    "rh-dev-content",
+    "rh-ecosystem-catalog",
+    "tekton",
+    "container-linter"
+  ]
+}

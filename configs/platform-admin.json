@@ -1,0 +1,12 @@
+{
+  "$comment": "Platform / Infrastructure — fleet management, CI/CD, automation, and provisioning",
+  "plugins": [
+    "rhacm",
+    "tekton",
+    "aap-bridge",
+    "satellite",
+    "rhdp-provisioner",
+    "ocp-context-injection",
+    "safety-net"
+  ]
+}

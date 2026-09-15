@@ -1,0 +1,11 @@
+{
+  "$comment": "Security / Compliance — vulnerability scanning, policy enforcement, and supply chain verification",
+  "plugins": [
+    "rhacs",
+    "lightwell",
+    "container-linter",
+    "log-sanitizer",
+    "safety-net",
+    "audit-logs"
+  ]
+}

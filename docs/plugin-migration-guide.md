@@ -451,3 +451,80 @@ The following TypeScript hooks do not have Go equivalents:
 - All `experimental.*` hooks
 
 If your TypeScript plugin relies on these hooks, the functionality must be implemented differently (e.g., as a tool, via config, or as a code change to tinycode itself).
+
+---
+
+## Plugin Refactor Migration
+
+The Go plugin registry was consolidated from 42 plugins (~120 tools) to 30 external plugins (~90 tools) plus 4 core builtins. This section covers what changed and what to update in your config.
+
+### Removed plugins
+
+| Plugin | Replacement |
+|--------|-------------|
+| `cluster-ops` | Absorbed into `ocp-context-injection` (`oc_login` tool + `ShellEnv` hook) |
+| `ocp-oauth` | Absorbed into `ocp-context-injection` (`oc_login` tool + `ShellEnv` hook) |
+| `rhoai-mcp-bridge` | Removed — native MCP support in `internal/mcp/` replaces it |
+| `snippets` | Removed — LLMs generate better YAML than static templates |
+| `web-search` | Removed — generic DuckDuckGo scraping with limited value |
+| `command-inject` | Removed — arbitrary script execution was a security risk |
+| `eda-events` | Removed — niche hook-only event bridge |
+
+### Promoted to core builtins
+
+These are always available without any config. Remove them from your `"plugins"` array if present.
+
+| Former plugin | Builtin behavior |
+|---------------|-----------------|
+| `context-pruning` | Hook-only (ToolExecAfter) — deduplicates repeated tool outputs |
+| `notify` | 1 tool — desktop notifications (macOS/Linux) |
+| `code-review` | 1 tool — git diff formatted for AI review |
+| `handoff` | 1 tool + 3 hooks — session context save/restore |
+
+### Merged plugins
+
+| Old plugins | New plugin |
+|-------------|------------|
+| `rhoai-mlflow-tools` + `rhoai-experiment-tracker` | `rhoai-mlflow` (10 tools + 4 hooks) |
+| `rhoai-eval-trustyai` + `rhoai-model-serving` | `rhoai-serving` (14 tools) |
+
+### Must-gather tool changes
+
+The `mg_etcd` and `mg_haproxy` tools were removed from `ocp-must-gather` to avoid overlap with specialist plugins. Use `etcd-diag` and `ingress-inspect` instead — they provide deeper, dedicated analysis of the same must-gather data.
+
+### Config compatibility
+
+If your `"plugins"` config array contains any removed or promoted plugin name, it is silently skipped at startup (debug-level log, no crash). No config change is required, but cleaning up stale entries is recommended.
+
+### New CLI commands
+
+- `tinycode init` — interactive guided setup: discovers providers/models, prompts for username, picks plugins by role
+- `tinycode plugin list --category <slug>` — filter plugins by category (`sre`, `security`, `ai-ml`, `platform`, `developer`, `essential`)
+
+### Config migration example
+
+Before:
+```json
+{
+  "plugins": [
+    "ocp-oauth", "ocp-context-injection", "cluster-ops",
+    "context-pruning", "notify", "code-review", "handoff",
+    "rhoai-mlflow-tools", "rhoai-experiment-tracker",
+    "rhoai-eval-trustyai", "rhoai-model-serving",
+    "rhoai-pipelines", "safety-net"
+  ]
+}
+```
+
+After:
+```json
+{
+  "plugins": [
+    "ocp-context-injection",
+    "rhoai-mlflow", "rhoai-serving", "rhoai-pipelines",
+    "safety-net"
+  ]
+}
+```
+
+Builtins (`context-pruning`, `notify`, `code-review`, `handoff`) are automatic. `ocp-oauth` and `cluster-ops` are absorbed into `ocp-context-injection`. RHOAI plugins are merged.

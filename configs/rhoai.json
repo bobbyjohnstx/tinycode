@@ -1,0 +1,9 @@
+{
+  "$comment": "AI/ML / Data Science — model serving, experiment tracking, pipelines, and evaluation on RHOAI",
+  "plugins": [
+    "rhoai-mlflow",
+    "rhoai-pipelines",
+    "rhoai-serving",
+    "ocp-context-injection"
+  ]
+}

@@ -1,166 +1,164 @@
 # Plugin Catalog
 
-Complete reference for all 36 plugins shipped with tinycode. For plugin development, SDK usage, and wire protocol details, see [plugin-development.md](plugin-development.md).
+Complete reference for the 30 plugins and 4 core builtins shipped with tinycode. Plugins are organized by category. For plugin development, SDK usage, and wire protocol details, see [plugin-development.md](plugin-development.md).
 
 ## Quick Start
 
 ```bash
-# Build and install a single plugin
-go build -o ~/.config/tinycode/plugins/safety-net ./cmd/plugin-safety-net
+# Interactive setup — picks model, username, and plugins by role
+tinycode init
 
-# Build all plugins at once
-for dir in cmd/plugin-*/; do
-    name=$(basename "$dir")
-    go build -o ~/.config/tinycode/plugins/${name#plugin-} ./$dir
-done
+# Or install plugins manually
+tinycode plugin install safety-net
+tinycode plugin install ocp-context-injection
+
+# List plugins with category filter
+tinycode plugin list
+tinycode plugin list --category sre
 ```
 
-Enable plugins in your tinycode config (`~/.config/tinycode/config.json`):
+Enable plugins in your tinycode config (`~/.config/tinycode/tinycode.json`):
 
 ```json
 {
-  "plugins": ["safety-net", "web-search", "notify"]
+  "plugins": ["safety-net", "ocp-context-injection", "audit-logs"]
 }
 ```
 
-All plugins that connect to OpenShift-hosted services require `ocp-oauth` — it provides the `oc login` auth hook that every OCP-connected plugin depends on. Authenticate once, and every plugin reuses the token.
+Example configs for common roles are available in `configs/`.
 
 ---
 
-## Configuration
+## Core Builtins (Always Available)
 
-Most plugins work out of the box. Plugins that connect to external APIs accept options in your tinycode config or environment variables.
+These features are built into tinycode and require no installation or configuration. They were promoted from plugins to core builtins because every user benefits from them.
 
-### Red Hat Plugins
+| Builtin | Type | Description |
+|---------|------|-------------|
+| **context-pruning** | Hook (ToolExecAfter) | Detects duplicate tool outputs within a sliding window and annotates them to save context |
+| **notify** | Tool | Send desktop notifications (macOS via osascript, Linux via notify-send) |
+| **code-review** | Tool | Git diff formatted as a markdown code review block |
+| **handoff** | Tool + Hooks | Cross-session context handoff — saves goals, decisions, open tasks, modified files |
 
-| Plugin | Required Options | Optional Options |
-|--------|-----------------|------------------|
-| cluster-ops | — | `consoleOfflineToken`, `clusterId` (enables Insights tools) |
-| ocp-obs-metrics | `prometheusUrl` | `alertManagerUrl`, `token`, `namespace` |
-| ocp-obs-logging | — | `lokiUrl`, `tempoUrl`, `token` |
-| rhacs | `centralUrl` | `apiToken` |
-| lightwell | — | `serviceAccountToken` |
-| aap-bridge | `controllerUrl` | `oauthToken` |
-| rhacm | — | `hubUrl`, `thanosUrl`, `token` |
-| rhoai-model-serving | — | `namespace`, `routeHost`, `consoleOfflineToken` |
-| rhoai-mcp-bridge | `mcpServerUrl` | `oauthToken` |
-| rhoai-mlflow-tools | `mlflowUrl` | — |
-| rhoai-pipelines | `pipelinesUrl` | `namespace`, `token` |
-| rhoai-eval-trustyai | — | `evalApiUrl`, `trustyaiUrl`, `namespace`, `token` |
-| satellite | `satelliteUrl` | `token` |
-| rhdp-provisioner | `consoleOfflineToken` | `rhdpApiUrl` |
+**Tools:**
 
-### General Plugins
+| Builtin | Tool | Description |
+|---------|------|-------------|
+| notify | `notify` | Send a desktop notification with title and message |
+| code-review | `code_review` | Show git diff for review (supports ref, path, staged, context lines) |
+| handoff | `handoff_save` | Save session context (goal, decisions, open tasks, files) for the next session |
 
-| Plugin | Environment Variables | Notes |
-|--------|----------------------|-------|
-| pilot | `GITEA_TOKEN`, `GITHUB_TOKEN` or `GH_TOKEN`, `GITLAB_TOKEN` (one required) | Auto-detects platform from git remote. Override with `PILOT_PROVIDER`. See also `GITEA_URL`, `GITLAB_URL`. |
-| command-inject | `COMMAND_INJECT_DIR` (required) | Path to directory of executable scripts |
-| notify | `NTFY_TOPIC` (optional) | Enables push notifications via ntfy.sh |
-| telemetry | `TELEMETRY_DB` (optional) | Default: `~/.tinycode/telemetry.db` |
-| handoff | `HANDOFF_DIR` (optional) | Default: `~/.tinycode/handoff` |
-| snippets | `SNIPPETS_DIR` (optional) | Default: `~/.tinycode/snippets` |
-| context-pruning | `CONTEXT_PRUNE_THRESHOLD` (optional) | Messages before outputs are considered stale (default: 20) |
+**Hooks:**
 
-Plugins not listed above require no configuration.
+| Builtin | Hook | Description |
+|---------|------|-------------|
+| context-pruning | `ToolExecAfter` | SHA-256 dedup of tool outputs within a configurable window (default: 20, set `CONTEXT_PRUNE_THRESHOLD`) |
+| handoff | `SessionStart` | Loads the most recent handoff state from a previous session |
+| handoff | `SessionEnd` | Persists current session state to `~/.tinycode/handoff/` (or `HANDOFF_DIR`) |
+| handoff | `Dispose` | Clears in-memory handoff state |
 
 ---
 
-## General Plugins (12)
+## SRE — OpenShift SRE / Platform Admin (10 plugins)
 
-### Security
+Cluster troubleshooting, observability, and offline diagnostics.
 
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **log-sanitizer** | Hook | Redacts secrets and sensitive data from tool outputs before they reach the LLM context |
-| **safety-net** | Hook | Blocks destructive shell commands via PermissionAsk |
+| Plugin | Tools | Description |
+|--------|-------|-------------|
+| **ocp-context-injection** | 2 | Cluster context injection + authentication |
+| **ocp-must-gather** | 12 | Must-gather offline cluster analysis |
+| **etcd-diag** | 6 | etcd performance diagnostics from must-gather |
+| **ingress-inspect** | 5 | HAProxy/Ingress inspection from must-gather |
+| **audit-logs** | 5 | API audit log analysis |
+| **insights** | 10 | OpenShift Insights archive analysis |
+| **ocp-obs-metrics** | 3 | Prometheus metrics, alerts, silencing |
+| **ocp-obs-logging** | 5 | Loki logs, Tempo traces, NetObserv |
+| **ocp-virt** | 13 | OpenShift Virtualization VM lifecycle |
+| **ocp-odf** | 8 | OpenShift Data Foundation storage health |
 
-**Log Sanitizer** intercepts every tool output and applies regex-based redaction rules: PEM private key blocks, API key prefixes (OpenAI, GitHub, AWS, Slack), bearer tokens, and high-entropy catch-all for 40+ character mixed-class strings. Matches are replaced with `[REDACTED:<type>]`. Zero configuration.
+### ocp-context-injection
 
-**Safety Net** intercepts `permission.ask` for bash-type permissions and blocks three categories: filesystem destructive (`rm -rf /`, `mkfs`, fork bombs), Kubernetes/OCP destructive (`kubectl delete namespace`, `helm uninstall` in kube-system), and git destructive (`git push --force main`). Scoped paths like `./build` are allowed.
-
-### Developer Experience
-
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **code-review** | Tool | Git diff formatted for AI-assisted code review |
-| **command-inject** | Hook | Auto-discovers executable scripts and registers each as a callable tool |
-| **context-pruning** | Hook | Deduplicates repeated tool outputs to optimize token usage |
-| **handoff** | Tool + Hook | Cross-session context handoff — saves goals, decisions, open tasks |
-| **notify** | Tool | Desktop notifications (macOS/Linux) with optional push via ntfy.sh |
-| **snippets** | Tool | Kubernetes/OpenShift YAML template library with variable substitution |
-| **telemetry** | Tool + Hook | Tool call analytics with local SQLite persistence and reporting |
-
-**Tools:**
-
-| Plugin | Tool | Description |
-|--------|------|-------------|
-| code-review | `code_review` | Gather a git diff formatted for AI-assisted code review |
-| handoff | `handoff_save` | Save session context for handoff to the next session |
-| notify | `notify` | Send a desktop notification |
-| snippets | `snippet_list` | List available snippet templates |
-| snippets | `snippet_expand` | Expand a template with variable substitution |
-| telemetry | `telemetry_report` | Aggregate summary: sessions, tool calls, top tools |
-| telemetry | `telemetry_query` | Query tool call records by name and recency |
-
-### Automation
-
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **pilot** | Tool | Multi-platform issue management (Gitea, GitHub, GitLab) |
-
-**Tools:**
+Injects cluster metadata (version, nodes, operators, alerts, cost) into the system prompt on session start. Also provides `oc login` authentication.
 
 | Tool | Description |
 |------|-------------|
-| `pilot_issues_list` | List issues with optional state and label filters |
-| `pilot_issue_create` | Create a new issue with title, body, and labels |
-| `pilot_issue_update` | Update an existing issue (title, body, state, labels) |
-| `pilot_issue_comment` | Add a comment to an issue |
+| `cluster_context` | Gather cluster context (version, nodes, operators, alerts) |
+| `oc_login` | Authenticate to an OpenShift cluster with API token |
 
-### Reference
+### ocp-must-gather
 
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **web-search** | Tool | Web search via DuckDuckGo with Red Hat KB integration |
-
-**Tools:**
+Offline cluster analysis from must-gather archives. Uses `pkg/mustgather/` library. For etcd and HAProxy deep-dives, use the specialist plugins (`etcd-diag`, `ingress-inspect`).
 
 | Tool | Description |
 |------|-------------|
-| `web_search` | Search the web via DuckDuckGo |
-| `rh_kb_search` | Search Red Hat knowledge base (access.redhat.com) |
+| `mg_use` | Set the active must-gather directory path |
+| `mg_cluster_version` | Cluster version, update channel, upgrade history |
+| `mg_nodes` | Node status, roles, conditions, capacity |
+| `mg_operators` | ClusterOperator available/degraded/progressing status |
+| `mg_certs` | Certificate expiry across cluster secrets |
+| `mg_node_logs` | Host-level journal and service logs |
+| `mg_ovn` | OVN-Kubernetes diagnostics (EgressIP, NetworkPolicy) |
+| `mg_prometheus` | Prometheus metrics from monitoring directory |
+| `mg_machine_config` | MachineConfig and MachineConfigPool status |
+| `mg_pods` | Pod status, restarts, resource usage |
+| `mg_events` | Cluster events by namespace, type, or reason |
+| `mg_health` | Aggregated health summary across all checks |
 
----
+### etcd-diag
 
-## Red Hat Plugins — OpenShift (4)
-
-All OCP plugins require `ocp-oauth` for authentication.
-
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **ocp-oauth** | Tool + Hook | Shared OpenShift authentication via `oc login` |
-| **ocp-context-injection** | Hook | Injects cluster metadata into the system prompt on session start |
-| **ocp-obs-logging** | Tool | Loki logs, Tempo traces, network flows, dashboards |
-| **ocp-obs-metrics** | Tool | PromQL queries, alert management, alert silencing |
-
-**Tools (ocp-oauth):**
-
-| Tool | Description |
-|------|-------------|
-| `oc-login` | Authenticate to an OpenShift cluster with API token |
-
-**Tools (ocp-obs-logging):**
+Specialist etcd diagnostics from must-gather logs.
 
 | Tool | Description |
 |------|-------------|
-| `obs_logs` | Query Loki logs with LogQL or namespace/pod/severity filters |
-| `obs_traces` | Search Tempo traces by service, operation, duration |
-| `obs_trace_detail` | Full span tree for a trace ID |
-| `obs_flow_collectors` | List FlowCollector resources from Network Observability |
-| `obs_dashboards` | List available Grafana dashboards |
+| `etcd_diag_stats` | Slow write/fsync counts, compaction durations (max/min/median/avg) |
+| `etcd_diag_errors` | Error categorization: auth, storage, raft, network |
+| `etcd_diag_timeline` | Timeline of leader elections, member changes, compactions, defrags |
+| `etcd_diag_compare` | Cross-pod metric correlation to identify node-specific issues |
+| `etcd_diag_live` | (Stub) Live Prometheus etcd metrics |
+| `etcd_diag_health` | Overall etcd health: OK/WARN/CRITICAL per dimension |
 
-**Tools (ocp-obs-metrics):**
+### ingress-inspect
+
+HAProxy/Ingress inspection from must-gather data.
+
+| Tool | Description |
+|------|-------------|
+| `ingress_controllers` | List IngressController CRs (domain, replicas, endpoint strategy, certs) |
+| `ingress_backends` | Parse HAProxy config backends (server counts, mode, balance algorithm) |
+| `ingress_route_check` | Cross-reference Routes vs HAProxy config (stale backends, misconfigs) |
+| `ingress_config` | HAProxy global/defaults config (timeouts, maxconn, SSL) |
+| `ingress_health` | Overall ingress health (controllers, HAProxy, router pods, certs) |
+
+### audit-logs
+
+API audit log analysis — stream-parses JSON logs without loading full files.
+
+| Tool | Description |
+|------|-------------|
+| `audit_top` | Top-N callers by user, verb, resource, or namespace |
+| `audit_search` | Search events by user, verb, resource, namespace, status code |
+| `audit_timeline` | Event volume over time, bucketed by interval |
+| `audit_anomalies` | Detect failed auth spikes, mass deletions, privilege escalation |
+| `audit_health` | Health summary: auth failures, deletion rates, event volume |
+
+### insights
+
+OpenShift Insights archive analysis.
+
+| Tool | Description |
+|------|-------------|
+| `insights_use` | Extract and validate an Insights archive (.tar.gz) |
+| `insights_summary` | Cluster summary: version, platform, node count, operator health |
+| `insights_nodes` | Nodes with roles, status, capacity |
+| `insights_operators` | ClusterOperator status (available/degraded/progressing) |
+| `insights_memory` | Container memory metrics, OOM-kill candidates |
+| `insights_etcd` | etcd operator status, member health, known issues |
+| `insights_storage` | PV status, capacity, claims, storage class distribution |
+| `insights_alerts` | Active alerts grouped by severity |
+| `insights_uid_overlap` | UID range conflicts across namespaces |
+| `insights_health` | Aggregated health summary |
+
+### ocp-obs-metrics
 
 | Tool | Description |
 |------|-------------|
@@ -168,177 +166,66 @@ All OCP plugins require `ocp-oauth` for authentication.
 | `obs_alerts` | List active alerts filtered by severity and namespace |
 | `obs_alert_silence` | Silence an alert with confirmation |
 
----
-
-## Red Hat Plugins — Cluster Operations (1)
-
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **cluster-ops** | Tool + Hook | Direct cluster visibility — resources, logs, events, health, GitOps, Insights |
-
-**Tools:**
+### ocp-obs-logging
 
 | Tool | Description |
 |------|-------------|
-| `oc-login` | Authenticate to an OpenShift cluster |
-| `oc-status` | Check cluster connection status |
-| `cluster-info` | Cluster health: nodes, operators, API server |
+| `obs_logs` | Query Loki logs with LogQL or namespace/pod/severity filters |
+| `obs_traces` | Search Tempo traces by service, operation, duration |
+| `obs_trace_detail` | Full span tree for a trace ID |
+| `obs_flow_collectors` | List FlowCollector resources (Network Observability) |
+| `obs_dashboards` | List available Grafana dashboards |
 
----
+### ocp-virt
 
-## Red Hat Plugins — Ansible (2)
-
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **aap-bridge** | Tool | Ansible Automation Platform — job templates, inventories, Automation Hub, playbook linting |
-| **eda-events** | Tool | Event-Driven Ansible bridge — session events to EDA webhooks |
-
-**Tools (aap-bridge):**
+OpenShift Virtualization VM lifecycle management.
 
 | Tool | Description |
 |------|-------------|
-| `aap_list_templates` | List job templates with last run status |
-| `aap_launch_job` | Launch a job template (prompts for confirmation) |
-| `aap_job_status` | Check running/completed job status |
-| `aap_job_output` | Full stdout/stderr of a completed job |
-| `aap_list_inventories` | List inventories with host counts |
-| `aap_hub_search` | Search Automation Hub for certified collections |
-| `aap_lint_playbook` | Lint an Ansible playbook for best practices |
+| `virt_vms` | List VMs with status, readiness, CPU, memory |
+| `virt_describe` | Detailed VM info (CPU, memory, disks, volumes, networks, OS, conditions) |
+| `virt_start` | Start a stopped VM |
+| `virt_stop` | Stop a running VM |
+| `virt_restart` | Restart a VM (delete VMI, controller recreates) |
+| `virt_migrate` | Live migrate a VM to another node |
+| `virt_console` | Recent serial console output from virt-launcher pod logs |
+| `virt_datavolumes` | DataVolume import/clone/upload status and progress |
+| `virt_templates` | Available VM templates and instance types |
+| `virt_network` | NetworkAttachmentDefinitions for secondary networks |
+| `virt_migrations` | VirtualMachineInstanceMigration status |
+| `virt_node_capacity` | Node roles, CPU, memory capacity vs allocatable |
+| `virt_health` | Service health: KubeVirt CRD, HyperConverged operator |
 
----
+### ocp-odf
 
-## Red Hat Plugins — RHOAI (6)
-
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **rhoai-model-serving** | Tool | Discover deployed models, serving runtimes, Developer Sandbox |
-| **rhoai-experiment-tracker** | Tool | Track session metrics to MLflow |
-| **rhoai-mcp-bridge** | Tool | Bridge to RHOAI MCP server |
-| **rhoai-mlflow-tools** | Tool | MLflow experiment and model registry management |
-| **rhoai-pipelines** | Tool | Data Science Pipelines (Kubeflow) |
-| **rhoai-eval-trustyai** | Tool | Model evaluation, TrustyAI fairness/drift monitoring |
-
-**Tools (rhoai-model-serving):**
+OpenShift Data Foundation storage health.
 
 | Tool | Description |
 |------|-------------|
-| `rhoai_list_models` | List deployed models with serving runtime, status, URL |
-| `rhoai_model_status` | Detailed status: replicas, GPU allocation, conditions |
-| `rhoai_list_runtimes` | Available ServingRuntimes (vLLM, Caikit, TGIS) |
-| `rhoai_sandbox_provision` | Provision a Developer Sandbox environment |
-| `rhoai_sandbox_status` | Check Developer Sandbox provisioning status |
-
-**Tools (rhoai-mcp-bridge):**
-
-| Tool | Description |
-|------|-------------|
-| `rhoai_mcp_list` | List tools exposed by the RHOAI MCP endpoint |
-| `rhoai_mcp_call` | Call a tool on the RHOAI MCP server by name |
-
-**Tools (rhoai-mlflow-tools):**
-
-| Tool | Description |
-|------|-------------|
-| `mlflow_experiments` | List MLflow experiments |
-| `mlflow_runs` | List runs in an experiment with metrics summary |
-| `mlflow_compare` | Compare 2-5 runs side-by-side |
-| `mlflow_artifacts` | Browse artifacts attached to a run |
-| `mlflow_model_registry` | List registered models |
-| `mlflow_model_version` | Detailed info for a specific model version |
-| `mlflow_promote` | Transition model version stage (with confirmation) |
-| `mlflow_log_metric` | Log a metric value to an MLflow run |
-
-**Tools (rhoai-pipelines):**
-
-| Tool | Description |
-|------|-------------|
-| `rhoai_pipeline_list` | List Data Science Pipelines |
-| `rhoai_pipeline_run` | Trigger a pipeline run (with confirmation) |
-| `rhoai_pipeline_status` | Check status of a pipeline run |
-| `rhoai_pipeline_create` | Create a pipeline from a workflow definition |
-
-**Tools (rhoai-eval-trustyai):**
-
-| Tool | Description |
-|------|-------------|
-| `rhoai_eval_run` | Run model evaluation (lm-eval, ragas, garak, guidellm) |
-| `rhoai_eval_status` | Check evaluation status and results |
-| `rhoai_eval_compare` | Compare results across multiple evaluations |
-| `rhoai_trusty_metrics` | TrustyAI fairness and drift metrics for a model |
-| `rhoai_trusty_alerts` | Active TrustyAI alerts for drift and bias |
+| `odf_status` | StorageCluster status (phase, version) |
+| `odf_ceph_status` | Ceph cluster health, capacity, OSD counts, mon quorum |
+| `odf_pools` | CephBlockPools and CephFilesystems with replication config |
+| `odf_pvcs` | PVCs backed by ODF storage classes |
+| `odf_buckets` | ObjectBucketClaims and backing store status |
+| `odf_storage_classes` | ODF StorageClasses (Ceph RBD, CephFS, NooBaa) |
+| `odf_node_resources` | Node CPU, memory, ephemeral-storage capacity vs allocatable |
+| `odf_health` | Service health: ODF operator, Ceph cluster status |
 
 ---
 
-## Red Hat Plugins — Platform (12)
+## Security — Security / Compliance (5 plugins)
 
-| Plugin | Type | Description |
-|--------|------|-------------|
-| **satellite** | Tool | Satellite AI assistant — RHEL knowledge, host management, errata, content views |
-| **quay** | Tool | Quay container registry — search, tags, manifests, Clair vulnerability scans |
-| **rhdh** | Tool | Developer Hub catalog — search, entity details, OpenAPI specs, TechDocs, dependencies |
-| **tekton** | Tool | Tekton pipelines — list, start runs, check status, view logs |
-| **rhacm** | Tool | ACM multi-cluster management — clusters, policies, violations, observability |
-| **rhacs** | Tool | ACS security scanning — image scans, policy checks, violations, compliance |
-| **rh-api-catalog** | Tool | Red Hat API catalog — browse console.redhat.com APIs, fetch specs |
-| **rh-dev-content** | Tool | Developer content browser — articles by topic, full reader, RSS feed |
-| **rh-ecosystem-catalog** | Tool | Ecosystem Catalog — certified container images and operators via Pyxis |
-| **rhdp-provisioner** | Tool | Developer platform — provision demo environments, check status |
-| **container-linter** | Tool | Containerfile linting — Red Hat best practices, UBI checks, bootc validation |
-| **lightwell** | Tool | Package security — Lightwell repos, SLSA provenance, OSV vulnerabilities |
+Image scanning, policy enforcement, supply chain verification, log sanitization.
 
-**Tools (satellite):**
+| Plugin | Tools | Description |
+|--------|-------|-------------|
+| **rhacs** | 7 | ACS security scanning, policy checks, compliance |
+| **lightwell** | 6 | Package security, SLSA provenance, OSV vulnerabilities |
+| **container-linter** | 3 | Containerfile linting, bootc, UBI suggestions |
+| **log-sanitizer** | 0 (hook) | Redacts secrets from tool outputs |
+| **safety-net** | 0 (hook) | Blocks destructive shell commands |
 
-| Tool | Description |
-|------|-------------|
-| `satellite_query` | Ask Lightspeed about RHEL/Satellite topics |
-| `satellite_hosts` | Search managed hosts by name, OS, environment |
-| `satellite_errata` | Search errata by type (security/bugfix/enhancement) |
-| `satellite_content_views` | List content views with publish dates |
-
-**Tools (quay):**
-
-| Tool | Description |
-|------|-------------|
-| `quay_search` | Search repositories by name or keyword |
-| `quay_tags` | List tags with digest, size, security scan status |
-| `quay_manifest` | Inspect manifest layers, architecture, config |
-| `quay_vulnerabilities` | Clair CVE scan results sorted by severity |
-| `quay_labels` | Get labels on a manifest |
-
-**Tools (rhdh):**
-
-| Tool | Description |
-|------|-------------|
-| `rhdh_catalog_search` | Search by name, kind, or lifecycle stage |
-| `rhdh_catalog_entity` | Full entity details with metadata and relations |
-| `rhdh_api_spec` | Fetch OpenAPI/AsyncAPI spec for an API entity |
-| `rhdh_techdocs` | Rendered TechDocs content for a component |
-| `rhdh_dependencies` | Dependency graph (consumesApi, providesApi, dependsOn) |
-
-**Tools (tekton):**
-
-| Tool | Description |
-|------|-------------|
-| `tekton_list_pipelines` | List pipelines in namespace with task details |
-| `tekton_list_runs` | List PipelineRuns with status and duration |
-| `tekton_run_status` | Detailed status of a specific PipelineRun |
-| `tekton_run_logs` | Logs for a task in a PipelineRun |
-| `tekton_list_tasks` | Available Tasks and ClusterTasks |
-| `tekton_start_run` | Start a pipeline run (with confirmation) |
-
-**Tools (rhacm):**
-
-| Tool | Description |
-|------|-------------|
-| `acm_clusters` | List managed clusters with status, version, provider |
-| `acm_cluster_detail` | Detailed cluster info with addon status |
-| `acm_policies` | List governance policies with compliance status |
-| `acm_violations` | Active policy violations across fleet |
-| `acm_applications` | List ACM-managed ArgoCD applications |
-| `acm_app_deploy` | Deploy ApplicationSet (with confirmation) |
-| `acm_observability` | Run federated PromQL via ACM Thanos |
-
-**Tools (rhacs):**
+### rhacs
 
 | Tool | Description |
 |------|-------------|
@@ -350,31 +237,156 @@ All OCP plugins require `ocp-oauth` for authentication.
 | `rhacs_compliance_scan` | Trigger a compliance scan |
 | `rhacs_compliance_status` | Compliance results by standard (CIS, NIST, PCI) |
 
-**Tools (rh-api-catalog):**
+### lightwell
 
 | Tool | Description |
 |------|-------------|
-| `rh_api_list` | Browse available console.redhat.com APIs |
-| `rh_api_spec` | Fetch OpenAPI spec for an API |
-| `rh_api_endpoints` | List endpoints with methods, paths, parameters |
+| `lightwell_check_package` | Check a package against Lightwell repos |
+| `lightwell_check_deps` | Scan pom.xml or requirements.txt for patches |
+| `lightwell_osv` | Query OSV vulnerability data for a package |
+| `lightwell_provenance` | Verify SLSA Level 3 build provenance |
+| `lightwell_config_check` | Audit build config for Lightwell repo configuration |
+| `lightwell_scan_containerfile` | Scan Containerfile for dependency and base image issues |
 
-**Tools (rh-dev-content):**
-
-| Tool | Description |
-|------|-------------|
-| `rh_dev_search` | Browse articles by topic |
-| `rh_dev_article` | Read full content of an article by URL |
-| `rh_dev_recent` | Get recent articles from the RSS feed |
-
-**Tools (rh-ecosystem-catalog):**
+### container-linter
 
 | Tool | Description |
 |------|-------------|
-| `ecosystem_search` | Search certified container images via Pyxis |
-| `ecosystem_operator` | Search certified operators by package name |
-| `ecosystem_browse` | Browse recent certified images or operator bundles |
+| `container_lint` | Lint Containerfile against Red Hat best practice rules |
+| `bootc_validate` | Validate bootc-compatible image builds |
+| `container_base_suggest` | Suggest UBI base image for a use case |
 
-**Tools (rhdp-provisioner):**
+### log-sanitizer
+
+Hook-only plugin. Intercepts every tool output and applies regex-based redaction: PEM key blocks, API key prefixes (OpenAI, GitHub, AWS, Slack), bearer tokens, and high-entropy catch-all for 40+ character mixed-class strings. Matches are replaced with `[REDACTED:<type>]`. Zero configuration.
+
+### safety-net
+
+Hook-only plugin. Intercepts `permission.ask` for bash-type permissions and blocks: filesystem destructive (`rm -rf /`, `mkfs`, fork bombs), Kubernetes/OCP destructive (`kubectl delete namespace`, `helm uninstall` in kube-system), and git destructive (`git push --force main`). Scoped paths like `./build` are allowed.
+
+---
+
+## AI/ML — AI/ML / Data Science (3 plugins)
+
+Model serving, experiment tracking, pipelines, and evaluation on RHOAI.
+
+| Plugin | Tools | Description |
+|--------|-------|-------------|
+| **rhoai-mlflow** | 10 | MLflow experiments, model registry, session metrics |
+| **rhoai-pipelines** | 4 | Data Science Pipelines (Kubeflow) |
+| **rhoai-serving** | 14 | Model serving, evaluation, TrustyAI, workbenches, sandbox |
+
+### rhoai-mlflow
+
+Merged from `rhoai-mlflow-tools` + `rhoai-experiment-tracker`. Includes 4 session lifecycle hooks.
+
+| Tool | Description |
+|------|-------------|
+| `mlflow_experiments` | List MLflow experiments |
+| `mlflow_runs` | List runs for an experiment with optional filter |
+| `mlflow_compare` | Compare multiple runs side by side (metrics, parameters) |
+| `mlflow_artifacts` | List artifacts for a run |
+| `mlflow_model_registry` | List registered models |
+| `mlflow_model_version` | Detailed info for a specific model version |
+| `mlflow_promote` | Transition model version stage (Staging, Production, Archived) |
+| `mlflow_log_metric` | Log a metric to a run |
+| `experiment_last_session` | Last tracked experiment session (metrics, parameters) |
+| `mlflow_setup` | Instructions for deploying MLflow on OpenShift |
+
+### rhoai-pipelines
+
+| Tool | Description |
+|------|-------------|
+| `rhoai_pipeline_list` | List Data Science Pipelines |
+| `rhoai_pipeline_run` | Trigger a pipeline run (with confirmation) |
+| `rhoai_pipeline_status` | Check status of a pipeline run |
+| `rhoai_pipeline_create` | Create a pipeline from a workflow definition |
+
+### rhoai-serving
+
+Merged from `rhoai-eval-trustyai` + `rhoai-model-serving`. Combined health tool.
+
+| Tool | Description |
+|------|-------------|
+| `rhoai_list_models` | List deployed inference services (models) |
+| `rhoai_model_status` | Detailed model status (pods, GPU allocation) |
+| `rhoai_list_runtimes` | Available serving runtimes (vLLM, Caikit, TGIS) |
+| `rhoai_sandbox_status` | Developer Sandbox environment status |
+| `rhoai_sandbox_provision` | Provision a Developer Sandbox |
+| `rhoai_eval_run` | Start model evaluation (lm-eval, ragas, garak, guidellm) |
+| `rhoai_eval_status` | Check evaluation status and results |
+| `rhoai_eval_compare` | Compare multiple evaluation runs |
+| `rhoai_trusty_metrics` | TrustyAI fairness and drift metrics for a model |
+| `rhoai_trusty_alerts` | Active TrustyAI alerts for drift and bias |
+| `rhoai_workbench_list` | List RHOAI workbenches (Jupyter notebooks) |
+| `rhoai_serving_health` | Connectivity check to all dependent services |
+
+---
+
+## Platform — Platform / Infrastructure (5 plugins)
+
+Fleet management, CI/CD, automation, and infrastructure management.
+
+| Plugin | Tools | Description |
+|--------|-------|-------------|
+| **rhacm** | 7 | ACM multi-cluster management |
+| **tekton** | 6 | Tekton pipelines |
+| **aap-bridge** | 7 | Ansible Automation Platform |
+| **satellite** | 11 | Red Hat Satellite host/content management |
+| **rhdp-provisioner** | 4 | Developer Platform demo environments |
+
+### rhacm
+
+| Tool | Description |
+|------|-------------|
+| `acm_clusters` | List managed clusters with status, version, provider |
+| `acm_cluster_detail` | Detailed cluster info with addon status |
+| `acm_policies` | Governance policies with compliance status |
+| `acm_violations` | Active policy violations across fleet |
+| `acm_applications` | ACM-managed ArgoCD applications |
+| `acm_app_deploy` | Deploy ApplicationSet (with confirmation) |
+| `acm_observability` | Federated PromQL via ACM Thanos |
+
+### tekton
+
+| Tool | Description |
+|------|-------------|
+| `tekton_list_pipelines` | List pipelines with task details |
+| `tekton_list_runs` | PipelineRuns with status and duration |
+| `tekton_run_status` | Detailed PipelineRun status |
+| `tekton_run_logs` | Logs for a task in a PipelineRun |
+| `tekton_list_tasks` | Available Tasks and ClusterTasks |
+| `tekton_start_run` | Start a pipeline run (with confirmation) |
+
+### aap-bridge
+
+| Tool | Description |
+|------|-------------|
+| `aap_list_templates` | Job templates with last run status |
+| `aap_launch_job` | Launch a job template (with confirmation) |
+| `aap_job_status` | Running/completed job status |
+| `aap_job_output` | Full stdout/stderr of a completed job |
+| `aap_list_inventories` | Inventories with host counts |
+| `aap_hub_search` | Search Automation Hub for certified collections |
+| `aap_lint_playbook` | Lint an Ansible playbook |
+
+### satellite
+
+| Tool | Description |
+|------|-------------|
+| `satellite_health_check` | Probe connectivity on ports 443, 9090, 23443 |
+| `satellite_hosts` | Search managed hosts by name, OS, environment |
+| `satellite_host_facts` | System facts for a host (CPU, memory, OS, networking) |
+| `satellite_errata` | Search errata by ID, title, type, severity |
+| `satellite_content_views` | Content views with name, composite flag, publish date |
+| `satellite_services` | Service health (database, cache, candlepin, pulp) |
+| `satellite_tasks` | Foreman tasks with optional search filter |
+| `satellite_proxies` | Smart proxies (capsules) with registered features |
+| `satellite_repositories` | Repositories in org or content view |
+| `satellite_rex_run` | Run a shell command on a host via REX |
+| `satellite_rex_result` | Get REX job status and output |
+
+### rhdp-provisioner
 
 | Tool | Description |
 |------|-------------|
@@ -383,247 +395,121 @@ All OCP plugins require `ocp-oauth` for authentication.
 | `rhdp_status` | Check provisioning status |
 | `rhdp_list_active` | List active demo environments with expiration |
 
-**Tools (container-linter):**
+---
+
+## Developer (5 plugins)
+
+Registry, API discovery, content, and developer hub integration.
+
+| Plugin | Tools | Description |
+|--------|-------|-------------|
+| **quay** | 6 | Quay container registry |
+| **rhdh** | 5 | Red Hat Developer Hub catalog |
+| **rh-api-catalog** | 3 | Red Hat API catalog |
+| **rh-dev-content** | 3 | Developer content (articles, RSS) |
+| **rh-ecosystem-catalog** | 3 | Certified containers and operators (Pyxis) |
+
+### quay
 
 | Tool | Description |
 |------|-------------|
-| `container_lint` | Lint Containerfile against Red Hat best practice rules |
-| `bootc_validate` | Validate bootc-compatible image builds |
-| `container_base_suggest` | Suggest UBI base image for a use case |
+| `quay_search` | Search repositories by name or keyword |
+| `quay_tags` | List tags with digest, size, security scan status |
+| `quay_manifest` | Inspect manifest layers, architecture, config |
+| `quay_vulnerabilities` | Clair CVE scan results sorted by severity |
+| `quay_labels` | Get labels on a manifest |
+| `quay_health` | Quay registry connectivity check |
 
-**Tools (lightwell):**
+### rhdh
 
 | Tool | Description |
 |------|-------------|
-| `lightwell_check_package` | Check a single package against Lightwell repos |
-| `lightwell_check_deps` | Scan pom.xml or requirements.txt for patches |
-| `lightwell_osv` | Query OSV vulnerability data for a package |
-| `lightwell_provenance` | Verify SLSA Level 3 build provenance |
-| `lightwell_config_check` | Audit build config for Lightwell repo configuration |
-| `lightwell_scan_containerfile` | Scan Containerfile for dependency and base image issues |
+| `rhdh_catalog_search` | Search by name, kind, or lifecycle stage |
+| `rhdh_catalog_entity` | Full entity details with metadata and relations |
+| `rhdh_api_spec` | Fetch OpenAPI/AsyncAPI spec for an API entity |
+| `rhdh_techdocs` | Rendered TechDocs content for a component |
+| `rhdh_dependencies` | Dependency graph (consumesApi, providesApi, dependsOn) |
+
+### rh-api-catalog
+
+| Tool | Description |
+|------|-------------|
+| `rh_api_list` | Browse available console.redhat.com APIs |
+| `rh_api_spec` | Fetch OpenAPI spec for an API |
+| `rh_api_endpoints` | List endpoints with methods, paths, parameters |
+
+### rh-dev-content
+
+| Tool | Description |
+|------|-------------|
+| `rh_dev_search` | Browse articles by topic |
+| `rh_dev_article` | Read full content of an article by URL |
+| `rh_dev_recent` | Recent articles from the RSS feed |
+
+### rh-ecosystem-catalog
+
+| Tool | Description |
+|------|-------------|
+| `ecosystem_search` | Search certified container images via Pyxis |
+| `ecosystem_operator` | Search certified operators by package name |
+| `ecosystem_browse` | Browse recent certified images or operator bundles |
 
 ---
 
-## Suggested Bundles
+## Essential (2 plugins)
 
-Mix and match plugins by role. Start with the ones marked **core**, add others as needed.
+| Plugin | Tools | Description |
+|--------|-------|-------------|
+| **pilot** | 4 | Multi-platform issue management (Gitea, GitHub, GitLab) |
+| **telemetry** | 2 | Tool call analytics with local SQLite |
 
-### Essential (Every User)
+### pilot
 
-Safety, search, and notifications — useful regardless of role.
+| Tool | Description |
+|------|-------------|
+| `pilot_issues_list` | List issues with optional state and label filters |
+| `pilot_issue_create` | Create a new issue with title, body, labels |
+| `pilot_issue_update` | Update an existing issue (title, body, state, labels) |
+| `pilot_issue_comment` | Add a comment to an issue |
 
-```json
-{
-  "plugins": [
-    "log-sanitizer",
-    "safety-net",
-    "web-search",
-    "notify"
-  ]
-}
-```
+### telemetry
 
-### Local LLM Optimization
+| Tool | Description |
+|------|-------------|
+| `telemetry_report` | Aggregate summary: sessions, tool calls, top tools |
+| `telemetry_query` | Query tool call records by name and recency |
 
-For users running local models with limited context windows.
+---
 
-```json
-{
-  "plugins": [
-    "context-pruning",
-    "handoff",
-    "telemetry"
-  ]
-}
-```
+## Configuration
 
-### Power User DevEx
+Most plugins work out of the box. Plugins that connect to external APIs accept options in your tinycode config or environment variables.
 
-Scripting, templates, and code review for daily development.
+### Red Hat Plugins
 
-```json
-{
-  "plugins": [
-    "code-review",
-    "command-inject",
-    "snippets",
-    "pilot"
-  ]
-}
-```
+| Plugin | Required Options | Optional Options |
+|--------|-----------------|------------------|
+| ocp-context-injection | — | `apiUrl`, `clusterId`, `insecureSkipTls` |
+| ocp-obs-metrics | `prometheusUrl` | `alertManagerUrl`, `token`, `namespace` |
+| ocp-obs-logging | — | `lokiUrl`, `tempoUrl`, `token` |
+| rhacs | `centralUrl` | `apiToken` |
+| lightwell | — | `serviceAccountToken` |
+| aap-bridge | `controllerUrl` | `oauthToken` |
+| rhacm | — | `hubUrl`, `thanosUrl`, `token` |
+| rhoai-mlflow | `mlflowUrl` | — |
+| rhoai-pipelines | `pipelinesUrl` | `namespace`, `token` |
+| rhoai-serving | — | `evalApiUrl`, `trustyaiUrl`, `namespace`, `token`, `routeHost`, `consoleOfflineToken` |
+| satellite | `satelliteUrl` | `token` |
+| rhdp-provisioner | `consoleOfflineToken` | `rhdpApiUrl` |
 
-### OpenShift Administrator
+### General Plugins
 
-Day-to-day cluster management, troubleshooting, and security posture.
+| Plugin | Environment Variables | Notes |
+|--------|----------------------|-------|
+| pilot | `GITEA_TOKEN`, `GITHUB_TOKEN` or `GH_TOKEN`, `GITLAB_TOKEN` (one required) | Auto-detects platform from git remote. Override with `PILOT_PROVIDER`. See also `GITEA_URL`, `GITLAB_URL`. |
+| telemetry | `TELEMETRY_DB` (optional) | Default: `~/.tinycode/telemetry.db` |
 
-```json
-{
-  "plugins": [
-    "ocp-oauth",
-    "ocp-context-injection",
-    "cluster-ops",
-    "rhacs",
-    "tekton"
-  ]
-}
-```
-
-### Platform / SRE
-
-Full-stack visibility from cluster health to CI pipelines to automation.
-
-```json
-{
-  "plugins": [
-    "ocp-oauth",
-    "ocp-context-injection",
-    "cluster-ops",
-    "ocp-obs-metrics",
-    "ocp-obs-logging",
-    "tekton",
-    "aap-bridge",
-    "eda-events",
-    "rhacs"
-  ]
-}
-```
-
-### Application Developer
-
-Build, scan, deploy, and iterate without leaving the editor.
-
-```json
-{
-  "plugins": [
-    "ocp-oauth",
-    "ocp-context-injection",
-    "cluster-ops",
-    "tekton",
-    "quay",
-    "rhdh",
-    "lightwell",
-    "code-review"
-  ]
-}
-```
-
-### Security / Governance & Compliance
-
-Audit-focused — image scanning, policy enforcement, supply chain verification, dependency patching.
-
-```json
-{
-  "plugins": [
-    "ocp-oauth",
-    "log-sanitizer",
-    "safety-net",
-    "rhacs",
-    "lightwell",
-    "container-linter",
-    "quay",
-    "tekton"
-  ]
-}
-```
-
-### RHEL / Infrastructure (Sysadmin)
-
-For Ansible-driven infrastructure work targeting Satellite-managed environments.
-
-```json
-{
-  "plugins": [
-    "satellite",
-    "aap-bridge",
-    "eda-events"
-  ]
-}
-```
-
-### AI/ML Engineer
-
-Model serving, experiment tracking, pipelines, and evaluation on RHOAI.
-
-```json
-{
-  "plugins": [
-    "ocp-oauth",
-    "rhoai-model-serving",
-    "rhoai-experiment-tracker",
-    "rhoai-mlflow-tools",
-    "rhoai-pipelines",
-    "rhoai-eval-trustyai",
-    "rhoai-mcp-bridge"
-  ]
-}
-```
-
-### Fleet Manager
-
-Multi-cluster management with observability and access control.
-
-```json
-{
-  "plugins": [
-    "ocp-oauth",
-    "ocp-context-injection",
-    "cluster-ops",
-    "rhacm",
-    "ocp-obs-metrics"
-  ]
-}
-```
-
-### Developer Reference
-
-Red Hat developer content, ecosystem catalog, and API discovery.
-
-```json
-{
-  "plugins": [
-    "rh-dev-content",
-    "rh-ecosystem-catalog",
-    "rh-api-catalog",
-    "rhdp-provisioner",
-    "web-search"
-  ]
-}
-```
-
-### Incident Response / On-Call
-
-Real-time triage — live metrics, log queries, alert management, and security violations.
-
-```json
-{
-  "plugins": [
-    "ocp-oauth",
-    "ocp-context-injection",
-    "cluster-ops",
-    "ocp-obs-metrics",
-    "ocp-obs-logging",
-    "rhacs",
-    "notify"
-  ]
-}
-```
-
-### Developer Onboarding
-
-New hire ramp-up — explore the catalog, read learning paths, spin up demo environments, discover APIs.
-
-```json
-{
-  "plugins": [
-    "rh-dev-content",
-    "rhdh",
-    "rh-api-catalog",
-    "rhdp-provisioner",
-    "rh-ecosystem-catalog",
-    "web-search"
-  ]
-}
-```
+Plugins not listed above require no configuration.
 
 ---
 
@@ -647,4 +533,4 @@ See `internal/redhat/` for implementation details and `internal/redhat/*_test.go
 
 ## Development
 
-Plugins are standalone Go binaries using the `pkg/plugin/` SDK. See [plugin-development.md](plugin-development.md) for the full SDK reference, wire protocol, testing patterns, and examples. See [plugin-sdk-design.md](plugin-sdk-design.md) for design rationale and the migration guide from the TypeScript plugin system.
+Plugins are standalone Go binaries using the `pkg/plugin/` SDK. See [plugin-development.md](plugin-development.md) for the full SDK reference, wire protocol, testing patterns, and examples. See [plugin-sdk-design.md](plugin-sdk-design.md) for design rationale.
