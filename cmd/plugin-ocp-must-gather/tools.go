@@ -745,7 +745,7 @@ func toolHealth(root *mustgather.Root) (string, error) {
 	}
 
 	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "For detailed etcd diagnostics, use the etcd-diag plugin. For HAProxy/ingress inspection, use the ingress-inspect plugin.")
+	fmt.Fprintln(&b, "For detailed etcd diagnostics, use the etcd-diag plugin (etcd_diag_health for log analysis, etcd_snapshot_open for offline snapshot inspection). For HAProxy/ingress inspection, use the ingress-inspect plugin.")
 
 	return b.String(), nil
 }

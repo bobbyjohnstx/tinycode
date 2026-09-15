@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	bolt "go.etcd.io/bbolt"
+
 	"github.com/bobbyjohnstx/tinycode-go/pkg/mustgather"
 	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
 )
@@ -13,6 +15,7 @@ import (
 type state struct {
 	mu   sync.RWMutex
 	root *mustgather.Root
+	db   *bolt.DB
 }
 
 func (s *state) get() *mustgather.Root {
@@ -27,11 +30,39 @@ func (s *state) set(r *mustgather.Root) {
 	s.root = r
 }
 
+func (s *state) setDB(db *bolt.DB) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.db = db
+}
+
+func (s *state) getDB() *bolt.DB {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.db
+}
+
+func (s *state) closeDB() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db != nil {
+		err := s.db.Close()
+		s.db = nil
+		return err
+	}
+	return nil
+}
+
 func newPlugin() plugin.Plugin {
 	st := &state{}
 	return plugin.Plugin{
 		ID:    "etcd-diag",
 		Tools: buildTools(st),
+		Hooks: plugin.HookHandlers{
+			Dispose: func(ctx context.Context) error {
+				return st.closeDB()
+			},
+		},
 	}
 }
 
@@ -47,6 +78,14 @@ func requireRoot(st *state) (*mustgather.Root, error) {
 	return r, nil
 }
 
+func requireDB(st *state) (*bolt.DB, error) {
+	db := st.getDB()
+	if db == nil {
+		return nil, fmt.Errorf("no snapshot opened — call etcd_snapshot_open with a path first")
+	}
+	return db, nil
+}
+
 func buildTools(st *state) []plugin.ToolDef {
 	return []plugin.ToolDef{
 		buildEtcdDiagStats(st),
@@ -55,6 +94,11 @@ func buildTools(st *state) []plugin.ToolDef {
 		buildEtcdDiagCompare(st),
 		buildEtcdDiagLive(),
 		buildEtcdDiagHealth(st),
+		buildSnapshotOpen(st),
+		buildSnapshotResources(st),
+		buildSnapshotGet(st),
+		buildSnapshotSearch(st),
+		buildSnapshotStorage(st),
 	}
 }
 

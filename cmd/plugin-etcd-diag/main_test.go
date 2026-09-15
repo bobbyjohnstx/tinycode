@@ -22,6 +22,8 @@ func TestToolDefinitions(t *testing.T) {
 	wantNames := []string{
 		"etcd_diag_stats", "etcd_diag_errors", "etcd_diag_timeline",
 		"etcd_diag_compare", "etcd_diag_live", "etcd_diag_health",
+		"etcd_snapshot_open", "etcd_snapshot_resources", "etcd_snapshot_get",
+		"etcd_snapshot_search", "etcd_snapshot_storage",
 	}
 	if len(p.Tools) != len(wantNames) {
 		t.Fatalf("got %d tools, want %d", len(p.Tools), len(wantNames))

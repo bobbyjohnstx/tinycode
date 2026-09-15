@@ -47,7 +47,7 @@ var registry = []RegistryEntry{
 	// security
 	{Name: "container-linter", Description: "Containerfile linting, bootc validation, UBI base image suggestions", Binary: "tinycode-plugin-container-linter", Category: CategorySecurity},
 	// sre
-	{Name: "etcd-diag", Description: "etcd performance diagnostics (slow writes, leader elections, cross-pod comparison)", Binary: "tinycode-plugin-etcd-diag", Category: CategorySRE},
+	{Name: "etcd-diag", Description: "etcd diagnostics and snapshot inspection (slow writes, leader elections, offline resource analysis)", Binary: "tinycode-plugin-etcd-diag", Category: CategorySRE},
 	{Name: "ingress-inspect", Description: "HAProxy/Ingress inspection (controllers, backends, route validation, misconfiguration detection)", Binary: "tinycode-plugin-ingress-inspect", Category: CategorySRE},
 	{Name: "insights", Description: "OpenShift Insights archive analysis (nodes, operators, memory, etcd, storage, alerts)", Binary: "tinycode-plugin-insights", Category: CategorySRE},
 	// security
