@@ -1,0 +1,44 @@
+# Build artifacts
+dist/
+ts-dist/
+target/
+
+# IDE / editor
+.idea/
+.vscode/
+.codex/
+*.swp
+*~
+Session.vim
+
+# Node / TypeScript legacy
+node_modules/
+packages/
+*.bun-build
+bun.lock
+tsconfig.tsbuildinfo
+
+# Local dev
+.env
+.env.local
+.direnv/
+.DS_Store
+.claude/
+.tinycode/
+.scripts/
+playground/
+tmp/
+logs/
+notes/
+plans/
+tinycode.log
+tinycode-go
+opencode-dev
+
+# Git
+.git/
+.worktrees/
+
+# Test artifacts
+.plugin-test-build/
+.omc/

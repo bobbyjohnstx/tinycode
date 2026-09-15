@@ -21,7 +21,7 @@ PLATFORMS := \
 PLUGIN_DIRS := $(wildcard cmd/plugin-*)
 PLUGIN_NAMES := $(notdir $(PLUGIN_DIRS))
 
-.PHONY: build build-all build-plugins build-full clean test vet lint check embed-webapp package
+.PHONY: build build-all build-plugins build-full clean test vet lint check embed-webapp package image image-full
 
 ## build: Build tinycode for the current platform
 build:
@@ -116,6 +116,28 @@ check: vet test
 ## embed-webapp: Build SolidJS web app and embed into Go binary
 embed-webapp:
 	./script/embed-webapp.sh
+
+IMAGE_NAME ?= tinycode
+IMAGE_TAG  ?= $(VERSION)
+
+## image: Build container image (tinycode only)
+image:
+	podman build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		-t $(IMAGE_NAME):$(IMAGE_TAG) \
+		-t $(IMAGE_NAME):latest \
+		-f Containerfile .
+
+## image-full: Build container image with all plugins
+image-full:
+	podman build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT=$(COMMIT) \
+		--build-arg BUILD_PLUGINS=1 \
+		-t $(IMAGE_NAME):$(IMAGE_TAG)-full \
+		-t $(IMAGE_NAME):latest-full \
+		-f Containerfile .
 
 ## clean: Remove build artifacts
 clean:
