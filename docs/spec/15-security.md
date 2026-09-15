@@ -73,11 +73,19 @@ Server constants:
 | Default hostname | `127.0.0.1` |
 | `readHeaderTimeout` | 10 seconds |
 
-## 15.5 SSRF Protection
+## 15.5 Request Body Limiting
+
+Source: `internal/server/respond.go`
+
+`decodeJSON()` wraps every JSON request body with `http.MaxBytesReader(w, r.Body, 1<<20)` (1 MB limit). All POST/PUT/PATCH handlers that parse JSON bodies go through this function. Requests exceeding 1 MB receive an HTTP error before decoding begins.
+
+**Note:** SSE/streaming endpoints and non-JSON request paths do not use `decodeJSON()` and are not subject to this limit.
+
+## 15.6 SSRF Protection
 
 Source: `internal/tool/webfetch.go`
 
-The `webfetch` tool performs pre-flight DNS resolution against blocked CIDR ranges:
+The `webfetch` tool performs pre-flight DNS resolution via `checkSSRF()` against blocked CIDR ranges:
 
 | Range | Description |
 |-------|-------------|
@@ -85,15 +93,28 @@ The `webfetch` tool performs pre-flight DNS resolution against blocked CIDR rang
 | `10.0.0.0/8` | Private (Class A) |
 | `172.16.0.0/12` | Private (Class B) |
 | `192.168.0.0/16` | Private (Class C) |
-| `169.254.0.0/16` | Link-local |
+| `169.254.0.0/16` | Link-local / cloud metadata |
 | `0.0.0.0/8` | Current network |
 | `::1/128` | IPv6 loopback |
 | `fc00::/7` | IPv6 unique local |
 | `fe80::/10` | IPv6 link-local |
 
-Redirect targets are also validated against the blocklist. Max 10 redirects. TLS minimum version: TLS 1.2.
+**Redirect validation:** `ssrfSafeClient()` validates each redirect target against the same blocklist via `CheckRedirect`. Max 10 redirects before stopping.
 
-## 15.6 Shell Command Safety
+### WebFetch Transport Limits
+
+| Limit | Value |
+|-------|-------|
+| TLS minimum version | TLS 1.2 |
+| Dial timeout | 10 seconds |
+| TLS handshake timeout | 10 seconds |
+| Response header timeout | 15 seconds |
+| Idle connection timeout | 30 seconds |
+| Overall fetch timeout | 30 seconds (`fetchTimeout`) |
+| Max response body | 5 MB (`maxFetchSize`) via `io.LimitReader` |
+| Max redirects | 10 |
+
+## 15.7 Shell Command Safety
 
 Source: `internal/tool/shell.go`
 
@@ -130,7 +151,7 @@ When a destructive pattern is matched:
 | `*.key` | Private key files |
 | `*.pem` | PEM certificate/key files |
 
-This is a warning-only check (logged, not blocked). Blocking of `.env*` reads is handled by the permission system's default rules (see section 15.8).
+This is a warning-only check (logged, not blocked). Blocking of `.env*` reads is handled by the permission system's default rules (see section 15.9).
 
 ### Audit Trail
 
@@ -145,7 +166,7 @@ The shell tool accepts a `description` parameter for human-readable command desc
 | Shell | `sh -c` |
 | Working directory | Session's project directory |
 
-## 15.7 Binary Detection
+## 15.8 Binary Detection
 
 Source: `internal/tool/read.go`
 
@@ -155,7 +176,7 @@ The `read` tool detects binary files before reading:
 - Null bytes count as 10 non-text bytes each (strong binary indicator)
 - Prevents accidental exposure of binary file contents to the LLM
 
-## 15.8 Permission-Based Security
+## 15.9 Permission-Based Security
 
 Source: `internal/permission/defaults.go`, `internal/session/processor_validation.go`
 
@@ -195,7 +216,7 @@ When a tool call returns an error, the consecutive failure counter increments. O
 
 Plugin hooks use deny-wins semantics for `permission.ask`: any plugin denial overrides all allows, ensuring plugins can restrict but never override user denials.
 
-## 15.9 External Directory Protection
+## 15.10 External Directory Protection
 
 Source: `internal/session/processor_validation.go`
 
@@ -226,7 +247,7 @@ When an external path is detected:
 3. Includes tool name and target path in metadata
 4. On denial, returns a formatted error message with tool name, path, and project directory
 
-## 15.10 Path Validation
+## 15.11 Path Validation
 
 ### HTTP File API — Symlink-Aware Traversal Prevention
 
@@ -255,7 +276,18 @@ Source: `internal/tool/`
 - The `grep` and `glob` tools default to the working directory if no explicit path is given
 - Directories `.git`, `node_modules`, `vendor`, and `.tinycode` are skipped during search operations
 
-## 15.11 Database Security
+## 15.12 Credential Store
+
+Source: `internal/server/handler_auth.go`
+
+Provider API credentials are stored in-memory only via `credentialStore` (a `sync.RWMutex`-protected map). Credentials are:
+
+- **Ephemeral:** Not persisted to disk or database. Lost on process restart.
+- **Not encrypted at rest:** By design, since the store is in-memory only.
+- **Scoped by provider ID:** Each provider gets an independent key/value map.
+- **Managed via HTTP:** `PUT /auth/{providerID}` stores credentials, `DELETE /auth/{providerID}` removes them. Both endpoints are behind the Bearer token auth middleware.
+
+## 15.13 Database Security
 
 Source: `internal/storage/db.go`
 
@@ -273,17 +305,17 @@ Connection pool: `MaxOpenConns = 1` serializes all writes through a single conne
 
 Pragmas are set both via DSN query parameters and explicit `PRAGMA` statements to ensure they take effect regardless of driver behavior.
 
-## 15.12 Plugin Security
+## 15.14 Plugin Security
 
 Source: `internal/plugin/manager.go`
 
 - Plugins run as separate processes with stdin/stdout JSON-RPC communication (process isolation)
 - Plugin hooks have a 5-second timeout to prevent hanging
 - Plugin processes are monitored for unexpected exits
-- The `permission.ask` hook uses deny-wins semantics (see section 15.8)
+- The `permission.ask` hook uses deny-wins semantics (see section 15.9)
 - Plugin kill timeout: 3 seconds before force-kill on shutdown
 
-## 15.13 Graceful Shutdown
+## 15.15 Graceful Shutdown
 
 Source: `internal/server/server.go`, `cmd/tinycode/tui.go`, `cmd/tinycode/serve.go`, `internal/plugin/manager.go`
 

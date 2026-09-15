@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
 )
 
 func TestPluginID(t *testing.T) {
@@ -216,4 +222,67 @@ func TestFormatSpec(t *testing.T) {
 			t.Error("expected truncation message")
 		}
 	})
+}
+
+func newMockConsoleClient(handler http.Handler) (*redhat.APIClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	return redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL}), srv
+}
+
+func TestResolveSpec_ViaClient(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/cost-management/v1/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		fmt.Fprint(w, `{"openapi":"3.0.0","info":{"title":"Cost Management","version":"1.0"},"paths":{}}`)
+	})
+	client, srv := newMockConsoleClient(mux)
+	defer srv.Close()
+
+	spec, err := resolveSpec(context.Background(), client, "", "cost-management")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if spec == nil {
+		t.Fatal("expected non-nil spec")
+	}
+	info, ok := spec["info"].(map[string]any)
+	if !ok {
+		t.Fatal("expected info object in spec")
+	}
+	if info["title"] != "Cost Management" {
+		t.Errorf("title = %v, want %q", info["title"], "Cost Management")
+	}
+}
+
+func TestResolveSpec_ViaClient_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+	})
+	client, srv := newMockConsoleClient(mux)
+	defer srv.Close()
+
+	_, err := resolveSpec(context.Background(), client, "", "cost-management")
+	if err == nil {
+		t.Fatal("expected error for server error response")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("error = %q, want to contain '500'", err.Error())
+	}
+}
+
+func TestResolveSpec_UnknownAPI(t *testing.T) {
+	client, srv := newMockConsoleClient(http.NewServeMux())
+	defer srv.Close()
+
+	_, err := resolveSpec(context.Background(), client, "", "nonexistent-api")
+	if err == nil {
+		t.Fatal("expected error for unknown API")
+	}
+	if !strings.Contains(err.Error(), "unknown API") {
+		t.Errorf("error = %q, want to contain 'unknown API'", err.Error())
+	}
 }

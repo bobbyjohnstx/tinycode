@@ -375,6 +375,18 @@ test_quay() {
         "quay_search: search for repos" \
         "repositor"
 
+    assert_tool_contains_opts quay "quay_tags" \
+        '{"repository":"projectquay/quay","namespace":"projectquay"}' \
+        "$opts" \
+        "quay_tags: list image tags" \
+        "tag"
+
+    assert_tool_contains_opts quay "quay_vulnerabilities" \
+        '{"repository":"projectquay/quay","namespace":"projectquay","tag":"latest"}' \
+        "$opts" \
+        "quay_vulnerabilities: scan for vulnerabilities" \
+        ""
+
     echo ""
 }
 
@@ -513,6 +525,11 @@ test_tekton() {
         "tekton_list_tasks: list tasks" \
         "task"
 
+    assert_tool_contains tekton "tekton_list_runs" \
+        '{"namespace":"openshift-pipelines"}' \
+        "tekton_list_runs: list pipeline runs" \
+        "run"
+
     echo ""
 }
 
@@ -621,6 +638,18 @@ test_rhacm() {
         "acm_policies: list governance policies" \
         "polic"
 
+    assert_tool_contains_opts rhacm "acm_cluster_detail" \
+        '{"cluster":"local-cluster"}' \
+        "$opts" \
+        "acm_cluster_detail: get local-cluster details" \
+        "cluster"
+
+    assert_tool_contains_opts rhacm "acm_violations" \
+        '{}' \
+        "$opts" \
+        "acm_violations: list policy violations" \
+        "violation"
+
     echo ""
 }
 
@@ -666,6 +695,18 @@ test_ocp_obs_logging() {
         "$opts" \
         "obs_traces: returns unconfigured without tempoUrl" \
         "not configured"
+
+    assert_tool_contains_opts ocp-obs-logging "obs_flow_collectors" \
+        '{}' \
+        "$opts" \
+        "obs_flow_collectors: list network flow collectors" \
+        ""
+
+    assert_tool_contains_opts ocp-obs-logging "obs_dashboards" \
+        '{}' \
+        "$opts" \
+        "obs_dashboards: list observability dashboards" \
+        ""
 
     echo ""
 }
@@ -790,6 +831,12 @@ test_rhoai_pipelines() {
         "rhoai_pipeline_list: list pipelines" \
         "ipeline"
 
+    assert_tool_contains_opts rhoai-pipelines "rhoai_pipeline_run" \
+        '{}' \
+        "$opts" \
+        "rhoai_pipeline_run: list pipeline runs" \
+        ""
+
     echo ""
 }
 
@@ -807,6 +854,18 @@ test_rhoai_mlflow_tools() {
         "$opts" \
         "mlflow_experiments: list experiments" \
         "xperiment"
+
+    assert_tool_contains_opts rhoai-mlflow-tools "mlflow_runs" \
+        '{"experimentId":"0"}' \
+        "$opts" \
+        "mlflow_runs: list runs in default experiment" \
+        ""
+
+    assert_tool_contains_opts rhoai-mlflow-tools "mlflow_model_registry" \
+        '{}' \
+        "$opts" \
+        "mlflow_model_registry: list registered models" \
+        ""
 
     echo ""
 }
@@ -918,6 +977,12 @@ test_cluster_ops() {
         "cluster-info: show cluster info" \
         "running"
 
+    assert_tool_not_contains_opts cluster-ops "oc-status" \
+        '{}' \
+        "$opts" \
+        "oc-status: not showing error" \
+        "error"
+
     echo ""
 }
 
@@ -1017,6 +1082,156 @@ test_rhdp_provisioner() {
     echo ""
 }
 
+# --- Test Groups (HTTP-based — require credentials) ---
+
+test_rhdh() {
+    if [ -z "${RHDH_URL:-}" ]; then
+        skip_test "rhdh: all tests" "RHDH_URL not set"
+        return
+    fi
+    echo -e "${BOLD}rhdh${NC} (Red Hat Developer Hub catalog)"
+    local opts
+    opts=$(jq -cn --arg url "$RHDH_URL" --arg token "${RHDH_TOKEN:-}" \
+        '{"baseUrl":$url,"apiToken":$token}')
+
+    assert_tool_contains_opts rhdh "rhdh_catalog_search" \
+        '{"kind":"Component"}' \
+        "$opts" \
+        "rhdh_catalog_search: search components" \
+        ""
+
+    assert_tool_contains_opts rhdh "rhdh_catalog_entity" \
+        '{"kind":"Component","name":"test"}' \
+        "$opts" \
+        "rhdh_catalog_entity: get entity details" \
+        ""
+
+    assert_tool_contains_opts rhdh "rhdh_api_spec" \
+        '{"name":"test"}' \
+        "$opts" \
+        "rhdh_api_spec: fetch API spec" \
+        ""
+
+    assert_tool_contains_opts rhdh "rhdh_techdocs" \
+        '{"kind":"Component","name":"test"}' \
+        "$opts" \
+        "rhdh_techdocs: fetch TechDocs content" \
+        ""
+
+    assert_tool_contains_opts rhdh "rhdh_dependencies" \
+        '{"kind":"Component","name":"test"}' \
+        "$opts" \
+        "rhdh_dependencies: get entity dependencies" \
+        ""
+
+    assert_tool_not_contains_opts rhdh "rhdh_catalog_search" \
+        '{"kind":"Component"}' \
+        "$opts" \
+        "rhdh_catalog_search: not stub response" \
+        "not configured"
+
+    echo ""
+}
+
+test_rhoai_experiment_tracker() {
+    if [ -z "${RHOAI_EXPERIMENT_TRACKER_URL:-}" ]; then
+        skip_test "rhoai-experiment-tracker: all tests" "RHOAI_EXPERIMENT_TRACKER_URL not set"
+        return
+    fi
+    echo -e "${BOLD}rhoai-experiment-tracker${NC} (MLflow experiment tracking)"
+    local opts
+    opts=$(jq -cn --arg url "$RHOAI_EXPERIMENT_TRACKER_URL" \
+        '{"mlflowUrl":$url}')
+
+    assert_tool_contains_opts rhoai-experiment-tracker "experiment_last_session" \
+        '{}' \
+        "$opts" \
+        "experiment_last_session: get last session info" \
+        ""
+
+    assert_tool_not_contains_opts rhoai-experiment-tracker "experiment_last_session" \
+        '{}' \
+        "$opts" \
+        "experiment_last_session: not stub response" \
+        "not configured"
+
+    echo ""
+}
+
+test_rhoai_mcp_bridge() {
+    if [ -z "${RHOAI_MCP_BRIDGE_URL:-}" ]; then
+        skip_test "rhoai-mcp-bridge: all tests" "RHOAI_MCP_BRIDGE_URL not set"
+        return
+    fi
+    echo -e "${BOLD}rhoai-mcp-bridge${NC} (MCP server bridge)"
+    local opts
+    opts=$(jq -cn --arg url "$RHOAI_MCP_BRIDGE_URL" --arg token "${RHOAI_MCP_BRIDGE_TOKEN:-}" \
+        '{"mcpServerUrl":$url,"oauthToken":$token}')
+
+    assert_tool_contains_opts rhoai-mcp-bridge "rhoai_mcp_list" \
+        '{}' \
+        "$opts" \
+        "rhoai_mcp_list: list available MCP tools" \
+        ""
+
+    assert_tool_contains_opts rhoai-mcp-bridge "rhoai_mcp_call" \
+        '{"tool":"test"}' \
+        "$opts" \
+        "rhoai_mcp_call: call an MCP tool" \
+        ""
+
+    assert_tool_not_contains_opts rhoai-mcp-bridge "rhoai_mcp_list" \
+        '{}' \
+        "$opts" \
+        "rhoai_mcp_list: not stub response" \
+        "not configured"
+
+    echo ""
+}
+
+test_lightwell() {
+    if [ -z "${LIGHTWELL_TOKEN:-}" ]; then
+        skip_test "lightwell: all tests" "LIGHTWELL_TOKEN not set"
+        return
+    fi
+    echo -e "${BOLD}lightwell${NC} (Red Hat Lightwell package security)"
+    local opts
+    opts=$(jq -cn --arg token "$LIGHTWELL_TOKEN" \
+        '{"serviceAccountToken":$token}')
+
+    assert_tool_contains_opts lightwell "lightwell_check_package" \
+        '{"ecosystem":"python","name":"requests","version":"2.28.0"}' \
+        "$opts" \
+        "lightwell_check_package: check python package" \
+        ""
+
+    assert_tool_contains_opts lightwell "lightwell_osv" \
+        '{"ecosystem":"python","name":"requests","version":"2.28.0"}' \
+        "$opts" \
+        "lightwell_osv: query OSV vulnerabilities" \
+        ""
+
+    assert_tool_contains_opts lightwell "lightwell_config_check" \
+        '{"content":"[global]\nindex-url = https://pypi.org/simple/","fileType":"pip.conf"}' \
+        "$opts" \
+        "lightwell_config_check: analyze pip config" \
+        ""
+
+    assert_tool_contains_opts lightwell "lightwell_check_deps" \
+        '{"content":"requests==2.28.0","fileType":"requirements.txt"}' \
+        "$opts" \
+        "lightwell_check_deps: check requirements.txt deps" \
+        ""
+
+    assert_tool_not_contains_opts lightwell "lightwell_check_package" \
+        '{"ecosystem":"python","name":"requests","version":"2.28.0"}' \
+        "$opts" \
+        "lightwell_check_package: not stub response" \
+        "not configured"
+
+    echo ""
+}
+
 # --- Prerequisites ---
 
 check_prereqs() {
@@ -1067,7 +1282,13 @@ main() {
         echo "  rhoai-eval-trustyai  RHOAI evaluation + TrustyAI via oc CLI"
         echo "  rhoai-pipelines      Kubeflow pipelines (PIPELINES_URL)"
         echo "  rhoai-mlflow-tools   MLflow tools (MLFLOW_URL)"
+        echo "  rhoai-experiment-tracker  MLflow experiment tracking (RHOAI_EXPERIMENT_TRACKER_URL)"
+        echo "  rhoai-mcp-bridge     MCP server bridge (RHOAI_MCP_BRIDGE_URL)"
         echo "  satellite            Satellite hosts, errata, content views (SATELLITE_URL, SATELLITE_USER, SATELLITE_PASSWORD)"
+        echo ""
+        echo "HTTP-based (require credentials):"
+        echo "  rhdh                 Red Hat Developer Hub catalog (RHDH_URL, RHDH_TOKEN)"
+        echo "  lightwell            Red Hat Lightwell package security (LIGHTWELL_TOKEN)"
         exit 0
     fi
 
@@ -1147,6 +1368,20 @@ main() {
     fi
     if [ -z "$filter" ] || [ "$filter" = "rhoai-mlflow-tools" ]; then
         test_rhoai_mlflow_tools
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "rhoai-experiment-tracker" ]; then
+        test_rhoai_experiment_tracker
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "rhoai-mcp-bridge" ]; then
+        test_rhoai_mcp_bridge
+    fi
+
+    # HTTP-based tests
+    if [ -z "$filter" ] || [ "$filter" = "rhdh" ]; then
+        test_rhdh
+    fi
+    if [ -z "$filter" ] || [ "$filter" = "lightwell" ]; then
+        test_lightwell
     fi
 
     echo "===================================="

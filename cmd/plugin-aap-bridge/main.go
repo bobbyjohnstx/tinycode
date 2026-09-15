@@ -282,6 +282,42 @@ type lintViolation struct {
 	} `json:"location"`
 }
 
+func buildHealthTool(client *aapClient) plugin.ToolDef {
+	return plugin.ToolDef{
+		Name:        "aap_health",
+		Description: "Check health of AAP services (Controller API, EDA controller).",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+		Execute: func(ctx context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
+			var lines []string
+
+			if client == nil {
+				lines = append(lines, "[SKIP] Controller API (not configured)")
+				lines = append(lines, "[SKIP] EDA Controller (not configured)")
+				return "Service Health:\n" + strings.Join(lines, "\n"), nil
+			}
+
+			// Check Controller API via ping endpoint
+			if _, err := client.api.Get(ctx, client.apiPrefix+"/ping/", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] Controller API: %v", err))
+			} else {
+				lines = append(lines, "[OK] Controller API")
+			}
+
+			// Check EDA controller via config endpoint
+			if _, err := client.api.Get(ctx, client.apiPrefix+"/config/", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] EDA Controller: %v", err))
+			} else {
+				lines = append(lines, "[OK] EDA Controller")
+			}
+
+			return "Service Health:\n" + strings.Join(lines, "\n"), nil
+		},
+	}
+}
+
 func buildTools(client *aapClient) []plugin.ToolDef {
 	notConfigured := "AAP plugin not configured. Set controllerUrl in plugin options."
 
@@ -520,6 +556,7 @@ func newPlugin(opts options) plugin.Plugin {
 
 	tools := buildTools(client)
 	tools = append(tools, lintTool())
+	tools = append(tools, buildHealthTool(client))
 
 	p := plugin.Plugin{
 		ID:    "aap-bridge",

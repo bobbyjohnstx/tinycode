@@ -235,3 +235,9 @@ No external router library -- the HTTP server uses standard `net/http` with a cu
 **Why modernc.org/sqlite.** Pure Go, no CGO dependency. Simplifies cross-compilation (CGO + SQLite requires platform-specific C toolchains). Trades some performance for build simplicity -- acceptable for the session/message storage workload.
 
 **Why embedded server.** The TUI communicates with the session engine via HTTP/SSE, the same protocol the web UI and ACP use. This means one code path serves all three interfaces. The server binds to an ephemeral port (port 0) in TUI mode, avoiding conflicts.
+
+---
+
+## Historical Audit
+
+An initial architecture review (`docs/architecture-review.md`) identified five issues: plugin wire protocol mismatch, path traversal in file tools, data races in provider registry, SSE route handler inversion, and dead TUI components. All five have been fixed.

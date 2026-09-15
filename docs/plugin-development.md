@@ -623,7 +623,7 @@ These plugins ship with tinycode in `cmd/plugin-*/`:
 
 | Plugin | ID | Type | Description |
 |--------|----|------|-------------|
-| `plugin-satellite-lightspeed` | `satellite-lightspeed` | Tool | Satellite query/hosts/errata |
+| `plugin-satellite` | `satellite` | Tool | Satellite hosts/errata/services/REX |
 | `plugin-quay` | `quay` | Tool | Registry search/tags/vulns |
 | `plugin-rhdh` | `rhdh` | Tool | Developer Hub catalog/APIs |
 | `plugin-tekton` | `tekton` | Tool | Pipelines/runs/logs |

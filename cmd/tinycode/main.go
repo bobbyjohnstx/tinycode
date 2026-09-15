@@ -75,6 +75,8 @@ func main() {
 		runExport()
 	case "plugin":
 		runPlugin()
+	case "init":
+		runInit()
 	case "agent":
 		runAgent()
 	case "debug":
@@ -114,6 +116,7 @@ func printUsage() {
 	fmt.Println("  status     Show server health and status")
 	fmt.Println("  export     Export session messages as JSON")
 	fmt.Println("  plugin     Manage plugins (list, install, uninstall)")
+	fmt.Println("  init       Interactive plugin setup by role")
 	fmt.Println("  agent      List available agents")
 	fmt.Println("  debug      Debug info (config, paths)")
 	fmt.Println("  version    Print version information")

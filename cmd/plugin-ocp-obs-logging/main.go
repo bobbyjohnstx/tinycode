@@ -492,24 +492,81 @@ func unconfiguredTraceTools() []plugin.ToolDef {
 	}
 }
 
+func buildHealthTool(loki *lokiClient, tempo *tempoClient, oc *redhat.OcClient) plugin.ToolDef {
+	return plugin.ToolDef{
+		Name:        "logging_health",
+		Description: "Check health of logging and tracing services (Loki, Tempo, ClusterLogging operator).",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+		Execute: func(ctx context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
+			var lines []string
+
+			// Check Loki
+			if loki != nil {
+				if _, err := loki.api.Get(ctx, "/ready", nil); err != nil {
+					lines = append(lines, fmt.Sprintf("[DOWN] Loki: %v", err))
+				} else {
+					lines = append(lines, "[OK] Loki")
+				}
+			} else {
+				lines = append(lines, "[SKIP] Loki (not configured)")
+			}
+
+			// Check Tempo
+			if tempo != nil {
+				if _, err := tempo.api.Get(ctx, "/ready", nil); err != nil {
+					lines = append(lines, fmt.Sprintf("[DOWN] Tempo: %v", err))
+				} else {
+					lines = append(lines, "[OK] Tempo")
+				}
+			} else {
+				lines = append(lines, "[SKIP] Tempo (not configured)")
+			}
+
+			// Check ClusterLogging operator status
+			if _, err := oc.Get(ctx, "clusterloggings.logging.openshift.io", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] ClusterLogging operator: %v", err))
+			} else {
+				lines = append(lines, "[OK] ClusterLogging operator")
+			}
+
+			// Check ClusterLogForwarder status
+			if _, err := oc.Get(ctx, "clusterlogforwarders.logging.openshift.io", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] ClusterLogForwarder: %v", err))
+			} else {
+				lines = append(lines, "[OK] ClusterLogForwarder")
+			}
+
+			return "Service Health:\n" + strings.Join(lines, "\n"), nil
+		},
+	}
+}
+
 func newPlugin(opts options) plugin.Plugin {
 	oc := redhat.NewOcClient()
 
 	var tools []plugin.ToolDef
 
+	var loki *lokiClient
 	if opts.LokiURL != "" {
-		tools = append(tools, buildLogTools(newLokiClient(opts.LokiURL, opts.Token))...)
+		loki = newLokiClient(opts.LokiURL, opts.Token)
+		tools = append(tools, buildLogTools(loki)...)
 	} else {
 		tools = append(tools, unconfiguredLogTool())
 	}
 
+	var tempo *tempoClient
 	if opts.TempoURL != "" {
-		tools = append(tools, buildTraceTools(newTempoClient(opts.TempoURL, opts.Token))...)
+		tempo = newTempoClient(opts.TempoURL, opts.Token)
+		tools = append(tools, buildTraceTools(tempo)...)
 	} else {
 		tools = append(tools, unconfiguredTraceTools()...)
 	}
 
 	tools = append(tools, buildOcTools(oc)...)
+	tools = append(tools, buildHealthTool(loki, tempo, oc))
 
 	return plugin.Plugin{
 		ID:    "ocp-obs-logging",

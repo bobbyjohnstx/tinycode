@@ -507,7 +507,7 @@ type RegistryEntry struct {
 | `rhoai-mlflow-tools` | `tinycode-plugin-rhoai-mlflow-tools` | MLflow experiment, run, and model registry tools |
 | `rhoai-model-serving` | `tinycode-plugin-rhoai-model-serving` | RHOAI model serving and sandbox provisioning |
 | `rhoai-pipelines` | `tinycode-plugin-rhoai-pipelines` | RHOAI data science pipelines (list, run, status, create) |
-| `satellite-lightspeed` | `tinycode-plugin-satellite-lightspeed` | Red Hat Satellite Lightspeed (query, hosts, errata, content views) |
+| `satellite` | `tinycode-plugin-satellite` | Red Hat Satellite (hosts, errata, content views, services, proxies, REX) |
 | `tekton` | `tinycode-plugin-tekton` | Tekton pipelines (list, runs, status, logs, tasks) |
 
 ---

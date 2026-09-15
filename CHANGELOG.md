@@ -21,7 +21,7 @@ Complete rewrite from TypeScript to Go. tinycode is now a standalone Go binary -
 - Sortable ID generation with typed prefixes
 - YAML frontmatter parser for agent and skill definitions
 - Project metadata with VCS detection and worktree paths
-- 24 Red Hat plugins converted from TypeScript: OpenShift (ocp-context-injection, ocp-oauth, ocp-obs-logging, ocp-obs-metrics), Ansible (aap-bridge, eda-events), RHOAI (eval-trustyai, experiment-tracker, mcp-bridge, mlflow-tools, model-serving, pipelines), and 12 platform plugins (satellite-lightspeed, quay, rhdh, tekton, rhacm, rhacs, rh-api-catalog, rh-dev-content, rh-ecosystem-catalog, rhdp-provisioner, container-linter, lightwell)
+- 24 Red Hat plugins converted from TypeScript: OpenShift (ocp-context-injection, ocp-oauth, ocp-obs-logging, ocp-obs-metrics), Ansible (aap-bridge, eda-events), RHOAI (eval-trustyai, experiment-tracker, mcp-bridge, mlflow-tools, model-serving, pipelines), and 12 platform plugins (satellite, quay, rhdh, tekton, rhacm, rhacs, rh-api-catalog, rh-dev-content, rh-ecosystem-catalog, rhdp-provisioner, container-linter, lightwell)
 - `internal/redhat/` shared library: OcClient, APIClient, ConsoleAuthClient, PromQLClient, ContainerfileParser, MLflow client, HTML stripping (21 tests)
 - `script/test-plugins-container.sh` -- disposable podman container for clean-room plugin testing
 - Plugin registry now has 36 entries (was 12)

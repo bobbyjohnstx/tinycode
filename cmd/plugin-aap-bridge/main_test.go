@@ -1,7 +1,13 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
 )
 
 func TestPluginID(t *testing.T) {
@@ -13,13 +19,13 @@ func TestPluginID(t *testing.T) {
 
 func TestToolDefinitions_Unconfigured(t *testing.T) {
 	p := newPlugin(options{})
-	if len(p.Tools) != 7 {
-		t.Fatalf("got %d tools, want 7 (6 stub + lint)", len(p.Tools))
+	if len(p.Tools) != 8 {
+		t.Fatalf("got %d tools, want 8 (6 stub + lint + health)", len(p.Tools))
 	}
 	wantNames := []string{
 		"aap_list_templates", "aap_launch_job", "aap_job_status",
 		"aap_job_output", "aap_list_inventories", "aap_hub_search",
-		"aap_lint_playbook",
+		"aap_lint_playbook", "aap_health",
 	}
 	for i, want := range wantNames {
 		if p.Tools[i].Name != want {
@@ -33,8 +39,8 @@ func TestToolDefinitions_Unconfigured(t *testing.T) {
 
 func TestToolDefinitions_Configured(t *testing.T) {
 	p := newPlugin(options{ControllerURL: "http://aap:8080", OAuthToken: "tok"})
-	if len(p.Tools) != 7 {
-		t.Fatalf("got %d tools, want 7", len(p.Tools))
+	if len(p.Tools) != 8 {
+		t.Fatalf("got %d tools, want 8", len(p.Tools))
 	}
 	if p.Hooks.ShellEnv == nil {
 		t.Error("expected ShellEnv hook when configured")
@@ -228,4 +234,279 @@ func stringContains(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// --- httptest-based client method tests ---
+
+func newMockAapClient(handler http.Handler) (*aapClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	return &aapClient{
+		api:       redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL}),
+		apiPrefix: defaultAPIPrefix,
+	}, srv
+}
+
+func TestListTemplates(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/job_templates/", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, `{"results":[{"id":10,"name":"Deploy","description":"deploy app","status":"successful"},{"id":11,"name":"Cleanup","description":"","status":"failed"}]}`)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		templates, err := client.listTemplates(context.Background(), "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(templates) != 2 {
+			t.Fatalf("got %d templates, want 2", len(templates))
+		}
+		if templates[0].ID != 10 || templates[0].Name != "Deploy" {
+			t.Errorf("template[0] = %+v, want ID=10 Name=Deploy", templates[0])
+		}
+		if templates[1].Status != "failed" {
+			t.Errorf("template[1].Status = %q, want %q", templates[1].Status, "failed")
+		}
+	})
+
+	t.Run("with search parameter", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/job_templates/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("search") != "deploy" {
+				t.Errorf("expected search=deploy, got %q", r.URL.Query().Get("search"))
+			}
+			fmt.Fprint(w, `{"results":[{"id":10,"name":"Deploy"}]}`)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		templates, err := client.listTemplates(context.Background(), "deploy")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(templates) != 1 {
+			t.Fatalf("got %d templates, want 1", len(templates))
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/job_templates/", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		_, err := client.listTemplates(context.Background(), "")
+		if err == nil {
+			t.Fatal("expected error for 500 response")
+		}
+	})
+}
+
+func TestLaunchJob(t *testing.T) {
+	t.Run("happy path with job field", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/job_templates/10/launch/", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				t.Errorf("expected POST, got %s", r.Method)
+			}
+			fmt.Fprint(w, `{"job":42,"id":42}`)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		jobID, err := client.launchJob(context.Background(), 10, "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if jobID != 42 {
+			t.Errorf("got jobID=%d, want 42", jobID)
+		}
+	})
+
+	t.Run("falls back to id field", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/job_templates/5/launch/", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, `{"id":99}`)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		jobID, err := client.launchJob(context.Background(), 5, "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if jobID != 99 {
+			t.Errorf("got jobID=%d, want 99", jobID)
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/job_templates/1/launch/", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		_, err := client.launchJob(context.Background(), 1, "")
+		if err == nil {
+			t.Fatal("expected error for 403 response")
+		}
+	})
+}
+
+func TestGetJobStatus(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/jobs/42/", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, `{"id":42,"name":"deploy-prod","status":"successful","started":"2026-01-01T00:00:00Z","finished":"2026-01-01T00:05:00Z","failed":false,"elapsed":300.5}`)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		j, err := client.getJobStatus(context.Background(), 42)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if j.ID != 42 {
+			t.Errorf("got ID=%d, want 42", j.ID)
+		}
+		if j.Status != "successful" {
+			t.Errorf("got Status=%q, want %q", j.Status, "successful")
+		}
+		if j.Elapsed != 300.5 {
+			t.Errorf("got Elapsed=%f, want 300.5", j.Elapsed)
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/jobs/1/", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "not found", http.StatusNotFound)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		_, err := client.getJobStatus(context.Background(), 1)
+		if err == nil {
+			t.Fatal("expected error for 404 response")
+		}
+	})
+}
+
+func TestGetJobOutput(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/jobs/42/stdout/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("format") != "txt" {
+				t.Errorf("expected format=txt, got %q", r.URL.Query().Get("format"))
+			}
+			fmt.Fprint(w, "PLAY [all] ***\nok: [host1]")
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		output, err := client.getJobOutput(context.Background(), 42)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stringContains(output, "PLAY [all]") {
+			t.Errorf("output missing expected content: %q", output)
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/jobs/1/stdout/", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "gone", http.StatusGone)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		_, err := client.getJobOutput(context.Background(), 1)
+		if err == nil {
+			t.Fatal("expected error for 410 response")
+		}
+	})
+}
+
+func TestListInventories(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/inventories/", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, `{"results":[{"id":1,"name":"prod","description":"production hosts","total_hosts":10,"hosts_with_active_failures":2}]}`)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		invs, err := client.listInventories(context.Background(), "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(invs) != 1 {
+			t.Fatalf("got %d inventories, want 1", len(invs))
+		}
+		if invs[0].Name != "prod" || invs[0].TotalHosts != 10 {
+			t.Errorf("inventory = %+v, want Name=prod TotalHosts=10", invs[0])
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/inventories/", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		_, err := client.listInventories(context.Background(), "")
+		if err == nil {
+			t.Fatal("expected error for 401 response")
+		}
+	})
+}
+
+func TestSearchCollections(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/collections/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("keyword") != "network" {
+				t.Errorf("expected keyword=network, got %q", r.URL.Query().Get("keyword"))
+			}
+			fmt.Fprint(w, `{"results":[{"namespace":{"name":"ansible"},"name":"netcommon","description":"network common","latest_version":{"version":"5.1.0"}}]}`)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		colls, err := client.searchCollections(context.Background(), "network")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(colls) != 1 {
+			t.Fatalf("got %d collections, want 1", len(colls))
+		}
+		if colls[0].Name != "netcommon" {
+			t.Errorf("collection name = %q, want %q", colls[0].Name, "netcommon")
+		}
+		if colls[0].Namespace == nil || colls[0].Namespace.Name != "ansible" {
+			t.Errorf("collection namespace unexpected: %+v", colls[0].Namespace)
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v2/collections/", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "bad gateway", http.StatusBadGateway)
+		})
+		client, srv := newMockAapClient(mux)
+		defer srv.Close()
+
+		_, err := client.searchCollections(context.Background(), "anything")
+		if err == nil {
+			t.Fatal("expected error for 502 response")
+		}
+	})
 }

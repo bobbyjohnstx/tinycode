@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
 	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
 )
 
@@ -456,5 +460,144 @@ func TestEcosystemMap(t *testing.T) {
 	}
 	if ecosystemMap["maven"] != "java" {
 		t.Errorf("expected maven -> java, got %q", ecosystemMap["maven"])
+	}
+}
+
+func newMockLightwellClient(handler http.Handler) (*lightwellClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	return &lightwellClient{
+		api: redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL}),
+	}, srv
+}
+
+func TestLightwellClient_CheckPackage(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/packages/python/requests/2.28.0", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		fmt.Fprint(w, `{"found":true,"ecosystem":"python","name":"requests","version":"2.28.0","lightwellVersion":"2.28.0.rhlw1","patchAvailable":true,"cveCount":1,"cves":[{"id":"CVE-2023-32681","severity":"MODERATE","fixedIn":"2.31.0"}]}`)
+	})
+	client, srv := newMockLightwellClient(mux)
+	defer srv.Close()
+
+	result, err := client.checkPackage(context.Background(), "python", "requests", "2.28.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Found {
+		t.Error("expected Found to be true")
+	}
+	if result.LightwellVersion != "2.28.0.rhlw1" {
+		t.Errorf("lightwellVersion = %q, want %q", result.LightwellVersion, "2.28.0.rhlw1")
+	}
+	if !result.PatchAvailable {
+		t.Error("expected PatchAvailable to be true")
+	}
+	if result.CVECount != 1 {
+		t.Errorf("cveCount = %d, want 1", result.CVECount)
+	}
+	if len(result.CVEs) != 1 || result.CVEs[0].ID != "CVE-2023-32681" {
+		t.Errorf("unexpected CVEs: %+v", result.CVEs)
+	}
+}
+
+func TestLightwellClient_CheckPackage_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+	})
+	client, srv := newMockLightwellClient(mux)
+	defer srv.Close()
+
+	_, err := client.checkPackage(context.Background(), "python", "nonexistent", "0.0.0")
+	if err == nil {
+		t.Fatal("expected error for server error response")
+	}
+}
+
+func TestLightwellClient_QueryOsv(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/osv/python/requests", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		fmt.Fprint(w, `{"vulnerabilities":[{"id":"GHSA-j8r2-6x86-q33q","severity":"MODERATE","summary":"Unintended leak of Proxy-Authorization header"},{"id":"PYSEC-2023-74","severity":"HIGH","summary":"Session fixation vulnerability"}]}`)
+	})
+	client, srv := newMockLightwellClient(mux)
+	defer srv.Close()
+
+	result, err := client.queryOsv(context.Background(), "python", "requests")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Vulnerabilities) != 2 {
+		t.Fatalf("got %d vulns, want 2", len(result.Vulnerabilities))
+	}
+	if result.Vulnerabilities[0].ID != "GHSA-j8r2-6x86-q33q" {
+		t.Errorf("vuln[0].ID = %q", result.Vulnerabilities[0].ID)
+	}
+}
+
+func TestLightwellClient_QueryOsv_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+	})
+	client, srv := newMockLightwellClient(mux)
+	defer srv.Close()
+
+	_, err := client.queryOsv(context.Background(), "python", "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for server error response")
+	}
+}
+
+func TestLightwellClient_GetProvenance(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/provenance/python/requests/2.28.0", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		fmt.Fprint(w, `{"verified":true,"buildType":"tekton","builder":"tekton-chains","sourceUri":"https://github.com/psf/requests","digest":"sha256:abc123","slsaLevel":"L3","attestations":[{"type":"cosign","verified":true,"issuer":"sigstore"}]}`)
+	})
+	client, srv := newMockLightwellClient(mux)
+	defer srv.Close()
+
+	result, err := client.getProvenance(context.Background(), "python", "requests", "2.28.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Verified {
+		t.Error("expected Verified to be true")
+	}
+	if result.SLSALevel != "L3" {
+		t.Errorf("slsaLevel = %q, want %q", result.SLSALevel, "L3")
+	}
+	if result.BuildType != "tekton" {
+		t.Errorf("buildType = %q, want %q", result.BuildType, "tekton")
+	}
+	if len(result.Attestations) != 1 {
+		t.Fatalf("got %d attestations, want 1", len(result.Attestations))
+	}
+	if result.Attestations[0].Type != "cosign" || !result.Attestations[0].Verified {
+		t.Errorf("attestation = %+v", result.Attestations[0])
+	}
+}
+
+func TestLightwellClient_GetProvenance_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+	client, srv := newMockLightwellClient(mux)
+	defer srv.Close()
+
+	_, err := client.getProvenance(context.Background(), "python", "nonexistent", "0.0.0")
+	if err == nil {
+		t.Fatal("expected error for 404 response")
 	}
 }

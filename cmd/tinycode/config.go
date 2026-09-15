@@ -185,18 +185,63 @@ func initLSP(dir string, cfg *config.Info, toolReg *tool.Registry) *lsp.Manager 
 	return mgr
 }
 
-func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager) {
+func initBuiltins(toolReg *tool.Registry) *plugin.BuiltinManager {
+	bm := plugin.NewBuiltinManager()
+	bm.Register(plugin.NewContextPruningPlugin())
+	bm.Register(plugin.NewNotifyPlugin())
+	bm.Register(plugin.NewCodeReviewPlugin())
+	bm.Register(plugin.NewHandoffPlugin())
+
+	// Register builtin tools with the tool registry so the LLM can call them.
+	for _, bt := range bm.AllTools() {
+		bt := bt // capture loop variable
+		toolReg.Register(&tool.Def{
+			ID:          bt.Name,
+			Description: bt.Description,
+			Parameters:  bt.Parameters,
+			Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+				result, err := bm.CallTool(ctx, bt.Name, args)
+				if err != nil {
+					return &tool.ExecuteResult{Output: err.Error(), IsError: true}, nil
+				}
+				return &tool.ExecuteResult{Output: result}, nil
+			},
+		})
+	}
+
+	return bm
+}
+
+func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager, bm *plugin.BuiltinManager) {
 	toolCtx.AfterHook = func(sessionID, toolName, output string, isError bool) (string, bool, bool) {
+		modified := false
+
+		// Run builtin hooks first (e.g., context-pruning).
+		if bm != nil {
+			if modOut, modErr, changed := bm.DispatchToolExecAfter(context.Background(), toolName, output, isError); changed {
+				output = modOut
+				isError = modErr
+				modified = true
+			}
+		}
+
+		// Then run external plugin hooks.
 		result, err := plugin.DispatchToolExecAfter(mgr, plugin.ToolExecAfterEvent{
 			SessionID: sessionID,
 			ToolName:  toolName,
 			Output:    output,
 			IsError:   isError,
 		})
-		if err != nil || result == nil {
-			return "", false, false
+		if err == nil && result != nil {
+			output = result.Output
+			isError = result.IsError
+			modified = true
 		}
-		return result.Output, result.IsError, true
+
+		if modified {
+			return output, isError, true
+		}
+		return "", false, false
 	}
 }
 

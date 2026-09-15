@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
 )
 
 func TestPluginID(t *testing.T) {
@@ -50,7 +56,7 @@ func TestParseOptions(t *testing.T) {
 	}{
 		{
 			name:       "extracts all fields",
-			raw:        map[string]any{"consoleOfflineToken": "tok-abc", "rhdpApiUrl": "http://custom:8080"},
+			raw:        map[string]any{"sessionCookie": "tok-abc", "rhdpApiUrl": "http://custom:8080"},
 			token:      "tok-abc",
 			rhdpApiURL: "http://custom:8080",
 		},
@@ -63,8 +69,8 @@ func TestParseOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := parseOptions(tt.raw)
-			if opts.ConsoleOfflineToken != tt.token {
-				t.Errorf("ConsoleOfflineToken = %q, want %q", opts.ConsoleOfflineToken, tt.token)
+			if opts.SessionCookie != tt.token {
+				t.Errorf("ConsoleOfflineToken = %q, want %q", opts.SessionCookie, tt.token)
 			}
 			if opts.RHDPApiURL != tt.rhdpApiURL {
 				t.Errorf("RHDPApiURL = %q, want %q", opts.RHDPApiURL, tt.rhdpApiURL)
@@ -158,5 +164,174 @@ func TestFormatActiveEnvironment(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q in: %q", want, got)
 		}
+	}
+}
+
+func newMockRHDPClient(handler http.Handler) (*rhdpClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	return &rhdpClient{
+		api: redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL}),
+	}, srv
+}
+
+func TestRHDPClient_SearchCatalog(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/catalog/search", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if r.URL.Query().Get("q") != "openshift" {
+			http.Error(w, "unexpected query", http.StatusBadRequest)
+			return
+		}
+		fmt.Fprint(w, `{"items":[{"id":"item-1","name":"OpenShift Workshop","description":"Hands-on OCP workshop","category":"workshop","estimatedTime":"90 minutes"}]}`)
+	})
+	client, srv := newMockRHDPClient(mux)
+	defer srv.Close()
+
+	items, err := client.searchCatalog(context.Background(), "openshift", "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("got %d items, want 1", len(items))
+	}
+	if items[0].Name != "OpenShift Workshop" {
+		t.Errorf("name = %q, want %q", items[0].Name, "OpenShift Workshop")
+	}
+	if items[0].Category != "workshop" {
+		t.Errorf("category = %q, want %q", items[0].Category, "workshop")
+	}
+}
+
+func TestRHDPClient_SearchCatalog_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+	})
+	client, srv := newMockRHDPClient(mux)
+	defer srv.Close()
+
+	_, err := client.searchCatalog(context.Background(), "test", "")
+	if err == nil {
+		t.Fatal("expected error for server error response")
+	}
+}
+
+func TestRHDPClient_Provision(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/orders", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		fmt.Fprint(w, `{"orderId":"ord-123","status":"provisioning","startedAt":"2026-01-01T00:00:00Z"}`)
+	})
+	client, srv := newMockRHDPClient(mux)
+	defer srv.Close()
+
+	status, err := client.provision(context.Background(), "item-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status.OrderID != "ord-123" {
+		t.Errorf("orderID = %q, want %q", status.OrderID, "ord-123")
+	}
+	if status.Status != "provisioning" {
+		t.Errorf("status = %q, want %q", status.Status, "provisioning")
+	}
+}
+
+func TestRHDPClient_Provision_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+	})
+	client, srv := newMockRHDPClient(mux)
+	defer srv.Close()
+
+	_, err := client.provision(context.Background(), "item-1")
+	if err == nil {
+		t.Fatal("expected error for server error response")
+	}
+}
+
+func TestRHDPClient_GetStatus(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/orders/ord-123", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		fmt.Fprint(w, `{"orderId":"ord-123","status":"ready","startedAt":"2026-01-01T00:00:00Z","consoleUrl":"https://console.example.com","apiUrl":"https://api.example.com:6443","expiresAt":"2026-01-03T00:00:00Z"}`)
+	})
+	client, srv := newMockRHDPClient(mux)
+	defer srv.Close()
+
+	status, err := client.getStatus(context.Background(), "ord-123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status.Status != "ready" {
+		t.Errorf("status = %q, want %q", status.Status, "ready")
+	}
+	if status.ConsoleURL != "https://console.example.com" {
+		t.Errorf("consoleURL = %q, want %q", status.ConsoleURL, "https://console.example.com")
+	}
+}
+
+func TestRHDPClient_GetStatus_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+	client, srv := newMockRHDPClient(mux)
+	defer srv.Close()
+
+	_, err := client.getStatus(context.Background(), "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+}
+
+func TestRHDPClient_ListActive(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/environments", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		fmt.Fprint(w, `{"environments":[{"orderId":"ord-1","catalogItemName":"Workshop A","status":"running","consoleUrl":"https://console.example.com","expiresAt":"2026-01-03T00:00:00Z","startedAt":"2026-01-01T00:00:00Z"}]}`)
+	})
+	client, srv := newMockRHDPClient(mux)
+	defer srv.Close()
+
+	envs, err := client.listActive(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(envs) != 1 {
+		t.Fatalf("got %d envs, want 1", len(envs))
+	}
+	if envs[0].CatalogItemName != "Workshop A" {
+		t.Errorf("name = %q, want %q", envs[0].CatalogItemName, "Workshop A")
+	}
+	if envs[0].Status != "running" {
+		t.Errorf("status = %q, want %q", envs[0].Status, "running")
+	}
+}
+
+func TestRHDPClient_ListActive_Error(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+	})
+	client, srv := newMockRHDPClient(mux)
+	defer srv.Close()
+
+	_, err := client.listActive(context.Background())
+	if err == nil {
+		t.Fatal("expected error for server error response")
 	}
 }

@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
 )
 
 func TestPluginID(t *testing.T) {
@@ -14,15 +20,15 @@ func TestPluginID(t *testing.T) {
 
 func TestToolCountUnconfigured(t *testing.T) {
 	p := newPlugin(options{})
-	if len(p.Tools) != 5 {
-		t.Fatalf("expected 5 unconfigured tools, got %d", len(p.Tools))
+	if len(p.Tools) != 6 {
+		t.Fatalf("expected 6 unconfigured tools, got %d", len(p.Tools))
 	}
 }
 
 func TestToolCountConfigured(t *testing.T) {
 	p := newPlugin(options{RegistryURL: "https://quay.io"})
-	if len(p.Tools) != 5 {
-		t.Fatalf("expected 5 configured tools, got %d", len(p.Tools))
+	if len(p.Tools) != 6 {
+		t.Fatalf("expected 6 configured tools, got %d", len(p.Tools))
 	}
 }
 
@@ -34,6 +40,7 @@ func TestToolDefinitions(t *testing.T) {
 		"quay_manifest",
 		"quay_vulnerabilities",
 		"quay_labels",
+		"quay_health",
 	}
 
 	if len(p.Tools) != len(expectedNames) {
@@ -291,4 +298,321 @@ func TestSeverityOrderMap(t *testing.T) {
 			t.Errorf("severityOrder[%q] = %d, want %d", sev, got, want)
 		}
 	}
+}
+
+// --- httptest mock tests ---
+
+func newMockQuayClient(handler http.Handler) (*quayClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	return &quayClient{
+		api: redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL}),
+	}, srv
+}
+
+func TestSearchRepositories(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v1/find/repositories", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			if q := r.URL.Query().Get("query"); q != "ubi" {
+				t.Errorf("expected query=ubi, got %q", q)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"results":[{"namespace":"redhat","name":"ubi9","description":"Universal Base Image 9","star_count":42}]}`)
+		})
+		client, srv := newMockQuayClient(mux)
+		defer srv.Close()
+
+		repos, err := client.searchRepositories(context.Background(), "ubi")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(repos) != 1 {
+			t.Fatalf("expected 1 repo, got %d", len(repos))
+		}
+		if repos[0].Namespace != "redhat" {
+			t.Errorf("expected namespace 'redhat', got %q", repos[0].Namespace)
+		}
+		if repos[0].Name != "ubi9" {
+			t.Errorf("expected name 'ubi9', got %q", repos[0].Name)
+		}
+		if repos[0].Description != "Universal Base Image 9" {
+			t.Errorf("expected description, got %q", repos[0].Description)
+		}
+		if repos[0].StarCount != 42 {
+			t.Errorf("expected 42 stars, got %d", repos[0].StarCount)
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		client, srv := newMockQuayClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		_, err := client.searchRepositories(context.Background(), "ubi")
+		if err == nil {
+			t.Fatal("expected error for 500 response")
+		}
+		if !strings.Contains(err.Error(), "500") {
+			t.Errorf("expected error to contain '500', got %q", err.Error())
+		}
+	})
+
+	t.Run("empty results", func(t *testing.T) {
+		client, srv := newMockQuayClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"results":[]}`)
+		}))
+		defer srv.Close()
+
+		repos, err := client.searchRepositories(context.Background(), "nonexistent")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(repos) != 0 {
+			t.Errorf("expected 0 repos, got %d", len(repos))
+		}
+	})
+}
+
+func TestListTags(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v1/repository/redhat/ubi9/tag/", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"tags":[{"name":"latest","manifest_digest":"sha256:abc123def456","size":52428800,"last_modified":"Mon, 01 Jan 2024 00:00:00 -0000"}]}`)
+		})
+		client, srv := newMockQuayClient(mux)
+		defer srv.Close()
+
+		tags, err := client.listTags(context.Background(), "redhat", "ubi9")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(tags) != 1 {
+			t.Fatalf("expected 1 tag, got %d", len(tags))
+		}
+		if tags[0].Name != "latest" {
+			t.Errorf("expected tag name 'latest', got %q", tags[0].Name)
+		}
+		if tags[0].ManifestDigest != "sha256:abc123def456" {
+			t.Errorf("expected digest, got %q", tags[0].ManifestDigest)
+		}
+		if tags[0].Size != 52428800 {
+			t.Errorf("expected size 52428800, got %d", tags[0].Size)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		client, srv := newMockQuayClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		_, err := client.listTags(context.Background(), "redhat", "nonexistent")
+		if err == nil {
+			t.Fatal("expected error for 404 response")
+		}
+		if !strings.Contains(err.Error(), "404") {
+			t.Errorf("expected error to contain '404', got %q", err.Error())
+		}
+	})
+}
+
+func TestGetManifest(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v1/repository/redhat/ubi9/manifest/sha256:abc123", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"digest":"sha256:abc123","is_manifest_list":false,"manifest_data":"{\"layers\":[]}","config_media_type":"application/vnd.oci.image.config.v1+json","layers_compressed_size":10485760}`)
+		})
+		client, srv := newMockQuayClient(mux)
+		defer srv.Close()
+
+		manifest, err := client.getManifest(context.Background(), "redhat", "ubi9", "sha256:abc123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if manifest.Digest != "sha256:abc123" {
+			t.Errorf("expected digest 'sha256:abc123', got %q", manifest.Digest)
+		}
+		if manifest.IsManifestList {
+			t.Error("expected IsManifestList=false")
+		}
+		if manifest.ConfigMediaType != "application/vnd.oci.image.config.v1+json" {
+			t.Errorf("expected config media type, got %q", manifest.ConfigMediaType)
+		}
+		if manifest.LayersCompressedSize != 10485760 {
+			t.Errorf("expected compressed size 10485760, got %d", manifest.LayersCompressedSize)
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		client, srv := newMockQuayClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "server error", http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		_, err := client.getManifest(context.Background(), "redhat", "ubi9", "sha256:abc123")
+		if err == nil {
+			t.Fatal("expected error for 500 response")
+		}
+	})
+}
+
+func TestGetVulnerabilities(t *testing.T) {
+	t.Run("happy path with vulnerabilities", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v1/repository/redhat/ubi9/manifest/sha256:abc123/security", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"status":"scanned","data":{"Layer":{"Features":[{"Name":"openssl","Version":"1.1.1","Vulnerabilities":[{"Name":"CVE-2023-0001","Severity":"Critical","FixedBy":"1.1.2"}]}]}}}`)
+		})
+		client, srv := newMockQuayClient(mux)
+		defer srv.Close()
+
+		result, err := client.getVulnerabilities(context.Background(), "redhat", "ubi9", "sha256:abc123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Status != "scanned" {
+			t.Errorf("expected status 'scanned', got %q", result.Status)
+		}
+		if result.Data == nil || result.Data.Layer == nil {
+			t.Fatal("expected non-nil data and layer")
+		}
+		if len(result.Data.Layer.Features) != 1 {
+			t.Fatalf("expected 1 feature, got %d", len(result.Data.Layer.Features))
+		}
+		feat := result.Data.Layer.Features[0]
+		if feat.Name != "openssl" {
+			t.Errorf("expected feature 'openssl', got %q", feat.Name)
+		}
+		if len(feat.Vulnerabilities) != 1 {
+			t.Fatalf("expected 1 vulnerability, got %d", len(feat.Vulnerabilities))
+		}
+		vuln := feat.Vulnerabilities[0]
+		if vuln.Name != "CVE-2023-0001" {
+			t.Errorf("expected CVE name, got %q", vuln.Name)
+		}
+		if vuln.Severity != "Critical" {
+			t.Errorf("expected severity 'Critical', got %q", vuln.Severity)
+		}
+		if vuln.FixedBy != "1.1.2" {
+			t.Errorf("expected fixedBy '1.1.2', got %q", vuln.FixedBy)
+		}
+	})
+
+	t.Run("no vulnerabilities", func(t *testing.T) {
+		client, srv := newMockQuayClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"status":"scanned","data":{"Layer":{"Features":[]}}}`)
+		}))
+		defer srv.Close()
+
+		result, err := client.getVulnerabilities(context.Background(), "redhat", "ubi9", "sha256:abc123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Status != "scanned" {
+			t.Errorf("expected status 'scanned', got %q", result.Status)
+		}
+		if len(result.Data.Layer.Features) != 0 {
+			t.Errorf("expected 0 features, got %d", len(result.Data.Layer.Features))
+		}
+	})
+
+	t.Run("unauthorized", func(t *testing.T) {
+		client, srv := newMockQuayClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "unauthorized", http.StatusForbidden)
+		}))
+		defer srv.Close()
+
+		_, err := client.getVulnerabilities(context.Background(), "redhat", "ubi9", "sha256:abc123")
+		if err == nil {
+			t.Fatal("expected error for 403 response")
+		}
+		if !strings.Contains(err.Error(), "403") {
+			t.Errorf("expected error to contain '403', got %q", err.Error())
+		}
+	})
+}
+
+func TestGetLabels(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v1/repository/redhat/ubi9/manifest/sha256:abc123/labels", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"labels":[{"key":"maintainer","value":"Red Hat","source_type":"manifest"},{"key":"version","value":"9.3","source_type":"manifest"}]}`)
+		})
+		client, srv := newMockQuayClient(mux)
+		defer srv.Close()
+
+		labels, err := client.getLabels(context.Background(), "redhat", "ubi9", "sha256:abc123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(labels) != 2 {
+			t.Fatalf("expected 2 labels, got %d", len(labels))
+		}
+		if labels[0].Key != "maintainer" {
+			t.Errorf("expected key 'maintainer', got %q", labels[0].Key)
+		}
+		if labels[0].Value != "Red Hat" {
+			t.Errorf("expected value 'Red Hat', got %q", labels[0].Value)
+		}
+		if labels[0].SourceType != "manifest" {
+			t.Errorf("expected source_type 'manifest', got %q", labels[0].SourceType)
+		}
+		if labels[1].Key != "version" {
+			t.Errorf("expected key 'version', got %q", labels[1].Key)
+		}
+	})
+
+	t.Run("empty labels", func(t *testing.T) {
+		client, srv := newMockQuayClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"labels":[]}`)
+		}))
+		defer srv.Close()
+
+		labels, err := client.getLabels(context.Background(), "redhat", "ubi9", "sha256:abc123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(labels) != 0 {
+			t.Errorf("expected 0 labels, got %d", len(labels))
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		client, srv := newMockQuayClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		_, err := client.getLabels(context.Background(), "redhat", "ubi9", "sha256:abc123")
+		if err == nil {
+			t.Fatal("expected error for 500 response")
+		}
+	})
 }

@@ -144,7 +144,7 @@ Available plugins:
 | `plugin-rhoai-mlflow-tools` | RHOAI MLflow tooling |
 | `plugin-rhoai-model-serving` | RHOAI model serving management |
 | `plugin-rhoai-pipelines` | RHOAI pipeline orchestration |
-| `plugin-satellite-lightspeed` | Satellite Lightspeed integration |
+| `plugin-satellite` | Red Hat Satellite administration |
 | `plugin-tekton` | Tekton pipeline operations |
 
 Build all plugins:

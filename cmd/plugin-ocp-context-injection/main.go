@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os/exec"
 	"strings"
 	"sync"
 
@@ -43,6 +44,9 @@ type costContext struct {
 type options struct {
 	ConsoleOfflineToken string
 	ClientID            string
+	APIURL              string
+	ClusterID           string
+	InsecureSkipTLS     bool
 }
 
 func parseOptions(raw map[string]any) options {
@@ -52,6 +56,15 @@ func parseOptions(raw map[string]any) options {
 	}
 	if v, ok := raw["clientId"].(string); ok {
 		opts.ClientID = v
+	}
+	if v, ok := raw["apiUrl"].(string); ok {
+		opts.APIURL = v
+	}
+	if v, ok := raw["clusterId"].(string); ok {
+		opts.ClusterID = v
+	}
+	if v, ok := raw["insecureSkipTlsVerify"].(bool); ok {
+		opts.InsecureSkipTLS = v
 	}
 	return opts
 }
@@ -280,8 +293,70 @@ func newPlugin(opts options) plugin.Plugin {
 					return result, nil
 				},
 			},
+			{
+				Name:        "oc_login",
+				Description: "Authenticate to an OpenShift cluster using oc login with API token",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"server": map[string]any{
+							"type":        "string",
+							"description": "OpenShift cluster API URL (e.g. https://api.mycluster.example.com:6443)",
+						},
+						"token": map[string]any{
+							"type":        "string",
+							"description": "Authentication token",
+						},
+					},
+				},
+				Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
+					var input struct {
+						Server string `json:"server"`
+						Token  string `json:"token"`
+					}
+					if err := json.Unmarshal(args, &input); err != nil {
+						return "", fmt.Errorf("parsing args: %w", err)
+					}
+
+					server := input.Server
+					if server == "" {
+						server = opts.APIURL
+					}
+					if server == "" {
+						return "", fmt.Errorf("no server URL provided and apiUrl not configured")
+					}
+
+					token := input.Token
+					if token == "" {
+						token = opts.ConsoleOfflineToken
+					}
+					if token == "" {
+						return "", fmt.Errorf("no token provided and consoleOfflineToken not configured")
+					}
+
+					loginArgs := []string{"login", "--server=" + server, "--token=" + token}
+					if opts.InsecureSkipTLS {
+						loginArgs = append(loginArgs, "--insecure-skip-tls-verify")
+					}
+					cmd := exec.CommandContext(ctx, "oc", loginArgs...)
+					out, err := cmd.CombinedOutput()
+					if err != nil {
+						return string(out), fmt.Errorf("oc login failed: %w", err)
+					}
+					return strings.TrimSpace(string(out)), nil
+				},
+			},
 		},
 		Hooks: plugin.HookHandlers{
+			ShellEnv: func(_ context.Context, _ plugin.ShellEnvInput) (*plugin.ShellEnvOutput, error) {
+				env := map[string]string{
+					"OC_EDITOR": "cat",
+				}
+				if opts.ClusterID != "" {
+					env["CLUSTER_ID"] = opts.ClusterID
+				}
+				return &plugin.ShellEnvOutput{Env: env}, nil
+			},
 			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) error {
 				slog.Info("ocp-context-injection: gathering cluster context", "sessionId", event.SessionID)
 

@@ -569,18 +569,58 @@ func unconfiguredTools() []plugin.ToolDef {
 	}
 }
 
+func buildHealthTool(client *quayClient) plugin.ToolDef {
+	return plugin.ToolDef{
+		Name:        "quay_health",
+		Description: "Check health of Quay services (Registry API, Clair scanning).",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+		Execute: func(ctx context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
+			var lines []string
+
+			if client == nil {
+				lines = append(lines, "[SKIP] Registry API (not configured)")
+				lines = append(lines, "[SKIP] Clair Scanner (not configured)")
+				return "Service Health:\n" + strings.Join(lines, "\n"), nil
+			}
+
+			// Check Registry API via discovery endpoint
+			if _, err := client.api.Get(ctx, "/api/v1/discovery", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] Registry API: %v", err))
+			} else {
+				lines = append(lines, "[OK] Registry API")
+			}
+
+			// Check Clair by probing security endpoint on a well-known repo
+			if _, err := client.api.Get(ctx, "/secscan/notification", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] Clair Scanner: %v", err))
+			} else {
+				lines = append(lines, "[OK] Clair Scanner")
+			}
+
+			return "Service Health:\n" + strings.Join(lines, "\n"), nil
+		},
+	}
+}
+
 func newPlugin(opts options) plugin.Plugin {
 	if opts.RegistryURL == "" {
+		tools := unconfiguredTools()
+		tools = append(tools, buildHealthTool(nil))
 		return plugin.Plugin{
 			ID:    "quay",
-			Tools: unconfiguredTools(),
+			Tools: tools,
 		}
 	}
 
 	client := newQuayClient(opts.RegistryURL, opts.APIToken, opts.Username, opts.Password)
+	tools := buildTools(client)
+	tools = append(tools, buildHealthTool(client))
 	return plugin.Plugin{
 		ID:    "quay",
-		Tools: buildTools(client),
+		Tools: tools,
 	}
 }
 

@@ -196,7 +196,7 @@ tinycode plugin install notify                                 # From registry
 
 > All 12 general plugins have been implemented in Go using the `pkg/plugin/` SDK.
 
-**Red Hat (24):** ocp-context-injection, ocp-oauth, ocp-obs-logging, ocp-obs-metrics, aap-bridge, eda-events, rhoai-eval-trustyai, rhoai-experiment-tracker, rhoai-mcp-bridge, rhoai-mlflow-tools, rhoai-model-serving, rhoai-pipelines, satellite-lightspeed, quay, rhdh, tekton, rhacm, rhacs, rh-api-catalog, rh-dev-content, rh-ecosystem-catalog, rhdp-provisioner, container-linter, lightwell
+**Red Hat (24):** ocp-context-injection, ocp-oauth, ocp-obs-logging, ocp-obs-metrics, aap-bridge, eda-events, rhoai-eval-trustyai, rhoai-experiment-tracker, rhoai-mcp-bridge, rhoai-mlflow-tools, rhoai-model-serving, rhoai-pipelines, satellite, quay, rhdh, tekton, rhacm, rhacs, rh-api-catalog, rh-dev-content, rh-ecosystem-catalog, rhdp-provisioner, container-linter, lightwell
 
 > All 24 Red Hat plugins have been converted to Go using the `pkg/plugin/` SDK.
 

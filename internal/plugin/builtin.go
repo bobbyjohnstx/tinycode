@@ -26,9 +26,10 @@ type BuiltinTool struct {
 // BuiltinHooks holds optional callback functions for built-in plugin lifecycle hooks.
 // Each field is nil when the plugin does not handle that hook.
 type BuiltinHooks struct {
-	SessionStart func(ctx context.Context, sessionID string) error
-	SessionEnd   func(ctx context.Context, sessionID string) error
-	Dispose      func(ctx context.Context) error
+	SessionStart  func(ctx context.Context, sessionID string) error
+	SessionEnd    func(ctx context.Context, sessionID string) error
+	Dispose       func(ctx context.Context) error
+	ToolExecAfter func(ctx context.Context, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool)
 }
 
 // BuiltinManager manages registered built-in plugins and dispatches
@@ -106,4 +107,38 @@ func (m *BuiltinManager) DispatchHook(name string, input any) error {
 		}
 	}
 	return nil
+}
+
+// DispatchToolExecAfter sends tool output through all builtin plugins that handle it.
+func (m *BuiltinManager) DispatchToolExecAfter(ctx context.Context, toolName, output string, isError bool) (string, bool, bool) {
+	m.mu.RLock()
+	plugins := make([]BuiltinPlugin, len(m.plugins))
+	copy(plugins, m.plugins)
+	m.mu.RUnlock()
+
+	modified := false
+	for _, p := range plugins {
+		hooks := p.Hooks()
+		if hooks.ToolExecAfter == nil {
+			continue
+		}
+		modOut, modErr, changed := hooks.ToolExecAfter(ctx, toolName, output, isError)
+		if changed {
+			output = modOut
+			isError = modErr
+			modified = true
+		}
+	}
+	return output, isError, modified
+}
+
+// AllTools returns all registered builtin tools.
+func (m *BuiltinManager) AllTools() []BuiltinTool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var all []BuiltinTool
+	for _, p := range m.plugins {
+		all = append(all, p.Tools()...)
+	}
+	return all
 }

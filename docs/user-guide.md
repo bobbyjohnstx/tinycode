@@ -697,7 +697,7 @@ Add plugin names to the config:
 
 | Plugin | Description |
 |--------|-------------|
-| `satellite-lightspeed` | Satellite query/hosts/errata |
+| `satellite` | Satellite hosts/errata/services/REX |
 | `quay` | Registry search/tags/vulns |
 | `rhdh` | Developer Hub catalog/APIs |
 | `tekton` | Pipelines/runs/logs |

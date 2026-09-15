@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
@@ -214,9 +217,32 @@ func runPlugin() {
 
 	switch args[0] {
 	case "list":
-		entries := plugin.Registry()
+		var catFilter string
+		for i := 1; i < len(args); i++ {
+			if args[i] == "--category" && i+1 < len(args) {
+				catFilter = args[i+1]
+				break
+			}
+		}
+
+		var entries []plugin.RegistryEntry
+		if catFilter != "" {
+			entries = plugin.RegistryByCategory(catFilter)
+			if len(entries) == 0 {
+				cats := plugin.Categories()
+				slugs := make([]string, len(cats))
+				for i, c := range cats {
+					slugs[i] = c.Slug
+				}
+				fmt.Fprintf(os.Stderr, "No plugins in category %q.\nValid categories: %s\n", catFilter, strings.Join(slugs, ", "))
+				os.Exit(1)
+			}
+		} else {
+			entries = plugin.Registry()
+		}
+
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tDESCRIPTION\tINSTALLED")
+		fmt.Fprintln(w, "NAME\tCATEGORY\tDESCRIPTION\tINSTALLED")
 		pluginDir := filepath.Join(config.ConfigDir(), "plugins")
 		for _, e := range entries {
 			installed := "no"
@@ -226,7 +252,7 @@ func runPlugin() {
 			} else if _, err := exec.LookPath("tinycode-plugin-" + e.Name); err == nil {
 				installed = "yes (PATH)"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.Description, installed)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Name, e.Category, e.Description, installed)
 		}
 		w.Flush()
 
@@ -375,5 +401,226 @@ func runDebug() {
 		fmt.Fprintf(os.Stderr, "Unknown debug subcommand: %s\nUsage: tinycode debug <config|paths>\n", args[0])
 		os.Exit(1)
 	}
+}
+
+// initRoles defines the role-to-plugin mapping for `tinycode init`.
+var initRoles = []struct {
+	Label   string
+	Plugins []string
+}{
+	{
+		Label:   "OpenShift SRE / Platform Admin",
+		Plugins: []string{"ocp-context-injection", "ocp-must-gather", "etcd-diag", "ingress-inspect", "audit-logs", "ocp-obs-metrics", "ocp-obs-logging", "ocp-virt", "insights", "ocp-odf", "safety-net"},
+	},
+	{
+		Label:   "Security / Compliance",
+		Plugins: []string{"rhacs", "lightwell", "container-linter", "log-sanitizer", "safety-net", "audit-logs"},
+	},
+	{
+		Label:   "AI/ML / Data Science",
+		Plugins: []string{"rhoai-mlflow", "rhoai-pipelines", "rhoai-serving", "ocp-context-injection"},
+	},
+	{
+		Label:   "Platform / Infrastructure",
+		Plugins: []string{"rhacm", "tekton", "aap-bridge", "satellite", "rhdp-provisioner", "ocp-context-injection", "safety-net"},
+	},
+	{
+		Label:   "Developer",
+		Plugins: []string{"quay", "rhdh", "rh-api-catalog", "rh-dev-content", "rh-ecosystem-catalog", "tekton", "container-linter"},
+	},
+}
+
+func runInit() {
+	setupLogger()
+
+	reader := bufio.NewReader(os.Stdin)
+	result := make(map[string]any)
+
+	configFile := config.GlobalConfigFile()
+	if data, err := os.ReadFile(configFile); err == nil {
+		_ = json.Unmarshal(data, &result)
+	}
+
+	fmt.Println("tinycode init")
+	fmt.Println()
+
+	// --- Step 1: Model selection ---
+	fmt.Println("Discovering providers...")
+	b, _, cfg := initDependencies()
+	defer b.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reg := provider.NewRegistry()
+	disc := startDiscovery(ctx, reg, b, cfg)
+	defer disc.Stop()
+
+	models := reg.ListModels()
+	if len(models) == 0 {
+		fmt.Println("  No providers found. You can configure providers later in the config file.")
+		fmt.Println("  Skipping model selection.")
+	} else {
+		providers := reg.ListProviders()
+		fmt.Printf("  Found %d provider(s), %d model(s)\n\n", len(providers), len(models))
+
+		fmt.Println("Select default model:")
+		for i, m := range models {
+			ctxStr := ""
+			if m.Limit.Context > 0 {
+				ctxStr = fmt.Sprintf(" (%dk context)", m.Limit.Context/1000)
+			}
+			fmt.Printf("  %2d. %s/%s%s\n", i+1, m.ProviderID, m.ID, ctxStr)
+		}
+		fmt.Println()
+
+		defaultModel := ""
+		if len(models) > 0 {
+			defaultModel = models[0].ProviderID + "/" + models[0].ID
+		}
+		if cfg.Model != "" {
+			defaultModel = cfg.Model
+		}
+
+		if defaultModel != "" {
+			fmt.Printf("Model [%s]: ", defaultModel)
+		} else {
+			fmt.Print("Model: ")
+		}
+		line, _ := reader.ReadString('\n')
+		line = strings.TrimSpace(line)
+
+		if line == "" {
+			result["model"] = defaultModel
+			fmt.Printf("  Using %s\n", defaultModel)
+		} else if idx, err := strconv.Atoi(line); err == nil && idx >= 1 && idx <= len(models) {
+			m := models[idx-1]
+			chosen := m.ProviderID + "/" + m.ID
+			result["model"] = chosen
+			fmt.Printf("  Using %s\n", chosen)
+		} else {
+			result["model"] = line
+			fmt.Printf("  Using %s\n", line)
+		}
+	}
+	fmt.Println()
+
+	// --- Step 2: Username ---
+	defaultUser := os.Getenv("USER")
+	if defaultUser == "" {
+		defaultUser = os.Getenv("USERNAME")
+	}
+	if existing, ok := result["username"].(string); ok && existing != "" {
+		defaultUser = existing
+	}
+
+	if defaultUser != "" {
+		fmt.Printf("Username [%s]: ", defaultUser)
+	} else {
+		fmt.Print("Username: ")
+	}
+	line, _ := reader.ReadString('\n')
+	line = strings.TrimSpace(line)
+	if line == "" {
+		line = defaultUser
+	}
+	if line != "" {
+		result["username"] = line
+	}
+	fmt.Println()
+
+	// --- Step 3: Plugin selection ---
+	fmt.Println("What's your primary role?")
+	for i, role := range initRoles {
+		fmt.Printf("  %d. %s\n", i+1, role.Label)
+	}
+	fmt.Printf("  %d. Custom (pick individual plugins)\n", len(initRoles)+1)
+	fmt.Println()
+
+	fmt.Print("> ")
+	line, _ = reader.ReadString('\n')
+	line = strings.TrimSpace(line)
+
+	choice, err := strconv.Atoi(line)
+	if err != nil || choice < 1 || choice > len(initRoles)+1 {
+		fmt.Fprintf(os.Stderr, "Invalid choice: %s\n", line)
+		os.Exit(1)
+	}
+
+	var selected []string
+
+	if choice <= len(initRoles) {
+		role := initRoles[choice-1]
+		selected = role.Plugins
+		fmt.Printf("\nSelected plugins for %s:\n", role.Label)
+		for _, name := range selected {
+			entry, ok := plugin.LookupRegistry(name)
+			desc := name
+			if ok {
+				desc = entry.Description
+			}
+			fmt.Printf("  - %s: %s\n", name, desc)
+		}
+	} else {
+		fmt.Println("\nAvailable plugins:")
+		entries := plugin.Registry()
+		for i, e := range entries {
+			fmt.Printf("  %2d. [%s] %s — %s\n", i+1, e.Category, e.Name, e.Description)
+		}
+		fmt.Println()
+		fmt.Println("Enter plugin numbers separated by spaces (e.g. 1 3 5 12):")
+		fmt.Print("> ")
+		line, _ = reader.ReadString('\n')
+		line = strings.TrimSpace(line)
+
+		parts := strings.Fields(line)
+		if len(parts) == 0 {
+			fmt.Fprintln(os.Stderr, "No plugins selected.")
+			os.Exit(1)
+		}
+		for _, p := range parts {
+			idx, err := strconv.Atoi(p)
+			if err != nil || idx < 1 || idx > len(entries) {
+				fmt.Fprintf(os.Stderr, "Invalid selection: %s\n", p)
+				os.Exit(1)
+			}
+			selected = append(selected, entries[idx-1].Name)
+		}
+		fmt.Println("\nSelected plugins:")
+		for _, name := range selected {
+			fmt.Printf("  - %s\n", name)
+		}
+	}
+	result["plugins"] = selected
+
+	// --- Write config ---
+	fmt.Printf("\nWrite to %s? [Y/n] ", configFile)
+	line, _ = reader.ReadString('\n')
+	line = strings.TrimSpace(strings.ToLower(line))
+	if line != "" && line != "y" && line != "yes" {
+		fmt.Println("Aborted.")
+		return
+	}
+
+	configDir := filepath.Dir(configFile)
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "error creating config directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	out, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error marshaling config: %v\n", err)
+		os.Exit(1)
+	}
+	out = append(out, '\n')
+
+	if err := os.WriteFile(configFile, out, 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "error writing config: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\nWrote config to %s\n", configFile)
+	fmt.Println("Run 'tinycode plugin list' to see plugin installation status.")
 }
 

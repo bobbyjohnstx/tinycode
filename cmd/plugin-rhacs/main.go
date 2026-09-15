@@ -455,6 +455,50 @@ func formatComplianceScanResult(result *complianceScanResult) string {
 	return strings.TrimRight(strings.Join(lines, "\n"), "\n")
 }
 
+func buildHealthTool(client *centralClient) plugin.ToolDef {
+	return plugin.ToolDef{
+		Name:        "rhacs_health",
+		Description: "Check health of RHACS services (Central API, Scanner, Sensor connectivity).",
+		Parameters: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+		Execute: func(ctx context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
+			var lines []string
+
+			if client == nil {
+				lines = append(lines, "[SKIP] Central API (not configured)")
+				lines = append(lines, "[SKIP] Scanner (not configured)")
+				lines = append(lines, "[SKIP] Sensor (not configured)")
+				return "Service Health:\n" + strings.Join(lines, "\n"), nil
+			}
+
+			// Check Central API via /v1/metadata
+			if _, err := client.api.Get(ctx, "/v1/metadata", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] Central API: %v", err))
+			} else {
+				lines = append(lines, "[OK] Central API")
+			}
+
+			// Check Scanner via image scan endpoint
+			if _, err := client.api.Get(ctx, "/v1/integrationhealth", map[string]string{"type": "SCANNER"}); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] Scanner: %v", err))
+			} else {
+				lines = append(lines, "[OK] Scanner")
+			}
+
+			// Check Sensor connectivity via cluster health
+			if _, err := client.api.Get(ctx, "/v1/clusters", nil); err != nil {
+				lines = append(lines, fmt.Sprintf("[DOWN] Sensor: %v", err))
+			} else {
+				lines = append(lines, "[OK] Sensor")
+			}
+
+			return "Service Health:\n" + strings.Join(lines, "\n"), nil
+		},
+	}
+}
+
 func buildTools(client *centralClient) []plugin.ToolDef {
 	notConfigured := "RHACS plugin is not configured. Set centralUrl and apiToken in plugin options."
 
@@ -794,9 +838,12 @@ func newPlugin(opts options) plugin.Plugin {
 		}
 	}
 
+	tools := buildTools(client)
+	tools = append(tools, buildHealthTool(client))
+
 	return plugin.Plugin{
 		ID:    "rhacs",
-		Tools: buildTools(client),
+		Tools: tools,
 	}
 }
 

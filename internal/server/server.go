@@ -46,15 +46,16 @@ type Listener struct {
 }
 
 type Dependencies struct {
-	Bus           *bus.Bus
-	DB            *sql.DB
-	Registry      *provider.Registry
-	AgentRegistry *agent.Registry
-	PluginManager *plugin.Manager
-	ToolRegistry  *tool.Registry
-	PermService   *permission.Service
-	MCPService    *mcp.Service
-	Config        *config.Info
+	Bus            *bus.Bus
+	DB             *sql.DB
+	Registry       *provider.Registry
+	AgentRegistry  *agent.Registry
+	PluginManager  *plugin.Manager
+	BuiltinManager *plugin.BuiltinManager
+	ToolRegistry   *tool.Registry
+	PermService    *permission.Service
+	MCPService     *mcp.Service
+	Config         *config.Info
 }
 
 type Server struct {
@@ -192,6 +193,9 @@ func (s *Server) wirePluginHooks() {
 		sid, _ := info["id"].(string)
 		if sid != "" {
 			plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{SessionID: sid})
+			if s.deps.BuiltinManager != nil {
+				s.deps.BuiltinManager.DispatchHook("session.start", sid)
+			}
 		}
 	})
 
@@ -199,6 +203,9 @@ func (s *Server) wirePluginHooks() {
 		sid, _ := props["sessionID"].(string)
 		if sid != "" {
 			plugin.DispatchSessionEnd(mgr, plugin.SessionEndEvent{SessionID: sid})
+			if s.deps.BuiltinManager != nil {
+				s.deps.BuiltinManager.DispatchHook("session.end", sid)
+			}
 		}
 	})
 

@@ -47,7 +47,7 @@ Most plugins work out of the box. Plugins that connect to external APIs accept o
 | rhoai-mlflow-tools | `mlflowUrl` | — |
 | rhoai-pipelines | `pipelinesUrl` | `namespace`, `token` |
 | rhoai-eval-trustyai | — | `evalApiUrl`, `trustyaiUrl`, `namespace`, `token` |
-| satellite-lightspeed | `satelliteUrl` | `token` |
+| satellite | `satelliteUrl` | `token` |
 | rhdp-provisioner | `consoleOfflineToken` | `rhdpApiUrl` |
 
 ### General Plugins
@@ -273,7 +273,7 @@ All OCP plugins require `ocp-oauth` for authentication.
 
 | Plugin | Type | Description |
 |--------|------|-------------|
-| **satellite-lightspeed** | Tool | Satellite AI assistant — RHEL knowledge, host management, errata, content views |
+| **satellite** | Tool | Satellite AI assistant — RHEL knowledge, host management, errata, content views |
 | **quay** | Tool | Quay container registry — search, tags, manifests, Clair vulnerability scans |
 | **rhdh** | Tool | Developer Hub catalog — search, entity details, OpenAPI specs, TechDocs, dependencies |
 | **tekton** | Tool | Tekton pipelines — list, start runs, check status, view logs |
@@ -286,7 +286,7 @@ All OCP plugins require `ocp-oauth` for authentication.
 | **container-linter** | Tool | Containerfile linting — Red Hat best practices, UBI checks, bootc validation |
 | **lightwell** | Tool | Package security — Lightwell repos, SLSA provenance, OSV vulnerabilities |
 
-**Tools (satellite-lightspeed):**
+**Tools (satellite):**
 
 | Tool | Description |
 |------|-------------|
@@ -533,7 +533,7 @@ For Ansible-driven infrastructure work targeting Satellite-managed environments.
 ```json
 {
   "plugins": [
-    "satellite-lightspeed",
+    "satellite",
     "aap-bridge",
     "eda-events"
   ]

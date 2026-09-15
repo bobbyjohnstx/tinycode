@@ -25,6 +25,7 @@ Every tinycode plugin receives configuration via the `options` field in `config.
 |---|---|---|
 | **ocp-context-injection** | `oc` logged in | `consoleOfflineToken`, `clientId` |
 | **ocp-oauth** | — (per tool call) | `server`, `insecureSkipTlsVerify` |
+| **ocp-odf** | `oc` logged in (ODF operator) | — |
 | **ocp-obs-logging** | `lokiUrl`, `token` | `tempoUrl` |
 | **ocp-obs-metrics** | `prometheusUrl`, `token` | `alertManagerUrl`, `namespace` |
 | **rhacs** | `centralUrl`, `apiToken` | — |
@@ -35,11 +36,12 @@ Every tinycode plugin receives configuration via the `options` field in `config.
 | **rh-api-catalog** | `consoleOfflineToken` | `clientId`, `catalogPath` |
 | **rh-dev-content** | — | — |
 | **rh-ecosystem-catalog** | — | — |
+| **ocp-virt** | `oc` logged in (OCP-V operator) | — |
 | **tekton** | `oc` logged in | — |
-| **aap-bridge** | `controllerUrl`, `oauthToken` | — |
+| **aap-bridge** | `controllerUrl`, `oauthToken` | `apiPrefix` |
 | **eda-events** | `edaEndpoint` | `events`, `sensitivePatterns` |
 | **lightwell** | `serviceAccountToken` | — |
-| **satellite-lightspeed** | `satelliteUrl`, `token` | — |
+| **satellite** | `satelliteUrl` + (`username`/`password` or `token`) | — |
 | **rhoai-eval-trustyai** | `evalApiUrl`, `trustyaiUrl`, `token` | `namespace` |
 | **rhoai-experiment-tracker** | `mlflowUrl` | `experimentName` |
 | **rhoai-mcp-bridge** | `mcpServerUrl` | `oauthToken` |
@@ -101,11 +103,11 @@ Loki log queries, Tempo trace queries, and OCP-native observability tools.
 
 | Option | Required | Description |
 |---|---|---|
-| `lokiUrl` | Yes | Loki API endpoint URL |
+| `lokiUrl` | Yes | Loki API endpoint URL (include tenant path for OCP — see notes) |
 | `token` | Yes | Bearer token for Loki/Tempo authentication |
 | `tempoUrl` | No | Tempo API endpoint URL. Trace tools return "not configured" without it |
 
-**Notes:** Tools degrade gracefully when optional endpoints are unconfigured.
+**Notes:** Tools degrade gracefully when optional endpoints are unconfigured. On OpenShift, Loki uses tenant-prefixed paths. Set `lokiUrl` to include the tenant prefix, e.g. `https://<loki-route>/api/logs/v1/infrastructure` for infrastructure logs or `https://<loki-route>/api/logs/v1/application` for application logs. Use `oc whoami -t` for the bearer token.
 
 ### ocp-obs-metrics
 
@@ -227,6 +229,43 @@ OpenShift Pipelines / Tekton — pipelines, runs, tasks.
 
 No plugin options. Uses `oc` CLI session directly.
 
+### ocp-odf
+
+OpenShift Data Foundation — Ceph storage health, pools, PVCs, buckets, storage classes.
+
+**External dependency:** OpenShift with ODF operator  
+**CLI tools:** `oc` (must be logged in)
+
+No plugin options. Uses `oc` CLI session directly. Provides 6 tools:
+- `odf_status` — StorageCluster phase and version
+- `odf_ceph_status` — Ceph health, capacity, OSD counts, mon quorum (uses rook-ceph-tools pod for live data)
+- `odf_pools` — CephBlockPools and CephFilesystems with replication/EC config
+- `odf_pvcs` — PVCs backed by ODF storage classes, filtered from cluster-wide PVC list
+- `odf_buckets` — ObjectBucketClaims (NooBaa/RGW)
+- `odf_storage_classes` — ODF-managed StorageClasses (rbd, cephfs, noobaa)
+
+**Notes:** Session start hook gathers StorageCluster phase and Ceph health summary. `odf_ceph_status` attempts to exec into `rook-ceph-tools` deployment for live `ceph status`; falls back to CephCluster CR status if the tools pod is unavailable.
+
+### ocp-virt
+
+OpenShift Virtualization — VM lifecycle, live migration, DataVolumes, templates, networking.
+
+**External dependency:** OpenShift with OpenShift Virtualization (CNV) operator  
+**CLI tools:** `oc` (must be logged in)
+
+No plugin options. Uses `oc` CLI session directly. Provides 11 tools:
+- `virt_vms` — list VMs with status, CPU, memory
+- `virt_describe` — detailed VM info (disks, volumes, networks, guest OS, conditions)
+- `virt_start` / `virt_stop` / `virt_restart` — VM lifecycle
+- `virt_migrate` — live migration via VirtualMachineInstanceMigration
+- `virt_console` — serial console output from virt-launcher pod
+- `virt_datavolumes` — DataVolume import/clone status and progress
+- `virt_templates` — VM templates and instance types
+- `virt_network` — NetworkAttachmentDefinitions (Multus secondary networks)
+- `virt_migrations` — migration status tracking
+
+**Notes:** Session start hook gathers a VM summary (total, running, stopped, error counts).
+
 ### aap-bridge
 
 Ansible Automation Platform — job templates, inventories, job execution.
@@ -236,8 +275,11 @@ Ansible Automation Platform — job templates, inventories, job execution.
 
 | Option | Required | Description |
 |---|---|---|
-| `controllerUrl` | Yes | AAP Controller URL (e.g. `https://controller.example.com`) |
+| `controllerUrl` | Yes | AAP Controller or Gateway URL (e.g. `https://controller.example.com`) |
 | `oauthToken` | Yes | OAuth token for AAP authentication |
+| `apiPrefix` | No | API path prefix (default: `/api/v2`). Set to `/api/controller/v2` when connecting through an AAP 2.x gateway |
+
+**Notes:** AAP 2.x gateway proxies multiple services at different paths (`/api/controller/`, `/api/eda/`, `/api/galaxy/`). When connecting to the gateway instead of the controller directly, set `apiPrefix` to `/api/controller/v2`. The `aap_hub_search` tool targets the controller's collections endpoint, not Automation Hub. Sets `CONTROLLER_HOST` and `CONTROLLER_OAUTH_TOKEN` via `shell.env` hook.
 
 ### eda-events
 
@@ -263,16 +305,22 @@ Lightwell CVE and package search.
 
 **Notes:** Base URL hardcoded to `https://packages.redhat.com/lightwell`.
 
-### satellite-lightspeed
+### satellite
 
-Red Hat Satellite — hosts, content views, errata, host groups.
+Red Hat Satellite — hosts, content views, errata, Lightspeed queries.
 
 **External dependency:** Red Hat Satellite / Foreman API
 
 | Option | Required | Description |
 |---|---|---|
 | `satelliteUrl` | Yes | Satellite server URL (e.g. `https://satellite.example.com`) |
-| `token` | Yes | API token for Satellite authentication |
+| `username` | Auth* | Satellite username for basic auth |
+| `password` | Auth* | Satellite password for basic auth |
+| `token` | Auth* | Bearer token (for Satellite with OAuth configured) |
+
+*Auth: Provide either `username`/`password` (recommended) or `token`.
+
+> **Errata and content views** use Katello API paths (`/katello/api/v2/...`), while hosts use the Foreman API (`/api/v2/hosts`). The `satellite_query` (Lightspeed) tool requires the Lightspeed plugin to be installed on the Satellite server.
 
 ### rhoai-eval-trustyai
 
@@ -488,13 +536,13 @@ To functionally test all plugins, you need the following live servers. Plugins a
 
 | Server / Product | Plugins | Tested | Untested |
 |---|---|---|---|
-| OPP cluster (`oc login`) | 10 | 8 | 2 (`ocp-oauth`, `ocp-obs-logging`) |
+| OPP cluster (`oc login`) | 12 | 12 | 0 |
 | console.redhat.com (OCM token) | 2 | 2 | 0 |
 | demo.redhat.com (session cookie) | 1 | 0 | 1 (`rhdp-provisioner` — test exists, needs cookie) |
 | OpenShift AI (RHOAI) | 6 | 0 | 6 |
 | Red Hat Developer Hub | 1 | 0 | 1 |
-| Ansible Automation Platform | 2 | 0 | 2 |
-| Standalone (Lightwell, Satellite) | 2 | 0 | 2 |
+| Ansible Automation Platform | 2 | 1 | 1 (`eda-events`) |
+| Standalone (Lightwell, Satellite) | 2 | 1 | 1 (`lightwell`) |
 | No server needed | 17 | 3 | 14 (local-only, no live dependency) |
 
 ### OpenShift Platform Plus cluster (`oc login`)
@@ -504,13 +552,15 @@ One OPP demo cluster covers the most plugins. After `oc login`:
 | Plugin | Additional requirement | Tested |
 |---|---|---|
 | `ocp-context-injection` | None | Yes |
-| `ocp-oauth` | None | No — uses `oc login` implicitly, no dedicated tool call tests |
+| `ocp-oauth` | None | Yes |
 | `tekton` | OpenShift Pipelines operator | Yes |
 | `cluster-ops` | None | Yes |
 | `rhacm` | RHACM operator + managed clusters | Yes |
 | `rhoai-model-serving` | OpenShift AI operator | No — needs RHOAI |
 | `ocp-obs-metrics` | Derive `prometheusUrl` + `token` from cluster | Yes |
-| `ocp-obs-logging` | Loki + Tempo deployed | No — OPP demo didn't have ClusterLogging |
+| `ocp-virt` | OpenShift Virtualization operator | Yes |
+| `ocp-odf` | ODF operator | Yes |
+| `ocp-obs-logging` | Loki + Tempo deployed | Yes |
 | `rhacs` | StackRox Central deployed, generate API token | Yes |
 | `quay` | Quay deployed, generate API token | Yes |
 
@@ -552,7 +602,7 @@ Needs an RHOAI-enabled cluster with the full operator stack. An OPP demo with "O
 
 | Plugin | What it needs | Tested |
 |---|---|---|
-| `aap-bridge` | AAP Controller URL + OAuth token | No |
+| `aap-bridge` | AAP Controller URL + OAuth token | Yes |
 | `eda-events` | EDA Controller webhook endpoint | No |
 
 ### Standalone products
@@ -560,7 +610,7 @@ Needs an RHOAI-enabled cluster with the full operator stack. An OPP demo with "O
 | Plugin | Product | Tested |
 |---|---|---|
 | `lightwell` | Lightwell service (packages.redhat.com) | No |
-| `satellite-lightspeed` | Red Hat Satellite / Foreman | No |
+| `satellite` | Red Hat Satellite / Foreman | Yes |
 
 ### No server needed
 
@@ -691,17 +741,38 @@ Cookies expire after a few hours. This is inherently short-lived.
 
 ### AAP OAuth token
 
-From Ansible Automation Platform Controller:
+**From AAP Controller UI:**
 
 1. Log into the AAP Controller UI
 2. Go to **Users > (your user) > Tokens**
 3. Click **Add**, set scope to `write`
 4. Copy the token value
 
-### Satellite API token
+**From AAP 2.x Gateway (CLI):**
 
-From Red Hat Satellite / Foreman:
+```bash
+curl -sk -u admin:<password> \
+  -X POST https://<gateway-host>/api/gateway/v1/tokens/ \
+  -H 'Content-Type: application/json' \
+  -d '{"scope":"write"}' | jq -r '.token'
+```
 
-1. Log into Satellite UI
-2. Go to **Administer > Users > (your user) > Personal Access Tokens**
-3. Generate a new token and copy it
+When using a gateway token, set `apiPrefix` to `/api/controller/v2` in plugin options.
+
+### Satellite authentication
+
+**Basic auth (recommended):** Use `username` and `password` directly — works with any Satellite/Foreman instance.
+
+```jsonc
+"satellite": {
+  "options": {
+    "satelliteUrl": "https://satellite.example.com",
+    "username": "admin",
+    "password": "your-password"
+  }
+}
+```
+
+**Personal Access Token (alternative):** From Satellite UI, go to **Administer > Users > (your user) > Personal Access Tokens**, generate a token, then use it as `token` option. Note: Satellite PATs use basic auth internally (not Bearer), so the plugin handles this via the `username`/`password` mechanism with the PAT as the password.
+
+> **Foreman API vs Katello API:** Hosts are at `/api/v2/hosts` (Foreman). Errata and content views are at `/katello/api/v2/errata` and `/katello/api/v2/content_views` (Katello). The plugin routes to the correct paths automatically.

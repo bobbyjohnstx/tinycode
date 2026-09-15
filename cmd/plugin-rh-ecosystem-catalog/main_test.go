@@ -1,6 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -126,5 +130,101 @@ func TestFormatOperator(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// urlRewriter redirects HTTP requests to a test server while preserving the path.
+type urlRewriter struct {
+	target *url.URL
+	rt     http.RoundTripper
+}
+
+func (u *urlRewriter) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.URL.Scheme = u.target.Scheme
+	req.URL.Host = u.target.Host
+	return u.rt.RoundTrip(req)
+}
+
+func withMockPyxis(t *testing.T, handler http.Handler) {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	target, _ := url.Parse(srv.URL)
+	old := httpClient
+	httpClient = &http.Client{
+		Transport: &urlRewriter{target: target, rt: http.DefaultTransport},
+	}
+	t.Cleanup(func() {
+		httpClient = old
+		srv.Close()
+	})
+}
+
+func TestPyxisGet_HappyPath(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/containers/v1/repositories", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data":[{"repository":"ubi9/ubi","registry":"registry.access.redhat.com"}],"total":1,"page":0,"page_size":10}`))
+	})
+	withMockPyxis(t, mux)
+
+	data, err := pyxisGet("/repositories", map[string]string{"filter": "repository==ubi9/ubi"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result pyxisResponse[pyxisRepo]
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if len(result.Data) != 1 {
+		t.Fatalf("got %d repos, want 1", len(result.Data))
+	}
+	if result.Data[0].Repository != "ubi9/ubi" {
+		t.Errorf("repository = %q, want %q", result.Data[0].Repository, "ubi9/ubi")
+	}
+}
+
+func TestPyxisGet_ServerError(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("internal error"))
+	})
+	withMockPyxis(t, mux)
+
+	_, err := pyxisGet("/repositories", nil)
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("error = %q, want to contain '500'", err.Error())
+	}
+}
+
+func TestPyxisGet_OperatorBundles(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/containers/v1/operators/bundles", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data":[{"csv_display_name":"AMQ Streams","package":"amq-streams","version":"2.5.0"}],"total":1,"page":0,"page_size":5}`))
+	})
+	withMockPyxis(t, mux)
+
+	data, err := pyxisGet("/operators/bundles", map[string]string{"filter": "package==amq-streams"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var result pyxisResponse[pyxisOperatorBundle]
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if len(result.Data) != 1 {
+		t.Fatalf("got %d bundles, want 1", len(result.Data))
+	}
+	if result.Data[0].Package != "amq-streams" {
+		t.Errorf("package = %q, want %q", result.Data[0].Package, "amq-streams")
 	}
 }

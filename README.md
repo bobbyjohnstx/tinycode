@@ -133,7 +133,7 @@ Protocol definitions, hook interfaces, and tool registration for building plugin
 
 | Plugin                          | Description                                                       |
 | ------------------------------- | ----------------------------------------------------------------- |
-| `plugin-satellite-lightspeed`  | Satellite content management with Lightspeed AI assistance         |
+| `plugin-satellite`              | Satellite administration (hosts, errata, content views, services, REX) |
 | `plugin-quay`                   | Quay container registry operations (repos, tags, security scans)  |
 | `plugin-rhdh`                   | Red Hat Developer Hub catalog and template operations              |
 | `plugin-tekton`                 | Tekton pipeline and task management                                |

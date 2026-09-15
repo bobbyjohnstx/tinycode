@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
 )
 
 func TestPluginID(t *testing.T) {
@@ -14,12 +20,12 @@ func TestPluginID(t *testing.T) {
 
 func TestToolDefinitions_Unconfigured(t *testing.T) {
 	p := newPlugin(options{})
-	if len(p.Tools) != 5 {
-		t.Fatalf("got %d tools, want 5", len(p.Tools))
+	if len(p.Tools) != 6 {
+		t.Fatalf("got %d tools, want 6", len(p.Tools))
 	}
 	wantNames := []string{
 		"obs_logs", "obs_traces", "obs_trace_detail",
-		"obs_flow_collectors", "obs_dashboards",
+		"obs_flow_collectors", "obs_dashboards", "logging_health",
 	}
 	for i, want := range wantNames {
 		if p.Tools[i].Name != want {
@@ -33,8 +39,8 @@ func TestToolDefinitions_Unconfigured(t *testing.T) {
 
 func TestToolDefinitions_FullyConfigured(t *testing.T) {
 	p := newPlugin(options{LokiURL: "http://loki:3100", TempoURL: "http://tempo:3200", Token: "tok"})
-	if len(p.Tools) != 5 {
-		t.Fatalf("got %d tools, want 5", len(p.Tools))
+	if len(p.Tools) != 6 {
+		t.Fatalf("got %d tools, want 6", len(p.Tools))
 	}
 }
 
@@ -219,6 +225,188 @@ func TestFormatSpanTree(t *testing.T) {
 		got := formatSpanTree(spans, 2)
 		if !strings.HasPrefix(got, "    ") {
 			t.Errorf("expected 4-space indent for level 2, got: %q", got)
+		}
+	})
+}
+
+// --- httptest-based client method tests ---
+
+func newMockLokiClient(handler http.Handler) (*lokiClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	return &lokiClient{
+		api: redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL}),
+	}, srv
+}
+
+func newMockTempoClient(handler http.Handler) (*tempoClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	return &tempoClient{
+		api: redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL}),
+	}, srv
+}
+
+func TestLokiQuery(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/loki/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("query") != `{namespace="prod"}` {
+				t.Errorf("unexpected query param: %q", r.URL.Query().Get("query"))
+			}
+			fmt.Fprint(w, `{"data":{"result":[{"stream":{"namespace":"prod","pod":"app-1"},"values":[["1234567890","error in handler"],["1234567891","connection reset"]]}]}}`)
+		})
+		client, srv := newMockLokiClient(mux)
+		defer srv.Close()
+
+		entries, err := client.query(context.Background(), `{namespace="prod"}`, 0, "", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entries) != 2 {
+			t.Fatalf("got %d entries, want 2", len(entries))
+		}
+		if entries[0].Timestamp != "1234567890" || entries[0].Line != "error in handler" {
+			t.Errorf("entry[0] = %+v, unexpected", entries[0])
+		}
+		if entries[0].Labels["namespace"] != "prod" {
+			t.Errorf("entry[0] labels = %+v, want namespace=prod", entries[0].Labels)
+		}
+	})
+
+	t.Run("with limit and time range", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/loki/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "10" {
+				t.Errorf("expected limit=10, got %q", r.URL.Query().Get("limit"))
+			}
+			if r.URL.Query().Get("start") != "2026-01-01T00:00:00Z" {
+				t.Errorf("expected start param, got %q", r.URL.Query().Get("start"))
+			}
+			fmt.Fprint(w, `{"data":{"result":[]}}`)
+		})
+		client, srv := newMockLokiClient(mux)
+		defer srv.Close()
+
+		entries, err := client.query(context.Background(), `{job=~".+"}`, 10, "2026-01-01T00:00:00Z", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entries) != 0 {
+			t.Errorf("got %d entries, want 0", len(entries))
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/loki/api/v1/query_range", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "bad request", http.StatusBadRequest)
+		})
+		client, srv := newMockLokiClient(mux)
+		defer srv.Close()
+
+		_, err := client.query(context.Background(), "bad query", 0, "", "")
+		if err == nil {
+			t.Fatal("expected error for 400 response")
+		}
+	})
+}
+
+func TestTempoSearchTraces(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("service.name") != "api-gateway" {
+				t.Errorf("expected service.name=api-gateway, got %q", r.URL.Query().Get("service.name"))
+			}
+			fmt.Fprint(w, `{"traces":[{"traceID":"abc123","rootServiceName":"api-gateway","rootTraceName":"GET /users","durationMs":150,"spanCount":5}]}`)
+		})
+		client, srv := newMockTempoClient(mux)
+		defer srv.Close()
+
+		traces, err := client.searchTraces(context.Background(), "api-gateway", "", "", 0)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(traces) != 1 {
+			t.Fatalf("got %d traces, want 1", len(traces))
+		}
+		if traces[0].TraceID != "abc123" || traces[0].DurationMs != 150 {
+			t.Errorf("trace = %+v, unexpected", traces[0])
+		}
+	})
+
+	t.Run("with filters", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("name") != "GET /users" {
+				t.Errorf("expected name filter, got %q", r.URL.Query().Get("name"))
+			}
+			if r.URL.Query().Get("minDuration") != "500ms" {
+				t.Errorf("expected minDuration=500ms, got %q", r.URL.Query().Get("minDuration"))
+			}
+			if r.URL.Query().Get("limit") != "5" {
+				t.Errorf("expected limit=5, got %q", r.URL.Query().Get("limit"))
+			}
+			fmt.Fprint(w, `{"traces":[]}`)
+		})
+		client, srv := newMockTempoClient(mux)
+		defer srv.Close()
+
+		traces, err := client.searchTraces(context.Background(), "svc", "GET /users", "500ms", 5)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(traces) != 0 {
+			t.Errorf("got %d traces, want 0", len(traces))
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		})
+		client, srv := newMockTempoClient(mux)
+		defer srv.Close()
+
+		_, err := client.searchTraces(context.Background(), "svc", "", "", 0)
+		if err == nil {
+			t.Fatal("expected error for 401 response")
+		}
+	})
+}
+
+func TestTempoGetTrace(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/traces/abc123", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprint(w, `{"traceID":"abc123","spans":[{"traceID":"abc123","spanID":"s1","operationName":"GET /users","serviceName":"api","duration":150,"startTime":1234567890}]}`)
+		})
+		client, srv := newMockTempoClient(mux)
+		defer srv.Close()
+
+		detail, err := client.getTrace(context.Background(), "abc123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if detail.TraceID != "abc123" {
+			t.Errorf("traceID = %q, want %q", detail.TraceID, "abc123")
+		}
+		if len(detail.Spans) != 1 || detail.Spans[0].OperationName != "GET /users" {
+			t.Errorf("unexpected spans: %+v", detail.Spans)
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/traces/bad-id", func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "not found", http.StatusNotFound)
+		})
+		client, srv := newMockTempoClient(mux)
+		defer srv.Close()
+
+		_, err := client.getTrace(context.Background(), "bad-id")
+		if err == nil {
+			t.Fatal("expected error for 404 response")
 		}
 	})
 }

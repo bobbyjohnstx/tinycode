@@ -16,10 +16,10 @@ func TestResolveBinary_UnknownPlugin(t *testing.T) {
 }
 
 func TestResolveBinary_RegistryPluginNotInstalled(t *testing.T) {
-	_, err := ResolveBinary("notify")
+	_, err := ResolveBinary("log-sanitizer")
 	if err == nil {
-		// If notify happens to be installed, this test is inconclusive.
-		t.Skip("notify plugin is installed on this system")
+		// If log-sanitizer happens to be installed, this test is inconclusive.
+		t.Skip("log-sanitizer plugin is installed on this system")
 	}
 	if !strings.Contains(err.Error(), "not installed") {
 		t.Errorf("expected 'not installed' in error for registry plugin, got: %v", err)

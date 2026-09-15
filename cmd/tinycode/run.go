@@ -76,10 +76,12 @@ func runRun() {
 
 	permReplyCh := setupRunPermissions(b, permSvc, *skipPermsFlag, *interactiveFlag, *permsFlag)
 
+	builtinMgr := initBuiltins(toolReg)
+
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
-	wireToolAfterHook(toolCtx, pluginMgr)
+	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
 
 	modelStr := *modelFlag
 	if modelStr == "" {

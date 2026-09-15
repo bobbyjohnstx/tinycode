@@ -47,10 +47,12 @@ func runServe() {
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()
 
+	builtinMgr := initBuiltins(toolReg)
+
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
-	wireToolAfterHook(toolCtx, pluginMgr)
+	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
 
 	if flags.model != "" {
 		cfg.Model = flags.model
@@ -62,15 +64,16 @@ func runServe() {
 	serveCfg := serverConfig(cfg, false)
 	serveCfg.Token = serveToken
 	srv := server.New(serveCfg, server.Dependencies{
-		Bus:           b,
-		DB:            db.DB,
-		Registry:      reg,
-		AgentRegistry: agentReg,
-		PluginManager: pluginMgr,
-		ToolRegistry:  toolReg,
-		PermService:   permSvc,
-		MCPService:    mcpSvc,
-		Config:        cfg,
+		Bus:            b,
+		DB:             db.DB,
+		Registry:       reg,
+		AgentRegistry:  agentReg,
+		PluginManager:  pluginMgr,
+		BuiltinManager: builtinMgr,
+		ToolRegistry:   toolReg,
+		PermService:    permSvc,
+		MCPService:     mcpSvc,
+		Config:         cfg,
 	})
 
 	listener, err := srv.Listen(ctx)
@@ -118,10 +121,12 @@ func runWeb() {
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()
 
+	builtinMgr := initBuiltins(toolReg)
+
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
-	wireToolAfterHook(toolCtx, pluginMgr)
+	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
 
 	if flags.model != "" {
 		cfg.Model = flags.model
@@ -133,15 +138,16 @@ func runWeb() {
 	webCfg := serverConfig(cfg, true)
 	webCfg.Token = webToken
 	srv := server.New(webCfg, server.Dependencies{
-		Bus:           b,
-		DB:            db.DB,
-		Registry:      reg,
-		AgentRegistry: agentReg,
-		PluginManager: pluginMgr,
-		ToolRegistry:  toolReg,
-		PermService:   permSvc,
-		MCPService:    mcpSvc,
-		Config:        cfg,
+		Bus:            b,
+		DB:             db.DB,
+		Registry:       reg,
+		AgentRegistry:  agentReg,
+		PluginManager:  pluginMgr,
+		BuiltinManager: builtinMgr,
+		ToolRegistry:   toolReg,
+		PermService:    permSvc,
+		MCPService:     mcpSvc,
+		Config:         cfg,
 	})
 
 	listener, err := srv.Listen(ctx)

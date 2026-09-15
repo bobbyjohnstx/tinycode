@@ -46,10 +46,12 @@ func runTUI(args []string) {
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()
 
+	builtinMgr := initBuiltins(toolReg)
+
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
-	wireToolAfterHook(toolCtx, pluginMgr)
+	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
 
 	if flags.model != "" {
 		cfg.Model = flags.model
@@ -62,15 +64,16 @@ func runTUI(args []string) {
 	srvCfg.Port = 0
 	srvCfg.Token = token
 	srv := server.New(srvCfg, server.Dependencies{
-		Bus:           b,
-		DB:            db.DB,
-		Registry:      reg,
-		AgentRegistry: agentReg,
-		PluginManager: pluginMgr,
-		ToolRegistry:  toolReg,
-		PermService:   permSvc,
-		MCPService:    mcpSvc,
-		Config:        cfg,
+		Bus:            b,
+		DB:             db.DB,
+		Registry:       reg,
+		AgentRegistry:  agentReg,
+		PluginManager:  pluginMgr,
+		BuiltinManager: builtinMgr,
+		ToolRegistry:   toolReg,
+		PermService:    permSvc,
+		MCPService:     mcpSvc,
+		Config:         cfg,
 	})
 
 	listener, err := srv.Listen(ctx)

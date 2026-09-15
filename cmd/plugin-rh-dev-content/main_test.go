@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -184,5 +186,64 @@ func TestFormatArticleLink(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q in: %q", want, got)
 		}
+	}
+}
+
+func TestFetchHTML_HappyPath(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/test/page", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if r.Header.Get("Accept") != "text/html" {
+			t.Errorf("Accept header = %q, want %q", r.Header.Get("Accept"), "text/html")
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("<html><body><h1>Test Page</h1></body></html>"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	html, err := fetchHTML(srv.URL + "/test/page")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, "Test Page") {
+		t.Errorf("html missing expected content: %q", html)
+	}
+}
+
+func TestFetchHTML_NotFound(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/missing", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	_, err := fetchHTML(srv.URL + "/missing")
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+	if !strings.Contains(err.Error(), "404") {
+		t.Errorf("error = %q, want to contain '404'", err.Error())
+	}
+}
+
+func TestFetchHTML_ServerError(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/error", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	_, err := fetchHTML(srv.URL + "/error")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("error = %q, want to contain '500'", err.Error())
 	}
 }

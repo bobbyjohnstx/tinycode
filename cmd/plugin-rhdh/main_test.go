@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
 )
 
 func TestPluginID(t *testing.T) {
@@ -320,6 +326,218 @@ func TestFormatDependencies(t *testing.T) {
 		}
 		if !strings.Contains(result, "component:default/db") {
 			t.Errorf("expected db target, got %q", result)
+		}
+	})
+}
+
+// --- httptest mock tests ---
+
+func newMockRhdhClient(handler http.Handler) (*rhdhClient, *httptest.Server) {
+	srv := httptest.NewServer(handler)
+	return &rhdhClient{
+		api: redhat.NewAPIClient(redhat.APIClientConfig{BaseURL: srv.URL}),
+	}, srv
+}
+
+func TestSearchEntities(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/catalog/entities", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			filter := r.URL.Query().Get("filter")
+			if !strings.Contains(filter, "kind=Component") {
+				t.Errorf("expected filter to contain kind=Component, got %q", filter)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[{"kind":"Component","metadata":{"name":"my-svc","namespace":"default","description":"A service"},"spec":{"type":"service","lifecycle":"production","owner":"team-a"}}]`)
+		})
+		client, srv := newMockRhdhClient(mux)
+		defer srv.Close()
+
+		entities, err := client.searchEntities(context.Background(), map[string]string{"kind": "Component"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entities) != 1 {
+			t.Fatalf("expected 1 entity, got %d", len(entities))
+		}
+		e := entities[0]
+		if e.Kind != "Component" {
+			t.Errorf("expected kind 'Component', got %q", e.Kind)
+		}
+		if e.Metadata == nil {
+			t.Fatal("expected non-nil metadata")
+		}
+		if e.Metadata.Name != "my-svc" {
+			t.Errorf("expected name 'my-svc', got %q", e.Metadata.Name)
+		}
+		if e.Metadata.Description != "A service" {
+			t.Errorf("expected description, got %q", e.Metadata.Description)
+		}
+		if e.Spec == nil {
+			t.Fatal("expected non-nil spec")
+		}
+		if e.Spec.Lifecycle != "production" {
+			t.Errorf("expected lifecycle 'production', got %q", e.Spec.Lifecycle)
+		}
+	})
+
+	t.Run("empty filter returns all", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/catalog/entities", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("filter") != "" {
+				t.Errorf("expected no filter param for empty map, got %q", r.URL.Query().Get("filter"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[]`)
+		})
+		client, srv := newMockRhdhClient(mux)
+		defer srv.Close()
+
+		entities, err := client.searchEntities(context.Background(), map[string]string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(entities) != 0 {
+			t.Errorf("expected 0 entities, got %d", len(entities))
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		client, srv := newMockRhdhClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		_, err := client.searchEntities(context.Background(), map[string]string{"kind": "Component"})
+		if err == nil {
+			t.Fatal("expected error for 500 response")
+		}
+		if !strings.Contains(err.Error(), "500") {
+			t.Errorf("expected error to contain '500', got %q", err.Error())
+		}
+	})
+}
+
+func TestGetEntity(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/catalog/entities/by-name/Component/default/my-svc", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"kind":"Component","metadata":{"name":"my-svc","namespace":"default","description":"My service","title":"My Service","tags":["go","api"],"links":[{"url":"https://github.com/example","title":"GitHub"}]},"spec":{"type":"service","lifecycle":"production","owner":"team-a","system":"platform"},"relations":[{"type":"dependsOn","targetRef":"component:default/db"}]}`)
+		})
+		client, srv := newMockRhdhClient(mux)
+		defer srv.Close()
+
+		entity, err := client.getEntity(context.Background(), "Component", "default", "my-svc")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if entity.Kind != "Component" {
+			t.Errorf("expected kind 'Component', got %q", entity.Kind)
+		}
+		if entity.Metadata == nil {
+			t.Fatal("expected non-nil metadata")
+		}
+		if entity.Metadata.Name != "my-svc" {
+			t.Errorf("expected name 'my-svc', got %q", entity.Metadata.Name)
+		}
+		if entity.Metadata.Title != "My Service" {
+			t.Errorf("expected title 'My Service', got %q", entity.Metadata.Title)
+		}
+		if len(entity.Metadata.Tags) != 2 {
+			t.Errorf("expected 2 tags, got %d", len(entity.Metadata.Tags))
+		}
+		if len(entity.Metadata.Links) != 1 {
+			t.Errorf("expected 1 link, got %d", len(entity.Metadata.Links))
+		}
+		if entity.Spec == nil {
+			t.Fatal("expected non-nil spec")
+		}
+		if entity.Spec.Owner != "team-a" {
+			t.Errorf("expected owner 'team-a', got %q", entity.Spec.Owner)
+		}
+		if len(entity.Relations) != 1 {
+			t.Fatalf("expected 1 relation, got %d", len(entity.Relations))
+		}
+		if entity.Relations[0].Type != "dependsOn" {
+			t.Errorf("expected relation type 'dependsOn', got %q", entity.Relations[0].Type)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		client, srv := newMockRhdhClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		_, err := client.getEntity(context.Background(), "Component", "default", "nonexistent")
+		if err == nil {
+			t.Fatal("expected error for 404 response")
+		}
+		if !strings.Contains(err.Error(), "404") {
+			t.Errorf("expected error to contain '404', got %q", err.Error())
+		}
+	})
+}
+
+func TestGetTechDocs(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/techdocs/static/docs/default/Component/my-svc/index.html", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, `<html><body><h1>My Service Docs</h1><p>Documentation content here.</p></body></html>`)
+		})
+		client, srv := newMockRhdhClient(mux)
+		defer srv.Close()
+
+		content, err := client.getTechDocs(context.Background(), "default", "Component", "my-svc")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(content, "My Service Docs") {
+			t.Errorf("expected docs content, got %q", content)
+		}
+		if !strings.Contains(content, "<html>") {
+			t.Errorf("expected HTML content, got %q", content)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		client, srv := newMockRhdhClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "not found", http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		_, err := client.getTechDocs(context.Background(), "default", "Component", "nonexistent")
+		if err == nil {
+			t.Fatal("expected error for 404 response")
+		}
+		if !strings.Contains(err.Error(), "404") {
+			t.Errorf("expected error to contain '404', got %q", err.Error())
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		client, srv := newMockRhdhClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}))
+		defer srv.Close()
+
+		_, err := client.getTechDocs(context.Background(), "default", "Component", "my-svc")
+		if err == nil {
+			t.Fatal("expected error for 500 response")
 		}
 	})
 }
