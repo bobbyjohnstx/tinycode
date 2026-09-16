@@ -56,7 +56,7 @@ export const loadMcpQuery = (directory: string, sdk: TinycodeClient) =>
 export const loadLspQuery = (directory: string, sdk: TinycodeClient) =>
   queryOptions({
     queryKey: [directory, "lsp"] as const,
-    queryFn: () => sdk.lsp.status().then((r) => r.data ?? []),
+    queryFn: () => sdk.lsp.status().then((r) => Array.isArray(r.data) ? r.data : []),
   })
 
 function makeQueryOptionsApi(serverSDK: () => TinycodeClient, sdkFor: (dir: PathKey) => TinycodeClient) {
@@ -210,7 +210,7 @@ export function createServerSyncContext() {
       void retry(() =>
         sdkFor(directory)
           .command.list()
-          .then((x) => setStore("command", x.data ?? [])),
+          .then((x) => setStore("command", Array.isArray(x.data) ? x.data : [])),
       ).catch((err) => {
         showToast({
           variant: "error",
@@ -266,7 +266,7 @@ export function createServerSyncContext() {
             list: (query) => serverSDK.client.session.list(query),
           })
             .then((x) => {
-              const nonArchived = (x.data ?? [])
+              const nonArchived = (Array.isArray(x.data) ? x.data : [])
                 .filter((s) => !!s?.id)
                 .filter((s) => !s.time?.archived)
                 .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))

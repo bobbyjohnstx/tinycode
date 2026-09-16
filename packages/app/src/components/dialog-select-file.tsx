@@ -210,7 +210,7 @@ function createSessionEntries(props: {
         return props.serverSDK.client.session
           .list({ directory, roots: true })
           .then((x) =>
-            (x.data ?? [])
+            (Array.isArray(x.data) ? x.data : [])
               .filter((s) => !!s?.id)
               .map((s) => ({
                 id: s.id,

@@ -95,7 +95,7 @@ export const loadProjectsQuery = (sdk: TinycodeClient) =>
     queryFn: () =>
       retry(() =>
         sdk.project.list().then((x) => {
-          return (x.data ?? [])
+          return (Array.isArray(x.data) ? x.data : [])
             .filter((p) => !!p?.id)
             .filter((p) => !!p.worktree && !p.worktree.includes("tinycode-test"))
             .slice()
@@ -251,13 +251,13 @@ export async function bootstrapDirectory(input: {
             if (next) input.vcsCache.setStore("value", next)
           }),
         ),
-      input.mcp && (() => retry(() => input.sdk.command.list().then((x) => input.setStore("command", x.data ?? [])))),
+      input.mcp && (() => retry(() => input.sdk.command.list().then((x) => input.setStore("command", Array.isArray(x.data) ? x.data : [])))),
       () =>
         retry(() =>
           input.sdk.permission.list().then((x) => {
-            const ids = (x.data ?? []).map((perm) => perm?.sessionID).filter((id): id is string => !!id)
+            const ids = (Array.isArray(x.data) ? x.data : []).map((perm) => perm?.sessionID).filter((id): id is string => !!id)
             const grouped = groupBySession(
-              (x.data ?? []).filter((perm): perm is PermissionRequest => !!perm?.id && !!perm.sessionID),
+              (Array.isArray(x.data) ? x.data : []).filter((perm): perm is PermissionRequest => !!perm?.id && !!perm.sessionID),
             )
             return warmSessions({ ids, store: input.store, setStore: input.setStore, sdk: input.sdk }).then(() =>
               batch(() => {
@@ -282,8 +282,8 @@ export async function bootstrapDirectory(input: {
       () =>
         retry(() =>
           input.sdk.question.list().then((x) => {
-            const ids = (x.data ?? []).map((question) => question?.sessionID).filter((id): id is string => !!id)
-            const grouped = groupBySession((x.data ?? []).filter((q): q is QuestionRequest => !!q?.id && !!q.sessionID))
+            const ids = (Array.isArray(x.data) ? x.data : []).map((question) => question?.sessionID).filter((id): id is string => !!id)
+            const grouped = groupBySession((Array.isArray(x.data) ? x.data : []).filter((q): q is QuestionRequest => !!q?.id && !!q.sessionID))
             return warmSessions({ ids, store: input.store, setStore: input.setStore, sdk: input.sdk }).then(() =>
               batch(() => {
                 for (const sessionID of Object.keys(input.store.question)) {

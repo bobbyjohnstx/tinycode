@@ -73,7 +73,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
     const tree = createFileTreeStore({
       scope,
       normalizeDir: path.normalizeDir,
-      list: (dir) => sdk.client.file.list({ path: dir }).then((x) => x.data ?? []),
+      list: (dir) => sdk.client.file.list({ path: dir }).then((x) => Array.isArray(x.data) ? x.data : []),
       onError: (message) => {
         showToast({
           variant: "error",
@@ -196,7 +196,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
 
     const search = (query: string, dirs: "true" | "false") =>
       sdk.client.find.files({ query, dirs }).then(
-        (x) => (x.data ?? []).map(path.normalize),
+        (x) => (Array.isArray(x.data) ? x.data : []).map(path.normalize),
         () => [],
       )
 

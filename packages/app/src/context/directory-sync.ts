@@ -298,7 +298,7 @@ export const createDirSyncContext = (directory: string, serverSync: ReturnType<t
     const messages = await retry(() =>
       input.client.session.messages({ sessionID: input.sessionID, limit: input.limit, before: input.before }),
     )
-    const items = (messages.data ?? []).filter((x) => !!x?.info?.id)
+    const items = (Array.isArray(messages.data) ? messages.data : []).filter((x) => !!x?.info?.id)
     const session = items.map((x) => clean(x.info)).sort((a, b) => cmp(a.id, b.id))
     const part = items.map((message) => ({ id: message.info.id, part: sortParts(message.parts) }))
     const cursor = messages.response.headers.get("x-next-cursor") ?? undefined
@@ -537,7 +537,7 @@ export const createDirSyncContext = (directory: string, serverSync: ReturnType<t
         return runInflight(inflightTodo, key, () =>
           retry(() => client.session.todo({ sessionID })).then((todo) => {
             if (!tracked(directory, sessionID)) return
-            const list = todo.data ?? []
+            const list = Array.isArray(todo.data) ? todo.data : []
             setStore("todo", sessionID, reconcile(list, { key: "id" }))
             serverSync.todo.set(sessionID, list)
           }),
@@ -586,7 +586,7 @@ export const createDirSyncContext = (directory: string, serverSync: ReturnType<t
         const [store, setStore] = serverSync.child(directory)
         setStore("limit", (x) => x + count)
         await client.session.list().then((x) => {
-          const sessions = (x.data ?? [])
+          const sessions = (Array.isArray(x.data) ? x.data : [])
             .filter((s) => !!s?.id)
             .sort((a, b) => cmp(a.id, b.id))
             .slice(0, store.limit)

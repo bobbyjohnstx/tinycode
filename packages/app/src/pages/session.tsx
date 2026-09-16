@@ -485,7 +485,7 @@ export default function Page() {
   const reviewDiffs = () => {
     if (store.changes === "git" || store.changes === "branch")
       // avoids suspense
-      return vcsQuery.isFetched ? (vcsQuery.data ?? []) : []
+      return vcsQuery.isFetched ? (Array.isArray(vcsQuery.data) ? vcsQuery.data : []) : []
     return turnDiffs()
   }
   const reviewCount = () => reviewDiffs().length
