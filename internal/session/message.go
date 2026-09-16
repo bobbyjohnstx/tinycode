@@ -48,11 +48,10 @@ type Message struct {
 }
 
 type MsgUsage struct {
-	Input      int `json:"input"`
-	Output     int `json:"output"`
-	Reasoning  int `json:"reasoning"`
-	CacheRead  int `json:"cacheRead"`
-	CacheWrite int `json:"cacheWrite"`
+	Input     int        `json:"input"`
+	Output    int        `json:"output"`
+	Reasoning int        `json:"reasoning"`
+	Cache     CacheUsage `json:"cache"`
 }
 
 func TextPart(text string) Part {

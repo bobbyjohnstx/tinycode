@@ -145,6 +145,16 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 		totalUsage.Cache.Read += usage.Cache.Read
 		totalUsage.Cache.Write += usage.Cache.Write
 
+		assistantMsg.Tokens = &MsgUsage{
+			Input:     usage.Input,
+			Output:    usage.Output,
+			Reasoning: usage.Reasoning,
+			Cache: CacheUsage{
+				Read:  usage.Cache.Read,
+				Write: usage.Cache.Write,
+			},
+		}
+
 		p.checkCompaction(ctx, totalUsage)
 
 		p.mu.Lock()

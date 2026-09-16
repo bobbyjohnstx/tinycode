@@ -4,7 +4,7 @@
 #
 # Usage: ./script/embed-webapp.sh
 #
-# Prerequisites: bun installed, dependencies installed (bun install)
+# Prerequisites: node installed, build deps in script/build-deps/node_modules/
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ if [ ! -d "$APP_DIR" ]; then
 fi
 
 echo "==> Building SolidJS web app..."
-(cd "$APP_DIR" && bun run build)
+node "$ROOT/script/build-webapp.mjs"
 
 echo "==> Cleaning static dist..."
 rm -rf "$STATIC_DIR"

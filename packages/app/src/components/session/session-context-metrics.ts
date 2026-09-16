@@ -35,7 +35,9 @@ type Metrics = {
 }
 
 const tokenTotal = (msg: AssistantMessage) => {
-  return msg.tokens.input + msg.tokens.output + msg.tokens.reasoning + msg.tokens.cache.read + msg.tokens.cache.write
+  const t = msg.tokens
+  if (!t) return 0
+  return (t.input ?? 0) + (t.output ?? 0) + (t.reasoning ?? 0) + (t.cache?.read ?? 0) + (t.cache?.write ?? 0)
 }
 
 const lastAssistantWithTokens = (messages: Message[]) => {
@@ -66,11 +68,11 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Metrics =>
       providerLabel: provider?.name ?? message.providerID,
       modelLabel: model?.name ?? message.modelID,
       limit,
-      input: message.tokens.input,
-      output: message.tokens.output,
-      reasoning: message.tokens.reasoning,
-      cacheRead: message.tokens.cache.read,
-      cacheWrite: message.tokens.cache.write,
+      input: message.tokens?.input ?? 0,
+      output: message.tokens?.output ?? 0,
+      reasoning: message.tokens?.reasoning ?? 0,
+      cacheRead: message.tokens?.cache?.read ?? 0,
+      cacheWrite: message.tokens?.cache?.write ?? 0,
       total,
       usage: limit ? Math.round((total / limit) * 100) : null,
     },

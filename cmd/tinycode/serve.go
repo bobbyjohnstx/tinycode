@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -156,10 +157,12 @@ func runWeb() {
 		os.Exit(1)
 	}
 
-	url := listener.URL.String()
-	slog.Info("web UI ready", "url", url)
+	baseURL := listener.URL.String()
+	authParam := base64.StdEncoding.EncodeToString([]byte("tinycode:" + webToken))
+	browserURL := baseURL + "?auth_token=" + authParam
+	slog.Info("web UI ready", "url", baseURL)
 
-	openBrowser(url)
+	openBrowser(browserURL)
 
 	<-ctx.Done()
 	srv.WaitForShutdown()

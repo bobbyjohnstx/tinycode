@@ -158,7 +158,7 @@ function useDirectorySearch(args: {
 
     const request = args.sdk.client.file
       .list({ directory: key, path: "" })
-      .then((x) => x.data ?? [])
+      .then((x) => (Array.isArray(x.data) ? x.data : []))
       .catch(() => [])
       .then((nodes) =>
         nodes
@@ -194,7 +194,7 @@ function useDirectorySearch(args: {
     const find = () =>
       args.sdk.client.find
         .files({ directory: scopedInput.directory, query, type: "directory", limit: 50 })
-        .then((x) => x.data ?? [])
+        .then((x) => (Array.isArray(x.data) ? x.data : []))
         .catch(() => [])
 
     if (!isPath) {

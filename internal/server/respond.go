@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 )
 
@@ -20,5 +22,9 @@ func respondError(w http.ResponseWriter, status int, message string) {
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB limit
 	defer r.Body.Close()
-	return json.NewDecoder(r.Body).Decode(v)
+	err := json.NewDecoder(r.Body).Decode(v)
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+	return err
 }

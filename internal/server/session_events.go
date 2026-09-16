@@ -109,10 +109,13 @@ func (sm *SessionManager) bridgeAssistantMessage(sessionID string, active *activ
 
 	completedAt := time.Now().UnixMilli()
 
-	var inputTokens, outputTokens int
+	var inputTokens, outputTokens, reasoningTokens, cacheRead, cacheWrite int
 	if msg.Tokens != nil {
 		inputTokens = msg.Tokens.Input
 		outputTokens = msg.Tokens.Output
+		reasoningTokens = msg.Tokens.Reasoning
+		cacheRead = msg.Tokens.Cache.Read
+		cacheWrite = msg.Tokens.Cache.Write
 	}
 
 	modelID := ""
@@ -135,7 +138,12 @@ func (sm *SessionManager) bridgeAssistantMessage(sessionID string, active *activ
 			"agent":      active.agent,
 			"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
 			"cost":       0,
-			"tokens":     map[string]any{"input": inputTokens, "output": outputTokens},
+			"tokens": map[string]any{
+					"input":     inputTokens,
+					"output":    outputTokens,
+					"reasoning": reasoningTokens,
+					"cache":     map[string]any{"read": cacheRead, "write": cacheWrite},
+				},
 		},
 	})
 
@@ -281,7 +289,12 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 				"agent":      active.agent,
 				"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
 				"cost":       0,
-				"tokens":     map[string]any{"input": 0, "output": 0},
+				"tokens": map[string]any{
+					"input":     0,
+					"output":    0,
+					"reasoning": 0,
+					"cache":     map[string]any{"read": 0, "write": 0},
+				},
 			},
 		})
 

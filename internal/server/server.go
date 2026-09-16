@@ -98,12 +98,25 @@ func New(cfg Config, deps Dependencies) *Server {
 	s.registerRoutes()
 	s.wirePluginHooks()
 
+	corsConfig := middleware.DefaultCORSConfig()
+
+	var handler http.Handler
 	if cfg.ServeWebUI {
-		mux.Handle("/", static.Handler(cfg.WebUIDir))
+		authedAPI := middleware.TokenAuth(cfg.Token)(mux)
+		staticFS := static.Handler(cfg.WebUIDir)
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, pattern := mux.Handler(r)
+			if pattern != "" {
+				authedAPI.ServeHTTP(w, r)
+				return
+			}
+			staticFS.ServeHTTP(w, r)
+		})
+	} else {
+		handler = middleware.TokenAuth(cfg.Token)(mux)
 	}
 
-	corsConfig := middleware.DefaultCORSConfig()
-	handler := middleware.CORS(corsConfig)(middleware.TokenAuth(cfg.Token)(middleware.SecurityHeaders(mux)))
+	handler = middleware.CORS(corsConfig)(middleware.SecurityHeaders(handler))
 
 	s.httpServer = &http.Server{
 		Handler:           handler,

@@ -1,6 +1,6 @@
 import { createSimpleContext } from "@tinycode/ui/context"
 import { useDialog } from "@tinycode/ui/context/dialog"
-import { type Accessor, createEffect, createMemo, onCleanup, onMount } from "solid-js"
+import { type Accessor, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { useLanguage } from "@/context/language"
@@ -235,8 +235,8 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
     const dialog = useDialog()
     const settings = useSettings()
     const language = useLanguage()
+    const [registrations, setRegistrations] = createSignal<CommandRegistration[]>([])
     const [store, setStore] = createStore({
-      registrations: [] as CommandRegistration[],
       suspendCount: 0,
     })
     const warnedDuplicates = new Set<string>()
@@ -258,8 +258,10 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
       const seen = new Set<string>()
       const all: CommandOption[] = []
 
-      for (const reg of store.registrations) {
-        for (const opt of reg.options()) {
+      for (const reg of registrations()) {
+        const opts = reg.options()
+        if (!Array.isArray(opts)) continue
+        for (const opt of opts) {
           if (seen.has(opt.id)) {
             if (import.meta.env.DEV && !warnedDuplicates.has(opt.id)) {
               warnedDuplicates.add(opt.id)
@@ -391,14 +393,14 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
       const id = typeof key === "string" ? key : undefined
       const next = typeof key === "function" ? key : cb
       if (!next) return
-      const options = createMemo(next)
+      const options = createMemo(next, [] as CommandOption[])
       const entry: CommandRegistration = {
         key: id,
         options,
       }
-      setStore("registrations", (arr) => upsertCommandRegistration(arr, entry))
+      setRegistrations((arr) => upsertCommandRegistration(arr, entry))
       onCleanup(() => {
-        setStore("registrations", (arr) => arr.filter((x) => x !== entry))
+        setRegistrations((arr) => arr.filter((x) => x !== entry))
       })
     }
 
