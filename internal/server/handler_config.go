@@ -7,18 +7,29 @@ import (
 	"path/filepath"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
+	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 )
 
 func (s *Server) handleConfigGet(w http.ResponseWriter, r *http.Request) {
-	dir := r.URL.Query().Get("directory")
-	if dir == "" {
-		dir = "."
-	}
+	dir := requestDirectory(r, ".")
 
 	cfg, err := config.Load(dir)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if cfg.Model != "" {
+		provID, modelID := provider.ParseModel(cfg.Model)
+		if provID == "" || modelID == "" {
+			if resolved := s.resolveDefaultModel(); resolved != nil {
+				cfg.Model = resolved.ProviderID + "/" + resolved.ID
+			}
+		} else if _, err := s.deps.Registry.GetModel(provID, modelID); err != nil {
+			if resolved := s.resolveDefaultModel(); resolved != nil {
+				cfg.Model = resolved.ProviderID + "/" + resolved.ID
+			}
+		}
 	}
 
 	respondJSON(w, http.StatusOK, cfg)

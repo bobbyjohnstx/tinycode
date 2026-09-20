@@ -411,7 +411,7 @@ export function getToolInfo(
       return {
         icon: "console",
         title: i18n.t("ui.tool.shell"),
-        subtitle: input.description,
+        subtitle: input.command ?? input.description,
       }
     case "edit":
       return {

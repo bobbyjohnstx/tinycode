@@ -26,22 +26,22 @@ func (sm *SessionManager) subscribePermissionReplies() {
 	if sm.perms == nil {
 		return
 	}
-	sub := sm.bus.Subscribe("permission.reply")
+	sub := sm.bus.Subscribe("permission.replied")
 	go func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
 				continue
 			}
-			permID, _ := props["permissionID"].(string)
-			action, _ := props["action"].(string)
-			if permID == "" || action == "" {
+			reqID, _ := props["requestID"].(string)
+			replyStr, _ := props["reply"].(string)
+			if reqID == "" || replyStr == "" {
 				continue
 			}
 
 			var reply permission.Reply
-			switch action {
-			case "allow":
+			switch replyStr {
+			case "once":
 				reply = permission.ReplyOnce
 			case "always":
 				reply = permission.ReplyAlways
@@ -52,7 +52,7 @@ func (sm *SessionManager) subscribePermissionReplies() {
 			}
 
 			sm.perms.RespondToAsk(permission.ReplyInput{
-				RequestID: permID,
+				RequestID: reqID,
 				Reply:     reply,
 			})
 		}
@@ -74,7 +74,8 @@ func (sm *SessionManager) subscribeRevert() {
 				continue
 			}
 
-			if err := sm.revertState.Stash(sm.dir, sessionID); err != nil {
+			dir := sm.sessionDir(sessionID)
+			if err := sm.revertState.Stash(dir, sessionID); err != nil {
 				slog.Error("revert failed", "sessionID", sessionID, "error", err)
 				sm.bus.Publish("session.error", map[string]any{
 					"sessionID": sessionID,
@@ -102,7 +103,8 @@ func (sm *SessionManager) subscribeUnrevert() {
 				continue
 			}
 
-			if err := sm.revertState.Pop(sm.dir, sessionID); err != nil {
+			dir := sm.sessionDir(sessionID)
+			if err := sm.revertState.Pop(dir, sessionID); err != nil {
 				slog.Error("unrevert failed", "sessionID", sessionID, "error", err)
 				sm.bus.Publish("session.error", map[string]any{
 					"sessionID": sessionID,
@@ -133,7 +135,7 @@ func (sm *SessionManager) subscribeSummarize() {
 
 			sm.bus.Publish("session.status", map[string]any{
 				"sessionID": sessionID,
-				"status":    map[string]any{"alert": false, "working": true},
+				"status":    map[string]any{"type": "busy"},
 			})
 
 			sm.bus.Publish("session.compacted", map[string]any{
@@ -143,7 +145,7 @@ func (sm *SessionManager) subscribeSummarize() {
 
 			sm.bus.Publish("session.status", map[string]any{
 				"sessionID": sessionID,
-				"status":    map[string]any{"alert": false, "working": false},
+				"status":    map[string]any{"type": "idle"},
 			})
 		}
 	}()

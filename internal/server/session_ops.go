@@ -147,13 +147,13 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 
 		sm.bus.Publish("session.status", map[string]any{
 			"sessionID": sessionID,
-			"status":    map[string]any{"alert": false, "working": false},
+			"status":    map[string]any{"type": "idle"},
 		})
 	}()
 
 	sm.bus.Publish("session.status", map[string]any{
 		"sessionID": sessionID,
-		"status":    map[string]any{"alert": false, "working": true},
+		"status":    map[string]any{"type": "busy"},
 	})
 
 	var userText string
@@ -175,7 +175,16 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		return
 	}
 
-	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model)
+	// Use the session's stored directory so prompts run in the correct project.
+	sessionDir := sm.dir
+	{
+		store := session.NewStore(sm.db)
+		if info, err := store.Get(sessionID); err == nil && info.Directory != "" {
+			sessionDir = info.Directory
+		}
+	}
+
+	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model, sessionDir)
 
 	if sm.mcpSvc != nil {
 		mcpTools := sm.mcpSvc.Tools(ctx)
@@ -197,6 +206,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	}
 
 	client := sm.clientFactory(model)
+	sessionTools := sm.tools.WithDirectory(sessionDir)
 	proc := session.NewProcessor(session.ProcessorConfig{
 		SessionID:     sessionID,
 		Agent:         input.Agent,
@@ -205,7 +215,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		SystemPrompt:  systemPrompt,
 		Compaction:    sm.buildCompactionConfig(),
 		AgentPerms:    agentPerms,
-	}, client, sm.tools, sm.bus)
+	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 
 	sm.mu.Lock()
@@ -213,10 +223,11 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		active.processor = proc
 		active.model = model
 		active.agent = input.Agent
+		active.dir = sessionDir
 	}
 	sm.mu.Unlock()
 
-	result := proc.Process(ctx, userText)
+	result := proc.ProcessWithID(ctx, userText, input.MessageID)
 
 	sm.persistPromptResult(result, existingMsgs, ms, sessionID)
 

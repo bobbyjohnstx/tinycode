@@ -232,7 +232,7 @@ func TestShellTool_DestructiveRoutesPermission(t *testing.T) {
 	var isErr bool
 
 	go func() {
-		output, isErr, _ = r.Execute(ctx, "shell", json.RawMessage(`{"command": "rm -rf /tmp/test"}`), "sess-d")
+		output, isErr, _ = r.Execute(ctx, "bash", json.RawMessage(`{"command": "rm -rf /tmp/test"}`), "sess-d")
 		close(done)
 	}()
 
@@ -274,7 +274,7 @@ func TestShellTool_DestructiveHardBlocksWithoutPerms(t *testing.T) {
 	RegisterBuiltins(r)
 
 	args := json.RawMessage(`{"command": "rm -rf /tmp/test"}`)
-	output, isErr, _ := r.Execute(context.Background(), "shell", args, "sess-nb")
+	output, isErr, _ := r.Execute(context.Background(), "bash", args, "sess-nb")
 	if !isErr {
 		t.Error("expected destructive command to be hard-blocked without perms")
 	}

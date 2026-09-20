@@ -48,7 +48,7 @@ type shellArgs struct {
 
 func ShellTool() *Def {
 	return &Def{
-		ID:          "shell",
+		ID:          "bash",
 		Description: "Execute a shell command and return its output.",
 		Permission:  "shell",
 		Parameters: map[string]any{

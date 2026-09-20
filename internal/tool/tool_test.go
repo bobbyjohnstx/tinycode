@@ -327,7 +327,7 @@ func TestShellTool_Basic(t *testing.T) {
 	RegisterBuiltins(r)
 
 	args := json.RawMessage(`{"command": "echo hello"}`)
-	output, isErr, _ := r.Execute(context.Background(), "shell", args, "s1")
+	output, isErr, _ := r.Execute(context.Background(), "bash", args, "s1")
 	if isErr {
 		t.Errorf("unexpected error: %s", output)
 	}
@@ -342,7 +342,7 @@ func TestShellTool_DestructiveBlocked(t *testing.T) {
 	RegisterBuiltins(r)
 
 	args := json.RawMessage(`{"command": "rm -rf /"}`)
-	output, isErr, _ := r.Execute(context.Background(), "shell", args, "s1")
+	output, isErr, _ := r.Execute(context.Background(), "bash", args, "s1")
 	if !isErr {
 		t.Error("expected destructive command to be blocked")
 	}
@@ -356,7 +356,7 @@ func TestShellTool_Timeout(t *testing.T) {
 	r := NewRegistry(&Context{Directory: dir})
 	RegisterBuiltins(r)
 
-	output, isErr, _ := r.Execute(context.Background(), "shell", json.RawMessage(`{"command": "sleep 30", "timeout": 100}`), "s1")
+	output, isErr, _ := r.Execute(context.Background(), "bash", json.RawMessage(`{"command": "sleep 30", "timeout": 100}`), "s1")
 	if !isErr {
 		t.Error("expected timeout error")
 	}
@@ -472,7 +472,7 @@ func TestBuiltinRegistration(t *testing.T) {
 	r := NewRegistry(&Context{Directory: t.TempDir()})
 	RegisterBuiltins(r)
 
-	expected := []string{"read", "write", "edit", "shell", "grep", "glob", "question", "webfetch", "invalid", "task", "todowrite"}
+	expected := []string{"read", "write", "edit", "bash", "grep", "glob", "question", "webfetch", "invalid", "task", "todowrite"}
 	names := r.List()
 
 	if len(names) != len(expected) {

@@ -1362,7 +1362,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     keybind: command.keybind("model.choose"),
     model: local.model,
     providerID: local.model.current()?.provider?.id,
-    modelName: local.model.current()?.name ?? language.t("dialog.model.select.title"),
+    modelName: (() => {
+      const m = local.model.current()
+      if (!m) return language.t("dialog.model.select.title")
+      const provider = m.provider?.name ?? m.provider?.id
+      return provider ? `${provider} / ${m.name}` : m.name
+    })(),
     style: control(),
     onClose: restoreFocus,
     onUnpaidClick: () => {

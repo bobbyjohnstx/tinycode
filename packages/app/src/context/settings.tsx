@@ -117,7 +117,7 @@ const defaultSettings: Settings = {
     showStatus: false,
     showTerminal: false,
     thinkingMode: "show",
-    shellToolPartsExpanded: false,
+    shellToolPartsExpanded: true,
     editToolPartsExpanded: false,
     showSessionProgressBar: true,
     showCustomAgents: false,

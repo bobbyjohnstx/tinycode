@@ -207,7 +207,7 @@ func (h *testHarness) baseURL() string {
 
 func (h *testHarness) createSession(title, agentName string) string {
 	h.t.Helper()
-	body := fmt.Sprintf(`{"title":"%s","agent":"%s","model":{"id":"test-model","providerID":"test-provider"}}`, title, agentName)
+	body := fmt.Sprintf(`{"title":"%s","agent":"%s","model":{"modelID":"test-model","providerID":"test-provider"}}`, title, agentName)
 	resp, err := http.Post(h.baseURL()+"/session?directory=/tmp/e2e-test", "application/json", strings.NewReader(body))
 	if err != nil {
 		h.t.Fatalf("create session: %v", err)
@@ -297,8 +297,8 @@ func TestE2E_SessionCreateWithDefaults(t *testing.T) {
 	if model["providerID"] != "test-provider" {
 		t.Errorf("expected providerID 'test-provider', got %v", model["providerID"])
 	}
-	if model["id"] != "test-model" {
-		t.Errorf("expected model ID 'test-model', got %v", model["id"])
+	if model["modelID"] != "test-model" {
+		t.Errorf("expected model ID 'test-model', got %v", model["modelID"])
 	}
 }
 
@@ -526,7 +526,7 @@ func TestE2E_PromptAsyncRoute(t *testing.T) {
 	// The async prompt handler should return 204 immediately
 	h.sendPromptAsync(sessionID, "hello world")
 
-	// Wait for the session.status working=true event
+	// Wait for the session.status type=busy event
 	timeout := time.After(3 * time.Second)
 	var gotWorking bool
 	for !gotWorking {
@@ -535,12 +535,12 @@ func TestE2E_PromptAsyncRoute(t *testing.T) {
 			props := evt.Properties.(map[string]any)
 			if props["sessionID"] == sessionID {
 				status, _ := props["status"].(map[string]any)
-				if working, ok := status["working"].(bool); ok && working {
+				if status["type"] == "busy" {
 					gotWorking = true
 				}
 			}
 		case <-timeout:
-			t.Fatal("timeout waiting for session.status working=true")
+			t.Fatal("timeout waiting for session.status type=busy")
 		}
 	}
 }
@@ -562,7 +562,7 @@ func TestE2E_PromptAsyncResolvesModelFromSession(t *testing.T) {
 	// Send prompt WITHOUT specifying model — handler should resolve it from the session store
 	h.sendPromptAsync(sessionID, "hello without model")
 
-	// Wait for processing to complete (working=false)
+	// Wait for processing to complete (type=idle)
 	deadline := time.After(10 * time.Second)
 	var gotDone bool
 	for !gotDone {
@@ -571,12 +571,12 @@ func TestE2E_PromptAsyncResolvesModelFromSession(t *testing.T) {
 			props := evt.Properties.(map[string]any)
 			if props["sessionID"] == sessionID {
 				status, _ := props["status"].(map[string]any)
-				if working, ok := status["working"].(bool); ok && !working {
+				if status["type"] == "idle" {
 					gotDone = true
 				}
 			}
 		case <-deadline:
-			t.Fatal("timeout waiting for session.status working=false")
+			t.Fatal("timeout waiting for session.status type=idle")
 		}
 	}
 
@@ -626,7 +626,7 @@ func TestE2E_PromptRoundTripWithMockLLM(t *testing.T) {
 		t.Fatalf("expected 204, got %d", resp.StatusCode)
 	}
 
-	// Wait for working=false (processing complete)
+	// Wait for type=idle (processing complete)
 	deadline := time.After(10 * time.Second)
 	var gotDone bool
 	for !gotDone {
@@ -635,12 +635,12 @@ func TestE2E_PromptRoundTripWithMockLLM(t *testing.T) {
 			props := evt.Properties.(map[string]any)
 			if props["sessionID"] == sessionID {
 				status, _ := props["status"].(map[string]any)
-				if working, ok := status["working"].(bool); ok && !working {
+				if status["type"] == "idle" {
 					gotDone = true
 				}
 			}
 		case <-deadline:
-			t.Fatal("timeout waiting for session.status working=false")
+			t.Fatal("timeout waiting for session.status type=idle")
 		}
 	}
 
@@ -677,7 +677,7 @@ func TestE2E_PromptMockLLMError(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	// Wait for processing to complete (working=false)
+	// Wait for processing to complete (type=idle)
 	deadline := time.After(10 * time.Second)
 	var gotDone bool
 	for !gotDone {
@@ -686,7 +686,7 @@ func TestE2E_PromptMockLLMError(t *testing.T) {
 			props := evt.Properties.(map[string]any)
 			if props["sessionID"] == sessionID {
 				status, _ := props["status"].(map[string]any)
-				if working, ok := status["working"].(bool); ok && !working {
+				if status["type"] == "idle" {
 					gotDone = true
 				}
 			}
@@ -761,8 +761,8 @@ func TestE2E_ClientFactoryReceivesAPIKey(t *testing.T) {
 func TestE2E_PermissionReplyPropagates(t *testing.T) {
 	h := newTestHarness(t, nil)
 
-	// Subscribe to permission.reply on the bus
-	sub := h.bus.Subscribe("permission.reply")
+	// Subscribe to permission.replied on the bus
+	sub := h.bus.Subscribe("permission.replied")
 	defer sub.Unsubscribe()
 
 	// POST a permission reply — the handler should publish to the bus
@@ -780,14 +780,14 @@ func TestE2E_PermissionReplyPropagates(t *testing.T) {
 	select {
 	case evt := <-sub.C:
 		props := evt.Properties.(map[string]any)
-		if props["permissionID"] != "per_test123" {
-			t.Errorf("expected permissionID per_test123, got %v", props["permissionID"])
+		if props["requestID"] != "per_test123" {
+			t.Errorf("expected requestID per_test123, got %v", props["requestID"])
 		}
-		if props["action"] != "allow" {
-			t.Errorf("expected action 'allow', got %v", props["action"])
+		if props["reply"] != "once" {
+			t.Errorf("expected reply 'once', got %v", props["reply"])
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for permission.reply event")
+		t.Fatal("timeout waiting for permission.replied event")
 	}
 }
 

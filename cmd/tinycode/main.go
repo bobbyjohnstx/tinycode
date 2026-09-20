@@ -154,6 +154,8 @@ func printUsage() {
 	fmt.Println("  TINYCODE_DB         Override database path")
 	fmt.Println("  TINYCODE_LOG_LEVEL  Set log level (debug, info, warn, error)")
 	fmt.Println("  TINYCODE_WEB_DIR    Serve web UI from directory (dev mode)")
+	fmt.Println("  TINYCODE_AUTH_TOKEN Override auth token (serve/web mode)")
+	fmt.Println("  TINYCODE_NO_AUTH    Disable auth entirely (serve/web mode)")
 	fmt.Println()
 	fmt.Println("Logs: ~/.local/share/tinycode/tinycode.log")
 }

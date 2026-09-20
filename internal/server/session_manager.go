@@ -23,6 +23,7 @@ type activeSession struct {
 	processor *session.Processor
 	model     *provider.Model
 	agent     string
+	dir       string        // session's working directory (may differ from server default)
 	done      chan struct{} // closed when processPrompt returns
 
 	mu            sync.Mutex
@@ -32,6 +33,7 @@ type activeSession struct {
 	msgStartTime  int64             // timestamp when the current assistant message started
 	idMap         map[string]string // processor msg ID → bridge msg ID
 	deltaBatcher  *deltaBatcher     // 16ms debounce for text deltas
+	userMsgID     string            // user message ID for parentID on assistant messages
 }
 
 const deltaBatchInterval = 16 * time.Millisecond
@@ -84,9 +86,9 @@ func (b *deltaBatcher) doFlush() {
 }
 
 // SessionStatus represents the processing state of a session.
+// The SPA expects a discriminated union: {"type": "idle"} or {"type": "busy"}.
 type SessionStatus struct {
-	Alert   bool `json:"alert"`
-	Working bool `json:"working"`
+	Type string `json:"type"`
 }
 
 type SessionManager struct {
@@ -126,6 +128,13 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 		ctxCancel:     cancel,
 		clientFactory: func(m *provider.Model) llm.Client {
 			apiKey, _ := m.Options["api_key"].(string)
+			if apiKey == "" {
+				if info, err := reg.GetProvider(m.ProviderID); err == nil {
+					if k, ok := info.Options["apiKey"].(string); ok {
+						apiKey = k
+					}
+				}
+			}
 			return llm.NewOpenAIClient(m.API.URL+"/v1", apiKey)
 		},
 	}
@@ -211,7 +220,7 @@ func (sm *SessionManager) Status() map[string]SessionStatus {
 	defer sm.mu.Unlock()
 	result := make(map[string]SessionStatus, len(sm.sessions))
 	for sid := range sm.sessions {
-		result[sid] = SessionStatus{Working: true}
+		result[sid] = SessionStatus{Type: "busy"}
 	}
 	return result
 }
@@ -220,4 +229,13 @@ func (sm *SessionManager) getActive(sessionID string) *activeSession {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	return sm.sessions[sessionID]
+}
+
+// sessionDir returns the working directory for a session, falling back to sm.dir.
+func (sm *SessionManager) sessionDir(sessionID string) string {
+	store := session.NewStore(sm.db)
+	if info, err := store.Get(sessionID); err == nil && info.Directory != "" {
+		return info.Directory
+	}
+	return sm.dir
 }

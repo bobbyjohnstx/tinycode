@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"database/sql"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,7 +18,15 @@ import (
 )
 
 func (s *Server) handleGlobalEventStream(w http.ResponseWriter, r *http.Request) {
-	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory)
+	resolve := func(sessionID string) string {
+		store := s.sessionStore()
+		info, err := store.Get(sessionID)
+		if err != nil || info == nil {
+			return ""
+		}
+		return info.Directory
+	}
+	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory, resolve)
 }
 
 func (s *Server) handleSessionStatus(w http.ResponseWriter, r *http.Request) {
@@ -234,18 +243,39 @@ func (s *Server) handleMessageDelete(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSessionPermissionReply(w http.ResponseWriter, r *http.Request) {
 	permissionID := r.PathValue("permissionID")
 	var body struct {
-		Action string `json:"action"`
+		Action   string `json:"action"`
+		Reply    string `json:"reply"`
+		Response string `json:"response"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
+	// The SDK sends "reply" or "response" (once/always/reject); normalize to "action".
+	action := body.Action
+	if action == "" {
+		action = body.Reply
+	}
+	if action == "" {
+		action = body.Response
+	}
+
+	// Normalize to TS-contract Reply type
+	reply := action
+	switch reply {
+	case "allow":
+		reply = "once"
+	}
+
+	sessionID := r.PathValue("sessionID")
+
 	s.permissionStore.Remove(permissionID)
 
-	s.deps.Bus.Publish("permission.reply", map[string]any{
-		"permissionID": permissionID,
-		"action":       body.Action,
+	s.deps.Bus.Publish("permission.replied", map[string]any{
+		"sessionID": sessionID,
+		"requestID": permissionID,
+		"reply":     reply,
 	})
 
 	respondJSON(w, http.StatusOK, map[string]any{
@@ -354,18 +384,37 @@ func (s *Server) handleFileSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFileFind(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("q")
+	query := r.URL.Query().Get("query")
 	if query == "" {
-		respondJSON(w, http.StatusOK, map[string]any{
-			"files": []string{},
-		})
+		query = r.URL.Query().Get("q")
+	}
+	if query == "" {
+		respondJSON(w, http.StatusOK, []string{})
 		return
 	}
 
-	var files []string
-	const maxFiles = 200
+	dir := requestDirectory(r, s.config.Directory)
 
-	_ = filepath.Walk(s.config.Directory, func(path string, info os.FileInfo, err error) error {
+	typeFilter := r.URL.Query().Get("type")
+
+	limitStr := r.URL.Query().Get("limit")
+	maxFiles := 200
+	if limitStr != "" {
+		if n := 0; len(limitStr) > 0 {
+			for _, c := range limitStr {
+				if c >= '0' && c <= '9' {
+					n = n*10 + int(c-'0')
+				}
+			}
+			if n > 0 {
+				maxFiles = n
+			}
+		}
+	}
+
+	var files []string
+
+	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -377,26 +426,63 @@ func (s *Server) handleFileFind(w http.ResponseWriter, r *http.Request) {
 			if name == ".git" || name == "node_modules" || name == ".tinycode" {
 				return filepath.SkipDir
 			}
+			if typeFilter == "directory" {
+				if strings.Contains(strings.ToLower(name), strings.ToLower(query)) {
+					files = append(files, path)
+				}
+			}
+			return nil
+		}
+
+		if typeFilter == "directory" {
 			return nil
 		}
 
 		name := info.Name()
 		matched, _ := filepath.Match(query, name)
 		if matched || strings.Contains(name, query) {
-			rel, _ := filepath.Rel(s.config.Directory, path)
+			rel, _ := filepath.Rel(dir, path)
 			files = append(files, rel)
 		}
 		return nil
 	})
 
-	respondJSON(w, http.StatusOK, map[string]any{
-		"files": files,
-	})
+	if files == nil {
+		files = []string{}
+	}
+	respondJSON(w, http.StatusOK, files)
 }
 
 func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
-	p := project.FromDirectory(s.config.Directory)
-	respondJSON(w, http.StatusOK, []*project.Info{p})
+	rows, err := s.deps.DB.Query(
+		`SELECT id, worktree, vcs, time_created, time_initialized FROM project ORDER BY time_created`,
+	)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	var projects []*project.Info
+	for rows.Next() {
+		var p project.Info
+		var vcsVal sql.NullString
+		var timeInit sql.NullInt64
+		if err := rows.Scan(&p.ID, &p.Worktree, &vcsVal, &p.Time.Created, &timeInit); err != nil {
+			continue
+		}
+		if vcsVal.Valid {
+			p.VCS = vcsVal.String
+		}
+		if timeInit.Valid {
+			p.Time.Initialized = timeInit.Int64
+		}
+		projects = append(projects, &p)
+	}
+	if projects == nil {
+		projects = []*project.Info{}
+	}
+	respondJSON(w, http.StatusOK, projects)
 }
 
 func (s *Server) handleProjectCurrent(w http.ResponseWriter, r *http.Request) {
@@ -519,8 +605,22 @@ func (s *Server) handleMessageGet(w http.ResponseWriter, r *http.Request) {
 			parts = []session.StoredPart{}
 		}
 
+		createdMs := m.CreatedAt.UnixMilli()
+		info := map[string]any{
+			"id":        m.ID,
+			"sessionID": m.SessionID,
+			"role":      string(m.Role),
+			"time":      map[string]any{"created": createdMs},
+		}
+		if m.Role == session.RoleAssistant {
+			info["time"] = map[string]any{"created": createdMs, "completed": createdMs}
+		}
+		if m.Model != "" {
+			info["modelID"] = m.Model
+		}
+
 		respondJSON(w, http.StatusOK, map[string]any{
-			"info":  m,
+			"info":  info,
 			"parts": parts,
 		})
 		return

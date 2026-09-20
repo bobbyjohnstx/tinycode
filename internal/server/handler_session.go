@@ -1,9 +1,14 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"net/http"
+	"os/exec"
+	"sort"
 	"strconv"
+	"strings"
+	"time"
 
 	id2 "github.com/bobbyjohnstx/tinycode-go/internal/id"
 	"github.com/bobbyjohnstx/tinycode-go/internal/project"
@@ -50,10 +55,7 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 		body.Model = s.resolveDefaultModel()
 	}
 
-	dir := r.URL.Query().Get("directory")
-	if dir == "" {
-		dir = s.config.Directory
-	}
+	dir := requestDirectory(r, s.config.Directory)
 
 	projectID := project.IDFromDirectory(dir)
 
@@ -76,6 +78,8 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 		"info":      info,
 	})
 
+	s.deps.Bus.Publish("project.updated", project.FromDirectory(dir))
+
 	respondJSON(w, http.StatusOK, info)
 }
 
@@ -93,10 +97,7 @@ func (s *Server) handleSessionGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSessionList(w http.ResponseWriter, r *http.Request) {
-	dir := r.URL.Query().Get("directory")
-	if dir == "" {
-		dir = s.config.Directory
-	}
+	dir := requestDirectory(r, s.config.Directory)
 
 	projectID := project.IDFromDirectory(dir)
 
@@ -161,43 +162,77 @@ func (s *Server) handleSessionDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	store := s.sessionStore()
 
+	// Fetch session info before deletion so we can include it in the event.
+	info, _ := store.Get(id)
+
 	if err := store.Delete(id); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	s.deps.Bus.Publish("session.deleted", map[string]any{
+	evt := map[string]any{
 		"sessionID": id,
-	})
+	}
+	if info != nil {
+		evt["info"] = info
+	}
+	s.deps.Bus.Publish("session.deleted", evt)
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	sessionID := r.PathValue("id")
 
 	var body struct {
-		Content string `json:"content"`
+		Content   string       `json:"content,omitempty"`
+		MessageID string       `json:"messageID,omitempty"`
+		Model     *promptModel `json:"model,omitempty"`
+		Agent     string       `json:"agent,omitempty"`
+		Parts     []promptPart `json:"parts"`
+		Variant   string       `json:"variant,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	if body.Content == "" {
-		respondError(w, http.StatusBadRequest, "content is required")
+	// Support legacy {"content": "..."} format
+	if len(body.Parts) == 0 && body.Content != "" {
+		body.Parts = []promptPart{{Type: "text", Text: body.Content}}
+	}
+
+	if len(body.Parts) == 0 {
+		respondError(w, http.StatusBadRequest, "parts or content is required")
 		return
 	}
 
-	s.deps.Bus.Publish("session.prompt", map[string]any{
-		"sessionID": id,
-		"content":   body.Content,
+	// Resolve model and agent from session store when not provided
+	if body.Model == nil || body.Agent == "" {
+		store := s.sessionStore()
+		info, err := store.Get(sessionID)
+		if err == nil && info != nil {
+			if body.Model == nil && info.Model != nil {
+				body.Model = &promptModel{
+					ProviderID: info.Model.ProviderID,
+					ModelID:    info.Model.ID,
+				}
+			}
+			if body.Agent == "" {
+				body.Agent = info.Agent
+			}
+		}
+	}
+
+	s.sessionManager.StartPrompt(context.WithoutCancel(r.Context()), PromptInput{
+		SessionID: sessionID,
+		Model:     body.Model,
+		Agent:     body.Agent,
+		Parts:     body.Parts,
+		MessageID: body.MessageID,
 	})
 
-	respondJSON(w, http.StatusAccepted, map[string]any{
-		"sessionID": id,
-		"status":    "processing",
-	})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request) {
@@ -244,6 +279,147 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 	})
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleSessionShell(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("sessionID")
+
+	var body struct {
+		MessageID string       `json:"messageID,omitempty"`
+		Model     *promptModel `json:"model,omitempty"`
+		Agent     string       `json:"agent,omitempty"`
+		Command   string       `json:"command"`
+	}
+	if err := decodeJSON(w, r, &body); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	command := strings.TrimSpace(body.Command)
+	if command == "" {
+		respondError(w, http.StatusBadRequest, "command is required")
+		return
+	}
+
+	dir := s.config.Directory
+	store := s.sessionStore()
+	if info, err := store.Get(sessionID); err == nil && info != nil && info.Directory != "" {
+		dir = info.Directory
+	}
+
+	go s.executeShellDirect(sessionID, command, dir)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) executeShellDirect(sessionID, command, dir string) {
+	b := s.deps.Bus
+	now := time.Now().UnixMilli()
+
+	b.Publish("session.status", map[string]any{
+		"sessionID": sessionID,
+		"status":    map[string]any{"type": "busy"},
+	})
+	defer func() {
+		b.Publish("session.status", map[string]any{
+			"sessionID": sessionID,
+			"status":    map[string]any{"type": "idle"},
+		})
+	}()
+
+	userMsgID, _ := id2.Ascending("message")
+	b.Publish("message.updated", map[string]any{
+		"sessionID": sessionID,
+		"info": map[string]any{
+			"id":        userMsgID,
+			"sessionID": sessionID,
+			"role":      "user",
+			"time":      map[string]any{"created": now},
+		},
+	})
+	userPartID, _ := id2.Ascending("part")
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": sessionID,
+		"part": map[string]any{
+			"id":        userPartID,
+			"sessionID": sessionID,
+			"messageID": userMsgID,
+			"type":      "text",
+			"text":      "! " + command,
+			"time":      map[string]any{"start": now, "end": now},
+		},
+		"time": now,
+	})
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(context.Background(), "sh", "-c", command)
+	cmd.Dir = dir
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	cmdErr := cmd.Run()
+
+	var outputBuf strings.Builder
+	if stdout.Len() > 0 {
+		outputBuf.Write(stdout.Bytes())
+	}
+	if stderr.Len() > 0 {
+		if outputBuf.Len() > 0 {
+			outputBuf.WriteString("\n")
+		}
+		outputBuf.WriteString("STDERR:\n")
+		outputBuf.Write(stderr.Bytes())
+	}
+	output := outputBuf.String()
+	isErr := cmdErr != nil
+	if isErr && output == "" {
+		output = cmdErr.Error()
+	}
+	input := map[string]any{"command": command}
+	completedAt := time.Now().UnixMilli()
+	toolCallID, _ := id2.Ascending("tool")
+
+	assistMsgID, _ := id2.Ascending("message")
+	b.Publish("message.updated", map[string]any{
+		"sessionID": sessionID,
+		"info": map[string]any{
+			"id":        assistMsgID,
+			"sessionID": sessionID,
+			"role":      "assistant",
+			"time":      map[string]any{"created": now, "completed": completedAt},
+			"parentID":  userMsgID,
+		},
+	})
+
+	toolPartID, _ := id2.Ascending("part")
+	state := map[string]any{
+		"status":   "completed",
+		"input":    input,
+		"output":   output,
+		"title":    command,
+		"metadata": map[string]any{"output": output},
+		"time":     map[string]any{"start": now, "end": completedAt},
+	}
+	if isErr {
+		state = map[string]any{
+			"status":   "error",
+			"input":    input,
+			"error":    output,
+			"metadata": map[string]any{},
+			"time":     map[string]any{"start": now, "end": completedAt},
+		}
+	}
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": sessionID,
+		"part": map[string]any{
+			"id":        toolPartID,
+			"sessionID": sessionID,
+			"messageID": assistMsgID,
+			"type":      "tool",
+			"callID":    toolCallID,
+			"tool":      "bash",
+			"state":     state,
+		},
+		"time": completedAt,
+	})
 }
 
 func (s *Server) handleSessionAbort(w http.ResponseWriter, r *http.Request) {
@@ -330,12 +506,45 @@ func (s *Server) resolveDefaultModel() *session.ModelRef {
 		}
 	}
 
-	// 2. Pick the first model from the first available provider.
+	// 2. Pick the smallest chat-capable model from local providers first.
 	providers := s.deps.Registry.ListProviders()
+	sort.Slice(providers, func(i, j int) bool { return providers[i].ID < providers[j].ID })
+
+	localProviders := map[string]bool{"ollama": true, "lm-studio": true, "vllm": true}
+	type candidate struct {
+		providerID string
+		modelID    string
+		sizeB      float64
+		local      bool
+	}
+	var candidates []candidate
+
 	for _, p := range providers {
-		for _, m := range p.Models {
-			return &session.ModelRef{ProviderID: p.ID, ID: m.ID}
+		for id, m := range p.Models {
+			if strings.Contains(strings.ToLower(id), "embed") {
+				continue
+			}
+			size := 999.0
+			if s := m.SizeB(); s != nil {
+				size = *s
+			}
+			candidates = append(candidates, candidate{p.ID, id, size, localProviders[p.ID]})
 		}
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].local != candidates[j].local {
+			return candidates[i].local
+		}
+		if candidates[i].sizeB != candidates[j].sizeB {
+			return candidates[i].sizeB < candidates[j].sizeB
+		}
+		if candidates[i].providerID != candidates[j].providerID {
+			return candidates[i].providerID < candidates[j].providerID
+		}
+		return candidates[i].modelID < candidates[j].modelID
+	})
+	if len(candidates) > 0 {
+		return &session.ModelRef{ProviderID: candidates[0].providerID, ID: candidates[0].modelID}
 	}
 
 	return nil
@@ -365,8 +574,22 @@ func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 			parts = []session.StoredPart{}
 		}
 
+		createdMs := m.CreatedAt.UnixMilli()
+		info := map[string]any{
+			"id":        m.ID,
+			"sessionID": m.SessionID,
+			"role":      string(m.Role),
+			"time":      map[string]any{"created": createdMs},
+		}
+		if m.Role == session.RoleAssistant {
+			info["time"] = map[string]any{"created": createdMs, "completed": createdMs}
+		}
+		if m.Model != "" {
+			info["modelID"] = m.Model
+		}
+
 		result = append(result, map[string]any{
-			"info":  m,
+			"info":  info,
 			"parts": parts,
 		})
 	}
