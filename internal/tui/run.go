@@ -72,6 +72,7 @@ func (c *connectedApp) Init() tea.Cmd {
 		return func() tea.Msg { return SSEDisconnectedMsg{Err: err} }
 	}
 	c.sseEvents = events
+	c.app.welcome.MarkDone("sse")
 	return tea.Batch(
 		c.app.Init(),
 		waitForSSE(c.sseEvents),

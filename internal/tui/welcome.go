@@ -1,19 +1,17 @@
 package tui
 
 import (
-	"math/rand"
+	"fmt"
 	"strings"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Logo rows from the TS version's logo.ts. Each row has a left (muted) part
-// and right (bright) part separated at splitCol. The cell renderer converts
-// marker characters: _ → space (filled block via bg color), ^ → ▀ (half-block
-// with shadow bg), ~ → ▀ (half-block with shadow fg).
 type logoRow struct {
-	left  string
-	right string
+	leftTpl  string
+	rightTpl string
 }
 
 func renderLogoTemplate(template string) string {
@@ -31,10 +29,7 @@ func renderLogoTemplate(template string) string {
 	return sb.String()
 }
 
-var logoData = []struct {
-	leftTpl  string
-	rightTpl string
-}{
+var logoData = []logoRow{
 	{"▀█▀ ▄_ █▀▀▄ █__█", "╲"},
 	{"_█_ █_ █__█ _▀▀█", "  ╲"},
 	{"_▀_ ▀_ ▀~~▀ ___▀", "    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█"},
@@ -42,34 +37,108 @@ var logoData = []struct {
 	{"", "                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀"},
 }
 
-var tips = []string{
-	"Type @ to attach files, /ask to invoke agents",
-	"Start with / for commands, ctrl+p for palette",
-	"Press tab to switch agents, F1 for help",
-	"Show keyboard shortcuts with ctrl+alt+k",
+type bootCheck struct {
+	label string
+	key   string
 }
 
-// WelcomeView renders the centered welcome screen with logo and tips.
+var bootChecks = []bootCheck{
+	{"Loading configuration", "config"},
+	{"Connecting to server", "sse"},
+	{"Discovering providers", "providers"},
+	{"Loading agents", "agents"},
+	{"Loading sessions", "sessions"},
+	{"Checking MCP servers", "mcp"},
+}
+
+type bootStatus int
+
+const (
+	bootPending bootStatus = iota
+	bootRunning
+	bootDone
+	bootFailed
+)
+
+// WelcomeView renders the boot sequence welcome screen with logo and system checks.
 type WelcomeView struct {
-	tipIndex int
+	checks   map[string]bootStatus
+	order    []string
+	bootDone bool
+	logoShow int
+	startAt  time.Time
 }
 
-// NewWelcomeView creates a new WelcomeView with a random tip.
 func NewWelcomeView() WelcomeView {
+	order := make([]string, len(bootChecks))
+	for i, c := range bootChecks {
+		order[i] = c.key
+	}
+	checks := make(map[string]bootStatus, len(bootChecks))
+	checks["config"] = bootDone
 	return WelcomeView{
-		tipIndex: rand.Intn(len(tips)),
+		checks:  checks,
+		order:   order,
+		startAt: time.Now(),
 	}
 }
 
-// View renders the welcome screen centered in the given dimensions.
-func (w WelcomeView) View(width, height int) string {
+func (w *WelcomeView) MarkDone(key string) {
+	if _, ok := w.checks[key]; ok || key == "" {
+		w.checks[key] = bootDone
+	} else {
+		w.checks[key] = bootDone
+	}
+	w.updateBootDone()
+}
+
+func (w *WelcomeView) MarkFailed(key string) {
+	w.checks[key] = bootFailed
+	w.updateBootDone()
+}
+
+func (w *WelcomeView) updateBootDone() {
+	for _, k := range w.order {
+		s := w.checks[k]
+		if s == bootPending || s == bootRunning {
+			return
+		}
+	}
+	w.bootDone = true
+}
+
+func (w *WelcomeView) Tick() tea.Cmd {
+	if w.bootDone && w.logoShow >= len(logoData) {
+		return nil
+	}
+	w.logoShow++
+	return tea.Tick(80*time.Millisecond, func(time.Time) tea.Msg {
+		return bootTickMsg{}
+	})
+}
+
+type bootTickMsg struct{}
+
+func (w WelcomeView) View(width, height int, providerName, modelName string, sessionCount int) string {
 	leftColor := lipgloss.AdaptiveColor{Light: "#4488CC", Dark: "#38bdf8"}
 	rightColor := lipgloss.AdaptiveColor{Light: "#333333", Dark: "#f8fafc"}
+	checkColor := lipgloss.AdaptiveColor{Light: "#22AA44", Dark: "#7fd88f"}
+	failColor := lipgloss.AdaptiveColor{Light: "#CC3333", Dark: "#e8607a"}
+	dimColor := lipgloss.AdaptiveColor{Light: "#999999", Dark: "#555555"}
+	labelColor := lipgloss.AdaptiveColor{Light: "#666666", Dark: "#888888"}
+	accentColor := lipgloss.AdaptiveColor{Light: "#CC8800", Dark: "#c87898"}
 
 	leftStyle := lipgloss.NewStyle().Foreground(leftColor)
 	rightStyle := lipgloss.NewStyle().Foreground(rightColor)
+	checkStyle := lipgloss.NewStyle().Foreground(checkColor)
+	failStyle := lipgloss.NewStyle().Foreground(failColor)
+	dimStyle := lipgloss.NewStyle().Foreground(dimColor)
+	labelStyle := lipgloss.NewStyle().Foreground(labelColor)
+	accentStyle := lipgloss.NewStyle().Foreground(accentColor)
 
-	// Find the widest rendered logo line to pad shorter lines for alignment.
+	var lines []string
+
+	// Logo — reveal row by row
 	type renderedRow struct {
 		left, right string
 		plainLen    int
@@ -86,37 +155,67 @@ func (w WelcomeView) View(width, height int) string {
 		rows = append(rows, renderedRow{left, right, plainLen})
 	}
 
-	var logoLines []string
-	for _, row := range rows {
-		pad := strings.Repeat(" ", maxLen-row.plainLen)
-		line := leftStyle.Render(row.left) + rightStyle.Render(row.right) + pad
-		logoLines = append(logoLines, line)
+	showRows := w.logoShow
+	if showRows > len(rows) {
+		showRows = len(rows)
 	}
-	logoBlock := strings.Join(logoLines, "\n")
+	for i := 0; i < len(rows); i++ {
+		if i < showRows {
+			row := rows[i]
+			pad := strings.Repeat(" ", maxLen-row.plainLen)
+			line := leftStyle.Render(row.left) + rightStyle.Render(row.right) + pad
+			lines = append(lines, line)
+		} else {
+			lines = append(lines, strings.Repeat(" ", maxLen))
+		}
+	}
+	lines = append(lines, "")
 
-	tipStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
+	// Boot checks
+	for _, check := range bootChecks {
+		status := w.checks[check.key]
+		var icon, detail string
 
-	gettingStarted := lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#CC8800", Dark: "#FFAA33"}).
-		Bold(true).
-		Render("● Getting Started")
-
-	var tipLines []string
-	tipLines = append(tipLines, gettingStarted)
-	tipLines = append(tipLines, "")
-	for _, t := range tips {
-		tipLines = append(tipLines, "   "+tipStyle.Render(t))
-		tipLines = append(tipLines, "")
+		switch status {
+		case bootDone:
+			icon = checkStyle.Render("✓")
+			suffix := ""
+			switch check.key {
+			case "providers":
+				if providerName != "" {
+					suffix = dimStyle.Render(fmt.Sprintf(" · %s / %s", providerName, modelName))
+				}
+			case "sessions":
+				if sessionCount > 0 {
+					suffix = dimStyle.Render(fmt.Sprintf(" · %d sessions", sessionCount))
+				}
+			}
+			detail = labelStyle.Render(check.label) + suffix
+		case bootFailed:
+			icon = failStyle.Render("✗")
+			detail = failStyle.Render(check.label)
+		default:
+			icon = dimStyle.Render("·")
+			detail = dimStyle.Render(check.label)
+		}
+		lines = append(lines, fmt.Sprintf("   %s  %s", icon, detail))
 	}
 
-	tipsBlock := strings.Join(tipLines, "\n")
+	lines = append(lines, "")
 
-	content := lipgloss.JoinVertical(lipgloss.Center,
-		logoBlock,
-		"",
-		tipsBlock,
-	)
+	// Tips line — only show after boot
+	if w.bootDone {
+		tips := []string{
+			"/ commands",
+			"@ files",
+			"tab agents",
+			"ctrl+p palette",
+		}
+		tipLine := accentStyle.Render("→") + "  " + labelStyle.Render(strings.Join(tips, "  ·  "))
+		lines = append(lines, "   "+tipLine)
+	}
+
+	content := strings.Join(lines, "\n")
 
 	return lipgloss.Place(width, height,
 		lipgloss.Center, lipgloss.Center,

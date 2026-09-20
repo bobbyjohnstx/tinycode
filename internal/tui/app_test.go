@@ -29,8 +29,8 @@ func TestWelcomeScreen(t *testing.T) {
 	out := readOutput(t, tm)
 	s := string(out)
 
-	if !contains(out, "Getting Started") {
-		t.Error("expected Getting Started in welcome screen")
+	if !contains(out, "Loading configuration") {
+		t.Error("expected boot check 'Loading configuration' in welcome screen")
 	}
 	if !contains(out, "Ask anything") {
 		t.Error("expected placeholder text in prompt")

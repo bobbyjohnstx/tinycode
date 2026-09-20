@@ -67,6 +67,7 @@ func (a App) Init() tea.Cmd {
 	return tea.Batch(
 		a.prompt.Init(),
 		a.status.Init(),
+		a.welcome.Tick(),
 	)
 }
 
@@ -118,7 +119,12 @@ func (a App) View() string {
 	if a.hasMessages() {
 		chatView = a.chat.View()
 	} else {
-		chatView = a.welcome.View(l.chatWidth, l.chatHeight)
+		provName, modName := lookupModelDisplay(
+			a.state.Providers,
+			a.state.CurrentModel.ProviderID,
+			a.state.CurrentModel.ModelID,
+		)
+		chatView = a.welcome.View(l.chatWidth, l.chatHeight, provName, modName, len(a.state.Sessions))
 	}
 	promptView := a.prompt.View()
 	statusView := a.status.View()

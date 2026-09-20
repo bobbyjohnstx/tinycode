@@ -68,19 +68,35 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 // provider/agent/command data, connection status).
 func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	switch msg := msg.(type) {
+	case bootTickMsg:
+		cmd := a.welcome.Tick()
+		return a, cmd, true
 	case AgentListMsg:
 		m, cmd := a.handleAgentListMsg(msg)
+		if msg.Err == nil {
+			m.welcome.MarkDone("agents")
+		} else {
+			m.welcome.MarkFailed("agents")
+		}
 		return m, cmd, true
 	case CommandListMsg:
 		m, cmd := a.handleCommandListMsg(msg)
 		return m, cmd, true
 	case ProvidersLoadedMsg:
 		m, cmd := a.handleProvidersLoadedMsg(msg)
+		if msg.Err == nil {
+			m.welcome.MarkDone("providers")
+		} else {
+			m.welcome.MarkFailed("providers")
+		}
 		return m, cmd, true
 	case SessionsLoadedMsg:
 		if msg.Err == nil {
 			a.state.Sessions = msg.Sessions
 			a.sidebar.SetSessions(msg.Sessions)
+			a.welcome.MarkDone("sessions")
+		} else {
+			a.welcome.MarkFailed("sessions")
 		}
 		return a, nil, true
 	case SessionCreatedMsg:
@@ -109,10 +125,14 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	case MCPStatusLoadedMsg:
 		if msg.Err == nil {
 			a.sidebar.SetMCPServers(msg.Servers)
+			a.welcome.MarkDone("mcp")
+		} else {
+			a.welcome.MarkFailed("mcp")
 		}
 		return a, nil, true
 	case SSEConnectedMsg:
 		a.state.Connected = true
+		a.welcome.MarkDone("sse")
 		return a, nil, true
 	case SSEDisconnectedMsg:
 		a.state.Connected = false
