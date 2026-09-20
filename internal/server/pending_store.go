@@ -91,6 +91,13 @@ func (qs *QuestionStore) Add(q PendingQuestion) {
 	qs.cleanupLocked()
 }
 
+func (qs *QuestionStore) Get(id string) (PendingQuestion, bool) {
+	qs.mu.RLock()
+	defer qs.mu.RUnlock()
+	q, ok := qs.pending[id]
+	return q, ok
+}
+
 func (qs *QuestionStore) Remove(id string) {
 	qs.mu.Lock()
 	defer qs.mu.Unlock()

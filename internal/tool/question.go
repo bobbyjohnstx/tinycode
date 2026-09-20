@@ -52,14 +52,26 @@ func executeQuestion(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 		return &ExecuteResult{Output: fmt.Sprintf("Error generating question ID: %v", err), IsError: true}, nil
 	}
 
+	// Build SDK-compatible QuestionRequest event:
+	// { id, sessionID, questions: [{ question, options: [{ label }] }] }
+	opts := make([]map[string]any, 0, len(args.Options))
+	for _, o := range args.Options {
+		opts = append(opts, map[string]any{"label": o})
+	}
+	questionItem := map[string]any{
+		"question": args.Question,
+	}
+	if len(opts) > 0 {
+		questionItem["options"] = opts
+	}
+
 	tc.Bus.Publish("question.asked", map[string]any{
-		"sessionID":  tc.SessionID,
-		"questionID": questionID,
-		"question":   args.Question,
-		"options":    args.Options,
+		"id":        questionID,
+		"sessionID": tc.SessionID,
+		"questions": []map[string]any{questionItem},
 	})
 
-	sub := tc.Bus.Subscribe("question.reply")
+	sub := tc.Bus.Subscribe("question.replied")
 	defer sub.Unsubscribe()
 
 	for {
@@ -69,8 +81,8 @@ func executeQuestion(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 			if !ok {
 				continue
 			}
-			qid, _ := props["questionID"].(string)
-			if qid != questionID {
+			rid, _ := props["requestID"].(string)
+			if rid != questionID {
 				continue
 			}
 			answer, _ := props["answer"].(string)
