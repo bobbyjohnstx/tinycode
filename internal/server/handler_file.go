@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 func (s *Server) validatePath(requested string) (string, error) {
@@ -65,7 +66,13 @@ func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	contentType := "text"
+	if !utf8.Valid(data) {
+		contentType = "binary"
+	}
+
 	respondJSON(w, http.StatusOK, map[string]any{
+		"type":    contentType,
 		"path":    resolved,
 		"content": string(data),
 		"size":    len(data),

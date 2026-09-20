@@ -4,9 +4,10 @@ import "net/http"
 
 func (s *Server) handlePermissionList(w http.ResponseWriter, r *http.Request) {
 	permissions := s.permissionStore.List()
-	respondJSON(w, http.StatusOK, map[string]any{
-		"permissions": permissions,
-	})
+	if permissions == nil {
+		permissions = []PendingPermission{}
+	}
+	respondJSON(w, http.StatusOK, permissions)
 }
 
 func (s *Server) handlePermissionReply(w http.ResponseWriter, r *http.Request) {

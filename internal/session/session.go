@@ -31,12 +31,14 @@ type Info struct {
 type TimeInfo struct {
 	Created  int64 `json:"created"`
 	Updated  int64 `json:"updated"`
+	Archived int64 `json:"archived,omitempty"`
 }
 
 func (i *Info) SyncTime() {
 	i.Time = TimeInfo{
-		Created: i.CreatedAt.UnixMilli(),
-		Updated: i.UpdatedAt.UnixMilli(),
+		Created:  i.CreatedAt.UnixMilli(),
+		Updated:  i.UpdatedAt.UnixMilli(),
+		Archived: i.TimeArchived,
 	}
 }
 
@@ -44,6 +46,23 @@ type ModelRef struct {
 	ID         string `json:"id"`
 	ProviderID string `json:"providerID"`
 	Variant    string `json:"variant,omitempty"`
+}
+
+// UnmarshalJSON supports both "id" and legacy "modelID" fields.
+func (m *ModelRef) UnmarshalJSON(data []byte) error {
+	type alias ModelRef
+	var raw struct {
+		alias
+		LegacyID string `json:"modelID"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*m = ModelRef(raw.alias)
+	if m.ID == "" {
+		m.ID = raw.LegacyID
+	}
+	return nil
 }
 
 type Summary struct {

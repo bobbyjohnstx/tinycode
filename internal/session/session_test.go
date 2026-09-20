@@ -807,3 +807,99 @@ func TestDefaultTitle(t *testing.T) {
 		t.Errorf("expected 'Child session' prefix, got %q", childTitle)
 	}
 }
+
+func TestModelRef_MarshalJSON_UsesID(t *testing.T) {
+	m := ModelRef{ID: "x", ProviderID: "p"}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var raw map[string]any
+	json.Unmarshal(data, &raw)
+	if raw["id"] != "x" {
+		t.Errorf("expected id=x, got %v", raw["id"])
+	}
+	if _, ok := raw["modelID"]; ok {
+		t.Error("expected no modelID key in marshalled output")
+	}
+}
+
+func TestModelRef_UnmarshalJSON_LegacyModelID(t *testing.T) {
+	var m ModelRef
+	err := json.Unmarshal([]byte(`{"modelID":"x","providerID":"p"}`), &m)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m.ID != "x" {
+		t.Errorf("expected ID=x from legacy modelID, got %q", m.ID)
+	}
+	if m.ProviderID != "p" {
+		t.Errorf("expected ProviderID=p, got %q", m.ProviderID)
+	}
+}
+
+func TestModelRef_UnmarshalJSON_NewID(t *testing.T) {
+	var m ModelRef
+	err := json.Unmarshal([]byte(`{"id":"y","providerID":"q"}`), &m)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m.ID != "y" {
+		t.Errorf("expected ID=y, got %q", m.ID)
+	}
+}
+
+func TestModelRef_UnmarshalJSON_NewIDTakesPrecedence(t *testing.T) {
+	var m ModelRef
+	err := json.Unmarshal([]byte(`{"id":"new","modelID":"old","providerID":"p"}`), &m)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m.ID != "new" {
+		t.Errorf("expected id to take precedence over modelID, got %q", m.ID)
+	}
+}
+
+func TestTimeInfo_ArchivedOmitEmpty(t *testing.T) {
+	ti := TimeInfo{Created: 1000, Updated: 2000}
+	data, err := json.Marshal(ti)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	s := string(data)
+	if strings.Contains(s, "archived") {
+		t.Errorf("expected archived omitted when zero, got %s", s)
+	}
+}
+
+func TestTimeInfo_ArchivedPresent(t *testing.T) {
+	ti := TimeInfo{Created: 1000, Updated: 2000, Archived: 123}
+	data, err := json.Marshal(ti)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var raw map[string]any
+	json.Unmarshal(data, &raw)
+	if raw["archived"] != float64(123) {
+		t.Errorf("expected archived=123, got %v", raw["archived"])
+	}
+}
+
+func TestStore_ArchiveSyncsTimeInfo(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+
+	info, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp"})
+	store.Archive(info.ID)
+
+	got, _ := store.Get(info.ID)
+	if got.Time.Archived == 0 {
+		t.Error("expected Time.Archived to be populated after archive")
+	}
+	if got.TimeArchived == 0 {
+		t.Error("expected TimeArchived to be populated after archive")
+	}
+	if got.Time.Archived != got.TimeArchived {
+		t.Errorf("Time.Archived (%d) should match TimeArchived (%d)", got.Time.Archived, got.TimeArchived)
+	}
+}

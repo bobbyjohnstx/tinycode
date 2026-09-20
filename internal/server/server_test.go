@@ -961,6 +961,109 @@ func TestSessionCreate_DirectoryFromHeader(t *testing.T) {
 	}
 }
 
+func TestPermissionList_ReturnsRawArray(t *testing.T) {
+	srv, _ := testServer(t)
+
+	// Add a permission so the list is non-empty.
+	srv.permissionStore.Add(PendingPermission{
+		ID:        "perm_1",
+		SessionID: "ses_1",
+		Tool:      "bash",
+	})
+
+	req := httptest.NewRequest("GET", "/permission", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// The response must decode as a JSON array, not {"permissions": [...]}.
+	var arr []map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&arr); err != nil {
+		t.Fatalf("expected JSON array, decode error: %v", err)
+	}
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 permission, got %d", len(arr))
+	}
+	if arr[0]["id"] != "perm_1" {
+		t.Errorf("expected id perm_1, got %v", arr[0]["id"])
+	}
+}
+
+func TestPermissionList_EmptyReturnsEmptyArray(t *testing.T) {
+	srv, _ := testServer(t)
+
+	req := httptest.NewRequest("GET", "/permission", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// Must be [] not null.
+	body := strings.TrimSpace(w.Body.String())
+	if body != "[]" {
+		t.Errorf("expected empty JSON array '[]', got %q", body)
+	}
+}
+
+func TestFileRead_TextType(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "hello.go"), []byte("package main\n"), 0644)
+
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	srv := New(Config{Directory: dir}, Dependencies{Bus: b, DB: db, Registry: reg})
+
+	req := httptest.NewRequest("GET", "/file/content?path="+filepath.Join(dir, "hello.go"), nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+	if result["type"] != "text" {
+		t.Errorf("expected type 'text', got %v", result["type"])
+	}
+	if result["path"] == nil {
+		t.Error("expected path field")
+	}
+}
+
+func TestFileRead_BinaryType(t *testing.T) {
+	dir := t.TempDir()
+	// Write invalid UTF-8 bytes to simulate a binary file.
+	os.WriteFile(filepath.Join(dir, "data.bin"), []byte{0x00, 0xFF, 0xFE, 0x80}, 0644)
+
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	srv := New(Config{Directory: dir}, Dependencies{Bus: b, DB: db, Registry: reg})
+
+	req := httptest.NewRequest("GET", "/file/content?path="+filepath.Join(dir, "data.bin"), nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+	if result["type"] != "binary" {
+		t.Errorf("expected type 'binary', got %v", result["type"])
+	}
+}
+
 func TestPermissionReply_SDKFieldNames(t *testing.T) {
 	srv, b := testServer(t)
 
