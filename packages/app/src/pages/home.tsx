@@ -130,14 +130,14 @@ function HomeDesign() {
   }
 
   function openNewSession() {
-    const project = selectedProject()
-    if (!project) {
+    const dir = state.project ?? selectedProject()?.worktree
+    if (!dir) {
       void chooseProject()
       return
     }
-    layout.projects.open(project.worktree)
-    server.projects.touch(project.worktree)
-    navigate(`/${base64Encode(project.worktree)}/session`)
+    layout.projects.open(dir)
+    server.projects.touch(dir)
+    navigate(`/${base64Encode(dir)}/session`)
   }
 
   function openProjectNewSession(directory: string) {
@@ -254,7 +254,14 @@ function HomeDesign() {
                       title={language.t("home.sessions.empty")}
                       description={language.t("home.sessions.empty.description")}
                       action={language.t("command.session.new")}
-                      onAction={openNewSession}
+                      onAction={() => {
+                        const dir = state.project
+                        if (dir) {
+                          openProjectNewSession(dir)
+                        } else {
+                          openNewSession()
+                        }
+                      }}
                     />
                   }
                 >
