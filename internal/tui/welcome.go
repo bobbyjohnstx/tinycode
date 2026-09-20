@@ -215,7 +215,15 @@ func (w WelcomeView) View(width, height int, providerName, modelName string, ses
 		lines = append(lines, "   "+tipLine)
 	}
 
-	content := strings.Join(lines, "\n")
+	blockWidth := maxLen
+	for _, l := range lines {
+		if w := lipgloss.Width(l); w > blockWidth {
+			blockWidth = w
+		}
+	}
+	content := lipgloss.NewStyle().
+		Width(blockWidth).
+		Render(strings.Join(lines, "\n"))
 
 	return lipgloss.Place(width, height,
 		lipgloss.Center, lipgloss.Center,
