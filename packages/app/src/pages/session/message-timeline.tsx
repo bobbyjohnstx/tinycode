@@ -1424,6 +1424,13 @@ export function MessageTimeline(props: {
                     </Show>
                   </Show>
                 </div>
+                <Show when={getFilename(sdk.directory)}>
+                  {(name) => (
+                    <span class="shrink-0 text-12-regular text-text-weak truncate max-w-[120px]" title={sdk.directory}>
+                      {name()}
+                    </span>
+                  )}
+                </Show>
               </div>
               <Show when={sessionID()} keyed>
                 {(id) => (

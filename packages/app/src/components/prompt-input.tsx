@@ -584,6 +584,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const agentList = createMemo(() =>
     sync.data.agent
       .filter((agent) => !agent.hidden && agent.mode !== "primary")
+      .sort((a, b) => a.name.localeCompare(b.name))
       .map((agent): AtOption => ({ type: "agent", name: agent.name, display: agent.description ?? agent.name })),
   )
   const agentNames = createMemo(() => local.agent.list().map((agent) => agent.name))
@@ -939,8 +940,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       const atMatch = rawText.substring(0, cursorPosition).match(/@(\S*)$/)
       const slashMatch = rawText.match(/^\/(\S*)$/)
       const askMatch = rawText.match(/^\/ask\s+(\S*)$/)
+      const askFullMatch = rawText.match(/^\/ask\s+(\S+)\s+(.+)$/s)
 
-      if (askMatch) {
+      if (askMatch && !askFullMatch) {
         askOnInput(askMatch[1])
         setStore("popover", "ask")
       } else if (atMatch) {

@@ -130,7 +130,7 @@ function HomeDesign() {
   }
 
   function openNewSession() {
-    const dir = state.project ?? selectedProject()?.worktree
+    const dir = state.project ?? selectedProject()?.worktree ?? projects()[0]?.worktree
     if (!dir) {
       void chooseProject()
       return

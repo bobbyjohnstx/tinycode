@@ -290,7 +290,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     event.preventDefault()
 
     const currentPrompt = prompt.current()
-    const text = currentPrompt.map((part) => ("content" in part ? part.content : "")).join("")
+    let text = currentPrompt.map((part) => ("content" in part ? part.content : "")).join("")
     const images = input.imageAttachments().slice()
     const mode = input.mode()
 
@@ -450,6 +450,18 @@ export function createPromptSubmit(input: PromptSubmitInput) {
           restoreInput()
         })
       return
+    }
+
+    const askMatch = text.match(/^\/ask\s+(\S+)\s+([\s\S]+)$/)
+    if (askMatch) {
+      const [, askAgent, askPrompt] = askMatch
+      const agentInfo = sync.data.agent.find((a) => a.name === askAgent)
+      if (agentInfo) {
+        local.agent.set(agentInfo.name)
+        draft.agent = agentInfo.name
+        draft.prompt = [{ type: "text", content: askPrompt, start: 0, end: askPrompt.length }]
+        text = askPrompt
+      }
     }
 
     if (text.startsWith("/")) {
