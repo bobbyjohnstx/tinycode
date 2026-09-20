@@ -79,7 +79,7 @@ func (sm *SessionManager) subscribeRevert() {
 				slog.Error("revert failed", "sessionID", sessionID, "error", err)
 				sm.bus.Publish("session.error", map[string]any{
 					"sessionID": sessionID,
-					"error":     "revert failed: " + err.Error(),
+					"error":     sessionErrorPayload("UnknownError", "revert failed: "+err.Error()),
 				})
 				continue
 			}
@@ -108,7 +108,7 @@ func (sm *SessionManager) subscribeUnrevert() {
 				slog.Error("unrevert failed", "sessionID", sessionID, "error", err)
 				sm.bus.Publish("session.error", map[string]any{
 					"sessionID": sessionID,
-					"error":     "unrevert failed: " + err.Error(),
+					"error":     sessionErrorPayload("UnknownError", "unrevert failed: "+err.Error()),
 				})
 				continue
 			}

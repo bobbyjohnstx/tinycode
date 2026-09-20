@@ -277,7 +277,9 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
         })
         const description =
           session?.title ??
-          (typeof error === "string" ? error : language.t("notification.session.error.fallbackDescription"))
+          (typeof error === "string"
+            ? error
+            : (error as any)?.data?.message ?? (error as any)?.message ?? language.t("notification.session.error.fallbackDescription"))
         const href = sessionID ? `/${base64Encode(directory)}/session/${sessionID}` : `/${base64Encode(directory)}`
         if (settings.notifications.errors()) {
           void platform.notify(language.t("notification.session.error.title"), description, href)

@@ -235,7 +235,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		slog.Error("processor error", "error", result.Error, "sessionID", sessionID)
 		sm.bus.Publish("session.error", map[string]any{
 			"sessionID": sessionID,
-			"error":     result.Error.Error(),
+			"error":     sessionErrorPayload("UnknownError", result.Error.Error()),
 		})
 	}
 }

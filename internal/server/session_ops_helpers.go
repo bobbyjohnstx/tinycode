@@ -9,6 +9,17 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 )
 
+// sessionErrorPayload builds a structured error object matching the SDK contract:
+// { "name": "ErrorType", "data": { "message": "..." } }.
+func sessionErrorPayload(name, message string) map[string]any {
+	return map[string]any{
+		"name": name,
+		"data": map[string]any{
+			"message": message,
+		},
+	}
+}
+
 // resolvePromptModel looks up the model from the registry. Returns (nil, error)
 // if the model is not found or not specified.
 func (sm *SessionManager) resolvePromptModel(sessionID string, input PromptInput) (*provider.Model, error) {
@@ -18,7 +29,7 @@ func (sm *SessionManager) resolvePromptModel(sessionID string, input PromptInput
 			slog.Error("model not found", "provider", input.Model.ProviderID, "model", input.Model.ModelID, "error", err)
 			sm.bus.Publish("session.error", map[string]any{
 				"sessionID": sessionID,
-				"error":     fmt.Sprintf("model %s/%s not found: %v", input.Model.ProviderID, input.Model.ModelID, err),
+				"error":     sessionErrorPayload("ProviderAuthError", fmt.Sprintf("model %s/%s not found: %v", input.Model.ProviderID, input.Model.ModelID, err)),
 			})
 			return nil, err
 		}
@@ -28,7 +39,7 @@ func (sm *SessionManager) resolvePromptModel(sessionID string, input PromptInput
 	slog.Error(errMsg, "sessionID", sessionID)
 	sm.bus.Publish("session.error", map[string]any{
 		"sessionID": sessionID,
-		"error":     errMsg,
+		"error":     sessionErrorPayload("ProviderAuthError", errMsg),
 	})
 	return nil, fmt.Errorf("%s", errMsg)
 }

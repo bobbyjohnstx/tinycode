@@ -72,9 +72,20 @@ func TestResolvePromptModel_PublishesErrorWhenModelNotFound(t *testing.T) {
 		if props["sessionID"] != "ses_resolve_2" {
 			t.Errorf("expected sessionID 'ses_resolve_2', got %v", props["sessionID"])
 		}
-		errMsg, _ := props["error"].(string)
-		if errMsg == "" {
-			t.Error("expected non-empty error message")
+		errObj, ok := props["error"].(map[string]any)
+		if !ok {
+			t.Fatal("expected error to be a structured object")
+		}
+		if errObj["name"] != "ProviderAuthError" {
+			t.Errorf("expected error name 'ProviderAuthError', got %v", errObj["name"])
+		}
+		data, ok := errObj["data"].(map[string]any)
+		if !ok {
+			t.Fatal("expected error.data to be a map")
+		}
+		msg, _ := data["message"].(string)
+		if msg == "" {
+			t.Error("expected non-empty error.data.message")
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for session.error event")
@@ -107,9 +118,20 @@ func TestResolvePromptModel_PublishesErrorWhenNoModelSpecified(t *testing.T) {
 	select {
 	case evt := <-sub.C:
 		props := evt.Properties.(map[string]any)
-		errMsg, _ := props["error"].(string)
-		if errMsg == "" {
-			t.Error("expected non-empty error message about no model specified")
+		errObj, ok := props["error"].(map[string]any)
+		if !ok {
+			t.Fatal("expected error to be a structured object")
+		}
+		if errObj["name"] != "ProviderAuthError" {
+			t.Errorf("expected error name 'ProviderAuthError', got %v", errObj["name"])
+		}
+		data, ok := errObj["data"].(map[string]any)
+		if !ok {
+			t.Fatal("expected error.data to be a map")
+		}
+		msg, _ := data["message"].(string)
+		if msg == "" {
+			t.Error("expected non-empty error.data.message about no model specified")
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for session.error event")
@@ -301,4 +323,92 @@ func TestPersistPromptResult_NoopWhenNoNewMessages(t *testing.T) {
 
 	// Should not persist anything (no new messages).
 	sm.persistPromptResult(result, existing, ms, "ses_persist_2")
+}
+
+// assertStructuredError validates that a session.error event's "error" field
+// matches the SDK contract: { "name": string, "data": { "message": string } }.
+func assertStructuredError(t *testing.T, props map[string]any, wantName string) {
+	t.Helper()
+	errObj, ok := props["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error to be a structured object, got %T", props["error"])
+	}
+	name, _ := errObj["name"].(string)
+	if name != wantName {
+		t.Errorf("expected error.name %q, got %q", wantName, name)
+	}
+	data, ok := errObj["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected error.data to be a map, got %T", errObj["data"])
+	}
+	msg, _ := data["message"].(string)
+	if msg == "" {
+		t.Error("expected non-empty error.data.message")
+	}
+}
+
+func TestSessionErrorPayload_ContractShape(t *testing.T) {
+	payload := sessionErrorPayload("ProviderAuthError", "model not found")
+	name, _ := payload["name"].(string)
+	if name != "ProviderAuthError" {
+		t.Errorf("expected name 'ProviderAuthError', got %q", name)
+	}
+	data, ok := payload["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected data to be map[string]any, got %T", payload["data"])
+	}
+	msg, _ := data["message"].(string)
+	if msg != "model not found" {
+		t.Errorf("expected message 'model not found', got %q", msg)
+	}
+}
+
+func TestSessionError_ModelNotFound_HasProviderAuthError(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+
+	sub := b.Subscribe("session.error")
+	defer sub.Unsubscribe()
+
+	input := PromptInput{
+		SessionID: "ses_contract_1",
+		Model:     &promptModel{ProviderID: "missing", ModelID: "no-model"},
+	}
+	sm.resolvePromptModel("ses_contract_1", input)
+
+	select {
+	case evt := <-sub.C:
+		props := evt.Properties.(map[string]any)
+		assertStructuredError(t, props, "ProviderAuthError")
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for session.error event")
+	}
+}
+
+func TestSessionError_NoModelSpecified_HasProviderAuthError(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+
+	sub := b.Subscribe("session.error")
+	defer sub.Unsubscribe()
+
+	input := PromptInput{
+		SessionID: "ses_contract_2",
+		Model:     nil,
+	}
+	sm.resolvePromptModel("ses_contract_2", input)
+
+	select {
+	case evt := <-sub.C:
+		props := evt.Properties.(map[string]any)
+		assertStructuredError(t, props, "ProviderAuthError")
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for session.error event")
+	}
 }
