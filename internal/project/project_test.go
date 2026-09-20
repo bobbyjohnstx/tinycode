@@ -147,6 +147,89 @@ func TestInfo_JSONRoundTrip(t *testing.T) {
 	}
 }
 
+func TestInfo_JSONSandboxesIsArray(t *testing.T) {
+	info := &Info{
+		ID:        "prj_abc123",
+		Worktree:  "/tmp/test",
+		Sandboxes: []string{},
+		Time: Time{
+			Created: 1000,
+			Updated: 1000,
+		},
+	}
+
+	data, err := json.Marshal(info)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	sandboxes, ok := raw["sandboxes"]
+	if !ok {
+		t.Fatal("expected 'sandboxes' key in JSON output")
+	}
+	arr, ok := sandboxes.([]any)
+	if !ok {
+		t.Fatalf("expected sandboxes to be an array, got %T", sandboxes)
+	}
+	if len(arr) != 0 {
+		t.Errorf("expected empty array, got %v", arr)
+	}
+}
+
+func TestInfo_JSONSandboxesNotNull(t *testing.T) {
+	info := FromDirectory(t.TempDir())
+
+	data, err := json.Marshal(info)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	s := string(data)
+	if strings.Contains(s, `"sandboxes":null`) {
+		t.Error("sandboxes should not be null, expected empty array")
+	}
+}
+
+func TestTime_JSONUpdatedField(t *testing.T) {
+	tm := Time{
+		Created:     1000,
+		Updated:     2000,
+		Initialized: 3000,
+	}
+
+	data, err := json.Marshal(tm)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if raw["updated"] != float64(2000) {
+		t.Errorf("expected updated=2000, got %v", raw["updated"])
+	}
+}
+
+func TestFromDirectory_SetsUpdatedTime(t *testing.T) {
+	before := time.Now().UnixMilli()
+	info := FromDirectory(t.TempDir())
+	after := time.Now().UnixMilli()
+
+	if info.Time.Updated < before || info.Time.Updated > after {
+		t.Errorf("Updated %d not in range [%d, %d]", info.Time.Updated, before, after)
+	}
+	if info.Time.Updated != info.Time.Created {
+		t.Errorf("Updated (%d) should equal Created (%d) on new project", info.Time.Updated, info.Time.Created)
+	}
+}
+
 func setupGitRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

@@ -11,15 +11,17 @@ import (
 )
 
 type Info struct {
-	ID       string `json:"id"`
-	Worktree string `json:"worktree"`
-	VCSDir   string `json:"vcsDir,omitempty"`
-	VCS      string `json:"vcs,omitempty"`
-	Time     Time   `json:"time"`
+	ID        string   `json:"id"`
+	Worktree  string   `json:"worktree"`
+	VCSDir    string   `json:"vcsDir,omitempty"`
+	VCS       string   `json:"vcs,omitempty"`
+	Sandboxes []string `json:"sandboxes"`
+	Time      Time     `json:"time"`
 }
 
 type Time struct {
 	Created     int64 `json:"created"`
+	Updated     int64 `json:"updated"`
 	Initialized int64 `json:"initialized,omitempty"`
 }
 
@@ -40,10 +42,12 @@ func FromDirectory(dir string) *Info {
 
 	now := time.Now().UnixMilli()
 	p := &Info{
-		ID:       IDFromDirectory(abs),
-		Worktree: abs,
+		ID:        IDFromDirectory(abs),
+		Worktree:  abs,
+		Sandboxes: []string{},
 		Time: Time{
 			Created:     now,
+			Updated:     now,
 			Initialized: now,
 		},
 	}

@@ -13,7 +13,7 @@ type Model struct {
 	Limit      ModelLimit   `json:"limit"`
 	Capabilities ModelCaps  `json:"capabilities"`
 	ReleaseDate  string     `json:"release_date,omitempty"`
-	Variants     map[string]string `json:"variants,omitempty"`
+	Variants     map[string]map[string]any `json:"variants,omitempty"`
 }
 
 type ModelAPI struct {

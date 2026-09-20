@@ -65,11 +65,18 @@ func (m *ModelRef) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type Summary struct {
+type SnapshotDiff struct {
+	File      string `json:"file,omitempty"`
 	Additions int    `json:"additions"`
 	Deletions int    `json:"deletions"`
-	Files     int    `json:"files"`
-	Diffs     string `json:"diffs,omitempty"`
+	Status    string `json:"status,omitempty"`
+}
+
+type Summary struct {
+	Additions int            `json:"additions"`
+	Deletions int            `json:"deletions"`
+	Files     int            `json:"files"`
+	Diffs     []SnapshotDiff `json:"diffs"`
 }
 
 type TokenUsage struct {
@@ -256,11 +263,16 @@ func (s *Store) UpdateCost(sessionID string, cost float64, tokens TokenUsage) er
 }
 
 func (s *Store) UpdateSummary(sessionID string, summary Summary) error {
+	var diffsJSON string
+	if len(summary.Diffs) > 0 {
+		data, _ := json.Marshal(summary.Diffs)
+		diffsJSON = string(data)
+	}
 	_, err := s.db.Exec(
 		`UPDATE session SET summary_additions = ?, summary_deletions = ?, summary_files = ?,
 		 summary_diffs = ?, time_updated = ? WHERE id = ?`,
 		summary.Additions, summary.Deletions, summary.Files,
-		summary.Diffs, time.Now().UnixMilli(), sessionID,
+		diffsJSON, time.Now().UnixMilli(), sessionID,
 	)
 	return err
 }
@@ -344,9 +356,10 @@ func populateInfo(info *Info, parentID, agent, modelJSON sql.NullString, summary
 			Additions: int(summaryAdd.Int64),
 			Deletions: int(summaryDel.Int64),
 			Files:     int(summaryFiles.Int64),
+			Diffs:     []SnapshotDiff{},
 		}
-		if summaryDiffs.Valid {
-			info.Summary.Diffs = summaryDiffs.String
+		if summaryDiffs.Valid && summaryDiffs.String != "" {
+			_ = json.Unmarshal([]byte(summaryDiffs.String), &info.Summary.Diffs)
 		}
 	}
 	info.CreatedAt = time.UnixMilli(createdMs)

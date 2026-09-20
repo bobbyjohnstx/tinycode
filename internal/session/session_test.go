@@ -234,6 +234,91 @@ func TestStore_UpdateSummary(t *testing.T) {
 	}
 }
 
+func TestSnapshotDiff_JSONSerialization(t *testing.T) {
+	diffs := []SnapshotDiff{
+		{File: "main.go", Additions: 10, Deletions: 2, Status: "modified"},
+		{File: "new.go", Additions: 5, Deletions: 0, Status: "added"},
+	}
+
+	data, err := json.Marshal(diffs)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var decoded []SnapshotDiff
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(decoded) != 2 {
+		t.Fatalf("expected 2 diffs, got %d", len(decoded))
+	}
+	if decoded[0].File != "main.go" {
+		t.Errorf("expected file main.go, got %q", decoded[0].File)
+	}
+	if decoded[0].Additions != 10 || decoded[0].Deletions != 2 {
+		t.Errorf("unexpected additions/deletions: %+v", decoded[0])
+	}
+	if decoded[1].Status != "added" {
+		t.Errorf("expected status added, got %q", decoded[1].Status)
+	}
+}
+
+func TestStore_UpdateSummaryWithDiffs(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+
+	info, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp"})
+
+	diffs := []SnapshotDiff{
+		{File: "a.go", Additions: 3, Deletions: 1, Status: "modified"},
+	}
+	store.UpdateSummary(info.ID, Summary{
+		Additions: 3,
+		Deletions: 1,
+		Files:     1,
+		Diffs:     diffs,
+	})
+
+	got, err := store.Get(info.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Summary == nil {
+		t.Fatal("expected summary")
+	}
+	if len(got.Summary.Diffs) != 1 {
+		t.Fatalf("expected 1 diff, got %d", len(got.Summary.Diffs))
+	}
+	if got.Summary.Diffs[0].File != "a.go" {
+		t.Errorf("expected file a.go, got %q", got.Summary.Diffs[0].File)
+	}
+	if got.Summary.Diffs[0].Additions != 3 {
+		t.Errorf("expected 3 additions, got %d", got.Summary.Diffs[0].Additions)
+	}
+}
+
+func TestSummary_DiffsSerializesAsArray(t *testing.T) {
+	s := Summary{Additions: 1, Deletions: 0, Files: 1, Diffs: []SnapshotDiff{}}
+	data, err := json.Marshal(s)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var raw map[string]any
+	json.Unmarshal(data, &raw)
+	if _, ok := raw["diffs"]; !ok {
+		t.Fatal("expected diffs key")
+	}
+	arr, ok := raw["diffs"].([]any)
+	if !ok {
+		t.Fatalf("expected diffs to be array, got %T", raw["diffs"])
+	}
+	if len(arr) != 0 {
+		t.Errorf("expected empty array, got %v", arr)
+	}
+}
+
 func TestStore_Archive(t *testing.T) {
 	db := testDB(t)
 	store := NewStore(db)

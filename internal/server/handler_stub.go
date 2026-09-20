@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -218,6 +219,7 @@ func parseDiffStats(diff string) (files []string, additions, deletions int) {
 }
 
 func (s *Server) handleMessageDelete(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("sessionID")
 	messageID := r.PathValue("messageID")
 
 	ms := s.messageStore()
@@ -228,6 +230,11 @@ func (s *Server) handleMessageDelete(w http.ResponseWriter, r *http.Request) {
 
 	ps := s.partStore()
 	_ = ps.DeleteByMessage(messageID)
+
+	s.deps.Bus.Publish("message.removed", map[string]any{
+		"sessionID": sessionID,
+		"messageID": messageID,
+	})
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -472,7 +479,7 @@ func (s *Server) handleFileFind(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.deps.DB.Query(
-		`SELECT id, worktree, vcs, time_created, time_initialized FROM project ORDER BY time_created`,
+		`SELECT id, worktree, vcs, time_created, time_updated, time_initialized, sandboxes FROM project ORDER BY time_created`,
 	)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
@@ -483,9 +490,9 @@ func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
 	var projects []*project.Info
 	for rows.Next() {
 		var p project.Info
-		var vcsVal sql.NullString
+		var vcsVal, sandboxesJSON sql.NullString
 		var timeInit sql.NullInt64
-		if err := rows.Scan(&p.ID, &p.Worktree, &vcsVal, &p.Time.Created, &timeInit); err != nil {
+		if err := rows.Scan(&p.ID, &p.Worktree, &vcsVal, &p.Time.Created, &p.Time.Updated, &timeInit, &sandboxesJSON); err != nil {
 			continue
 		}
 		if vcsVal.Valid {
@@ -493,6 +500,10 @@ func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
 		}
 		if timeInit.Valid {
 			p.Time.Initialized = timeInit.Int64
+		}
+		p.Sandboxes = []string{}
+		if sandboxesJSON.Valid && sandboxesJSON.String != "" {
+			_ = json.Unmarshal([]byte(sandboxesJSON.String), &p.Sandboxes)
 		}
 		projects = append(projects, &p)
 	}
