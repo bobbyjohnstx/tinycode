@@ -271,6 +271,9 @@ func (c *ChatView) upsertPart(msg MessagePartUpdatedMsg) {
 		}
 		for j := range c.messages[i].Parts {
 			if c.messages[i].Parts[j].ID == msg.Part.ID {
+				// Preserve UI-only state that lives outside the server data model.
+				msg.Part.ThoughtExpanded = c.messages[i].Parts[j].ThoughtExpanded
+				msg.Part.Collapsed = c.messages[i].Parts[j].Collapsed
 				c.messages[i].Parts[j] = msg.Part
 				return
 			}

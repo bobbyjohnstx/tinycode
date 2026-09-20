@@ -53,9 +53,13 @@ func (p *Processor) logLLMResponse(assistantMsg *Message, toolCalls []Part, usag
 }
 
 // addUserMessage creates a user message, appends it to the conversation, and
-// publishes it on the bus.
-func (p *Processor) addUserMessage(userMessage string) {
-	userMsgID, _ := id.Ascending("message")
+// publishes it on the bus. If messageID is non-empty it is used as the message
+// ID so that the client's optimistic message merges correctly.
+func (p *Processor) addUserMessage(userMessage string, messageID string) {
+	userMsgID := messageID
+	if userMsgID == "" {
+		userMsgID, _ = id.Ascending("message")
+	}
 	userMsg := Message{
 		ID:        userMsgID,
 		SessionID: p.config.SessionID,

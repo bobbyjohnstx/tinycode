@@ -694,7 +694,7 @@ func buildOpenRouterModel(entry openRouterModel) *Model {
 		Family:     family,
 		API: ModelAPI{
 			ID:  entry.ID,
-			URL: "https://openrouter.ai/api/v1",
+			URL: "https://openrouter.ai/api",
 		},
 		Status:  "active",
 		Headers: make(map[string]string),

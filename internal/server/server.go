@@ -110,6 +110,19 @@ func New(cfg Config, deps Dependencies) *Server {
 				authedAPI.ServeHTTP(w, r)
 				return
 			}
+			// Set auth cookie on initial page load with ?auth_token= so the
+			// SPA's API calls are authenticated even after page reloads.
+			if qt := r.URL.Query().Get("auth_token"); qt != "" && cfg.Token != "" {
+				if middleware.MatchesToken("Basic "+qt, cfg.Token) {
+					http.SetCookie(w, &http.Cookie{
+						Name:     "tinycode_auth",
+						Value:    qt,
+						Path:     "/",
+						HttpOnly: false,
+						SameSite: http.SameSiteStrictMode,
+					})
+				}
+			}
 			staticFS.ServeHTTP(w, r)
 		})
 	} else {

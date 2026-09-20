@@ -221,6 +221,43 @@ func (r *Registry) List() []string {
 	return names
 }
 
+// WithDirectory returns a shallow copy of the Registry whose tool context uses
+// the given directory instead of the original. The copy shares Def pointers
+// and is safe for concurrent reads.
+func (r *Registry) WithDirectory(dir string) *Registry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	newCtx := &Context{
+		SessionID:     r.ctx.SessionID,
+		Directory:     dir,
+		Perms:         r.ctx.Perms,
+		Bus:           r.ctx.Bus,
+		JobManager:    r.ctx.JobManager,
+		SubagentDepth: r.ctx.SubagentDepth,
+		DB:            r.ctx.DB,
+		AfterHook:     r.ctx.AfterHook,
+	}
+
+	tools := make(map[string]*Def, len(r.tools))
+	for k, v := range r.tools {
+		tools[k] = v
+	}
+	order := make([]string, len(r.order))
+	copy(order, r.order)
+	disabled := make(map[string]bool, len(r.disabled))
+	for k, v := range r.disabled {
+		disabled[k] = v
+	}
+
+	return &Registry{
+		tools:    tools,
+		order:    order,
+		disabled: disabled,
+		ctx:      newCtx,
+	}
+}
+
 // Snapshot returns a shallow copy of the Registry with independent maps and
 // slices. The copy shares *Def pointers but mutations to the copy's
 // maps/slices do not affect the original, making it safe for concurrent use.

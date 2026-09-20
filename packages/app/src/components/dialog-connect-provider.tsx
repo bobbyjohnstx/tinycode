@@ -323,6 +323,11 @@ export function DialogConnectProvider(props: { provider: string }) {
   createEffect(() => {
     if (auto) return
     if (loading()) return
+    if (methods().length === 0) {
+      auto = true
+      void complete()
+      return
+    }
     if (methods().length === 1) {
       auto = true
       void selectMethod(0)

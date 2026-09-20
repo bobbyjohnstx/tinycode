@@ -32,14 +32,15 @@ function importMetaGlobPlugin() {
         if (!src.includes("import.meta.glob")) return undefined
 
         const replaced = src.replace(
-          /import\.meta\.glob(?:<[^>]*>)?\(["']([^"']+)["']\)/g,
-          (_match, pattern) => {
+          /import\.meta\.glob(?:<[^>]*>)?\(["']([^"']+)["'](?:\s*,\s*(\{[^}]*\}))?\)/g,
+          (_match, pattern, optsStr) => {
             const dir = dirname(args.path)
             const starIdx = pattern.indexOf("*")
             const prefix = pattern.substring(0, starIdx)
             const suffix = pattern.substring(starIdx + 1)
             const searchDir = resolve(dir, prefix)
             if (!existsSync(searchDir)) return "{}"
+            const extractDefault = optsStr && /import\s*:\s*["']default["']/.test(optsStr)
             const entries = readdirSync(searchDir)
               .filter((f) => f.endsWith(suffix))
               .sort()
@@ -47,7 +48,10 @@ function importMetaGlobPlugin() {
                 const key = prefix + f
                 const abs = join(searchDir, f)
                 const rel = "./" + relative(dir, abs)
-                return `${JSON.stringify(key)}: () => import(${JSON.stringify(rel)})`
+                const loader = extractDefault
+                  ? `() => import(${JSON.stringify(rel)}).then(m => m.default)`
+                  : `() => import(${JSON.stringify(rel)})`
+                return `${JSON.stringify(key)}: ${loader}`
               })
             return `{${entries.join(", ")}}`
           }

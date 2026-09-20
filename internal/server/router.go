@@ -23,6 +23,7 @@ func (s *Server) registerRoutes() {
 	// Session actions
 	s.mux.HandleFunc("POST /session/{id}/message", s.handleSessionPrompt)
 	s.mux.HandleFunc("POST /session/{sessionID}/prompt_async", s.handleSessionPromptAsync)
+	s.mux.HandleFunc("POST /session/{sessionID}/shell", s.handleSessionShell)
 	s.mux.HandleFunc("POST /session/{id}/abort", s.handleSessionAbort)
 	s.mux.HandleFunc("POST /session/{id}/fork", s.handleSessionFork)
 	s.mux.HandleFunc("POST /session/{id}/init", s.handleSessionInit)
@@ -47,6 +48,7 @@ func (s *Server) registerRoutes() {
 
 	// Provider
 	s.mux.HandleFunc("GET /provider", s.handleProviderList)
+	s.mux.HandleFunc("GET /provider/auth", s.handleProviderAuth)
 	s.mux.HandleFunc("GET /provider/{id}", s.handleProviderGet)
 	s.mux.HandleFunc("GET /provider/{id}/model", s.handleModelList)
 	s.mux.HandleFunc("GET /provider/{providerID}/model/{modelID}", s.handleModelGet)
@@ -96,6 +98,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /formatter", s.handleFormatter)
 
 	// MCP
+	s.mux.HandleFunc("GET /mcp", s.handleMCPStatus)
 	s.mux.HandleFunc("GET /mcp/status", s.handleMCPStatus)
 
 	// Plugin

@@ -81,6 +81,26 @@ func generateToken() string {
 	return hex.EncodeToString(b)
 }
 
+// loadOrCreateWebToken returns a stable auth token for web mode by reading
+// from a file in the data directory. If the file does not exist or is invalid,
+// a new token is generated and persisted. This ensures browser tabs from
+// previous server sessions remain authenticated after a server restart.
+func loadOrCreateWebToken() string {
+	tokenPath := filepath.Join(config.DataDir(), "web_token")
+	if data, err := os.ReadFile(tokenPath); err == nil {
+		token := strings.TrimSpace(string(data))
+		if len(token) == 64 {
+			return token
+		}
+	}
+	token := generateToken()
+	os.MkdirAll(config.DataDir(), 0o755)
+	if err := os.WriteFile(tokenPath, []byte(token+"\n"), 0o600); err != nil {
+		slog.Warn("failed to persist web token", "error", err)
+	}
+	return token
+}
+
 func serverConfig(cfg *config.Info, serveWebUI bool) server.Config {
 	port := 4096
 	host := "127.0.0.1"

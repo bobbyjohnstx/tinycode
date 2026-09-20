@@ -103,12 +103,16 @@ type ProcessResult struct {
 
 // Process runs the main processor loop. Helper methods are in processor_loop.go.
 func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessResult {
+	return p.ProcessWithID(ctx, userMessage, "")
+}
+
+func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID string) *ProcessResult {
 	p.mu.Lock()
 	p.aborted = false
 	p.autoContinueCount = 0
 	p.mu.Unlock()
 
-	p.addUserMessage(userMessage)
+	p.addUserMessage(userMessage, messageID)
 
 	totalUsage := TokenUsage{}
 	var consecutiveToolFailures int
