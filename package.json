@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.11",
+    "playwright": "^1.63.0"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
