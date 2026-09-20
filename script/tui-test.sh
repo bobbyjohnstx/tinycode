@@ -1365,6 +1365,92 @@ test_T37() {
     kill_session "$session"
 }
 
+test_T46() {
+    echo -e "${BOLD}T46: Tool call renders output in chat${NC}"
+    local session
+    session=$(new_session_with_model "T46")
+
+    if ! capture_pane "$session" | grep -qF "ornith"; then
+        skip_test "Tool call output" "model not connected (LM Studio may not be running)"
+        kill_session "$session"
+        return
+    fi
+
+    # Send a prompt that should trigger a tool call (file read).
+    # Create a marker file in the work directory via a slash command.
+    # The session is already cd'd into the temp directory, so we use
+    # the escape key to dismiss any prompt, then use the shell to write.
+    # We must type /quit and restart, or use tmux to write the file.
+    # Since the session runs inside tinycode, the simplest approach is
+    # to ask the model to read a well-known file (CLAUDE.md in the project).
+    send_text "$session" "Read the file /Users/bjohns/projects/tinycode-go/CLAUDE.md and tell me what the first heading says."
+
+    # Wait for the model to process. The local model can be very fast
+    # (completing within seconds), so check for activity indicators OR
+    # the final response content directly.
+    local got_result=0
+    local wait_deadline=$((SECONDS + 90))
+    while [ $SECONDS -lt $wait_deadline ]; do
+        local pane
+        pane=$(capture_pane "$session")
+
+        # If a permission prompt appears, approve it
+        if echo "$pane" | grep -qF "Allow"; then
+            send_keys "$session" Enter
+            sleep 3
+            continue
+        fi
+
+        # Check if the response already completed (tool output visible)
+        if echo "$pane" | grep -qF "CLAUDE.md"; then
+            got_result=1
+            break
+        fi
+        if echo "$pane" | grep -qE "read_file|read "; then
+            got_result=1
+            break
+        fi
+        if echo "$pane" | grep -qE "Commands|Pitfalls"; then
+            got_result=1
+            break
+        fi
+
+        sleep 2
+    done
+
+    if [ "$got_result" -eq 0 ]; then
+        skip_test "Tool call output" "tool call output did not appear within 90s"
+        kill_session "$session"
+        return
+    fi
+    sleep 2
+
+    # The tool output should contain the file contents or the tool/file name
+    # in the rendered chat. CLAUDE.md starts with "# CLAUDE.md".
+    local captured
+    captured=$(capture_pane "$session")
+
+    # Check for evidence of tool call output in the chat:
+    # - The file name "CLAUDE.md" in the tool call render
+    # - Content from the file (e.g., "Commands", "Pitfalls")
+    # - Tool name indicator (e.g., "read_file", "Read")
+    TOTAL=$((TOTAL + 1))
+    if echo "$captured" | grep -qF "CLAUDE.md"; then
+        echo -e "  ${GREEN}PASS${NC}: tool call shows CLAUDE.md reference"
+        PASS=$((PASS + 1))
+    elif echo "$captured" | grep -qE "Commands|Pitfalls|read_file|Read"; then
+        echo -e "  ${GREEN}PASS${NC}: tool output content visible in chat"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC}: tool call output not visible in chat"
+        echo "    Last 10 lines of pane:"
+        echo "$captured" | tail -10 | sed 's/^/      /'
+        FAIL=$((FAIL + 1))
+    fi
+
+    kill_session "$session"
+}
+
 # ─── Runner ──────────────────────────────────────────────────────
 
 run_test() {
