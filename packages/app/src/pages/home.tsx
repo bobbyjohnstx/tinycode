@@ -72,7 +72,11 @@ function HomeDesign() {
   const [state, setState] = createStore({ search: "", project: undefined as string | undefined })
 
   const projects = createMemo(() => layout.projects.list())
-  const selectedProject = createMemo(() => projects().find((project) => project.worktree === state.project))
+  const selectedProject = createMemo(() => {
+    if (!state.project) return undefined
+    const key = pathKey(state.project)
+    return projects().find((project) => pathKey(project.worktree) === key)
+  })
   const directories = (project: LocalProject) => [project.worktree, ...(project.sandboxes ?? [])]
   const projectDirectories = createMemo(() => {
     const project = selectedProject()
@@ -119,31 +123,35 @@ function HomeDesign() {
   const groups = createMemo(() => groupSessions(records(), language))
 
   function selectProject(directory: string) {
-    if (!projects().some((project) => project.worktree === directory)) return
-    setState("project", directory)
+    const key = pathKey(directory)
+    if (!projects().some((project) => pathKey(project.worktree) === key)) return
+    setState("project", key)
   }
 
   function addProject(directory: string) {
-    layout.projects.open(directory)
-    server.projects.touch(directory)
-    setState("project", directory)
+    const dir = pathKey(directory)
+    layout.projects.open(dir)
+    server.projects.touch(dir)
+    setState("project", dir)
   }
 
   function openNewSession() {
-    const dir = state.project ?? selectedProject()?.worktree ?? projects()[0]?.worktree
-    if (!dir) {
+    const raw = state.project ?? selectedProject()?.worktree ?? projects()[0]?.worktree
+    if (!raw) {
       void chooseProject()
       return
     }
+    const dir = pathKey(raw)
     layout.projects.open(dir)
     server.projects.touch(dir)
     navigate(`/${base64Encode(dir)}/session`)
   }
 
   function openProjectNewSession(directory: string) {
-    layout.projects.open(directory)
-    server.projects.touch(directory)
-    navigate(`/${base64Encode(directory)}/session`)
+    const dir = pathKey(directory)
+    layout.projects.open(dir)
+    server.projects.touch(dir)
+    navigate(`/${base64Encode(dir)}/session`)
   }
 
   const showEditProjectDialog = (project: LocalProject) => {
@@ -208,7 +216,7 @@ function HomeDesign() {
         editProject={showEditProjectDialog}
         closeProject={(directory) => {
           layout.projects.close(directory)
-          if (state.project === directory) setState("project", undefined)
+          if (state.project && pathKey(state.project) === pathKey(directory)) setState("project", undefined)
         }}
         clearNotifications={clearNotifications}
         unseenCount={unseenCount}
