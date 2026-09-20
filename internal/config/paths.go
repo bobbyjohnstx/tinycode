@@ -3,16 +3,15 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 )
 
 func ConfigDir() string {
 	return configDirs()[0]
 }
 
-// configDirs returns config directories in priority order. On macOS, both the
-// Application Support path and ~/.config/tinycode are checked so that config
-// files from the TS tinycode (which uses ~/.config) are found automatically.
+// configDirs returns config directories in priority order.
+// TINYCODE_CONFIG_DIR takes precedence, then XDG_CONFIG_HOME,
+// then the default ~/.config/tinycode.
 func configDirs() []string {
 	if v := os.Getenv("TINYCODE_CONFIG_DIR"); v != "" {
 		return []string{v}
@@ -21,15 +20,12 @@ func configDirs() []string {
 		return []string{filepath.Join(v, "tinycode")}
 	}
 	home, _ := os.UserHomeDir()
-	if runtime.GOOS == "darwin" {
-		return []string{
-			filepath.Join(home, "Library", "Application Support", "tinycode"),
-			filepath.Join(home, ".config", "tinycode"),
-		}
-	}
 	return []string{filepath.Join(home, ".config", "tinycode")}
 }
 
+// DataDir returns the data directory for tinycode.
+// TINYCODE_DATA_DIR takes precedence, then XDG_DATA_HOME,
+// then the default ~/.local/share/tinycode.
 func DataDir() string {
 	if v := os.Getenv("TINYCODE_DATA_DIR"); v != "" {
 		return v
@@ -38,9 +34,6 @@ func DataDir() string {
 		return filepath.Join(v, "tinycode")
 	}
 	home, _ := os.UserHomeDir()
-	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, "Library", "Application Support", "tinycode")
-	}
 	return filepath.Join(home, ".local", "share", "tinycode")
 }
 
