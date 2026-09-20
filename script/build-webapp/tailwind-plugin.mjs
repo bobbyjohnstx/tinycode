@@ -1,13 +1,13 @@
-import { readFileSync } from "node:fs"
+import { readFileSync, existsSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { createRequire } from "node:module"
 
-const DEPS = resolve(dirname(new URL(import.meta.url).pathname), "../build-deps/node_modules")
+const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "../..")
+const VENDORED = join(ROOT, "script/build-deps/node_modules")
+const DEPS = existsSync(VENDORED) ? VENDORED : join(ROOT, "node_modules")
 const require = createRequire(join(DEPS, "_"))
 const postcss = require("postcss")
 const tailwindcss = require("@tailwindcss/postcss")
-
-const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "../..")
 
 const WORKSPACE_CSS = {
   "@tinycode/ui/styles/tailwind": join(ROOT, "packages/ui/src/styles/tailwind/index.css"),

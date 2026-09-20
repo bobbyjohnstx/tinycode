@@ -21,7 +21,7 @@ PLATFORMS := \
 PLUGIN_DIRS := $(wildcard cmd/plugin-*)
 PLUGIN_NAMES := $(notdir $(PLUGIN_DIRS))
 
-.PHONY: build build-all build-plugins build-full clean test vet lint check embed-webapp package image image-full
+.PHONY: build build-all build-plugins build-full clean test vet lint check build-webapp embed-webapp package image image-full
 
 ## build: Build tinycode for the current platform
 build:
@@ -112,6 +112,10 @@ lint: vet
 
 ## check: Run vet + tests
 check: vet test
+
+## build-webapp: Build SolidJS web app with esbuild (output in packages/app/dist/)
+build-webapp:
+	node script/build-webapp.mjs
 
 ## embed-webapp: Build SolidJS web app and embed into Go binary
 embed-webapp:

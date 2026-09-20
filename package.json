@@ -77,8 +77,12 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.0.11",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tsconfig/bun": "1.0.10",
-    "playwright": "^1.63.0"
+    "esbuild": "^0.28.2",
+    "esbuild-plugin-solid": "^0.6.0",
+    "playwright": "^1.63.0",
+    "postcss": "^8.5.28"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.1",

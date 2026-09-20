@@ -1,19 +1,17 @@
 #!/usr/bin/env node
 
 import { resolve, dirname, join, relative } from "node:path"
-import { cpSync, rmSync, mkdirSync, existsSync, readdirSync, readFileSync, symlinkSync } from "node:fs"
+import { cpSync, rmSync, mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { workspaceResolverPlugin } from "./build-webapp/workspace-resolver.mjs"
 import { tailwindPlugin } from "./build-webapp/tailwind-plugin.mjs"
 import { generateHTML } from "./build-webapp/html-generator.mjs"
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "..")
-const DEPS = join(ROOT, "script/build-deps/node_modules")
 
-const nmLink = join(ROOT, "node_modules")
-if (!existsSync(nmLink)) {
-  symlinkSync(DEPS, nmLink)
-}
+// Resolve deps from vendored dir if it exists, else workspace node_modules
+const VENDORED = join(ROOT, "script/build-deps/node_modules")
+const DEPS = existsSync(VENDORED) ? VENDORED : join(ROOT, "node_modules")
 
 const require = createRequire(join(DEPS, "_"))
 const esbuild = require("esbuild")
@@ -133,7 +131,7 @@ async function build() {
     jsx: "preserve",
     conditions: ["bun", "import"],
     mainFields: ["module", "main"],
-    nodePaths: [join(ROOT, "script/build-deps/node_modules")],
+    nodePaths: [DEPS],
     logLevel: "info",
     entryNames: "[name]-[hash]",
     chunkNames: "[name]-[hash]",

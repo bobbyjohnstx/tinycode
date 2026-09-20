@@ -4,7 +4,7 @@
 #
 # Usage: ./script/embed-webapp.sh
 #
-# Prerequisites: node installed, build deps in script/build-deps/node_modules/
+# Prerequisites: node installed, deps via bun install or vendored in script/build-deps/
 
 set -euo pipefail
 
