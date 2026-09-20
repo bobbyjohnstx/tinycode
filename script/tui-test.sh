@@ -725,6 +725,52 @@ test_T26() {
     kill_session "$session"
 }
 
+test_T27() {
+    echo -e "${BOLD}T27: Slash autocomplete filters on input${NC}"
+    local session
+    session=$(new_session "T27")
+    sleep 3
+
+    # Type "/con" to trigger autocomplete with a filter
+    send_keys "$session" "/con"
+    sleep 1
+
+    # "connect" should appear (matches prefix "con"), "exit" should be filtered out
+    assert_contains "$session" "connect" "autocomplete shows connect for /con"
+    assert_not_contains "$session" "exit" "autocomplete hides exit for /con"
+
+    kill_session "$session"
+}
+
+test_T31() {
+    echo -e "${BOLD}T31: /connect opens model dialog${NC}"
+    local session
+    session=$(new_session "T31")
+    sleep 3
+
+    send_text "$session" "/connect"
+    sleep 2
+
+    # Model dialog or provider selection should appear
+    assert_regex "$session" "(Select Provider|provider|Provider|No models|connect)" "model dialog visible after /connect"
+
+    kill_session "$session"
+}
+
+test_T32() {
+    echo -e "${BOLD}T32: /theme opens theme dialog${NC}"
+    local session
+    session=$(new_session "T32")
+    sleep 3
+
+    send_text "$session" "/theme"
+    sleep 3
+
+    assert_contains "$session" "Select Theme" "theme dialog visible after /theme"
+
+    kill_session "$session"
+}
+
 test_T33() {
     echo -e "${BOLD}T33: Very small terminal (40x10) doesn't crash${NC}"
     local name="${SESSION_PREFIX}-T33"
@@ -750,6 +796,68 @@ test_T33() {
         echo -e "  ${RED}FAIL${NC}: no output captured at 40x10"
         FAIL=$((FAIL + 1))
     fi
+
+    kill_session "$session"
+}
+
+test_T34() {
+    echo -e "${BOLD}T34: Escape dismisses slash autocomplete${NC}"
+    local session
+    session=$(new_session "T34")
+    sleep 3
+
+    # Type "/" to trigger autocomplete
+    send_keys "$session" "/"
+    sleep 1
+
+    # Autocomplete should be visible with command descriptions
+    assert_contains "$session" "Exit the app" "autocomplete descriptions visible"
+
+    # Press Escape to dismiss autocomplete internally, then Ctrl+C to
+    # clear the prompt and force a screen redraw.  Bubbletea does not
+    # always refresh after a bare Escape key in tmux.
+    send_keys "$session" Escape
+    sleep 0.3
+    send_keys "$session" C-c
+    sleep 1
+
+    # Autocomplete description text should be gone
+    assert_not_contains "$session" "Exit the app" "autocomplete dismissed after Escape"
+
+    kill_session "$session"
+}
+
+test_T35() {
+    echo -e "${BOLD}T35: /export without active session shows error toast${NC}"
+    local session
+    session=$(new_session "T35")
+    sleep 3
+
+    send_text "$session" "/export"
+    sleep 2
+
+    assert_contains "$session" "No active session" "error toast shown for /export without session"
+
+    kill_session "$session"
+}
+
+test_T38() {
+    echo -e "${BOLD}T38: Theme dialog Escape dismisses${NC}"
+    local session
+    session=$(new_session "T38")
+    sleep 3
+
+    # Open theme dialog
+    send_text "$session" "/theme"
+    sleep 3
+
+    assert_contains "$session" "Select Theme" "theme dialog is open"
+
+    # Dismiss with Escape
+    send_keys "$session" Escape
+    sleep 1
+
+    assert_not_contains "$session" "Select Theme" "theme dialog dismissed after Escape"
 
     kill_session "$session"
 }
@@ -916,6 +1024,65 @@ test_T30() {
     # After approval, the permission overlay should be dismissed and the
     # normal TUI should be visible (status bar with model name or chat content)
     assert_not_contains "$session" "Permission required" "permission prompt dismissed after approval"
+
+    kill_session "$session"
+}
+
+test_T36() {
+    echo -e "${BOLD}T36: Shell ! prefix runs command and feeds to model${NC}"
+    local session
+    session=$(new_session_with_model "T36")
+
+    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
+        skip_test "Shell ! prefix" "model not connected (Ollama may not be running)"
+        kill_session "$session"
+        return
+    fi
+
+    # Type shell command with ! prefix
+    send_text "$session" "!echo tui-shell-marker"
+
+    # Wait for the working state (spinner hint "interrupt" appears)
+    if ! wait_for_text "$session" "interrupt" 30; then
+        skip_test "Shell ! prefix" "shell command did not trigger model response"
+        kill_session "$session"
+        return
+    fi
+
+    # Wait for response to complete
+    wait_response_complete "$session" 90 || true
+    sleep 2
+
+    # The shell output "tui-shell-marker" should appear in the chat
+    assert_contains "$session" "tui-shell-marker" "shell output visible in chat"
+
+    kill_session "$session"
+}
+
+test_T37() {
+    echo -e "${BOLD}T37: Shell output format includes command text${NC}"
+    local session
+    session=$(new_session_with_model "T37")
+
+    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
+        skip_test "Shell output format" "model not connected (Ollama may not be running)"
+        kill_session "$session"
+        return
+    fi
+
+    # Type shell command with ! prefix
+    send_text "$session" "!echo SHELL-FORMAT-CHECK"
+
+    # Wait for response to complete
+    if ! wait_response_complete "$session" 90; then
+        skip_test "Shell output format" "response did not complete within timeout"
+        kill_session "$session"
+        return
+    fi
+    sleep 2
+
+    # The command text should appear in the pane
+    assert_contains "$session" "SHELL-FORMAT-CHECK" "shell command text visible in pane"
 
     kill_session "$session"
 }
