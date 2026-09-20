@@ -862,6 +862,90 @@ test_T38() {
     kill_session "$session"
 }
 
+test_T39() {
+    echo -e "${BOLD}T39: Auto-discovers LM Studio provider and selects model${NC}"
+    local session
+    session=$(new_session "T39")
+    sleep 3
+
+    # Without -m flag, the TUI should auto-discover LM Studio at localhost:1234
+    # and select a model. Wait up to 30 seconds for discovery.
+    TOTAL=$((TOTAL + 1))
+    if wait_for_text "$session" "LM Studio" 30; then
+        echo -e "  ${GREEN}PASS${NC}: LM Studio provider auto-discovered"
+        PASS=$((PASS + 1))
+    else
+        local captured
+        captured=$(capture_pane "$session")
+        if echo "$captured" | grep -qF "No provider selected"; then
+            echo -e "  ${RED}FAIL${NC}: provider not discovered after 30s (LM Studio may not be running)"
+            FAIL=$((FAIL + 1))
+        else
+            echo -e "  ${YELLOW}SKIP${NC}: could not determine provider state"
+            SKIP=$((SKIP + 1))
+        fi
+        kill_session "$session"
+        return
+    fi
+
+    # Verify a model was selected (status bar shows model name)
+    TOTAL=$((TOTAL + 1))
+    local captured
+    captured=$(capture_pane "$session")
+    if echo "$captured" | grep -qE "ornith|gemma|qwen|gpt-oss"; then
+        echo -e "  ${GREEN}PASS${NC}: model auto-selected from discovered provider"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC}: no model visible in status bar after discovery"
+        echo "    Last 3 lines:"
+        echo "$captured" | tail -3 | sed 's/^/      /'
+        FAIL=$((FAIL + 1))
+    fi
+
+    # Verify "No provider selected" is NOT shown
+    assert_not_contains "$session" "No provider selected" "provider selected after discovery"
+
+    kill_session "$session"
+}
+
+test_T40() {
+    echo -e "${BOLD}T40: Auto-discovers provider with -m flag selects specified model${NC}"
+    local session name
+    name="${SESSION_PREFIX}-T40"
+    WORK_DIR=$(mktemp -d)
+
+    tmux new-session -d -s "$name" -x 120 -y 40
+    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN -m lm-studio/ornith-1.0-9b-mlx" Enter
+    sleep 3
+    session="$name"
+
+    # Wait for the specific model to appear
+    TOTAL=$((TOTAL + 1))
+    if wait_for_text "$session" "ornith" 30; then
+        echo -e "  ${GREEN}PASS${NC}: specified model ornith-1.0-9b-mlx selected"
+        PASS=$((PASS + 1))
+    else
+        local captured
+        captured=$(capture_pane "$session")
+        if echo "$captured" | grep -qF "No provider selected"; then
+            echo -e "  ${RED}FAIL${NC}: model not selected (shows 'No provider selected')"
+            FAIL=$((FAIL + 1))
+        else
+            echo -e "  ${YELLOW}SKIP${NC}: model not found but provider may be unavailable"
+            echo "    Last 3 lines:"
+            echo "$captured" | tail -3 | sed 's/^/      /'
+            SKIP=$((SKIP + 1))
+        fi
+        kill_session "$session"
+        return
+    fi
+
+    # Verify LM Studio is shown as the provider
+    assert_contains "$session" "LM Studio" "LM Studio provider shown"
+
+    kill_session "$session"
+}
+
 # ─── LLM-connected helpers ──────────────────────────────────────
 
 # new_session_with_model creates a tmux session running tinycode with
