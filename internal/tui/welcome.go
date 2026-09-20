@@ -119,7 +119,7 @@ func (w *WelcomeView) Tick() tea.Cmd {
 
 type bootTickMsg struct{}
 
-func (w WelcomeView) View(width, height int, providerName, modelName string, sessionCount int) string {
+func (w WelcomeView) View(width, height int, providerName, modelName string, sessionCount, agentCount, mcpCount int) string {
 	leftColor := lipgloss.AdaptiveColor{Light: "#4488CC", Dark: "#38bdf8"}
 	rightColor := lipgloss.AdaptiveColor{Light: "#333333", Dark: "#f8fafc"}
 	checkColor := lipgloss.AdaptiveColor{Light: "#22AA44", Dark: "#7fd88f"}
@@ -185,9 +185,17 @@ func (w WelcomeView) View(width, height int, providerName, modelName string, ses
 				if providerName != "" {
 					suffix = dimStyle.Render(fmt.Sprintf(" · %s / %s", providerName, modelName))
 				}
+			case "agents":
+				if agentCount > 0 {
+					suffix = dimStyle.Render(fmt.Sprintf(" · %d agents", agentCount))
+				}
 			case "sessions":
 				if sessionCount > 0 {
 					suffix = dimStyle.Render(fmt.Sprintf(" · %d sessions", sessionCount))
+				}
+			case "mcp":
+				if mcpCount > 0 {
+					suffix = dimStyle.Render(fmt.Sprintf(" · %d servers", mcpCount))
 				}
 			}
 			detail = labelStyle.Render(check.label) + suffix

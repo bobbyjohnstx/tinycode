@@ -124,7 +124,8 @@ func (a App) View() string {
 			a.state.CurrentModel.ProviderID,
 			a.state.CurrentModel.ModelID,
 		)
-		chatView = a.welcome.View(l.chatWidth, l.chatHeight, provName, modName, len(a.state.Sessions))
+		chatView = a.welcome.View(l.chatWidth, l.chatHeight, provName, modName,
+			len(a.state.Sessions), len(a.state.Agents), len(a.sidebar.mcpServers))
 	}
 	promptView := a.prompt.View()
 	statusView := a.status.View()
