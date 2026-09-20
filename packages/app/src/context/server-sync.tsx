@@ -376,9 +376,17 @@ export function createServerSyncContext() {
     }
 
     const existing = children.children[key]
-    if (!existing) return
+    if (!existing) {
+      if (event.type === "session.created" || event.type === "session.updated") {
+        children.ensureChild(directory)
+      } else {
+        return
+      }
+    }
+    const resolved = children.children[key]
+    if (!resolved) return
     children.mark(key)
-    const [store, setStore] = existing
+    const [store, setStore] = resolved
     applyDirectoryEvent({
       event,
       directory,

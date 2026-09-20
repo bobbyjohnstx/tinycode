@@ -350,6 +350,35 @@ func TestE2E_SessionCreatedBusEvent(t *testing.T) {
 	}
 }
 
+func TestE2E_ProjectUpdatedBeforeSessionCreated(t *testing.T) {
+	h := newTestHarness(t, nil)
+
+	sub := h.bus.SubscribeAll()
+	defer sub.Unsubscribe()
+
+	h.createSession("Order Test", "build")
+
+	var order []string
+	deadline := time.After(2 * time.Second)
+	for len(order) < 2 {
+		select {
+		case evt := <-sub.C:
+			if evt.Type == "project.updated" || evt.Type == "session.created" {
+				order = append(order, evt.Type)
+			}
+		case <-deadline:
+			t.Fatalf("timeout; only got events: %v", order)
+		}
+	}
+
+	if order[0] != "project.updated" {
+		t.Errorf("expected project.updated first, got %v", order)
+	}
+	if order[1] != "session.created" {
+		t.Errorf("expected session.created second, got %v", order)
+	}
+}
+
 func TestE2E_SessionDeleteBusEvent(t *testing.T) {
 	h := newTestHarness(t, nil)
 

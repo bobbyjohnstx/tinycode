@@ -73,12 +73,12 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.deps.Bus.Publish("project.updated", project.FromDirectory(dir))
+
 	s.deps.Bus.Publish("session.created", map[string]any{
 		"sessionID": info.ID,
 		"info":      info,
 	})
-
-	s.deps.Bus.Publish("project.updated", project.FromDirectory(dir))
 
 	respondJSON(w, http.StatusOK, info)
 }
