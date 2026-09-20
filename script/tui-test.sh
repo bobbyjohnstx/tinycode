@@ -865,20 +865,20 @@ test_T38() {
 # ─── LLM-connected helpers ──────────────────────────────────────
 
 # new_session_with_model creates a tmux session running tinycode with
-# an Ollama model pre-selected via the -m flag.  Waits for the model
+# an LM Studio model pre-selected via the -m flag.  Waits for the model
 # name to appear in the status bar before returning.
 new_session_with_model() {
     local name="${SESSION_PREFIX}-${1}"
     WORK_DIR=$(mktemp -d)
 
     tmux new-session -d -s "$name" -x 120 -y 40
-    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN -m ollama/qwen3.5:9b" Enter
+    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN -m lm-studio/ornith-1.0-9b-mlx" Enter
 
     # Wait for startup guard (2s) + buffer
     sleep 3
 
     # Wait for model name to appear in status bar (provider discovery + auto-select)
-    if ! wait_for_text "$name" "qwen3.5" 30; then
+    if ! wait_for_text "$name" "ornith" 30; then
         echo "  WARNING: model connection may have timed out"
     fi
 
@@ -911,8 +911,8 @@ test_T28() {
     local session
     session=$(new_session_with_model "T28")
 
-    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
-        skip_test "Chat LLM response" "model not connected (Ollama may not be running)"
+    if ! capture_pane "$session" | grep -qF "ornith"; then
+        skip_test "Chat LLM response" "model not connected (LM Studio may not be running)"
         kill_session "$session"
         return
     fi
@@ -935,7 +935,7 @@ test_T28() {
 
     # The agent footer should be visible indicating the message was received
     # and fully rendered.  The footer format is: "Build" with the model ID.
-    assert_regex "$session" "Build.*qwen3" "agent footer with model visible"
+    assert_regex "$session" "Build.*ornith" "agent footer with model visible"
 
     kill_session "$session"
 }
@@ -945,8 +945,8 @@ test_T29() {
     local session
     session=$(new_session_with_model "T29")
 
-    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
-        skip_test "Thought toggle" "model not connected (Ollama may not be running)"
+    if ! capture_pane "$session" | grep -qF "ornith"; then
+        skip_test "Thought toggle" "model not connected (LM Studio may not be running)"
         kill_session "$session"
         return
     fi
@@ -996,8 +996,8 @@ test_T30() {
     local session
     session=$(new_session_with_model "T30")
 
-    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
-        skip_test "Permission prompt" "model not connected (Ollama may not be running)"
+    if ! capture_pane "$session" | grep -qF "ornith"; then
+        skip_test "Permission prompt" "model not connected (LM Studio may not be running)"
         kill_session "$session"
         return
     fi
@@ -1033,8 +1033,8 @@ test_T36() {
     local session
     session=$(new_session_with_model "T36")
 
-    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
-        skip_test "Shell ! prefix" "model not connected (Ollama may not be running)"
+    if ! capture_pane "$session" | grep -qF "ornith"; then
+        skip_test "Shell ! prefix" "model not connected (LM Studio may not be running)"
         kill_session "$session"
         return
     fi
@@ -1064,8 +1064,8 @@ test_T37() {
     local session
     session=$(new_session_with_model "T37")
 
-    if ! capture_pane "$session" | grep -qF "qwen3.5"; then
-        skip_test "Shell output format" "model not connected (Ollama may not be running)"
+    if ! capture_pane "$session" | grep -qF "ornith"; then
+        skip_test "Shell output format" "model not connected (LM Studio may not be running)"
         kill_session "$session"
         return
     fi
