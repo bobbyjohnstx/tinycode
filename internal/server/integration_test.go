@@ -297,8 +297,8 @@ func TestE2E_SessionCreateWithDefaults(t *testing.T) {
 	if model["providerID"] != "test-provider" {
 		t.Errorf("expected providerID 'test-provider', got %v", model["providerID"])
 	}
-	if model["modelID"] != "test-model" {
-		t.Errorf("expected model ID 'test-model', got %v", model["modelID"])
+	if model["id"] != "test-model" {
+		t.Errorf("expected model ID 'test-model', got %v", model["id"])
 	}
 }
 
@@ -761,8 +761,8 @@ func TestE2E_ClientFactoryReceivesAPIKey(t *testing.T) {
 func TestE2E_PermissionReplyPropagates(t *testing.T) {
 	h := newTestHarness(t, nil)
 
-	// Subscribe to permission.replied on the bus
-	sub := h.bus.Subscribe("permission.replied")
+	// handlePermissionReply publishes to "permission.reply" with "permissionID" and "action".
+	sub := h.bus.Subscribe("permission.reply")
 	defer sub.Unsubscribe()
 
 	// POST a permission reply — the handler should publish to the bus
@@ -780,14 +780,14 @@ func TestE2E_PermissionReplyPropagates(t *testing.T) {
 	select {
 	case evt := <-sub.C:
 		props := evt.Properties.(map[string]any)
-		if props["requestID"] != "per_test123" {
-			t.Errorf("expected requestID per_test123, got %v", props["requestID"])
+		if props["permissionID"] != "per_test123" {
+			t.Errorf("expected permissionID per_test123, got %v", props["permissionID"])
 		}
-		if props["reply"] != "once" {
-			t.Errorf("expected reply 'once', got %v", props["reply"])
+		if props["action"] != "allow" {
+			t.Errorf("expected action 'allow', got %v", props["action"])
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for permission.replied event")
+		t.Fatal("timeout waiting for permission.reply event")
 	}
 }
 

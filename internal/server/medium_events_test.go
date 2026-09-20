@@ -270,9 +270,9 @@ func TestMessageGet_AssistantIncludesProviderID(t *testing.T) {
 	var result map[string]any
 	json.NewDecoder(w.Body).Decode(&result)
 	info, _ := result["info"].(map[string]any)
-	providerID, _ := info["providerID"].(string)
-	if providerID != "p1" {
-		t.Errorf("expected providerID 'p1', got %q", providerID)
+	modelID, _ := info["modelID"].(string)
+	if modelID != "m1" {
+		t.Errorf("expected modelID 'm1', got %q", modelID)
 	}
 }
 

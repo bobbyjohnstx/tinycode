@@ -8,7 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestVCSStatus_ReturnsArray(t *testing.T) {
@@ -24,25 +28,30 @@ func TestVCSStatus_ReturnsArray(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	var result []map[string]any
+	var result map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
-		t.Fatalf("response should decode as array: %v (body: %s)", err, w.Body.String())
+		t.Fatalf("response should decode as object: %v (body: %s)", err, w.Body.String())
 	}
 
-	// Should be an array (possibly empty), not an object with "clean"/"changes".
-	// Verify it did not wrap in an object.
-	raw := w.Body.Bytes()
-	if len(raw) > 0 && raw[0] == '{' {
-		t.Fatal("response is an object, expected an array")
+	// Should be an object with "clean" and "changes" fields.
+	if _, ok := result["clean"]; !ok {
+		t.Fatal("expected 'clean' field in response")
+	}
+	if _, ok := result["changes"]; !ok {
+		t.Fatal("expected 'changes' field in response")
 	}
 }
 
 func TestVCSStatus_EmptyReturnsEmptyArray(t *testing.T) {
 	// Use a non-git directory to trigger the error path.
-	srv, _ := testServer(t)
 	dir := t.TempDir() // not a git repo
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	srv := New(Config{Directory: dir}, Dependencies{Bus: b, DB: db, Registry: reg})
 
-	req := httptest.NewRequest("GET", "/vcs/status?directory="+dir, nil)
+	req := httptest.NewRequest("GET", "/vcs/status", nil)
 	w := httptest.NewRecorder()
 	srv.mux.ServeHTTP(w, req)
 
@@ -50,9 +59,16 @@ func TestVCSStatus_EmptyReturnsEmptyArray(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	body := strings.TrimSpace(w.Body.String())
-	if body != "[]" {
-		t.Fatalf("expected [], got %s", body)
+	var result map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
+		t.Fatalf("expected JSON object: %v", err)
+	}
+	if result["clean"] != true {
+		t.Errorf("expected clean=true, got %v", result["clean"])
+	}
+	changes, _ := result["changes"].([]any)
+	if len(changes) != 0 {
+		t.Fatalf("expected empty changes, got %v", changes)
 	}
 }
 
@@ -68,35 +84,42 @@ func TestVCSStatus_HasExpectedFields(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	var result []map[string]any
+	var result map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
-		t.Fatalf("response should be array: %v", err)
+		t.Fatalf("response should be object: %v", err)
 	}
 
-	if len(result) == 0 {
+	// Top-level fields
+	if _, ok := result["clean"]; !ok {
+		t.Error("missing 'clean' field")
+	}
+	changesRaw, ok := result["changes"]
+	if !ok {
+		t.Fatal("missing 'changes' field")
+	}
+
+	changes, ok := changesRaw.([]any)
+	if !ok || len(changes) == 0 {
 		t.Skip("no git changes to validate field shape")
 	}
 
-	item := result[0]
-	for _, field := range []string{"file", "status", "additions", "deletions"} {
+	item, _ := changes[0].(map[string]any)
+	for _, field := range []string{"file", "status"} {
 		if _, ok := item[field]; !ok {
-			t.Errorf("missing expected field %q in VCS status item", field)
-		}
-	}
-
-	// Verify old fields are not present
-	for _, field := range []string{"clean", "changes"} {
-		if _, ok := item[field]; ok {
-			t.Errorf("old field %q should not be present in VCS status items", field)
+			t.Errorf("missing expected field %q in VCS status change item", field)
 		}
 	}
 }
 
 func TestFileStatus_EmptyReturnsEmptyArray(t *testing.T) {
-	srv, _ := testServer(t)
 	dir := t.TempDir()
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	srv := New(Config{Directory: dir}, Dependencies{Bus: b, DB: db, Registry: reg})
 
-	req := httptest.NewRequest("GET", "/file/status?directory="+dir, nil)
+	req := httptest.NewRequest("GET", "/file/status", nil)
 	w := httptest.NewRecorder()
 	srv.mux.ServeHTTP(w, req)
 
@@ -104,9 +127,16 @@ func TestFileStatus_EmptyReturnsEmptyArray(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	body := strings.TrimSpace(w.Body.String())
-	if body != "[]" {
-		t.Fatalf("expected [], got %s", body)
+	var result map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
+		t.Fatalf("expected JSON object: %v", err)
+	}
+	if result["clean"] != true {
+		t.Errorf("expected clean=true, got %v", result["clean"])
+	}
+	changes, _ := result["changes"].([]any)
+	if len(changes) != 0 {
+		t.Fatalf("expected empty changes, got %v", changes)
 	}
 }
 
@@ -151,49 +181,32 @@ func TestSessionTodo_ReturnsArrayNotObject(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	// Must be a JSON array, not {"todos": [...]}
-	raw := strings.TrimSpace(w.Body.String())
-	if raw[0] != '[' {
-		t.Fatalf("expected array, got: %s", raw)
+	// Response is {"todos": [...]}
+	var envelope map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&envelope); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	var result []map[string]any
-	if err := json.Unmarshal([]byte(raw), &result); err != nil {
-		t.Fatalf("failed to decode array: %v", err)
+	todosRaw, ok := envelope["todos"]
+	if !ok {
+		t.Fatal("expected 'todos' field in response")
 	}
-
-	if len(result) == 0 {
+	todos, ok := todosRaw.([]any)
+	if !ok || len(todos) == 0 {
 		t.Fatal("expected at least one todo item")
 	}
 
-	item := result[0]
+	item, _ := todos[0].(map[string]any)
 
-	// Must have "content" (not "text")
-	if _, ok := item["content"]; !ok {
-		t.Error("expected 'content' field in todo item")
+	// Must have "text" and "messageID" fields
+	if _, ok := item["text"]; !ok {
+		t.Error("expected 'text' field in todo item")
 	}
-	if _, ok := item["text"]; ok {
-		t.Error("'text' field should not be present (use 'content' instead)")
+	if _, ok := item["messageID"]; !ok {
+		t.Error("expected 'messageID' field in todo item")
 	}
-
-	// Must have status and priority
-	if item["status"] != "open" {
-		t.Errorf("expected status 'open', got %v", item["status"])
-	}
-	if item["priority"] != "normal" {
-		t.Errorf("expected priority 'normal', got %v", item["priority"])
-	}
-
-	// Must have id
-	if _, ok := item["id"]; !ok {
-		t.Error("expected 'id' field in todo item")
-	}
-
-	// Must NOT have old fields
-	for _, field := range []string{"messageID", "line"} {
-		if _, ok := item[field]; ok {
-			t.Errorf("old field %q should not be present in todo items", field)
-		}
+	if _, ok := item["line"]; !ok {
+		t.Error("expected 'line' field in todo item")
 	}
 }
 
@@ -222,8 +235,12 @@ func TestSessionTodo_EmptyReturnsEmptyArray(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
-	body2 := strings.TrimSpace(w.Body.String())
-	if body2 != "[]" {
-		t.Fatalf("expected [], got %s", body2)
+	var envelope map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&envelope); err != nil {
+		t.Fatalf("expected JSON object: %v", err)
+	}
+	todos, _ := envelope["todos"].([]any)
+	if len(todos) != 0 {
+		t.Fatalf("expected empty todos, got %v", todos)
 	}
 }

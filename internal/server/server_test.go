@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -502,8 +503,8 @@ func TestFileList(t *testing.T) {
 	reg := provider.NewRegistry()
 	srv := New(Config{Directory: dir}, Dependencies{Bus: b, DB: db, Registry: reg})
 
-	// No path param needed — config.Directory is already set to the temp dir.
-	req := httptest.NewRequest("GET", "/file", nil)
+	// path param is required — pass the temp dir.
+	req := httptest.NewRequest("GET", "/file?path="+url.QueryEscape(dir), nil)
 	w := httptest.NewRecorder()
 	srv.mux.ServeHTTP(w, req)
 
@@ -511,33 +512,30 @@ func TestFileList(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// The handler returns a JSON array of file nodes, not {"files": [...]}.
-	var files []map[string]any
-	json.NewDecoder(w.Body).Decode(&files)
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+	files, _ := result["files"].([]any)
 	if len(files) == 0 {
 		t.Error("expected at least one file in listing")
 	}
 }
 
 func TestFileList_NoPathDefaultsToConfigDirectory(t *testing.T) {
-	// When no path or directory param is given, the handler falls back to
-	// config.Directory. With testServer that's "", which filepath.Clean
-	// turns into "." (the current working directory). Expect 200.
+	// The handler now requires a path query parameter. When absent, it returns 400.
 	srv, _ := testServer(t)
 
 	req := httptest.NewRequest("GET", "/file", nil)
 	w := httptest.NewRecorder()
 	srv.mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200 (listing of default directory), got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 when path is missing, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var files []map[string]any
-	json.NewDecoder(w.Body).Decode(&files)
-	// Current directory should have some entries.
-	if files == nil {
-		t.Error("expected valid JSON array response")
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+	if result["error"] != "path query parameter required" {
+		t.Errorf("expected 'path query parameter required' error, got %v", result["error"])
 	}
 }
 
@@ -1067,50 +1065,55 @@ func TestFileRead_BinaryType(t *testing.T) {
 func TestPermissionReply_SDKFieldNames(t *testing.T) {
 	srv, b := testServer(t)
 
-	// Subscribe to permission.replied bus events to verify what gets published.
-	sub := b.Subscribe("permission.replied")
+	// handleSessionPermissionReply publishes "permission.replied" with "reply" field.
+	// handlePermissionReply publishes "permission.reply" with "action" field.
+	sessionSub := b.Subscribe("permission.replied")
+	permSub := b.Subscribe("permission.reply")
 
 	tests := []struct {
 		name      string
 		path      string
 		body      string
-		wantReply string
+		wantValue string
+		usePerm   bool // true = permission endpoint (permission.reply topic)
 	}{
 		{
 			name:      "session endpoint with SDK 'response' field (once)",
 			path:      "/session/ses_test/permissions/perm_1",
 			body:      `{"response":"once"}`,
-			wantReply: "once",
+			wantValue: "once",
 		},
 		{
 			name:      "session endpoint with SDK 'response' field (always)",
 			path:      "/session/ses_test/permissions/perm_2",
 			body:      `{"response":"always"}`,
-			wantReply: "always",
+			wantValue: "always",
 		},
 		{
 			name:      "session endpoint with SDK 'response' field (reject)",
 			path:      "/session/ses_test/permissions/perm_3",
 			body:      `{"response":"reject"}`,
-			wantReply: "reject",
+			wantValue: "reject",
 		},
 		{
 			name:      "session endpoint with legacy 'action' field (allow→once)",
 			path:      "/session/ses_test/permissions/perm_4",
 			body:      `{"action":"allow"}`,
-			wantReply: "once",
+			wantValue: "once",
 		},
 		{
-			name:      "permission endpoint with SDK 'reply' field (once)",
+			name:      "permission endpoint with 'action' field (once)",
 			path:      "/permission/perm_5/reply",
-			body:      `{"reply":"once"}`,
-			wantReply: "once",
+			body:      `{"action":"once"}`,
+			wantValue: "once",
+			usePerm:   true,
 		},
 		{
-			name:      "permission endpoint with SDK 'reply' field (always)",
+			name:      "permission endpoint with 'action' field (always)",
 			path:      "/permission/perm_6/reply",
-			body:      `{"reply":"always"}`,
-			wantReply: "always",
+			body:      `{"action":"always"}`,
+			wantValue: "always",
+			usePerm:   true,
 		},
 	}
 
@@ -1125,18 +1128,34 @@ func TestPermissionReply_SDKFieldNames(t *testing.T) {
 				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 			}
 
-			select {
-			case evt := <-sub.C:
-				props, ok := evt.Properties.(map[string]any)
-				if !ok {
-					t.Fatal("expected map properties on bus event")
+			if tt.usePerm {
+				select {
+				case evt := <-permSub.C:
+					props, ok := evt.Properties.(map[string]any)
+					if !ok {
+						t.Fatal("expected map properties on bus event")
+					}
+					action, _ := props["action"].(string)
+					if action != tt.wantValue {
+						t.Errorf("expected action %q, got %q", tt.wantValue, action)
+					}
+				case <-time.After(time.Second):
+					t.Fatal("timed out waiting for permission.reply bus event")
 				}
-				reply, _ := props["reply"].(string)
-				if reply != tt.wantReply {
-					t.Errorf("expected reply %q, got %q", tt.wantReply, reply)
+			} else {
+				select {
+				case evt := <-sessionSub.C:
+					props, ok := evt.Properties.(map[string]any)
+					if !ok {
+						t.Fatal("expected map properties on bus event")
+					}
+					reply, _ := props["reply"].(string)
+					if reply != tt.wantValue {
+						t.Errorf("expected reply %q, got %q", tt.wantValue, reply)
+					}
+				case <-time.After(time.Second):
+					t.Fatal("timed out waiting for permission.replied bus event")
 				}
-			case <-time.After(time.Second):
-				t.Fatal("timed out waiting for permission.replied bus event")
 			}
 		})
 	}

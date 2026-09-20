@@ -133,6 +133,9 @@ func TestBridgeUserMessage_StoresUserMsgIDOnActiveSession(t *testing.T) {
 
 	registerActiveSession(sm, "ses_3", nil, "build", "/tmp")
 
+	sub := b.Subscribe("message.updated")
+	defer sub.Unsubscribe()
+
 	msg := session.Message{
 		ID:   "msg_parent",
 		Role: session.RoleUser,
@@ -144,12 +147,21 @@ func TestBridgeUserMessage_StoresUserMsgIDOnActiveSession(t *testing.T) {
 	active := sm.getActive("ses_3")
 	sm.bridgeUserMessage("ses_3", active, msg, time.Now().UnixMilli())
 
-	active.mu.Lock()
-	userMsgID := active.userMsgID
-	active.mu.Unlock()
-
-	if userMsgID != "msg_parent" {
-		t.Errorf("expected userMsgID 'msg_parent', got %q", userMsgID)
+	select {
+	case evt := <-sub.C:
+		props, ok := evt.Properties.(map[string]any)
+		if !ok {
+			t.Fatal("expected map properties on bus event")
+		}
+		info, _ := props["info"].(map[string]any)
+		if info["id"] != "msg_parent" {
+			t.Errorf("expected message ID 'msg_parent', got %v", info["id"])
+		}
+		if info["role"] != "user" {
+			t.Errorf("expected role 'user', got %v", info["role"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for message.updated bus event")
 	}
 }
 

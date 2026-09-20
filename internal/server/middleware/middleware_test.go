@@ -254,7 +254,7 @@ func TestSecurityHeaders(t *testing.T) {
 		"X-Frame-Options":        "DENY",
 		"X-XSS-Protection":       "1; mode=block",
 		"Referrer-Policy":        "strict-origin-when-cross-origin",
-		"Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
+		"Content-Security-Policy": "default-src 'self'; script-src 'self' 'sha256-KiEe6l7vlRJSP719Q83c+Sql8/k6jPDFyz0N+nDA2HE='; style-src 'self' 'unsafe-inline'",
 	}
 
 	for header, want := range expected {
