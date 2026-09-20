@@ -207,9 +207,10 @@ func fetchProviders(client *api.Client) tea.Cmd {
 			providers[i] = pi
 		}
 		msg := ProvidersLoadedMsg{Providers: providers}
-		if resp.Default != nil {
-			msg.DefaultProvider = resp.Default["provider"]
-			msg.DefaultModel = resp.Default["model"]
+		for providerID, modelID := range resp.Default {
+			msg.DefaultProvider = providerID
+			msg.DefaultModel = modelID
+			break
 		}
 		return msg
 	}

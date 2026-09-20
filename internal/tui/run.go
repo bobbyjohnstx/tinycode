@@ -89,6 +89,9 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SSEEventMsg:
 		slog.Debug("SSE event", "type", msg.Event.Type)
 		tuiMsg := mapSSEToMsg(msg.Event)
+		if _, ok := tuiMsg.(ProvidersRefreshMsg); ok {
+			cmds = append(cmds, fetchProviders(c.client))
+		}
 		model, cmd := c.app.Update(tuiMsg)
 		c.updateApp(model)
 		if cmd != nil {
