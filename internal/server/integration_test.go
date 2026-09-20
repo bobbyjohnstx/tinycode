@@ -1205,11 +1205,12 @@ func TestE2E_ProviderModelResolution(t *testing.T) {
 	}
 
 	defaults, _ := result["default"].(map[string]any)
-	if defaults["provider"] != "test-provider" {
-		t.Errorf("expected default provider 'test-provider', got %v", defaults["provider"])
-	}
-	if defaults["model"] != "test-model" {
-		t.Errorf("expected default model 'test-model', got %v", defaults["model"])
+	// The API returns defaults as {providerID: modelID}, not {provider: ..., model: ...}.
+	modelID, ok := defaults["test-provider"]
+	if !ok {
+		t.Errorf("expected default entry for 'test-provider', got %v", defaults)
+	} else if modelID != "test-model" {
+		t.Errorf("expected default model 'test-model' for test-provider, got %v", modelID)
 	}
 
 	// Get specific provider
