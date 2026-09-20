@@ -1,1 +1,0 @@
-import{K as a,S as m,U as o,w as t,x as e}from"./chunk-JZYYJICD.js";var l=a("<span>");function d(i){let[r,p]=e(i,["size","class","classList","children"]);return(()=>{var s=l();return m(s,t(p,{"data-component":"tag",get"data-size"(){return r.size||"normal"},get classList(){return{...r.classList,[r.class??""]:!!r.class}}}),!1,!0),o(s,()=>r.children),s})()}export{d as a};

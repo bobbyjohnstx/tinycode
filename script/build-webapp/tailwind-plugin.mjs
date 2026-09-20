@@ -34,6 +34,7 @@ export function tailwindPlugin() {
       build.onLoad({ filter: /\.css$/ }, async (args) => {
         let css = readFileSync(args.path, "utf8")
         css = resolveWorkspaceImports(css)
+        css = resolveBareModuleImports(css)
         const processor = postcss([tailwindcss()])
         const result = await processor.process(css, { from: args.path })
         return {
@@ -44,4 +45,18 @@ export function tailwindPlugin() {
       })
     },
   }
+}
+
+function resolveBareModuleImports(css) {
+  return css.replace(
+    /@import\s+["'](tailwindcss\/[^"']+)["']/g,
+    (match, specifier) => {
+      try {
+        const resolved = require.resolve(specifier)
+        return `@import "${resolved}"`
+      } catch {
+        return match
+      }
+    }
+  )
 }

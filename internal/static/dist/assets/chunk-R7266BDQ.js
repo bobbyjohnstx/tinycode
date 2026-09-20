@@ -1,1 +1,0 @@
-import{Ra as n,fa as t}from"./chunk-JZYYJICD.js";function g(e={}){let[a,c]=n({value:()=>t(e.isSelected),defaultValue:()=>!!t(e.defaultIsSelected),onChange:l=>e.onSelectedChange?.(l)});return{isSelected:a,setIsSelected:l=>{!t(e.isReadOnly)&&!t(e.isDisabled)&&c(l)},toggle:()=>{!t(e.isReadOnly)&&!t(e.isDisabled)&&c(!a())}}}export{g as a};

@@ -19,6 +19,13 @@ if [ ! -d "$APP_DIR" ]; then
   exit 1
 fi
 
+VENDORED="$ROOT/script/build-deps/node_modules"
+WORKSPACE="$ROOT/node_modules"
+if [ ! -d "$VENDORED" ] && [ ! -d "$WORKSPACE" ]; then
+  echo "==> No deps found, running vendor-deps.sh..."
+  "$ROOT/script/vendor-deps.sh"
+fi
+
 echo "==> Building SolidJS web app..."
 node "$ROOT/script/build-webapp.mjs"
 

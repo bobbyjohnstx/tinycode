@@ -3,15 +3,23 @@
 import { resolve, dirname, join, relative } from "node:path"
 import { cpSync, rmSync, mkdirSync, existsSync, readdirSync, readFileSync } from "node:fs"
 import { createRequire } from "node:module"
-import { workspaceResolverPlugin } from "./build-webapp/workspace-resolver.mjs"
-import { tailwindPlugin } from "./build-webapp/tailwind-plugin.mjs"
-import { generateHTML } from "./build-webapp/html-generator.mjs"
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "..")
 
 // Resolve deps from vendored dir if it exists, else workspace node_modules
 const VENDORED = join(ROOT, "script/build-deps/node_modules")
 const DEPS = existsSync(VENDORED) ? VENDORED : join(ROOT, "node_modules")
+
+// Set NODE_PATH before loading any deps — Tailwind's enhanced-resolve
+// reads this at module load time to find tailwindcss/theme.css etc.
+if (!process.env.NODE_PATH?.includes(DEPS)) {
+  process.env.NODE_PATH = DEPS + (process.env.NODE_PATH ? ":" + process.env.NODE_PATH : "")
+}
+
+// Dynamic imports so NODE_PATH is set before tailwind loads
+const { workspaceResolverPlugin } = await import("./build-webapp/workspace-resolver.mjs")
+const { tailwindPlugin } = await import("./build-webapp/tailwind-plugin.mjs")
+const { generateHTML } = await import("./build-webapp/html-generator.mjs")
 
 const require = createRequire(join(DEPS, "_"))
 const esbuild = require("esbuild")

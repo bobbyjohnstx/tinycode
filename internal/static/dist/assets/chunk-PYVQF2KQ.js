@@ -1,0 +1,1 @@
+import{d as t,s as o}from"./chunk-Z6ALTT7H.js";import{_ as r}from"./chunk-ZSJGB5AX.js";var{use:n,provider:m}=r({name:"SDK",init:e=>t().createDirSdkContext(e.directory)});var l=()=>{let e=o(),s=n();return e.createDirSyncContext(s.directory)};export{n as a,m as b,l as c};
