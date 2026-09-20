@@ -150,3 +150,53 @@ func TestMapSSEToMsg_SessionStatusIdle(t *testing.T) {
 		t.Error("expected Working=false for status type=idle")
 	}
 }
+
+func TestMapSSEToMsg_MCPStatus(t *testing.T) {
+	evt := api.ServerEvent{
+		Type: "mcp.status",
+		Properties: map[string]any{
+			"server": map[string]any{
+				"name":      "filesystem",
+				"status":    "connected",
+				"toolCount": float64(5),
+			},
+		},
+	}
+
+	msg := mapSSEToMsg(evt)
+	mcpMsg, ok := msg.(MCPStatusMsg)
+	if !ok {
+		t.Fatalf("expected MCPStatusMsg, got %T", msg)
+	}
+	if mcpMsg.Server.Name != "filesystem" {
+		t.Errorf("expected name 'filesystem', got %q", mcpMsg.Server.Name)
+	}
+	if mcpMsg.Server.Status != "connected" {
+		t.Errorf("expected status 'connected', got %q", mcpMsg.Server.Status)
+	}
+	if mcpMsg.Server.ToolCount != 5 {
+		t.Errorf("expected toolCount 5, got %d", mcpMsg.Server.ToolCount)
+	}
+}
+
+func TestMapSSEToMsg_MCPStatusWithError(t *testing.T) {
+	evt := api.ServerEvent{
+		Type: "mcp.status",
+		Properties: map[string]any{
+			"server": map[string]any{
+				"name":   "broken",
+				"status": "error",
+				"error":  "connection refused",
+			},
+		},
+	}
+
+	msg := mapSSEToMsg(evt)
+	mcpMsg, ok := msg.(MCPStatusMsg)
+	if !ok {
+		t.Fatalf("expected MCPStatusMsg, got %T", msg)
+	}
+	if mcpMsg.Server.Error != "connection refused" {
+		t.Errorf("expected error 'connection refused', got %q", mcpMsg.Server.Error)
+	}
+}

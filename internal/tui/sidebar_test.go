@@ -246,3 +246,140 @@ func TestRenderTree_FallsBackToIDWhenTitleEmpty(t *testing.T) {
 		t.Errorf("session with empty title should show ID, got:\n%s", result)
 	}
 }
+
+func TestSidebar_ViewShowsContextSection(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetContext(ContextStats{
+		Tokens:       50000,
+		ContextLimit: 200000,
+		Percent:      25,
+		Cost:         0.0123,
+	})
+
+	view := s.View()
+
+	if !strings.Contains(view, "Context") {
+		t.Errorf("sidebar should show Context header, got:\n%s", view)
+	}
+	if !strings.Contains(view, "50k tokens") {
+		t.Errorf("sidebar should show token count, got:\n%s", view)
+	}
+	if !strings.Contains(view, "25% used") {
+		t.Errorf("sidebar should show percentage used, got:\n%s", view)
+	}
+	if !strings.Contains(view, "$0.0123 spent") {
+		t.Errorf("sidebar should show cost, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewOmitsCostWhenZero(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetContext(ContextStats{
+		Tokens:  1000,
+		Percent: 5,
+		Cost:    0,
+	})
+
+	view := s.View()
+
+	if strings.Contains(view, "spent") {
+		t.Errorf("sidebar should not show cost when zero, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewShowsMCPSection(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetMCPServers([]MCPServer{
+		{Name: "filesystem", Status: "connected", ToolCount: 5},
+		{Name: "github", Status: "error", Error: "auth failed"},
+	})
+
+	view := s.View()
+
+	if !strings.Contains(view, "MCP") {
+		t.Errorf("sidebar should show MCP header, got:\n%s", view)
+	}
+	if !strings.Contains(view, "filesystem") {
+		t.Errorf("sidebar should show server name 'filesystem', got:\n%s", view)
+	}
+	if !strings.Contains(view, "5 tools") {
+		t.Errorf("sidebar should show tool count for connected server, got:\n%s", view)
+	}
+	if !strings.Contains(view, "github") {
+		t.Errorf("sidebar should show server name 'github', got:\n%s", view)
+	}
+	if !strings.Contains(view, "auth failed") {
+		t.Errorf("sidebar should show error message, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewOmitsMCPWhenEmpty(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+
+	view := s.View()
+
+	if strings.Contains(view, "MCP") {
+		t.Errorf("sidebar should not show MCP section when no servers, got:\n%s", view)
+	}
+}
+
+func TestSidebar_UpdateMCPServer(t *testing.T) {
+	s := NewSidebar()
+
+	// Add new server.
+	s.UpdateMCPServer(MCPServer{Name: "fs", Status: "connecting"})
+	if len(s.mcpServers) != 1 {
+		t.Fatalf("expected 1 server, got %d", len(s.mcpServers))
+	}
+	if s.mcpServers[0].Status != "connecting" {
+		t.Errorf("expected status 'connecting', got %q", s.mcpServers[0].Status)
+	}
+
+	// Update existing server.
+	s.UpdateMCPServer(MCPServer{Name: "fs", Status: "connected", ToolCount: 3})
+	if len(s.mcpServers) != 1 {
+		t.Fatalf("expected 1 server after update, got %d", len(s.mcpServers))
+	}
+	if s.mcpServers[0].Status != "connected" {
+		t.Errorf("expected status 'connected', got %q", s.mcpServers[0].Status)
+	}
+	if s.mcpServers[0].ToolCount != 3 {
+		t.Errorf("expected toolCount 3, got %d", s.mcpServers[0].ToolCount)
+	}
+
+	// Add different server.
+	s.UpdateMCPServer(MCPServer{Name: "github", Status: "error", Error: "timeout"})
+	if len(s.mcpServers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(s.mcpServers))
+	}
+}
+
+func TestFormatTokens(t *testing.T) {
+	tests := []struct {
+		input int
+		want  string
+	}{
+		{0, "0"},
+		{500, "500"},
+		{999, "999"},
+		{1000, "1k"},
+		{50000, "50k"},
+		{999999, "999k"},
+		{1000000, "1.0M"},
+		{1500000, "1.5M"},
+	}
+	for _, tt := range tests {
+		got := formatTokens(tt.input)
+		if got != tt.want {
+			t.Errorf("formatTokens(%d) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}

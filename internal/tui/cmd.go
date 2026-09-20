@@ -97,6 +97,18 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 			},
 		}
 
+	case "mcp.status":
+		srv := MCPServer{}
+		if server, ok := props["server"].(map[string]any); ok {
+			srv.Name, _ = server["name"].(string)
+			srv.Status, _ = server["status"].(string)
+			srv.Error, _ = server["error"].(string)
+			if tc, ok := intFromAny(server["toolCount"]); ok {
+				srv.ToolCount = tc
+			}
+		}
+		return MCPStatusMsg{Server: srv}
+
 	case "provider.discovered", "provider.removed", "provider.reconnected":
 		return ProvidersRefreshMsg{}
 
@@ -265,6 +277,27 @@ func parseModelInfo(modelID, providerID string, raw any) ModelInfo {
 	m.CostInput, _ = cost["input"].(float64)
 	m.CostOutput, _ = cost["output"].(float64)
 	return m
+}
+
+// fetchMCPStatus fetches the MCP server status from the server.
+func fetchMCPStatus(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetMCPStatus()
+		if err != nil {
+			return MCPStatusLoadedMsg{Err: err}
+		}
+		var servers []MCPServer
+		for name, raw := range resp {
+			srv := MCPServer{Name: name}
+			srv.Status, _ = raw["status"].(string)
+			srv.Error, _ = raw["error"].(string)
+			if tc, ok := intFromAny(raw["toolCount"]); ok {
+				srv.ToolCount = tc
+			}
+			servers = append(servers, srv)
+		}
+		return MCPStatusLoadedMsg{Servers: servers}
+	}
 }
 
 // fetchAgents fetches the agent list from the server.

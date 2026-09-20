@@ -152,6 +152,17 @@ type ShellResultMsg struct {
 	Err     error
 }
 
+// MCPStatusMsg carries a single MCP server status update from an SSE event.
+type MCPStatusMsg struct {
+	Server MCPServer
+}
+
+// MCPStatusLoadedMsg carries the full MCP status from the initial API fetch.
+type MCPStatusLoadedMsg struct {
+	Servers []MCPServer
+	Err     error
+}
+
 // ProvidersRefreshMsg signals that the provider list should be re-fetched.
 type ProvidersRefreshMsg struct{}
 

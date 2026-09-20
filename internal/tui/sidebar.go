@@ -30,6 +30,14 @@ type ContextStats struct {
 	Cost         float64
 }
 
+// MCPServer holds status for a single MCP server.
+type MCPServer struct {
+	Name      string
+	Status    string
+	Error     string
+	ToolCount int
+}
+
 // Sidebar is a toggleable right panel showing the session tree and metadata.
 type Sidebar struct {
 	sessions []SessionInfo
@@ -38,10 +46,11 @@ type Sidebar struct {
 	model    string
 	cwd      string
 	version  string
-	context  ContextStats
-	open     bool
-	width    int
-	height   int
+	context    ContextStats
+	mcpServers []MCPServer
+	open       bool
+	width      int
+	height     int
 }
 
 // NewSidebar creates a Sidebar.
@@ -75,6 +84,22 @@ func (s *Sidebar) SetCwd(cwd string) {
 // SetContext updates the context stats display.
 func (s *Sidebar) SetContext(stats ContextStats) {
 	s.context = stats
+}
+
+// SetMCPServers replaces the full MCP server list.
+func (s *Sidebar) SetMCPServers(servers []MCPServer) {
+	s.mcpServers = servers
+}
+
+// UpdateMCPServer upserts a single MCP server status.
+func (s *Sidebar) UpdateMCPServer(srv MCPServer) {
+	for i, existing := range s.mcpServers {
+		if existing.Name == srv.Name {
+			s.mcpServers[i] = srv
+			return
+		}
+	}
+	s.mcpServers = append(s.mcpServers, srv)
 }
 
 // Toggle flips sidebar visibility.
@@ -123,6 +148,8 @@ var (
 				Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
 	styleSidebarSuccess = lipgloss.NewStyle().
 				Foreground(lipgloss.AdaptiveColor{Light: "#008800", Dark: "#44CC44"})
+	styleSidebarError = lipgloss.NewStyle().
+				Foreground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF4444"})
 )
 
 // View implements tea.Model.
@@ -143,6 +170,30 @@ func (s Sidebar) View() string {
 	if s.context.Cost > 0 {
 		sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf("$%.4f spent", s.context.Cost)))
 		sb.WriteString("\n")
+	}
+
+	// MCP section
+	if len(s.mcpServers) > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(styleSidebarHeader.Render("MCP"))
+		sb.WriteString("\n")
+		for _, srv := range s.mcpServers {
+			indicator := styleSidebarMuted.Render("○")
+			if srv.Status == "connected" {
+				indicator = styleSidebarSuccess.Render("●")
+			} else if srv.Status == "error" {
+				indicator = styleSidebarError.Render("●")
+			}
+			sb.WriteString(indicator + " " + srv.Name)
+			if srv.Status == "connected" && srv.ToolCount > 0 {
+				sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf(" (%d tools)", srv.ToolCount)))
+			}
+			sb.WriteString("\n")
+			if srv.Error != "" {
+				sb.WriteString(styleSidebarMuted.Render("  " + srv.Error))
+				sb.WriteString("\n")
+			}
+		}
 	}
 
 	sb.WriteString("\n")

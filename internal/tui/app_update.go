@@ -103,6 +103,14 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 			spinCmd = a.status.SetWorking(msg.Status.Working)
 		}
 		return a, spinCmd, true
+	case MCPStatusMsg:
+		a.sidebar.UpdateMCPServer(msg.Server)
+		return a, nil, true
+	case MCPStatusLoadedMsg:
+		if msg.Err == nil {
+			a.sidebar.SetMCPServers(msg.Servers)
+		}
+		return a, nil, true
 	case SSEConnectedMsg:
 		a.state.Connected = true
 		return a, nil, true

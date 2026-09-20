@@ -116,6 +116,15 @@ func (c *Client) ListMessages(sessionID string) ([]map[string]any, error) {
 	return messages, nil
 }
 
+// GetMCPStatus fetches MCP server status via GET /mcp/status.
+func (c *Client) GetMCPStatus() (map[string]map[string]any, error) {
+	var status map[string]map[string]any
+	if err := c.getJSON("/mcp/status", &status); err != nil {
+		return nil, err
+	}
+	return status, nil
+}
+
 // ReplyPermission replies to a permission prompt via POST /session/{sessionID}/permissions/{permissionID}.
 func (c *Client) ReplyPermission(sessionID, permissionID, action string) error {
 	body := PermissionReplyInput{Action: action}
