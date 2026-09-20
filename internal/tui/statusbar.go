@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -12,72 +13,65 @@ import (
 
 // StatusBar renders a two-line bottom area: hints line + status bar.
 type StatusBar struct {
-	cwd      string
-	model    string
-	agent    string
-	provider string
-	working  bool
-	spinner  spinner.Model
-	width    int
+	cwd        string
+	model      string
+	agent      string
+	provider   string
+	working    bool
+	spinner    spinner.Model
+	agentColor lipgloss.AdaptiveColor
+	width      int
 }
 
 // NewStatusBar creates a StatusBar with the given width.
 func NewStatusBar(width int) StatusBar {
+	color := AgentColor("build")
 	sp := spinner.New()
-	sp.Spinner = knightRiderSpinner()
+	sp.Spinner = brailleWaveSpinner(color)
 	sp.Style = lipgloss.NewStyle()
 
 	return StatusBar{
-		spinner: sp,
-		width:   width,
-		agent:   "build",
+		spinner:    sp,
+		agentColor: color,
+		width:      width,
+		agent:      "build",
 	}
 }
 
-// knightRiderSpinner creates a Knight Rider-style bouncing block scanner.
-func knightRiderSpinner() spinner.Spinner {
-	const width = 8
-	accentColor := lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"}
-	dimColor := lipgloss.AdaptiveColor{Light: "#552222", Dark: "#441111"}
+// brailleWaveSpinner creates a fluid sine wave using braille dot patterns,
+// colored by the current agent.
+func brailleWaveSpinner(agentColor lipgloss.AdaptiveColor) spinner.Spinner {
+	const width = 16
+	const totalFrames = 32
 
-	accent := lipgloss.NewStyle().Foreground(accentColor)
-	dim := lipgloss.NewStyle().Foreground(dimColor)
+	heights := []rune{'⠀', '⡀', '⡄', '⡆', '⡇', '⣇', '⣧', '⣷', '⣿'}
 
-	// Forward (0→7) + backward (6→1) = 14 frames
+	bright := lipgloss.NewStyle().Foreground(agentColor)
+	mid := lipgloss.NewStyle().Foreground(agentColor).Faint(true)
+	dim := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#CCCCCC", Dark: "#333333"})
+
 	var frames []string
-	positions := make([]int, 0, width*2-2)
-	for i := 0; i < width; i++ {
-		positions = append(positions, i)
-	}
-	for i := width - 2; i > 0; i-- {
-		positions = append(positions, i)
-	}
-
-	for _, pos := range positions {
+	for f := 0; f < totalFrames; f++ {
 		var frame strings.Builder
 		for i := 0; i < width; i++ {
-			dist := pos - i
-			if dist < 0 {
-				dist = -dist
-			}
+			phase := float64(f) / float64(totalFrames) * 2 * math.Pi
+			x := float64(i) / float64(width) * 2 * math.Pi
+			val := (math.Sin(x+phase) + 1) / 2
+			idx := int(val * float64(len(heights)-1))
+			ch := heights[idx]
+
 			switch {
-			case dist == 0:
-				frame.WriteString(accent.Render("█"))
-			case dist == 1:
-				frame.WriteString(accent.Render("▓"))
-			case dist == 2:
-				frame.WriteString(dim.Render("▒"))
+			case val > 0.7:
+				frame.WriteString(bright.Render(string(ch)))
+			case val > 0.3:
+				frame.WriteString(mid.Render(string(ch)))
 			default:
-				frame.WriteString(dim.Render("·"))
+				frame.WriteString(dim.Render(string(ch)))
 			}
 		}
 		frames = append(frames, frame.String())
 	}
-
-	return spinner.Spinner{
-		Frames: frames,
-		FPS:    time.Second / 25,
-	}
+	return spinner.Spinner{Frames: frames, FPS: time.Second / 20}
 }
 
 // SetSize updates the status bar width.
@@ -101,9 +95,14 @@ func (s *StatusBar) SetModel(model, provider string) {
 	s.provider = provider
 }
 
-// SetAgent updates the agent display.
+// SetAgent updates the agent display and recolors the spinner.
 func (s *StatusBar) SetAgent(agent string) {
 	s.agent = agent
+	color := AgentColor(agent)
+	if color != s.agentColor {
+		s.agentColor = color
+		s.spinner.Spinner = brailleWaveSpinner(color)
+	}
 }
 
 // SetWorking updates the working state and returns a command to restart
