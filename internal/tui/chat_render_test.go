@@ -59,7 +59,7 @@ func TestRenderTextPart_StreamingWithBlocks(t *testing.T) {
 // --- renderToolResultPart tests ---
 
 func TestRenderToolResultPart_Error(t *testing.T) {
-	part := PartView{Type: "tool-result", ToolName: "bash", ToolError: true}
+	part := PartView{Type: "tool", ToolName: "bash", ToolError: true}
 	got := renderToolResultPart(part, 80)
 	if !strings.Contains(got, "error") {
 		t.Errorf("error result should contain 'error', got %q", got)
@@ -67,7 +67,7 @@ func TestRenderToolResultPart_Error(t *testing.T) {
 }
 
 func TestRenderToolResultPart_EmptyText(t *testing.T) {
-	part := PartView{Type: "tool-result", ToolName: "bash", Text: ""}
+	part := PartView{Type: "tool", ToolName: "bash", Text: ""}
 	got := renderToolResultPart(part, 80)
 	if got != "" {
 		t.Errorf("empty result should produce empty output, got %q", got)
@@ -75,7 +75,7 @@ func TestRenderToolResultPart_EmptyText(t *testing.T) {
 }
 
 func TestRenderToolResultPart_ShortOutput(t *testing.T) {
-	part := PartView{Type: "tool-result", Text: "line 1\nline 2\nline 3"}
+	part := PartView{Type: "tool", Text: "line 1\nline 2\nline 3"}
 	got := renderToolResultPart(part, 80)
 	if !strings.Contains(got, "line 1") {
 		t.Error("short result should contain all lines")
@@ -113,7 +113,7 @@ func TestRenderToolResultPart_Collapsed(t *testing.T) {
 
 func TestRenderToolCallPart_WithArgs(t *testing.T) {
 	part := PartView{
-		Type:     "tool-call",
+		Type:     "tool",
 		ToolName: "bash",
 		ToolArgs: `{"command":"ls -la"}`,
 		Time:     map[string]any{"end": float64(1)},
@@ -129,7 +129,7 @@ func TestRenderToolCallPart_WithArgs(t *testing.T) {
 
 func TestRenderToolCallPart_InProgress(t *testing.T) {
 	part := PartView{
-		Type:     "tool-call",
+		Type:     "tool",
 		ToolName: "read",
 		ToolArgs: `{"file_path":"/tmp/foo.go"}`,
 	}
@@ -139,6 +139,50 @@ func TestRenderToolCallPart_InProgress(t *testing.T) {
 	}
 	if !strings.Contains(got, "...") {
 		t.Error("in-progress tool call should show spinner")
+	}
+}
+
+// --- unified tool part rendering tests ---
+
+func TestRenderAssistantMessage_UnifiedToolPart(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant"},
+		Parts: []PartView{
+			{
+				Type:     "tool",
+				ToolName: "bash",
+				ToolArgs: `{"command":"echo hello"}`,
+				Time:     map[string]any{"start": float64(1000), "end": float64(2000)},
+			},
+		},
+	}
+	got := renderMessage(msg, 80, md)
+	if !strings.Contains(got, "echo hello") {
+		t.Error("unified tool part should render command detail")
+	}
+	if !strings.Contains(got, "done") {
+		t.Error("completed unified tool part should show done status")
+	}
+}
+
+func TestRenderAssistantMessage_UnifiedToolPartWithOutput(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant"},
+		Parts: []PartView{
+			{
+				Type:     "tool",
+				ToolName: "bash",
+				ToolArgs: `{"command":"ls"}`,
+				Text:     "file1.go\nfile2.go",
+				Time:     map[string]any{"start": float64(1000), "end": float64(2000)},
+			},
+		},
+	}
+	got := renderMessage(msg, 80, md)
+	if !strings.Contains(got, "file1.go") {
+		t.Error("unified tool part with output should render output text")
 	}
 }
 

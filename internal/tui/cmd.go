@@ -45,7 +45,8 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 	case "session.status":
 		status := SessionStatus{}
 		if statusMap, ok := props["status"].(map[string]any); ok {
-			status.Working, _ = statusMap["working"].(bool)
+			statusType, _ := statusMap["type"].(string)
+			status.Working = statusType == "busy"
 			status.Alert, _ = statusMap["alert"].(bool)
 		}
 		return SessionStatusMsg{
@@ -160,16 +161,43 @@ func parsePartView(props map[string]any) PartView {
 	pv.MessageID, _ = part["messageID"].(string)
 	pv.Type, _ = part["type"].(string)
 	pv.Text, _ = part["text"].(string)
-	if pv.Text == "" {
-		if tr, ok := part["toolResult"].(string); ok {
-			pv.Text = tr
+
+	// Unified tool part: read tool/callID and extract fields from state
+	if pv.Type == "tool" {
+		pv.ToolName, _ = part["tool"].(string)
+		if state, ok := part["state"].(map[string]any); ok {
+			status, _ := state["status"].(string)
+			pv.ToolError = status == "error"
+			if input, ok := state["input"].(map[string]any); ok {
+				if args, ok := input["args"].(string); ok {
+					pv.ToolArgs = args
+				}
+			}
+			if output, ok := state["output"].(string); ok && pv.Text == "" {
+				pv.Text = output
+			}
+			if status == "error" {
+				if errStr, ok := state["error"].(string); ok && pv.Text == "" {
+					pv.Text = errStr
+				}
+			}
+			if t, ok := state["time"].(map[string]any); ok {
+				pv.Time = t
+			}
 		}
-	}
-	pv.ToolName, _ = part["toolName"].(string)
-	pv.ToolArgs, _ = part["toolArgs"].(string)
-	pv.ToolError, _ = part["toolError"].(bool)
-	if t, ok := part["time"].(map[string]any); ok {
-		pv.Time = t
+	} else {
+		// Legacy fields for non-tool parts
+		if pv.Text == "" {
+			if tr, ok := part["toolResult"].(string); ok {
+				pv.Text = tr
+			}
+		}
+		pv.ToolName, _ = part["toolName"].(string)
+		pv.ToolArgs, _ = part["toolArgs"].(string)
+		pv.ToolError, _ = part["toolError"].(bool)
+		if t, ok := part["time"].(map[string]any); ok {
+			pv.Time = t
+		}
 	}
 	return pv
 }

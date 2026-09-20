@@ -183,17 +183,26 @@ func (sm *SessionManager) publishAssistantParts(sessionID, bridgeMsgID, textPart
 			})
 		case session.PartToolCall:
 			tcPartID, _ := id.Ascending("part")
+			tcInput := map[string]any{}
+			if part.ToolArgs != "" {
+				tcInput["args"] = part.ToolArgs
+			}
 			sm.bus.Publish("message.part.updated", map[string]any{
 				"sessionID": sessionID,
 				"part": map[string]any{
-					"id":         tcPartID,
-					"sessionID":  sessionID,
-					"messageID":  bridgeMsgID,
-					"type":       "tool-call",
-					"toolCallID": part.ToolCallID,
-					"toolName":   part.ToolName,
-					"toolArgs":   part.ToolArgs,
-					"time":       map[string]any{"start": startTime, "end": completedAt},
+					"id":        tcPartID,
+					"sessionID": sessionID,
+					"messageID": bridgeMsgID,
+					"type":      "tool",
+					"callID":    part.ToolCallID,
+					"tool":      part.ToolName,
+					"state": map[string]any{
+						"status":   "completed",
+						"input":    tcInput,
+						"title":    part.ToolName,
+						"metadata": map[string]any{},
+						"time":     map[string]any{"start": startTime, "end": completedAt},
+					},
 				},
 				"time": completedAt,
 			})
@@ -215,18 +224,31 @@ func (sm *SessionManager) bridgeToolMessage(sessionID string, msg session.Messag
 	for _, part := range msg.Parts {
 		if part.Type == session.PartToolResult {
 			partID, _ := id.Ascending("part")
+			status := "completed"
+			if part.ToolError {
+				status = "error"
+			}
+			state := map[string]any{
+				"status":   status,
+				"input":    map[string]any{},
+				"output":   part.ToolResult,
+				"title":    part.ToolName,
+				"metadata": map[string]any{"output": part.ToolResult},
+				"time":     map[string]any{"start": now, "end": now},
+			}
+			if part.ToolError {
+				state["error"] = part.ToolResult
+			}
 			sm.bus.Publish("message.part.updated", map[string]any{
 				"sessionID": sessionID,
 				"part": map[string]any{
-					"id":         partID,
-					"sessionID":  sessionID,
-					"messageID":  toolMsgID,
-					"type":       "tool-result",
-					"toolCallID": part.ToolCallID,
-					"toolName":   part.ToolName,
-					"toolResult": part.ToolResult,
-					"toolError":  part.ToolError,
-					"time":       map[string]any{"start": now, "end": now},
+					"id":        partID,
+					"sessionID": sessionID,
+					"messageID": toolMsgID,
+					"type":      "tool",
+					"callID":    part.ToolCallID,
+					"tool":      part.ToolName,
+					"state":     state,
 				},
 				"time": now,
 			})
@@ -351,13 +373,17 @@ func (sm *SessionManager) bridgeToolBegin(evt bus.Event) {
 	sm.bus.Publish("message.part.updated", map[string]any{
 		"sessionID": sessionID,
 		"part": map[string]any{
-			"id":         partID,
-			"sessionID":  sessionID,
-			"messageID":  msgID,
-			"type":       "tool-call",
-			"toolCallID": toolCallID,
-			"toolName":   toolName,
-			"time":       map[string]any{"start": now},
+			"id":        partID,
+			"sessionID": sessionID,
+			"messageID": msgID,
+			"type":      "tool",
+			"callID":    toolCallID,
+			"tool":      toolName,
+			"state": map[string]any{
+				"status": "running",
+				"input":  map[string]any{},
+				"time":   map[string]any{"start": now},
+			},
 		},
 		"time": now,
 	})
@@ -388,17 +414,27 @@ func (sm *SessionManager) bridgeToolEnd(evt bus.Event) {
 	partID, _ := id.Ascending("part")
 	now := time.Now().UnixMilli()
 
+	input := map[string]any{}
+	if toolArgs != "" {
+		input["args"] = toolArgs
+	}
+
 	sm.bus.Publish("message.part.updated", map[string]any{
 		"sessionID": sessionID,
 		"part": map[string]any{
-			"id":         partID,
-			"sessionID":  sessionID,
-			"messageID":  msgID,
-			"type":       "tool-call",
-			"toolCallID": toolCallID,
-			"toolName":   toolName,
-			"toolArgs":   toolArgs,
-			"time":       map[string]any{"start": now, "end": now},
+			"id":        partID,
+			"sessionID": sessionID,
+			"messageID": msgID,
+			"type":      "tool",
+			"callID":    toolCallID,
+			"tool":      toolName,
+			"state": map[string]any{
+				"status":   "completed",
+				"input":    input,
+				"title":    toolName,
+				"metadata": map[string]any{},
+				"time":     map[string]any{"start": now, "end": now},
+			},
 		},
 		"time": now,
 	})

@@ -83,7 +83,10 @@ func (r *EventRelay) relayMessagePart(sessionID string, props map[string]any) {
 }
 
 func (r *EventRelay) relaySessionStatus(sessionID string, props map[string]any) {
-	status, _ := props["status"].(string)
+	var status string
+	if statusMap, ok := props["status"].(map[string]any); ok {
+		status, _ = statusMap["type"].(string)
+	}
 	r.transport.SendNotification("sessionUpdate", map[string]any{
 		"sessionId": sessionID,
 		"type":      "status",

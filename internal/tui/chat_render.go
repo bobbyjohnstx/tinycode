@@ -119,6 +119,21 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 				sb.WriteString("\n")
 				lineNum += strings.Count(result, "\n") + 1
 			}
+		case "tool":
+			// Unified tool part: render as tool-call (with optional result)
+			tc := renderToolCallPart(part)
+			sb.WriteString(tc)
+			sb.WriteString("\n")
+			lineNum += strings.Count(tc, "\n") + 1
+			// If there's output text, render it as a result
+			if part.Text != "" && !part.ToolError {
+				result := renderToolResultPart(part, width-4)
+				if result != "" {
+					sb.WriteString(result)
+					sb.WriteString("\n")
+					lineNum += strings.Count(result, "\n") + 1
+				}
+			}
 		default:
 			rendered := renderTextPart(part, width-4, md)
 			if rendered != "" {
@@ -173,6 +188,12 @@ func renderParts(parts []PartView, width int, md *render.MarkdownRenderer) strin
 			sb.WriteString(renderToolCallPart(part))
 		case "tool-result":
 			sb.WriteString(renderToolResultPart(part, width))
+		case "tool":
+			sb.WriteString(renderToolCallPart(part))
+			if part.Text != "" && !part.ToolError {
+				sb.WriteString("\n")
+				sb.WriteString(renderToolResultPart(part, width))
+			}
 		default:
 			sb.WriteString(renderTextPart(part, width, md))
 		}
