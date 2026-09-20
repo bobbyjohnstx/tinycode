@@ -19,7 +19,7 @@ import (
 )
 
 func (s *Server) handleGlobalEventStream(w http.ResponseWriter, r *http.Request) {
-	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory)
+	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory, s.sessionManager.sessionDir)
 }
 
 func (s *Server) handleSessionStatus(w http.ResponseWriter, r *http.Request) {

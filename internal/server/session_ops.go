@@ -184,7 +184,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		}
 	}
 
-	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model, sessionDir)
+	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model)
 
 	if sm.mcpSvc != nil {
 		mcpTools := sm.mcpSvc.Tools(ctx)
@@ -206,7 +206,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	}
 
 	client := sm.clientFactory(model)
-	sessionTools := sm.tools.WithDirectory(sessionDir)
+	sessionTools := sm.tools
 	proc := session.NewProcessor(session.ProcessorConfig{
 		SessionID:     sessionID,
 		Agent:         input.Agent,
@@ -227,7 +227,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	}
 	sm.mu.Unlock()
 
-	result := proc.ProcessWithID(ctx, userText, input.MessageID)
+	result := proc.Process(ctx, userText)
 
 	sm.persistPromptResult(result, existingMsgs, ms, sessionID)
 

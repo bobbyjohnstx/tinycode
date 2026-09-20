@@ -155,6 +155,11 @@ func (s *Server) handleSessionUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.deps.Bus.Publish("session.updated", map[string]any{
+		"sessionID": id,
+		"info":      info,
+	})
+
 	respondJSON(w, http.StatusOK, info)
 }
 
@@ -552,6 +557,7 @@ func (s *Server) resolveDefaultModel() *session.ModelRef {
 
 func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.PathValue("id")
+	store := s.sessionStore()
 	ms := s.messageStore()
 	ps := s.partStore()
 
@@ -560,6 +566,9 @@ func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	// Look up session once for providerID enrichment on assistant messages.
+	sessInfo, _ := store.Get(sessionID)
 
 	result := make([]map[string]any, 0, len(messages))
 	for _, m := range messages {
@@ -583,6 +592,12 @@ func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 		}
 		if m.Role == session.RoleAssistant {
 			info["time"] = map[string]any{"created": createdMs, "completed": createdMs}
+			if sessInfo != nil && sessInfo.Model != nil {
+				info["providerID"] = sessInfo.Model.ProviderID
+				if m.Model == "" {
+					info["modelID"] = sessInfo.Model.ID
+				}
+			}
 		}
 		if m.Model != "" {
 			info["modelID"] = m.Model

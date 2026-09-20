@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 func respondJSON(w http.ResponseWriter, status int, data any) {
@@ -17,6 +18,19 @@ func respondJSON(w http.ResponseWriter, status int, data any) {
 
 func respondError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, map[string]string{"error": message})
+}
+
+func requestDirectory(r *http.Request, fallback string) string {
+	if dir := r.URL.Query().Get("directory"); dir != "" {
+		return dir
+	}
+	if hdr := r.Header.Get("x-tinycode-directory"); hdr != "" {
+		if decoded, err := url.PathUnescape(hdr); err == nil {
+			return decoded
+		}
+		return hdr
+	}
+	return fallback
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {

@@ -6,6 +6,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/id"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode-go/internal/vcs"
 )
 
 func (sm *SessionManager) bridgeMessageEvent(evt bus.Event) {
@@ -437,5 +438,40 @@ func (sm *SessionManager) bridgeToolEnd(evt bus.Event) {
 			},
 		},
 		"time": now,
+	})
+
+	// Publish session.diff after file-modifying tool completions.
+	if isFileModifyingTool(toolName) {
+		go sm.publishSessionDiff(sessionID)
+	}
+}
+
+// isFileModifyingTool returns true for tools that modify files on disk.
+func isFileModifyingTool(name string) bool {
+	switch name {
+	case "edit", "write", "apply_patch":
+		return true
+	}
+	return false
+}
+
+// publishSessionDiff runs git diff for the session's directory and publishes
+// a session.diff event with the results.
+func (sm *SessionManager) publishSessionDiff(sessionID string) {
+	dir := sm.sessionDir(sessionID)
+	diff, err := vcs.GitDiff(dir)
+	if err != nil {
+		return
+	}
+
+	files, additions, deletions := parseDiffStats(diff)
+	sm.bus.Publish("session.diff", map[string]any{
+		"sessionID": sessionID,
+		"diff":      files,
+		"summary": map[string]any{
+			"additions": additions,
+			"deletions": deletions,
+			"files":     len(files),
+		},
 	})
 }

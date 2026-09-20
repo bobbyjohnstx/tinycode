@@ -139,8 +139,9 @@ func (sm *SessionManager) subscribeSummarize() {
 			})
 
 			sm.bus.Publish("session.compacted", map[string]any{
-				"sessionID": sessionID,
-				"message":   "Manual summarize requested",
+				"sessionID":     sessionID,
+				"compactionNum": 0,
+				"message":       "Manual summarize requested",
 			})
 
 			sm.bus.Publish("session.status", map[string]any{
