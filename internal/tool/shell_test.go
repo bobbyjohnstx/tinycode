@@ -2,9 +2,17 @@ package tool
 
 import "testing"
 
+func TestCheckSecretAccess_DetectsStandaloneDotEnv(t *testing.T) {
+	// Standalone .env preceded by space — the original \b\.env\b regex missed this
+	// because \b doesn't fire before a dot when preceded by whitespace.
+	for _, cmd := range []string{"cat .env", "source .env", "less .env", "vim .env"} {
+		if w := checkSecretAccess(cmd); w == "" {
+			t.Errorf("expected warning for %q, got empty string", cmd)
+		}
+	}
+}
+
 func TestCheckSecretAccess_DetectsDotEnvInFilename(t *testing.T) {
-	// The \b\.env\b pattern requires a word character before the dot,
-	// so it matches compound filenames like config.env, not standalone .env.
 	result := checkSecretAccess("cat config.env")
 	if result == "" {
 		t.Error("expected warning for 'cat config.env', got empty string")

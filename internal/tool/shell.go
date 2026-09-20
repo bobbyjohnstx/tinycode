@@ -20,11 +20,11 @@ const (
 )
 
 var secretFilePatterns = []*regexp.Regexp{
-	regexp.MustCompile(`\b\.env\b`),
-	regexp.MustCompile(`\b\.env\.\w+`),
+	regexp.MustCompile(`\.env\b`),
+	regexp.MustCompile(`\.env\.\w+`),
 	regexp.MustCompile(`\bcredentials\b`),
-	regexp.MustCompile(`.*\.key\b`),
-	regexp.MustCompile(`.*\.pem\b`),
+	regexp.MustCompile(`\.key\b`),
+	regexp.MustCompile(`\.pem\b`),
 }
 
 var destructivePatterns = []*regexp.Regexp{
