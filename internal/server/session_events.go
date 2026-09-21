@@ -395,6 +395,12 @@ func (sm *SessionManager) bridgeToolBegin(evt bus.Event) {
 		return
 	}
 	sessionID, _ := props["sessionID"].(string)
+	// Skip subagent tool events — publishAssistantParts handles them
+	// with complete args when the full message arrives, avoiding
+	// duplicate "read done" lines without filenames.
+	if _, _, isSub := parseSubagentID(sessionID); isSub {
+		return
+	}
 	toolCallID, _ := props["toolCallID"].(string)
 	toolName, _ := props["toolName"].(string)
 	active, publishID, label := sm.resolveSession(sessionID)
@@ -451,6 +457,9 @@ func (sm *SessionManager) bridgeToolEnd(evt bus.Event) {
 		return
 	}
 	sessionID, _ := props["sessionID"].(string)
+	if _, _, isSub := parseSubagentID(sessionID); isSub {
+		return
+	}
 	toolCallID, _ := props["toolCallID"].(string)
 	toolName, _ := props["toolName"].(string)
 	toolArgs, _ := props["toolArgs"].(string)

@@ -652,19 +652,12 @@ func TestSubagentEvents_DroppedWhenNoParent(t *testing.T) {
 	}
 }
 
-func TestSubagentToolBegin_IncludesLabel(t *testing.T) {
+func TestSubagentToolBegin_SkippedForSubagents(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	sm := newMinimalSM(t, b)
 
 	registerActiveSession(sm, "ses_p2", nil, "build", "/tmp")
-
-	// Simulate subagent streaming state: set assistMsgID on the subagent stream.
-	// First call resolveSession to create the subagent stream entry.
-	active, _, _ := sm.resolveSession("ses_p2:executor-B")
-	active.mu.Lock()
-	active.assistMsgID = "msg_sub_assist"
-	active.mu.Unlock()
 
 	sub := b.Subscribe("message.part.updated")
 	defer sub.Unsubscribe()
@@ -678,37 +671,19 @@ func TestSubagentToolBegin_IncludesLabel(t *testing.T) {
 	})
 
 	select {
-	case received := <-sub.C:
-		props := received.Properties.(map[string]any)
-		if props["sessionID"] != "ses_p2" {
-			t.Errorf("expected sessionID 'ses_p2', got %v", props["sessionID"])
-		}
-		part := props["part"].(map[string]any)
-		if part["subagentLabel"] != "executor-B" {
-			t.Errorf("expected subagentLabel 'executor-B', got %v", part["subagentLabel"])
-		}
-		if part["tool"] != "shell" {
-			t.Errorf("expected tool 'shell', got %v", part["tool"])
-		}
-		if part["sessionID"] != "ses_p2" {
-			t.Errorf("expected part sessionID 'ses_p2', got %v", part["sessionID"])
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for subagent tool-begin event")
+	case <-sub.C:
+		t.Fatal("subagent tool-begin should be skipped, but got an event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected: no event for subagent tool begin
 	}
 }
 
-func TestSubagentToolEnd_IncludesLabel(t *testing.T) {
+func TestSubagentToolEnd_SkippedForSubagents(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	sm := newMinimalSM(t, b)
 
 	registerActiveSession(sm, "ses_p3", nil, "build", "/tmp")
-
-	active, _, _ := sm.resolveSession("ses_p3:executor-C")
-	active.mu.Lock()
-	active.assistMsgID = "msg_sub_assist_2"
-	active.mu.Unlock()
 
 	sub := b.Subscribe("message.part.updated")
 	defer sub.Unsubscribe()
@@ -723,21 +698,10 @@ func TestSubagentToolEnd_IncludesLabel(t *testing.T) {
 	})
 
 	select {
-	case received := <-sub.C:
-		props := received.Properties.(map[string]any)
-		if props["sessionID"] != "ses_p3" {
-			t.Errorf("expected sessionID 'ses_p3', got %v", props["sessionID"])
-		}
-		part := props["part"].(map[string]any)
-		if part["subagentLabel"] != "executor-C" {
-			t.Errorf("expected subagentLabel 'executor-C', got %v", part["subagentLabel"])
-		}
-		state := part["state"].(map[string]any)
-		if state["status"] != "completed" {
-			t.Errorf("expected status 'completed', got %v", state["status"])
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for subagent tool-end event")
+	case <-sub.C:
+		t.Fatal("subagent tool-end should be skipped, but got an event")
+	case <-time.After(100 * time.Millisecond):
+		// Expected: no event for subagent tool end
 	}
 }
 
