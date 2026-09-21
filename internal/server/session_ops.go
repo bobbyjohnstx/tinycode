@@ -210,14 +210,19 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	if expandResult.AutoApprove {
 		sessionTools = sessionTools.WithAutoApprove()
 	}
+	displayText := ""
+	if userText != llmText {
+		displayText = userText
+	}
 	proc := session.NewProcessor(session.ProcessorConfig{
-		SessionID:    sessionID,
-		Agent:        input.Agent,
-		Model:        model,
-		SystemPrompt: systemPrompt,
-		Compaction:   sm.buildCompactionConfig(),
-		AgentPerms:   agentPerms,
-		Perms:        sm.perms,
+		SessionID:       sessionID,
+		Agent:           input.Agent,
+		Model:           model,
+		SystemPrompt:    systemPrompt,
+		Compaction:      sm.buildCompactionConfig(),
+		AgentPerms:      agentPerms,
+		Perms:           sm.perms,
+		UserDisplayText: displayText,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 
@@ -231,20 +236,6 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	sm.mu.Unlock()
 
 	result := proc.Process(ctx, llmText)
-
-	// Replace the LLM-facing expanded text with the short display text
-	// in the stored user message so the chat shows the original command.
-	if result != nil && userText != llmText {
-		for i := range result.Messages {
-			if result.Messages[i].Role == "user" {
-				for j := range result.Messages[i].Parts {
-					if result.Messages[i].Parts[j].Type == "text" && result.Messages[i].Parts[j].Text == llmText {
-						result.Messages[i].Parts[j].Text = userText
-					}
-				}
-			}
-		}
-	}
 
 	sm.persistPromptResult(result, existingMsgs, ms, sessionID)
 

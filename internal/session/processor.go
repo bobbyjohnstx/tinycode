@@ -37,6 +37,7 @@ type ProcessorConfig struct {
 	MaxIterations    int
 	Perms            *permission.Service
 	Ruleset          permission.Ruleset
+	UserDisplayText  string
 }
 
 type Processor struct {

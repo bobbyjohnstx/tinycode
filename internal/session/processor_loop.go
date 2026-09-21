@@ -72,9 +72,17 @@ func (p *Processor) addUserMessage(userMessage string, messageID string) {
 	p.messages = append(p.messages, userMsg)
 	p.mu.Unlock()
 
+	// Publish with display text if set (e.g., short "/swarm ..." instead
+	// of the full instruction prefix). The full text stays in the
+	// conversation for LLM context.
+	eventMsg := userMsg
+	if p.config.UserDisplayText != "" {
+		eventMsg.Parts = []Part{TextPart(p.config.UserDisplayText)}
+	}
+
 	p.bus.Publish("session.message", map[string]any{
 		"sessionID": p.config.SessionID,
-		"message":   userMsg,
+		"message":   eventMsg,
 	})
 }
 
