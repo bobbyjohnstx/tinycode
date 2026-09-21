@@ -80,6 +80,7 @@ func (c *connectedApp) Init() tea.Cmd {
 		fetchProviders(c.client),
 		fetchAgents(c.client),
 		fetchCommands(c.client),
+		fetchPlugins(c.client),
 		fetchMCPStatus(c.client),
 	)
 }

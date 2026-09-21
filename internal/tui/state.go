@@ -134,6 +134,7 @@ type AppState struct {
 	Providers     []ProviderInfo
 	Agents        []api.AgentInfo
 	Commands      []api.CommandInfo
+	Plugins       []api.PluginInfo
 	SessionStatus map[string]SessionStatus
 
 	// Local UI state

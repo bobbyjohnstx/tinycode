@@ -82,6 +82,14 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	case CommandListMsg:
 		m, cmd := a.handleCommandListMsg(msg)
 		return m, cmd, true
+	case PluginListMsg:
+		if msg.Err == nil {
+			a.state.Plugins = msg.Plugins
+			a.welcome.MarkDone("plugins")
+		} else {
+			a.welcome.MarkDone("plugins")
+		}
+		return a, nil, true
 	case ProvidersLoadedMsg:
 		m, cmd := a.handleProvidersLoadedMsg(msg)
 		if msg.Err == nil {

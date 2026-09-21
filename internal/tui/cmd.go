@@ -322,6 +322,16 @@ func fetchCommands(client *api.Client) tea.Cmd {
 	}
 }
 
+func fetchPlugins(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		plugins, err := client.ListPlugins()
+		if err != nil {
+			return PluginListMsg{Err: err}
+		}
+		return PluginListMsg{Plugins: plugins}
+	}
+}
+
 // fetchMessages fetches messages for a session.
 func fetchMessages(client *api.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {

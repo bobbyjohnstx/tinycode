@@ -163,6 +163,12 @@ type MCPStatusLoadedMsg struct {
 	Err     error
 }
 
+// PluginListMsg carries the loaded plugin list from the server.
+type PluginListMsg struct {
+	Plugins []api.PluginInfo
+	Err     error
+}
+
 // ProvidersRefreshMsg signals that the provider list should be re-fetched.
 type ProvidersRefreshMsg struct{}
 

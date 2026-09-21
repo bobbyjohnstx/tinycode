@@ -125,6 +125,21 @@ func (c *Client) GetMCPStatus() (map[string]map[string]any, error) {
 	return status, nil
 }
 
+// ListPlugins retrieves loaded plugins via GET /plugin.
+func (c *Client) ListPlugins() ([]PluginInfo, error) {
+	var plugins []PluginInfo
+	if err := c.getJSON("/plugin", &plugins); err != nil {
+		return nil, err
+	}
+	return plugins, nil
+}
+
+// PluginInfo describes a loaded plugin.
+type PluginInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // ReplyPermission replies to a permission prompt via POST /session/{sessionID}/permissions/{permissionID}.
 func (c *Client) ReplyPermission(sessionID, permissionID, action string) error {
 	body := PermissionReplyInput{Action: action}

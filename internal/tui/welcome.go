@@ -47,6 +47,7 @@ var bootChecks = []bootCheck{
 	{"Connecting to server", "sse"},
 	{"Discovering providers", "providers"},
 	{"Loading agents", "agents"},
+	{"Loading plugins", "plugins"},
 	{"Loading sessions", "sessions"},
 	{"Checking MCP servers", "mcp"},
 }
@@ -119,7 +120,7 @@ func (w *WelcomeView) Tick() tea.Cmd {
 
 type bootTickMsg struct{}
 
-func (w WelcomeView) View(width, height int, providerName, modelName string, sessionCount, agentCount, mcpCount int) string {
+func (w WelcomeView) View(width, height int, providerName, modelName string, sessionCount, agentCount, pluginCount, mcpCount int) string {
 	leftColor := lipgloss.AdaptiveColor{Light: "#4488CC", Dark: "#38bdf8"}
 	rightColor := lipgloss.AdaptiveColor{Light: "#333333", Dark: "#f8fafc"}
 	checkColor := lipgloss.AdaptiveColor{Light: "#22AA44", Dark: "#7fd88f"}
@@ -188,6 +189,10 @@ func (w WelcomeView) View(width, height int, providerName, modelName string, ses
 			case "agents":
 				if agentCount > 0 {
 					suffix = dimStyle.Render(fmt.Sprintf(" · %d agents", agentCount))
+				}
+			case "plugins":
+				if pluginCount > 0 {
+					suffix = dimStyle.Render(fmt.Sprintf(" · %d plugins", pluginCount))
 				}
 			case "sessions":
 				if sessionCount > 0 {
