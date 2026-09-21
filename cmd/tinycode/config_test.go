@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 )
 
@@ -65,5 +66,30 @@ func TestLoadOrCreateWebToken_ReadsExisting(t *testing.T) {
 	token := loadOrCreateWebToken()
 	if token != knownToken {
 		t.Errorf("expected existing token %s, got %s", knownToken, token)
+	}
+}
+
+func TestInitTooling_SetsJobManager(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	_, _, toolCtx := initTooling(b, t.TempDir())
+
+	if toolCtx.JobManager == nil {
+		t.Error("expected JobManager to be set")
+	}
+}
+
+func TestInitTooling_SetsBus(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	_, _, toolCtx := initTooling(b, t.TempDir())
+
+	if toolCtx.Bus == nil {
+		t.Error("expected Bus to be set")
+	}
+	if toolCtx.Bus != b {
+		t.Error("expected Bus to be the same instance passed to initTooling")
 	}
 }

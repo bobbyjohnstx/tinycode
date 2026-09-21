@@ -24,15 +24,18 @@ type ExecuteResult struct {
 // If it returns non-empty modifiedOutput, that replaces the original.
 type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool)
 
+type SubagentRunnerFunc func(ctx context.Context, prompt, agent, directory string) (string, error)
+
 type Context struct {
-	SessionID     string
-	Directory     string
-	Perms         *permission.Service
-	Bus           *bus.Bus
-	JobManager    *session.JobManager
-	SubagentDepth int
-	DB            *sql.DB
-	AfterHook     AfterHookFunc
+	SessionID      string
+	Directory      string
+	Perms          *permission.Service
+	Bus            *bus.Bus
+	JobManager     *session.JobManager
+	SubagentRunner SubagentRunnerFunc
+	SubagentDepth  int
+	DB             *sql.DB
+	AfterHook      AfterHookFunc
 }
 
 type Def struct {
@@ -102,10 +105,15 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 	}
 
 	toolCtx := &Context{
-		SessionID: sessionID,
-		Directory: r.ctx.Directory,
-		Perms:     r.ctx.Perms,
-		Bus:       r.ctx.Bus,
+		SessionID:      sessionID,
+		Directory:      r.ctx.Directory,
+		Perms:          r.ctx.Perms,
+		Bus:            r.ctx.Bus,
+		JobManager:     r.ctx.JobManager,
+		SubagentRunner: r.ctx.SubagentRunner,
+		SubagentDepth:  r.ctx.SubagentDepth,
+		DB:             r.ctx.DB,
+		AfterHook:      r.ctx.AfterHook,
 	}
 
 	// Check permissions if service is available and tool has a permission requirement
@@ -229,14 +237,15 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 	defer r.mu.RUnlock()
 
 	newCtx := &Context{
-		SessionID:     r.ctx.SessionID,
-		Directory:     dir,
-		Perms:         r.ctx.Perms,
-		Bus:           r.ctx.Bus,
-		JobManager:    r.ctx.JobManager,
-		SubagentDepth: r.ctx.SubagentDepth,
-		DB:            r.ctx.DB,
-		AfterHook:     r.ctx.AfterHook,
+		SessionID:      r.ctx.SessionID,
+		Directory:      dir,
+		Perms:          r.ctx.Perms,
+		Bus:            r.ctx.Bus,
+		JobManager:     r.ctx.JobManager,
+		SubagentRunner: r.ctx.SubagentRunner,
+		SubagentDepth:  r.ctx.SubagentDepth,
+		DB:             r.ctx.DB,
+		AfterHook:      r.ctx.AfterHook,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))

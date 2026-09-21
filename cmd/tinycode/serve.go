@@ -83,6 +83,10 @@ func runServe() {
 		Config:         cfg,
 	})
 
+	toolCtx.SubagentRunner = func(subCtx context.Context, prompt, agent, directory string) (string, error) {
+		return srv.RunSubagent(subCtx, toolCtx.SessionID, prompt, agent, directory)
+	}
+
 	listener, err := srv.Listen(ctx)
 	if err != nil {
 		slog.Error("failed to start server", "error", err)
@@ -162,6 +166,10 @@ func runWeb() {
 		MCPService:     mcpSvc,
 		Config:         cfg,
 	})
+
+	toolCtx.SubagentRunner = func(subCtx context.Context, prompt, agent, directory string) (string, error) {
+		return srv.RunSubagent(subCtx, toolCtx.SessionID, prompt, agent, directory)
+	}
 
 	listener, err := srv.Listen(ctx)
 	if err != nil {
