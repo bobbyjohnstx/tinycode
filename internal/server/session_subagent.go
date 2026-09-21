@@ -20,8 +20,7 @@ var subagentSeq atomic.Int64
 
 func nextSubagentLabel(agent string) string {
 	n := subagentSeq.Add(1)
-	letter := string(rune('A' + (n-1)%26))
-	return fmt.Sprintf("%s-%s", agent, letter)
+	return fmt.Sprintf("%s-%d", agent, n)
 }
 
 // RunSubagent executes a prompt in a child session and returns the assistant's

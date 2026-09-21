@@ -178,6 +178,17 @@ func TestRunSubagent_RegistersMCPTools(t *testing.T) {
 	}
 }
 
+func TestSubagentLabel_NoCollision(t *testing.T) {
+	seen := make(map[string]bool)
+	for i := 0; i < 30; i++ {
+		label := nextSubagentLabel("executor")
+		if seen[label] {
+			t.Fatalf("duplicate label on iteration %d: %s", i, label)
+		}
+		seen[label] = true
+	}
+}
+
 func TestRunSubagent_NilConfig(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

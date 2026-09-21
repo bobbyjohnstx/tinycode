@@ -174,7 +174,7 @@ func TestTaskTool_StatusLookup(t *testing.T) {
 	})
 	RegisterBuiltins(r)
 
-	args := json.RawMessage(fmt.Sprintf(`{"description":"check","prompt":"x","task_id":"%s"}`, jobID))
+	args := json.RawMessage(fmt.Sprintf(`{"description":"check","task_id":"%s"}`, jobID))
 	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-st")
 
 	if isErr {
@@ -201,7 +201,7 @@ func TestTaskTool_StatusLookup_NotFound(t *testing.T) {
 	})
 	RegisterBuiltins(r)
 
-	args := json.RawMessage(`{"description":"check","prompt":"x","task_id":"nonexistent"}`)
+	args := json.RawMessage(`{"description":"check","task_id":"nonexistent"}`)
 	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-nf")
 
 	if !isErr {

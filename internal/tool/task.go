@@ -48,7 +48,7 @@ func TaskTool() *Def {
 					"description": "Run the task in the background",
 				},
 			},
-			"required": []string{"description", "prompt"},
+			"required": []string{"description"},
 		},
 		Execute: executeTask,
 	}
@@ -69,10 +69,7 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		return &ExecuteResult{Output: fmt.Sprintf("Invalid arguments: %v", err), IsError: true}, nil
 	}
 
-	if args.Prompt == "" {
-		return &ExecuteResult{Output: "prompt is required", IsError: true}, nil
-	}
-
+	// Status lookup first — doesn't need a prompt.
 	if args.TaskID != "" {
 		if tc.JobManager == nil {
 			return &ExecuteResult{Output: "Job manager not available", IsError: true}, nil
@@ -88,6 +85,11 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 			"error":  job.Error,
 		})
 		return &ExecuteResult{Output: string(result)}, nil
+	}
+
+	// Prompt required for spawning new tasks.
+	if args.Prompt == "" {
+		return &ExecuteResult{Output: "prompt is required", IsError: true}, nil
 	}
 
 	if tc.SubagentDepth >= maxSubagentDepth {
