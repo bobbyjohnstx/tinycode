@@ -183,6 +183,7 @@ func initTooling(b *bus.Bus, directory string, cfg ...*config.Info) (*tool.Regis
 		JobManager:     session.NewJobManager(b),
 		SubagentCount:  &atomic.Int32{},
 		SubagentBudget: subagentBudget,
+		TaskRoundDone:  &atomic.Bool{},
 	}
 	if len(cfg) > 0 && cfg[0] != nil && cfg[0].AutoApprove != nil && *cfg[0].AutoApprove {
 		toolCtx.AutoApprove = true

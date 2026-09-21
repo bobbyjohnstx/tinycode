@@ -397,6 +397,98 @@ func TestTaskTool_BudgetExhausted(t *testing.T) {
 	}
 }
 
+func TestTaskTool_TaskRoundDone_BlocksSecondRound(t *testing.T) {
+	roundDone := &atomic.Bool{}
+	callCount := 0
+	r := NewRegistry(&Context{
+		Directory:     t.TempDir(),
+		TaskRoundDone: roundDone,
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
+			callCount++
+			return "ok", nil
+		},
+	})
+	RegisterBuiltins(r)
+
+	// First call should succeed and set the flag.
+	args := json.RawMessage(`{"description":"first","prompt":"hello"}`)
+	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-rd1")
+	if isErr {
+		t.Fatalf("expected first call to succeed, got: %s", output)
+	}
+	if !roundDone.Load() {
+		t.Error("expected TaskRoundDone to be true after first call")
+	}
+
+	// Second call should be blocked.
+	args2 := json.RawMessage(`{"description":"second","prompt":"hello again"}`)
+	output2, isErr2, _ := r.Execute(context.Background(), "task", args2, "ses-rd2")
+	if !isErr2 {
+		t.Error("expected second call to be blocked")
+	}
+	if output2 == "" {
+		t.Error("expected error message about task delegation completed")
+	}
+	if callCount != 1 {
+		t.Errorf("expected runner called once, got %d", callCount)
+	}
+}
+
+func TestTaskTool_TaskRoundDone_ResetAllowsNewRound(t *testing.T) {
+	roundDone := &atomic.Bool{}
+	callCount := 0
+	r := NewRegistry(&Context{
+		Directory:     t.TempDir(),
+		TaskRoundDone: roundDone,
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
+			callCount++
+			return "ok", nil
+		},
+	})
+	RegisterBuiltins(r)
+
+	// First call succeeds.
+	args := json.RawMessage(`{"description":"first","prompt":"hello"}`)
+	r.Execute(context.Background(), "task", args, "ses-rr1")
+
+	// Reset the flag (simulates new prompt).
+	r.ResetTaskRound()
+
+	// Second call should now succeed.
+	args2 := json.RawMessage(`{"description":"second","prompt":"hello again"}`)
+	output2, isErr2, _ := r.Execute(context.Background(), "task", args2, "ses-rr2")
+	if isErr2 {
+		t.Fatalf("expected second call after reset to succeed, got: %s", output2)
+	}
+	if callCount != 2 {
+		t.Errorf("expected runner called twice, got %d", callCount)
+	}
+}
+
+func TestTaskTool_TaskRoundDone_StatusLookupNotBlocked(t *testing.T) {
+	roundDone := &atomic.Bool{}
+	roundDone.Store(true) // simulate done round
+	jm := session.NewJobManager()
+	jobID := jm.Start(context.Background(), func(ctx context.Context) (string, error) {
+		return "done", nil
+	})
+	time.Sleep(50 * time.Millisecond)
+
+	r := NewRegistry(&Context{
+		Directory:     t.TempDir(),
+		TaskRoundDone: roundDone,
+		JobManager:    jm,
+	})
+	RegisterBuiltins(r)
+
+	// Status lookup should not be blocked by TaskRoundDone.
+	args := json.RawMessage(fmt.Sprintf(`{"description":"check","task_id":"%s"}`, jobID))
+	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-sl")
+	if isErr {
+		t.Fatalf("expected status lookup to succeed even with TaskRoundDone=true, got: %s", output)
+	}
+}
+
 func TestTaskTool_BudgetDecrement(t *testing.T) {
 	budget := &atomic.Int32{}
 	budget.Store(5)

@@ -92,6 +92,14 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		return &ExecuteResult{Output: "prompt is required", IsError: true}, nil
 	}
 
+	// Block second round of task calls within the same prompt.
+	if tc.TaskRoundDone != nil && tc.TaskRoundDone.Load() {
+		return &ExecuteResult{
+			Output:  "Task delegation already completed. Synthesize results from completed tasks instead of spawning new ones.",
+			IsError: true,
+		}, nil
+	}
+
 	if tc.SubagentDepth >= maxSubagentDepth {
 		return &ExecuteResult{
 			Output:  fmt.Sprintf("Maximum subagent depth (%d) exceeded. Cannot create nested subagent.", maxSubagentDepth),
@@ -166,6 +174,12 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Subagent error: %v", err), IsError: true}, nil
 	}
+
+	// Mark task round as done — subsequent task calls in this prompt will be blocked.
+	if tc.TaskRoundDone != nil {
+		tc.TaskRoundDone.Store(true)
+	}
+
 	return &ExecuteResult{Output: output}, nil
 }
 

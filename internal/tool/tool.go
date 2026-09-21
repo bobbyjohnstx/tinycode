@@ -39,6 +39,7 @@ type Context struct {
 	AfterHook      AfterHookFunc
 	SubagentCount  *atomic.Int32 // concurrent subagent counter (shared across copies)
 	SubagentBudget *atomic.Int32 // per-session spawn budget (shared across copies)
+	TaskRoundDone  *atomic.Bool  // set after first foreground task batch completes (shared across copies)
 	AutoApprove    bool          // skip permission checks when true
 }
 
@@ -120,6 +121,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
+		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    r.ctx.AutoApprove,
 	}
 
@@ -255,6 +257,7 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
+		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    r.ctx.AutoApprove,
 	}
 
@@ -296,6 +299,7 @@ func (r *Registry) WithDepth(depth int) *Registry {
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
+		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    r.ctx.AutoApprove,
 	}
 
@@ -337,6 +341,7 @@ func (r *Registry) WithAutoApprove() *Registry {
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
+		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    true,
 	}
 
@@ -417,5 +422,22 @@ func (r *Registry) Snapshot() *Registry {
 		order:    order,
 		disabled: disabled,
 		ctx:      r.ctx,
+	}
+}
+
+// ResetTaskRound clears the TaskRoundDone flag so new task calls are allowed.
+// Called at the start of each user prompt to allow a fresh round of tasks.
+func (r *Registry) ResetTaskRound() {
+	if r.ctx != nil && r.ctx.TaskRoundDone != nil {
+		r.ctx.TaskRoundDone.Store(false)
+	}
+}
+
+// ResetBudget resets the shared SubagentBudget counter to the given value.
+// Called at the start of each user prompt so budget exhaustion in one prompt
+// doesn't block future prompts.
+func (r *Registry) ResetBudget(value int32) {
+	if r.ctx != nil && r.ctx.SubagentBudget != nil {
+		r.ctx.SubagentBudget.Store(value)
 	}
 }

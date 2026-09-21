@@ -155,6 +155,12 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		"status":    map[string]any{"type": "busy"},
 	})
 
+	// Reset task round flag so this prompt gets a fresh round of task calls.
+	if sm.tools != nil {
+		sm.tools.ResetTaskRound()
+	sm.tools.ResetBudget(20)
+	}
+
 	var userText string
 	for _, p := range input.Parts {
 		if p.Type == "text" {

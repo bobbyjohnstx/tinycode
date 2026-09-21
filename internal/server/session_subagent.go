@@ -91,6 +91,13 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 	label := nextSubagentLabel(agent)
 	subSessionID := fmt.Sprintf("%s:%s", parentSessionID, label)
 
+	// Use agent Steps frontmatter if set, otherwise fall back to default.
+	maxIter := subagentMaxIterations
+	agentInfo := sm.agentRegistry.Get(agent, model.SizeB())
+	if agentInfo != nil && agentInfo.Steps != nil && *agentInfo.Steps > 0 {
+		maxIter = *agentInfo.Steps
+	}
+
 	// #233: Inherit parent LLM params from config.
 	procCfg := session.ProcessorConfig{
 		SessionID:     subSessionID,
@@ -100,7 +107,7 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		AgentPerms:    agentPerms,
 		Perms:         sm.perms,
 		Directory:     directory,
-		MaxIterations: subagentMaxIterations,
+		MaxIterations: maxIter,
 	}
 	if sm.cfg != nil {
 		procCfg.Temperature = sm.cfg.Temperature
