@@ -24,7 +24,7 @@ type ExecuteResult struct {
 // If it returns non-empty modifiedOutput, that replaces the original.
 type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool)
 
-type SubagentRunnerFunc func(ctx context.Context, prompt, agent, directory string) (string, error)
+type SubagentRunnerFunc func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error)
 
 type Context struct {
 	SessionID      string

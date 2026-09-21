@@ -14,7 +14,7 @@ func TestTaskTool_Foreground_WithRunner(t *testing.T) {
 	called := false
 	r := NewRegistry(&Context{
 		Directory: t.TempDir(),
-		SubagentRunner: func(ctx context.Context, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
 			called = true
 			if prompt != "do something" {
 				t.Errorf("expected prompt 'do something', got %q", prompt)
@@ -62,7 +62,7 @@ func TestTaskTool_Foreground_DefaultAgent(t *testing.T) {
 	var gotAgent string
 	r := NewRegistry(&Context{
 		Directory: t.TempDir(),
-		SubagentRunner: func(ctx context.Context, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
 			gotAgent = agent
 			return "ok", nil
 		},
@@ -82,7 +82,7 @@ func TestTaskTool_Background_WithRunner(t *testing.T) {
 	r := NewRegistry(&Context{
 		Directory:  t.TempDir(),
 		JobManager: jm,
-		SubagentRunner: func(ctx context.Context, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
 			return "bg result", nil
 		},
 	})
@@ -120,7 +120,7 @@ func TestTaskTool_Background_WithRunner(t *testing.T) {
 func TestTaskTool_Background_NoJobManager(t *testing.T) {
 	r := NewRegistry(&Context{
 		Directory: t.TempDir(),
-		SubagentRunner: func(ctx context.Context, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
 			return "ok", nil
 		},
 	})
@@ -141,7 +141,7 @@ func TestTaskTool_DepthExceeded(t *testing.T) {
 	r := NewRegistry(&Context{
 		Directory:     t.TempDir(),
 		SubagentDepth: maxSubagentDepth,
-		SubagentRunner: func(ctx context.Context, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
 			t.Error("SubagentRunner should not be called when depth exceeded")
 			return "", nil
 		},
@@ -229,7 +229,7 @@ func TestTaskTool_EmptyPrompt(t *testing.T) {
 func TestTaskTool_RunnerError(t *testing.T) {
 	r := NewRegistry(&Context{
 		Directory: t.TempDir(),
-		SubagentRunner: func(ctx context.Context, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
 			return "", fmt.Errorf("LLM failed")
 		},
 	})

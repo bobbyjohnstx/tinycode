@@ -101,8 +101,9 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		runner := tc.SubagentRunner
 		prompt := args.Prompt
 		dir := tc.Directory
+		sessionID := tc.SessionID
 		jobID := tc.JobManager.Start(func(jobCtx context.Context) (string, error) {
-			return runner(jobCtx, prompt, agent, dir)
+			return runner(jobCtx, sessionID, prompt, agent, dir)
 		})
 		result, _ := json.Marshal(map[string]any{
 			"job_id":  jobID,
@@ -112,7 +113,7 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		return &ExecuteResult{Output: string(result)}, nil
 	}
 
-	output, err := tc.SubagentRunner(ctx, args.Prompt, agent, tc.Directory)
+	output, err := tc.SubagentRunner(ctx, tc.SessionID, args.Prompt, agent, tc.Directory)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Subagent error: %v", err), IsError: true}, nil
 	}
