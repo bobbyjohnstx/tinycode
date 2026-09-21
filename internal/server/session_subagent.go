@@ -17,13 +17,28 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID, prom
 		directory = sm.dir
 	}
 
-	// Resolve the model from the parent session or defaults.
-	model, err := sm.resolvePromptModel(parentSessionID, PromptInput{
-		SessionID: parentSessionID,
-		Agent:     agent,
-	})
+	// Resolve the model: look up the parent session's model from DB,
+	// then fall back to the first connected provider's default.
+	var modelRef *session.ModelRef
+	if parentSessionID != "" {
+		store := session.NewStore(sm.db)
+		if info, err := store.Get(parentSessionID); err == nil && info.Model != nil {
+			modelRef = info.Model
+		}
+	}
+	if modelRef == nil {
+		models := sm.registry.ListModels()
+		if len(models) > 0 {
+			modelRef = &session.ModelRef{ProviderID: models[0].ProviderID, ID: models[0].ID}
+		}
+	}
+	if modelRef == nil {
+		return "", fmt.Errorf("no model available for subagent — configure a default model")
+	}
+
+	model, err := sm.registry.GetModel(modelRef.ProviderID, modelRef.ID)
 	if err != nil {
-		return "", fmt.Errorf("cannot resolve model for subagent: %w", err)
+		return "", fmt.Errorf("cannot resolve model %s/%s for subagent: %w", modelRef.ProviderID, modelRef.ID, err)
 	}
 
 	// Build system prompt for the subagent.
