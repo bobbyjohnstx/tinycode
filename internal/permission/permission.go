@@ -12,6 +12,20 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/id"
 )
 
+// sameSessionFamily returns true if two session IDs belong to the same
+// session family — either identical, or one is a subagent of the other's
+// parent (e.g., "ses_1:executor-1" and "ses_1:executor-2" share parent "ses_1").
+func sameSessionFamily(a, b string) bool {
+	return sessionRoot(a) == sessionRoot(b)
+}
+
+func sessionRoot(sid string) string {
+	if idx := strings.Index(sid, ":"); idx >= 0 {
+		return sid[:idx]
+	}
+	return sid
+}
+
 var (
 	ErrClosed    = errors.New("permission service closed")
 	ErrDenied    = errors.New("permission denied by rule")
@@ -226,9 +240,9 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 		}
 		entry.replyCh <- replyResult{err: err}
 
-		// Cascade: reject all other pending asks for the same session
+		// Cascade: reject all other pending asks for the same session family
 		for id, other := range s.pending {
-			if other.info.SessionID != entry.info.SessionID {
+			if !sameSessionFamily(other.info.SessionID, entry.info.SessionID) {
 				continue
 			}
 			delete(s.pending, id)
@@ -262,7 +276,7 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 	}
 
 	for id, other := range s.pending {
-		if other.info.SessionID != entry.info.SessionID {
+		if !sameSessionFamily(other.info.SessionID, entry.info.SessionID) {
 			continue
 		}
 		allAllowed := true
