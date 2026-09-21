@@ -1682,6 +1682,129 @@ test_T51() {
     kill_session "$session"
 }
 
+# ─── Slash command coverage ──────────────────────────────────────
+
+test_T52() {
+    echo -e "${BOLD}T52: /init appears in autocomplete and submits prompt${NC}"
+    local session
+    session=$(new_session "T52")
+    sleep 3
+
+    send_text "$session" "/ini"
+    sleep 1
+    assert_contains "$session" "init" "autocomplete shows /init"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T53() {
+    echo -e "${BOLD}T53: /review appears in autocomplete${NC}"
+    local session
+    session=$(new_session "T53")
+    sleep 3
+
+    send_text "$session" "/rev"
+    sleep 1
+    assert_contains "$session" "review" "autocomplete shows /review"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T54() {
+    echo -e "${BOLD}T54: /ask appears in autocomplete with agent hint${NC}"
+    local session
+    session=$(new_session "T54")
+    sleep 3
+
+    send_text "$session" "/as"
+    sleep 1
+    assert_contains "$session" "ask" "autocomplete shows /ask"
+    assert_regex "$session" "(agent|<agent>)" "autocomplete shows agent hint for /ask"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T55() {
+    echo -e "${BOLD}T55: /swarm appears in autocomplete${NC}"
+    local session
+    session=$(new_session "T55")
+    sleep 3
+
+    send_text "$session" "/swa"
+    sleep 1
+    assert_contains "$session" "swarm" "autocomplete shows /swarm"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T56() {
+    echo -e "${BOLD}T56: /cancel appears in autocomplete${NC}"
+    local session
+    session=$(new_session "T56")
+    sleep 3
+
+    send_text "$session" "/can"
+    sleep 1
+    assert_contains "$session" "cancel" "autocomplete shows /cancel"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T57() {
+    echo -e "${BOLD}T57: /deepinit appears in autocomplete${NC}"
+    local session
+    session=$(new_session "T57")
+    sleep 3
+
+    send_text "$session" "/dee"
+    sleep 1
+    assert_contains "$session" "deepinit" "autocomplete shows /deepinit"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T58() {
+    echo -e "${BOLD}T58: /wiki appears in autocomplete${NC}"
+    local session
+    session=$(new_session "T58")
+    sleep 3
+
+    send_text "$session" "/wik"
+    sleep 1
+    assert_contains "$session" "wiki" "autocomplete shows /wiki"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T59() {
+    echo -e "${BOLD}T59: /work-loop appears in autocomplete${NC}"
+    local session
+    session=$(new_session "T59")
+    sleep 3
+
+    send_text "$session" "/work"
+    sleep 1
+    assert_contains "$session" "work-loop" "autocomplete shows /work-loop"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
 # ─── Runner ──────────────────────────────────────────────────────
 
 run_test() {
