@@ -1805,6 +1805,21 @@ test_T59() {
     kill_session "$session"
 }
 
+test_T60() {
+    echo -e "${BOLD}T60: /auto-approve appears in autocomplete${NC}"
+    local session
+    session=$(new_session "T60")
+    sleep 5
+
+    send_text "$session" "/auto"
+    sleep 2
+    assert_contains "$session" "auto-approve" "autocomplete shows /auto-approve"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
 # ─── Runner ──────────────────────────────────────────────────────
 
 run_test() {
