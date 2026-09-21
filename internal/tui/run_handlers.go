@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/command"
+
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
 )
@@ -38,11 +38,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		}
 	}
 
-	// Expand slash command prefixes into instructed prompts.
-	expandResult := command.ExpandSlashCommand(msg.Content)
-
 	// Parse /ask <agent> <message> into agent override + stripped text.
-	promptText, agentOverride := parseAskCommand(expandResult.Text)
+	// Slash command expansion (/swarm, /work-loop) happens server-side
+	// in processPrompt so the display text stays short in the chat.
+	promptText, agentOverride := parseAskCommand(msg.Content)
 	slog.Info("parsed prompt", "text", promptText, "agent", agentOverride, "knownAgents", len(c.app.state.Agents))
 
 	if agentOverride != "" && !c.isKnownAgent(agentOverride) {
