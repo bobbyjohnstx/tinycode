@@ -20,7 +20,7 @@ func TaskTool() *Def {
 	return &Def{
 		ID:          "task",
 		Description: "Run a subtask via a subagent. Default is foreground (blocks and returns the result). Set background=true only if you will poll with task_id later. Prefer foreground for most work.",
-		Permission:  "shell",
+		Permission:  "",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
