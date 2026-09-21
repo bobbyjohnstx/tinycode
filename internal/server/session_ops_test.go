@@ -412,3 +412,17 @@ func TestSessionError_NoModelSpecified_HasProviderAuthError(t *testing.T) {
 		t.Fatal("timeout waiting for session.error event")
 	}
 }
+
+func TestSwarmMaxIterations_AutoApproveTrue(t *testing.T) {
+	got := swarmMaxIterations(true)
+	if got != 3 {
+		t.Errorf("expected MaxIterations=3 for autoApprove=true, got %d", got)
+	}
+}
+
+func TestSwarmMaxIterations_AutoApproveFalse(t *testing.T) {
+	got := swarmMaxIterations(false)
+	if got != 0 {
+		t.Errorf("expected MaxIterations=0 (default) for autoApprove=false, got %d", got)
+	}
+}

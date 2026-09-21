@@ -214,6 +214,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	if userText != llmText {
 		displayText = userText
 	}
+	maxIter := swarmMaxIterations(expandResult.AutoApprove)
 	proc := session.NewProcessor(session.ProcessorConfig{
 		SessionID:       sessionID,
 		Agent:           input.Agent,
@@ -223,6 +224,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		AgentPerms:      agentPerms,
 		Perms:           sm.perms,
 		UserDisplayText: displayText,
+		MaxIterations:   maxIter,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 
@@ -246,4 +248,15 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 			"error":     sessionErrorPayload("UnknownError", result.Error.Error()),
 		})
 	}
+}
+
+// swarmMaxIterations returns the MaxIterations cap for the parent processor.
+// In /swarm mode (autoApprove=true), the parent is limited to 3 iterations:
+// 1) spawn tasks, 2) see results and synthesize, 3) final output.
+// This prevents small models from retrying in unbounded loops.
+func swarmMaxIterations(autoApprove bool) int {
+	if autoApprove {
+		return 3
+	}
+	return 0 // use default (200)
 }
