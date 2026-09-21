@@ -170,7 +170,10 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	}
 
 	expandResult := command.ExpandSlashCommand(userText)
-	userText = expandResult.Text
+	llmText := expandResult.Text
+	if expandResult.DisplayText != "" {
+		userText = expandResult.DisplayText
+	}
 
 	model, err := sm.resolvePromptModel(sessionID, input)
 	if err != nil {
@@ -227,7 +230,21 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	}
 	sm.mu.Unlock()
 
-	result := proc.Process(ctx, userText)
+	result := proc.Process(ctx, llmText)
+
+	// Replace the LLM-facing expanded text with the short display text
+	// in the stored user message so the chat shows the original command.
+	if result != nil && userText != llmText {
+		for i := range result.Messages {
+			if result.Messages[i].Role == "user" {
+				for j := range result.Messages[i].Parts {
+					if result.Messages[i].Parts[j].Type == "text" && result.Messages[i].Parts[j].Text == llmText {
+						result.Messages[i].Parts[j].Text = userText
+					}
+				}
+			}
+		}
+	}
 
 	sm.persistPromptResult(result, existingMsgs, ms, sessionID)
 

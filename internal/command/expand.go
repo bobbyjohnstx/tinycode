@@ -52,21 +52,31 @@ USER TASK:
 // slash command (e.g. /swarm implies auto-approve).
 type ExpandResult struct {
 	Text        string
+	DisplayText string
 	AutoApprove bool
 }
 
 // ExpandSlashCommand detects /swarm and /work-loop prefixes and prepends
 // instruction text so the LLM knows how to execute the command.
+// Text is the full expanded prompt for the LLM; DisplayText is the short
+// user-facing version shown in the chat.
 func ExpandSlashCommand(text string) ExpandResult {
 	trimmed := strings.TrimSpace(text)
 
 	if strings.HasPrefix(trimmed, "/swarm ") {
 		userTask := strings.TrimSpace(strings.TrimPrefix(trimmed, "/swarm"))
-		return ExpandResult{Text: SwarmPrefix + userTask, AutoApprove: true}
+		return ExpandResult{
+			Text:        SwarmPrefix + userTask,
+			DisplayText: "/swarm " + userTask,
+			AutoApprove: true,
+		}
 	}
 	if strings.HasPrefix(trimmed, "/work-loop ") {
 		userTask := strings.TrimSpace(strings.TrimPrefix(trimmed, "/work-loop"))
-		return ExpandResult{Text: WorkLoopPrefix + userTask}
+		return ExpandResult{
+			Text:        WorkLoopPrefix + userTask,
+			DisplayText: "/work-loop " + userTask,
+		}
 	}
 	return ExpandResult{Text: text}
 }
