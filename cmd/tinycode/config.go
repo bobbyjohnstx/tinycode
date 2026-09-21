@@ -17,6 +17,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/lsp"
 	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/server"
 	"github.com/bobbyjohnstx/tinycode-go/internal/storage"
@@ -173,8 +174,10 @@ func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
 func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Service, *tool.Context) {
 	permSvc := permission.NewService(b)
 	toolCtx := &tool.Context{
-		Directory: directory,
-		Perms:     permSvc,
+		Directory:  directory,
+		Perms:      permSvc,
+		Bus:        b,
+		JobManager: session.NewJobManager(),
 	}
 	toolReg := tool.NewRegistry(toolCtx)
 	tool.RegisterBuiltins(toolReg)
