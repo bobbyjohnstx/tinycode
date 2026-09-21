@@ -274,6 +274,7 @@ func renderToolCallPart(part PartView) string {
 }
 
 // renderToolResultPart renders a tool result with truncated output.
+// Read tool results are collapsed by default to avoid walls of file content.
 func renderToolResultPart(part PartView, width int) string {
 	if part.ToolError {
 		return render.RenderToolInline(part.ToolName, "", true)
@@ -281,8 +282,8 @@ func renderToolResultPart(part PartView, width int) string {
 	if part.Text == "" {
 		return ""
 	}
-	if part.Collapsed {
-		return styleMetadata.Render("  ... (collapsed)")
+	if part.Collapsed || part.ToolName == "read" {
+		return ""
 	}
 
 	const maxLines = 10

@@ -104,8 +104,20 @@ func TestRenderToolResultPart_Collapsed(t *testing.T) {
 		Collapsed: true,
 	}
 	got := renderToolResultPart(part, 80)
-	if !strings.Contains(got, "collapsed") {
-		t.Errorf("collapsed result should show collapsed indicator, got %q", got)
+	if got != "" {
+		t.Errorf("collapsed result should be empty, got %q", got)
+	}
+}
+
+func TestRenderToolResultPart_ReadHidden(t *testing.T) {
+	part := PartView{
+		Type:     "tool-result",
+		ToolName: "read",
+		Text:     "file contents here\nline 2\nline 3",
+	}
+	got := renderToolResultPart(part, 80)
+	if got != "" {
+		t.Errorf("read tool result should be hidden, got %q", got)
 	}
 }
 
