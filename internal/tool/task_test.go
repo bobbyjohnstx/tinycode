@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -161,7 +162,7 @@ func TestTaskTool_DepthExceeded(t *testing.T) {
 
 func TestTaskTool_StatusLookup(t *testing.T) {
 	jm := session.NewJobManager()
-	jobID := jm.Start(func(ctx context.Context) (string, error) {
+	jobID := jm.Start(context.Background(), func(ctx context.Context) (string, error) {
 		return "done", nil
 	})
 	// Wait for it to complete
@@ -330,5 +331,98 @@ func TestTaskTool_RunnerPanic(t *testing.T) {
 	}
 	if output == "" {
 		t.Error("expected error message about panic")
+	}
+}
+
+func TestTaskTool_ConcurrentLimit(t *testing.T) {
+	count := &atomic.Int32{}
+	count.Store(int32(maxConcurrentSubagents)) // already at max
+	budget := &atomic.Int32{}
+	budget.Store(10)
+
+	r := NewRegistry(&Context{
+		Directory:      t.TempDir(),
+		SubagentCount:  count,
+		SubagentBudget: budget,
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
+			t.Error("SubagentRunner should not be called when concurrent limit reached")
+			return "", nil
+		},
+	})
+	RegisterBuiltins(r)
+
+	args := json.RawMessage(`{"description":"limit test","prompt":"hello"}`)
+	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-conc")
+
+	if !isErr {
+		t.Error("expected error when concurrent limit reached")
+	}
+	if output == "" {
+		t.Error("expected error message about concurrent limit")
+	}
+	// Budget should have been decremented then the concurrent check fails,
+	// but budget is checked first and is consumed.
+	// Verify the count was not left incremented.
+	if count.Load() != int32(maxConcurrentSubagents) {
+		t.Errorf("expected count to remain at %d, got %d", maxConcurrentSubagents, count.Load())
+	}
+}
+
+func TestTaskTool_BudgetExhausted(t *testing.T) {
+	budget := &atomic.Int32{}
+	budget.Store(0) // no budget left
+
+	r := NewRegistry(&Context{
+		Directory:      t.TempDir(),
+		SubagentBudget: budget,
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
+			t.Error("SubagentRunner should not be called when budget exhausted")
+			return "", nil
+		},
+	})
+	RegisterBuiltins(r)
+
+	args := json.RawMessage(`{"description":"budget test","prompt":"hello"}`)
+	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-bud")
+
+	if !isErr {
+		t.Error("expected error when budget exhausted")
+	}
+	if output == "" {
+		t.Error("expected error message about budget")
+	}
+	// Budget should remain at 0 (not go negative).
+	if budget.Load() != 0 {
+		t.Errorf("expected budget to remain at 0, got %d", budget.Load())
+	}
+}
+
+func TestTaskTool_BudgetDecrement(t *testing.T) {
+	budget := &atomic.Int32{}
+	budget.Store(5)
+	count := &atomic.Int32{}
+
+	r := NewRegistry(&Context{
+		Directory:      t.TempDir(),
+		SubagentCount:  count,
+		SubagentBudget: budget,
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
+			return "ok", nil
+		},
+	})
+	RegisterBuiltins(r)
+
+	args := json.RawMessage(`{"description":"test","prompt":"hello"}`)
+	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-dec")
+
+	if isErr {
+		t.Errorf("expected no error, got: %s", output)
+	}
+	if budget.Load() != 4 {
+		t.Errorf("expected budget=4 after one spawn, got %d", budget.Load())
+	}
+	// Concurrent count should be back to 0 after foreground completes.
+	if count.Load() != 0 {
+		t.Errorf("expected concurrent count=0 after completion, got %d", count.Load())
 	}
 }

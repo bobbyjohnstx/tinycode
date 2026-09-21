@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
@@ -36,6 +37,8 @@ type Context struct {
 	SubagentDepth  int
 	DB             *sql.DB
 	AfterHook      AfterHookFunc
+	SubagentCount  *atomic.Int32 // concurrent subagent counter (shared across copies)
+	SubagentBudget *atomic.Int32 // per-session spawn budget (shared across copies)
 }
 
 type Def struct {
@@ -114,6 +117,8 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		SubagentDepth:  r.ctx.SubagentDepth,
 		DB:             r.ctx.DB,
 		AfterHook:      r.ctx.AfterHook,
+		SubagentCount:  r.ctx.SubagentCount,
+		SubagentBudget: r.ctx.SubagentBudget,
 	}
 
 	// Check permissions if service is available and tool has a permission requirement
@@ -246,6 +251,8 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 		SubagentDepth:  r.ctx.SubagentDepth,
 		DB:             r.ctx.DB,
 		AfterHook:      r.ctx.AfterHook,
+		SubagentCount:  r.ctx.SubagentCount,
+		SubagentBudget: r.ctx.SubagentBudget,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))
@@ -284,6 +291,8 @@ func (r *Registry) WithDepth(depth int) *Registry {
 		SubagentDepth:  depth,
 		DB:             r.ctx.DB,
 		AfterHook:      r.ctx.AfterHook,
+		SubagentCount:  r.ctx.SubagentCount,
+		SubagentBudget: r.ctx.SubagentBudget,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))

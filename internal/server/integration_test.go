@@ -746,7 +746,7 @@ func TestE2E_ClientFactoryReceivesAPIKey(t *testing.T) {
 		Perms:     permSvc,
 	})
 
-	sm := NewSessionManager(b, reg, db, t.TempDir(), toolReg, permSvc, agentReg, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), toolReg, permSvc, agentReg, nil, nil, nil)
 
 	// Track what the factory produces
 	var capturedClient llm.Client

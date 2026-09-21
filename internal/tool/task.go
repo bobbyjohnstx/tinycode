@@ -6,7 +6,10 @@ import (
 	"fmt"
 )
 
-const maxSubagentDepth = 5
+const (
+	maxSubagentDepth       = 5
+	maxConcurrentSubagents = 8
+)
 
 type taskArgs struct {
 	Description  string `json:"description"`
@@ -98,6 +101,28 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		return &ExecuteResult{Output: "Subagent execution not available in this environment", IsError: true}, nil
 	}
 
+	// Check per-session spawn budget before spawning.
+	if tc.SubagentBudget != nil {
+		if tc.SubagentBudget.Add(-1) < 0 {
+			tc.SubagentBudget.Add(1) // restore
+			return &ExecuteResult{
+				Output:  "Subagent budget exhausted. No more subagents may be spawned in this session.",
+				IsError: true,
+			}, nil
+		}
+	}
+
+	// Check concurrent subagent limit.
+	if tc.SubagentCount != nil {
+		if tc.SubagentCount.Add(1) > int32(maxConcurrentSubagents) {
+			tc.SubagentCount.Add(-1) // release slot
+			return &ExecuteResult{
+				Output:  fmt.Sprintf("Maximum concurrent subagents (%d) reached. Wait for a running subagent to complete.", maxConcurrentSubagents),
+				IsError: true,
+			}, nil
+		}
+	}
+
 	agent := args.SubagentType
 	if agent == "" {
 		agent = "build"
@@ -105,6 +130,7 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 
 	if args.Background {
 		if tc.JobManager == nil {
+			releaseSubagentSlot(tc)
 			return &ExecuteResult{Output: "Job manager not available for background tasks", IsError: true}, nil
 		}
 		runner := tc.SubagentRunner
@@ -112,7 +138,13 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		dir := tc.Directory
 		sessionID := tc.SessionID
 		depth := tc.SubagentDepth
-		jobID := tc.JobManager.Start(func(jobCtx context.Context) (string, error) {
+		count := tc.SubagentCount
+		jobID := tc.JobManager.Start(ctx, func(jobCtx context.Context) (string, error) {
+			defer func() {
+				if count != nil {
+					count.Add(-1)
+				}
+			}()
 			return runner(jobCtx, sessionID, depth, prompt, agent, dir)
 		})
 		result, _ := json.Marshal(map[string]any{
@@ -123,9 +155,18 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		return &ExecuteResult{Output: string(result)}, nil
 	}
 
+	defer releaseSubagentSlot(tc)
+
 	output, err := callSubagentRunner(ctx, tc, args.Prompt, agent)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Subagent error: %v", err), IsError: true}, nil
 	}
 	return &ExecuteResult{Output: output}, nil
+}
+
+// releaseSubagentSlot decrements the concurrent subagent counter if set.
+func releaseSubagentSlot(tc *Context) {
+	if tc.SubagentCount != nil {
+		tc.SubagentCount.Add(-1)
+	}
 }

@@ -44,12 +44,13 @@ func NewJobManager() *JobManager {
 }
 
 // Start launches fn as a background goroutine and returns the job ID.
-// The function receives a cancellable context and must return (result, error).
-func (jm *JobManager) Start(fn func(ctx context.Context) (string, error)) string {
+// The context is derived from parentCtx so that cancelling the parent
+// (e.g. on session abort or server shutdown) also cancels running jobs.
+func (jm *JobManager) Start(parentCtx context.Context, fn func(ctx context.Context) (string, error)) string {
 	jm.mu.Lock()
 	jm.seq++
 	jobID := fmt.Sprintf("job_%d", jm.seq)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parentCtx)
 	job := &Job{
 		ID:        jobID,
 		Status:    JobRunning,
@@ -125,6 +126,17 @@ func (jm *JobManager) Cancel(id string) error {
 	}
 	job.cancel()
 	return nil
+}
+
+// Shutdown cancels all running jobs.
+func (jm *JobManager) Shutdown() {
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+	for _, job := range jm.jobs {
+		if job.Status == JobRunning {
+			job.cancel()
+		}
+	}
 }
 
 // List returns copies of all jobs.

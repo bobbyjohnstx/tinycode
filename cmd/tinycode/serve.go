@@ -81,6 +81,7 @@ func runServe() {
 		PermService:    permSvc,
 		MCPService:     mcpSvc,
 		Config:         cfg,
+		JobManager:     toolCtx.JobManager,
 	})
 
 	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
@@ -165,6 +166,7 @@ func runWeb() {
 		PermService:    permSvc,
 		MCPService:     mcpSvc,
 		Config:         cfg,
+		JobManager:     toolCtx.JobManager,
 	})
 
 	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {

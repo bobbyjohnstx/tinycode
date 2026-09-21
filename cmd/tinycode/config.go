@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
@@ -173,11 +174,15 @@ func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
 
 func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Service, *tool.Context) {
 	permSvc := permission.NewService(b)
+	subagentBudget := &atomic.Int32{}
+	subagentBudget.Store(20)
 	toolCtx := &tool.Context{
-		Directory:  directory,
-		Perms:      permSvc,
-		Bus:        b,
-		JobManager: session.NewJobManager(),
+		Directory:      directory,
+		Perms:          permSvc,
+		Bus:            b,
+		JobManager:     session.NewJobManager(),
+		SubagentCount:  &atomic.Int32{},
+		SubagentBudget: subagentBudget,
 	}
 	toolReg := tool.NewRegistry(toolCtx)
 	tool.RegisterBuiltins(toolReg)

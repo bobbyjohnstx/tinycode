@@ -17,6 +17,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
+	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/server/middleware"
 	"github.com/bobbyjohnstx/tinycode-go/internal/static"
 	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
@@ -56,6 +57,7 @@ type Dependencies struct {
 	PermService    *permission.Service
 	MCPService     *mcp.Service
 	Config         *config.Info
+	JobManager     *session.JobManager
 }
 
 type Server struct {
@@ -89,7 +91,7 @@ func New(cfg Config, deps Dependencies) *Server {
 		mux:             mux,
 		deps:            deps,
 		logger:          logger,
-		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory, deps.ToolRegistry, deps.PermService, deps.AgentRegistry, deps.MCPService, deps.Config),
+		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory, deps.ToolRegistry, deps.PermService, deps.AgentRegistry, deps.MCPService, deps.Config, deps.JobManager),
 		permissionStore: NewPermissionStore(),
 		questionStore:   NewQuestionStore(),
 		credentials:     newCredentialStore(),

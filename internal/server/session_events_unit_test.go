@@ -15,7 +15,7 @@ func newMinimalSM(t *testing.T, b *bus.Bus) *SessionManager {
 	t.Helper()
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	return NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+	return NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
 }
 
 // registerActiveSession inserts a synthetic activeSession into the SessionManager

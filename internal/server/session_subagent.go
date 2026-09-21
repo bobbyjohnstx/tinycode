@@ -85,6 +85,7 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		Model:         model,
 		SystemPrompt:  systemPrompt,
 		AgentPerms:    agentPerms,
+		Perms:         sm.perms,
 		Directory:     directory,
 		MaxIterations: subagentMaxIterations,
 	}, client, tools, sm.bus)

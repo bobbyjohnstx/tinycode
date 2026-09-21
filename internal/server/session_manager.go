@@ -106,11 +106,12 @@ type SessionManager struct {
 	cfg           *config.Info
 	revertState   *RevertState
 	clientFactory func(*provider.Model) llm.Client
+	jobManager    *session.JobManager
 	ctx           context.Context
 	ctxCancel     context.CancelFunc
 }
 
-func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service, cfg *config.Info) *SessionManager {
+func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service, cfg *config.Info, jm *session.JobManager) *SessionManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	sm := &SessionManager{
 		sessions:      make(map[string]*activeSession),
@@ -124,6 +125,7 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 		mcpSvc:        mcpSvc,
 		cfg:           cfg,
 		revertState:   NewRevertState(),
+		jobManager:    jm,
 		ctx:           ctx,
 		ctxCancel:     cancel,
 		clientFactory: func(m *provider.Model) llm.Client {
@@ -193,7 +195,8 @@ func (sm *SessionManager) subscribeProcessorEvents() {
 }
 
 // Shutdown cancels all active session processors and waits for them
-// to finish persisting before returning.
+// to finish persisting before returning. It also cancels all running
+// background jobs via the JobManager.
 func (sm *SessionManager) Shutdown() {
 	sm.ctxCancel()
 	sm.mu.Lock()
@@ -208,6 +211,10 @@ func (sm *SessionManager) Shutdown() {
 		delete(sm.sessions, sid)
 	}
 	sm.mu.Unlock()
+
+	if sm.jobManager != nil {
+		sm.jobManager.Shutdown()
+	}
 
 	for _, done := range doneChans {
 		<-done

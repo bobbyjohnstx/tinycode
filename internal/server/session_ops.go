@@ -207,6 +207,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		SystemPrompt: systemPrompt,
 		Compaction:   sm.buildCompactionConfig(),
 		AgentPerms:   agentPerms,
+		Perms:        sm.perms,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 

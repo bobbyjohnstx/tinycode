@@ -24,7 +24,7 @@ func TestResolvePromptModel_ReturnsModelWhenFound(t *testing.T) {
 			"test-model": {ID: "test-model", ProviderID: "test-provider", Name: "Test Model"},
 		},
 	})
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
 
 	input := PromptInput{
 		SessionID: "ses_resolve_1",
@@ -48,7 +48,7 @@ func TestResolvePromptModel_PublishesErrorWhenModelNotFound(t *testing.T) {
 	defer b.Close()
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
 
 	sub := b.Subscribe("session.error")
 	defer sub.Unsubscribe()
@@ -97,7 +97,7 @@ func TestResolvePromptModel_PublishesErrorWhenNoModelSpecified(t *testing.T) {
 	defer b.Close()
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
 
 	sub := b.Subscribe("session.error")
 	defer sub.Unsubscribe()
@@ -143,7 +143,7 @@ func TestBuildCompactionConfig_ReturnsDefaultsWhenNoCfg(t *testing.T) {
 	defer b.Close()
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
 
 	cfg := sm.buildCompactionConfig()
 	defaults := session.DefaultCompactionConfig()
@@ -175,7 +175,7 @@ func TestBuildCompactionConfig_AppliesOverrides(t *testing.T) {
 			MaxMessages:         &maxMsgs,
 		},
 	}
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, appCfg)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, appCfg, nil)
 
 	cfg := sm.buildCompactionConfig()
 
@@ -202,7 +202,7 @@ func TestBuildCompactionConfig_IgnoresZeroMaxMessages(t *testing.T) {
 			MaxMessages: &zeroMsgs,
 		},
 	}
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, appCfg)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, appCfg, nil)
 
 	cfg := sm.buildCompactionConfig()
 	defaults := session.DefaultCompactionConfig()
@@ -238,7 +238,7 @@ func TestBuildPromptSystemPrompt_ReturnsPromptForKnownAgent(t *testing.T) {
 		Name:       "Test Model 7B",
 	}
 
-	sm := NewSessionManager(b, reg, db, t.TempDir(), toolReg, nil, agentReg, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), toolReg, nil, agentReg, nil, nil, nil)
 
 	input := PromptInput{
 		SessionID: "ses_sys_1",
@@ -273,7 +273,7 @@ func TestBuildPromptSystemPrompt_IncludesInstructionsFromConfig(t *testing.T) {
 		Name:       "Test Model 7B",
 	}
 
-	sm := NewSessionManager(b, reg, db, t.TempDir(), toolReg, nil, agentReg, nil, appCfg)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), toolReg, nil, agentReg, nil, appCfg, nil)
 
 	input := PromptInput{
 		SessionID: "ses_sys_2",
@@ -294,7 +294,7 @@ func TestPersistPromptResult_NoopWhenResultIsNil(t *testing.T) {
 	defer b.Close()
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
 
 	store := session.NewStore(db)
 	ms := session.NewMessageStore(store)
@@ -308,7 +308,7 @@ func TestPersistPromptResult_NoopWhenNoNewMessages(t *testing.T) {
 	defer b.Close()
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
 
 	store := session.NewStore(db)
 	ms := session.NewMessageStore(store)
@@ -368,7 +368,7 @@ func TestSessionError_ModelNotFound_HasProviderAuthError(t *testing.T) {
 	defer b.Close()
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
 
 	sub := b.Subscribe("session.error")
 	defer sub.Unsubscribe()
@@ -393,7 +393,7 @@ func TestSessionError_NoModelSpecified_HasProviderAuthError(t *testing.T) {
 	defer b.Close()
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil)
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
 
 	sub := b.Subscribe("session.error")
 	defer sub.Unsubscribe()
