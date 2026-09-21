@@ -210,6 +210,33 @@ tinycode probes local LLM providers at startup:
 | `TINYCODE_LMSTUDIO_HOST` | LM Studio server URL               |
 | `OPENROUTER_API_KEY` | Enable OpenRouter provider              |
 
+## Why Go
+
+tinycode was rewritten from TypeScript/Bun to Go. The single-binary, no-runtime architecture unlocks capabilities that weren't practical in the original:
+
+### Native concurrency for multi-agent work
+
+Go's goroutines make subagent orchestration trivial. Commands like `/swarm` spawn parallel agents as lightweight goroutines (~4KB each) sharing the same process, tools, and event bus. No child processes, no tmux panes, no IPC serialization.
+
+The TypeScript version required tmux to run multiple agents — each needed its own Node.js process with a separate event loop. Sharing state meant pipes, temp files, or socket IPC. In Go, a subagent is:
+
+```go
+go func() {
+    result := processor.Process(ctx, prompt)
+    // result is immediately available in shared memory
+}()
+```
+
+Context cancellation propagates automatically — cancel the parent, and every child goroutine winds down cleanly via `ctx.Done()`. No signal forwarding across process boundaries.
+
+### Single binary, zero dependencies
+
+`go build` produces one static binary. No Node.js runtime, no `node_modules`, no package manager. The web UI is embedded via `go:embed`. SQLite is pure Go (`modernc.org/sqlite`), so no C toolchain or CGO needed. Cross-compilation to linux/arm64 works out of the box.
+
+### Resource efficiency
+
+A typical session uses ~20MB RSS. The TypeScript version needed ~150MB (Node.js runtime + V8 heap). Goroutine-based concurrency means 50 parallel subagents add negligible memory overhead, while 50 Node.js child processes would consume gigabytes.
+
 ## Building
 
 ```bash
