@@ -48,18 +48,25 @@ Do NOT ask for confirmation between iterations. Keep going until done or blocked
 USER TASK:
 `
 
+// ExpandResult holds the expanded prompt text and any flags signaled by the
+// slash command (e.g. /swarm implies auto-approve).
+type ExpandResult struct {
+	Text        string
+	AutoApprove bool
+}
+
 // ExpandSlashCommand detects /swarm and /work-loop prefixes and prepends
 // instruction text so the LLM knows how to execute the command.
-func ExpandSlashCommand(text string) string {
+func ExpandSlashCommand(text string) ExpandResult {
 	trimmed := strings.TrimSpace(text)
 
 	if strings.HasPrefix(trimmed, "/swarm ") {
 		userTask := strings.TrimSpace(strings.TrimPrefix(trimmed, "/swarm"))
-		return SwarmPrefix + userTask
+		return ExpandResult{Text: SwarmPrefix + userTask, AutoApprove: true}
 	}
 	if strings.HasPrefix(trimmed, "/work-loop ") {
 		userTask := strings.TrimSpace(strings.TrimPrefix(trimmed, "/work-loop"))
-		return WorkLoopPrefix + userTask
+		return ExpandResult{Text: WorkLoopPrefix + userTask}
 	}
-	return text
+	return ExpandResult{Text: text}
 }

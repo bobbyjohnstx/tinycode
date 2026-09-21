@@ -201,4 +201,79 @@ func TestMapSSEToMsg_MCPStatusWithError(t *testing.T) {
 	}
 }
 
+func TestParsePartView_SubagentLabel(t *testing.T) {
+	props := map[string]any{
+		"part": map[string]any{
+			"id":            "part_sa",
+			"sessionID":     "ses_1",
+			"messageID":     "msg_1",
+			"type":          "tool",
+			"tool":          "bash",
+			"subagentLabel": "executor-1",
+			"state": map[string]any{
+				"status": "completed",
+				"input":  map[string]any{"args": `{"command":"ls"}`},
+				"time":   map[string]any{"start": float64(1000), "end": float64(2000)},
+			},
+		},
+	}
+	pv := parsePartView(props)
+	if pv.SubagentLabel != "executor-1" {
+		t.Errorf("expected SubagentLabel 'executor-1', got %q", pv.SubagentLabel)
+	}
+}
+
+func TestParsePartView_NoSubagentLabel(t *testing.T) {
+	props := map[string]any{
+		"part": map[string]any{
+			"id":        "part_no_sa",
+			"sessionID": "ses_1",
+			"messageID": "msg_1",
+			"type":      "tool",
+			"tool":      "bash",
+			"state": map[string]any{
+				"status": "completed",
+				"input":  map[string]any{},
+				"time":   map[string]any{"start": float64(1000), "end": float64(2000)},
+			},
+		},
+	}
+	pv := parsePartView(props)
+	if pv.SubagentLabel != "" {
+		t.Errorf("expected empty SubagentLabel, got %q", pv.SubagentLabel)
+	}
+}
+
+func TestMapSSEToMsg_SubagentCompleted(t *testing.T) {
+	evt := api.ServerEvent{
+		Type: "subagent.completed",
+		Properties: map[string]any{
+			"sessionID":    "ses_parent",
+			"label":        "executor-1",
+			"agent":        "executor",
+			"inputTokens":  float64(800),
+			"outputTokens": float64(400),
+		},
+	}
+	msg := mapSSEToMsg(evt)
+	scMsg, ok := msg.(SubagentCompletedMsg)
+	if !ok {
+		t.Fatalf("expected SubagentCompletedMsg, got %T", msg)
+	}
+	if scMsg.ParentSessionID != "ses_parent" {
+		t.Errorf("expected ParentSessionID 'ses_parent', got %q", scMsg.ParentSessionID)
+	}
+	if scMsg.Label != "executor-1" {
+		t.Errorf("expected Label 'executor-1', got %q", scMsg.Label)
+	}
+	if scMsg.Agent != "executor" {
+		t.Errorf("expected Agent 'executor', got %q", scMsg.Agent)
+	}
+	if scMsg.InputTokens != 800 {
+		t.Errorf("expected InputTokens 800, got %d", scMsg.InputTokens)
+	}
+	if scMsg.OutputTokens != 400 {
+		t.Errorf("expected OutputTokens 400, got %d", scMsg.OutputTokens)
+	}
+}
 

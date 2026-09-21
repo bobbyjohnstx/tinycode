@@ -39,6 +39,7 @@ type Context struct {
 	AfterHook      AfterHookFunc
 	SubagentCount  *atomic.Int32 // concurrent subagent counter (shared across copies)
 	SubagentBudget *atomic.Int32 // per-session spawn budget (shared across copies)
+	AutoApprove    bool          // skip permission checks when true
 }
 
 type Def struct {
@@ -119,10 +120,11 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
+		AutoApprove:    r.ctx.AutoApprove,
 	}
 
 	// Check permissions if service is available and tool has a permission requirement
-	if toolCtx.Perms != nil && def.Permission != "" {
+	if toolCtx.Perms != nil && def.Permission != "" && !toolCtx.AutoApprove {
 		askErr := toolCtx.Perms.Ask(ctx, permission.AskInput{
 			SessionID:  sessionID,
 			Permission: def.Permission,
@@ -253,6 +255,7 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
+		AutoApprove:    r.ctx.AutoApprove,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))
@@ -293,6 +296,48 @@ func (r *Registry) WithDepth(depth int) *Registry {
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
+		AutoApprove:    r.ctx.AutoApprove,
+	}
+
+	tools := make(map[string]*Def, len(r.tools))
+	for k, v := range r.tools {
+		tools[k] = v
+	}
+	order := make([]string, len(r.order))
+	copy(order, r.order)
+	disabled := make(map[string]bool, len(r.disabled))
+	for k, v := range r.disabled {
+		disabled[k] = v
+	}
+
+	return &Registry{
+		tools:    tools,
+		order:    order,
+		disabled: disabled,
+		ctx:      newCtx,
+	}
+}
+
+// WithAutoApprove returns a shallow copy of the Registry whose tool context
+// has AutoApprove set to true. The copy shares Def pointers and is safe for
+// concurrent reads.
+func (r *Registry) WithAutoApprove() *Registry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	newCtx := &Context{
+		SessionID:      r.ctx.SessionID,
+		Directory:      r.ctx.Directory,
+		Perms:          r.ctx.Perms,
+		Bus:            r.ctx.Bus,
+		JobManager:     r.ctx.JobManager,
+		SubagentRunner: r.ctx.SubagentRunner,
+		SubagentDepth:  r.ctx.SubagentDepth,
+		DB:             r.ctx.DB,
+		AfterHook:      r.ctx.AfterHook,
+		SubagentCount:  r.ctx.SubagentCount,
+		SubagentBudget: r.ctx.SubagentBudget,
+		AutoApprove:    true,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))

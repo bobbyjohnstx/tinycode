@@ -229,3 +229,288 @@ func TestToolStatus_InProgress(t *testing.T) {
 		t.Errorf("in-progress tool should show '...', got %q", got)
 	}
 }
+
+// --- subagent grouping tests ---
+
+func TestGroupSubagentParts_NoLabels(t *testing.T) {
+	parts := []PartView{
+		{Type: "text", Text: "hello"},
+		{Type: "tool", ToolName: "bash"},
+	}
+	groups := groupSubagentParts(parts)
+	if len(groups) != 2 {
+		t.Fatalf("expected 2 groups, got %d", len(groups))
+	}
+	for _, g := range groups {
+		if g.label != "" {
+			t.Errorf("expected empty label, got %q", g.label)
+		}
+		if len(g.parts) != 1 {
+			t.Errorf("expected 1 part per group, got %d", len(g.parts))
+		}
+	}
+}
+
+func TestGroupSubagentParts_ConsecutiveSameLabel(t *testing.T) {
+	parts := []PartView{
+		{Type: "tool", ToolName: "task", SubagentLabel: "executor-1"},
+		{Type: "tool", ToolName: "bash", SubagentLabel: "executor-1"},
+		{Type: "tool", ToolName: "read", SubagentLabel: "executor-1"},
+	}
+	groups := groupSubagentParts(parts)
+	if len(groups) != 1 {
+		t.Fatalf("expected 1 group, got %d", len(groups))
+	}
+	if groups[0].label != "executor-1" {
+		t.Errorf("expected label 'executor-1', got %q", groups[0].label)
+	}
+	if len(groups[0].parts) != 3 {
+		t.Errorf("expected 3 parts, got %d", len(groups[0].parts))
+	}
+}
+
+func TestGroupSubagentParts_MixedLabels(t *testing.T) {
+	parts := []PartView{
+		{Type: "text", Text: "intro"},
+		{Type: "tool", ToolName: "task", SubagentLabel: "executor-1"},
+		{Type: "tool", ToolName: "bash", SubagentLabel: "executor-1"},
+		{Type: "tool", ToolName: "task", SubagentLabel: "explore-2"},
+		{Type: "tool", ToolName: "read", SubagentLabel: "explore-2"},
+		{Type: "text", Text: "conclusion"},
+	}
+	groups := groupSubagentParts(parts)
+	if len(groups) != 4 {
+		t.Fatalf("expected 4 groups (text, executor-1, explore-2, text), got %d", len(groups))
+	}
+	if groups[0].label != "" {
+		t.Errorf("group 0: expected empty label, got %q", groups[0].label)
+	}
+	if groups[1].label != "executor-1" {
+		t.Errorf("group 1: expected 'executor-1', got %q", groups[1].label)
+	}
+	if len(groups[1].parts) != 2 {
+		t.Errorf("group 1: expected 2 parts, got %d", len(groups[1].parts))
+	}
+	if groups[2].label != "explore-2" {
+		t.Errorf("group 2: expected 'explore-2', got %q", groups[2].label)
+	}
+	if len(groups[2].parts) != 2 {
+		t.Errorf("group 2: expected 2 parts, got %d", len(groups[2].parts))
+	}
+	if groups[3].label != "" {
+		t.Errorf("group 3: expected empty label, got %q", groups[3].label)
+	}
+}
+
+func TestRenderSubagentGroup_Collapsed(t *testing.T) {
+	g := subagentGroup{
+		label: "executor-1",
+		parts: []PartView{
+			{
+				Type:     "tool",
+				ToolName: "task",
+				ToolArgs: `{"description":"Run wc -l on all files"}`,
+				Time:     map[string]any{"start": float64(1000), "end": float64(3400)},
+			},
+			{
+				Type:     "tool",
+				ToolName: "bash",
+				ToolArgs: `{"command":"wc -l *.md"}`,
+				Time:     map[string]any{"start": float64(1500), "end": float64(3000)},
+			},
+		},
+	}
+	got := renderSubagentGroup(g, false, SubagentStatus{}, 80)
+	stripped := stripAnsi(got)
+	if !strings.Contains(stripped, "+ executor-1") {
+		t.Errorf("collapsed should show '+ executor-1', got %q", stripped)
+	}
+	if !strings.Contains(stripped, "Run wc -l on all files") {
+		t.Errorf("collapsed should show task description, got %q", stripped)
+	}
+	if !strings.Contains(stripped, "done") {
+		t.Errorf("collapsed should show 'done', got %q", stripped)
+	}
+	// Should NOT show child tool calls
+	if strings.Contains(stripped, "wc -l *.md") {
+		t.Errorf("collapsed should not show child tool calls, got %q", stripped)
+	}
+}
+
+func TestRenderSubagentGroup_Expanded(t *testing.T) {
+	g := subagentGroup{
+		label: "executor-1",
+		parts: []PartView{
+			{
+				Type:     "tool",
+				ToolName: "task",
+				ToolArgs: `{"description":"Run wc -l on all files"}`,
+				Time:     map[string]any{"start": float64(1000), "end": float64(3400)},
+			},
+			{
+				Type:     "tool",
+				ToolName: "bash",
+				ToolArgs: `{"command":"wc -l *.md"}`,
+				Time:     map[string]any{"start": float64(1500), "end": float64(2500)},
+			},
+			{
+				Type:     "tool",
+				ToolName: "read",
+				ToolArgs: `{"file_path":"README.md"}`,
+				Time:     map[string]any{"start": float64(2600), "end": float64(3000)},
+			},
+		},
+	}
+	got := renderSubagentGroup(g, true, SubagentStatus{}, 80)
+	stripped := stripAnsi(got)
+	if !strings.Contains(stripped, "- executor-1") {
+		t.Errorf("expanded should show '- executor-1', got %q", stripped)
+	}
+	if !strings.Contains(stripped, "wc -l *.md") {
+		t.Errorf("expanded should show child tool command, got %q", stripped)
+	}
+	if !strings.Contains(stripped, "README.md") {
+		t.Errorf("expanded should show child tool file path, got %q", stripped)
+	}
+	if !strings.Contains(got, "┃") {
+		t.Errorf("expanded should show left border guide, got %q", got)
+	}
+}
+
+func TestRenderSubagentGroup_WithTokens(t *testing.T) {
+	g := subagentGroup{
+		label: "executor-1",
+		parts: []PartView{
+			{
+				Type:     "tool",
+				ToolName: "task",
+				ToolArgs: `{"description":"Test task"}`,
+				Time:     map[string]any{"start": float64(1000), "end": float64(2000)},
+			},
+		},
+	}
+	status := SubagentStatus{
+		Done:         true,
+		InputTokens:  800,
+		OutputTokens: 400,
+	}
+	got := renderSubagentGroup(g, false, status, 80)
+	stripped := stripAnsi(got)
+	if !strings.Contains(stripped, "1k tok") {
+		t.Errorf("should show token count, got %q", stripped)
+	}
+}
+
+func TestRenderSubagentGroup_Running(t *testing.T) {
+	g := subagentGroup{
+		label: "explore-3",
+		parts: []PartView{
+			{
+				Type:     "tool",
+				ToolName: "task",
+				ToolArgs: `{"description":"Read README.md"}`,
+				Time:     map[string]any{"start": float64(1000)},
+			},
+		},
+	}
+	got := renderSubagentGroup(g, false, SubagentStatus{}, 80)
+	stripped := stripAnsi(got)
+	if !strings.Contains(stripped, "...") {
+		t.Errorf("running group should show '...', got %q", stripped)
+	}
+}
+
+func TestRenderAssistantMessage_SubagentGroupCollapsed(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant"},
+		Parts: []PartView{
+			{Type: "text", Text: "Launching agents"},
+			{
+				Type:          "tool",
+				ToolName:      "task",
+				ToolArgs:      `{"description":"Run tests"}`,
+				SubagentLabel: "executor-1",
+				Time:          map[string]any{"start": float64(1000), "end": float64(2000)},
+			},
+			{
+				Type:          "tool",
+				ToolName:      "bash",
+				ToolArgs:      `{"command":"go test ./..."}`,
+				SubagentLabel: "executor-1",
+				Time:          map[string]any{"start": float64(1200), "end": float64(1800)},
+			},
+		},
+	}
+	got := renderMessage(msg, 80, md)
+	stripped := stripAnsi(got)
+	if !strings.Contains(stripped, "Launching agents") {
+		t.Error("should render text part before subagent group")
+	}
+	if !strings.Contains(stripped, "+ executor-1") {
+		t.Error("should render collapsed subagent group")
+	}
+	// Collapsed by default, should not show child tool calls
+	if strings.Contains(stripped, "go test") {
+		t.Error("collapsed group should not show child tool calls")
+	}
+}
+
+func TestExtractAgentType(t *testing.T) {
+	tests := []struct {
+		label string
+		want  string
+	}{
+		{"executor-1", "executor"},
+		{"explore-3", "explore"},
+		{"code-reviewer-2", "code-reviewer"},
+		{"solo", "solo"},
+	}
+	for _, tt := range tests {
+		got := extractAgentType(tt.label)
+		if got != tt.want {
+			t.Errorf("extractAgentType(%q) = %q, want %q", tt.label, got, tt.want)
+		}
+	}
+}
+
+func TestExtractTaskDescription(t *testing.T) {
+	parts := []PartView{
+		{Type: "tool", ToolName: "task", ToolArgs: `{"description":"Fix the bug","prompt":"do it"}`},
+		{Type: "tool", ToolName: "bash", ToolArgs: `{"command":"ls"}`},
+	}
+	got := extractTaskDescription(parts)
+	if got != "Fix the bug" {
+		t.Errorf("expected 'Fix the bug', got %q", got)
+	}
+}
+
+func TestExtractTaskDescription_NoTask(t *testing.T) {
+	parts := []PartView{
+		{Type: "tool", ToolName: "bash", ToolArgs: `{"command":"ls"}`},
+	}
+	got := extractTaskDescription(parts)
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestGroupAllDone_AllComplete(t *testing.T) {
+	parts := []PartView{
+		{Type: "tool", Time: map[string]any{"start": float64(1000), "end": float64(2000)}},
+		{Type: "tool", Time: map[string]any{"start": float64(1500), "end": float64(2500)}},
+	}
+	if !groupAllDone(parts) {
+		t.Error("expected all done")
+	}
+}
+
+func TestGroupAllDone_OneRunning(t *testing.T) {
+	parts := []PartView{
+		{Type: "tool", Time: map[string]any{"start": float64(1000), "end": float64(2000)}},
+		{Type: "tool", Time: map[string]any{"start": float64(1500)}},
+	}
+	if groupAllDone(parts) {
+		t.Error("expected not all done when one is running")
+	}
+}

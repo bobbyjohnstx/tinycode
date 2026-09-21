@@ -76,6 +76,17 @@ type PartView struct {
 	Collapsed bool `json:"-"`
 	// ThoughtExpanded shows reasoning content when true.
 	ThoughtExpanded bool `json:"-"`
+	// SubagentLabel identifies which subagent group this part belongs to.
+	SubagentLabel string `json:"-"`
+}
+
+// SubagentStatus holds completion data for a subagent.
+type SubagentStatus struct {
+	Label        string
+	Agent        string
+	InputTokens  int
+	OutputTokens int
+	Done         bool
 }
 
 // ProviderInfo is the TUI's view of a provider.
@@ -143,6 +154,7 @@ type AppState struct {
 	CurrentTheme       string
 	SidebarOpen        bool
 	Connected          bool
+	AutoApprove        bool
 	PendingModelDialog bool
 }
 

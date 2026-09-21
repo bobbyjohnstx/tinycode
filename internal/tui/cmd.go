@@ -119,6 +119,19 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 			IsError: false,
 		}
 
+	case "subagent.completed":
+		label, _ := props["label"].(string)
+		agent, _ := props["agent"].(string)
+		inputTokens, _ := intFromAny(props["inputTokens"])
+		outputTokens, _ := intFromAny(props["outputTokens"])
+		return SubagentCompletedMsg{
+			ParentSessionID: sessionID,
+			Label:           label,
+			Agent:           agent,
+			InputTokens:     inputTokens,
+			OutputTokens:    outputTokens,
+		}
+
 	default:
 		return SSEEventMsg{Event: evt}
 	}
@@ -210,6 +223,9 @@ func parsePartView(props map[string]any) PartView {
 		if t, ok := part["time"].(map[string]any); ok {
 			pv.Time = t
 		}
+	}
+	if label, ok := part["subagentLabel"].(string); ok {
+		pv.SubagentLabel = label
 	}
 	return pv
 }

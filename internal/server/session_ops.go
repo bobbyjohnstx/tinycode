@@ -169,7 +169,8 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		return
 	}
 
-	userText = command.ExpandSlashCommand(userText)
+	expandResult := command.ExpandSlashCommand(userText)
+	userText = expandResult.Text
 
 	model, err := sm.resolvePromptModel(sessionID, input)
 	if err != nil {
@@ -203,6 +204,9 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 
 	client := sm.clientFactory(model)
 	sessionTools := sm.tools
+	if expandResult.AutoApprove {
+		sessionTools = sessionTools.WithAutoApprove()
+	}
 	proc := session.NewProcessor(session.ProcessorConfig{
 		SessionID:    sessionID,
 		Agent:        input.Agent,

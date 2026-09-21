@@ -63,7 +63,7 @@ func runRun() {
 
 	dir, _ := os.Getwd()
 	agentReg := initAgentRegistry(cfg, dir)
-	toolReg, permSvc, toolCtx := initTooling(b, dir)
+	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()
 

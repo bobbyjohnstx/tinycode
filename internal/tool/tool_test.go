@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 )
 
 func TestTruncate_NoOp(t *testing.T) {
@@ -487,5 +490,62 @@ func TestBuiltinRegistration(t *testing.T) {
 		if !nameSet[e] {
 			t.Errorf("missing builtin tool: %s", e)
 		}
+	}
+}
+
+func TestAutoApprove_SkipsPermissionCheck(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	permSvc := permission.NewService(b)
+	// Set a deny-all rule so permission would be denied without auto-approve.
+	permSvc.SetBaseRules(permission.Ruleset{
+		{Permission: "shell", Pattern: "*", Action: permission.ActionDeny},
+	})
+
+	r := NewRegistry(&Context{
+		Directory:   t.TempDir(),
+		AutoApprove: true,
+		Perms:       permSvc,
+	})
+
+	r.Register(&Def{
+		ID:          "protected-tool",
+		Description: "A tool requiring permission",
+		Permission:  "shell",
+		Parameters:  map[string]any{"type": "object"},
+		Execute: func(ctx context.Context, tc *Context, args json.RawMessage) (*ExecuteResult, error) {
+			return &ExecuteResult{Output: "executed"}, nil
+		},
+	})
+
+	output, isErr, err := r.Execute(context.Background(), "protected-tool", json.RawMessage(`{}`), "session-auto")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if isErr {
+		t.Errorf("expected no error with AutoApprove, got: %s", output)
+	}
+	if output != "executed" {
+		t.Errorf("expected 'executed', got %q", output)
+	}
+}
+
+func TestWithAutoApprove_CreatesRegistryCopy(t *testing.T) {
+	r := NewRegistry(&Context{
+		Directory:   t.TempDir(),
+		AutoApprove: false,
+	})
+	r.Register(&Def{ID: "a", Permission: "read"})
+
+	child := r.WithAutoApprove()
+
+	if !child.ctx.AutoApprove {
+		t.Error("expected child AutoApprove=true")
+	}
+	if r.ctx.AutoApprove {
+		t.Error("expected parent AutoApprove=false unchanged")
+	}
+	if len(child.List()) != len(r.List()) {
+		t.Errorf("expected same tool count, got child=%d parent=%d", len(child.List()), len(r.List()))
 	}
 }

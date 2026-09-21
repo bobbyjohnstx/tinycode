@@ -43,6 +43,7 @@ type Info struct {
 	Watcher           []string                   `json:"watcher,omitempty"`
 	LSP               *LSPConfig                 `json:"lsp,omitempty"`
 	Theme             string                     `json:"theme,omitempty"`
+	AutoApprove       *bool                      `json:"autoApprove,omitempty"`
 }
 
 // LSPConfig holds language server protocol client settings.
@@ -345,6 +346,9 @@ func mergeScalarFields(result, src *Info) {
 	}
 	if src.LSP != nil {
 		result.LSP = src.LSP
+	}
+	if src.AutoApprove != nil {
+		result.AutoApprove = src.AutoApprove
 	}
 }
 

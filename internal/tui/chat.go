@@ -27,6 +27,11 @@ type ChatView struct {
 	height       int
 	stickyBottom bool
 
+	// Subagent group state
+	subagentExpanded map[string]bool           // label → expanded
+	subagentStatus   map[string]SubagentStatus // label → completion data
+	subagentLines    map[int]string            // content line number → subagent label
+
 	// Mouse drag selection state
 	dragging  bool
 	dragStart [2]int // [line, col] in content coordinates
@@ -39,11 +44,13 @@ func NewChatView(width, height int) ChatView {
 	vp.SetContent("")
 
 	return ChatView{
-		viewport:     vp,
-		renderer:     render.NewMarkdownRenderer(width - 4),
-		width:        width,
-		height:       height,
-		stickyBottom: true,
+		viewport:         vp,
+		renderer:         render.NewMarkdownRenderer(width - 4),
+		width:            width,
+		height:           height,
+		stickyBottom:     true,
+		subagentExpanded: make(map[string]bool),
+		subagentStatus:   make(map[string]SubagentStatus),
 	}
 }
 
@@ -85,6 +92,22 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 		c.rebuildContent()
 		return c, nil
 
+	case ToggleSubagentMsg:
+		c.toggleSubagent(msg.Label)
+		c.rebuildContent()
+		return c, nil
+
+	case SubagentCompletedMsg:
+		c.subagentStatus[msg.Label] = SubagentStatus{
+			Label:        msg.Label,
+			Agent:        msg.Agent,
+			InputTokens:  msg.InputTokens,
+			OutputTokens: msg.OutputTokens,
+			Done:         true,
+		}
+		c.rebuildContent()
+		return c, nil
+
 	case tea.KeyMsg:
 		if msg.String() == "T" {
 			c.toggleThought("")
@@ -99,6 +122,11 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 		case msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress:
 			if partID, ok := c.thoughtLines[contentLine]; ok {
 				c.toggleThought(partID)
+				c.rebuildContent()
+				return c, nil
+			}
+			if label, ok := c.subagentLines[contentLine]; ok {
+				c.toggleSubagent(label)
 				c.rebuildContent()
 				return c, nil
 			}
@@ -299,6 +327,30 @@ func (c *ChatView) toggleThought(partID string) {
 	}
 }
 
+// toggleSubagent toggles the expanded state of a subagent group.
+// If label is empty, toggles all subagent groups.
+func (c *ChatView) toggleSubagent(label string) {
+	if label == "" {
+		anyExpanded := false
+		for _, exp := range c.subagentExpanded {
+			if exp {
+				anyExpanded = true
+				break
+			}
+		}
+		// Collect all labels from messages
+		for _, msg := range c.messages {
+			for _, p := range msg.Parts {
+				if p.SubagentLabel != "" {
+					c.subagentExpanded[p.SubagentLabel] = !anyExpanded
+				}
+			}
+		}
+		return
+	}
+	c.subagentExpanded[label] = !c.subagentExpanded[label]
+}
+
 // thoughtHit records a thought label's line offset within rendered output.
 type thoughtHit struct {
 	lineOffset int
@@ -403,6 +455,7 @@ func parseLoadedParts(m map[string]any) []PartView {
 func (c *ChatView) rebuildContent() {
 	var sb strings.Builder
 	c.thoughtLines = make(map[int]string)
+	c.subagentLines = make(map[int]string)
 	lineNum := 0
 
 	for i, msg := range c.messages {
@@ -410,10 +463,20 @@ func (c *ChatView) rebuildContent() {
 			sb.WriteString("\n")
 			lineNum++
 		}
-		var hits []thoughtHit
-		rendered := renderMessageWithHits(msg, c.width, c.renderer, &hits)
-		for _, h := range hits {
+		var tHits []thoughtHit
+		var sHits []subagentHit
+		opts := &renderOpts{
+			thoughtHits:      &tHits,
+			subagentHits:     &sHits,
+			subagentExpanded: c.subagentExpanded,
+			subagentStatus:   c.subagentStatus,
+		}
+		rendered := renderMessageWithOpts(msg, c.width, c.renderer, opts)
+		for _, h := range tHits {
 			c.thoughtLines[lineNum+h.lineOffset] = h.partID
+		}
+		for _, h := range sHits {
+			c.subagentLines[lineNum+h.lineOffset] = h.label
 		}
 		sb.WriteString(rendered)
 		lineNum += strings.Count(rendered, "\n")

@@ -172,7 +172,7 @@ func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
 	return reg
 }
 
-func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Service, *tool.Context) {
+func initTooling(b *bus.Bus, directory string, cfg ...*config.Info) (*tool.Registry, *permission.Service, *tool.Context) {
 	permSvc := permission.NewService(b)
 	subagentBudget := &atomic.Int32{}
 	subagentBudget.Store(20)
@@ -183,6 +183,9 @@ func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Serv
 		JobManager:     session.NewJobManager(b),
 		SubagentCount:  &atomic.Int32{},
 		SubagentBudget: subagentBudget,
+	}
+	if len(cfg) > 0 && cfg[0] != nil && cfg[0].AutoApprove != nil && *cfg[0].AutoApprove {
+		toolCtx.AutoApprove = true
 	}
 	toolReg := tool.NewRegistry(toolCtx)
 	tool.RegisterBuiltins(toolReg)

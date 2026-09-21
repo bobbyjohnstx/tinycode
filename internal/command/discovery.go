@@ -90,6 +90,12 @@ func builtinCommands() []Command {
 			Subtask:     true,
 			Hints:       []string{"$1"},
 		},
+		{
+			Name:        "auto-approve",
+			Description: "Toggle auto-approve for tool permissions",
+			Source:      "builtin",
+			Hints:       []string{},
+		},
 	}
 }
 

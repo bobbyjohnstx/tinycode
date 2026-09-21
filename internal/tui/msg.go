@@ -143,6 +143,21 @@ type ToggleThoughtMsg struct {
 	PartID string
 }
 
+// ToggleSubagentMsg toggles the expanded state of a subagent group.
+// If Label is empty, toggles all subagent groups.
+type ToggleSubagentMsg struct {
+	Label string
+}
+
+// SubagentCompletedMsg carries completion data for a subagent.
+type SubagentCompletedMsg struct {
+	ParentSessionID string
+	Label           string
+	Agent           string
+	InputTokens     int
+	OutputTokens    int
+}
+
 type TickMsg struct{}
 
 // ShellResultMsg carries the output of a user-initiated `! command`.

@@ -88,7 +88,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleKeyMsg(msg)
 	case tea.MouseMsg:
 		return a.handleMouseMsg(msg)
-	case MessagePartDeltaMsg, MessageUpdatedMsg, MessagePartUpdatedMsg, MessagesLoadedMsg:
+	case MessagePartDeltaMsg, MessageUpdatedMsg, MessagePartUpdatedMsg, MessagesLoadedMsg, SubagentCompletedMsg:
 		return a.forwardSSEMessages(msg)
 	}
 
@@ -366,6 +366,13 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		}
 		msgs := a.chat.Messages()
 		return exportSession(msgs, *session, a.status.Cwd()), true
+	case "auto-approve":
+		a.state.AutoApprove = !a.state.AutoApprove
+		label := "disabled"
+		if a.state.AutoApprove {
+			label = "enabled"
+		}
+		return a.toast.Show("Auto-approve "+label+" for this session", false), true
 	}
 	return nil, false
 }

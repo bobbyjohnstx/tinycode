@@ -8,10 +8,10 @@ import (
 
 func TestBuiltinCommands_Count(t *testing.T) {
 	cmds := builtinCommands()
-	if len(cmds) != 4 {
-		t.Fatalf("expected 4 builtins, got %d", len(cmds))
+	if len(cmds) != 5 {
+		t.Fatalf("expected 5 builtins, got %d", len(cmds))
 	}
-	expected := []string{"init", "review", "ask", "swarm"}
+	expected := []string{"init", "review", "ask", "swarm", "auto-approve"}
 	for i, name := range expected {
 		if cmds[i].Name != name {
 			t.Errorf("builtins[%d].Name = %q, want %q", i, cmds[i].Name, name)
@@ -32,8 +32,8 @@ func TestDiscover_EmptyDirsReturnsBuiltins(t *testing.T) {
 	projectDir := t.TempDir()
 	cmds := Discover(configDir, projectDir, nil)
 
-	if len(cmds) != 4 {
-		t.Fatalf("expected 4 commands (builtins only), got %d", len(cmds))
+	if len(cmds) != 5 {
+		t.Fatalf("expected 5 commands (builtins only), got %d", len(cmds))
 	}
 }
 
@@ -43,8 +43,8 @@ func TestDiscover_AgentNamesAddedAsCommands(t *testing.T) {
 	agents := []string{"debugger", "executor", "architect"}
 	cmds := Discover(configDir, projectDir, agents)
 
-	if len(cmds) != 7 {
-		t.Fatalf("expected 7 commands (4 builtins + 3 agents), got %d", len(cmds))
+	if len(cmds) != 8 {
+		t.Fatalf("expected 8 commands (5 builtins + 3 agents), got %d", len(cmds))
 	}
 	for _, name := range agents {
 		found := false
@@ -68,8 +68,8 @@ func TestDiscover_AgentNameDuplicatingBuiltinSkipped(t *testing.T) {
 	agents := []string{"init", "debugger"}
 	cmds := Discover(configDir, "", agents)
 
-	if len(cmds) != 5 {
-		t.Fatalf("expected 5 commands (4 builtins + 1 new agent), got %d", len(cmds))
+	if len(cmds) != 6 {
+		t.Fatalf("expected 6 commands (5 builtins + 1 new agent), got %d", len(cmds))
 	}
 	count := 0
 	for _, cmd := range cmds {

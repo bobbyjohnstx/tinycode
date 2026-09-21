@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -29,18 +30,47 @@ var (
 		Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#999999"})
 )
 
+// subagentHit records a subagent header line's offset within rendered output.
+type subagentHit struct {
+	lineOffset int
+	label      string
+}
+
+// renderOpts bundles rendering state and hit collectors.
+type renderOpts struct {
+	thoughtHits      *[]thoughtHit
+	subagentHits     *[]subagentHit
+	subagentExpanded map[string]bool
+	subagentStatus   map[string]SubagentStatus
+}
+
+// subagentGroup holds consecutive parts belonging to the same subagent.
+type subagentGroup struct {
+	label string
+	parts []PartView
+}
+
 // renderMessage renders a single message (user or assistant) as a string.
 func renderMessage(msg MessageView, width int, md *render.MarkdownRenderer) string {
-	return renderMessageWithHits(msg, width, md, nil)
+	return renderMessageWithOpts(msg, width, md, nil)
 }
 
 // renderMessageWithHits renders a message and optionally collects thought label positions.
 func renderMessageWithHits(msg MessageView, width int, md *render.MarkdownRenderer, hits *[]thoughtHit) string {
+	if hits == nil {
+		return renderMessageWithOpts(msg, width, md, nil)
+	}
+	opts := &renderOpts{thoughtHits: hits}
+	return renderMessageWithOpts(msg, width, md, opts)
+}
+
+// renderMessageWithOpts renders a message with full render options.
+func renderMessageWithOpts(msg MessageView, width int, md *render.MarkdownRenderer, opts *renderOpts) string {
 	switch msg.Info.Role {
 	case "user":
 		return renderUserMessage(msg, width)
 	case "assistant":
-		return renderAssistantMessage(msg, width, md, hits)
+		return renderAssistantMessage(msg, width, md, opts)
 	default:
 		return renderParts(msg.Parts, width-4, md)
 	}
@@ -61,7 +91,7 @@ func renderUserMessage(msg MessageView, width int) string {
 	return styleUserBorder.Width(width - 4).Render(inner)
 }
 
-func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRenderer, hits *[]thoughtHit) string {
+func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRenderer, opts *renderOpts) string {
 	var sb strings.Builder
 	lineNum := 0
 
@@ -72,74 +102,98 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 	}
 	agentThoughtStyle = lipgloss.NewStyle().Foreground(AgentColor(agent))
 
-	for _, part := range msg.Parts {
-		switch part.Type {
-		case "text":
-			rendered := renderTextPart(part, width-4, md)
-			if rendered != "" {
-				sb.WriteString(rendered)
+	groups := groupSubagentParts(msg.Parts)
+
+	for _, g := range groups {
+		if g.label != "" {
+			// Render subagent group
+			expanded := false
+			var status SubagentStatus
+			if opts != nil {
+				if opts.subagentExpanded != nil {
+					expanded = opts.subagentExpanded[g.label]
+				}
+				if opts.subagentStatus != nil {
+					status = opts.subagentStatus[g.label]
+				}
+				if opts.subagentHits != nil {
+					*opts.subagentHits = append(*opts.subagentHits, subagentHit{lineOffset: lineNum, label: g.label})
+				}
+			}
+			rendered := renderSubagentGroup(g, expanded, status, width)
+			sb.WriteString(rendered)
+			sb.WriteString("\n")
+			lineNum += strings.Count(rendered, "\n") + 1
+			continue
+		}
+		// Render individual parts (no subagent label)
+		for _, part := range g.parts {
+			switch part.Type {
+			case "text":
+				rendered := renderTextPart(part, width-4, md)
+				if rendered != "" {
+					sb.WriteString(rendered)
+					sb.WriteString("\n")
+					lineNum += strings.Count(rendered, "\n") + 1
+				}
+			case "reasoning":
+				if opts != nil && opts.thoughtHits != nil && part.ID != "" {
+					*opts.thoughtHits = append(*opts.thoughtHits, thoughtHit{lineOffset: lineNum, partID: part.ID})
+				}
+				prefix := "+"
+				if part.ThoughtExpanded {
+					prefix = "-"
+				}
+				label := agentThoughtStyle.Render(prefix + " Thought")
+				if dur := partDuration(part); dur != "" {
+					label += agentThoughtStyle.Render(": " + dur)
+				}
+				sb.WriteString(label)
 				sb.WriteString("\n")
-				lineNum += strings.Count(rendered, "\n") + 1
-			}
-		case "reasoning":
-			if hits != nil && part.ID != "" {
-				*hits = append(*hits, thoughtHit{lineOffset: lineNum, partID: part.ID})
-			}
-			prefix := "+"
-			if part.ThoughtExpanded {
-				prefix = "-"
-			}
-			label := agentThoughtStyle.Render(prefix + " Thought")
-			if dur := partDuration(part); dur != "" {
-				label += agentThoughtStyle.Render(": " + dur)
-			}
-			sb.WriteString(label)
-			sb.WriteString("\n")
-			lineNum++
-			if !part.ThoughtExpanded || part.Text == "" {
-				break
-			}
-			wrapped := wordwrap.String(part.Text, width-6)
-			expandedLines := strings.Split(wrapped, "\n")
-			for _, line := range expandedLines {
-				sb.WriteString(styleReasoningText.Render("  " + line))
+				lineNum++
+				if !part.ThoughtExpanded || part.Text == "" {
+					break
+				}
+				wrapped := wordwrap.String(part.Text, width-6)
+				expandedLines := strings.Split(wrapped, "\n")
+				for _, line := range expandedLines {
+					sb.WriteString(styleReasoningText.Render("  " + line))
+					sb.WriteString("\n")
+				}
 				sb.WriteString("\n")
-			}
-			sb.WriteString("\n")
-			lineNum += len(expandedLines) + 1
-		case "tool-call":
-			tc := renderToolCallPart(part)
-			sb.WriteString(tc)
-			sb.WriteString("\n")
-			lineNum += strings.Count(tc, "\n") + 1
-		case "tool-result":
-			result := renderToolResultPart(part, width-4)
-			if result != "" {
-				sb.WriteString(result)
+				lineNum += len(expandedLines) + 1
+			case "tool-call":
+				tc := renderToolCallPart(part)
+				sb.WriteString(tc)
 				sb.WriteString("\n")
-				lineNum += strings.Count(result, "\n") + 1
-			}
-		case "tool":
-			// Unified tool part: render as tool-call (with optional result)
-			tc := renderToolCallPart(part)
-			sb.WriteString(tc)
-			sb.WriteString("\n")
-			lineNum += strings.Count(tc, "\n") + 1
-			// If there's output text, render it as a result
-			if part.Text != "" && !part.ToolError {
+				lineNum += strings.Count(tc, "\n") + 1
+			case "tool-result":
 				result := renderToolResultPart(part, width-4)
 				if result != "" {
 					sb.WriteString(result)
 					sb.WriteString("\n")
 					lineNum += strings.Count(result, "\n") + 1
 				}
-			}
-		default:
-			rendered := renderTextPart(part, width-4, md)
-			if rendered != "" {
-				sb.WriteString(rendered)
+			case "tool":
+				tc := renderToolCallPart(part)
+				sb.WriteString(tc)
 				sb.WriteString("\n")
-				lineNum += strings.Count(rendered, "\n") + 1
+				lineNum += strings.Count(tc, "\n") + 1
+				if part.Text != "" && !part.ToolError {
+					result := renderToolResultPart(part, width-4)
+					if result != "" {
+						sb.WriteString(result)
+						sb.WriteString("\n")
+						lineNum += strings.Count(result, "\n") + 1
+					}
+				}
+			default:
+				rendered := renderTextPart(part, width-4, md)
+				if rendered != "" {
+					sb.WriteString(rendered)
+					sb.WriteString("\n")
+					lineNum += strings.Count(rendered, "\n") + 1
+				}
 			}
 		}
 	}
@@ -288,4 +342,168 @@ func partDuration(part PartView) string {
 		return fmt.Sprintf("%dms", d.Milliseconds())
 	}
 	return fmt.Sprintf("%.1fs", d.Seconds())
+}
+
+// --- Subagent group rendering ---
+
+// groupSubagentParts groups consecutive parts with the same non-empty SubagentLabel.
+// Parts without a label become single-element groups with label "".
+func groupSubagentParts(parts []PartView) []subagentGroup {
+	var groups []subagentGroup
+	for _, p := range parts {
+		if p.SubagentLabel == "" {
+			groups = append(groups, subagentGroup{label: "", parts: []PartView{p}})
+		} else if len(groups) > 0 && groups[len(groups)-1].label == p.SubagentLabel {
+			groups[len(groups)-1].parts = append(groups[len(groups)-1].parts, p)
+		} else {
+			groups = append(groups, subagentGroup{label: p.SubagentLabel, parts: []PartView{p}})
+		}
+	}
+	return groups
+}
+
+// renderSubagentGroup renders a collapsible subagent group.
+func renderSubagentGroup(g subagentGroup, expanded bool, status SubagentStatus, width int) string {
+	agentType := extractAgentType(g.label)
+	agentStyle := lipgloss.NewStyle().Foreground(AgentColor(agentType))
+
+	desc := extractTaskDescription(g.parts)
+
+	prefix := "+"
+	if expanded {
+		prefix = "-"
+	}
+
+	header := agentStyle.Render(prefix + " " + g.label)
+	if desc != "" {
+		header += "  " + styleMetadata.Render(truncateStr(desc, 50))
+	}
+
+	// Build status indicator
+	var statusParts []string
+	allDone := groupAllDone(g.parts)
+	if allDone || status.Done {
+		statusParts = append(statusParts, renderSuccess("done"))
+		if dur := groupDuration(g.parts); dur != "" {
+			statusParts = append(statusParts, styleMetadata.Render(dur))
+		}
+	} else {
+		statusParts = append(statusParts, styleSpinner.Render("..."))
+	}
+	if status.Done && (status.InputTokens > 0 || status.OutputTokens > 0) {
+		tokStr := formatTokens(status.InputTokens + status.OutputTokens)
+		statusParts = append(statusParts, styleMetadata.Render("["+tokStr+" tok]"))
+	}
+
+	var sb strings.Builder
+	sb.WriteString(header)
+	if len(statusParts) > 0 {
+		sb.WriteString("  ")
+		sb.WriteString(strings.Join(statusParts, " "))
+	}
+
+	if !expanded {
+		return sb.String()
+	}
+
+	// Expanded: render child tool calls with colored left border
+	borderStr := agentStyle.Render("  ┃")
+	for _, part := range g.parts {
+		if part.Type == "tool" || part.Type == "tool-call" {
+			if strings.EqualFold(part.ToolName, "task") {
+				continue
+			}
+			inline := render.RenderToolInline(part.ToolName, part.ToolArgs, part.ToolError)
+			st := toolStatus(part)
+			sb.WriteString("\n")
+			sb.WriteString(borderStr + " " + inline + " " + st)
+		} else if part.Type == "text" && part.Text != "" {
+			sb.WriteString("\n")
+			sb.WriteString(borderStr + " " + styleMetadata.Render("Result: "+truncateStr(part.Text, width-10)))
+		}
+	}
+
+	return sb.String()
+}
+
+// extractAgentType extracts the agent type from a label like "executor-1" → "executor".
+func extractAgentType(label string) string {
+	if idx := strings.LastIndex(label, "-"); idx > 0 {
+		return label[:idx]
+	}
+	return label
+}
+
+// extractTaskDescription extracts the description from a task tool call's args.
+func extractTaskDescription(parts []PartView) string {
+	for _, p := range parts {
+		if strings.EqualFold(p.ToolName, "task") && p.ToolArgs != "" {
+			var args map[string]any
+			if err := json.Unmarshal([]byte(p.ToolArgs), &args); err == nil {
+				if desc, ok := args["description"].(string); ok {
+					return desc
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// groupAllDone returns true if all tool parts in the group have end times.
+func groupAllDone(parts []PartView) bool {
+	hasTool := false
+	for _, p := range parts {
+		if p.Type != "tool" && p.Type != "tool-call" {
+			continue
+		}
+		hasTool = true
+		if p.Time == nil {
+			return false
+		}
+		if end, ok := p.Time["end"].(float64); !ok || end <= 0 {
+			return false
+		}
+	}
+	return hasTool
+}
+
+// groupDuration returns the total duration from earliest start to latest end.
+func groupDuration(parts []PartView) string {
+	var minStart, maxEnd float64
+	for _, p := range parts {
+		if p.Time == nil {
+			continue
+		}
+		if start, ok := p.Time["start"].(float64); ok {
+			if minStart == 0 || start < minStart {
+				minStart = start
+			}
+		}
+		if end, ok := p.Time["end"].(float64); ok {
+			if end > maxEnd {
+				maxEnd = end
+			}
+		}
+	}
+	if minStart == 0 || maxEnd == 0 || maxEnd <= minStart {
+		return ""
+	}
+	d := time.Duration(maxEnd-minStart) * time.Millisecond
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
+}
+
+// truncateStr shortens s to maxLen, appending an ellipsis if needed.
+func truncateStr(s string, maxLen int) string {
+	if maxLen < 4 {
+		maxLen = 4
+	}
+	// Replace newlines with spaces for inline display
+	s = strings.ReplaceAll(s, "\n", " ")
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-1] + "…"
 }
