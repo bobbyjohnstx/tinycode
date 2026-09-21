@@ -70,16 +70,27 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model)
 
 	client := sm.clientFactory(model)
-	tools := sm.tools
+	childTools := sm.tools
 	if sm.toolSnapshot != nil {
-		tools = sm.toolSnapshot
+		childTools = sm.toolSnapshot
 	}
-	tools = tools.WithDepth(parentDepth + 1)
+	childTools = childTools.WithDepth(parentDepth + 1)
+
+	// #230: Register MCP tools on the subagent's tool registry copy.
+	// The toolSnapshot is captured before MCP tools are registered, so
+	// subagents need to pick them up explicitly.
+	if sm.mcpSvc != nil {
+		mcpTools := sm.mcpSvc.Tools(ctx)
+		for _, def := range mcpTools {
+			childTools.Register(def)
+		}
+	}
 
 	label := nextSubagentLabel(agent)
 	subSessionID := fmt.Sprintf("%s:%s", parentSessionID, label)
 
-	proc := session.NewProcessor(session.ProcessorConfig{
+	// #233: Inherit parent LLM params from config.
+	procCfg := session.ProcessorConfig{
 		SessionID:     subSessionID,
 		Agent:         agent,
 		Model:         model,
@@ -88,7 +99,13 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		Perms:         sm.perms,
 		Directory:     directory,
 		MaxIterations: subagentMaxIterations,
-	}, client, tools, sm.bus)
+	}
+	if sm.cfg != nil {
+		procCfg.Temperature = sm.cfg.Temperature
+		procCfg.TopP = sm.cfg.TopP
+		procCfg.MaxTokens = sm.cfg.MaxTokens
+	}
+	proc := session.NewProcessor(procCfg, client, childTools, sm.bus)
 
 	subCtx, cancel := context.WithTimeout(ctx, subagentTimeout)
 	defer cancel()
@@ -101,6 +118,23 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 	}
 	if result.Error != nil {
 		return "", fmt.Errorf("subagent error: %w", result.Error)
+	}
+
+	// #238: Track subagent token usage.
+	if result.Usage.Input > 0 || result.Usage.Output > 0 {
+		slog.Info("subagent tokens", "label", label, "agent", agent,
+			"input", result.Usage.Input, "output", result.Usage.Output,
+			"reasoning", result.Usage.Reasoning)
+	}
+	if sm.bus != nil {
+		sm.bus.Publish("subagent.completed", map[string]any{
+			"parentSessionID": parentSessionID,
+			"label":           label,
+			"agent":           agent,
+			"inputTokens":     result.Usage.Input,
+			"outputTokens":    result.Usage.Output,
+			"reasoningTokens": result.Usage.Reasoning,
+		})
 	}
 
 	// Extract assistant text from result messages.

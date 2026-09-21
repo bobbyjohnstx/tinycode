@@ -73,8 +73,8 @@ func TestTaskTool_Foreground_DefaultAgent(t *testing.T) {
 	args := json.RawMessage(`{"description":"test","prompt":"hello"}`)
 	r.Execute(context.Background(), "task", args, "ses-da")
 
-	if gotAgent != "build" {
-		t.Errorf("expected default agent 'build', got %q", gotAgent)
+	if gotAgent != "executor" {
+		t.Errorf("expected default agent 'executor', got %q", gotAgent)
 	}
 }
 

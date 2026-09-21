@@ -125,7 +125,7 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 
 	agent := args.SubagentType
 	if agent == "" {
-		agent = "build"
+		agent = "executor"
 	}
 
 	if args.Background {
