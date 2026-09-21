@@ -37,8 +37,11 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		}
 	}
 
+	// Expand slash command prefixes into instructed prompts.
+	expanded := expandSlashCommand(msg.Content)
+
 	// Parse /ask <agent> <message> into agent override + stripped text.
-	promptText, agentOverride := parseAskCommand(msg.Content)
+	promptText, agentOverride := parseAskCommand(expanded)
 	slog.Info("parsed prompt", "text", promptText, "agent", agentOverride, "knownAgents", len(c.app.state.Agents))
 
 	if agentOverride != "" && !c.isKnownAgent(agentOverride) {

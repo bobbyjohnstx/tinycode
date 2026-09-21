@@ -200,3 +200,45 @@ func TestMapSSEToMsg_MCPStatusWithError(t *testing.T) {
 		t.Errorf("expected error 'connection refused', got %q", mcpMsg.Server.Error)
 	}
 }
+
+func TestExpandSlashCommand_Swarm(t *testing.T) {
+	result := expandSlashCommand("/swarm run file on all go files")
+	if !contains([]byte(result), "SWARM mode") {
+		t.Error("expected SWARM mode prefix")
+	}
+	if !contains([]byte(result), "run file on all go files") {
+		t.Error("expected user task preserved")
+	}
+	if contains([]byte(result), "/swarm") {
+		t.Error("expected /swarm prefix stripped")
+	}
+}
+
+func TestExpandSlashCommand_WorkLoop(t *testing.T) {
+	result := expandSlashCommand("/work-loop fix all lint errors")
+	if !contains([]byte(result), "WORK-LOOP mode") {
+		t.Error("expected WORK-LOOP mode prefix")
+	}
+	if !contains([]byte(result), "fix all lint errors") {
+		t.Error("expected user task preserved")
+	}
+}
+
+func TestExpandSlashCommand_NoMatch(t *testing.T) {
+	input := "just a regular prompt"
+	result := expandSlashCommand(input)
+	if result != input {
+		t.Errorf("expected passthrough, got %q", result)
+	}
+}
+
+func TestExpandSlashCommand_SwarmForegroundInstruction(t *testing.T) {
+	result := expandSlashCommand("/swarm test something")
+	if !contains([]byte(result), "FOREGROUND") {
+		t.Error("expected foreground instruction in swarm prefix")
+	}
+	if !contains([]byte(result), "do NOT set") {
+		t.Error("expected warning against background mode")
+	}
+}
+

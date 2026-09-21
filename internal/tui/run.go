@@ -194,6 +194,52 @@ func (c *connectedApp) isKnownAgent(name string) bool {
 	return false
 }
 
+const swarmPrefix = `You are in SWARM mode. Break the user's task into independent subtasks and execute each one using the "task" tool.
+
+CRITICAL RULES:
+- Use the task tool in FOREGROUND mode (do NOT set "background": true)
+- Each task call blocks until the subagent completes and returns its result
+- Run tasks sequentially or in small batches — do NOT start more than you can track
+- After all tasks complete, synthesize the results into a final report
+- Each task gets its own "description" (short label) and "prompt" (detailed instructions)
+- Set "subagent_type" to the most appropriate agent (e.g. "executor", "critic", "explore")
+
+USER TASK:
+`
+
+const workLoopPrefix = `You are in WORK-LOOP mode. Iterate on the user's task until it is complete or you are blocked.
+
+PROTOCOL:
+1. Understand: Read the task. Check relevant files.
+2. Plan: Identify the single most impactful next action. State it in one sentence.
+3. Act: Execute the action using available tools.
+4. Verify: Confirm the action worked (run tests, read the file, check output).
+5. Assess:
+   - If the task is complete → write a brief summary and STOP.
+   - If more work remains → return to step 2.
+   - If blocked (same action failed 3 times) → explain the blocker and STOP.
+
+Do NOT ask for confirmation between iterations. Keep going until done or blocked.
+
+USER TASK:
+`
+
+// expandSlashCommand detects /swarm and /work-loop prefixes and prepends
+// instruction text so the LLM knows how to execute the command.
+func expandSlashCommand(text string) string {
+	trimmed := strings.TrimSpace(text)
+
+	if strings.HasPrefix(trimmed, "/swarm ") {
+		userTask := strings.TrimSpace(strings.TrimPrefix(trimmed, "/swarm"))
+		return swarmPrefix + userTask
+	}
+	if strings.HasPrefix(trimmed, "/work-loop ") {
+		userTask := strings.TrimSpace(strings.TrimPrefix(trimmed, "/work-loop"))
+		return workLoopPrefix + userTask
+	}
+	return text
+}
+
 // parseAskCommand checks if text is a "/ask <agent> <message>" command.
 // Returns (message, agent) if matched, or (original text, "") if not.
 func parseAskCommand(text string) (string, string) {

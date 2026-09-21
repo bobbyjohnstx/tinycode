@@ -19,7 +19,7 @@ type taskArgs struct {
 func TaskTool() *Def {
 	return &Def{
 		ID:          "task",
-		Description: "Create a subagent task. Foreground tasks block until completion. Background tasks return a job ID for later retrieval.",
+		Description: "Run a subtask via a subagent. Default is foreground (blocks and returns the result). Set background=true only if you will poll with task_id later. Prefer foreground for most work.",
 		Permission:  "shell",
 		Parameters: map[string]any{
 			"type": "object",
