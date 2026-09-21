@@ -413,6 +413,14 @@ func (sm *SessionManager) bridgeToolBegin(evt bus.Event) {
 	partID, _ := id.Ascending("part")
 	now := time.Now().UnixMilli()
 
+	// Store the part ID so bridgeToolEnd can update the same part
+	active.mu.Lock()
+	if active.toolPartIDs == nil {
+		active.toolPartIDs = make(map[string]string)
+	}
+	active.toolPartIDs[toolCallID] = partID
+	active.mu.Unlock()
+
 	part := map[string]any{
 		"id":        partID,
 		"sessionID": publishID,
@@ -459,7 +467,16 @@ func (sm *SessionManager) bridgeToolEnd(evt bus.Event) {
 		return
 	}
 
-	partID, _ := id.Ascending("part")
+	// Reuse the part ID from bridgeToolBegin so the TUI updates
+	// the same part instead of creating a duplicate.
+	active.mu.Lock()
+	partID := active.toolPartIDs[toolCallID]
+	delete(active.toolPartIDs, toolCallID)
+	active.mu.Unlock()
+	if partID == "" {
+		partID, _ = id.Ascending("part")
+	}
+
 	now := time.Now().UnixMilli()
 
 	input := map[string]any{}

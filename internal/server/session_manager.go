@@ -34,6 +34,7 @@ type activeSession struct {
 	idMap         map[string]string // processor msg ID → bridge msg ID
 	deltaBatcher  *deltaBatcher     // 16ms debounce for text deltas
 	userMsgID     string            // user message ID for parentID on assistant messages
+	toolPartIDs   map[string]string // toolCallID → partID mapping for begin/end pairing
 }
 
 const deltaBatchInterval = 16 * time.Millisecond
