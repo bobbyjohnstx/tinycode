@@ -183,13 +183,18 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 		}
 	}
 
+	always := input.Always
+	if len(always) == 0 {
+		always = input.Patterns
+	}
+
 	info := Request{
 		ID:         reqID,
 		SessionID:  input.SessionID,
 		Permission: input.Permission,
 		Patterns:   input.Patterns,
 		Metadata:   input.Metadata,
-		Always:     input.Always,
+		Always:     always,
 		Tool:       input.Tool,
 	}
 
