@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
@@ -8,6 +9,47 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/vcs"
 )
+
+// parseSubagentID splits a synthetic subagent session ID (e.g. "ses_1:executor-A")
+// into the parent session ID and label. Returns false if the ID is not a subagent.
+func parseSubagentID(sessionID string) (parentID, label string, isSubagent bool) {
+	idx := strings.LastIndex(sessionID, ":")
+	if idx < 0 {
+		return "", "", false
+	}
+	return sessionID[:idx], sessionID[idx+1:], true
+}
+
+// resolveSession looks up the active session for a given sessionID. For subagent
+// IDs (containing ":"), it falls back to the parent session and lazily creates
+// per-subagent streaming state. Returns the session ID to use for published events.
+func (sm *SessionManager) resolveSession(sessionID string) (active *activeSession, publishID, subagentLabel string) {
+	active = sm.getActive(sessionID)
+	if active != nil {
+		return active, sessionID, ""
+	}
+	parentID, label, ok := parseSubagentID(sessionID)
+	if !ok {
+		return nil, "", ""
+	}
+	parent := sm.getActive(parentID)
+	if parent == nil {
+		return nil, "", ""
+	}
+	sm.mu.Lock()
+	sub, exists := sm.subagentStreams[sessionID]
+	if !exists {
+		sub = &activeSession{
+			model: parent.model,
+			agent: label,
+			dir:   parent.dir,
+			idMap: make(map[string]string),
+		}
+		sm.subagentStreams[sessionID] = sub
+	}
+	sm.mu.Unlock()
+	return sub, parentID, label
+}
 
 func (sm *SessionManager) bridgeMessageEvent(evt bus.Event) {
 	props, ok := evt.Properties.(map[string]any)
@@ -19,7 +61,7 @@ func (sm *SessionManager) bridgeMessageEvent(evt bus.Event) {
 	if !ok {
 		return
 	}
-	active := sm.getActive(sessionID)
+	active, publishID, _ := sm.resolveSession(sessionID)
 	if active == nil {
 		return
 	}
@@ -28,11 +70,11 @@ func (sm *SessionManager) bridgeMessageEvent(evt bus.Event) {
 
 	switch msg.Role {
 	case session.RoleUser:
-		sm.bridgeUserMessage(sessionID, active, msg, now)
+		sm.bridgeUserMessage(publishID, active, msg, now)
 	case session.RoleAssistant:
-		sm.bridgeAssistantMessage(sessionID, active, msg, now)
+		sm.bridgeAssistantMessage(publishID, active, msg, now)
 	case session.RoleTool:
-		sm.bridgeToolMessage(sessionID, msg, now)
+		sm.bridgeToolMessage(publishID, msg, now)
 	}
 }
 
@@ -264,7 +306,7 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 	}
 	sessionID, _ := props["sessionID"].(string)
 	text, _ := props["text"].(string)
-	active := sm.getActive(sessionID)
+	active, publishID, _ := sm.resolveSession(sessionID)
 	if active == nil {
 		return
 	}
@@ -281,7 +323,7 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 
 		batcher := newDeltaBatcher(func(batched string) {
 			sm.bus.Publish("message.part.delta", map[string]any{
-				"sessionID": sessionID,
+				"sessionID": publishID,
 				"messageID": msgID,
 				"partID":    partID,
 				"field":     "text",
@@ -300,10 +342,10 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 
 		// Emit initial assistant message
 		sm.bus.Publish("message.updated", map[string]any{
-			"sessionID": sessionID,
+			"sessionID": publishID,
 			"info": map[string]any{
 				"id":         msgID,
-				"sessionID":  sessionID,
+				"sessionID":  publishID,
 				"role":       "assistant",
 				"time":       map[string]any{"created": startTime},
 				"modelID":    modelID,
@@ -323,10 +365,10 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 
 		// Emit initial empty text part
 		sm.bus.Publish("message.part.updated", map[string]any{
-			"sessionID": sessionID,
+			"sessionID": publishID,
 			"part": map[string]any{
 				"id":        partID,
-				"sessionID": sessionID,
+				"sessionID": publishID,
 				"messageID": msgID,
 				"type":      "text",
 				"text":      "",
@@ -355,7 +397,7 @@ func (sm *SessionManager) bridgeToolBegin(evt bus.Event) {
 	sessionID, _ := props["sessionID"].(string)
 	toolCallID, _ := props["toolCallID"].(string)
 	toolName, _ := props["toolName"].(string)
-	active := sm.getActive(sessionID)
+	active, publishID, label := sm.resolveSession(sessionID)
 	if active == nil {
 		return
 	}
@@ -371,22 +413,27 @@ func (sm *SessionManager) bridgeToolBegin(evt bus.Event) {
 	partID, _ := id.Ascending("part")
 	now := time.Now().UnixMilli()
 
-	sm.bus.Publish("message.part.updated", map[string]any{
-		"sessionID": sessionID,
-		"part": map[string]any{
-			"id":        partID,
-			"sessionID": sessionID,
-			"messageID": msgID,
-			"type":      "tool",
-			"callID":    toolCallID,
-			"tool":      toolName,
-			"state": map[string]any{
-				"status": "running",
-				"input":  map[string]any{},
-				"time":   map[string]any{"start": now},
-			},
+	part := map[string]any{
+		"id":        partID,
+		"sessionID": publishID,
+		"messageID": msgID,
+		"type":      "tool",
+		"callID":    toolCallID,
+		"tool":      toolName,
+		"state": map[string]any{
+			"status": "running",
+			"input":  map[string]any{},
+			"time":   map[string]any{"start": now},
 		},
-		"time": now,
+	}
+	if label != "" {
+		part["subagentLabel"] = label
+	}
+
+	sm.bus.Publish("message.part.updated", map[string]any{
+		"sessionID": publishID,
+		"part":      part,
+		"time":      now,
 	})
 }
 
@@ -399,7 +446,7 @@ func (sm *SessionManager) bridgeToolEnd(evt bus.Event) {
 	toolCallID, _ := props["toolCallID"].(string)
 	toolName, _ := props["toolName"].(string)
 	toolArgs, _ := props["toolArgs"].(string)
-	active := sm.getActive(sessionID)
+	active, publishID, label := sm.resolveSession(sessionID)
 	if active == nil {
 		return
 	}
@@ -420,29 +467,34 @@ func (sm *SessionManager) bridgeToolEnd(evt bus.Event) {
 		input["args"] = toolArgs
 	}
 
-	sm.bus.Publish("message.part.updated", map[string]any{
-		"sessionID": sessionID,
-		"part": map[string]any{
-			"id":        partID,
-			"sessionID": sessionID,
-			"messageID": msgID,
-			"type":      "tool",
-			"callID":    toolCallID,
-			"tool":      toolName,
-			"state": map[string]any{
-				"status":   "completed",
-				"input":    input,
-				"title":    toolName,
-				"metadata": map[string]any{},
-				"time":     map[string]any{"start": now, "end": now},
-			},
+	part := map[string]any{
+		"id":        partID,
+		"sessionID": publishID,
+		"messageID": msgID,
+		"type":      "tool",
+		"callID":    toolCallID,
+		"tool":      toolName,
+		"state": map[string]any{
+			"status":   "completed",
+			"input":    input,
+			"title":    toolName,
+			"metadata": map[string]any{},
+			"time":     map[string]any{"start": now, "end": now},
 		},
-		"time": now,
+	}
+	if label != "" {
+		part["subagentLabel"] = label
+	}
+
+	sm.bus.Publish("message.part.updated", map[string]any{
+		"sessionID": publishID,
+		"part":      part,
+		"time":      now,
 	})
 
 	// Publish session.diff after file-modifying tool completions.
 	if isFileModifyingTool(toolName) {
-		go sm.publishSessionDiff(sessionID)
+		go sm.publishSessionDiff(publishID)
 	}
 }
 

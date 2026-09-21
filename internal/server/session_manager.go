@@ -104,17 +104,19 @@ type SessionManager struct {
 	agentRegistry *agent.Registry
 	mcpSvc        *mcp.Service
 	cfg           *config.Info
-	revertState   *RevertState
-	clientFactory func(*provider.Model) llm.Client
-	jobManager    *session.JobManager
-	ctx           context.Context
-	ctxCancel     context.CancelFunc
+	revertState      *RevertState
+	clientFactory    func(*provider.Model) llm.Client
+	jobManager       *session.JobManager
+	subagentStreams  map[string]*activeSession // streaming state for subagent synthetic IDs
+	ctx              context.Context
+	ctxCancel        context.CancelFunc
 }
 
 func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service, cfg *config.Info, jm *session.JobManager) *SessionManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	sm := &SessionManager{
-		sessions:      make(map[string]*activeSession),
+		sessions:        make(map[string]*activeSession),
+		subagentStreams: make(map[string]*activeSession),
 		bus:           b,
 		registry:      reg,
 		db:            db,

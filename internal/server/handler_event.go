@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
@@ -64,6 +65,12 @@ func StreamGlobalEvents(ctx context.Context, w http.ResponseWriter, eventBus *bu
 					},
 				})
 				return
+			}
+			// Skip subagent events — they're forwarded to parent by the event bridge
+			if props, ok := evt.Properties.(map[string]any); ok {
+				if sid, ok := props["sessionID"].(string); ok && strings.Contains(sid, ":") {
+					continue
+				}
 			}
 			dir := defaultDir
 			if evt.Type == "project.updated" {

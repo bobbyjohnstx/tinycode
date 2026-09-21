@@ -1,9 +1,13 @@
 package server
 
 import (
+	"context"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 )
 
 func TestNewSSEWriter_SetsHeaders(t *testing.T) {
@@ -138,5 +142,58 @@ func TestSSEEvent_Fields(t *testing.T) {
 	}
 	if evt.ID != "id-123" {
 		t.Errorf("ID = %q, want id-123", evt.ID)
+	}
+}
+
+func TestStreamEvents_FiltersSubagentEvents(t *testing.T) {
+	eventBus := bus.New()
+	defer eventBus.Close()
+
+	w := httptest.NewRecorder()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		StreamEvents(ctx, w, eventBus, "")
+		close(done)
+	}()
+
+	// Allow the goroutine to subscribe before publishing.
+	time.Sleep(50 * time.Millisecond)
+
+	// Publish a normal event (should be forwarded).
+	eventBus.Publish("session.update", map[string]any{
+		"sessionID": "sess-abc",
+		"text":      "hello",
+	})
+
+	// Publish a subagent event (should be filtered out).
+	eventBus.Publish("session.update", map[string]any{
+		"sessionID": "sess-abc:executor-A",
+		"text":      "subagent msg",
+	})
+
+	// Publish another normal event to confirm stream continues.
+	eventBus.Publish("session.update", map[string]any{
+		"sessionID": "sess-def",
+		"text":      "world",
+	})
+
+	// Give time for events to be processed.
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	<-done
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, "sess-abc") || !strings.Contains(body, "hello") {
+		t.Errorf("expected normal event with sess-abc, got: %s", body)
+	}
+	if strings.Contains(body, "executor-A") || strings.Contains(body, "subagent msg") {
+		t.Errorf("subagent event should be filtered out, got: %s", body)
+	}
+	if !strings.Contains(body, "sess-def") || !strings.Contains(body, "world") {
+		t.Errorf("expected normal event with sess-def, got: %s", body)
 	}
 }

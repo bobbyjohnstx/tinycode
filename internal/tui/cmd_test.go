@@ -232,6 +232,27 @@ func TestExpandSlashCommand_NoMatch(t *testing.T) {
 	}
 }
 
+func TestExpandSlashCommand_SwarmPreservedAfterParse(t *testing.T) {
+	// Simulates the no-active-session path: expand then parse, and verify
+	// the parsed prompt retains the SWARM instruction prefix (issue #223).
+	expanded := expandSlashCommand("/swarm run tests on all packages")
+	promptText, agentOverride := parseAskCommand(expanded)
+
+	// No /ask prefix, so parseAskCommand returns text unchanged.
+	if agentOverride != "" {
+		t.Errorf("expected no agent override, got %q", agentOverride)
+	}
+	if !contains([]byte(promptText), "SWARM mode") {
+		t.Error("expected SWARM mode prefix preserved in promptText")
+	}
+	if !contains([]byte(promptText), "run tests on all packages") {
+		t.Error("expected user task preserved in promptText")
+	}
+	if contains([]byte(promptText), "/swarm") {
+		t.Error("expected /swarm prefix stripped from promptText")
+	}
+}
+
 func TestExpandSlashCommand_SwarmForegroundInstruction(t *testing.T) {
 	result := expandSlashCommand("/swarm test something")
 	if !contains([]byte(result), "foreground") {

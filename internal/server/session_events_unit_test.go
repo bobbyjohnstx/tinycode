@@ -552,6 +552,236 @@ func TestBridgeToolMessage_ErrorPartHasErrorStatus(t *testing.T) {
 	}
 }
 
+func TestParseSubagentID(t *testing.T) {
+	tests := []struct {
+		input      string
+		parentID   string
+		label      string
+		isSubagent bool
+	}{
+		{"ses_1:executor-A", "ses_1", "executor-A", true},
+		{"ses_abc:debugger-B", "ses_abc", "debugger-B", true},
+		{"ses_1", "", "", false},
+		{"", "", "", false},
+		{"a:b:c", "a:b", "c", true}, // LastIndex picks last colon
+	}
+	for _, tt := range tests {
+		parentID, label, ok := parseSubagentID(tt.input)
+		if parentID != tt.parentID || label != tt.label || ok != tt.isSubagent {
+			t.Errorf("parseSubagentID(%q) = (%q, %q, %v), want (%q, %q, %v)",
+				tt.input, parentID, label, ok, tt.parentID, tt.label, tt.isSubagent)
+		}
+	}
+}
+
+func TestSubagentEvents_ForwardedToParentSession(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	parentModel := &provider.Model{
+		ID:         "test-model",
+		ProviderID: "test-provider",
+	}
+	registerActiveSession(sm, "ses_parent", parentModel, "build", "/tmp")
+
+	// Subscribe to bridge output events
+	msgSub := b.Subscribe("message.updated")
+	defer msgSub.Unsubscribe()
+	partSub := b.Subscribe("message.part.updated")
+	defer partSub.Unsubscribe()
+
+	// Publish a session.message event with a subagent session ID
+	evt := bus.Event{
+		Properties: map[string]any{
+			"sessionID": "ses_parent:executor-A",
+			"message": session.Message{
+				ID:    "msg_sub_1",
+				Role:  session.RoleUser,
+				Parts: []session.Part{session.TextPart("subagent hello")},
+			},
+		},
+	}
+
+	sm.bridgeMessageEvent(evt)
+
+	// The event should be forwarded with the parent's session ID
+	select {
+	case received := <-msgSub.C:
+		props := received.Properties.(map[string]any)
+		if props["sessionID"] != "ses_parent" {
+			t.Errorf("expected sessionID 'ses_parent', got %v", props["sessionID"])
+		}
+		info := props["info"].(map[string]any)
+		if info["role"] != "user" {
+			t.Errorf("expected role 'user', got %v", info["role"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for forwarded message event")
+	}
+}
+
+func TestSubagentEvents_DroppedWhenNoParent(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	// No parent session registered
+
+	msgSub := b.Subscribe("message.updated")
+	defer msgSub.Unsubscribe()
+
+	evt := bus.Event{
+		Properties: map[string]any{
+			"sessionID": "nonexistent:executor-A",
+			"message": session.Message{
+				ID:    "msg_orphan",
+				Role:  session.RoleUser,
+				Parts: []session.Part{session.TextPart("orphan")},
+			},
+		},
+	}
+
+	sm.bridgeMessageEvent(evt)
+
+	select {
+	case <-msgSub.C:
+		t.Error("expected no event when parent session doesn't exist")
+	default:
+		// Good
+	}
+}
+
+func TestSubagentToolBegin_IncludesLabel(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	registerActiveSession(sm, "ses_p2", nil, "build", "/tmp")
+
+	// Simulate subagent streaming state: set assistMsgID on the subagent stream.
+	// First call resolveSession to create the subagent stream entry.
+	active, _, _ := sm.resolveSession("ses_p2:executor-B")
+	active.mu.Lock()
+	active.assistMsgID = "msg_sub_assist"
+	active.mu.Unlock()
+
+	sub := b.Subscribe("message.part.updated")
+	defer sub.Unsubscribe()
+
+	sm.bridgeToolBegin(bus.Event{
+		Properties: map[string]any{
+			"sessionID":  "ses_p2:executor-B",
+			"toolCallID": "tc_sub_1",
+			"toolName":   "shell",
+		},
+	})
+
+	select {
+	case received := <-sub.C:
+		props := received.Properties.(map[string]any)
+		if props["sessionID"] != "ses_p2" {
+			t.Errorf("expected sessionID 'ses_p2', got %v", props["sessionID"])
+		}
+		part := props["part"].(map[string]any)
+		if part["subagentLabel"] != "executor-B" {
+			t.Errorf("expected subagentLabel 'executor-B', got %v", part["subagentLabel"])
+		}
+		if part["tool"] != "shell" {
+			t.Errorf("expected tool 'shell', got %v", part["tool"])
+		}
+		if part["sessionID"] != "ses_p2" {
+			t.Errorf("expected part sessionID 'ses_p2', got %v", part["sessionID"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for subagent tool-begin event")
+	}
+}
+
+func TestSubagentToolEnd_IncludesLabel(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	registerActiveSession(sm, "ses_p3", nil, "build", "/tmp")
+
+	active, _, _ := sm.resolveSession("ses_p3:executor-C")
+	active.mu.Lock()
+	active.assistMsgID = "msg_sub_assist_2"
+	active.mu.Unlock()
+
+	sub := b.Subscribe("message.part.updated")
+	defer sub.Unsubscribe()
+
+	sm.bridgeToolEnd(bus.Event{
+		Properties: map[string]any{
+			"sessionID":  "ses_p3:executor-C",
+			"toolCallID": "tc_sub_end",
+			"toolName":   "read",
+			"toolArgs":   `{"path":"/tmp/foo"}`,
+		},
+	})
+
+	select {
+	case received := <-sub.C:
+		props := received.Properties.(map[string]any)
+		if props["sessionID"] != "ses_p3" {
+			t.Errorf("expected sessionID 'ses_p3', got %v", props["sessionID"])
+		}
+		part := props["part"].(map[string]any)
+		if part["subagentLabel"] != "executor-C" {
+			t.Errorf("expected subagentLabel 'executor-C', got %v", part["subagentLabel"])
+		}
+		state := part["state"].(map[string]any)
+		if state["status"] != "completed" {
+			t.Errorf("expected status 'completed', got %v", state["status"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for subagent tool-end event")
+	}
+}
+
+func TestSubagentTextDelta_ForwardsToParent(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	parentModel := &provider.Model{
+		ID:         "test-model",
+		ProviderID: "test-provider",
+	}
+	registerActiveSession(sm, "ses_delta", parentModel, "build", "/tmp")
+
+	msgSub := b.Subscribe("message.updated")
+	defer msgSub.Unsubscribe()
+
+	// Send a text delta with a subagent session ID
+	sm.bridgeTextDelta(bus.Event{
+		Properties: map[string]any{
+			"sessionID": "ses_delta:executor-D",
+			"text":      "hello from subagent",
+		},
+	})
+
+	// The initial message.updated should use the parent's session ID
+	select {
+	case received := <-msgSub.C:
+		props := received.Properties.(map[string]any)
+		if props["sessionID"] != "ses_delta" {
+			t.Errorf("expected sessionID 'ses_delta', got %v", props["sessionID"])
+		}
+		info := props["info"].(map[string]any)
+		if info["sessionID"] != "ses_delta" {
+			t.Errorf("expected info.sessionID 'ses_delta', got %v", info["sessionID"])
+		}
+		if info["agent"] != "executor-D" {
+			t.Errorf("expected agent 'executor-D', got %v", info["agent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for subagent text delta message")
+	}
+}
+
 func TestBridgeMessageEvent_IgnoresInvalidProperties(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

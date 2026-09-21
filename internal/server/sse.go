@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
@@ -118,6 +119,12 @@ func StreamEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus,
 					Data:  map[string]any{"timestamp": time.Now().UnixMilli()},
 				})
 				return
+			}
+			// Skip subagent events — they're forwarded to parent by the event bridge
+			if props, ok := evt.Properties.(map[string]any); ok {
+				if sid, ok := props["sessionID"].(string); ok && strings.Contains(sid, ":") {
+					continue
+				}
 			}
 			if err := sse.Send(SSEEvent{
 				Event: evt.Type,

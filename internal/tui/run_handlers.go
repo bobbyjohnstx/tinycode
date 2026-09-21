@@ -58,7 +58,7 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 	sessionID := c.app.state.ActiveSession
 	if sessionID == "" {
 		slog.Info("no active session, creating new", "agent", agentOverride)
-		c.pendingPrompt = msg.Content
+		c.pendingPrompt = promptText
 		c.pendingAgent = agentOverride
 		input := api.SessionCreateInput{
 			Title: "New Session",
