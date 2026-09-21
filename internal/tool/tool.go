@@ -25,7 +25,7 @@ type ExecuteResult struct {
 // If it returns non-empty modifiedOutput, that replaces the original.
 type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool)
 
-type SubagentRunnerFunc func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error)
+type SubagentRunnerFunc func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error)
 
 type Context struct {
 	SessionID      string
@@ -356,6 +356,41 @@ func (r *Registry) WithAutoApprove() *Registry {
 		order:    order,
 		disabled: disabled,
 		ctx:      newCtx,
+	}
+}
+
+// WithOnlyTools returns a shallow copy of the Registry that only includes the
+// named tools. All other tools are excluded from List() and ToolDefs() output.
+// The copy shares Def pointers and the same Context as the original.
+func (r *Registry) WithOnlyTools(names ...string) *Registry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	keep := make(map[string]bool, len(names))
+	for _, n := range names {
+		keep[n] = true
+	}
+
+	tools := make(map[string]*Def, len(names))
+	var order []string
+	for _, name := range r.order {
+		if keep[name] {
+			tools[name] = r.tools[name]
+			order = append(order, name)
+		}
+	}
+	disabled := make(map[string]bool, len(r.disabled))
+	for k, v := range r.disabled {
+		if keep[k] {
+			disabled[k] = v
+		}
+	}
+
+	return &Registry{
+		tools:    tools,
+		order:    order,
+		disabled: disabled,
+		ctx:      r.ctx,
 	}
 }
 

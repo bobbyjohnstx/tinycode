@@ -70,7 +70,7 @@ func TestRunSubagent_PublishesTokenUsageEvent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "")
+	_, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "", false)
 	if err != nil {
 		t.Fatalf("RunSubagent returned error: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestRunSubagent_InheritsConfigLLMParams(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "")
+	_, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "", false)
 	if err != nil {
 		t.Fatalf("RunSubagent returned error: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestRunSubagent_RegistersMCPTools(t *testing.T) {
 	defer cancel()
 
 	// RunSubagent should work without MCP service (nil mcpSvc path).
-	resp, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "")
+	resp, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "", false)
 	if err != nil {
 		t.Fatalf("RunSubagent with nil mcpSvc returned error: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestRunSubagent_NilConfig(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "")
+	_, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "", false)
 	if err != nil {
 		t.Fatalf("RunSubagent with nil config returned error: %v", err)
 	}

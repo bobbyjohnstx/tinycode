@@ -208,7 +208,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	client := sm.clientFactory(model)
 	sessionTools := sm.tools
 	if expandResult.AutoApprove {
-		sessionTools = sessionTools.WithAutoApprove()
+		sessionTools = sessionTools.WithAutoApprove().WithOnlyTools("task")
 	}
 	displayText := ""
 	if userText != llmText {

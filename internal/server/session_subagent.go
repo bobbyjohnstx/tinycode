@@ -26,7 +26,7 @@ func nextSubagentLabel(agent string) string {
 // RunSubagent executes a prompt in a child session and returns the assistant's
 // text response. This is called by the task tool to implement /swarm and other
 // subagent-spawning commands.
-func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (_ string, err error) {
+func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (_ string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("subagent panic: %v", r)
@@ -74,6 +74,9 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		childTools = sm.toolSnapshot
 	}
 	childTools = childTools.WithDepth(parentDepth + 1)
+	if autoApprove {
+		childTools = childTools.WithAutoApprove()
+	}
 
 	// #230: Register MCP tools on the subagent's tool registry copy.
 	// The toolSnapshot is captured before MCP tools are registered, so
