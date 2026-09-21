@@ -13,7 +13,7 @@ import (
 
 const (
 	subagentMaxIterations = 5
-	subagentTimeout       = 2 * time.Minute
+	subagentTimeout       = 5 * time.Minute
 )
 
 var subagentSeq atomic.Int64

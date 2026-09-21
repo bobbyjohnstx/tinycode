@@ -20,6 +20,8 @@ CONSTRAINTS:
 - Do NOT call bash or any file tool — ONLY the task tool
 - Make MULTIPLE task calls in ONE response to run them in parallel
 - Each subagent has its own tools (bash, read, etc.) and will do the actual work
+- If subagents return errors or timeouts, do NOT retry them — synthesize whatever results you have and report what failed
+- You get ONE round of subagent calls — make them count
 
 EXAMPLE — if the user says "run tests on 3 packages":
 Call task 3 times in one response:
