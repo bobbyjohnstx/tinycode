@@ -234,11 +234,14 @@ func TestExpandSlashCommand_NoMatch(t *testing.T) {
 
 func TestExpandSlashCommand_SwarmForegroundInstruction(t *testing.T) {
 	result := expandSlashCommand("/swarm test something")
-	if !contains([]byte(result), "FOREGROUND") {
+	if !contains([]byte(result), "foreground") {
 		t.Error("expected foreground instruction in swarm prefix")
 	}
-	if !contains([]byte(result), "do NOT set") {
-		t.Error("expected warning against background mode")
+	if !contains([]byte(result), "ONLY the task tool") {
+		t.Error("expected restriction to task tool only")
+	}
+	if !contains([]byte(result), "MULTIPLE task calls") {
+		t.Error("expected parallel task call instruction")
 	}
 }
 

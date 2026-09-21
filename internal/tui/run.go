@@ -194,15 +194,29 @@ func (c *connectedApp) isKnownAgent(name string) bool {
 	return false
 }
 
-const swarmPrefix = `You are in SWARM mode. Break the user's task into independent subtasks and execute each one using the "task" tool.
+const swarmPrefix = `You are in SWARM mode. You MUST delegate ALL work to subagents using the "task" tool. Do NOT use bash, read, write, edit, or any other tool directly — ONLY the task tool.
 
-CRITICAL RULES:
-- Use the task tool in FOREGROUND mode (do NOT set "background": true)
-- Each task call blocks until the subagent completes and returns its result
-- Run tasks sequentially or in small batches — do NOT start more than you can track
-- After all tasks complete, synthesize the results into a final report
-- Each task gets its own "description" (short label) and "prompt" (detailed instructions)
-- Set "subagent_type" to the most appropriate agent (e.g. "executor", "critic", "explore")
+STEP 1: Analyze the user's task and split it into 2-4 independent subtasks.
+STEP 2: Call the "task" tool once for EACH subtask. Make ALL task calls in a SINGLE response so they run in parallel.
+STEP 3: After all tasks return results, write a final synthesis report.
+
+TASK TOOL FORMAT — each call must include:
+  "description": short label (e.g. "Batch 1: files A-G")
+  "prompt": detailed instructions for the subagent — tell it exactly what to do and what to return
+  "subagent_type": "executor" (for running commands) or "explore" (for reading/searching)
+
+CONSTRAINTS:
+- Do NOT set "background": true — use foreground mode
+- Do NOT do the work yourself — you are the coordinator, subagents do the work
+- Do NOT call bash or any file tool — ONLY the task tool
+- Make MULTIPLE task calls in ONE response to run them in parallel
+- Each subagent has its own tools (bash, read, etc.) and will do the actual work
+
+EXAMPLE — if the user says "run tests on 3 packages":
+Call task 3 times in one response:
+  task(description="Test pkg/a", prompt="Run go test ./pkg/a/... and report results", subagent_type="executor")
+  task(description="Test pkg/b", prompt="Run go test ./pkg/b/... and report results", subagent_type="executor")
+  task(description="Test pkg/c", prompt="Run go test ./pkg/c/... and report results", subagent_type="executor")
 
 USER TASK:
 `
