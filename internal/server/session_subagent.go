@@ -5,8 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+)
+
+const (
+	subagentMaxIterations = 5
+	subagentTimeout       = 2 * time.Minute
 )
 
 // RunSubagent executes a prompt in a child session and returns the assistant's
@@ -55,17 +61,21 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID, prom
 	}
 
 	proc := session.NewProcessor(session.ProcessorConfig{
-		SessionID:    fmt.Sprintf("%s:sub", parentSessionID),
-		Agent:        agent,
-		Model:        model,
-		SystemPrompt: systemPrompt,
-		AgentPerms:   agentPerms,
-		Directory:    directory,
+		SessionID:     fmt.Sprintf("%s:sub", parentSessionID),
+		Agent:         agent,
+		Model:         model,
+		SystemPrompt:  systemPrompt,
+		AgentPerms:    agentPerms,
+		Directory:     directory,
+		MaxIterations: subagentMaxIterations,
 	}, client, tools, sm.bus)
 
-	slog.Info("subagent started", "parent", parentSessionID, "agent", agent, "model", model.ID)
+	subCtx, cancel := context.WithTimeout(ctx, subagentTimeout)
+	defer cancel()
 
-	result := proc.Process(ctx, prompt)
+	slog.Info("subagent started", "parent", parentSessionID, "agent", agent, "model", model.ID, "maxIter", subagentMaxIterations, "timeout", subagentTimeout)
+
+	result := proc.Process(subCtx, prompt)
 	if result == nil {
 		return "", fmt.Errorf("subagent returned nil result")
 	}
