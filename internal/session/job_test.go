@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 )
 
 func TestJobManager_StartAndGet(t *testing.T) {
@@ -213,5 +215,99 @@ func TestJobManager_Shutdown(t *testing.T) {
 		if job.Status != JobCancelled {
 			t.Errorf("job %d: expected cancelled after Shutdown, got %s", i, job.Status)
 		}
+	}
+}
+
+func TestJobManager_PruneCompleted(t *testing.T) {
+	jm := NewJobManager()
+
+	// Start a job and wait for completion.
+	id1 := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+		return "old", nil
+	})
+	jm.Wait(id1)
+
+	// Backdate CreatedAt beyond the TTL to simulate expiry.
+	jm.mu.Lock()
+	jm.jobs[id1].CreatedAt = time.Now().Add(-jobRetentionTTL - time.Second)
+	jm.mu.Unlock()
+
+	// Start a new job — this triggers pruneCompleted.
+	id2 := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+		return "new", nil
+	})
+	jm.Wait(id2)
+
+	// Old job should be evicted.
+	if got := jm.Get(id1); got != nil {
+		t.Errorf("expected old job %s to be pruned, but it still exists", id1)
+	}
+	// New job should still exist.
+	if got := jm.Get(id2); got == nil {
+		t.Errorf("expected new job %s to exist", id2)
+	}
+}
+
+func TestJobManager_CompletionEvent(t *testing.T) {
+	b := bus.New()
+	jm := NewJobManager(b)
+
+	sub := b.Subscribe("job.completed")
+	defer sub.Unsubscribe()
+
+	id := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+		return "hello", nil
+	})
+	jm.Wait(id)
+
+	select {
+	case evt := <-sub.C:
+		props, ok := evt.Properties.(map[string]any)
+		if !ok {
+			t.Fatalf("expected map properties, got %T", evt.Properties)
+		}
+		if props["jobID"] != id {
+			t.Errorf("expected jobID %s, got %v", id, props["jobID"])
+		}
+		if props["status"] != "completed" {
+			t.Errorf("expected status completed, got %v", props["status"])
+		}
+		if props["result"] != "hello" {
+			t.Errorf("expected result hello, got %v", props["result"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for job.completed event")
+	}
+}
+
+func TestJobManager_FailedCompletionEvent(t *testing.T) {
+	b := bus.New()
+	jm := NewJobManager(b)
+
+	sub := b.Subscribe("job.completed")
+	defer sub.Unsubscribe()
+
+	id := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+		return "", fmt.Errorf("boom")
+	})
+	jm.Wait(id)
+
+	select {
+	case evt := <-sub.C:
+		props, ok := evt.Properties.(map[string]any)
+		if !ok {
+			t.Fatalf("expected map properties, got %T", evt.Properties)
+		}
+		if props["jobID"] != id {
+			t.Errorf("expected jobID %s, got %v", id, props["jobID"])
+		}
+		if props["status"] != "failed" {
+			t.Errorf("expected status failed, got %v", props["status"])
+		}
+		if props["error"] != "boom" {
+			t.Errorf("expected error boom, got %v", props["error"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for job.completed event")
 	}
 }

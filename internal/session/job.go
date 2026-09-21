@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
 )
 
 // JobStatus represents the current state of a background job.
@@ -29,17 +31,37 @@ type Job struct {
 	done   chan struct{}
 }
 
+const jobRetentionTTL = 10 * time.Minute
+
 // JobManager manages background jobs with goroutine lifecycle tracking.
 type JobManager struct {
 	mu   sync.Mutex
 	jobs map[string]*Job
 	seq  int
+	bus  *bus.Bus
 }
 
-// NewJobManager creates a new JobManager.
-func NewJobManager() *JobManager {
+// NewJobManager creates a new JobManager. An optional bus may be provided
+// to receive "job.completed" events when jobs finish.
+func NewJobManager(b ...*bus.Bus) *JobManager {
+	var eventBus *bus.Bus
+	if len(b) > 0 {
+		eventBus = b[0]
+	}
 	return &JobManager{
 		jobs: make(map[string]*Job),
+		bus:  eventBus,
+	}
+}
+
+// pruneCompleted removes completed/failed/cancelled jobs older than jobRetentionTTL.
+// Must be called with jm.mu held.
+func (jm *JobManager) pruneCompleted() {
+	now := time.Now()
+	for id, job := range jm.jobs {
+		if job.Status != JobRunning && now.Sub(job.CreatedAt) > jobRetentionTTL {
+			delete(jm.jobs, id)
+		}
 	}
 }
 
@@ -48,6 +70,7 @@ func NewJobManager() *JobManager {
 // (e.g. on session abort or server shutdown) also cancels running jobs.
 func (jm *JobManager) Start(parentCtx context.Context, fn func(ctx context.Context) (string, error)) string {
 	jm.mu.Lock()
+	jm.pruneCompleted()
 	jm.seq++
 	jobID := fmt.Sprintf("job_%d", jm.seq)
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -66,18 +89,29 @@ func (jm *JobManager) Start(parentCtx context.Context, fn func(ctx context.Conte
 		result, err := fn(ctx)
 
 		jm.mu.Lock()
-		defer jm.mu.Unlock()
 		if ctx.Err() != nil {
 			job.Status = JobCancelled
-			return
-		}
-		if err != nil {
+		} else if err != nil {
 			job.Status = JobFailed
 			job.Error = err.Error()
-			return
+		} else {
+			job.Status = JobCompleted
+			job.Result = result
 		}
-		job.Status = JobCompleted
-		job.Result = result
+		eventBus := jm.bus
+		status := job.Status
+		jobResult := job.Result
+		jobError := job.Error
+		jm.mu.Unlock()
+
+		if eventBus != nil {
+			eventBus.Publish("job.completed", map[string]any{
+				"jobID":  jobID,
+				"status": string(status),
+				"result": jobResult,
+				"error":  jobError,
+			})
+		}
 	}()
 
 	return jobID

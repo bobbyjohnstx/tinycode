@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/command"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 
 )
@@ -167,6 +168,8 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	if userText == "" {
 		return
 	}
+
+	userText = command.ExpandSlashCommand(userText)
 
 	model, err := sm.resolvePromptModel(sessionID, input)
 	if err != nil {

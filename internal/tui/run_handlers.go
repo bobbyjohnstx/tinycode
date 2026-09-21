@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/command"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
 )
@@ -38,7 +39,7 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 	}
 
 	// Expand slash command prefixes into instructed prompts.
-	expanded := expandSlashCommand(msg.Content)
+	expanded := command.ExpandSlashCommand(msg.Content)
 
 	// Parse /ask <agent> <message> into agent override + stripped text.
 	promptText, agentOverride := parseAskCommand(expanded)

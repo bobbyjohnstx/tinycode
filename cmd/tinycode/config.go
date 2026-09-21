@@ -180,7 +180,7 @@ func initTooling(b *bus.Bus, directory string) (*tool.Registry, *permission.Serv
 		Directory:      directory,
 		Perms:          permSvc,
 		Bus:            b,
-		JobManager:     session.NewJobManager(),
+		JobManager:     session.NewJobManager(b),
 		SubagentCount:  &atomic.Int32{},
 		SubagentBudget: subagentBudget,
 	}
