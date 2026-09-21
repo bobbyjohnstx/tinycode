@@ -27,7 +27,13 @@ func nextSubagentLabel(agent string) string {
 // RunSubagent executes a prompt in a child session and returns the assistant's
 // text response. This is called by the task tool to implement /swarm and other
 // subagent-spawning commands.
-func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
+func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (_ string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("subagent panic: %v", r)
+			slog.Error("subagent panicked", "parent", parentSessionID, "agent", agent, "panic", r)
+		}
+	}()
 	if directory == "" {
 		directory = sm.dir
 	}
@@ -68,6 +74,7 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID, prom
 	if sm.toolSnapshot != nil {
 		tools = sm.toolSnapshot
 	}
+	tools = tools.WithDepth(parentDepth + 1)
 
 	label := nextSubagentLabel(agent)
 	subSessionID := fmt.Sprintf("%s:%s", parentSessionID, label)

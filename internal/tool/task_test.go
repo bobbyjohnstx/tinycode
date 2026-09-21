@@ -14,7 +14,7 @@ func TestTaskTool_Foreground_WithRunner(t *testing.T) {
 	called := false
 	r := NewRegistry(&Context{
 		Directory: t.TempDir(),
-		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
 			called = true
 			if prompt != "do something" {
 				t.Errorf("expected prompt 'do something', got %q", prompt)
@@ -62,7 +62,7 @@ func TestTaskTool_Foreground_DefaultAgent(t *testing.T) {
 	var gotAgent string
 	r := NewRegistry(&Context{
 		Directory: t.TempDir(),
-		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
 			gotAgent = agent
 			return "ok", nil
 		},
@@ -82,7 +82,7 @@ func TestTaskTool_Background_WithRunner(t *testing.T) {
 	r := NewRegistry(&Context{
 		Directory:  t.TempDir(),
 		JobManager: jm,
-		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
 			return "bg result", nil
 		},
 	})
@@ -120,7 +120,7 @@ func TestTaskTool_Background_WithRunner(t *testing.T) {
 func TestTaskTool_Background_NoJobManager(t *testing.T) {
 	r := NewRegistry(&Context{
 		Directory: t.TempDir(),
-		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
 			return "ok", nil
 		},
 	})
@@ -141,7 +141,7 @@ func TestTaskTool_DepthExceeded(t *testing.T) {
 	r := NewRegistry(&Context{
 		Directory:     t.TempDir(),
 		SubagentDepth: maxSubagentDepth,
-		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
 			t.Error("SubagentRunner should not be called when depth exceeded")
 			return "", nil
 		},
@@ -229,7 +229,7 @@ func TestTaskTool_EmptyPrompt(t *testing.T) {
 func TestTaskTool_RunnerError(t *testing.T) {
 	r := NewRegistry(&Context{
 		Directory: t.TempDir(),
-		SubagentRunner: func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
 			return "", fmt.Errorf("LLM failed")
 		},
 	})
@@ -243,5 +243,92 @@ func TestTaskTool_RunnerError(t *testing.T) {
 	}
 	if output == "" {
 		t.Error("expected error message")
+	}
+}
+
+func TestTaskTool_DepthBelowMax_Allowed(t *testing.T) {
+	var gotDepth int
+	r := NewRegistry(&Context{
+		Directory:     t.TempDir(),
+		SubagentDepth: maxSubagentDepth - 1,
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
+			gotDepth = parentDepth
+			return "ok", nil
+		},
+	})
+	RegisterBuiltins(r)
+
+	args := json.RawMessage(`{"description":"test","prompt":"hello"}`)
+	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-below")
+
+	if isErr {
+		t.Errorf("expected no error at depth %d, got: %s", maxSubagentDepth-1, output)
+	}
+	if gotDepth != maxSubagentDepth-1 {
+		t.Errorf("expected parentDepth=%d, got %d", maxSubagentDepth-1, gotDepth)
+	}
+}
+
+func TestTaskTool_DepthAtMax_Blocked(t *testing.T) {
+	r := NewRegistry(&Context{
+		Directory:     t.TempDir(),
+		SubagentDepth: maxSubagentDepth,
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
+			t.Error("SubagentRunner should not be called when depth equals max")
+			return "", nil
+		},
+	})
+	RegisterBuiltins(r)
+
+	args := json.RawMessage(`{"description":"deep","prompt":"hello"}`)
+	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-atmax")
+
+	if !isErr {
+		t.Error("expected error when depth equals maxSubagentDepth")
+	}
+	if output == "" {
+		t.Error("expected error message about depth")
+	}
+}
+
+func TestWithDepth_SetsSubagentDepth(t *testing.T) {
+	r := NewRegistry(&Context{
+		Directory:     t.TempDir(),
+		SubagentDepth: 0,
+	})
+	RegisterBuiltins(r)
+
+	child := r.WithDepth(3)
+
+	if child.ctx.SubagentDepth != 3 {
+		t.Errorf("expected SubagentDepth=3, got %d", child.ctx.SubagentDepth)
+	}
+	// Original should be unchanged.
+	if r.ctx.SubagentDepth != 0 {
+		t.Errorf("expected original SubagentDepth=0, got %d", r.ctx.SubagentDepth)
+	}
+	// Child should have the same tools registered.
+	if len(child.List()) != len(r.List()) {
+		t.Errorf("expected same tool count, got child=%d parent=%d", len(child.List()), len(r.List()))
+	}
+}
+
+func TestTaskTool_RunnerPanic(t *testing.T) {
+	r := NewRegistry(&Context{
+		Directory: t.TempDir(),
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
+			panic("test panic in runner")
+		},
+	})
+	RegisterBuiltins(r)
+
+	args := json.RawMessage(`{"description":"panic test","prompt":"trigger panic"}`)
+	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-panic")
+
+	if !isErr {
+		t.Error("expected error after panic")
+	}
+	if output == "" {
+		t.Error("expected error message about panic")
 	}
 }

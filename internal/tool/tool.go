@@ -24,7 +24,7 @@ type ExecuteResult struct {
 // If it returns non-empty modifiedOutput, that replaces the original.
 type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool)
 
-type SubagentRunnerFunc func(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error)
+type SubagentRunnerFunc func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error)
 
 type Context struct {
 	SessionID      string
@@ -244,6 +244,44 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 		JobManager:     r.ctx.JobManager,
 		SubagentRunner: r.ctx.SubagentRunner,
 		SubagentDepth:  r.ctx.SubagentDepth,
+		DB:             r.ctx.DB,
+		AfterHook:      r.ctx.AfterHook,
+	}
+
+	tools := make(map[string]*Def, len(r.tools))
+	for k, v := range r.tools {
+		tools[k] = v
+	}
+	order := make([]string, len(r.order))
+	copy(order, r.order)
+	disabled := make(map[string]bool, len(r.disabled))
+	for k, v := range r.disabled {
+		disabled[k] = v
+	}
+
+	return &Registry{
+		tools:    tools,
+		order:    order,
+		disabled: disabled,
+		ctx:      newCtx,
+	}
+}
+
+// WithDepth returns a shallow copy of the Registry whose tool context uses
+// the given subagent depth instead of the original. The copy shares Def
+// pointers and is safe for concurrent reads.
+func (r *Registry) WithDepth(depth int) *Registry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	newCtx := &Context{
+		SessionID:      r.ctx.SessionID,
+		Directory:      r.ctx.Directory,
+		Perms:          r.ctx.Perms,
+		Bus:            r.ctx.Bus,
+		JobManager:     r.ctx.JobManager,
+		SubagentRunner: r.ctx.SubagentRunner,
+		SubagentDepth:  depth,
 		DB:             r.ctx.DB,
 		AfterHook:      r.ctx.AfterHook,
 	}

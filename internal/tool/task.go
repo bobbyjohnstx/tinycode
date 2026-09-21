@@ -51,6 +51,15 @@ func TaskTool() *Def {
 	}
 }
 
+func callSubagentRunner(ctx context.Context, tc *Context, prompt, agent string) (result string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("subagent panic: %v", r)
+		}
+	}()
+	return tc.SubagentRunner(ctx, tc.SessionID, tc.SubagentDepth, prompt, agent, tc.Directory)
+}
+
 func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*ExecuteResult, error) {
 	var args taskArgs
 	if err := json.Unmarshal(rawArgs, &args); err != nil {
@@ -102,8 +111,9 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		prompt := args.Prompt
 		dir := tc.Directory
 		sessionID := tc.SessionID
+		depth := tc.SubagentDepth
 		jobID := tc.JobManager.Start(func(jobCtx context.Context) (string, error) {
-			return runner(jobCtx, sessionID, prompt, agent, dir)
+			return runner(jobCtx, sessionID, depth, prompt, agent, dir)
 		})
 		result, _ := json.Marshal(map[string]any{
 			"job_id":  jobID,
@@ -113,7 +123,7 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		return &ExecuteResult{Output: string(result)}, nil
 	}
 
-	output, err := tc.SubagentRunner(ctx, tc.SessionID, args.Prompt, agent, tc.Directory)
+	output, err := callSubagentRunner(ctx, tc, args.Prompt, agent)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Subagent error: %v", err), IsError: true}, nil
 	}

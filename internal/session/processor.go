@@ -22,7 +22,6 @@ type ProcessorConfig struct {
 	SessionID        string
 	Agent            string
 	Model            *provider.Model
-	SubagentDepth    int
 	MaxSubagents     int
 	SystemPrompt     string
 	Compaction       CompactionConfig

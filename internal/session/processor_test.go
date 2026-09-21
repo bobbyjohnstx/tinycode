@@ -882,3 +882,64 @@ func TestProcessor_MultiTurnWithToolCalls(t *testing.T) {
 		t.Error("tool result from turn 1 not found in turn 2 messages")
 	}
 }
+
+// --- Issue #222: Panic recovery in tool goroutines ---
+
+// panicToolExecutor panics on Execute to test recovery.
+type panicToolExecutor struct{}
+
+func (p *panicToolExecutor) Execute(_ context.Context, name string, _ json.RawMessage, _ string) (string, bool, error) {
+	panic("unexpected nil pointer in " + name)
+}
+
+func (p *panicToolExecutor) ToolDefs(_ []string) []llm.Tool {
+	return nil
+}
+
+func TestProcessor_ToolPanicRecovery(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventToolCallBegin, ToolCallID: "call_1", ToolName: "read"},
+				{Type: llm.EventToolCallEnd, ToolCallID: "call_1", ToolName: "read", ToolCallArgs: `{"path":"a.go"}`},
+				{Type: llm.EventFinish, FinishReason: "tool_calls"},
+			}},
+			// After the recovered panic result, the model responds with text.
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "Tool failed, stopping."},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 10, CompletionTokens: 5}},
+			}},
+		},
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_panic",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, client, &panicToolExecutor{}, b)
+
+	result := p.Process(context.Background(), "read a.go")
+	if result.Error != nil {
+		t.Fatalf("unexpected process error: %v", result.Error)
+	}
+
+	// The panicking tool should produce a tool result with the panic message,
+	// not crash the process.
+	foundPanicResult := false
+	for _, msg := range result.Messages {
+		for _, part := range msg.Parts {
+			if part.Type == PartToolResult && part.ToolError {
+				if part.ToolResult == "tool panicked: unexpected nil pointer in read" {
+					foundPanicResult = true
+				}
+			}
+		}
+	}
+	if !foundPanicResult {
+		t.Error("expected a tool result containing the panic message")
+	}
+}

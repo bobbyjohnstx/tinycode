@@ -76,8 +76,8 @@ func runTUI(args []string) {
 		Config:         cfg,
 	})
 
-	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
-		return srv.RunSubagent(subCtx, parentSessionID, prompt, agent, directory)
+	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
+		return srv.RunSubagent(subCtx, parentSessionID, parentDepth, prompt, agent, directory)
 	}
 
 	listener, err := srv.Listen(ctx)

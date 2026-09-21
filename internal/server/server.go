@@ -308,8 +308,8 @@ func (s *Server) WaitForShutdown() {
 }
 
 // RunSubagent delegates to SessionManager.RunSubagent for use by the task tool.
-func (s *Server) RunSubagent(ctx context.Context, parentSessionID, prompt, agent, directory string) (string, error) {
-	return s.sessionManager.RunSubagent(ctx, parentSessionID, prompt, agent, directory)
+func (s *Server) RunSubagent(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string) (string, error) {
+	return s.sessionManager.RunSubagent(ctx, parentSessionID, parentDepth, prompt, agent, directory)
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

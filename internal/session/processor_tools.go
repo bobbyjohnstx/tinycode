@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
@@ -29,6 +31,16 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 		wg.Add(1)
 		go func(idx int, call Part) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("tool panicked", "tool", call.ToolName, "panic", r)
+					ch <- toolResult{
+						index:  idx,
+						result: ToolResultPart(call.ToolCallID, call.ToolName, fmt.Sprintf("tool panicked: %v", r), true),
+						failed: true,
+					}
+				}
+			}()
 
 			// Permission check: if tool args reference paths outside the
 			// configured directory, ask the permission service.

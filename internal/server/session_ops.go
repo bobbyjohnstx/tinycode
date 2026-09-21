@@ -5,7 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
-	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
+
 )
 
 // PromptInput describes a user prompt to be processed by a session.
@@ -143,8 +143,6 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		delete(sm.sessions, sessionID)
 		sm.mu.Unlock()
 
-		tool.ClearFileMutexes()
-
 		sm.bus.Publish("session.status", map[string]any{
 			"sessionID": sessionID,
 			"status":    map[string]any{"type": "idle"},
@@ -200,21 +198,15 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		existingMsgs = nil
 	}
 
-	subagentDepth := 1
-	if sm.cfg != nil && sm.cfg.SubagentDepth != nil {
-		subagentDepth = *sm.cfg.SubagentDepth
-	}
-
 	client := sm.clientFactory(model)
 	sessionTools := sm.tools
 	proc := session.NewProcessor(session.ProcessorConfig{
-		SessionID:     sessionID,
-		Agent:         input.Agent,
-		Model:         model,
-		SubagentDepth: subagentDepth,
-		SystemPrompt:  systemPrompt,
-		Compaction:    sm.buildCompactionConfig(),
-		AgentPerms:    agentPerms,
+		SessionID:    sessionID,
+		Agent:        input.Agent,
+		Model:        model,
+		SystemPrompt: systemPrompt,
+		Compaction:   sm.buildCompactionConfig(),
+		AgentPerms:   agentPerms,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 

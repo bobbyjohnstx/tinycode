@@ -212,6 +212,8 @@ func (sm *SessionManager) Shutdown() {
 	for _, done := range doneChans {
 		<-done
 	}
+
+	tool.ClearFileMutexes()
 }
 
 // Status returns the processing status of all active sessions.
