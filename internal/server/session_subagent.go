@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
@@ -14,6 +15,14 @@ const (
 	subagentMaxIterations = 5
 	subagentTimeout       = 2 * time.Minute
 )
+
+var subagentSeq atomic.Int64
+
+func nextSubagentLabel(agent string) string {
+	n := subagentSeq.Add(1)
+	letter := string(rune('A' + (n-1)%26))
+	return fmt.Sprintf("%s-%s", agent, letter)
+}
 
 // RunSubagent executes a prompt in a child session and returns the assistant's
 // text response. This is called by the task tool to implement /swarm and other
@@ -60,8 +69,11 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID, prom
 		tools = sm.toolSnapshot
 	}
 
+	label := nextSubagentLabel(agent)
+	subSessionID := fmt.Sprintf("%s:%s", parentSessionID, label)
+
 	proc := session.NewProcessor(session.ProcessorConfig{
-		SessionID:     fmt.Sprintf("%s:sub", parentSessionID),
+		SessionID:     subSessionID,
 		Agent:         agent,
 		Model:         model,
 		SystemPrompt:  systemPrompt,
@@ -73,7 +85,7 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID, prom
 	subCtx, cancel := context.WithTimeout(ctx, subagentTimeout)
 	defer cancel()
 
-	slog.Info("subagent started", "parent", parentSessionID, "agent", agent, "model", model.ID, "maxIter", subagentMaxIterations, "timeout", subagentTimeout)
+	slog.Info("subagent started", "label", label, "parent", parentSessionID, "agent", agent, "model", model.ID)
 
 	result := proc.Process(subCtx, prompt)
 	if result == nil {
@@ -96,6 +108,6 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID, prom
 	}
 
 	response := strings.Join(texts, "\n\n")
-	slog.Info("subagent completed", "parent", parentSessionID, "agent", agent, "responseLen", len(response))
+	slog.Info("subagent completed", "label", label, "parent", parentSessionID, "agent", agent, "responseLen", len(response))
 	return response, nil
 }
