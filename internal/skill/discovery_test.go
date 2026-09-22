@@ -3,13 +3,20 @@ package skill
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestDiscover_NonExistentDirsReturnsEmpty(t *testing.T) {
+func TestDiscover_NonExistentDirsReturnsDefaults(t *testing.T) {
 	skills := Discover("/nonexistent/config", "/nonexistent/project")
-	if len(skills) != 0 {
-		t.Errorf("expected 0 skills, got %d", len(skills))
+	defaultCount := len(DefaultSkills())
+	if len(skills) != defaultCount {
+		t.Errorf("expected %d skills (defaults only), got %d", defaultCount, len(skills))
+	}
+	for _, s := range skills {
+		if s.Source != "builtin" {
+			t.Errorf("expected all skills to be builtin, got source %q for %q", s.Source, s.Name)
+		}
 	}
 }
 
@@ -25,8 +32,9 @@ func TestDiscover_UserSkills(t *testing.T) {
 	}
 
 	skills := Discover(configDir, "")
-	if len(skills) != 1 {
-		t.Fatalf("expected 1 skill, got %d", len(skills))
+	expectedCount := 1 + len(DefaultSkills())
+	if len(skills) != expectedCount {
+		t.Fatalf("expected %d skills (1 user + %d defaults), got %d", expectedCount, len(DefaultSkills()), len(skills))
 	}
 	if skills[0].Name != "my-skill" {
 		t.Errorf("Name = %q, want %q", skills[0].Name, "my-skill")
@@ -55,8 +63,9 @@ func TestDiscover_ProjectSkills(t *testing.T) {
 	}
 
 	skills := Discover(configDir, projectDir)
-	if len(skills) != 1 {
-		t.Fatalf("expected 1 skill, got %d", len(skills))
+	expectedCount := 1 + len(DefaultSkills())
+	if len(skills) != expectedCount {
+		t.Fatalf("expected %d skills (1 project + %d defaults), got %d", expectedCount, len(DefaultSkills()), len(skills))
 	}
 	if skills[0].Source != "project" {
 		t.Errorf("Source = %q, want %q", skills[0].Source, "project")
@@ -110,8 +119,9 @@ func TestDiscover_FrontmatterOverridesDirName(t *testing.T) {
 	}
 
 	skills := Discover(configDir, "")
-	if len(skills) != 1 {
-		t.Fatalf("expected 1 skill, got %d", len(skills))
+	expectedCount := 1 + len(DefaultSkills())
+	if len(skills) != expectedCount {
+		t.Fatalf("expected %d skills, got %d", expectedCount, len(skills))
 	}
 	if skills[0].Name != "custom-name" {
 		t.Errorf("Name = %q, want %q", skills[0].Name, "custom-name")
@@ -129,8 +139,9 @@ func TestDiscover_NonDirectoryEntriesSkipped(t *testing.T) {
 	}
 
 	skills := Discover(configDir, "")
-	if len(skills) != 0 {
-		t.Errorf("expected 0 skills (file entry skipped), got %d", len(skills))
+	defaultCount := len(DefaultSkills())
+	if len(skills) != defaultCount {
+		t.Errorf("expected %d skills (defaults only, file entry skipped), got %d", defaultCount, len(skills))
 	}
 }
 
@@ -142,8 +153,90 @@ func TestDiscover_DirWithoutSkillMDSkipped(t *testing.T) {
 	}
 
 	skills := Discover(configDir, "")
-	if len(skills) != 0 {
-		t.Errorf("expected 0 skills (no SKILL.md), got %d", len(skills))
+	defaultCount := len(DefaultSkills())
+	if len(skills) != defaultCount {
+		t.Errorf("expected %d skills (defaults only, no SKILL.md), got %d", defaultCount, len(skills))
+	}
+}
+
+func TestDefaultSkills_LoadedAndNamed(t *testing.T) {
+	skills := DefaultSkills()
+	if len(skills) < 10 {
+		t.Fatalf("expected at least 10 default skills, got %d", len(skills))
+	}
+
+	expected := map[string]bool{
+		"debug": false, "verify": false, "trace": false,
+		"remember": false, "deepinit": false, "doctor": false,
+		"mcp-setup": false, "review": false, "plan": false, "test": false,
+	}
+	for _, s := range skills {
+		if _, ok := expected[s.Name]; ok {
+			expected[s.Name] = true
+		}
+		if s.Source != "builtin" {
+			t.Errorf("default skill %q source = %q, want %q", s.Name, s.Source, "builtin")
+		}
+		if s.Description == "" {
+			t.Errorf("default skill %q has empty description", s.Name)
+		}
+	}
+	for name, found := range expected {
+		if !found {
+			t.Errorf("expected default skill %q not found", name)
+		}
+	}
+}
+
+func TestReadDefaultSkill(t *testing.T) {
+	content, err := ReadDefaultSkill("debug")
+	if err != nil {
+		t.Fatalf("ReadDefaultSkill(debug) error: %v", err)
+	}
+	if content == "" {
+		t.Fatal("ReadDefaultSkill(debug) returned empty content")
+	}
+	if !strings.Contains(content, "name: debug") {
+		t.Error("expected debug skill content to contain frontmatter")
+	}
+	if !strings.Contains(content, "# Debug") {
+		t.Error("expected debug skill content to contain body heading")
+	}
+}
+
+func TestReadDefaultSkill_NotFound(t *testing.T) {
+	_, err := ReadDefaultSkill("nonexistent-skill")
+	if err == nil {
+		t.Error("expected error for nonexistent skill")
+	}
+}
+
+func TestDiscover_UserOverridesDefault(t *testing.T) {
+	configDir := t.TempDir()
+	skillDir := filepath.Join(configDir, "skills", "debug-custom")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\nname: debug\ndescription: My custom debug\n---\nCustom body."
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills := Discover(configDir, "")
+	count := 0
+	for _, s := range skills {
+		if s.Name == "debug" {
+			count++
+			if s.Source != "user" {
+				t.Errorf("expected user source for overridden 'debug', got %q", s.Source)
+			}
+			if s.Description != "My custom debug" {
+				t.Errorf("expected custom description, got %q", s.Description)
+			}
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 1 'debug' skill, got %d", count)
 	}
 }
 

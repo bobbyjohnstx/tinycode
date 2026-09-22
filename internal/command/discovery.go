@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/frontmatter"
+	"github.com/bobbyjohnstx/tinycode-go/internal/skill"
 )
 
 // Command represents a discoverable slash command.
@@ -20,9 +21,10 @@ type Command struct {
 // Discover scans all command/skill locations and returns a merged list.
 // It includes:
 //  1. Built-in commands (init, review, ask, swarm)
-//  2. Default skills from the embedded agent defaults directory (agent names as commands)
+//  2. Agent names as commands
 //  3. User skills from configDir/skills/*/SKILL.md
 //  4. Project skills from projectDir/.tinycode/skills/*/SKILL.md
+//  5. Bundled default skills (lowest priority, overridden by all above)
 func Discover(configDir, projectDir string, agentNames []string) []Command {
 	seen := make(map[string]struct{})
 	var commands []Command
@@ -52,6 +54,20 @@ func Discover(configDir, projectDir string, agentNames []string) []Command {
 	if projectDir != "" {
 		projectSkillDir := filepath.Join(projectDir, ".tinycode", "skills")
 		commands = appendSkillCommands(commands, seen, projectSkillDir, "skill")
+	}
+
+	// Append bundled default skills last — user/project skills override by name.
+	for _, ds := range skill.DefaultSkills() {
+		if _, exists := seen[ds.Name]; exists {
+			continue
+		}
+		seen[ds.Name] = struct{}{}
+		commands = append(commands, Command{
+			Name:        ds.Name,
+			Description: ds.Description,
+			Source:      "skill",
+			Hints:       []string{},
+		})
 	}
 
 	return commands

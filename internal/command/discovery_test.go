@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/skill"
 )
 
 func TestBuiltinCommands_Count(t *testing.T) {
@@ -27,13 +29,23 @@ func TestBuiltinCommands_SourceIsBuiltin(t *testing.T) {
 	}
 }
 
-func TestDiscover_EmptyDirsReturnsBuiltins(t *testing.T) {
+func TestDiscover_EmptyDirsReturnsBuiltinsAndDefaults(t *testing.T) {
 	configDir := t.TempDir()
 	projectDir := t.TempDir()
 	cmds := Discover(configDir, projectDir, nil)
 
-	if len(cmds) != 5 {
-		t.Fatalf("expected 5 commands (builtins only), got %d", len(cmds))
+	// Count expected: 5 builtins + default skills (minus "review" which is deduped with builtin)
+	defaultSkills := skill.DefaultSkills()
+	deduped := 0
+	builtinNames := map[string]bool{"init": true, "review": true, "ask": true, "swarm": true, "auto-approve": true}
+	for _, ds := range defaultSkills {
+		if builtinNames[ds.Name] {
+			deduped++
+		}
+	}
+	expected := 5 + len(defaultSkills) - deduped
+	if len(cmds) != expected {
+		t.Fatalf("expected %d commands (5 builtins + %d default skills - %d deduped), got %d", expected, len(defaultSkills), deduped, len(cmds))
 	}
 }
 
@@ -43,9 +55,6 @@ func TestDiscover_AgentNamesAddedAsCommands(t *testing.T) {
 	agents := []string{"debugger", "executor", "architect"}
 	cmds := Discover(configDir, projectDir, agents)
 
-	if len(cmds) != 8 {
-		t.Fatalf("expected 8 commands (5 builtins + 3 agents), got %d", len(cmds))
-	}
 	for _, name := range agents {
 		found := false
 		for _, cmd := range cmds {
@@ -68,9 +77,6 @@ func TestDiscover_AgentNameDuplicatingBuiltinSkipped(t *testing.T) {
 	agents := []string{"init", "debugger"}
 	cmds := Discover(configDir, "", agents)
 
-	if len(cmds) != 6 {
-		t.Fatalf("expected 6 commands (5 builtins + 1 new agent), got %d", len(cmds))
-	}
 	count := 0
 	for _, cmd := range cmds {
 		if cmd.Name == "init" {
@@ -194,5 +200,48 @@ func TestDiscover_FrontmatterOverridesDirName(t *testing.T) {
 	}
 	if foundDir {
 		t.Error("directory name 'dir-name' should not appear when frontmatter overrides")
+	}
+}
+
+func TestDiscover_DefaultSkillsAppearAsCommands(t *testing.T) {
+	configDir := t.TempDir()
+	cmds := Discover(configDir, "", nil)
+
+	expectedSkills := []string{"debug", "verify", "trace", "remember", "deepinit", "doctor", "mcp-setup", "plan", "test"}
+	for _, name := range expectedSkills {
+		found := false
+		for _, cmd := range cmds {
+			if cmd.Name == name {
+				found = true
+				if cmd.Source != "skill" {
+					t.Errorf("default skill command %q source = %q, want %q", name, cmd.Source, "skill")
+				}
+				if cmd.Description == "" {
+					t.Errorf("default skill command %q has empty description", name)
+				}
+				break
+			}
+		}
+		if !found {
+			t.Errorf("default skill command %q not found", name)
+		}
+	}
+}
+
+func TestDiscover_DefaultSkillReviewDedupedByBuiltin(t *testing.T) {
+	configDir := t.TempDir()
+	cmds := Discover(configDir, "", nil)
+
+	count := 0
+	for _, cmd := range cmds {
+		if cmd.Name == "review" {
+			count++
+			if cmd.Source != "builtin" {
+				t.Errorf("review command source = %q, want %q (builtin should win)", cmd.Source, "builtin")
+			}
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 1 'review' command, got %d", count)
 	}
 }
