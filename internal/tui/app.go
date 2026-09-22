@@ -383,6 +383,7 @@ func (a *App) showPalette() {
 		"mcp":           true,
 		"paste-image":   true,
 		"scoped-models": true,
+		"archive":       true,
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
@@ -401,6 +402,7 @@ func (a *App) showPalette() {
 		{Label: "thinking", Description: "Set reasoning level (off/low/medium/high/max)", Value: "thinking"},
 		{Label: "paste-image", Description: "Paste image from clipboard", Value: "paste-image"},
 		{Label: "scoped-models", Description: "Toggle model scoping (favorites)", Value: "scoped-models"},
+		{Label: "archive", Description: "Archive current session", Value: "archive"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -487,6 +489,11 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	case "diff":
 		dir := a.status.Cwd()
 		return func() tea.Msg { return DiffRequestMsg{Dir: dir} }, true
+	case "archive":
+		if a.state.ActiveSession == "" {
+			return a.toast.Show("No active session to archive", true), true
+		}
+		return func() tea.Msg { return ArchiveRequestMsg{} }, true
 	}
 	return nil, false
 }

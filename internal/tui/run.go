@@ -279,6 +279,27 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, nil
 
+	case ArchiveRequestMsg:
+		sessionID := c.app.state.ActiveSession
+		if sessionID == "" {
+			return c, tea.Batch(c.showErrorToast("No active session to archive")...)
+		}
+		return c, archiveSession(c.client, sessionID)
+
+	case ArchiveSentMsg:
+		if msg.Err != nil {
+			slog.Error("archive failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Archive failed: %v", msg.Err)...)
+		} else {
+			model, cmd := c.app.Update(ToastMsg{Text: "Session archived", IsError: false})
+			c.updateApp(model)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			cmds = append(cmds, func() tea.Msg { return SessionSwitchedMsg{SessionID: ""} })
+		}
+		return c, tea.Batch(cmds...)
+
 	case RevertRequestMsg:
 		sessionID := c.app.state.ActiveSession
 		if sessionID == "" {

@@ -186,6 +186,26 @@ func (s *Server) handleSessionDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) handleSessionArchive(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	store := s.sessionStore()
+
+	if err := store.Archive(id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	info, _ := store.Get(id)
+	if info != nil {
+		s.deps.Bus.Publish("session.updated", map[string]any{
+			"sessionID": id,
+			"info":      info,
+		})
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.PathValue("id")
 

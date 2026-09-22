@@ -277,6 +277,14 @@ type UnrevertSentMsg struct {
 	Err error
 }
 
+// ArchiveRequestMsg requests archiving the active session.
+type ArchiveRequestMsg struct{}
+
+// ArchiveSentMsg reports that the archive API call completed.
+type ArchiveSentMsg struct {
+	Err error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

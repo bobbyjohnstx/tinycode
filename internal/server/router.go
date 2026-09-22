@@ -20,6 +20,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("PATCH /session/{id}", s.handleSessionUpdate)
 	s.mux.HandleFunc("DELETE /session/{id}", s.handleSessionDelete)
 
+	s.mux.HandleFunc("POST /session/{id}/archive", s.handleSessionArchive)
+
 	// Session actions
 	s.mux.HandleFunc("POST /session/{id}/message", s.handleSessionPrompt)
 	s.mux.HandleFunc("POST /session/{sessionID}/prompt_async", s.handleSessionPromptAsync)

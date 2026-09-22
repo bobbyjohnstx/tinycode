@@ -369,6 +369,14 @@ func patchScopedModels(client *api.Client, models []string) tea.Cmd {
 	}
 }
 
+// archiveSession archives a session via POST /session/{id}/archive.
+func archiveSession(client *api.Client, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.ArchiveSession(sessionID)
+		return ArchiveSentMsg{Err: err}
+	}
+}
+
 // toggleAgent sends a config patch to toggle an agent's disabled state.
 func toggleAgent(client *api.Client, name string, disabled bool) tea.Cmd {
 	return func() tea.Msg {

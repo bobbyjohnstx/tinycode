@@ -202,6 +202,11 @@ func (c *Client) GetProviderBalance(providerID string) (*BalanceResponse, error)
 	return &resp, nil
 }
 
+// ArchiveSession archives a session via POST /session/{id}/archive.
+func (c *Client) ArchiveSession(id string) error {
+	return c.doNoBody(http.MethodPost, "/session/"+id+"/archive")
+}
+
 // RevertSession triggers a revert (undo) for the session via POST /session/{id}/revert.
 func (c *Client) RevertSession(id string) error {
 	return c.doNoBody(http.MethodPost, "/session/"+id+"/revert")
