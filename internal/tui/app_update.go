@@ -146,10 +146,14 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		a.syncPromptMetadata()
 		return a, nil, true
 	case SessionStatusMsg:
+		prev, hadPrev := a.state.SessionStatus[msg.SessionID]
 		a.state.SessionStatus[msg.SessionID] = msg.Status
 		var spinCmd tea.Cmd
 		if msg.SessionID == a.state.ActiveSession {
 			spinCmd = a.status.SetWorking(msg.Status.Working)
+			if hadPrev && prev.Working && !msg.Status.Working {
+				fmt.Print("\a")
+			}
 		}
 		return a, spinCmd, true
 	case MCPStatusMsg:
@@ -229,6 +233,7 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case PermissionRequestedMsg:
 		a.permPrompt.Show(msg.Request)
+		fmt.Print("\a")
 		return a, nil, true
 	case PaletteClosedMsg:
 		a.setFocus(FocusPrompt)
