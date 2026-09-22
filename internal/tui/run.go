@@ -82,7 +82,7 @@ func (c *connectedApp) Init() tea.Cmd {
 		waitForSSE(c.sseEvents),
 		fetchSessions(c.client, 50, 0),
 		fetchProviders(c.client),
-		fetchAgents(c.client),
+		fetchAllAgents(c.client),
 		fetchCommands(c.client),
 		fetchPlugins(c.client),
 		fetchMCPStatus(c.client),
@@ -158,6 +158,17 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, c.showErrorToast("Abort failed: %v", msg.Err)...)
 		}
 		return c, tea.Batch(cmds...)
+
+	case AgentToggleMsg:
+		return c, toggleAgent(c.client, msg.Agent, msg.Disabled)
+
+	case AgentToggleDoneMsg:
+		if msg.Err != nil {
+			slog.Error("agent toggle failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Agent toggle failed: %v", msg.Err)...)
+			return c, tea.Batch(cmds...)
+		}
+		return c, fetchAllAgents(c.client)
 
 	case ProvidersRefreshMsg:
 		cmds = append(cmds, fetchProviders(c.client))

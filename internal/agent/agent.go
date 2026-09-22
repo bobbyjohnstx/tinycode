@@ -3,6 +3,7 @@ package agent
 import (
 	"embed"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -28,6 +29,7 @@ type Info struct {
 	Mode        Mode                 `json:"mode"`
 	Native      bool                 `json:"native,omitempty"`
 	Hidden      bool                 `json:"hidden,omitempty"`
+	Disabled    bool                 `json:"disabled,omitempty"`
 	TopP        *float64             `json:"topP,omitempty"`
 	Temperature *float64             `json:"temperature,omitempty"`
 	Color       string               `json:"color,omitempty"`
@@ -137,6 +139,13 @@ func (r *Registry) LoadDefaults(defaultPerms, userPerms permission.Ruleset) erro
 		r.agents[agentName] = info
 	}
 
+	// Default-disable archived agents.
+	for _, name := range []string{"code-simplifier", "qa-tester", "scientist"} {
+		if agent := r.agents[name]; agent != nil {
+			agent.Disabled = true
+		}
+	}
+
 	return nil
 }
 
@@ -147,7 +156,14 @@ func (r *Registry) ApplyConfigOverrides(overrides map[string]ConfigOverride, def
 
 	for key, override := range overrides {
 		if override.Disable {
-			delete(r.agents, key)
+			agent := r.agents[key]
+			if agent != nil && agent.Native {
+				slog.Warn("cannot disable native agent", "agent", key)
+				continue
+			}
+			if agent != nil {
+				agent.Disabled = true
+			}
 			continue
 		}
 
@@ -162,6 +178,7 @@ func (r *Registry) ApplyConfigOverrides(overrides map[string]ConfigOverride, def
 			}
 			r.agents[key] = agent
 		}
+		agent.Disabled = false
 
 		if override.Model != "" {
 			agent.Model = ParseModel(override.Model)
@@ -246,6 +263,9 @@ func (r *Registry) List(defaultAgent string) []Info {
 		if agent.Hidden {
 			continue
 		}
+		if agent.Disabled {
+			continue
+		}
 		result = append(result, *agent)
 	}
 
@@ -254,6 +274,39 @@ func (r *Registry) List(defaultAgent string) []Info {
 		jDefault := result[j].Name == defaultAgent
 		if iDefault != jDefault {
 			return iDefault
+		}
+		return result[i].Name < result[j].Name
+	})
+
+	return result
+}
+
+// ListAll returns all agents including disabled ones, sorted by name.
+// Compact and hidden variants are still excluded.
+func (r *Registry) ListAll(defaultAgent string) []Info {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []Info
+	for _, agent := range r.agents {
+		if strings.Contains(agent.Name, ".compact") {
+			continue
+		}
+		if agent.Hidden {
+			continue
+		}
+		result = append(result, *agent)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		iDefault := result[i].Name == defaultAgent
+		jDefault := result[j].Name == defaultAgent
+		if iDefault != jDefault {
+			return iDefault
+		}
+		// Sort disabled agents to the bottom.
+		if result[i].Disabled != result[j].Disabled {
+			return !result[i].Disabled
 		}
 		return result[i].Name < result[j].Name
 	})
@@ -277,14 +330,17 @@ func (r *Registry) DefaultAgent(configDefault string) (string, error) {
 		if agent.Hidden {
 			return "", fmt.Errorf("default agent %q is hidden", configDefault)
 		}
+		if agent.Disabled {
+			return "", fmt.Errorf("default agent %q is disabled", configDefault)
+		}
 		return configDefault, nil
 	}
 
-	if agent := r.agents["build"]; agent != nil {
+	if agent := r.agents["build"]; agent != nil && !agent.Disabled {
 		return "build", nil
 	}
 	for _, agent := range r.agents {
-		if agent.Mode != ModeSubagent && !agent.Hidden {
+		if agent.Mode != ModeSubagent && !agent.Hidden && !agent.Disabled {
 			return agent.Name, nil
 		}
 	}

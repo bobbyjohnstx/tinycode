@@ -333,6 +333,32 @@ func fetchAgents(client *api.Client) tea.Cmd {
 	}
 }
 
+// fetchAllAgents fetches all agents including disabled ones.
+func fetchAllAgents(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		agents, err := client.ListAllAgents()
+		if err != nil {
+			return AgentListMsg{Err: err}
+		}
+		return AgentListMsg{Agents: agents}
+	}
+}
+
+// toggleAgent sends a config patch to toggle an agent's disabled state.
+func toggleAgent(client *api.Client, name string, disabled bool) tea.Cmd {
+	return func() tea.Msg {
+		body := map[string]any{
+			"agents": map[string]any{
+				name: map[string]any{
+					"disable": disabled,
+				},
+			},
+		}
+		err := client.PatchConfig(body)
+		return AgentToggleDoneMsg{Err: err}
+	}
+}
+
 // fetchCommands fetches the command list from the server.
 func fetchCommands(client *api.Client) tea.Cmd {
 	return func() tea.Msg {

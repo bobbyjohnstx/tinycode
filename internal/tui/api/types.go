@@ -55,6 +55,7 @@ type AgentInfo struct {
 	Description string `json:"description,omitempty"`
 	Mode        string `json:"mode"`
 	Native      bool   `json:"native,omitempty"`
+	Disabled    bool   `json:"disabled,omitempty"`
 	Permission  any    `json:"permission,omitempty"`
 }
 

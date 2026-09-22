@@ -98,6 +98,31 @@ func (c *Client) ListAgents() ([]AgentInfo, error) {
 	return agents, nil
 }
 
+// ListAllAgents fetches all agents including disabled ones via GET /agent?include=disabled.
+func (c *Client) ListAllAgents() ([]AgentInfo, error) {
+	var agents []AgentInfo
+	if err := c.getJSON("/agent?include=disabled", &agents); err != nil {
+		return nil, err
+	}
+	return agents, nil
+}
+
+// PatchConfig sends a partial config update via PATCH /config.
+func (c *Client) PatchConfig(body map[string]any) error {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshaling request: %w", err)
+	}
+	respBody, err := c.doRequest(http.MethodPatch, "/config", bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if respBody != nil {
+		respBody.Close()
+	}
+	return nil
+}
+
 // ListCommands fetches all commands via GET /command.
 func (c *Client) ListCommands() ([]CommandInfo, error) {
 	var commands []CommandInfo

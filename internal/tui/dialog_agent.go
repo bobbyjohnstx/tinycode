@@ -38,6 +38,25 @@ func (d *AgentDialog) Show(agents []api.AgentInfo) {
 	d.visible = true
 }
 
+// Refresh updates the agent list while preserving the selection position.
+func (d *AgentDialog) Refresh(agents []api.AgentInfo) {
+	selectedName := ""
+	if d.selected < len(d.agents) {
+		selectedName = d.agents[d.selected].Name
+	}
+	d.agents = agents
+	// Try to restore selection by name.
+	for i, a := range agents {
+		if a.Name == selectedName {
+			d.selected = i
+			return
+		}
+	}
+	if d.selected >= len(agents) {
+		d.selected = max(0, len(agents)-1)
+	}
+}
+
 // Hide closes the dialog.
 func (d *AgentDialog) Hide() {
 	d.visible = false
@@ -80,9 +99,22 @@ func (d AgentDialog) Update(msg tea.Msg) (AgentDialog, tea.Cmd) {
 		d.selected = wrapIndex(d.selected+1, count)
 	case "enter":
 		if d.selected < count {
-			name := d.agents[d.selected].Name
+			agent := d.agents[d.selected]
+			if agent.Disabled {
+				return d, nil
+			}
 			d.visible = false
-			return d, func() tea.Msg { return AgentSelectedMsg{Agent: name} }
+			return d, func() tea.Msg { return AgentSelectedMsg{Agent: agent.Name} }
+		}
+	case "d":
+		if d.selected < count {
+			agent := d.agents[d.selected]
+			if agent.Native {
+				return d, nil
+			}
+			return d, func() tea.Msg {
+				return AgentToggleMsg{Agent: agent.Name, Disabled: !agent.Disabled}
+			}
 		}
 	case "esc", "q":
 		d.visible = false
@@ -106,7 +138,9 @@ func (d AgentDialog) View() string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("Select Agent\n")
+	sb.WriteString("Select Agent  ")
+	sb.WriteString(styleMetadata.Render("d=toggle"))
+	sb.WriteString("\n")
 
 	maxVisible := d.height - 6
 	if maxVisible < 3 {
@@ -120,12 +154,21 @@ func (d AgentDialog) View() string {
 		sb.WriteString("\n")
 
 		line := agent.Name
-		if agent.Description != "" {
+		if agent.Disabled {
+			line += " " + styleMetadata.Render("[off]")
+		}
+		if agent.Description != "" && !agent.Disabled {
 			desc := truncate(agent.Description, dialogWidth-len(agent.Name)-10)
 			line += "  " + styleMetadata.Render(desc)
 		}
 
-		if i == d.selected {
+		if agent.Disabled {
+			if i == d.selected {
+				sb.WriteString(styleMetadata.Render("▸ " + agent.Name + " [off]"))
+			} else {
+				sb.WriteString(styleMetadata.Render("  " + agent.Name + " [off]"))
+			}
+		} else if i == d.selected {
 			sb.WriteString(styleSelected.Render("▸ " + line))
 		} else {
 			sb.WriteString("  " + line)

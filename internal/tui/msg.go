@@ -198,6 +198,17 @@ type ProviderBalanceMsg struct {
 	Err     error
 }
 
+// AgentToggleMsg requests toggling an agent's disabled state.
+type AgentToggleMsg struct {
+	Agent    string
+	Disabled bool
+}
+
+// AgentToggleDoneMsg reports that the toggle config write completed.
+type AgentToggleDoneMsg struct {
+	Err error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

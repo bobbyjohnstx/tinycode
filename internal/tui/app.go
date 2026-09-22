@@ -391,7 +391,7 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 		a.resize()
 		return nil
 	case LeaderActionAgentList:
-		a.agentDlg.Show(a.state.Agents)
+		a.agentDlg.Show(a.state.AllAgents)
 		return nil
 	case LeaderActionModelList:
 		a.state.PendingModelDialog = true

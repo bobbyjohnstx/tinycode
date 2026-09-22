@@ -152,8 +152,129 @@ func TestApplyConfigOverrides_DisableAgent(t *testing.T) {
 		"architect": {Disable: true},
 	}, defaultPerms(), nil)
 
-	if r.Get("architect", nil) != nil {
+	agent := r.Get("architect", nil)
+	if agent == nil {
+		t.Fatal("architect should still exist")
+	}
+	if !agent.Disabled {
 		t.Error("architect should be disabled")
+	}
+}
+
+func TestApplyConfigOverrides_DisableNativeAgentBlocked(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	r.ApplyConfigOverrides(map[string]ConfigOverride{
+		"build": {Disable: true},
+	}, defaultPerms(), nil)
+
+	agent := r.Get("build", nil)
+	if agent == nil {
+		t.Fatal("build agent should still exist")
+	}
+	if agent.Disabled {
+		t.Error("native agent build should not be disabled")
+	}
+}
+
+func TestList_ExcludesDisabledAgents(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	r.ApplyConfigOverrides(map[string]ConfigOverride{
+		"architect": {Disable: true},
+	}, defaultPerms(), nil)
+
+	list := r.List("")
+	for _, agent := range list {
+		if agent.Name == "architect" {
+			t.Error("disabled agent architect should not appear in List()")
+		}
+	}
+}
+
+func TestListAll_IncludesDisabledAgents(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	r.ApplyConfigOverrides(map[string]ConfigOverride{
+		"architect": {Disable: true},
+	}, defaultPerms(), nil)
+
+	list := r.ListAll("")
+	found := false
+	for _, agent := range list {
+		if agent.Name == "architect" {
+			found = true
+			if !agent.Disabled {
+				t.Error("architect should be marked disabled in ListAll")
+			}
+		}
+	}
+	if !found {
+		t.Error("disabled agent architect should appear in ListAll()")
+	}
+}
+
+func TestDefaultAgent_SkipsDisabled(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	// Disable the default "build" agent via direct field manipulation.
+	r.mu.Lock()
+	r.agents["build"].Disabled = true
+	r.mu.Unlock()
+
+	name, err := r.DefaultAgent("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name == "build" {
+		t.Error("disabled build should not be returned as default")
+	}
+}
+
+func TestDefaultAgent_RejectsDisabledConfig(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	// Directly disable a primary agent to test DefaultAgent rejection.
+	r.mu.Lock()
+	r.agents["plan"].Disabled = true
+	r.mu.Unlock()
+
+	_, err := r.DefaultAgent("plan")
+	if err == nil {
+		t.Fatal("expected error for disabled agent default")
+	}
+}
+
+func TestLoadDefaults_ArchivedAgentsDisabled(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	for _, name := range []string{"code-simplifier", "qa-tester", "scientist"} {
+		agent := r.Get(name, nil)
+		if agent == nil {
+			t.Errorf("archived agent %q should exist", name)
+			continue
+		}
+		if !agent.Disabled {
+			t.Errorf("archived agent %q should be disabled by default", name)
+		}
 	}
 }
 

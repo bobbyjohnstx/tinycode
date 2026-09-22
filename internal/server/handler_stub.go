@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/command"
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 	"github.com/bobbyjohnstx/tinycode-go/internal/project"
@@ -534,7 +535,12 @@ func (s *Server) handlePathGet(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAgentList(w http.ResponseWriter, r *http.Request) {
 	if s.deps.AgentRegistry != nil {
-		agents := s.deps.AgentRegistry.List("")
+		var agents []agent.Info
+		if r.URL.Query().Get("include") == "disabled" {
+			agents = s.deps.AgentRegistry.ListAll("")
+		} else {
+			agents = s.deps.AgentRegistry.List("")
+		}
 		respondJSON(w, http.StatusOK, agents)
 		return
 	}

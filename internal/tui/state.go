@@ -144,6 +144,7 @@ type AppState struct {
 	Messages      map[string][]MessageView
 	Providers     []ProviderInfo
 	Agents        []api.AgentInfo
+	AllAgents     []api.AgentInfo
 	Commands      []api.CommandInfo
 	Plugins       []api.PluginInfo
 	SessionStatus map[string]SessionStatus

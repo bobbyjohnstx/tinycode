@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
 )
 
 // handleKeyMsg handles all keyboard input: leader keys, overlay routing, and global keys.
@@ -274,10 +276,21 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 // handleAgentListMsg processes the agent list response.
 func (a App) handleAgentListMsg(msg AgentListMsg) (App, tea.Cmd) {
 	if msg.Err == nil {
-		a.state.Agents = msg.Agents
-		names := make([]string, len(msg.Agents))
-		agentItems := make([]AutocompleteItem, 0, len(msg.Agents))
-		for i, ag := range msg.Agents {
+		// Store the full list (may include disabled agents from ListAll).
+		a.state.AllAgents = msg.Agents
+
+		// Filter enabled agents for autocomplete and cycle.
+		var enabled []api.AgentInfo
+		for _, ag := range msg.Agents {
+			if !ag.Disabled {
+				enabled = append(enabled, ag)
+			}
+		}
+		a.state.Agents = enabled
+
+		names := make([]string, len(enabled))
+		agentItems := make([]AutocompleteItem, 0, len(enabled))
+		for i, ag := range enabled {
 			names[i] = ag.Name
 			if ag.Mode != "primary" {
 				agentItems = append(agentItems, AutocompleteItem{
@@ -288,7 +301,12 @@ func (a App) handleAgentListMsg(msg AgentListMsg) (App, tea.Cmd) {
 		}
 		a.prompt.SetAgents(agentItems)
 		a.prompt.SetCycleAgents(names)
-		slog.Info("agents loaded", "count", len(msg.Agents), "names", names)
+		slog.Info("agents loaded", "count", len(enabled), "names", names)
+
+		// Re-populate the agent dialog if it's open (e.g., after a toggle).
+		if a.agentDlg.IsVisible() {
+			a.agentDlg.Refresh(a.state.AllAgents)
+		}
 	} else {
 		slog.Error("agent list fetch failed", "error", msg.Err)
 	}
