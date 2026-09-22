@@ -344,6 +344,17 @@ func fetchAllAgents(client *api.Client) tea.Cmd {
 	}
 }
 
+// patchScopedModels sends a config patch to update the scoped models list.
+func patchScopedModels(client *api.Client, models []string) tea.Cmd {
+	return func() tea.Msg {
+		body := map[string]any{
+			"scopedModels": models,
+		}
+		err := client.PatchConfig(body)
+		return ModelScopedDoneMsg{Err: err}
+	}
+}
+
 // toggleAgent sends a config patch to toggle an agent's disabled state.
 func toggleAgent(client *api.Client, name string, disabled bool) tea.Cmd {
 	return func() tea.Msg {

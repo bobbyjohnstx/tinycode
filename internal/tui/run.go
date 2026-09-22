@@ -15,18 +15,19 @@ import (
 
 // RunConfig holds the configuration for starting the TUI.
 type RunConfig struct {
-	ServerURL string
-	Directory string
-	Theme     string
-	Token     string
-	Version   string
+	ServerURL    string
+	Directory    string
+	Theme        string
+	Token        string
+	Version      string
+	ScopedModels []string
 }
 
 // Run starts the bubbletea TUI program connected to the given server.
 func Run(ctx context.Context, cfg RunConfig) error {
 	client := api.New(cfg.ServerURL, cfg.Directory, cfg.Token)
 
-	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme, cfg.Version)
+	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme, cfg.Version, cfg.ScopedModels)
 
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
@@ -51,7 +52,7 @@ type connectedApp struct {
 	pendingAgent  string
 }
 
-func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string) *connectedApp {
+func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
 	app := NewApp(serverURL)
 	app.status.SetCwd(directory)
 	app.sidebar.SetCwd(directory)
@@ -65,6 +66,10 @@ func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, 
 			app.state.CurrentTheme = themeName
 			ApplyColorTheme(theme)
 		}
+	}
+	if len(scopedModels) > 0 {
+		app.state.ScopedModels = scopedModels
+		app.modelDlg.SetScopedModels(scopedModels)
 	}
 	return &connectedApp{
 		app:    app,
@@ -172,6 +177,18 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
+		}
+		return c, tea.Batch(cmds...)
+
+	case ModelScopedMsg:
+		slog.Info("model scoping updated", "count", len(msg.ScopedModels))
+		c.app.state.ScopedModels = msg.ScopedModels
+		return c, patchScopedModels(c.client, msg.ScopedModels)
+
+	case ModelScopedDoneMsg:
+		if msg.Err != nil {
+			slog.Error("scoped models save failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Scoped models save failed: %v", msg.Err)...)
 		}
 		return c, tea.Batch(cmds...)
 

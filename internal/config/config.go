@@ -44,6 +44,7 @@ type Info struct {
 	LSP               *LSPConfig                 `json:"lsp,omitempty"`
 	Theme             string                     `json:"theme,omitempty"`
 	AutoApprove       *bool                      `json:"autoApprove,omitempty"`
+	ScopedModels      []string                   `json:"scopedModels,omitempty"`
 }
 
 // LSPConfig holds language server protocol client settings.
@@ -349,6 +350,9 @@ func mergeScalarFields(result, src *Info) {
 	}
 	if src.AutoApprove != nil {
 		result.AutoApprove = src.AutoApprove
+	}
+	if len(src.ScopedModels) > 0 {
+		result.ScopedModels = src.ScopedModels
 	}
 }
 

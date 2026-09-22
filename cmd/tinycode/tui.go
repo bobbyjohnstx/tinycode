@@ -91,11 +91,12 @@ func runTUI(args []string) {
 	slog.Debug("embedded server started", "url", serverURL)
 
 	if err := tui.Run(ctx, tui.RunConfig{
-		ServerURL: serverURL,
-		Directory: dir,
-		Theme:     cfg.Theme,
-		Token:     token,
-		Version:   version,
+		ServerURL:    serverURL,
+		Directory:    dir,
+		Theme:        cfg.Theme,
+		Token:        token,
+		Version:      version,
+		ScopedModels: cfg.ScopedModels,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		os.Exit(1)

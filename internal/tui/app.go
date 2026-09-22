@@ -357,7 +357,8 @@ func (a *App) showPalette() {
 		"editor":       true,
 		"shell":        true,
 		"debug":        true,
-		"thinking":     true,
+		"thinking":      true,
+		"scoped-models": true,
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
@@ -371,6 +372,7 @@ func (a *App) showPalette() {
 		{Label: "shell", Description: "Open interactive shell session", Value: "shell"},
 		{Label: "debug", Description: "Show diagnostics for bug reports", Value: "debug"},
 		{Label: "thinking", Description: "Set reasoning level (off/low/medium/high/max)", Value: "thinking"},
+		{Label: "scoped-models", Description: "Toggle model scoping (favorites)", Value: "scoped-models"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -433,6 +435,10 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		a.debugDlg.Show(info)
 		a.setFocus(FocusDialog)
 		return nil, true
+	case "scoped-models":
+		a.state.PendingModelDialog = true
+		a.state.PendingScopingMode = true
+		return func() tea.Msg { return ProvidersRefreshMsg{} }, true
 	}
 	return nil, false
 }
