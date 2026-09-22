@@ -66,7 +66,7 @@ type Sidebar struct {
 func NewSidebar() Sidebar {
 	return Sidebar{
 		width:   sidebarWidth,
-		version: "0.1.0",
+		version: "dev",
 	}
 }
 
@@ -98,6 +98,11 @@ func (s *Sidebar) SetContext(stats ContextStats) {
 // SetMCPServers replaces the full MCP server list.
 func (s *Sidebar) SetMCPServers(servers []MCPServer) {
 	s.mcpServers = servers
+}
+
+// SetVersion updates the version display.
+func (s *Sidebar) SetVersion(v string) {
+	s.version = v
 }
 
 // SetBalance updates the provider balance display.

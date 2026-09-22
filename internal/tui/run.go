@@ -17,13 +17,14 @@ type RunConfig struct {
 	Directory string
 	Theme     string
 	Token     string
+	Version   string
 }
 
 // Run starts the bubbletea TUI program connected to the given server.
 func Run(ctx context.Context, cfg RunConfig) error {
 	client := api.New(cfg.ServerURL, cfg.Directory, cfg.Token)
 
-	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme)
+	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme, cfg.Version)
 
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
@@ -48,10 +49,13 @@ type connectedApp struct {
 	pendingAgent  string
 }
 
-func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName string) *connectedApp {
+func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string) *connectedApp {
 	app := NewApp(serverURL)
 	app.status.SetCwd(directory)
 	app.sidebar.SetCwd(directory)
+	if version != "" {
+		app.sidebar.SetVersion(version)
+	}
 	app.prompt.EnableStartupGuard()
 	if themeName != "" {
 		if theme := app.themes.Get(themeName); theme != nil {

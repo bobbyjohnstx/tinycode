@@ -95,6 +95,7 @@ func runTUI(args []string) {
 		Directory: dir,
 		Theme:     cfg.Theme,
 		Token:     token,
+		Version:   version,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		os.Exit(1)
