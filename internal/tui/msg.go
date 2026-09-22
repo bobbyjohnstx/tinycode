@@ -214,9 +214,11 @@ type SessionRenamedMsg struct {
 	Err error
 }
 
-// EditorRequestMsg requests opening $EDITOR with the current prompt text.
+// EditorRequestMsg requests opening $EDITOR. If FilePath is set, open that file
+// directly (changes are saved in-place). Otherwise, open a temp file with Content.
 type EditorRequestMsg struct {
-	Content string
+	Content  string
+	FilePath string
 }
 
 // EditorDoneMsg reports that the external editor process has exited.

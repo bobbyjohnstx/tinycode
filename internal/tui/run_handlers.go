@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,6 +30,26 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 			dir := c.app.status.Cwd()
 			return c, runUserShell(shellCmd, dir)
 		}
+	}
+
+	if strings.HasPrefix(trimmed, "/editor") {
+		arg := strings.TrimSpace(strings.TrimPrefix(trimmed, "/editor"))
+		if arg != "" {
+			// Resolve file path: strip leading @ if present
+			filePath := strings.TrimPrefix(arg, "@")
+			cwd := c.app.status.Cwd()
+			if !filepath.IsAbs(filePath) {
+				filePath = filepath.Join(cwd, filePath)
+			}
+			if _, err := os.Stat(filePath); err != nil {
+				model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("File not found: %s", arg), IsError: true})
+				c.updateApp(model)
+				return c, cmd
+			}
+			return c.handleEditorRequest(EditorRequestMsg{FilePath: filePath})
+		}
+		content := c.app.prompt.Value()
+		return c.handleEditorRequest(EditorRequestMsg{Content: content})
 	}
 
 	if strings.HasPrefix(trimmed, "/thinking") {
@@ -251,7 +272,8 @@ func (c *connectedApp) showErrorToast(format string, args ...any) []tea.Cmd {
 	return nil
 }
 
-// handleEditorRequest opens $EDITOR with the prompt content in a temp file.
+// handleEditorRequest opens $EDITOR. If FilePath is set, edits that file
+// directly (in-place). Otherwise, creates a temp file with Content.
 func (c *connectedApp) handleEditorRequest(msg EditorRequestMsg) (tea.Model, tea.Cmd) {
 	editor := os.Getenv("VISUAL")
 	if editor == "" {
@@ -261,6 +283,15 @@ func (c *connectedApp) handleEditorRequest(msg EditorRequestMsg) (tea.Model, tea
 		editor = "vi"
 	}
 
+	// Edit an existing file directly — no temp file, no content return.
+	if msg.FilePath != "" {
+		cmd := exec.Command(editor, msg.FilePath)
+		return c, tea.ExecProcess(cmd, func(err error) tea.Msg {
+			return EditorDoneMsg{Err: err}
+		})
+	}
+
+	// Edit prompt content via temp file.
 	tmpFile, err := os.CreateTemp("", "tinycode-editor-*.txt")
 	if err != nil {
 		slog.Error("failed to create temp file for editor", "error", err)
