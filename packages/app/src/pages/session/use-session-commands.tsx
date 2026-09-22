@@ -266,6 +266,27 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     })
   }
 
+  const showDebug = () => {
+    void import("@/components/dialog-debug").then((x) => {
+      dialog.show(() => <x.DialogDebug />)
+    })
+  }
+
+  const showDiff = async () => {
+    const res = await sdk.client.vcs.diff2
+      .raw()
+      .catch(() => ({ data: undefined }) as { data: unknown })
+    const data = res.data
+    const raw = typeof data === "string" ? data : ""
+    if (!raw) {
+      showToast({ title: language.t("dialog.diff.empty") })
+      return
+    }
+    void import("@/components/dialog-diff").then((x) => {
+      dialog.show(() => <x.DialogDiff />)
+    })
+  }
+
   const toggleAutoAccept = () => {
     const sessionID = params.id
     if (sessionID) permission.toggleAutoAccept(sessionID, sdk.directory)
@@ -391,6 +412,23 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       }),
     ]
   }
+
+  const debugCmds = () => [
+    viewCommand({
+      id: "debug.show",
+      title: language.t("command.debug.show"),
+      description: language.t("command.debug.show.description"),
+      slash: "debug",
+      onSelect: showDebug,
+    }),
+    sessionCommand({
+      id: "session.diff",
+      title: language.t("command.session.diff"),
+      description: language.t("command.session.diff.description"),
+      slash: "diff",
+      onSelect: showDiff,
+    }),
+  ]
 
   const sessionCmds = () => [
     sessionCommand({
@@ -618,5 +656,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     ...mcpCmds(),
     ...agentCmds(),
     ...permissionsCmds(),
+    ...debugCmds(),
   ])
 }
