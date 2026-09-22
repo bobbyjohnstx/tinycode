@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -53,6 +55,7 @@ func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, 
 	app := NewApp(serverURL)
 	app.status.SetCwd(directory)
 	app.sidebar.SetCwd(directory)
+	app.prompt.SetCwd(directory)
 	if version != "" {
 		app.sidebar.SetVersion(version)
 	}
@@ -268,10 +271,31 @@ func parseAskCommand(text string) (string, string) {
 }
 
 // buildPromptInput creates an api.PromptInput with the user's text and current model selection.
+// It resolves any @file references by reading the files and appending their contents as
+// additional text parts.
 func (c *connectedApp) buildPromptInput(text string) api.PromptInput {
-	input := api.PromptInput{
-		Parts: []api.PromptPart{{Type: "text", Text: text}},
+	parts := []api.PromptPart{{Type: "text", Text: text}}
+
+	// Resolve @file references.
+	cwd := c.app.status.Cwd()
+	refs := findAllAtTokens(text)
+	for _, ref := range refs {
+		absPath := ref.path
+		if !filepath.IsAbs(absPath) {
+			absPath = filepath.Join(cwd, ref.path)
+		}
+		content, err := readFileForPrompt(absPath)
+		if err != nil {
+			slog.Debug("@file read failed", "path", ref.path, "error", err)
+			continue
+		}
+		parts = append(parts, api.PromptPart{
+			Type: "text",
+			Text: fmt.Sprintf("--- File: %s ---\n%s\n--- End ---", ref.path, content),
+		})
 	}
+
+	input := api.PromptInput{Parts: parts}
 	if c.app.state.CurrentModel.ModelID != "" {
 		input.Model = &api.PromptModel{
 			ProviderID: c.app.state.CurrentModel.ProviderID,
@@ -279,6 +303,33 @@ func (c *connectedApp) buildPromptInput(text string) api.PromptInput {
 		}
 	}
 	return input
+}
+
+// readFileForPrompt reads a file up to 100KB for inclusion in a prompt.
+func readFileForPrompt(path string) (string, error) {
+	const maxSize = 100 * 1024
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("is a directory")
+	}
+	if info.Size() > maxSize {
+		f, err := os.Open(path)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+		buf := make([]byte, maxSize)
+		n, _ := f.Read(buf)
+		return string(buf[:n]) + "\n... (truncated)", nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func (c *connectedApp) View() string {
