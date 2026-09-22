@@ -233,6 +233,16 @@ type ShellSessionDoneMsg struct {
 	Err error
 }
 
+// DiffRequestMsg requests showing uncommitted changes via git diff.
+type DiffRequestMsg struct {
+	Dir string
+}
+
+// DiffDoneMsg reports that the diff pager has exited.
+type DiffDoneMsg struct {
+	Err error
+}
+
 // ModelScopedMsg requests updating the scoped models list.
 type ModelScopedMsg struct {
 	ScopedModels []string

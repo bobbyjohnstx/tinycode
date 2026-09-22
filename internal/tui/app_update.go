@@ -329,6 +329,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "exit", Description: "Exit the app"},
 			{Name: "connect", Description: "Select provider and model"},
 			{Name: "copy", Description: "Copy last response to clipboard"},
+			{Name: "diff", Description: "Show uncommitted changes"},
 			{Name: "export", Description: "Export session as Markdown"},
 			{Name: "theme", Description: "Change color theme"},
 			{Name: "help", Description: "Show keybindings and commands"},

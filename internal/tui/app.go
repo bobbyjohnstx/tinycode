@@ -347,22 +347,24 @@ func (a *App) hasMessages() bool {
 // showPalette opens the command palette with available commands.
 func (a *App) showPalette() {
 	clientNames := map[string]bool{
-		"connect":      true,
-		"copy":         true,
-		"export":       true,
-		"theme":        true,
-		"help":         true,
-		"rename":       true,
-		"auto-approve": true,
-		"editor":       true,
-		"shell":        true,
-		"debug":        true,
+		"connect":       true,
+		"copy":          true,
+		"diff":          true,
+		"export":        true,
+		"theme":         true,
+		"help":          true,
+		"rename":        true,
+		"auto-approve":  true,
+		"editor":        true,
+		"shell":         true,
+		"debug":         true,
 		"thinking":      true,
 		"scoped-models": true,
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
 		{Label: "copy", Description: "Copy last response to clipboard", Value: "copy"},
+		{Label: "diff", Description: "Show uncommitted changes", Value: "diff"},
 		{Label: "export", Description: "Export session as Markdown", Value: "export"},
 		{Label: "theme", Description: "Change color theme", Value: "theme"},
 		{Label: "rename", Description: "Rename current session", Value: "rename"},
@@ -439,6 +441,9 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		a.state.PendingModelDialog = true
 		a.state.PendingScopingMode = true
 		return func() tea.Msg { return ProvidersRefreshMsg{} }, true
+	case "diff":
+		dir := a.status.Cwd()
+		return func() tea.Msg { return DiffRequestMsg{Dir: dir} }, true
 	}
 	return nil, false
 }
