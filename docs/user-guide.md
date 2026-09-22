@@ -148,6 +148,8 @@ These execute immediately without sending anything to the model.
 | `/connect` | Open the provider/model selector |
 | `/theme` | Open the theme picker (with live preview) |
 | `/export` | Export the current session as a Markdown file in the working directory |
+| `/export html` | Export the current session as an HTML file with syntax highlighting |
+| `/archive` | Soft-delete the current session (removes from session list, recoverable) |
 | `/copy` | Copy the last assistant response to the clipboard |
 | `/rename <title>` | Rename the current session |
 | `/editor` | Open `$EDITOR` to compose a long prompt; contents are submitted on save+quit |
@@ -222,6 +224,7 @@ The shell command runs in the working directory and its output is included as co
 | Key | Action |
 |-----|--------|
 | Ctrl+P | Open command palette |
+| Ctrl+F | Open in-transcript search |
 | Ctrl+C | Clear prompt input, or quit if empty |
 | Ctrl+D | Quit |
 | Escape | Interrupt the current model operation |
@@ -265,6 +268,39 @@ The leader key is **Ctrl+X**. Press it, then press a follow-up key within 500ms.
 | Ctrl+X y | Copy last response to clipboard |
 | Ctrl+X u | Undo last AI file changes |
 | Ctrl+X r | Redo reverted changes |
+
+### In-transcript search
+
+Press **Ctrl+F** to open the search bar at the top of the chat viewport. Search is case-insensitive and scans all message text and reasoning blocks.
+
+| Key | Action |
+|-----|--------|
+| Ctrl+F | Open search (or close if already open) |
+| Ctrl+N / Enter | Jump to next match |
+| Ctrl+P | Jump to previous match |
+| Escape / Ctrl+C | Close search |
+
+The search bar shows the current match position (e.g., "3/12") and auto-scrolls the viewport to the message containing the match.
+
+### Which-key panel
+
+When you press **Ctrl+X** (the leader key), a floating panel appears in the bottom-right corner showing all available follow-up keys grouped by category:
+
+- **Navigation** -- `b` (sidebar), `o` (session list), `n` (new session)
+- **Edit** -- `e` ($EDITOR), `d` (diff viewer), `u` (undo), `r` (redo)
+- **Tools** -- `a` (agent list), `m` (model list), `t` (theme picker), `i` (MCP servers)
+- **Actions** -- `y` (copy last response), `x` (export session)
+
+The panel is non-modal -- any keypress hides it and the key is forwarded normally.
+
+### Terminal bell
+
+tinycode rings the terminal bell (audible or visual, depending on your terminal settings) in two situations:
+
+- When a task completes (the model finishes working)
+- When a permission prompt appears (a tool needs approval)
+
+This is useful when you switch to another window while the model is working -- you hear the bell when it needs attention.
 
 ### Dialog keys
 
@@ -522,9 +558,15 @@ When you send the first prompt in a new session, tinycode automatically generate
 /rename my feature branch work
 ```
 
+### Archiving sessions
+
+**/archive** -- Soft-deletes the current session. The session is removed from the session list and sidebar but can be recovered. After archiving, a new session is created automatically.
+
 ### Exporting sessions
 
 **Ctrl+X x** or **/export** -- Writes the current session transcript as a Markdown file (`session-<title>.md`) in the working directory. Includes all messages, tool calls, and their output.
+
+**/export html** -- Exports the session as an HTML file with syntax highlighting. The HTML export is self-contained and can be shared or viewed in any browser.
 
 ### Session management from CLI
 

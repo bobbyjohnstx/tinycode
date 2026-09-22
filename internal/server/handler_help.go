@@ -49,6 +49,10 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 		{Key: "Escape", Description: "Cancel / close dialog", Category: "General"},
 		{Key: "Enter", Description: "Send message", Category: "Prompt"},
 		{Key: "shift+Enter", Description: "New line in prompt", Category: "Prompt"},
+		// In-transcript search.
+		{Key: "ctrl+f", Description: "Open in-transcript search", Category: "Search"},
+		{Key: "ctrl+n", Description: "Next search match", Category: "Search"},
+		{Key: "ctrl+p (in search)", Description: "Previous search match", Category: "Search"},
 		// TUI leader key sequences (ctrl+x prefix).
 		{Key: "ctrl+x b", Description: "Toggle sidebar", Category: "TUI leader"},
 		{Key: "ctrl+x n", Description: "New session", Category: "TUI leader"},
@@ -100,6 +104,11 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 		{Name: "Undo/Redo", Description: "Use /undo and /redo (or ctrl+x u/r) to revert or restore AI file changes via snapshots."},
 		{Name: "Bundled Skills", Description: "10 built-in skills (debug, verify, trace, review, plan, test, doctor, mcp-setup, remember, deepinit) available as slash commands."},
 		{Name: "apply_patch Tool", Description: "Atomic multi-file edits via unified diff format. The model uses this to apply changes across multiple files in one operation."},
+		{Name: "In-Transcript Search", Description: "Press ctrl+f to search the chat transcript. ctrl+n/ctrl+p to navigate matches, Esc to close."},
+		{Name: "Which-Key Panel", Description: "Press ctrl+x to see a floating panel of all available leader key follow-ups grouped by category."},
+		{Name: "Terminal Bell", Description: "Rings the terminal bell when a task completes or a permission prompt appears."},
+		{Name: "Session Archive", Description: "Use /archive to soft-delete the current session. Archived sessions are removed from the list but recoverable."},
+		{Name: "HTML Export", Description: "Use /export html to export the current session as a self-contained HTML file with syntax highlighting."},
 	}
 
 	respondJSON(w, http.StatusOK, HelpResponse{

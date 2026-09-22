@@ -28,6 +28,11 @@ tinycode reads your files, runs commands, edits code, and works through multi-st
 - **apply_patch tool** --- atomic multi-file edits via unified diff
 - **@ file references** --- autocomplete with directory drill-down
 - **Session auto-titling** --- titles generated from the first prompt
+- **In-transcript search** --- Ctrl+F to search the chat, Ctrl+N/Ctrl+P to navigate matches
+- **Session archive** --- `/archive` soft-deletes sessions (recoverable)
+- **HTML export** --- `/export html` for self-contained HTML with syntax highlighting
+- **Which-key panel** --- press Ctrl+X to see all leader key follow-ups in a floating overlay
+- **Terminal bell** --- audible notification on task completion and permission prompts
 - **Leader key system** --- Ctrl+X prefix for sidebar, sessions, editor, diff, themes, MCP, and more
 - **External editor** --- `/editor` opens `$EDITOR`; `/editor @file` edits a file directly
 - **Interactive shell** --- `/shell` drops into a shell session
