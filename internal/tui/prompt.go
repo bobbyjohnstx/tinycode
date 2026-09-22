@@ -19,6 +19,7 @@ var oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,
 type PromptInput struct {
 	textarea     textarea.Model
 	autocomplete Autocomplete
+	fileComplete FileCompleter
 	history      PromptHistory
 	agent        string
 	model        string
@@ -26,6 +27,7 @@ type PromptInput struct {
 	agentColor   lipgloss.AdaptiveColor
 	cycleAgents  []string
 	width        int
+	cwd          string
 	keys         KeyMap
 	guardEnabled bool
 	startTime    time.Time
@@ -84,6 +86,13 @@ func (p *PromptInput) SetSize(width int) {
 	p.width = width
 	p.textarea.SetWidth(width - 6)
 	p.autocomplete.SetWidth(width)
+	p.fileComplete.SetWidth(width)
+}
+
+// SetCwd updates the working directory for file completion.
+func (p *PromptInput) SetCwd(cwd string) {
+	p.cwd = cwd
+	p.fileComplete.SetCwd(cwd)
 }
 
 // SetCommands sets the available slash commands for autocomplete.
@@ -137,6 +146,12 @@ func (p PromptInput) Init() tea.Cmd {
 
 // Update implements tea.Model.
 func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
+	// Handle FileCompletionMsg for async file listing results.
+	if fcMsg, ok := msg.(FileCompletionMsg); ok {
+		p.fileComplete.SetResults(fcMsg.Items, fcMsg.Query)
+		return p, nil
+	}
+
 	keyMsg, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return p.forwardToTextarea(msg)
@@ -151,6 +166,11 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 	// characters indistinguishable from typing.
 	if keyMsg.Type == tea.KeyRunes && p.guardEnabled && time.Since(p.startTime) < 2*time.Second {
 		return p, nil
+	}
+	if p.fileComplete.IsVisible() {
+		if result, cmd, handled := p.handleFileCompleteKey(keyMsg); handled {
+			return result, cmd
+		}
 	}
 	if p.autocomplete.IsVisible() {
 		if result, cmd, handled := p.handleAutocompleteKey(keyMsg); handled {
@@ -215,12 +235,53 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 	return p.forwardToTextarea(msg)
 }
 
-// forwardToTextarea passes a message to the underlying textarea and updates autocomplete.
+// forwardToTextarea passes a message to the underlying textarea and updates autocomplete/file completion.
 func (p PromptInput) forwardToTextarea(msg tea.Msg) (PromptInput, tea.Cmd) {
 	var cmd tea.Cmd
 	p.textarea, cmd = p.textarea.Update(msg)
-	p.autocomplete.UpdateInput(p.textarea.Value())
+	text := p.textarea.Value()
+
+	// Compute cursor offset from textarea position.
+	cursorOffset := p.cursorOffset()
+
+	// Try file completion first.
+	fcCmd := p.fileComplete.UpdateAtCursor(text, cursorOffset)
+	if p.fileComplete.IsVisible() {
+		// File completer is active — skip slash autocomplete.
+		if fcCmd != nil {
+			return p, tea.Batch(cmd, fcCmd)
+		}
+		return p, cmd
+	}
+
+	// No file completion — update slash autocomplete as before.
+	p.autocomplete.UpdateInput(text)
+	if fcCmd != nil {
+		return p, tea.Batch(cmd, fcCmd)
+	}
 	return p, cmd
+}
+
+// cursorOffset computes the absolute rune offset of the textarea cursor.
+func (p PromptInput) cursorOffset() int {
+	value := p.textarea.Value()
+	row := p.textarea.Line()
+	li := p.textarea.LineInfo()
+	col := li.CharOffset
+
+	lines := strings.Split(value, "\n")
+	offset := 0
+	for i := 0; i < row && i < len(lines); i++ {
+		offset += len([]rune(lines[i])) + 1 // +1 for newline
+	}
+	if row < len(lines) {
+		lineRunes := []rune(lines[row])
+		if col > len(lineRunes) {
+			col = len(lineRunes)
+		}
+		offset += col
+	}
+	return offset
 }
 
 // View implements tea.Model.
@@ -259,6 +320,11 @@ func (p PromptInput) View() string {
 	bordered = append(bordered, indent+bottomLeft+fillChar)
 
 	result := strings.Join(bordered, "\n")
+
+	if p.fileComplete.IsVisible() {
+		fcView := p.fileComplete.View()
+		return lipgloss.JoinVertical(lipgloss.Left, fcView, result)
+	}
 
 	if p.autocomplete.IsVisible() {
 		acView := p.autocomplete.View()
@@ -318,6 +384,58 @@ func (p PromptInput) handleAutocompleteKey(keyMsg tea.KeyMsg) (PromptInput, tea.
 			}
 			p.autocomplete, _, _ = p.autocomplete.Update(keyMsg)
 		}
+	}
+	return p, nil, false
+}
+
+// handleFileCompleteKey handles key events when the file completer is visible.
+// Returns (model, cmd, true) if the key was consumed.
+func (p PromptInput) handleFileCompleteKey(keyMsg tea.KeyMsg) (PromptInput, tea.Cmd, bool) {
+	switch keyMsg.String() {
+	case "up", "down", "esc":
+		var fcCmd tea.Cmd
+		p.fileComplete, fcCmd, _ = p.fileComplete.Update(keyMsg)
+		return p, fcCmd, true
+	case "tab", "enter":
+		selected, ok := p.fileComplete.Selected()
+		if !ok {
+			p.fileComplete, _, _ = p.fileComplete.Update(keyMsg)
+			return p, nil, true
+		}
+		start, end := p.fileComplete.TokenBounds()
+		text := p.textarea.Value()
+		runes := []rune(text)
+
+		if selected.IsDir {
+			// Replace @token with @dir/ and trigger new listing
+			newToken := "@" + selected.Path + "/"
+			newRunes := make([]rune, 0, len(runes)-end+start+len([]rune(newToken)))
+			newRunes = append(newRunes, runes[:start]...)
+			newRunes = append(newRunes, []rune(newToken)...)
+			newRunes = append(newRunes, runes[end:]...)
+			newText := string(newRunes)
+			p.textarea.SetValue(newText)
+
+			// Update file completer for the new directory
+			cursorOffset := start + len([]rune(newToken))
+			fcCmd := p.fileComplete.UpdateAtCursor(newText, cursorOffset)
+			return p, fcCmd, true
+		}
+
+		// File selected: replace @token with @filepath + trailing space
+		newToken := "@" + selected.Path + " "
+		newRunes := make([]rune, 0, len(runes)-end+start+len([]rune(newToken)))
+		newRunes = append(newRunes, runes[:start]...)
+		newRunes = append(newRunes, []rune(newToken)...)
+		newRunes = append(newRunes, runes[end:]...)
+		p.textarea.SetValue(string(newRunes))
+
+		// Dismiss the file completer
+		p.fileComplete.visible = false
+		p.fileComplete.cursor = 0
+		p.fileComplete.query = ""
+		p.fileComplete.lastQuery = nil
+		return p, nil, true
 	}
 	return p, nil, false
 }
