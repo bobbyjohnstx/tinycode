@@ -187,6 +187,12 @@ type PluginListMsg struct {
 // ProvidersRefreshMsg signals that the provider list should be re-fetched.
 type ProvidersRefreshMsg struct{}
 
+// ProviderBalanceMsg carries the balance response for a provider.
+type ProviderBalanceMsg struct {
+	Balance *ProviderBalance
+	Err     error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

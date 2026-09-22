@@ -25,9 +25,17 @@ const sidebarWidth = 42
 // ContextStats holds computed context usage for sidebar display.
 type ContextStats struct {
 	Tokens       int
+	InputTokens  int
+	OutputTokens int
 	ContextLimit int
 	Percent      int
 	Cost         float64
+}
+
+// ProviderBalance holds balance info for a provider (e.g., OpenRouter).
+type ProviderBalance struct {
+	Remaining float64
+	Provider  string
 }
 
 // MCPServer holds status for a single MCP server.
@@ -47,6 +55,7 @@ type Sidebar struct {
 	cwd      string
 	version  string
 	context    ContextStats
+	balance    *ProviderBalance
 	mcpServers []MCPServer
 	open       bool
 	width      int
@@ -89,6 +98,11 @@ func (s *Sidebar) SetContext(stats ContextStats) {
 // SetMCPServers replaces the full MCP server list.
 func (s *Sidebar) SetMCPServers(servers []MCPServer) {
 	s.mcpServers = servers
+}
+
+// SetBalance updates the provider balance display.
+func (s *Sidebar) SetBalance(b *ProviderBalance) {
+	s.balance = b
 }
 
 // UpdateMCPServer upserts a single MCP server status.
@@ -167,8 +181,17 @@ func (s Sidebar) View() string {
 	sb.WriteString("\n")
 	sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf("%d%% used", s.context.Percent)))
 	sb.WriteString("\n")
+	if s.context.InputTokens > 0 || s.context.OutputTokens > 0 {
+		sb.WriteString(styleSidebarMuted.Render(
+			formatTokens(s.context.InputTokens) + " in / " + formatTokens(s.context.OutputTokens) + " out"))
+		sb.WriteString("\n")
+	}
 	if s.context.Cost > 0 {
-		sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf("$%.4f spent", s.context.Cost)))
+		sb.WriteString(styleSidebarMuted.Render(formatCost(s.context.Cost) + " spent"))
+		sb.WriteString("\n")
+	}
+	if s.balance != nil {
+		sb.WriteString(styleSidebarMuted.Render(formatCost(s.balance.Remaining) + " remaining"))
 		sb.WriteString("\n")
 	}
 
@@ -247,6 +270,17 @@ func (s Sidebar) renderFooter() string {
 		" "+styleSidebarMuted.Render(s.version))
 
 	return strings.Join(lines, "\n")
+}
+
+func formatCost(c float64) string {
+	switch {
+	case c < 0.01:
+		return fmt.Sprintf("$%.4f", c)
+	case c < 1.0:
+		return fmt.Sprintf("$%.3f", c)
+	default:
+		return fmt.Sprintf("$%.2f", c)
+	}
 }
 
 func formatTokens(n int) string {

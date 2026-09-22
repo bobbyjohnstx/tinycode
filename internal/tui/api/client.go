@@ -140,6 +140,21 @@ type PluginInfo struct {
 	Name string `json:"name"`
 }
 
+// BalanceResponse is the response from GET /provider/{id}/balance.
+type BalanceResponse struct {
+	Remaining *float64 `json:"remaining"`
+	Provider  string   `json:"provider"`
+}
+
+// GetProviderBalance fetches the balance for a provider via GET /provider/{id}/balance.
+func (c *Client) GetProviderBalance(providerID string) (*BalanceResponse, error) {
+	var resp BalanceResponse
+	if err := c.getJSON("/provider/"+providerID+"/balance", &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // ReplyPermission replies to a permission prompt via POST /session/{sessionID}/permissions/{permissionID}.
 func (c *Client) ReplyPermission(sessionID, permissionID, action string) error {
 	body := PermissionReplyInput{Action: action}

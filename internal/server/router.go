@@ -52,6 +52,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /provider/{id}", s.handleProviderGet)
 	s.mux.HandleFunc("GET /provider/{id}/model", s.handleModelList)
 	s.mux.HandleFunc("GET /provider/{providerID}/model/{modelID}", s.handleModelGet)
+	s.mux.HandleFunc("GET /provider/{id}/balance", s.handleProviderBalance)
 
 	// Permission
 	s.mux.HandleFunc("GET /permission", s.handlePermissionList)

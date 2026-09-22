@@ -338,6 +338,25 @@ func fetchCommands(client *api.Client) tea.Cmd {
 	}
 }
 
+// fetchProviderBalance fetches the balance for a provider.
+func fetchProviderBalance(client *api.Client, providerID string) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetProviderBalance(providerID)
+		if err != nil {
+			return ProviderBalanceMsg{Err: err}
+		}
+		if resp.Remaining == nil {
+			return ProviderBalanceMsg{}
+		}
+		return ProviderBalanceMsg{
+			Balance: &ProviderBalance{
+				Remaining: *resp.Remaining,
+				Provider:  resp.Provider,
+			},
+		}
+	}
+}
+
 func fetchPlugins(client *api.Client) tea.Cmd {
 	return func() tea.Msg {
 		plugins, err := client.ListPlugins()

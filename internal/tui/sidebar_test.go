@@ -269,8 +269,8 @@ func TestSidebar_ViewShowsContextSection(t *testing.T) {
 	if !strings.Contains(view, "25% used") {
 		t.Errorf("sidebar should show percentage used, got:\n%s", view)
 	}
-	if !strings.Contains(view, "$0.0123 spent") {
-		t.Errorf("sidebar should show cost, got:\n%s", view)
+	if !strings.Contains(view, "$0.012 spent") {
+		t.Errorf("sidebar should show cost with adaptive formatting, got:\n%s", view)
 	}
 }
 
@@ -359,6 +359,89 @@ func TestSidebar_UpdateMCPServer(t *testing.T) {
 	s.UpdateMCPServer(MCPServer{Name: "github", Status: "error", Error: "timeout"})
 	if len(s.mcpServers) != 2 {
 		t.Fatalf("expected 2 servers, got %d", len(s.mcpServers))
+	}
+}
+
+func TestFormatCost(t *testing.T) {
+	tests := []struct {
+		input float64
+		want  string
+	}{
+		{0.0001, "$0.0001"},
+		{0.0099, "$0.0099"},
+		{0.01, "$0.010"},
+		{0.123, "$0.123"},
+		{0.999, "$0.999"},
+		{1.0, "$1.00"},
+		{12.345, "$12.35"},
+		{100.0, "$100.00"},
+	}
+	for _, tt := range tests {
+		got := formatCost(tt.input)
+		if got != tt.want {
+			t.Errorf("formatCost(%v) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestSidebar_ViewShowsTokenBreakdown(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetContext(ContextStats{
+		Tokens:       50000,
+		InputTokens:  12000,
+		OutputTokens: 38000,
+		ContextLimit: 200000,
+		Percent:      25,
+		Cost:         0.05,
+	})
+
+	view := s.View()
+
+	if !strings.Contains(view, "12k in / 38k out") {
+		t.Errorf("sidebar should show token breakdown, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewOmitsTokenBreakdownWhenZero(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetContext(ContextStats{
+		Tokens:  50000,
+		Percent: 25,
+	})
+
+	view := s.View()
+
+	if strings.Contains(view, "in /") {
+		t.Errorf("sidebar should not show token breakdown when zero, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewShowsBalance(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetBalance(&ProviderBalance{Remaining: 12.34, Provider: "OpenRouter"})
+
+	view := s.View()
+
+	if !strings.Contains(view, "$12.34 remaining") {
+		t.Errorf("sidebar should show balance, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewOmitsBalanceWhenNil(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+
+	view := s.View()
+
+	if strings.Contains(view, "remaining") {
+		t.Errorf("sidebar should not show balance when nil, got:\n%s", view)
 	}
 }
 

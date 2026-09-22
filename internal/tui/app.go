@@ -272,6 +272,7 @@ func (a *App) updateSidebarContext() {
 	msgs := a.chat.Messages()
 	var lastTokens int
 	var totalCost float64
+	var totalInput, totalOutput int
 	for i := len(msgs) - 1; i >= 0; i-- {
 		m := msgs[i]
 		if m.Info.Role == "assistant" {
@@ -281,6 +282,8 @@ func (a *App) updateSidebarContext() {
 				lastTokens = total
 			}
 		}
+		totalInput += m.Info.Tokens.Input
+		totalOutput += m.Info.Tokens.Output
 		totalCost += m.Info.Cost
 	}
 
@@ -304,6 +307,8 @@ func (a *App) updateSidebarContext() {
 
 	a.sidebar.SetContext(ContextStats{
 		Tokens:       lastTokens,
+		InputTokens:  totalInput,
+		OutputTokens: totalOutput,
 		ContextLimit: contextLimit,
 		Percent:      pct,
 		Cost:         totalCost,

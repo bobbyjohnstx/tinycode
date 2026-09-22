@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"sort"
 	"strings"
@@ -144,4 +145,69 @@ func (s *Server) handleModelGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, model)
+}
+
+func (s *Server) handleProviderBalance(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	reg := s.deps.Registry
+
+	info, err := reg.GetProvider(id)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "provider not found")
+		return
+	}
+
+	// Only OpenRouter supports balance queries.
+	if !strings.EqualFold(info.Name, "openrouter") && !strings.EqualFold(id, "openrouter") {
+		respondJSON(w, http.StatusOK, map[string]any{"remaining": nil, "provider": info.Name})
+		return
+	}
+
+	apiKey, _ := info.Options["apiKey"].(string)
+	if apiKey == "" {
+		respondJSON(w, http.StatusOK, map[string]any{"remaining": nil, "provider": "OpenRouter"})
+		return
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, "https://openrouter.ai/api/v1/auth/key", nil)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to create request")
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		respondError(w, http.StatusBadGateway, "failed to fetch balance")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respondJSON(w, http.StatusOK, map[string]any{"remaining": nil, "provider": "OpenRouter"})
+		return
+	}
+
+	var orResp struct {
+		Data struct {
+			Limit       *float64 `json:"limit"`
+			Usage       float64  `json:"usage"`
+			LimitRemain float64  `json:"limit_remaining"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&orResp); err != nil {
+		respondError(w, http.StatusBadGateway, "failed to parse balance response")
+		return
+	}
+
+	// If no limit is set, remaining is not meaningful.
+	if orResp.Data.Limit == nil {
+		respondJSON(w, http.StatusOK, map[string]any{"remaining": nil, "provider": "OpenRouter"})
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"remaining": orResp.Data.LimitRemain,
+		"provider":  "OpenRouter",
+	})
 }

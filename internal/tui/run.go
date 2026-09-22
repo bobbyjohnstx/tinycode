@@ -168,6 +168,23 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return c, abortSession(c.client, sessionID)
 		}
 		return c, nil
+
+	case ProvidersLoadedMsg:
+		model, cmd := c.app.Update(msg)
+		c.updateApp(model)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if msg.Err == nil && c.app.state.CurrentModel.ProviderID != "" {
+			cmds = append(cmds, fetchProviderBalance(c.client, c.app.state.CurrentModel.ProviderID))
+		}
+		return c, tea.Batch(cmds...)
+
+	case ProviderBalanceMsg:
+		if msg.Err == nil && msg.Balance != nil {
+			c.app.sidebar.SetBalance(msg.Balance)
+		}
+		return c, nil
 	}
 
 	model, cmd := c.app.Update(msg)
