@@ -34,7 +34,7 @@ const config = {
   FORBID_TAGS: ["style"],
   FORBID_CONTENTS: ["style", "script"],
   ADD_TAGS: ["svg", "path"],
-  ADD_ATTR: ["d", "viewBox", "preserveAspectRatio", "xmlns", "target"],
+  ADD_ATTR: ["d", "viewBox", "preserveAspectRatio", "xmlns", "target", "data-language"],
 }
 
 const iconPaths = {
@@ -63,6 +63,22 @@ function fallback(markdown: string) {
 type CopyLabels = {
   copy: string
   copied: string
+}
+
+const CODE_FOLD_THRESHOLD = 10
+
+function countCodeLines(pre: HTMLPreElement): number {
+  const code = pre.querySelector("code")
+  if (!code) return 0
+  const text = code.textContent ?? ""
+  if (!text.trim()) return 0
+  return text.split("\n").length
+}
+
+function getCodeLanguage(pre: HTMLPreElement): string {
+  const lang = pre.getAttribute("data-language")
+  if (lang && lang !== "text") return lang
+  return ""
 }
 
 const urlPattern = /^https?:\/\/[^\s<>()`"']+$/
@@ -119,6 +135,14 @@ function setCopyState(button: HTMLButtonElement, labels: CopyLabels, copied: boo
   button.setAttribute("data-tooltip", labels.copy)
 }
 
+function createCodeFoldSummary(lang: string, lineCount: number): HTMLElement {
+  const summary = document.createElement("summary")
+  summary.setAttribute("data-slot", "markdown-code-summary")
+  const label = lang ? `${lang} — ${lineCount} lines` : `${lineCount} lines`
+  summary.textContent = label
+  return summary
+}
+
 function ensureCodeWrapper(block: HTMLPreElement, labels: CopyLabels) {
   const parent = block.parentElement
   if (!parent) return
@@ -127,17 +151,37 @@ function ensureCodeWrapper(block: HTMLPreElement, labels: CopyLabels) {
     const wrapper = document.createElement("div")
     wrapper.setAttribute("data-component", "markdown-code")
     parent.replaceChild(wrapper, block)
-    wrapper.appendChild(block)
-    wrapper.appendChild(createCopyButton(labels))
+
+    const lineCount = countCodeLines(block)
+    if (lineCount > CODE_FOLD_THRESHOLD) {
+      const lang = getCodeLanguage(block)
+      const details = document.createElement("details")
+      details.setAttribute("data-slot", "markdown-code-fold")
+      details.appendChild(createCodeFoldSummary(lang, lineCount))
+      const body = document.createElement("div")
+      body.setAttribute("data-slot", "markdown-code-fold-body")
+      body.appendChild(block)
+      body.appendChild(createCopyButton(labels))
+      details.appendChild(body)
+      wrapper.appendChild(details)
+    } else {
+      wrapper.appendChild(block)
+      wrapper.appendChild(createCopyButton(labels))
+    }
     return
   }
 
-  const buttons = Array.from(parent.querySelectorAll('[data-slot="markdown-copy-button"]')).filter(
+  const details = parent.querySelector('[data-slot="markdown-code-fold"]')
+  const buttonContainer = details
+    ? parent.querySelector('[data-slot="markdown-code-fold-body"]') ?? parent
+    : parent
+
+  const buttons = Array.from(buttonContainer.querySelectorAll('[data-slot="markdown-copy-button"]')).filter(
     (el): el is HTMLButtonElement => el instanceof HTMLButtonElement,
   )
 
   if (buttons.length === 0) {
-    parent.appendChild(createCopyButton(labels))
+    buttonContainer.appendChild(createCopyButton(labels))
     return
   }
 
@@ -319,6 +363,13 @@ export function Markdown(
           fromEl.getAttribute("data-copied") === "true"
         ) {
           setCopyState(toEl, labels, true)
+        }
+        if (
+          fromEl instanceof HTMLDetailsElement &&
+          toEl instanceof HTMLDetailsElement &&
+          fromEl.getAttribute("data-slot") === "markdown-code-fold"
+        ) {
+          toEl.open = fromEl.open
         }
         if (fromEl.isEqualNode(toEl)) return false
         return true

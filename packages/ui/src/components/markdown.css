@@ -131,6 +131,70 @@
     position: relative;
   }
 
+  [data-slot="markdown-code-fold"] {
+    margin-top: 12px;
+    margin-bottom: 32px;
+  }
+
+  [data-slot="markdown-code-fold"] > pre {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  [data-slot="markdown-code-fold-body"] {
+    position: relative;
+  }
+
+  [data-slot="markdown-code-fold-body"] > pre {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+
+  [data-slot="markdown-code-summary"] {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-family-mono);
+    font-feature-settings: var(--font-family-mono--font-feature-settings);
+    font-size: 13px;
+    color: var(--text-weak);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 0.5px solid var(--border-weak-base);
+    background: var(--color-background-stronger);
+    user-select: none;
+  }
+
+  [data-slot="markdown-code-summary"]::marker {
+    content: "";
+  }
+
+  [data-slot="markdown-code-summary"]::-webkit-details-marker {
+    display: none;
+  }
+
+  [data-slot="markdown-code-summary"]::before {
+    content: "\25B6";
+    font-size: 8px;
+    transition: transform 0.15s ease;
+  }
+
+  [data-slot="markdown-code-fold"][open] > [data-slot="markdown-code-summary"]::before {
+    transform: rotate(90deg);
+  }
+
+  [data-slot="markdown-code-fold"][open] > [data-slot="markdown-code-summary"] {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: none;
+  }
+
+  [data-slot="markdown-code-fold-body"] > .shiki {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
   [data-slot="markdown-copy-button"] {
     position: absolute;
     top: 4px;

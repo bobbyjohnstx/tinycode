@@ -457,7 +457,8 @@ async function highlightCodeBlocks(html: string): Promise<string> {
       theme: "tinycode",
       tabindex: false,
     })
-    result = result.replace(fullMatch, () => highlighted)
+    const withLang = highlighted.replace("<pre ", `<pre data-language="${language}" `)
+    result = result.replace(fullMatch, () => withLang)
   }
 
   return result
@@ -494,11 +495,12 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
           if (!highlighter.getLoadedLanguages().includes(lang)) {
             await highlighter.loadLanguage(lang as BundledLanguage)
           }
-          return highlighter.codeToHtml(code, {
+          const html = highlighter.codeToHtml(code, {
             lang: lang || "text",
             theme: "TinyCode",
             tabindex: false,
           })
+          return html.replace("<pre ", `<pre data-language="${lang || "text"}" `)
         },
       }),
     )
