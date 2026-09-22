@@ -15,7 +15,9 @@ BLUE='\033[0;34m'
 RESET='\033[0m'
 
 # Configuration
-REPO="bobbyjohnstx/tinycode-go"
+REPO="${TINYCODE_REPO:-bobbyjohnstx/tinycode-go}"
+BASE_URL="${TINYCODE_BASE_URL:-https://github.com}"
+API_URL="${TINYCODE_API_URL:-https://api.github.com}"
 INSTALL_DIR="${TINYCODE_INSTALL_DIR:-$HOME/.local/bin}"
 TMP_DIR="/tmp/tinycode-install-$$"
 
@@ -80,22 +82,29 @@ detect_platform() {
   info "Detected platform: ${PLATFORM_OS}/${PLATFORM_ARCH}"
 }
 
-# Determine latest version from GitHub API
+# Determine latest version from release API
 get_latest_version() {
   if [ -n "${VERSION:-}" ]; then
     info "Using pinned version: $VERSION"
     return
   fi
 
-  info "Fetching latest release from GitHub..."
+  info "Fetching latest release..."
+
+  # Support both GitHub and Gitea API formats
+  if echo "$API_URL" | grep -q "api.github.com"; then
+    RELEASES_URL="${API_URL}/repos/${REPO}/releases/latest"
+  else
+    RELEASES_URL="${API_URL}/api/v1/repos/${REPO}/releases/latest"
+  fi
 
   # Try curl first, then wget
   if command -v curl >/dev/null 2>&1; then
-    VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+    VERSION=$(curl -fsSL "$RELEASES_URL" \
       | grep '"tag_name"' \
       | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
   elif command -v wget >/dev/null 2>&1; then
-    VERSION=$(wget -qO- "https://api.github.com/repos/${REPO}/releases/latest" \
+    VERSION=$(wget -qO- "$RELEASES_URL" \
       | grep '"tag_name"' \
       | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
   else
@@ -112,7 +121,7 @@ get_latest_version() {
 # Download the binary
 download_binary() {
   BINARY_NAME="tinycode-${PLATFORM}"
-  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_NAME}.tar.gz"
+  DOWNLOAD_URL="${BASE_URL}/${REPO}/releases/download/${VERSION}/${BINARY_NAME}.tar.gz"
 
   info "Downloading tinycode ${VERSION} for ${PLATFORM}..."
 

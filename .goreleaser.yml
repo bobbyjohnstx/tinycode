@@ -1,0 +1,53 @@
+version: 2
+
+project_name: tinycode
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: tinycode
+    main: ./cmd/tinycode
+    binary: tinycode
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - docs/quickstart.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  gitea:
+    owner: bjohns
+    name: tinycode-go
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
