@@ -357,6 +357,7 @@ func (a *App) showPalette() {
 		"copy":          true,
 		"diff":          true,
 		"export":        true,
+		"export-html":   true,
 		"theme":         true,
 		"help":          true,
 		"rename":        true,
@@ -374,6 +375,7 @@ func (a *App) showPalette() {
 		{Label: "copy", Description: "Copy last response to clipboard", Value: "copy"},
 		{Label: "diff", Description: "Show uncommitted changes", Value: "diff"},
 		{Label: "export", Description: "Export session as Markdown", Value: "export"},
+		{Label: "export-html", Description: "Export session as HTML", Value: "export-html"},
 		{Label: "theme", Description: "Change color theme", Value: "theme"},
 		{Label: "rename", Description: "Rename current session", Value: "rename"},
 		{Label: "help", Description: "Show keybindings and commands", Value: "help"},
@@ -421,6 +423,13 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		}
 		msgs := a.chat.Messages()
 		return exportSession(msgs, *session, a.status.Cwd()), true
+	case "export-html":
+		session := a.activeSessionInfo()
+		if session == nil {
+			return a.toast.Show("No active session to export", true), true
+		}
+		msgs := a.chat.Messages()
+		return exportSessionHTML(msgs, *session, a.status.Cwd()), true
 	case "copy":
 		text := lastAssistantText(a.chat.Messages())
 		if text == "" {

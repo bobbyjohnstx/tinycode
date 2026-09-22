@@ -77,6 +77,13 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c, renameSession(c.client, sessionID, newTitle)
 	}
 
+	if trimmed == "/export html" || trimmed == "/export-html" {
+		if cmd, handled := c.app.handleClientCommand("export-html"); handled {
+			slog.Info("client command handled", "cmd", "export-html")
+			return c, cmd
+		}
+	}
+
 	if strings.HasPrefix(trimmed, "/") {
 		cmdName := strings.TrimPrefix(strings.Fields(trimmed)[0], "/")
 		if cmd, handled := c.app.handleClientCommand(cmdName); handled {
