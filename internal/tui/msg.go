@@ -214,6 +214,16 @@ type SessionRenamedMsg struct {
 	Err error
 }
 
+// ModelScopedMsg requests updating the scoped models list.
+type ModelScopedMsg struct {
+	ScopedModels []string
+}
+
+// ModelScopedDoneMsg reports that the scoped models config write completed.
+type ModelScopedDoneMsg struct {
+	Err error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

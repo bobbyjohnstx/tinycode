@@ -328,6 +328,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "help", Description: "Show keybindings and commands"},
 			{Name: "rename", Description: "Rename current session"},
 			{Name: "auto-approve", Description: "Toggle auto-approve for session"},
+			{Name: "scoped-models", Description: "Toggle model scoping (favorites)"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {
@@ -367,7 +368,13 @@ func (a App) handleProvidersLoadedMsg(msg ProvidersLoadedMsg) (App, tea.Cmd) {
 	}
 	if a.state.PendingModelDialog {
 		a.state.PendingModelDialog = false
-		a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
+		a.modelDlg.SetScopedModels(a.state.ScopedModels)
+		if a.state.PendingScopingMode {
+			a.state.PendingScopingMode = false
+			a.modelDlg.ShowScoping(a.state.Providers)
+		} else {
+			a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
+		}
 		a.setFocus(FocusDialog)
 	}
 	a.updateSidebarContext()

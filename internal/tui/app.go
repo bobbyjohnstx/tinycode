@@ -336,12 +336,13 @@ func (a *App) hasMessages() bool {
 // showPalette opens the command palette with available commands.
 func (a *App) showPalette() {
 	clientNames := map[string]bool{
-		"connect":      true,
-		"export":       true,
-		"theme":        true,
-		"help":         true,
-		"rename":       true,
-		"auto-approve": true,
+		"connect":       true,
+		"export":        true,
+		"theme":         true,
+		"help":          true,
+		"rename":        true,
+		"auto-approve":  true,
+		"scoped-models": true,
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
@@ -350,6 +351,7 @@ func (a *App) showPalette() {
 		{Label: "rename", Description: "Rename current session", Value: "rename"},
 		{Label: "help", Description: "Show keybindings and commands", Value: "help"},
 		{Label: "auto-approve", Description: "Toggle auto-approve for session", Value: "auto-approve"},
+		{Label: "scoped-models", Description: "Toggle model scoping (favorites)", Value: "scoped-models"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -396,6 +398,10 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	case "help":
 		a.showPalette()
 		return nil, true
+	case "scoped-models":
+		a.state.PendingModelDialog = true
+		a.state.PendingScopingMode = true
+		return func() tea.Msg { return ProvidersRefreshMsg{} }, true
 	}
 	return nil, false
 }

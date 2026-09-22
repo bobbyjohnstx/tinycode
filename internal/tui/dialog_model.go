@@ -32,6 +32,8 @@ type ModelDialog struct {
 	scrollModel    int
 	filter         string
 	pendingModelID string
+	scopedModels   map[string]bool
+	scopingMode    bool
 	visible        bool
 	width          int
 	height         int
@@ -53,6 +55,7 @@ func (d *ModelDialog) Show(providers []ProviderInfo, current ...ModelSelection) 
 	d.scrollModel = 0
 	d.filter = ""
 	d.pendingModelID = ""
+	d.scopingMode = false
 
 	if len(current) > 0 && current[0].ProviderID != "" {
 		for i, p := range providers {
@@ -63,6 +66,43 @@ func (d *ModelDialog) Show(providers []ProviderInfo, current ...ModelSelection) 
 			}
 		}
 	}
+}
+
+// ShowScoping opens the dialog in scoping mode where all models are shown
+// and the user can toggle models in/out of the scoped list.
+func (d *ModelDialog) ShowScoping(providers []ProviderInfo) {
+	d.providers = providers
+	d.visible = true
+	d.phase = phaseProviders
+	d.selectedProv = 0
+	d.selectedModel = 0
+	d.scrollProv = 0
+	d.scrollModel = 0
+	d.filter = ""
+	d.pendingModelID = ""
+	d.scopingMode = true
+}
+
+// SetScopedModels sets the current scoped models lookup.
+func (d *ModelDialog) SetScopedModels(models []string) {
+	d.scopedModels = make(map[string]bool, len(models))
+	for _, m := range models {
+		d.scopedModels[m] = true
+	}
+}
+
+// ScopedModelsList returns the scoped models as a sorted slice.
+func (d *ModelDialog) ScopedModelsList() []string {
+	result := make([]string, 0, len(d.scopedModels))
+	for k := range d.scopedModels {
+		result = append(result, k)
+	}
+	return result
+}
+
+// isModelScoped checks if a provider/model combo is in the scoped set.
+func (d *ModelDialog) isModelScoped(providerID, modelID string) bool {
+	return d.scopedModels[providerID+"/"+modelID]
 }
 
 // Hide closes the dialog.
@@ -209,6 +249,24 @@ func (d ModelDialog) updateModels(keyMsg tea.KeyMsg) (ModelDialog, tea.Cmd) {
 				}
 			}
 		}
+	case " ":
+		// Toggle scoped status for the selected model.
+		if d.selectedModel < len(models) {
+			m := models[d.selectedModel]
+			key := prov.ID + "/" + m.ID
+			if d.scopedModels == nil {
+				d.scopedModels = make(map[string]bool)
+			}
+			if d.scopedModels[key] {
+				delete(d.scopedModels, key)
+			} else {
+				d.scopedModels[key] = true
+			}
+			scoped := d.ScopedModelsList()
+			return d, func() tea.Msg {
+				return ModelScopedMsg{ScopedModels: scoped}
+			}
+		}
 	case "backspace":
 		if len(d.filter) > 0 {
 			d.filter = d.filter[:len(d.filter)-1]
@@ -233,12 +291,26 @@ func (d ModelDialog) updateModels(keyMsg tea.KeyMsg) (ModelDialog, tea.Cmd) {
 }
 
 func (d *ModelDialog) filteredModels(prov ProviderInfo) []ModelInfo {
+	var candidates []ModelInfo
+
+	// In scoping mode or when no models are scoped, show all models.
+	// Otherwise, only show scoped models.
+	if d.scopingMode || len(d.scopedModels) == 0 {
+		candidates = prov.Models
+	} else {
+		for _, m := range prov.Models {
+			if d.scopedModels[prov.ID+"/"+m.ID] {
+				candidates = append(candidates, m)
+			}
+		}
+	}
+
 	if d.filter == "" {
-		return prov.Models
+		return candidates
 	}
 	lower := strings.ToLower(d.filter)
 	var result []ModelInfo
-	for _, m := range prov.Models {
+	for _, m := range candidates {
 		if strings.Contains(strings.ToLower(m.Name), lower) {
 			result = append(result, m)
 		}
@@ -277,7 +349,11 @@ func (d ModelDialog) View() string {
 
 func (d ModelDialog) viewProviders() string {
 	var sb strings.Builder
-	sb.WriteString("Select Provider\n")
+	if d.scopingMode {
+		sb.WriteString("Scope Models (favorites)\n")
+	} else {
+		sb.WriteString("Select Provider\n")
+	}
 
 	mv := d.maxVisibleProviders()
 	end := d.scrollProv + mv
@@ -294,7 +370,7 @@ func (d ModelDialog) viewProviders() string {
 		sb.WriteString("\n")
 		p := d.providers[i]
 		label := p.Name
-		modelCount := len(p.Models)
+		modelCount := len(d.filteredModels(p))
 		suffix := styleMetadata.Render(" (" + itoa(modelCount) + " models)")
 
 		if i == d.selectedProv {
@@ -343,10 +419,15 @@ func (d ModelDialog) viewModels() string {
 		sb.WriteString("\n")
 		m := models[i]
 
+		scopeIndicator := ""
+		if d.isModelScoped(prov.ID, m.ID) {
+			scopeIndicator = " ★"
+		}
+
 		if i == d.selectedModel {
-			sb.WriteString(styleSelected.Render("▸ " + m.Name))
+			sb.WriteString(styleSelected.Render("▸ "+m.Name) + styleMetadata.Render(scopeIndicator))
 		} else {
-			sb.WriteString("  " + m.Name)
+			sb.WriteString("  " + m.Name + styleMetadata.Render(scopeIndicator))
 		}
 	}
 
@@ -356,7 +437,7 @@ func (d ModelDialog) viewModels() string {
 	}
 
 	sb.WriteString("\n\n")
-	sb.WriteString(styleMetadata.Render("  esc back"))
+	sb.WriteString(styleMetadata.Render("  esc back  space scope"))
 
 	return sb.String()
 }

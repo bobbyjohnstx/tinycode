@@ -153,10 +153,12 @@ type AppState struct {
 	CurrentAgent       string
 	CurrentModel       ModelSelection
 	CurrentTheme       string
+	ScopedModels       []string
 	SidebarOpen        bool
 	Connected          bool
 	AutoApprove        bool
-	PendingModelDialog bool
+	PendingModelDialog  bool
+	PendingScopingMode  bool
 }
 
 // SessionInfo is a lightweight view of session.Info for the TUI layer,
