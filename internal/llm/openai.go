@@ -42,6 +42,7 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 
 	req.Stream = true
 	req.StreamOptions = &StreamOptions{IncludeUsage: true}
+	resolveContentPartsOpenAI(req.Messages)
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling request: %w", err)
@@ -279,4 +280,32 @@ type chatCompletionUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+}
+
+// resolveContentPartsOpenAI converts ContentParts to the OpenAI multipart
+// content format and assigns the result to Message.Content.
+func resolveContentPartsOpenAI(messages []Message) {
+	for i := range messages {
+		if len(messages[i].ContentParts) == 0 {
+			continue
+		}
+		parts := make([]map[string]any, 0, len(messages[i].ContentParts))
+		for _, cp := range messages[i].ContentParts {
+			switch cp.Type {
+			case "text":
+				parts = append(parts, map[string]any{
+					"type": "text",
+					"text": cp.Text,
+				})
+			case "image":
+				parts = append(parts, map[string]any{
+					"type": "image_url",
+					"image_url": map[string]string{
+						"url": "data:" + cp.MediaType + ";base64," + cp.ImageData,
+					},
+				})
+			}
+		}
+		messages[i].Content = parts
+	}
 }

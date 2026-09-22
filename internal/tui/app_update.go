@@ -351,6 +351,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "debug", Description: "Show diagnostics for bug reports"},
 			{Name: "mcp", Description: "Manage MCP servers"},
 			{Name: "thinking", Description: "Set reasoning level (off/low/medium/high/max)"},
+			{Name: "paste-image", Description: "Paste image from clipboard"},
 			{Name: "scoped-models", Description: "Toggle model scoping (favorites)"},
 			{Name: "undo", Description: "Revert last AI file changes"},
 			{Name: "redo", Description: "Restore previously reverted changes"},

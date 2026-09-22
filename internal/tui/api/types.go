@@ -20,9 +20,10 @@ type PromptModel struct {
 
 // PromptPart is a content part within a prompt request.
 type PromptPart struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
-	Text    string `json:"text,omitempty"`
+	Type      string `json:"type"`
+	Content   string `json:"content,omitempty"`
+	Text      string `json:"text,omitempty"`
+	MediaType string `json:"mediaType,omitempty"`
 }
 
 // SessionCreateInput is the request body for POST /session.

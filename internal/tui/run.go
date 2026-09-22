@@ -42,6 +42,13 @@ func Run(ctx context.Context, cfg RunConfig) error {
 	return nil
 }
 
+// pendingImage holds base64-encoded image data waiting to be sent with the next prompt.
+type pendingImage struct {
+	Data      string // base64-encoded
+	MediaType string // e.g. "image/png"
+	Size      int    // raw byte count
+}
+
 // connectedApp wraps App with an API client for server communication.
 type connectedApp struct {
 	app           App
@@ -50,6 +57,7 @@ type connectedApp struct {
 	sseEvents     <-chan api.ServerEvent
 	pendingPrompt string
 	pendingAgent  string
+	pendingImages []pendingImage
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
@@ -244,6 +252,26 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DiffDoneMsg:
 		return c.handleDiffDone(msg)
 
+	case ClipboardImageMsg:
+		if msg.Err != nil {
+			slog.Warn("clipboard image read failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Clipboard image: %v", msg.Err)...)
+			return c, tea.Batch(cmds...)
+		}
+		c.pendingImages = append(c.pendingImages, pendingImage{
+			Data:      msg.Data,
+			MediaType: msg.MediaType,
+			Size:      msg.Size,
+		})
+		c.app.prompt.AddImage(msg.Size)
+		slog.Info("clipboard image attached", "size", msg.Size, "count", len(c.pendingImages))
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Image attached (%s)", formatImageSize(msg.Size))})
+		c.updateApp(model)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return c, tea.Batch(cmds...)
+
 	case AbortRequestMsg:
 		sessionID := c.app.state.ActiveSession
 		if sessionID != "" {
@@ -386,6 +414,17 @@ func (c *connectedApp) buildPromptInput(text string) api.PromptInput {
 			Text: fmt.Sprintf("--- File: %s ---\n%s\n--- End ---", ref.path, content),
 		})
 	}
+
+	// Include pending images.
+	for _, img := range c.pendingImages {
+		parts = append(parts, api.PromptPart{
+			Type:      "image",
+			Content:   img.Data,
+			MediaType: img.MediaType,
+		})
+	}
+	c.pendingImages = nil
+	c.app.prompt.ClearImages()
 
 	input := api.PromptInput{Parts: parts}
 	if c.app.state.CurrentModel.ModelID != "" {

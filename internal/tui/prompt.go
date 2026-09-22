@@ -28,10 +28,12 @@ type PromptInput struct {
 	thinkingLevel string
 	cycleAgents   []string
 	width         int
-	cwd          string
-	keys         KeyMap
-	guardEnabled bool
-	startTime    time.Time
+	cwd           string
+	keys          KeyMap
+	guardEnabled  bool
+	startTime     time.Time
+	imageCount    int
+	imageSize     int // total bytes of attached images
 }
 
 // NewPromptInput creates a PromptInput with the given width.
@@ -123,6 +125,23 @@ func (p *PromptInput) SetMetadata(agent, model, provider string) {
 // SetThinkingLevel updates the thinking level display.
 func (p *PromptInput) SetThinkingLevel(level string) {
 	p.thinkingLevel = level
+}
+
+// AddImage records that an image has been attached to the prompt.
+func (p *PromptInput) AddImage(sizeBytes int) {
+	p.imageCount++
+	p.imageSize += sizeBytes
+}
+
+// ClearImages removes all attached image indicators.
+func (p *PromptInput) ClearImages() {
+	p.imageCount = 0
+	p.imageSize = 0
+}
+
+// HasImages returns whether any images are attached.
+func (p *PromptInput) HasImages() bool {
+	return p.imageCount > 0
 }
 
 // Value returns the current text content.
@@ -369,6 +388,14 @@ func (p PromptInput) renderMetadata() string {
 	if p.thinkingLevel != "" && p.thinkingLevel != "off" {
 		result += "  " + dimStyle.Render("thinking:"+p.thinkingLevel)
 	}
+	if p.imageCount > 0 {
+		label := formatImageSize(p.imageSize)
+		if p.imageCount == 1 {
+			result += "  " + dimStyle.Render("[image: "+label+"]")
+		} else {
+			result += "  " + dimStyle.Render(fmt.Sprintf("[%d images: %s]", p.imageCount, label))
+		}
+	}
 	return result
 }
 
@@ -478,6 +505,19 @@ func (p *PromptInput) nextAgent(dir int) string {
 	}
 	idx = (idx + dir + len(p.cycleAgents)) % len(p.cycleAgents)
 	return p.cycleAgents[idx]
+}
+
+// formatImageSize returns a human-readable size string.
+func formatImageSize(bytes int) string {
+	if bytes < 1024 {
+		return fmt.Sprintf("%dB PNG", bytes)
+	}
+	kb := bytes / 1024
+	if kb < 1024 {
+		return fmt.Sprintf("%dKB PNG", kb)
+	}
+	mb := float64(bytes) / (1024 * 1024)
+	return fmt.Sprintf("%.1fMB PNG", mb)
 }
 
 // isTerminalEscape returns true if the string looks like a terminal escape

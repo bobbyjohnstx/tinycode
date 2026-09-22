@@ -60,11 +60,16 @@ func (p *Processor) addUserMessage(userMessage string, messageID string) {
 	if userMsgID == "" {
 		userMsgID, _ = id.Ascending("message")
 	}
+	parts := []Part{TextPart(userMessage)}
+	if len(p.userExtraParts) > 0 {
+		parts = append(parts, p.userExtraParts...)
+		p.userExtraParts = nil
+	}
 	userMsg := Message{
 		ID:        userMsgID,
 		SessionID: p.config.SessionID,
 		Role:      RoleUser,
-		Parts:     []Part{TextPart(userMessage)},
+		Parts:     parts,
 		CreatedAt: time.Now(),
 	}
 

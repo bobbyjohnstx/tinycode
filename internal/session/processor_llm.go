@@ -83,10 +83,17 @@ func (p *Processor) buildRequest() llm.Request {
 		llmMsg := llm.Message{Role: string(msg.Role)}
 
 		var textParts []string
+		var imageParts []llm.ContentPart
 		for _, part := range msg.Parts {
 			switch part.Type {
 			case PartText:
 				textParts = append(textParts, part.Text)
+			case PartImage:
+				imageParts = append(imageParts, llm.ContentPart{
+					Type:      "image",
+					ImageData: part.ImageData,
+					MediaType: part.MediaType,
+				})
 			case PartToolCall:
 				if llmMsg.ToolCalls == nil {
 					llmMsg.ToolCalls = []llm.ToolCall{}
@@ -102,13 +109,24 @@ func (p *Processor) buildRequest() llm.Request {
 			}
 		}
 
-		if len(textParts) > 0 {
+		if len(imageParts) > 0 {
+			// Build multipart content: text + images.
+			var contentParts []llm.ContentPart
+			if len(textParts) > 0 {
+				contentParts = append(contentParts, llm.ContentPart{
+					Type: "text",
+					Text: strings.Join(textParts, "\n"),
+				})
+			}
+			contentParts = append(contentParts, imageParts...)
+			llmMsg.ContentParts = contentParts
+		} else if len(textParts) > 0 {
 			llmMsg.Content = strings.Join(textParts, "\n")
 		} else {
 			llmMsg.Content = ""
 		}
 
-		if llmMsg.Content == "" && len(llmMsg.ToolCalls) == 0 {
+		if llmMsg.Content == "" && len(llmMsg.ContentParts) == 0 && len(llmMsg.ToolCalls) == 0 {
 			continue
 		}
 

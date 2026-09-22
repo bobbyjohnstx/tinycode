@@ -18,11 +18,12 @@ const (
 type PartType string
 
 const (
-	PartText      PartType = "text"
-	PartToolCall  PartType = "tool-call"
+	PartText       PartType = "text"
+	PartToolCall   PartType = "tool-call"
 	PartToolResult PartType = "tool-result"
-	PartReasoning PartType = "reasoning"
-	PartFile      PartType = "file"
+	PartReasoning  PartType = "reasoning"
+	PartFile       PartType = "file"
+	PartImage      PartType = "image"
 )
 
 type Part struct {
@@ -35,6 +36,8 @@ type Part struct {
 	ToolError  bool     `json:"toolError,omitempty"`
 	FilePath   string   `json:"filePath,omitempty"`
 	FileData   string   `json:"fileData,omitempty"`
+	ImageData  string   `json:"imageData,omitempty"`
+	MediaType  string   `json:"mediaType,omitempty"`
 }
 
 type Message struct {
@@ -79,6 +82,10 @@ func ToolResultPart(id, name, result string, isError bool) Part {
 
 func ReasoningPart(text string) Part {
 	return Part{Type: PartReasoning, Text: text}
+}
+
+func ImagePart(data, mediaType string) Part {
+	return Part{Type: PartImage, ImageData: data, MediaType: mediaType}
 }
 
 // StoredPart represents a message part as persisted in the part table.

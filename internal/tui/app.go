@@ -366,6 +366,7 @@ func (a *App) showPalette() {
 		"debug":         true,
 		"thinking":      true,
 		"mcp":           true,
+		"paste-image":   true,
 		"scoped-models": true,
 	}
 	items := []PaletteItem{
@@ -382,6 +383,7 @@ func (a *App) showPalette() {
 		{Label: "debug", Description: "Show diagnostics for bug reports", Value: "debug"},
 		{Label: "mcp", Description: "Manage MCP servers", Value: "mcp"},
 		{Label: "thinking", Description: "Set reasoning level (off/low/medium/high/max)", Value: "thinking"},
+		{Label: "paste-image", Description: "Paste image from clipboard", Value: "paste-image"},
 		{Label: "scoped-models", Description: "Toggle model scoping (favorites)", Value: "scoped-models"},
 	}
 	for _, cmd := range a.state.Commands {
@@ -440,6 +442,8 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return func() tea.Msg { return EditorRequestMsg{Content: content} }, true
 	case "shell":
 		return func() tea.Msg { return ShellSessionRequestMsg{} }, true
+	case "paste-image":
+		return readClipboardImage(), true
 	case "debug":
 		info := a.buildDebugInfo()
 		a.debugDlg.Show(info)

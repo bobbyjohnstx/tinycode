@@ -37,11 +37,21 @@ type Usage struct {
 	TotalTokens      int `json:"totalTokens"`
 }
 
+// ContentPart is a provider-agnostic content part for multipart messages
+// (e.g. text + image). Clients convert these to provider-specific formats.
+type ContentPart struct {
+	Type      string // "text" or "image"
+	Text      string
+	ImageData string // base64-encoded image data
+	MediaType string // e.g. "image/png"
+}
+
 type Message struct {
-	Role       string     `json:"role"`
-	Content    any        `json:"content"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
+	Role         string        `json:"role"`
+	Content      any           `json:"content"`
+	ContentParts []ContentPart `json:"-"` // provider-agnostic; clients resolve before send
+	ToolCalls    []ToolCall    `json:"tool_calls,omitempty"`
+	ToolCallID   string        `json:"tool_call_id,omitempty"`
 }
 
 type ToolCall struct {

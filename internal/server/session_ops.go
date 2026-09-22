@@ -25,9 +25,10 @@ type promptModel struct {
 }
 
 type promptPart struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
-	Text    string `json:"text,omitempty"`
+	Type      string `json:"type"`
+	Content   string `json:"content,omitempty"`
+	Text      string `json:"text,omitempty"`
+	MediaType string `json:"mediaType,omitempty"`
 }
 
 func (sm *SessionManager) subscribeCommands() {
@@ -163,17 +164,34 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	}
 
 	var userText string
+	var imageParts []session.Part
 	for _, p := range input.Parts {
-		if p.Type == "text" {
+		switch p.Type {
+		case "text":
 			if p.Text != "" {
 				userText += p.Text
 			} else if p.Content != "" {
 				userText += p.Content
 			}
+		case "image":
+			data := p.Content
+			if data == "" {
+				data = p.Text
+			}
+			if data != "" {
+				mediaType := p.MediaType
+				if mediaType == "" {
+					mediaType = "image/png"
+				}
+				imageParts = append(imageParts, session.ImagePart(data, mediaType))
+			}
 		}
 	}
-	if userText == "" {
+	if userText == "" && len(imageParts) == 0 {
 		return
+	}
+	if userText == "" {
+		userText = "[image attached]"
 	}
 
 	expandResult := command.ExpandSlashCommand(userText)
@@ -241,6 +259,9 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		ThinkingBudget:  input.ThinkingBudget,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
+	if len(imageParts) > 0 {
+		proc.SetUserExtraParts(imageParts)
+	}
 
 	sm.mu.Lock()
 	if active, ok := sm.sessions[sessionID]; ok {
