@@ -26,6 +26,11 @@ const (
 	LeaderActionAgentList     = "agent-list"
 	LeaderActionExportSession = "export-session"
 	LeaderActionCopyResponse  = "copy-response"
+	LeaderActionUndo          = "undo"
+	LeaderActionRedo          = "redo"
+	LeaderActionEditor        = "editor"
+	LeaderActionDiffView      = "diff-view"
+	LeaderActionThemePicker   = "theme-picker"
 )
 
 // LeaderState implements the ctrl+x leader key state machine.
@@ -113,6 +118,16 @@ func (l *LeaderState) matchBinding(msg tea.KeyMsg) string {
 		return LeaderActionExportSession
 	case key.Matches(msg, l.keys.CopyResponse):
 		return LeaderActionCopyResponse
+	case key.Matches(msg, l.keys.Undo):
+		return LeaderActionUndo
+	case key.Matches(msg, l.keys.Redo):
+		return LeaderActionRedo
+	case key.Matches(msg, l.keys.Editor):
+		return LeaderActionEditor
+	case key.Matches(msg, l.keys.DiffView):
+		return LeaderActionDiffView
+	case key.Matches(msg, l.keys.ThemePicker):
+		return LeaderActionThemePicker
 	default:
 		return ""
 	}

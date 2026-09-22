@@ -34,6 +34,9 @@ type KeyMap struct {
 	CopyResponse  key.Binding // ctrl+x y
 	Undo          key.Binding // ctrl+x u
 	Redo          key.Binding // ctrl+x r
+	Editor        key.Binding // ctrl+x e
+	DiffView      key.Binding // ctrl+x d
+	ThemePicker   key.Binding // ctrl+x t
 }
 
 // DefaultKeyMap returns the default key bindings matching the design doc.
@@ -133,6 +136,18 @@ func DefaultKeyMap() KeyMap {
 		Redo: key.NewBinding(
 			key.WithKeys("r"),
 			key.WithHelp("ctrl+x r", "redo"),
+		),
+		Editor: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("ctrl+x e", "open $EDITOR"),
+		),
+		DiffView: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("ctrl+x d", "diff viewer"),
+		),
+		ThemePicker: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("ctrl+x t", "theme picker"),
 		),
 	}
 }

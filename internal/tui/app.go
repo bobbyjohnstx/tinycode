@@ -481,6 +481,19 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 		if cmd, handled := a.handleClientCommand("copy"); handled {
 			return cmd
 		}
+	case LeaderActionUndo:
+		return func() tea.Msg { return RevertRequestMsg{} }
+	case LeaderActionRedo:
+		return func() tea.Msg { return UnrevertRequestMsg{} }
+	case LeaderActionEditor:
+		content := a.prompt.Value()
+		return func() tea.Msg { return EditorRequestMsg{Content: content} }
+	case LeaderActionDiffView:
+		return func() tea.Msg { return DiffRequestMsg{Dir: a.status.Cwd()} }
+	case LeaderActionThemePicker:
+		a.themeDlg.Show(a.themes.List(), a.state.CurrentTheme)
+		a.setFocus(FocusDialog)
+		return nil
 	}
 	return nil
 }

@@ -32,6 +32,9 @@ func keybindingPaletteItems(keys KeyMap) []PaletteItem {
 		entry(keys.CopyResponse),
 		entry(keys.Undo),
 		entry(keys.Redo),
+		entry(keys.Editor),
+		entry(keys.DiffView),
+		entry(keys.ThemePicker),
 
 		separator("Global"),
 		entry(keys.CommandPalette),
