@@ -562,7 +562,7 @@ func (d *Discovery) discoverLMStudio(ctx context.Context, baseURL string) {
 			Status:  "active",
 			Headers: make(map[string]string),
 			Options: make(map[string]any),
-			Limit:   ModelLimit{Context: 8192, Output: 4096},
+			Limit:   ModelLimit{Context: 131072, Output: 4096},
 			Capabilities: ModelCaps{
 				Temperature: true,
 				ToolCall:    true,

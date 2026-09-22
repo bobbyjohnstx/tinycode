@@ -424,7 +424,7 @@ func TestSidebar_ViewShowsBalance(t *testing.T) {
 	s := NewSidebar()
 	s.Toggle()
 	s.SetSize(42, 20)
-	s.SetBalance(&ProviderBalance{Remaining: 12.34, Provider: "OpenRouter"})
+	s.SetBalance(&ProviderBalance{Remaining: 12.34, HasLimit: true, Provider: "OpenRouter"})
 
 	view := s.View()
 
@@ -442,6 +442,38 @@ func TestSidebar_ViewOmitsBalanceWhenNil(t *testing.T) {
 
 	if strings.Contains(view, "remaining") {
 		t.Errorf("sidebar should not show balance when nil, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewShowsUsageWithoutLimit(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetBalance(&ProviderBalance{Usage: 0.0042, Provider: "OpenRouter"})
+
+	view := s.View()
+
+	if !strings.Contains(view, "$0.0042 used") {
+		t.Errorf("sidebar should show usage for free tier, got:\n%s", view)
+	}
+	if strings.Contains(view, "remaining") {
+		t.Errorf("sidebar should not show remaining for free tier, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewShowsContextLimit(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetContext(ContextStats{ContextLimit: 128000})
+
+	view := s.View()
+
+	if !strings.Contains(view, "128k limit") {
+		t.Errorf("sidebar should show context limit when tokens are 0, got:\n%s", view)
+	}
+	if strings.Contains(view, "0 tokens") {
+		t.Errorf("sidebar should not show '0 tokens' when no usage data, got:\n%s", view)
 	}
 }
 

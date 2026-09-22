@@ -34,8 +34,10 @@ type ContextStats struct {
 
 // ProviderBalance holds balance info for a provider (e.g., OpenRouter).
 type ProviderBalance struct {
-	Remaining float64
-	Provider  string
+	Remaining  float64
+	Usage      float64
+	HasLimit   bool
+	Provider   string
 }
 
 // MCPServer holds status for a single MCP server.
@@ -182,10 +184,15 @@ func (s Sidebar) View() string {
 	// Context section
 	sb.WriteString(styleSidebarHeader.Render("Context"))
 	sb.WriteString("\n")
-	sb.WriteString(styleSidebarMuted.Render(formatTokens(s.context.Tokens) + " tokens"))
-	sb.WriteString("\n")
-	sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf("%d%% used", s.context.Percent)))
-	sb.WriteString("\n")
+	if s.context.Tokens > 0 {
+		sb.WriteString(styleSidebarMuted.Render(formatTokens(s.context.Tokens) + " tokens"))
+		sb.WriteString("\n")
+		sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf("%d%% used", s.context.Percent)))
+		sb.WriteString("\n")
+	} else if s.context.ContextLimit > 0 {
+		sb.WriteString(styleSidebarMuted.Render(formatTokens(s.context.ContextLimit) + " limit"))
+		sb.WriteString("\n")
+	}
 	if s.context.InputTokens > 0 || s.context.OutputTokens > 0 {
 		sb.WriteString(styleSidebarMuted.Render(
 			formatTokens(s.context.InputTokens) + " in / " + formatTokens(s.context.OutputTokens) + " out"))
@@ -196,8 +203,14 @@ func (s Sidebar) View() string {
 		sb.WriteString("\n")
 	}
 	if s.balance != nil {
-		sb.WriteString(styleSidebarMuted.Render(formatCost(s.balance.Remaining) + " remaining"))
-		sb.WriteString("\n")
+		if s.balance.HasLimit {
+			sb.WriteString(styleSidebarMuted.Render(formatCost(s.balance.Remaining) + " remaining"))
+			sb.WriteString("\n")
+		}
+		if s.balance.Usage > 0 {
+			sb.WriteString(styleSidebarMuted.Render(formatCost(s.balance.Usage) + " used (" + s.balance.Provider + ")"))
+			sb.WriteString("\n")
+		}
 	}
 
 	// MCP section
@@ -224,20 +237,22 @@ func (s Sidebar) View() string {
 		}
 	}
 
-	sb.WriteString("\n")
-
-	// Session tree
-	sb.WriteString(styleSidebarHeader.Render("Sessions"))
-	sb.WriteString("\n\n")
-	displaySessions := s.sessions
-	const maxSidebarSessions = 5
-	if len(displaySessions) > maxSidebarSessions {
-		displaySessions = displaySessions[:maxSidebarSessions]
-	}
-	sb.WriteString(renderTree(displaySessions, s.active))
-	if len(s.sessions) > maxSidebarSessions {
-		sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf("  +%d more", len(s.sessions)-maxSidebarSessions)))
+	// Session tree — only show sessions that have real titles.
+	titled := filterTitledSessions(s.sessions)
+	if len(titled) > 0 {
 		sb.WriteString("\n")
+		sb.WriteString(styleSidebarHeader.Render("Sessions"))
+		sb.WriteString("\n\n")
+		const maxSidebarSessions = 5
+		displaySessions := titled
+		if len(displaySessions) > maxSidebarSessions {
+			displaySessions = displaySessions[:maxSidebarSessions]
+		}
+		sb.WriteString(renderTree(displaySessions, s.active))
+		if len(titled) > maxSidebarSessions {
+			sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf("  +%d more", len(titled)-maxSidebarSessions)))
+			sb.WriteString("\n")
+		}
 	}
 
 	// Metadata
@@ -284,6 +299,16 @@ func (s Sidebar) renderFooter() string {
 		" "+styleSidebarMuted.Render(s.version))
 
 	return strings.Join(lines, "\n")
+}
+
+func filterTitledSessions(sessions []SessionInfo) []SessionInfo {
+	var out []SessionInfo
+	for _, s := range sessions {
+		if s.Title != "" && s.Title != "New Session" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func formatCost(c float64) string {

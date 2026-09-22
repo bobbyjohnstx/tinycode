@@ -64,8 +64,8 @@ func TestDiscoverLMStudio_SetsDefaultContextLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("model not found: %v", err)
 	}
-	if m.Limit.Context != 8192 {
-		t.Errorf("expected default context 8192, got %d", m.Limit.Context)
+	if m.Limit.Context != 131072 {
+		t.Errorf("expected default context 131072, got %d", m.Limit.Context)
 	}
 	if m.Limit.Output != 4096 {
 		t.Errorf("expected default output 4096, got %d", m.Limit.Output)

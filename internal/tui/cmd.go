@@ -345,15 +345,18 @@ func fetchProviderBalance(client *api.Client, providerID string) tea.Cmd {
 		if err != nil {
 			return ProviderBalanceMsg{Err: err}
 		}
-		if resp.Remaining == nil {
+		bal := &ProviderBalance{Provider: resp.Provider}
+		if resp.Remaining != nil {
+			bal.Remaining = *resp.Remaining
+			bal.HasLimit = true
+		}
+		if resp.Usage != nil {
+			bal.Usage = *resp.Usage
+		}
+		if !bal.HasLimit && bal.Usage == 0 {
 			return ProviderBalanceMsg{}
 		}
-		return ProviderBalanceMsg{
-			Balance: &ProviderBalance{
-				Remaining: *resp.Remaining,
-				Provider:  resp.Provider,
-			},
-		}
+		return ProviderBalanceMsg{Balance: bal}
 	}
 }
 

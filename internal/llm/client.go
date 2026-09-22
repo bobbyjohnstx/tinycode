@@ -5,14 +5,19 @@ import (
 )
 
 type Request struct {
-	Model       string    `json:"model"`
-	Messages    []Message `json:"messages"`
-	Tools       []Tool    `json:"tools,omitempty"`
-	ToolChoice  string    `json:"tool_choice,omitempty"`
-	Stream      bool      `json:"stream"`
-	Temperature *float64  `json:"temperature,omitempty"`
-	TopP        *float64  `json:"top_p,omitempty"`
-	MaxTokens   *int      `json:"max_tokens,omitempty"`
+	Model         string         `json:"model"`
+	Messages      []Message      `json:"messages"`
+	Tools         []Tool         `json:"tools,omitempty"`
+	ToolChoice    string         `json:"tool_choice,omitempty"`
+	Stream        bool           `json:"stream"`
+	StreamOptions *StreamOptions `json:"stream_options,omitempty"`
+	Temperature   *float64       `json:"temperature,omitempty"`
+	TopP          *float64       `json:"top_p,omitempty"`
+	MaxTokens     *int           `json:"max_tokens,omitempty"`
+}
+
+type StreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 // StreamOption configures a streaming request.

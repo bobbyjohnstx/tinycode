@@ -200,14 +200,15 @@ func (s *Server) handleProviderBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If no limit is set, remaining is not meaningful.
+	// If no limit is set (free tier), return usage so the TUI can show spending.
 	if orResp.Data.Limit == nil {
-		respondJSON(w, http.StatusOK, map[string]any{"remaining": nil, "provider": "OpenRouter"})
+		respondJSON(w, http.StatusOK, map[string]any{"remaining": nil, "usage": orResp.Data.Usage, "provider": "OpenRouter"})
 		return
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"remaining": orResp.Data.LimitRemain,
+		"usage":     orResp.Data.Usage,
 		"provider":  "OpenRouter",
 	})
 }

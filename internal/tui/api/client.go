@@ -143,6 +143,7 @@ type PluginInfo struct {
 // BalanceResponse is the response from GET /provider/{id}/balance.
 type BalanceResponse struct {
 	Remaining *float64 `json:"remaining"`
+	Usage     *float64 `json:"usage"`
 	Provider  string   `json:"provider"`
 }
 

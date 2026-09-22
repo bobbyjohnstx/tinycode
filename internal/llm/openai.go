@@ -41,6 +41,7 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 	}
 
 	req.Stream = true
+	req.StreamOptions = &StreamOptions{IncludeUsage: true}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling request: %w", err)

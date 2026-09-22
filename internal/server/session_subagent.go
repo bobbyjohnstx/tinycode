@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	subagentMaxIterations = 3
+	subagentMaxIterations = 5
 	subagentTimeout       = 10 * time.Minute
 )
 
@@ -125,8 +125,14 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 	if result == nil {
 		return "", fmt.Errorf("subagent returned nil result")
 	}
-	if result.Error != nil {
+	// Iteration-limit errors are non-fatal: the subagent did useful work
+	// (tool calls executed) but didn't produce a final summary within the
+	// iteration budget. Extract whatever text it produced.
+	if result.Error != nil && len(result.Messages) == 0 {
 		return "", fmt.Errorf("subagent error: %w", result.Error)
+	}
+	if result.Error != nil {
+		slog.Warn("subagent hit iteration limit, returning partial result", "label", label, "error", result.Error)
 	}
 
 	// #238: Track subagent token usage.

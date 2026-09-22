@@ -185,19 +185,26 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, tea.Batch(cmds...)
 
 	case ModelSelectedMsg:
+		slog.Info("model selected", "provider", msg.Selection.ProviderID, "model", msg.Selection.ModelID)
 		model, cmd := c.app.Update(msg)
 		c.updateApp(model)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 		if c.app.state.CurrentModel.ProviderID != "" {
+			slog.Info("fetching provider balance", "provider", c.app.state.CurrentModel.ProviderID)
 			cmds = append(cmds, fetchProviderBalance(c.client, c.app.state.CurrentModel.ProviderID))
 		}
 		return c, tea.Batch(cmds...)
 
 	case ProviderBalanceMsg:
-		if msg.Err == nil && msg.Balance != nil {
+		if msg.Err != nil {
+			slog.Warn("provider balance fetch failed", "error", msg.Err)
+		} else if msg.Balance != nil {
+			slog.Info("provider balance received", "provider", msg.Balance.Provider, "hasLimit", msg.Balance.HasLimit, "remaining", msg.Balance.Remaining, "usage", msg.Balance.Usage)
 			c.app.sidebar.SetBalance(msg.Balance)
+		} else {
+			slog.Info("provider balance: no data available")
 		}
 		return c, nil
 	}
