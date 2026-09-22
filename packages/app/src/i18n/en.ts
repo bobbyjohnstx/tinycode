@@ -91,6 +91,30 @@ export const dict = {
   "command.session.unshare": "Unshare session",
   "command.session.unshare.description": "Stop sharing this session",
 
+  "command.debug.show": "Show diagnostics",
+  "command.debug.show.description": "Show server and environment diagnostics",
+  "command.session.diff": "Show working-tree diff",
+  "command.session.diff.description": "Show uncommitted changes in the working tree",
+
+  "dialog.debug.title": "Diagnostics",
+  "dialog.debug.server": "Server",
+  "dialog.debug.version": "Version",
+  "dialog.debug.status": "Status",
+  "dialog.debug.healthy": "Healthy",
+  "dialog.debug.unhealthy": "Unhealthy",
+  "dialog.debug.unknown": "Unknown",
+  "dialog.debug.provider": "Provider / Model",
+  "dialog.debug.mcp": "MCP Servers",
+  "dialog.debug.mcp.none": "None configured",
+  "dialog.debug.paths": "Config Paths",
+  "dialog.debug.copy": "Copy to clipboard",
+  "dialog.debug.copied": "Diagnostics copied to clipboard",
+
+  "dialog.diff.title": "Working Tree Diff",
+  "dialog.diff.empty": "No uncommitted changes",
+
+  "context.usage.balance": "Balance",
+
   "palette.search.placeholder": "Search files, commands, and sessions",
   "palette.empty": "No results found",
   "palette.group.commands": "Commands",
