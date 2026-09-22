@@ -7,6 +7,7 @@ func RegisterBuiltins(r *Registry) {
 	r.Register(ReadTool())
 	r.Register(WriteTool())
 	r.Register(EditTool())
+	r.Register(ApplyPatchTool())
 	r.Register(ShellTool())
 	r.Register(GrepTool())
 	r.Register(GlobTool())
