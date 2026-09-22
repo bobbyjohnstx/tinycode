@@ -326,6 +326,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "export", Description: "Export session as Markdown"},
 			{Name: "theme", Description: "Change color theme"},
 			{Name: "help", Description: "Show keybindings and commands"},
+			{Name: "rename", Description: "Rename current session"},
 			{Name: "auto-approve", Description: "Toggle auto-approve for session"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))

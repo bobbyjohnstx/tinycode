@@ -340,12 +340,14 @@ func (a *App) showPalette() {
 		"export":       true,
 		"theme":        true,
 		"help":         true,
+		"rename":       true,
 		"auto-approve": true,
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
 		{Label: "export", Description: "Export session as Markdown", Value: "export"},
 		{Label: "theme", Description: "Change color theme", Value: "theme"},
+		{Label: "rename", Description: "Rename current session", Value: "rename"},
 		{Label: "help", Description: "Show keybindings and commands", Value: "help"},
 		{Label: "auto-approve", Description: "Toggle auto-approve for session", Value: "auto-approve"},
 	}

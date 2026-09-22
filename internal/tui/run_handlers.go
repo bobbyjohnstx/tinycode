@@ -30,6 +30,23 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		}
 	}
 
+	if strings.HasPrefix(trimmed, "/rename ") {
+		newTitle := strings.TrimSpace(strings.TrimPrefix(trimmed, "/rename"))
+		if newTitle == "" || newTitle == "New Session" {
+			model, cmd := c.app.Update(ToastMsg{Text: "Title cannot be empty or 'New Session'", IsError: true})
+			c.updateApp(model)
+			return c, cmd
+		}
+		sessionID := c.app.state.ActiveSession
+		if sessionID == "" {
+			model, cmd := c.app.Update(ToastMsg{Text: "No active session to rename", IsError: true})
+			c.updateApp(model)
+			return c, cmd
+		}
+		slog.Info("renaming session", "sessionID", sessionID, "title", newTitle)
+		return c, renameSession(c.client, sessionID, newTitle)
+	}
+
 	if strings.HasPrefix(trimmed, "/") {
 		cmdName := strings.TrimPrefix(strings.Fields(trimmed)[0], "/")
 		if cmd, handled := c.app.handleClientCommand(cmdName); handled {

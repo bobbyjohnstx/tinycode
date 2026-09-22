@@ -359,6 +359,14 @@ func toggleAgent(client *api.Client, name string, disabled bool) tea.Cmd {
 	}
 }
 
+// renameSession updates the session title via PATCH /session/{id}.
+func renameSession(client *api.Client, sessionID, title string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.UpdateSessionTitle(sessionID, title)
+		return SessionRenamedMsg{Err: err}
+	}
+}
+
 // fetchCommands fetches the command list from the server.
 func fetchCommands(client *api.Client) tea.Cmd {
 	return func() tea.Msg {

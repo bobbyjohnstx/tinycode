@@ -162,6 +162,19 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, tea.Batch(cmds...)
 
+	case SessionRenamedMsg:
+		if msg.Err != nil {
+			slog.Error("session rename failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Rename failed: %v", msg.Err)...)
+		} else {
+			model, cmd := c.app.Update(ToastMsg{Text: "Session renamed", IsError: false})
+			c.updateApp(model)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return c, tea.Batch(cmds...)
+
 	case AgentToggleMsg:
 		return c, toggleAgent(c.client, msg.Agent, msg.Disabled)
 

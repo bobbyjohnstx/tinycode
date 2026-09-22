@@ -209,6 +209,11 @@ type AgentToggleDoneMsg struct {
 	Err error
 }
 
+// SessionRenamedMsg reports that a session rename completed.
+type SessionRenamedMsg struct {
+	Err error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg
