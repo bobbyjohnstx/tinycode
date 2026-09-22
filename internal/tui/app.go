@@ -342,6 +342,8 @@ func (a *App) showPalette() {
 		"help":         true,
 		"rename":       true,
 		"auto-approve": true,
+		"editor":       true,
+		"shell":        true,
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
@@ -350,6 +352,8 @@ func (a *App) showPalette() {
 		{Label: "rename", Description: "Rename current session", Value: "rename"},
 		{Label: "help", Description: "Show keybindings and commands", Value: "help"},
 		{Label: "auto-approve", Description: "Toggle auto-approve for session", Value: "auto-approve"},
+		{Label: "editor", Description: "Open prompt in $EDITOR", Value: "editor"},
+		{Label: "shell", Description: "Open interactive shell session", Value: "shell"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -396,6 +400,11 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	case "help":
 		a.showPalette()
 		return nil, true
+	case "editor":
+		content := a.prompt.Value()
+		return func() tea.Msg { return EditorRequestMsg{Content: content} }, true
+	case "shell":
+		return func() tea.Msg { return ShellSessionRequestMsg{} }, true
 	}
 	return nil, false
 }

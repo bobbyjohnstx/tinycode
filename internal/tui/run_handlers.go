@@ -3,10 +3,11 @@ package tui
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"os/exec"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
@@ -193,4 +194,82 @@ func (c *connectedApp) showErrorToast(format string, args ...any) []tea.Cmd {
 		return []tea.Cmd{cmd}
 	}
 	return nil
+}
+
+// handleEditorRequest opens $EDITOR with the prompt content in a temp file.
+func (c *connectedApp) handleEditorRequest(msg EditorRequestMsg) (tea.Model, tea.Cmd) {
+	editor := os.Getenv("VISUAL")
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
+	if editor == "" {
+		editor = "vi"
+	}
+
+	tmpFile, err := os.CreateTemp("", "tinycode-editor-*.txt")
+	if err != nil {
+		slog.Error("failed to create temp file for editor", "error", err)
+		return c, tea.Batch(c.showErrorToast("Editor failed: %v", err)...)
+	}
+
+	if msg.Content != "" {
+		if _, err := tmpFile.WriteString(msg.Content); err != nil {
+			tmpFile.Close()
+			os.Remove(tmpFile.Name())
+			slog.Error("failed to write to temp file", "error", err)
+			return c, tea.Batch(c.showErrorToast("Editor failed: %v", err)...)
+		}
+	}
+	tmpFile.Close()
+
+	tmpPath := tmpFile.Name()
+	cmd := exec.Command(editor, tmpPath)
+	return c, tea.ExecProcess(cmd, func(err error) tea.Msg {
+		content := ""
+		if err == nil {
+			data, readErr := os.ReadFile(tmpPath)
+			if readErr != nil {
+				err = readErr
+			} else {
+				content = string(data)
+			}
+		}
+		os.Remove(tmpPath)
+		return EditorDoneMsg{Content: content, Err: err}
+	})
+}
+
+// handleEditorDone sets the prompt textarea to the editor content.
+func (c *connectedApp) handleEditorDone(msg EditorDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		slog.Error("editor exited with error", "error", msg.Err)
+		return c, tea.Batch(c.showErrorToast("Editor error: %v", msg.Err)...)
+	}
+	c.app.prompt.SetValue(msg.Content)
+	return c, nil
+}
+
+// handleShellSessionRequest opens an interactive shell.
+func (c *connectedApp) handleShellSessionRequest() (tea.Model, tea.Cmd) {
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+
+	cmd := exec.Command(shell)
+	cmd.Dir = c.app.status.Cwd()
+	return c, tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return ShellSessionDoneMsg{Err: err}
+	})
+}
+
+// handleShellSessionDone shows a toast when the shell exits.
+func (c *connectedApp) handleShellSessionDone(msg ShellSessionDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		slog.Error("shell session exited with error", "error", msg.Err)
+		return c, tea.Batch(c.showErrorToast("Shell error: %v", msg.Err)...)
+	}
+	model, cmd := c.app.Update(ToastMsg{Text: "Shell session ended", IsError: false})
+	c.updateApp(model)
+	return c, cmd
 }

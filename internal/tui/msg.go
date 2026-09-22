@@ -214,6 +214,25 @@ type SessionRenamedMsg struct {
 	Err error
 }
 
+// EditorRequestMsg requests opening $EDITOR with the current prompt text.
+type EditorRequestMsg struct {
+	Content string
+}
+
+// EditorDoneMsg reports that the external editor process has exited.
+type EditorDoneMsg struct {
+	Content string
+	Err     error
+}
+
+// ShellSessionRequestMsg requests opening an interactive shell.
+type ShellSessionRequestMsg struct{}
+
+// ShellSessionDoneMsg reports that the interactive shell has exited.
+type ShellSessionDoneMsg struct {
+	Err error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

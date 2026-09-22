@@ -124,6 +124,11 @@ func (p *PromptInput) Value() string {
 	return p.textarea.Value()
 }
 
+// SetValue replaces the textarea content with the given string.
+func (p *PromptInput) SetValue(s string) {
+	p.textarea.SetValue(s)
+}
+
 // Reset clears the textarea content.
 func (p *PromptInput) Reset() {
 	p.textarea.Reset()
