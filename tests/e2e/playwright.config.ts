@@ -1,5 +1,6 @@
 import { defineConfig } from "@playwright/test"
 import { existsSync } from "fs"
+import { homedir } from "os"
 import { join } from "path"
 
 // Resolve a working chromium executable. The Playwright version (1.59.1)
@@ -8,7 +9,7 @@ import { join } from "path"
 function resolveChromiumPath(): string | undefined {
   const cacheDir =
     process.env.PLAYWRIGHT_BROWSERS_PATH ??
-    join(require("os").homedir(), "Library/Caches/ms-playwright")
+    join(homedir(), "Library/Caches/ms-playwright")
 
   // Prefer the headless shell matching this Playwright version
   const candidates = [
