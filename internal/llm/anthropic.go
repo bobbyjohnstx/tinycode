@@ -101,6 +101,15 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 		ar.TopP = req.TopP
 	}
 
+	if req.ThinkingBudget != nil && *req.ThinkingBudget > 0 {
+		ar.Thinking = &anthropicThinking{
+			Type:         "enabled",
+			BudgetTokens: *req.ThinkingBudget,
+		}
+		// Anthropic requires temperature=1 when thinking is enabled.
+		ar.Temperature = nil
+	}
+
 	// Extract system message and convert messages.
 	for _, msg := range req.Messages {
 		if msg.Role == "system" {
@@ -302,14 +311,20 @@ func (c *AnthropicClient) handleAnthropicSSEEvent(eventType string, raw json.Raw
 // --- Anthropic API types ---
 
 type anthropicRequest struct {
-	Model       string             `json:"model"`
-	Messages    []anthropicMessage `json:"messages"`
-	System      string             `json:"system,omitempty"`
-	MaxTokens   int                `json:"max_tokens"`
-	Stream      bool               `json:"stream"`
-	Temperature *float64           `json:"temperature,omitempty"`
-	TopP        *float64           `json:"top_p,omitempty"`
-	Tools       []anthropicTool    `json:"tools,omitempty"`
+	Model       string              `json:"model"`
+	Messages    []anthropicMessage  `json:"messages"`
+	System      string              `json:"system,omitempty"`
+	MaxTokens   int                 `json:"max_tokens"`
+	Stream      bool                `json:"stream"`
+	Temperature *float64            `json:"temperature,omitempty"`
+	TopP        *float64            `json:"top_p,omitempty"`
+	Tools       []anthropicTool     `json:"tools,omitempty"`
+	Thinking    *anthropicThinking  `json:"thinking,omitempty"`
+}
+
+type anthropicThinking struct {
+	Type         string `json:"type"`
+	BudgetTokens int    `json:"budget_tokens"`
 }
 
 type anthropicMessage struct {

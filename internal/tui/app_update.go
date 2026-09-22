@@ -328,6 +328,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "help", Description: "Show keybindings and commands"},
 			{Name: "rename", Description: "Rename current session"},
 			{Name: "auto-approve", Description: "Toggle auto-approve for session"},
+			{Name: "thinking", Description: "Set reasoning level (off/low/medium/high/max)"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {

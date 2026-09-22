@@ -342,6 +342,7 @@ func (a *App) showPalette() {
 		"help":         true,
 		"rename":       true,
 		"auto-approve": true,
+		"thinking":     true,
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
@@ -350,6 +351,7 @@ func (a *App) showPalette() {
 		{Label: "rename", Description: "Rename current session", Value: "rename"},
 		{Label: "help", Description: "Show keybindings and commands", Value: "help"},
 		{Label: "auto-approve", Description: "Toggle auto-approve for session", Value: "auto-approve"},
+		{Label: "thinking", Description: "Set reasoning level (off/low/medium/high/max)", Value: "thinking"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {

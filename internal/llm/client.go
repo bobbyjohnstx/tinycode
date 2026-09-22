@@ -13,7 +13,8 @@ type Request struct {
 	StreamOptions *StreamOptions `json:"stream_options,omitempty"`
 	Temperature   *float64       `json:"temperature,omitempty"`
 	TopP          *float64       `json:"top_p,omitempty"`
-	MaxTokens     *int           `json:"max_tokens,omitempty"`
+	MaxTokens      *int           `json:"max_tokens,omitempty"`
+	ThinkingBudget *int           `json:"thinking_budget,omitempty"`
 }
 
 type StreamOptions struct {

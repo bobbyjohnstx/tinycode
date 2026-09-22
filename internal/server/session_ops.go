@@ -11,11 +11,12 @@ import (
 
 // PromptInput describes a user prompt to be processed by a session.
 type PromptInput struct {
-	SessionID string
-	Model     *promptModel
-	Agent     string
-	Parts     []promptPart
-	MessageID string
+	SessionID      string
+	Model          *promptModel
+	Agent          string
+	Parts          []promptPart
+	MessageID      string
+	ThinkingBudget *int
 }
 
 type promptModel struct {
@@ -237,6 +238,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		Perms:           sm.perms,
 		UserDisplayText: displayText,
 		MaxIterations:   maxIter,
+		ThinkingBudget:  input.ThinkingBudget,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 

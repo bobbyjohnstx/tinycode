@@ -4,11 +4,12 @@ import "github.com/bobbyjohnstx/tinycode-go/internal/session"
 
 // PromptInput is the request body for POST /session/{id}/prompt_async.
 type PromptInput struct {
-	MessageID string       `json:"messageID,omitempty"`
-	Model     *PromptModel `json:"model,omitempty"`
-	Agent     string       `json:"agent,omitempty"`
-	Parts     []PromptPart `json:"parts"`
-	Variant   string       `json:"variant,omitempty"`
+	MessageID      string       `json:"messageID,omitempty"`
+	Model          *PromptModel `json:"model,omitempty"`
+	Agent          string       `json:"agent,omitempty"`
+	Parts          []PromptPart `json:"parts"`
+	Variant        string       `json:"variant,omitempty"`
+	ThinkingBudget *int         `json:"thinkingBudget,omitempty"`
 }
 
 // PromptModel identifies a model for the prompt request.

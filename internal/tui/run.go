@@ -315,6 +315,11 @@ func (c *connectedApp) buildPromptInput(text string) api.PromptInput {
 			ModelID:    c.app.state.CurrentModel.ModelID,
 		}
 	}
+	if level := c.app.state.ThinkingLevel; level != "" && level != "off" {
+		if budget, _, ok := thinkingLevelBudget(level); ok && budget > 0 {
+			input.ThinkingBudget = &budget
+		}
+	}
 	return input
 }
 

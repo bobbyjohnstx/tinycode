@@ -153,6 +153,7 @@ type AppState struct {
 	CurrentAgent       string
 	CurrentModel       ModelSelection
 	CurrentTheme       string
+	ThinkingLevel      string
 	SidebarOpen        bool
 	Connected          bool
 	AutoApprove        bool

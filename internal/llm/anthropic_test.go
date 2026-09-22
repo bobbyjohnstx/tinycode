@@ -247,4 +247,61 @@ func TestAnthropicStream_ThinkingDelta(t *testing.T) {
 	}
 }
 
+func TestAnthropicBuildRequest_ThinkingBudget(t *testing.T) {
+	client := NewAnthropicClient("http://localhost", "test-key")
+	budget := 16384
+	req := Request{
+		Model:          "claude-sonnet-4-20250514",
+		Messages:       []Message{{Role: "user", Content: "hello"}},
+		ThinkingBudget: &budget,
+		Temperature:    func() *float64 { f := 0.5; return &f }(),
+	}
+
+	ar := client.buildRequest(req)
+
+	if ar.Thinking == nil {
+		t.Fatal("expected Thinking to be set")
+	}
+	if ar.Thinking.Type != "enabled" {
+		t.Errorf("expected Thinking.Type 'enabled', got %q", ar.Thinking.Type)
+	}
+	if ar.Thinking.BudgetTokens != 16384 {
+		t.Errorf("expected BudgetTokens 16384, got %d", ar.Thinking.BudgetTokens)
+	}
+	// Temperature must be nil when thinking is enabled.
+	if ar.Temperature != nil {
+		t.Errorf("expected Temperature nil when thinking enabled, got %v", *ar.Temperature)
+	}
+}
+
+func TestAnthropicBuildRequest_NoThinkingBudget(t *testing.T) {
+	client := NewAnthropicClient("http://localhost", "test-key")
+	req := Request{
+		Model:    "claude-sonnet-4-20250514",
+		Messages: []Message{{Role: "user", Content: "hello"}},
+	}
+
+	ar := client.buildRequest(req)
+
+	if ar.Thinking != nil {
+		t.Errorf("expected Thinking nil when no budget, got %+v", ar.Thinking)
+	}
+}
+
+func TestAnthropicBuildRequest_ZeroThinkingBudget(t *testing.T) {
+	client := NewAnthropicClient("http://localhost", "test-key")
+	budget := 0
+	req := Request{
+		Model:          "claude-sonnet-4-20250514",
+		Messages:       []Message{{Role: "user", Content: "hello"}},
+		ThinkingBudget: &budget,
+	}
+
+	ar := client.buildRequest(req)
+
+	if ar.Thinking != nil {
+		t.Errorf("expected Thinking nil when budget is 0, got %+v", ar.Thinking)
+	}
+}
+
 func intPtr(n int) *int { return &n }
