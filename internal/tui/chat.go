@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -36,6 +37,13 @@ type ChatView struct {
 	dragging  bool
 	dragStart [2]int // [line, col] in content coordinates
 	dragEnd   [2]int
+
+	// In-transcript search state
+	searchMode    bool
+	searchInput   textinput.Model
+	searchMatches []searchMatch
+	searchCurrent int
+	msgLineStarts []int
 }
 
 // NewChatView creates a ChatView with the given dimensions.
@@ -43,8 +51,13 @@ func NewChatView(width, height int) ChatView {
 	vp := viewport.New(width, height)
 	vp.SetContent("")
 
+	ti := textinput.New()
+	ti.Placeholder = "Search..."
+	ti.CharLimit = 200
+
 	return ChatView{
 		viewport:         vp,
+		searchInput:      ti,
 		renderer:         render.NewMarkdownRenderer(width - 4),
 		width:            width,
 		height:           height,
@@ -59,7 +72,12 @@ func (c *ChatView) SetSize(width, height int) {
 	c.width = width
 	c.height = height
 	c.viewport.Width = width
-	c.viewport.Height = height
+	if c.searchMode {
+		c.viewport.Height = height - 1
+		c.searchInput.Width = width / 2
+	} else {
+		c.viewport.Height = height
+	}
 	c.renderer = render.NewMarkdownRenderer(width - 4)
 	c.rebuildContent()
 }
@@ -109,6 +127,9 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 		return c, nil
 
 	case tea.KeyMsg:
+		if c.searchMode {
+			return c.handleSearchKey(msg)
+		}
 		if msg.String() == "T" {
 			c.toggleThought("")
 			c.rebuildContent()
@@ -176,10 +197,13 @@ func (c ChatView) Messages() []MessageView {
 // View implements tea.Model.
 func (c ChatView) View() string {
 	view := c.viewport.View()
-	if !c.dragging {
-		return view
+	if c.dragging {
+		view = c.applySelectionHighlight(view)
 	}
-	return c.applySelectionHighlight(view)
+	if c.searchMode {
+		return c.renderSearchBar() + "\n" + view
+	}
+	return view
 }
 
 // applySelectionHighlight overlays reverse-video on the dragged region.
@@ -456,6 +480,7 @@ func (c *ChatView) rebuildContent() {
 	var sb strings.Builder
 	c.thoughtLines = make(map[int]string)
 	c.subagentLines = make(map[int]string)
+	c.msgLineStarts = make([]int, 0, len(c.messages))
 	lineNum := 0
 
 	for i, msg := range c.messages {
@@ -463,6 +488,7 @@ func (c *ChatView) rebuildContent() {
 			sb.WriteString("\n")
 			lineNum++
 		}
+		c.msgLineStarts = append(c.msgLineStarts, lineNum)
 		var tHits []thoughtHit
 		var sHits []subagentHit
 		opts := &renderOpts{

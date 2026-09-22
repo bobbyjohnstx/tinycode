@@ -197,6 +197,11 @@ func (a *App) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {
 	case "ctrl+p":
 		a.showPalette()
 		return nil
+	case "ctrl+f":
+		if a.hasMessages() {
+			a.chat.ActivateSearch()
+		}
+		return func() tea.Msg { return nil }
 	case "esc":
 		if a.isSessionWorking() {
 			return func() tea.Msg { return AbortRequestMsg{} }
