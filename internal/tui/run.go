@@ -193,6 +193,18 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ShellResultMsg:
 		return c.handleShellResult(msg)
 
+	case EditorRequestMsg:
+		return c.handleEditorRequest(msg)
+
+	case EditorDoneMsg:
+		return c.handleEditorDone(msg)
+
+	case ShellSessionRequestMsg:
+		return c.handleShellSessionRequest()
+
+	case ShellSessionDoneMsg:
+		return c.handleShellSessionDone(msg)
+
 	case AbortRequestMsg:
 		sessionID := c.app.state.ActiveSession
 		if sessionID != "" {
