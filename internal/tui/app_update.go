@@ -18,6 +18,7 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		action, consumed := a.leader.HandleKey(msg)
 		if consumed {
 			a.status.SetLeaderPending(false)
+			a.whichKey.Hide()
 			if action != "" {
 				cmd := a.dispatchLeaderAction(action)
 				return a, cmd
@@ -27,8 +28,9 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 	} else {
 		_, consumed := a.leader.HandleKey(msg)
 		if consumed {
-			// Leader key was just pressed; start timeout.
+			// Leader key was just pressed; start timeout and show which-key panel.
 			a.status.SetLeaderPending(true)
+			a.whichKey.Show(LeaderKeyEntries(a.keys))
 			return a, a.leader.TimeoutCmd()
 		}
 	}
@@ -184,6 +186,7 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	case LeaderTimeoutMsg:
 		a.leader.HandleTimeout()
 		a.status.SetLeaderPending(false)
+		a.whichKey.Hide()
 		return a, nil, true
 	case SessionErrorMsg:
 		cmd := a.toast.Show(msg.Error, true)

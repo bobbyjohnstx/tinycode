@@ -28,6 +28,7 @@ type App struct {
 	permPrompt PermissionPrompt
 	toast      Toast
 	sidebar    Sidebar
+	whichKey   WhichKeyPanel
 	leader     LeaderState
 	themes     *ThemeRegistry
 	state      *AppState
@@ -171,6 +172,14 @@ func (a App) View() string {
 	}
 
 	base := composeView(chatView, promptView, statusView, sidebarView, l)
+
+	// Overlay which-key panel when leader is pending.
+	if a.whichKey.IsVisible() {
+		panel := a.whichKey.View()
+		if panel != "" {
+			base = placeWhichKey(base, panel, a.width, a.height)
+		}
+	}
 
 	// Overlay toast at the bottom if visible.
 	if a.toast.IsVisible() {
