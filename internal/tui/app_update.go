@@ -17,6 +17,7 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 	if a.leader.IsPending() {
 		action, consumed := a.leader.HandleKey(msg)
 		if consumed {
+			a.status.SetLeaderPending(false)
 			if action != "" {
 				cmd := a.dispatchLeaderAction(action)
 				return a, cmd
@@ -27,6 +28,7 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		_, consumed := a.leader.HandleKey(msg)
 		if consumed {
 			// Leader key was just pressed; start timeout.
+			a.status.SetLeaderPending(true)
 			return a, a.leader.TimeoutCmd()
 		}
 	}
@@ -165,6 +167,7 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case LeaderTimeoutMsg:
 		a.leader.HandleTimeout()
+		a.status.SetLeaderPending(false)
 		return a, nil, true
 	case SessionErrorMsg:
 		cmd := a.toast.Show(msg.Error, true)
@@ -317,14 +320,24 @@ func (a App) handleAgentListMsg(msg AgentListMsg) (App, tea.Cmd) {
 func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 	if msg.Err == nil {
 		a.state.Commands = msg.Commands
-		items := []AutocompleteItem{
+		clientItems := []AutocompleteItem{
 			{Name: "exit", Description: "Exit the app"},
 			{Name: "connect", Description: "Select provider and model"},
 			{Name: "export", Description: "Export session as Markdown"},
 			{Name: "theme", Description: "Change color theme"},
+			{Name: "help", Description: "Show keybindings and commands"},
+			{Name: "auto-approve", Description: "Toggle auto-approve for session"},
 		}
+		clientNames := make(map[string]bool, len(clientItems))
+		for _, item := range clientItems {
+			clientNames[item.Name] = true
+		}
+		items := append([]AutocompleteItem{}, clientItems...)
 		for _, cmd := range msg.Commands {
 			if strings.HasPrefix(cmd.Description, "Switch to ") {
+				continue
+			}
+			if clientNames[cmd.Name] {
 				continue
 			}
 			items = append(items, AutocompleteItem{

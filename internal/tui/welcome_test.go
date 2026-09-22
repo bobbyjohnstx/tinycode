@@ -130,6 +130,12 @@ func TestWelcomeView_TipsAfterBoot(t *testing.T) {
 	if !strings.Contains(view, "ctrl+p palette") {
 		t.Error("expected 'ctrl+p palette' in tips")
 	}
+	if !strings.Contains(view, "ctrl+x sidebar/sessions") {
+		t.Error("expected 'ctrl+x sidebar/sessions' in second tips line")
+	}
+	if !strings.Contains(view, "/help reference") {
+		t.Error("expected '/help reference' in second tips line")
+	}
 }
 
 func TestWelcomeView_ViewContainsLogo(t *testing.T) {

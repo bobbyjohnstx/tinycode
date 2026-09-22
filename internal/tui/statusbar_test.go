@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -82,6 +83,42 @@ func TestStatusBar_SetWorking(t *testing.T) {
 	cmd = sb.SetWorking(false)
 	if sb.working {
 		t.Error("expected working to be false")
+	}
+}
+
+func TestStatusBar_LeaderPendingHints(t *testing.T) {
+	sb := NewStatusBar(120)
+
+	// Normal state should show standard hints
+	view := sb.View()
+	if !strings.Contains(view, "commands") {
+		t.Error("expected 'commands' in normal hints")
+	}
+	if !strings.Contains(view, "/help") {
+		t.Error("expected '/help' in normal hints")
+	}
+
+	// Leader pending should show follow-up keys
+	sb.SetLeaderPending(true)
+	view = sb.View()
+	if !strings.Contains(view, "sidebar") {
+		t.Error("expected 'sidebar' in leader pending hints")
+	}
+	if !strings.Contains(view, "agents") {
+		t.Error("expected 'agents' in leader pending hints")
+	}
+	if !strings.Contains(view, "models") {
+		t.Error("expected 'models' in leader pending hints")
+	}
+	if !strings.Contains(view, "sessions") {
+		t.Error("expected 'sessions' in leader pending hints")
+	}
+
+	// Clear pending should restore normal hints
+	sb.SetLeaderPending(false)
+	view = sb.View()
+	if !strings.Contains(view, "commands") {
+		t.Error("expected 'commands' in hints after clearing leader pending")
 	}
 }
 

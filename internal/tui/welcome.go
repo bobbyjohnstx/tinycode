@@ -216,16 +216,23 @@ func (w WelcomeView) View(width, height int, providerName, modelName string, ses
 
 	lines = append(lines, "")
 
-	// Tips line — only show after boot
+	// Tips lines — only show after boot
 	if w.bootDone {
-		tips := []string{
+		tips1 := []string{
 			"/ commands",
 			"@ files",
 			"tab agents",
 			"ctrl+p palette",
 		}
-		tipLine := accentStyle.Render("→") + "  " + labelStyle.Render(strings.Join(tips, "  ·  "))
-		lines = append(lines, "   "+tipLine)
+		tips2 := []string{
+			"ctrl+x sidebar/sessions",
+			"shift+enter newline",
+			"/help reference",
+		}
+		tipLine1 := accentStyle.Render("→") + "  " + labelStyle.Render(strings.Join(tips1, "  ·  "))
+		tipLine2 := "   " + labelStyle.Render(strings.Join(tips2, "  ·  "))
+		lines = append(lines, "   "+tipLine1)
+		lines = append(lines, tipLine2)
 	}
 
 	blockWidth := maxLen

@@ -13,14 +13,15 @@ import (
 
 // StatusBar renders a two-line bottom area: hints line + status bar.
 type StatusBar struct {
-	cwd        string
-	model      string
-	agent      string
-	provider   string
-	working    bool
-	spinner    spinner.Model
-	agentColor lipgloss.AdaptiveColor
-	width      int
+	cwd            string
+	model          string
+	agent          string
+	provider       string
+	working        bool
+	leaderPending  bool
+	spinner        spinner.Model
+	agentColor     lipgloss.AdaptiveColor
+	width          int
 }
 
 // NewStatusBar creates a StatusBar with the given width.
@@ -105,6 +106,12 @@ func (s *StatusBar) SetAgent(agent string) {
 	}
 }
 
+// SetLeaderPending updates the leader-key pending state, which switches
+// the hints line to show available follow-up keys.
+func (s *StatusBar) SetLeaderPending(pending bool) {
+	s.leaderPending = pending
+}
+
 // SetWorking updates the working state and returns a command to restart
 // the spinner tick chain when transitioning to working.
 func (s *StatusBar) SetWorking(working bool) tea.Cmd {
@@ -143,7 +150,21 @@ func (s StatusBar) View() string {
 	if s.working {
 		hintsLeft = s.spinner.View() + " " + dim.Render("esc interrupt")
 	}
-	hintsRight := dim.Render("tab") + " agents  " + dim.Render("ctrl+p") + " commands"
+
+	var hintsRight string
+	if s.leaderPending {
+		hintsRight = dim.Render("ctrl+x →") + "  " +
+			accent.Render("b") + " sidebar  " +
+			accent.Render("a") + " agents  " +
+			accent.Render("m") + " models  " +
+			accent.Render("o") + " sessions  " +
+			accent.Render("n") + " new  " +
+			accent.Render("x") + " export"
+	} else {
+		hintsRight = dim.Render("tab") + " agents  " +
+			dim.Render("ctrl+p") + " commands  " +
+			dim.Render("/help") + " reference"
+	}
 
 	hintsGap := s.width - lipgloss.Width(hintsLeft) - lipgloss.Width(hintsRight)
 	if hintsGap < 1 {

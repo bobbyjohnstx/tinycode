@@ -335,18 +335,31 @@ func (a *App) hasMessages() bool {
 
 // showPalette opens the command palette with available commands.
 func (a *App) showPalette() {
+	clientNames := map[string]bool{
+		"connect":      true,
+		"export":       true,
+		"theme":        true,
+		"help":         true,
+		"auto-approve": true,
+	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
 		{Label: "export", Description: "Export session as Markdown", Value: "export"},
 		{Label: "theme", Description: "Change color theme", Value: "theme"},
+		{Label: "help", Description: "Show keybindings and commands", Value: "help"},
+		{Label: "auto-approve", Description: "Toggle auto-approve for session", Value: "auto-approve"},
 	}
 	for _, cmd := range a.state.Commands {
+		if clientNames[cmd.Name] {
+			continue
+		}
 		items = append(items, PaletteItem{
 			Label:       cmd.Name,
 			Description: cmd.Description,
 			Value:       cmd.Name,
 		})
 	}
+	items = append(items, keybindingPaletteItems(a.keys)...)
 	a.palette.Show(items)
 	a.focus = FocusPalette
 }
@@ -378,6 +391,9 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 			label = "enabled"
 		}
 		return a.toast.Show("Auto-approve "+label+" for this session", false), true
+	case "help":
+		a.showPalette()
+		return nil, true
 	}
 	return nil, false
 }
