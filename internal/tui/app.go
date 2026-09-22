@@ -439,6 +439,10 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		a.state.PendingModelDialog = true
 		a.state.PendingScopingMode = true
 		return func() tea.Msg { return ProvidersRefreshMsg{} }, true
+	case "undo":
+		return func() tea.Msg { return RevertRequestMsg{} }, true
+	case "redo":
+		return func() tea.Msg { return UnrevertRequestMsg{} }, true
 	}
 	return nil, false
 }

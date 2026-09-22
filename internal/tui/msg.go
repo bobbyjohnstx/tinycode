@@ -243,6 +243,22 @@ type ModelScopedDoneMsg struct {
 	Err error
 }
 
+// RevertRequestMsg requests reverting the active session's file changes.
+type RevertRequestMsg struct{}
+
+// RevertSentMsg reports that the revert API call completed.
+type RevertSentMsg struct {
+	Err error
+}
+
+// UnrevertRequestMsg requests restoring previously reverted file changes.
+type UnrevertRequestMsg struct{}
+
+// UnrevertSentMsg reports that the unrevert API call completed.
+type UnrevertSentMsg struct {
+	Err error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

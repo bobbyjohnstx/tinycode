@@ -197,6 +197,16 @@ func (c *Client) GetProviderBalance(providerID string) (*BalanceResponse, error)
 	return &resp, nil
 }
 
+// RevertSession triggers a revert (undo) for the session via POST /session/{id}/revert.
+func (c *Client) RevertSession(id string) error {
+	return c.doNoBody(http.MethodPost, "/session/"+id+"/revert")
+}
+
+// UnrevertSession restores previously reverted changes via POST /session/{id}/unrevert.
+func (c *Client) UnrevertSession(id string) error {
+	return c.doNoBody(http.MethodPost, "/session/"+id+"/unrevert")
+}
+
 // ReplyPermission replies to a permission prompt via POST /session/{sessionID}/permissions/{permissionID}.
 func (c *Client) ReplyPermission(sessionID, permissionID, action string) error {
 	body := PermissionReplyInput{Action: action}

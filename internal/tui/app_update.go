@@ -339,6 +339,8 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "debug", Description: "Show diagnostics for bug reports"},
 			{Name: "thinking", Description: "Set reasoning level (off/low/medium/high/max)"},
 			{Name: "scoped-models", Description: "Toggle model scoping (favorites)"},
+			{Name: "undo", Description: "Revert last AI file changes"},
+			{Name: "redo", Description: "Restore previously reverted changes"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {
