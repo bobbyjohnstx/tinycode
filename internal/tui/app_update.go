@@ -59,6 +59,11 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		a.themeDlg, cmd = a.themeDlg.Update(msg)
 		return a, cmd
 	}
+	if a.debugDlg.IsVisible() {
+		var cmd tea.Cmd
+		a.debugDlg, cmd = a.debugDlg.Update(msg)
+		return a, cmd
+	}
 
 	// Global keys handled before component dispatch.
 	if cmd := a.handleGlobalKey(msg); cmd != nil {
@@ -328,6 +333,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "help", Description: "Show keybindings and commands"},
 			{Name: "rename", Description: "Rename current session"},
 			{Name: "auto-approve", Description: "Toggle auto-approve for session"},
+			{Name: "debug", Description: "Show diagnostics for bug reports"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {

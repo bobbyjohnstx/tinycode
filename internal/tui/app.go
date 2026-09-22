@@ -3,8 +3,13 @@ package tui
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"runtime"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 )
 
 // App is the root bubbletea model composing all TUI components.
@@ -18,6 +23,7 @@ type App struct {
 	agentDlg   AgentDialog
 	modelDlg   ModelDialog
 	themeDlg   ThemeDialog
+	debugDlg   DebugDialog
 	permPrompt PermissionPrompt
 	toast      Toast
 	sidebar    Sidebar
@@ -50,6 +56,7 @@ func NewApp(serverURL string) App {
 		agentDlg:   NewAgentDialog(),
 		modelDlg:   NewModelDialog(),
 		themeDlg:   NewThemeDialog(),
+		debugDlg:   NewDebugDialog(),
 		permPrompt: NewPermissionPrompt(),
 		toast:      NewToast(DefaultTheme()),
 		sidebar:    NewSidebar(),
@@ -146,6 +153,9 @@ func (a App) View() string {
 	if a.themeDlg.IsVisible() {
 		return a.themeDlg.View()
 	}
+	if a.debugDlg.IsVisible() {
+		return a.debugDlg.View()
+	}
 	if a.dialog.IsVisible() {
 		return a.dialog.View()
 	}
@@ -211,6 +221,7 @@ func (a *App) resize() {
 	a.agentDlg.SetSize(a.width, a.height)
 	a.modelDlg.SetSize(a.width, a.height)
 	a.themeDlg.SetSize(a.width, a.height)
+	a.debugDlg.SetSize(a.width, a.height)
 	a.permPrompt.SetSize(a.width, a.height)
 	a.toast.SetSize(a.width)
 	a.sidebar.SetSize(l.sidebarWidth, l.chatHeight)
@@ -342,6 +353,7 @@ func (a *App) showPalette() {
 		"help":         true,
 		"rename":       true,
 		"auto-approve": true,
+		"debug":        true,
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
@@ -350,6 +362,7 @@ func (a *App) showPalette() {
 		{Label: "rename", Description: "Rename current session", Value: "rename"},
 		{Label: "help", Description: "Show keybindings and commands", Value: "help"},
 		{Label: "auto-approve", Description: "Toggle auto-approve for session", Value: "auto-approve"},
+		{Label: "debug", Description: "Show diagnostics for bug reports", Value: "debug"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -396,6 +409,11 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	case "help":
 		a.showPalette()
 		return nil, true
+	case "debug":
+		info := a.buildDebugInfo()
+		a.debugDlg.Show(info)
+		a.setFocus(FocusDialog)
+		return nil, true
 	}
 	return nil, false
 }
@@ -427,4 +445,58 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// buildDebugInfo collects environment and state diagnostics for bug reports.
+func (a *App) buildDebugInfo() string {
+	var sb strings.Builder
+
+	// Version
+	version := a.sidebar.version
+	if version == "" {
+		version = "dev"
+	}
+	fmt.Fprintf(&sb, "Version:    %s\n", version)
+	fmt.Fprintf(&sb, "Go:         %s\n", runtime.Version())
+	fmt.Fprintf(&sb, "OS/Arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(&sb, "Terminal:   %s\n", os.Getenv("TERM"))
+
+	// Model and provider
+	provName, modName := lookupModelDisplay(
+		a.state.Providers,
+		a.state.CurrentModel.ProviderID,
+		a.state.CurrentModel.ModelID,
+	)
+	fmt.Fprintf(&sb, "Model:      %s (%s)\n", modName, provName)
+
+	// Agent
+	agent := a.state.CurrentAgent
+	if agent == "" {
+		agent = "(default)"
+	}
+	fmt.Fprintf(&sb, "Agent:      %s\n", agent)
+
+	// Paths
+	fmt.Fprintf(&sb, "Config:     %s\n", config.GlobalConfigFile())
+	fmt.Fprintf(&sb, "Data dir:   %s\n", config.DataDir())
+
+	// Counts
+	fmt.Fprintf(&sb, "Agents:     %d\n", len(a.state.Agents))
+	fmt.Fprintf(&sb, "Plugins:    %d\n", len(a.state.Plugins))
+
+	// MCP servers
+	mcpCount := len(a.sidebar.mcpServers)
+	if mcpCount == 0 {
+		fmt.Fprintf(&sb, "MCP:        none")
+	} else {
+		connected := 0
+		for _, srv := range a.sidebar.mcpServers {
+			if srv.Status == "connected" {
+				connected++
+			}
+		}
+		fmt.Fprintf(&sb, "MCP:        %d servers (%d connected)", mcpCount, connected)
+	}
+
+	return sb.String()
 }
