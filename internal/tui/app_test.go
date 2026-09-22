@@ -87,6 +87,72 @@ func indexOf(b, sub []byte) int {
 	return -1
 }
 
+func TestLastAssistantText(t *testing.T) {
+	tests := []struct {
+		name     string
+		messages []MessageView
+		want     string
+	}{
+		{
+			name:     "no messages",
+			messages: nil,
+			want:     "",
+		},
+		{
+			name: "no assistant messages",
+			messages: []MessageView{
+				{Info: MessageInfo{Role: "user"}, Parts: []PartView{{Type: "text", Text: "hello"}}},
+			},
+			want: "",
+		},
+		{
+			name: "single assistant message",
+			messages: []MessageView{
+				{Info: MessageInfo{Role: "user"}, Parts: []PartView{{Type: "text", Text: "hello"}}},
+				{Info: MessageInfo{Role: "assistant"}, Parts: []PartView{{Type: "text", Text: "world"}}},
+			},
+			want: "world",
+		},
+		{
+			name: "multiple assistant messages returns last",
+			messages: []MessageView{
+				{Info: MessageInfo{Role: "assistant"}, Parts: []PartView{{Type: "text", Text: "first"}}},
+				{Info: MessageInfo{Role: "user"}, Parts: []PartView{{Type: "text", Text: "question"}}},
+				{Info: MessageInfo{Role: "assistant"}, Parts: []PartView{{Type: "text", Text: "second"}}},
+			},
+			want: "second",
+		},
+		{
+			name: "skips tool parts",
+			messages: []MessageView{
+				{Info: MessageInfo{Role: "assistant"}, Parts: []PartView{
+					{Type: "text", Text: "response text"},
+					{Type: "tool-call", ToolName: "bash", ToolArgs: "ls"},
+					{Type: "text", Text: "more text"},
+				}},
+			},
+			want: "response text\nmore text",
+		},
+		{
+			name: "skips assistant with only tool parts",
+			messages: []MessageView{
+				{Info: MessageInfo{Role: "assistant"}, Parts: []PartView{{Type: "text", Text: "has text"}}},
+				{Info: MessageInfo{Role: "assistant"}, Parts: []PartView{{Type: "tool-call", ToolName: "bash"}}},
+			},
+			want: "has text",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := lastAssistantText(tt.messages)
+			if got != tt.want {
+				t.Errorf("lastAssistantText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPromptInput(t *testing.T) {
 	app := NewApp("http://localhost:4096")
 	tm := teatest.NewTestModel(t, app, teatest.WithInitialTermSize(100, 30))

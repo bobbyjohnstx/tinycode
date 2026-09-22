@@ -31,6 +31,7 @@ type KeyMap struct {
 	ModelList     key.Binding // ctrl+x m
 	AgentList     key.Binding // ctrl+x a
 	ExportSession key.Binding // ctrl+x x
+	CopyResponse  key.Binding // ctrl+x y
 	Undo          key.Binding // ctrl+x u
 	Redo          key.Binding // ctrl+x r
 }
@@ -120,6 +121,10 @@ func DefaultKeyMap() KeyMap {
 		ExportSession: key.NewBinding(
 			key.WithKeys("x"),
 			key.WithHelp("ctrl+x x", "export session"),
+		),
+		CopyResponse: key.NewBinding(
+			key.WithKeys("y"),
+			key.WithHelp("ctrl+x y", "copy last response"),
 		),
 		Undo: key.NewBinding(
 			key.WithKeys("u"),

@@ -29,6 +29,7 @@ func keybindingPaletteItems(keys KeyMap) []PaletteItem {
 		entry(keys.SessionList),
 		entry(keys.NewSession),
 		entry(keys.ExportSession),
+		entry(keys.CopyResponse),
 		entry(keys.Undo),
 		entry(keys.Redo),
 

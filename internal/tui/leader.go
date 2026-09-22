@@ -25,6 +25,7 @@ const (
 	LeaderActionModelList     = "model-list"
 	LeaderActionAgentList     = "agent-list"
 	LeaderActionExportSession = "export-session"
+	LeaderActionCopyResponse  = "copy-response"
 )
 
 // LeaderState implements the ctrl+x leader key state machine.
@@ -110,6 +111,8 @@ func (l *LeaderState) matchBinding(msg tea.KeyMsg) string {
 		return LeaderActionAgentList
 	case key.Matches(msg, l.keys.ExportSession):
 		return LeaderActionExportSession
+	case key.Matches(msg, l.keys.CopyResponse):
+		return LeaderActionCopyResponse
 	default:
 		return ""
 	}

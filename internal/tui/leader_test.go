@@ -47,6 +47,7 @@ func TestLeaderValidKeyReturnsAction(t *testing.T) {
 		{"o", LeaderActionSessionList},
 		{"m", LeaderActionModelList},
 		{"a", LeaderActionAgentList},
+		{"y", LeaderActionCopyResponse},
 	}
 
 	for _, tt := range tests {

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -337,6 +338,7 @@ func (a *App) hasMessages() bool {
 func (a *App) showPalette() {
 	clientNames := map[string]bool{
 		"connect":      true,
+		"copy":         true,
 		"export":       true,
 		"theme":        true,
 		"help":         true,
@@ -345,6 +347,7 @@ func (a *App) showPalette() {
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
+		{Label: "copy", Description: "Copy last response to clipboard", Value: "copy"},
 		{Label: "export", Description: "Export session as Markdown", Value: "export"},
 		{Label: "theme", Description: "Change color theme", Value: "theme"},
 		{Label: "rename", Description: "Rename current session", Value: "rename"},
@@ -386,6 +389,12 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		}
 		msgs := a.chat.Messages()
 		return exportSession(msgs, *session, a.status.Cwd()), true
+	case "copy":
+		text := lastAssistantText(a.chat.Messages())
+		if text == "" {
+			return a.toast.Show("No assistant response to copy", true), true
+		}
+		return copyToClipboard(text), true
 	case "auto-approve":
 		a.state.AutoApprove = !a.state.AutoApprove
 		label := "disabled"
@@ -425,6 +434,33 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 		if cmd, handled := a.handleClientCommand("export"); handled {
 			return cmd
 		}
+	case LeaderActionCopyResponse:
+		if cmd, handled := a.handleClientCommand("copy"); handled {
+			return cmd
+		}
 	}
 	return nil
+}
+
+// lastAssistantText returns the concatenated text parts from the last assistant
+// message, or "" if none exists.
+func lastAssistantText(messages []MessageView) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Info.Role != "assistant" {
+			continue
+		}
+		var sb strings.Builder
+		for _, p := range messages[i].Parts {
+			if p.Type == "text" && p.Text != "" {
+				if sb.Len() > 0 {
+					sb.WriteString("\n")
+				}
+				sb.WriteString(p.Text)
+			}
+		}
+		if sb.Len() > 0 {
+			return sb.String()
+		}
+	}
+	return ""
 }
