@@ -37,6 +37,12 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 			Info:      parseSessionInfo(props),
 		}
 
+	case "session.updated":
+		return SessionUpdatedMsg{
+			SessionID: sessionID,
+			Info:      parseSessionInfo(props),
+		}
+
 	case "session.deleted":
 		return SessionDeletedMsg{
 			SessionID: sessionID,

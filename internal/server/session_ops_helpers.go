@@ -130,3 +130,33 @@ func (sm *SessionManager) buildCompactionConfig() session.CompactionConfig {
 	}
 	return compactionCfg
 }
+
+// autoTitle generates a session title from the user's first prompt.
+func autoTitle(text string) string {
+	title := strings.Join(strings.Fields(text), " ")
+	// Strip leading slash commands
+	if strings.HasPrefix(title, "/") {
+		if idx := strings.Index(title, " "); idx > 0 {
+			rest := strings.TrimSpace(title[idx:])
+			if rest != "" {
+				title = rest
+			}
+		}
+	}
+	if len(title) > 60 {
+		cut := strings.LastIndex(title[:60], " ")
+		if cut < 30 {
+			cut = 60
+		}
+		title = title[:cut] + "..."
+	}
+	return title
+}
+
+// isDefaultTitle returns true if the title is an auto-generated default.
+func isDefaultTitle(title string) bool {
+	return title == "" ||
+		title == "New Session" ||
+		strings.HasPrefix(title, "New session - ") ||
+		strings.HasPrefix(title, "Child session - ")
+}

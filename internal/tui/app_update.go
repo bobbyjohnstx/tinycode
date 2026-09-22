@@ -107,6 +107,15 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 			a.welcome.MarkFailed("sessions")
 		}
 		return a, nil, true
+	case SessionUpdatedMsg:
+		for i, s := range a.state.Sessions {
+			if s.ID == msg.SessionID {
+				a.state.Sessions[i].Title = msg.Info.Title
+				break
+			}
+		}
+		a.sidebar.SetSessions(a.state.Sessions)
+		return a, nil, true
 	case SessionCreatedMsg:
 		a.state.Sessions = append([]SessionInfo{msg.Info}, a.state.Sessions...)
 		a.sidebar.SetSessions(a.state.Sessions)

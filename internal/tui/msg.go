@@ -9,6 +9,11 @@ type SessionCreatedMsg struct {
 	Info      SessionInfo
 }
 
+type SessionUpdatedMsg struct {
+	SessionID string
+	Info      SessionInfo
+}
+
 type SessionDeletedMsg struct {
 	SessionID string
 }

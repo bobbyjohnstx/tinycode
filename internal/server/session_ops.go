@@ -188,10 +188,16 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 
 	// Use the session's stored directory so prompts run in the correct project.
 	sessionDir := sm.dir
+	var isChild bool
+	var currentTitle string
 	{
 		store := session.NewStore(sm.db)
-		if info, err := store.Get(sessionID); err == nil && info.Directory != "" {
-			sessionDir = info.Directory
+		if info, err := store.Get(sessionID); err == nil {
+			if info.Directory != "" {
+				sessionDir = info.Directory
+			}
+			isChild = info.ParentID != ""
+			currentTitle = info.Title
 		}
 	}
 
@@ -244,6 +250,21 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	sm.mu.Unlock()
 
 	result := proc.Process(ctx, llmText)
+
+	if len(existingMsgs) == 0 && !isChild {
+		title := autoTitle(userText)
+		if title != "" && isDefaultTitle(currentTitle) {
+			store := session.NewStore(sm.db)
+			if err := store.UpdateTitle(sessionID, title); err == nil {
+				if updatedInfo, err := store.Get(sessionID); err == nil {
+					sm.bus.Publish("session.updated", map[string]any{
+						"sessionID": sessionID,
+						"info":      updatedInfo,
+					})
+				}
+			}
+		}
+	}
 
 	sm.persistPromptResult(result, existingMsgs, ms, sessionID)
 
