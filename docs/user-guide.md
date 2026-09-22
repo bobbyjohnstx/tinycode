@@ -89,7 +89,7 @@ Type a prompt at the bottom and press Enter:
 explain what this project does
 ```
 
-The model reads your project files using its built-in tools (read, grep, glob, bash) and responds in the chat area. You can scroll up with PgUp to review long responses.
+The model reads your project files using its built-in tools (read, grep, glob, bash, edit, write, apply_patch) and responds in the chat area. The `apply_patch` tool applies atomic multi-file edits via unified diff format. You can scroll up with PgUp to review long responses.
 
 ---
 
@@ -161,6 +161,8 @@ These execute immediately without sending anything to the model.
 | `/undo` | Revert the last AI file changes (snapshot-based) |
 | `/redo` | Restore previously reverted changes |
 | `/diff` | Show uncommitted git changes in the working directory |
+| `/paste-image` | Paste an image from the clipboard for multimodal input (alias: `/image`) |
+| `/mcp` | Open the MCP server management dialog (reconnect, view status) |
 | `/help` | Open the command palette showing all keybindings and commands |
 | `/exit` | Quit tinycode |
 
@@ -179,6 +181,27 @@ These are processed by the model. They show up in autocomplete alongside client 
 ### Custom commands (skills)
 
 If you have skill files in `~/.config/tinycode/skills/` or `.tinycode/skills/`, they appear as additional slash commands. Skills are markdown files with a `SKILL.md` in a named directory that inject specialized instructions into the prompt.
+
+tinycode bundles 10 default skills that are always available (user/project skills override them by name):
+
+| Skill | Description |
+|-------|-------------|
+| `debug` | Systematic debugging with reproduction steps and root-cause analysis |
+| `verify` | Evidence-based completion checks before claiming work is done |
+| `trace` | Causal tracing with competing hypotheses and discriminating probes |
+| `remember` | Triage session findings across memory surfaces |
+| `deepinit` | Deep project initialization and onboarding |
+| `doctor` | Diagnose project health issues |
+| `mcp-setup` | Guided MCP server configuration |
+| `review` | Code review workflow |
+| `plan` | Multi-step implementation planning |
+| `test` | Test-driven development workflow |
+
+### Image paste (multimodal input)
+
+Use `/paste-image` (or `/image`) to paste an image from the system clipboard into the conversation. The image is encoded and sent as a multimodal content block alongside your next prompt, enabling the model to see screenshots, diagrams, or error output.
+
+Requirements: the model must support vision/multimodal input, and the clipboard must contain image data (not a file path).
 
 ### Shell escape
 
@@ -235,6 +258,10 @@ The leader key is **Ctrl+X**. Press it, then press a follow-up key within 500ms.
 | Ctrl+X m | Open model selector |
 | Ctrl+X a | Open agent list |
 | Ctrl+X x | Export session as Markdown |
+| Ctrl+X e | Open `$EDITOR` to compose a prompt |
+| Ctrl+X d | Open diff viewer (uncommitted changes) |
+| Ctrl+X t | Open theme picker |
+| Ctrl+X i | Open MCP server management dialog |
 | Ctrl+X y | Copy last response to clipboard |
 | Ctrl+X u | Undo last AI file changes |
 | Ctrl+X r | Redo reverted changes |
@@ -288,7 +315,7 @@ Agents are specialized personas that share the same tools but have different sys
 
 | Agent | Mode | Description |
 |-------|------|-------------|
-| **build** | primary | Default agent. Full tool access. Handles simple tasks inline, delegates complex work to subagents. |
+| **build** | primary | Default agent. Full tool access. Handles simple tasks inline, delegates complex work to executor (implementation), architect (design), or critic (review) subagents. |
 | **plan** | primary | Plan mode. Same prompt as build but all edit tools are denied -- for thinking without changing. |
 | **architect** | all | Design decisions, API design, system-level trade-offs. Read-only analysis. |
 | **code-reviewer** | all | Severity-rated code review with SOLID checks, logic defect detection, performance analysis. |
@@ -729,9 +756,17 @@ MCP servers that require OAuth authentication:
 }
 ```
 
+### Managing MCP servers
+
+Use `/mcp` or **Ctrl+X i** to open the MCP server management dialog. This shows all configured servers with their connection status and tool counts. From the dialog you can:
+
+- View each server's status (connected, error, disconnected)
+- Trigger a reconnect for failed or disconnected servers
+- See the number of tools each server provides
+
 ### Status monitoring
 
-MCP server status appears in the sidebar (Ctrl+X b):
+MCP server status also appears in the sidebar (Ctrl+X b):
 
 - Green dot -- connected, with tool count
 - Red dot -- error (hover for details)

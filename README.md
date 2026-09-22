@@ -14,6 +14,24 @@ It connects to local LLM providers (Ollama, vLLM, LM Studio) or cloud endpoints 
 
 tinycode reads your files, runs commands, edits code, and works through multi-step tasks --- the same workflow as cloud AI coding tools, but against your own models on your own hardware.
 
+### Key features
+
+- **Multi-agent orchestration** --- build agent delegates to executor, architect, and critic subagents; `/swarm` runs parallel agents as goroutines
+- **16 built-in agents** --- architect, debugger, executor, code-reviewer, planner, and more (Tab to cycle, `/ask` for one-shot)
+- **10 bundled skills** --- debug, verify, trace, review, plan, test, doctor, mcp-setup, remember, deepinit
+- **MCP integration** --- connect external tool servers via stdio, SSE, or streamable HTTP; manage with `/mcp` dialog
+- **Multimodal input** --- paste images from clipboard (`/paste-image`) for vision-capable models
+- **Extended thinking** --- `/thinking` controls reasoning budget (off/low/medium/high/max)
+- **Model scoping** --- `/scoped-models` favorites list to filter the model selector
+- **Snapshot undo/redo** --- `/undo` and `/redo` revert or restore AI file changes
+- **Diff viewer** --- `/diff` shows uncommitted changes inline
+- **apply_patch tool** --- atomic multi-file edits via unified diff
+- **@ file references** --- autocomplete with directory drill-down
+- **Session auto-titling** --- titles generated from the first prompt
+- **Leader key system** --- Ctrl+X prefix for sidebar, sessions, editor, diff, themes, MCP, and more
+- **External editor** --- `/editor` opens `$EDITOR`; `/editor @file` edits a file directly
+- **Interactive shell** --- `/shell` drops into a shell session
+
 ### Interfaces
 
 The primary interface is the **terminal UI (TUI)** --- a full-featured interactive session with conversation history, model switching, agent/skill invocation, and inline tool approval. The TUI starts instantly and keeps you in the same environment as your code.

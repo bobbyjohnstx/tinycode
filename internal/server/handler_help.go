@@ -49,6 +49,20 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 		{Key: "Escape", Description: "Cancel / close dialog", Category: "General"},
 		{Key: "Enter", Description: "Send message", Category: "Prompt"},
 		{Key: "shift+Enter", Description: "New line in prompt", Category: "Prompt"},
+		// TUI leader key sequences (ctrl+x prefix).
+		{Key: "ctrl+x b", Description: "Toggle sidebar", Category: "TUI leader"},
+		{Key: "ctrl+x n", Description: "New session", Category: "TUI leader"},
+		{Key: "ctrl+x o", Description: "Open session list", Category: "TUI leader"},
+		{Key: "ctrl+x m", Description: "Open model selector", Category: "TUI leader"},
+		{Key: "ctrl+x a", Description: "Open agent list", Category: "TUI leader"},
+		{Key: "ctrl+x e", Description: "Open $EDITOR to compose a prompt", Category: "TUI leader"},
+		{Key: "ctrl+x d", Description: "Open diff viewer", Category: "TUI leader"},
+		{Key: "ctrl+x t", Description: "Open theme picker", Category: "TUI leader"},
+		{Key: "ctrl+x i", Description: "Open MCP server management", Category: "TUI leader"},
+		{Key: "ctrl+x x", Description: "Export session as Markdown", Category: "TUI leader"},
+		{Key: "ctrl+x y", Description: "Copy last response to clipboard", Category: "TUI leader"},
+		{Key: "ctrl+x u", Description: "Undo last AI file changes", Category: "TUI leader"},
+		{Key: "ctrl+x r", Description: "Redo reverted changes", Category: "TUI leader"},
 	}
 
 	// Commands: discover from config + project directory.
@@ -72,14 +86,20 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 
 	// Features: static descriptions of key product capabilities.
 	features := []HelpFeature{
-		{Name: "@ File References", Description: "Type @ in the prompt to reference files by path. Autocomplete helps find files in your project."},
+		{Name: "@ File References", Description: "Type @ in the prompt to reference files by path. Autocomplete with directory drill-down helps find files in your project."},
 		{Name: "Slash Commands", Description: "Type / to see available commands like /review, /ask, /swarm, and custom skills."},
-		{Name: "Agent System", Description: "Switch between specialized agents (architect, debugger, executor) for different tasks."},
+		{Name: "Agent System", Description: "Switch between specialized agents (architect, debugger, executor) for different tasks. Build agent delegates to executor, architect, and critic."},
 		{Name: "Subagent Swarm", Description: "Use /swarm to dispatch parallel subagents that work on independent tasks simultaneously."},
-		{Name: "Session Management", Description: "Create, archive, fork, and switch between sessions. Each session maintains its own conversation history."},
+		{Name: "Session Management", Description: "Create, archive, fork, and switch between sessions. Sessions are auto-titled from the first prompt."},
 		{Name: "File Tree", Description: "Browse and navigate project files in the sidebar. Click to reference files in your prompt."},
-		{Name: "VCS Integration", Description: "View git status, diffs, and changes directly in the interface."},
-		{Name: "MCP Servers", Description: "Connect external tool servers via the Model Context Protocol for extended capabilities."},
+		{Name: "VCS Integration", Description: "View git status, diffs, and changes directly in the interface. /diff and ctrl+x d open the diff viewer."},
+		{Name: "MCP Servers", Description: "Connect external tool servers via the Model Context Protocol. Use /mcp or ctrl+x i to manage servers."},
+		{Name: "Image Paste", Description: "Use /paste-image to paste clipboard images as multimodal input for vision-capable models."},
+		{Name: "Extended Thinking", Description: "Use /thinking to control reasoning budget (off/low/medium/high/max) for deeper analysis."},
+		{Name: "Model Scoping", Description: "Use /scoped-models to mark favorite models. When active, only favorites appear in the model selector."},
+		{Name: "Undo/Redo", Description: "Use /undo and /redo (or ctrl+x u/r) to revert or restore AI file changes via snapshots."},
+		{Name: "Bundled Skills", Description: "10 built-in skills (debug, verify, trace, review, plan, test, doctor, mcp-setup, remember, deepinit) available as slash commands."},
+		{Name: "apply_patch Tool", Description: "Atomic multi-file edits via unified diff format. The model uses this to apply changes across multiple files in one operation."},
 	}
 
 	respondJSON(w, http.StatusOK, HelpResponse{

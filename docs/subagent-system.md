@@ -2,6 +2,16 @@
 
 Native goroutine-based multi-agent orchestration — tinycode-go's primary differentiator from the TypeScript original.
 
+## Build Agent Delegation
+
+The default **build** agent handles simple tasks inline but delegates complex work to specialized subagents via the `task` tool:
+
+- **executor** — implementation work (code changes, refactors, applying fixes)
+- **architect** — design decisions, API design, system-level trade-offs
+- **critic** — multi-perspective quality review with gap analysis and pre-mortem
+
+The build agent's prompt (in `internal/agent/defaults/build.txt`) contains delegation rules specifying when to use each subagent and how to write specific task prompts for them.
+
 ## Architecture
 
 ```
