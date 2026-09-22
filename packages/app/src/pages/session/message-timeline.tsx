@@ -308,6 +308,7 @@ export function MessageTimeline(props: {
   userMessages: UserMessage[]
   anchor: (id: string) => string
   setRevealMessage?: (fn: (id: string) => void) => void
+  setRenameSession?: (fn: () => void) => void
 }) {
   let touchGesture: number | undefined
 
@@ -568,6 +569,7 @@ export function MessageTimeline(props: {
   onCleanup(() => {
     writeTimelineCache(virtualizerSessionKey, virtualizerRowKeys, virtualizer)
     props.setRevealMessage?.(() => {})
+    props.setRenameSession?.(() => {})
   })
 
   const [title, setTitle] = createStore({
@@ -838,6 +840,8 @@ export function MessageTimeline(props: {
       titleRef?.select()
     })
   }
+
+  props.setRenameSession?.(openTitleEditor)
 
   const closeTitleEditor = () => {
     if (titleMutation.isPending) return

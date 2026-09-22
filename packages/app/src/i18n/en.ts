@@ -984,4 +984,18 @@ export const dict = {
   "workspace.reset.archived.one": "1 session will be archived.",
   "workspace.reset.archived.many": "{{count}} sessions will be archived.",
   "workspace.reset.note": "This will reset the workspace to match the default branch.",
+
+  "command.session.rename": "Rename session",
+  "command.session.rename.description": "Rename the current session",
+  "command.help.open": "Help",
+  "command.help.open.description": "Show keyboard shortcuts, commands, and features",
+
+  "toast.copy.success.title": "Copied to clipboard",
+
+  "dialog.help.title": "Help",
+  "dialog.help.tab.keybindings": "Keyboard Shortcuts",
+  "dialog.help.tab.commands": "Commands",
+  "dialog.help.tab.features": "Features",
+  "dialog.help.loading": "Loading...",
+  "dialog.help.error": "Failed to load help data",
 }

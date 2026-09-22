@@ -604,6 +604,7 @@ export default function Page() {
   let scroller: HTMLDivElement | undefined
   let content: HTMLDivElement | undefined
   let revealMessage = (_id: string) => {}
+  let renameSession = () => {}
   let scrollMark = 0
   let messageMark = 0
 
@@ -899,11 +900,37 @@ export default function Page() {
     inputRef?.focus()
   }
 
+  const copyLastResponse = async () => {
+    const id = params.id
+    if (!id) return
+    const messages = sync.data.message[id] ?? []
+    const lastUser = messages.findLast((m) => m.role === "user")
+    if (!lastUser) return
+    const assistantMessages = messages.filter((m) => m.role === "assistant" && m.parentID === lastUser.id)
+    const texts: string[] = []
+    for (const msg of assistantMessages) {
+      const parts = sync.data.part[msg.id] ?? []
+      for (const part of parts) {
+        if (part.type === "text" && part.text?.trim()) texts.push(part.text)
+      }
+    }
+    if (texts.length === 0) return
+    const text = texts.join("\n\n")
+    try {
+      await navigator.clipboard.writeText(text)
+      showToast({ title: language.t("toast.copy.success.title"), variant: "success" })
+    } catch {
+      showToast({ title: language.t("common.requestFailed"), variant: "error" })
+    }
+  }
+
   useSessionCommands({
     navigateMessageByOffset,
     setActiveMessage,
     focusInput,
     review: reviewTab,
+    rename: () => renameSession(),
+    copyResponse: copyLastResponse,
   })
 
   const openReviewFile = createOpenReviewFile({
@@ -1793,6 +1820,9 @@ export default function Page() {
                     anchor={anchor}
                     setRevealMessage={(fn) => {
                       revealMessage = fn
+                    }}
+                    setRenameSession={(fn) => {
+                      renameSession = fn
                     }}
                   />
                 </Show>

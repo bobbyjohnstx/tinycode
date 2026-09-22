@@ -25,6 +25,8 @@ export type SessionCommandContext = {
   setActiveMessage: (message: UserMessage | undefined) => void
   focusInput: () => void
   review?: () => boolean
+  rename?: () => void
+  copyResponse?: () => void
 }
 
 const withCategory = (category: string) => {
@@ -352,6 +354,20 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     })
   }
 
+  const openHelp = () => {
+    void import("@/components/dialog-help").then((x) => {
+      dialog.show(() => <x.DialogHelp />)
+    })
+  }
+
+  const rename = () => {
+    actions.rename?.()
+  }
+
+  const copyResponse = () => {
+    actions.copyResponse?.()
+  }
+
   const shareCmds = () => {
     if (sync.data.config.share === "disabled") return []
     return [
@@ -416,6 +432,21 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       disabled: !params.id || visibleUserMessages().length === 0,
       onSelect: fork,
     }),
+    sessionCommand({
+      id: "session.rename",
+      title: language.t("command.session.rename"),
+      description: language.t("command.session.rename.description"),
+      slash: "rename",
+      disabled: !params.id || !actions.rename,
+      onSelect: rename,
+    }),
+    sessionCommand({
+      id: "session.copyResponse",
+      title: language.t("toast.copy.success.title"),
+      disabled: !params.id || !actions.copyResponse,
+      hidden: true,
+      onSelect: copyResponse,
+    }),
   ]
 
   const fileCmds = () => [
@@ -476,6 +507,14 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.input.focus"),
       keybind: "ctrl+l",
       onSelect: focusInput,
+    }),
+    viewCommand({
+      id: "help.open",
+      title: language.t("command.help.open"),
+      description: language.t("command.help.open.description"),
+      keybind: "shift+?",
+      slash: "help",
+      onSelect: openHelp,
     }),
   ]
 
