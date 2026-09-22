@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -32,6 +33,7 @@ type CommandPalette struct {
 	items    []PaletteItem
 	filtered []PaletteItem
 	selected int
+	scroll   int
 	visible  bool
 	width    int
 	height   int
@@ -53,6 +55,7 @@ func (p *CommandPalette) Show(items []PaletteItem) {
 	p.items = items
 	p.filtered = items
 	p.selected = 0
+	p.scroll = 0
 	p.visible = true
 	p.input.Reset()
 	p.input.Focus()
@@ -99,14 +102,24 @@ func (p CommandPalette) Update(msg tea.Msg) (CommandPalette, tea.Cmd) {
 			return p, nil
 
 		case "up", "ctrl+p":
-			if p.selected > 0 {
-				p.selected--
+			if len(p.filtered) > 0 {
+				if p.selected > 0 {
+					p.selected--
+				} else {
+					p.selected = len(p.filtered) - 1
+				}
+				p.ensureVisible()
 			}
 			return p, nil
 
 		case "down", "ctrl+n":
-			if p.selected < len(p.filtered)-1 {
-				p.selected++
+			if len(p.filtered) > 0 {
+				if p.selected < len(p.filtered)-1 {
+					p.selected++
+				} else {
+					p.selected = 0
+				}
+				p.ensureVisible()
 			}
 			return p, nil
 		}
@@ -121,6 +134,7 @@ func (p CommandPalette) Update(msg tea.Msg) (CommandPalette, tea.Cmd) {
 	if p.selected >= len(p.filtered) {
 		p.selected = max(0, len(p.filtered)-1)
 	}
+	p.scroll = 0
 
 	return p, cmd
 }
@@ -143,10 +157,7 @@ func (p CommandPalette) View() string {
 	sb.WriteString(p.input.View())
 	sb.WriteString("\n")
 
-	maxVisible := p.height - 8
-	if maxVisible < 3 {
-		maxVisible = 3
-	}
+	maxVisible := p.maxVisibleItems()
 
 	// Calculate name column width for alignment.
 	nameCol := 0
@@ -166,10 +177,18 @@ func (p CommandPalette) View() string {
 	highlightBg := lipgloss.NewStyle().
 		Background(lipgloss.AdaptiveColor{Light: "#E8E8E8", Dark: "#2A2A2A"})
 
-	for i, item := range p.filtered {
-		if i >= maxVisible {
-			break
-		}
+	end := p.scroll + maxVisible
+	if end > len(p.filtered) {
+		end = len(p.filtered)
+	}
+
+	if p.scroll > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("  ↑ %d more", p.scroll)))
+	}
+
+	for i := p.scroll; i < end; i++ {
+		item := p.filtered[i]
 		sb.WriteString("\n")
 
 		desc := item.Description
@@ -194,6 +213,11 @@ func (p CommandPalette) View() string {
 		}
 	}
 
+	if end < len(p.filtered) {
+		sb.WriteString("\n")
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more", len(p.filtered)-end)))
+	}
+
 	if len(p.filtered) == 0 {
 		sb.WriteString("\n")
 		sb.WriteString(dimStyle.Render("  No matches"))
@@ -206,6 +230,25 @@ func (p CommandPalette) View() string {
 		lipgloss.Center, lipgloss.Center,
 		styleDialogBorder.Width(paletteWidth).Render(content),
 	)
+}
+
+// maxVisibleItems returns how many items fit in the palette viewport.
+func (p CommandPalette) maxVisibleItems() int {
+	mv := p.height - 8
+	if mv < 3 {
+		mv = 3
+	}
+	return mv
+}
+
+// ensureVisible adjusts the scroll offset so the selected item is visible.
+func (p *CommandPalette) ensureVisible() {
+	mv := p.maxVisibleItems()
+	if p.selected < p.scroll {
+		p.scroll = p.selected
+	} else if p.selected >= p.scroll+mv {
+		p.scroll = p.selected - mv + 1
+	}
 }
 
 // filterItems returns items whose label contains the query (case-insensitive).
