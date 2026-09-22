@@ -83,20 +83,25 @@ func executeSkill(_ context.Context, _ *Context, rawArgs json.RawMessage, config
 	}
 
 	// Read the skill file content
-	var skillPath string
+	var content string
+	var readErr error
 	switch found.Source {
+	case "builtin":
+		content, readErr = skill.ReadDefaultSkill(found.ID)
 	case "user":
-		skillPath = filepath.Join(configDir, "skills", found.ID, "SKILL.md")
+		var data []byte
+		data, readErr = os.ReadFile(filepath.Join(configDir, "skills", found.ID, "SKILL.md"))
+		content = string(data)
 	case "project":
-		skillPath = filepath.Join(projectDir, ".tinycode", "skills", found.ID, "SKILL.md")
+		var data []byte
+		data, readErr = os.ReadFile(filepath.Join(projectDir, ".tinycode", "skills", found.ID, "SKILL.md"))
+		content = string(data)
+	}
+	if readErr != nil {
+		return &ExecuteResult{Output: fmt.Sprintf("Failed to read skill file: %v", readErr), IsError: true}, nil
 	}
 
-	content, err := os.ReadFile(skillPath)
-	if err != nil {
-		return &ExecuteResult{Output: fmt.Sprintf("Failed to read skill file: %v", err), IsError: true}, nil
-	}
-
-	result := substituteSkillParams(string(content), args.Arguments)
+	result := substituteSkillParams(content, args.Arguments)
 	return &ExecuteResult{Output: result}, nil
 }
 

@@ -18,9 +18,10 @@ type Skill struct {
 }
 
 // Discover scans all skill locations and returns the merged list.
-// It checks:
+// Priority (first seen wins):
 //  1. User skills from configDir/skills/*/SKILL.md
 //  2. Project skills from projectDir/.tinycode/skills/*/SKILL.md
+//  3. Bundled default skills (lowest priority, overridden by user/project)
 func Discover(configDir, projectDir string) []Skill {
 	seen := make(map[string]struct{})
 	var skills []Skill
@@ -31,6 +32,15 @@ func Discover(configDir, projectDir string) []Skill {
 	if projectDir != "" {
 		projectSkillDir := filepath.Join(projectDir, ".tinycode", "skills")
 		skills = appendSkillsFromDir(skills, seen, projectSkillDir, "project")
+	}
+
+	// Append bundled defaults last — user/project skills override by name.
+	for _, ds := range DefaultSkills() {
+		if _, exists := seen[ds.Name]; exists {
+			continue
+		}
+		seen[ds.Name] = struct{}{}
+		skills = append(skills, ds)
 	}
 
 	return skills
