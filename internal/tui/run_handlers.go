@@ -32,6 +32,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		}
 	}
 
+	if strings.HasPrefix(trimmed, "/paste-image") || trimmed == "/image" {
+		return c, readClipboardImage()
+	}
+
 	if strings.HasPrefix(trimmed, "/editor") {
 		arg := strings.TrimSpace(strings.TrimPrefix(trimmed, "/editor"))
 		if arg != "" {

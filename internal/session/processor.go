@@ -42,17 +42,18 @@ type ProcessorConfig struct {
 }
 
 type Processor struct {
-	config           ProcessorConfig
-	client           llm.Client
-	tools            ToolExecutor
-	bus              *bus.Bus
-	messages         []Message
-	priorSummary     string
-	compactionCount  int
-	aborted          bool
-	recentToolCalls  []toolCallSignature
+	config            ProcessorConfig
+	client            llm.Client
+	tools             ToolExecutor
+	bus               *bus.Bus
+	messages          []Message
+	priorSummary      string
+	compactionCount   int
+	aborted           bool
+	recentToolCalls   []toolCallSignature
 	autoContinueCount int
-	mu               sync.Mutex
+	userExtraParts    []Part
+	mu                sync.Mutex
 }
 
 func NewProcessor(config ProcessorConfig, client llm.Client, tools ToolExecutor, eventBus *bus.Bus) *Processor {
@@ -68,6 +69,14 @@ func (p *Processor) SetMessages(messages []Message) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.messages = messages
+}
+
+// SetUserExtraParts sets additional parts (e.g. images) to include in the
+// next user message alongside the text.
+func (p *Processor) SetUserExtraParts(parts []Part) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.userExtraParts = parts
 }
 
 func (p *Processor) Messages() []Message {

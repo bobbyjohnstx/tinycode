@@ -119,9 +119,13 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 			}
 			continue
 		}
+		content := msg.Content
+		if len(msg.ContentParts) > 0 {
+			content = resolveContentPartsAnthropic(msg.ContentParts)
+		}
 		ar.Messages = append(ar.Messages, anthropicMessage{
 			Role:    msg.Role,
-			Content: msg.Content,
+			Content: content,
 		})
 	}
 
@@ -376,4 +380,29 @@ type anthropicMessageStart struct {
 			InputTokens int `json:"input_tokens"`
 		} `json:"usage,omitempty"`
 	} `json:"message"`
+}
+
+// resolveContentPartsAnthropic converts ContentParts to the Anthropic
+// multipart content format.
+func resolveContentPartsAnthropic(parts []ContentPart) []map[string]any {
+	result := make([]map[string]any, 0, len(parts))
+	for _, cp := range parts {
+		switch cp.Type {
+		case "text":
+			result = append(result, map[string]any{
+				"type": "text",
+				"text": cp.Text,
+			})
+		case "image":
+			result = append(result, map[string]any{
+				"type": "image",
+				"source": map[string]string{
+					"type":       "base64",
+					"media_type": cp.MediaType,
+					"data":       cp.ImageData,
+				},
+			})
+		}
+	}
+	return result
 }
