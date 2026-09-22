@@ -118,6 +118,12 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 	case "provider.discovered", "provider.removed", "provider.reconnected":
 		return ProvidersRefreshMsg{}
 
+	case "session.reverted":
+		return ToastMsg{Text: "Changes reverted", IsError: false}
+
+	case "session.unreverted":
+		return ToastMsg{Text: "Changes restored", IsError: false}
+
 	case "session.compacted":
 		compNum, _ := props["compactionNum"].(float64)
 		return ToastMsg{
@@ -457,6 +463,22 @@ func abortSession(client *api.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.AbortSession(sessionID)
 		return AbortSentMsg{Err: err}
+	}
+}
+
+// revertSession sends a revert request to the server.
+func revertSession(client *api.Client, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.RevertSession(sessionID)
+		return RevertSentMsg{Err: err}
+	}
+}
+
+// unrevertSession sends an unrevert request to the server.
+func unrevertSession(client *api.Client, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.UnrevertSession(sessionID)
+		return UnrevertSentMsg{Err: err}
 	}
 }
 

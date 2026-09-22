@@ -229,6 +229,34 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, nil
 
+	case RevertRequestMsg:
+		sessionID := c.app.state.ActiveSession
+		if sessionID == "" {
+			return c, tea.Batch(c.showErrorToast("No active session to revert")...)
+		}
+		return c, revertSession(c.client, sessionID)
+
+	case RevertSentMsg:
+		if msg.Err != nil {
+			slog.Error("revert failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Revert failed: %v", msg.Err)...)
+		}
+		return c, tea.Batch(cmds...)
+
+	case UnrevertRequestMsg:
+		sessionID := c.app.state.ActiveSession
+		if sessionID == "" {
+			return c, tea.Batch(c.showErrorToast("No active session to restore")...)
+		}
+		return c, unrevertSession(c.client, sessionID)
+
+	case UnrevertSentMsg:
+		if msg.Err != nil {
+			slog.Error("unrevert failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Restore failed: %v", msg.Err)...)
+		}
+		return c, tea.Batch(cmds...)
+
 	case ProvidersLoadedMsg:
 		model, cmd := c.app.Update(msg)
 		c.updateApp(model)
