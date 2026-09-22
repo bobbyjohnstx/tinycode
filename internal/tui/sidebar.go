@@ -229,7 +229,16 @@ func (s Sidebar) View() string {
 	// Session tree
 	sb.WriteString(styleSidebarHeader.Render("Sessions"))
 	sb.WriteString("\n\n")
-	sb.WriteString(renderTree(s.sessions, s.active))
+	displaySessions := s.sessions
+	const maxSidebarSessions = 5
+	if len(displaySessions) > maxSidebarSessions {
+		displaySessions = displaySessions[:maxSidebarSessions]
+	}
+	sb.WriteString(renderTree(displaySessions, s.active))
+	if len(s.sessions) > maxSidebarSessions {
+		sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf("  +%d more", len(s.sessions)-maxSidebarSessions)))
+		sb.WriteString("\n")
+	}
 
 	// Metadata
 	if s.agent != "" || s.model != "" {
