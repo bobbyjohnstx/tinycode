@@ -184,6 +184,17 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, tea.Batch(cmds...)
 
+	case ModelSelectedMsg:
+		model, cmd := c.app.Update(msg)
+		c.updateApp(model)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if c.app.state.CurrentModel.ProviderID != "" {
+			cmds = append(cmds, fetchProviderBalance(c.client, c.app.state.CurrentModel.ProviderID))
+		}
+		return c, tea.Batch(cmds...)
+
 	case ProviderBalanceMsg:
 		if msg.Err == nil && msg.Balance != nil {
 			c.app.sidebar.SetBalance(msg.Balance)
