@@ -318,6 +318,43 @@ func (c *connectedApp) handleShellSessionRequest() (tea.Model, tea.Cmd) {
 	})
 }
 
+// handleDiffRequest runs git diff HEAD and either shows a toast (no changes)
+// or opens the output in a pager.
+func (c *connectedApp) handleDiffRequest(msg DiffRequestMsg) (tea.Model, tea.Cmd) {
+	dir := msg.Dir
+	if dir == "" {
+		dir, _ = os.Getwd()
+	}
+
+	// Check for changes first.
+	checkCmd := exec.Command("git", "diff", "--quiet", "HEAD")
+	checkCmd.Dir = dir
+	if err := checkCmd.Run(); err == nil {
+		// Exit code 0 means no changes.
+		model, cmd := c.app.Update(ToastMsg{Text: "No uncommitted changes", IsError: false})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	// Changes exist — open pager.
+	pagerCmd := exec.Command("git", "diff", "HEAD")
+	pagerCmd.Dir = dir
+	// GIT_PAGER ensures git uses less even if the user overrode it.
+	pagerCmd.Env = append(os.Environ(), "GIT_PAGER=less -R")
+	return c, tea.ExecProcess(pagerCmd, func(err error) tea.Msg {
+		return DiffDoneMsg{Err: err}
+	})
+}
+
+// handleDiffDone shows a toast when the diff pager exits.
+func (c *connectedApp) handleDiffDone(msg DiffDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		slog.Error("diff pager exited with error", "error", msg.Err)
+		return c, tea.Batch(c.showErrorToast("Diff error: %v", msg.Err)...)
+	}
+	return c, nil
+}
+
 // handleShellSessionDone shows a toast when the shell exits.
 func (c *connectedApp) handleShellSessionDone(msg ShellSessionDoneMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {

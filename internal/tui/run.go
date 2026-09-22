@@ -222,6 +222,12 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ShellSessionDoneMsg:
 		return c.handleShellSessionDone(msg)
 
+	case DiffRequestMsg:
+		return c.handleDiffRequest(msg)
+
+	case DiffDoneMsg:
+		return c.handleDiffDone(msg)
+
 	case AbortRequestMsg:
 		sessionID := c.app.state.ActiveSession
 		if sessionID != "" {
