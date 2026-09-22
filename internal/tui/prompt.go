@@ -24,9 +24,10 @@ type PromptInput struct {
 	agent        string
 	model        string
 	provider     string
-	agentColor   lipgloss.AdaptiveColor
-	cycleAgents  []string
-	width        int
+	agentColor    lipgloss.AdaptiveColor
+	thinkingLevel string
+	cycleAgents   []string
+	width         int
 	cwd          string
 	keys         KeyMap
 	guardEnabled bool
@@ -117,6 +118,11 @@ func (p *PromptInput) SetMetadata(agent, model, provider string) {
 	p.model = model
 	p.provider = provider
 	p.agentColor = AgentColor(agent)
+}
+
+// SetThinkingLevel updates the thinking level display.
+func (p *PromptInput) SetThinkingLevel(level string) {
+	p.thinkingLevel = level
 }
 
 // Value returns the current text content.
@@ -359,7 +365,11 @@ func (p PromptInput) renderMetadata() string {
 		modelInfo = "No provider selected"
 	}
 
-	return fmt.Sprintf("  %s %s %s", agent, dimStyle.Render("·"), dimStyle.Render(modelInfo))
+	result := fmt.Sprintf("  %s %s %s", agent, dimStyle.Render("·"), dimStyle.Render(modelInfo))
+	if p.thinkingLevel != "" && p.thinkingLevel != "off" {
+		result += "  " + dimStyle.Render("thinking:"+p.thinkingLevel)
+	}
+	return result
 }
 
 // handleAutocompleteKey handles key events when the autocomplete popover is

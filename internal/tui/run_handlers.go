@@ -31,6 +31,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		}
 	}
 
+	if strings.HasPrefix(trimmed, "/thinking") {
+		return c.handleThinkingCommand(trimmed)
+	}
+
 	if strings.HasPrefix(trimmed, "/rename ") {
 		newTitle := strings.TrimSpace(strings.TrimPrefix(trimmed, "/rename"))
 		if newTitle == "" || newTitle == "New Session" {
@@ -184,6 +188,57 @@ func (c *connectedApp) handleShellResult(msg ShellResultMsg) (tea.Model, tea.Cmd
 		cmds = append(cmds, spinCmd)
 	}
 	return c, tea.Batch(cmds...)
+}
+
+// thinkingLevelBudget maps a thinking level name to a token budget.
+// Returns (budget, displayLabel, ok).
+func thinkingLevelBudget(level string) (int, string, bool) {
+	switch level {
+	case "off":
+		return 0, "off", true
+	case "low":
+		return 1024, "1k tokens", true
+	case "medium":
+		return 4096, "4k tokens", true
+	case "high":
+		return 16384, "16k tokens", true
+	case "max":
+		return 128000, "128k tokens", true
+	default:
+		return 0, "", false
+	}
+}
+
+// handleThinkingCommand handles the /thinking slash command.
+func (c *connectedApp) handleThinkingCommand(trimmed string) (tea.Model, tea.Cmd) {
+	level := strings.TrimSpace(strings.TrimPrefix(trimmed, "/thinking"))
+
+	if level == "" {
+		current := c.app.state.ThinkingLevel
+		if current == "" {
+			current = "off"
+		}
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Thinking level: %s", current)})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	if _, _, ok := thinkingLevelBudget(level); !ok {
+		model, cmd := c.app.Update(ToastMsg{
+			Text:    fmt.Sprintf("Invalid thinking level: %s (use off, low, medium, high, max)", level),
+			IsError: true,
+		})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	c.app.state.ThinkingLevel = level
+	c.app.prompt.SetThinkingLevel(level)
+
+	_, label, _ := thinkingLevelBudget(level)
+	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Thinking level: %s (%s)", level, label)})
+	c.updateApp(model)
+	return c, cmd
 }
 
 // showErrorToast sends a ToastMsg to the app and returns any resulting cmds.

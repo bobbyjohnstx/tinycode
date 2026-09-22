@@ -491,3 +491,70 @@ func TestAgentSelectedMsg_UpdatesAgentAndRestoresFocus(t *testing.T) {
 		t.Errorf("expected CurrentAgent 'plan', got %q", updated.state.CurrentAgent)
 	}
 }
+
+func TestThinkingLevelBudget(t *testing.T) {
+	tests := []struct {
+		level     string
+		wantBudg  int
+		wantLabel string
+		wantOK    bool
+	}{
+		{"off", 0, "off", true},
+		{"low", 1024, "1k tokens", true},
+		{"medium", 4096, "4k tokens", true},
+		{"high", 16384, "16k tokens", true},
+		{"max", 128000, "128k tokens", true},
+		{"invalid", 0, "", false},
+		{"", 0, "", false},
+	}
+	for _, tt := range tests {
+		budget, label, ok := thinkingLevelBudget(tt.level)
+		if ok != tt.wantOK {
+			t.Errorf("thinkingLevelBudget(%q) ok = %v, want %v", tt.level, ok, tt.wantOK)
+		}
+		if budget != tt.wantBudg {
+			t.Errorf("thinkingLevelBudget(%q) budget = %d, want %d", tt.level, budget, tt.wantBudg)
+		}
+		if label != tt.wantLabel {
+			t.Errorf("thinkingLevelBudget(%q) label = %q, want %q", tt.level, label, tt.wantLabel)
+		}
+	}
+}
+
+func TestBuildPromptInput_WithThinkingBudget(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ThinkingLevel = "high"
+	ca := &connectedApp{app: app}
+
+	input := ca.buildPromptInput("Hello")
+
+	if input.ThinkingBudget == nil {
+		t.Fatal("expected ThinkingBudget to be set")
+	}
+	if *input.ThinkingBudget != 16384 {
+		t.Errorf("expected ThinkingBudget 16384, got %d", *input.ThinkingBudget)
+	}
+}
+
+func TestBuildPromptInput_ThinkingOff(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ThinkingLevel = "off"
+	ca := &connectedApp{app: app}
+
+	input := ca.buildPromptInput("Hello")
+
+	if input.ThinkingBudget != nil {
+		t.Errorf("expected ThinkingBudget to be nil when level is off, got %d", *input.ThinkingBudget)
+	}
+}
+
+func TestBuildPromptInput_ThinkingUnset(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	input := ca.buildPromptInput("Hello")
+
+	if input.ThinkingBudget != nil {
+		t.Errorf("expected ThinkingBudget to be nil when level is unset, got %d", *input.ThinkingBudget)
+	}
+}

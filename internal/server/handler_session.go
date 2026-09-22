@@ -190,12 +190,13 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.PathValue("id")
 
 	var body struct {
-		Content   string       `json:"content,omitempty"`
-		MessageID string       `json:"messageID,omitempty"`
-		Model     *promptModel `json:"model,omitempty"`
-		Agent     string       `json:"agent,omitempty"`
-		Parts     []promptPart `json:"parts"`
-		Variant   string       `json:"variant,omitempty"`
+		Content        string       `json:"content,omitempty"`
+		MessageID      string       `json:"messageID,omitempty"`
+		Model          *promptModel `json:"model,omitempty"`
+		Agent          string       `json:"agent,omitempty"`
+		Parts          []promptPart `json:"parts"`
+		Variant        string       `json:"variant,omitempty"`
+		ThinkingBudget *int         `json:"thinkingBudget,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -230,11 +231,12 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.sessionManager.StartPrompt(context.WithoutCancel(r.Context()), PromptInput{
-		SessionID: sessionID,
-		Model:     body.Model,
-		Agent:     body.Agent,
-		Parts:     body.Parts,
-		MessageID: body.MessageID,
+		SessionID:      sessionID,
+		Model:          body.Model,
+		Agent:          body.Agent,
+		Parts:          body.Parts,
+		MessageID:      body.MessageID,
+		ThinkingBudget: body.ThinkingBudget,
 	})
 
 	w.WriteHeader(http.StatusNoContent)
@@ -244,11 +246,12 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 	sessionID := r.PathValue("sessionID")
 
 	var body struct {
-		MessageID string       `json:"messageID,omitempty"`
-		Model     *promptModel `json:"model,omitempty"`
-		Agent     string       `json:"agent,omitempty"`
-		Parts     []promptPart `json:"parts"`
-		Variant   string       `json:"variant,omitempty"`
+		MessageID      string       `json:"messageID,omitempty"`
+		Model          *promptModel `json:"model,omitempty"`
+		Agent          string       `json:"agent,omitempty"`
+		Parts          []promptPart `json:"parts"`
+		Variant        string       `json:"variant,omitempty"`
+		ThinkingBudget *int         `json:"thinkingBudget,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -276,11 +279,12 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 	// while the prompt processes asynchronously. WithoutCancel preserves
 	// request-scoped values without tying the prompt's lifetime to the HTTP request.
 	s.sessionManager.StartPrompt(context.WithoutCancel(r.Context()), PromptInput{
-		SessionID: sessionID,
-		Model:     body.Model,
-		Agent:     body.Agent,
-		Parts:     body.Parts,
-		MessageID: body.MessageID,
+		SessionID:      sessionID,
+		Model:          body.Model,
+		Agent:          body.Agent,
+		Parts:          body.Parts,
+		MessageID:      body.MessageID,
+		ThinkingBudget: body.ThinkingBudget,
 	})
 
 	w.WriteHeader(http.StatusNoContent)

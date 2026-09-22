@@ -35,6 +35,7 @@ type ProcessorConfig struct {
 	TopP             *float64
 	MaxTokens        *int
 	MaxIterations    int
+	ThinkingBudget   *int
 	Perms            *permission.Service
 	Ruleset          permission.Ruleset
 	UserDisplayText  string

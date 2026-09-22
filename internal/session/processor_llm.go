@@ -118,12 +118,13 @@ func (p *Processor) buildRequest() llm.Request {
 	tools := p.tools.ToolDefs(p.config.AgentPerms)
 
 	req := llm.Request{
-		Model:       p.config.Model.ID,
-		Messages:    llmMessages,
-		Tools:       tools,
-		Temperature: p.config.Temperature,
-		TopP:        p.config.TopP,
-		MaxTokens:   p.config.MaxTokens,
+		Model:          p.config.Model.ID,
+		Messages:       llmMessages,
+		Tools:          tools,
+		Temperature:    p.config.Temperature,
+		TopP:           p.config.TopP,
+		MaxTokens:      p.config.MaxTokens,
+		ThinkingBudget: p.config.ThinkingBudget,
 	}
 
 	return req

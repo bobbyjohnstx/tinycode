@@ -357,6 +357,7 @@ func (a *App) showPalette() {
 		"editor":       true,
 		"shell":        true,
 		"debug":        true,
+		"thinking":     true,
 	}
 	items := []PaletteItem{
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
@@ -369,6 +370,7 @@ func (a *App) showPalette() {
 		{Label: "editor", Description: "Open prompt in $EDITOR", Value: "editor"},
 		{Label: "shell", Description: "Open interactive shell session", Value: "shell"},
 		{Label: "debug", Description: "Show diagnostics for bug reports", Value: "debug"},
+		{Label: "thinking", Description: "Set reasoning level (off/low/medium/high/max)", Value: "thinking"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {

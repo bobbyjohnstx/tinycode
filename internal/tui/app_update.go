@@ -337,6 +337,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "editor", Description: "Open prompt in $EDITOR"},
 			{Name: "shell", Description: "Open interactive shell session"},
 			{Name: "debug", Description: "Show diagnostics for bug reports"},
+			{Name: "thinking", Description: "Set reasoning level (off/low/medium/high/max)"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {
