@@ -328,6 +328,14 @@ func fetchMCPStatus(client *api.Client) tea.Cmd {
 	}
 }
 
+// reconnectMCP requests reconnection of a named MCP server.
+func reconnectMCP(client *api.Client, name string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.ReconnectMCP(name)
+		return MCPReconnectResultMsg{Name: name, Err: err}
+	}
+}
+
 // fetchAgents fetches the agent list from the server.
 func fetchAgents(client *api.Client) tea.Cmd {
 	return func() tea.Msg {

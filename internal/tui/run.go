@@ -203,6 +203,22 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, fetchAllAgents(c.client)
 
+	case MCPReconnectRequestMsg:
+		return c, reconnectMCP(c.client, msg.Name)
+
+	case MCPReconnectResultMsg:
+		if msg.Err != nil {
+			slog.Error("MCP reconnect failed", "name", msg.Name, "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("MCP reconnect failed: %v", msg.Err)...)
+		} else {
+			model, cmd := c.app.Update(ToastMsg{Text: "Reconnecting " + msg.Name + "...", IsError: false})
+			c.updateApp(model)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return c, tea.Batch(cmds...)
+
 	case ProvidersRefreshMsg:
 		cmds = append(cmds, fetchProviders(c.client))
 		return c, tea.Batch(cmds...)

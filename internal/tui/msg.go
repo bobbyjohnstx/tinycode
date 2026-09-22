@@ -183,6 +183,12 @@ type MCPStatusLoadedMsg struct {
 	Err     error
 }
 
+// MCPReconnectResultMsg carries the result of an MCP reconnect request.
+type MCPReconnectResultMsg struct {
+	Name string
+	Err  error
+}
+
 // PluginListMsg carries the loaded plugin list from the server.
 type PluginListMsg struct {
 	Plugins []api.PluginInfo

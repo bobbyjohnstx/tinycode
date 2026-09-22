@@ -166,6 +166,11 @@ func (c *Client) GetMCPStatus() (map[string]map[string]any, error) {
 	return status, nil
 }
 
+// ReconnectMCP requests reconnection of a named MCP server via POST /mcp/{name}/reconnect.
+func (c *Client) ReconnectMCP(name string) error {
+	return c.postNoResp("/mcp/"+name+"/reconnect", nil)
+}
+
 // ListPlugins retrieves loaded plugins via GET /plugin.
 func (c *Client) ListPlugins() ([]PluginInfo, error) {
 	var plugins []PluginInfo

@@ -64,6 +64,11 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		a.debugDlg, cmd = a.debugDlg.Update(msg)
 		return a, cmd
 	}
+	if a.mcpDlg.IsVisible() {
+		var cmd tea.Cmd
+		a.mcpDlg, cmd = a.mcpDlg.Update(msg)
+		return a, cmd
+	}
 
 	// Global keys handled before component dispatch.
 	if cmd := a.handleGlobalKey(msg); cmd != nil {
@@ -147,11 +152,17 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return a, spinCmd, true
 	case MCPStatusMsg:
 		a.sidebar.UpdateMCPServer(msg.Server)
+		if a.mcpDlg.IsVisible() {
+			a.mcpDlg.Refresh(a.sidebar.mcpServers)
+		}
 		return a, nil, true
 	case MCPStatusLoadedMsg:
 		if msg.Err == nil {
 			a.sidebar.SetMCPServers(msg.Servers)
 			a.welcome.MarkDone("mcp")
+			if a.mcpDlg.IsVisible() {
+				a.mcpDlg.Refresh(msg.Servers)
+			}
 		} else {
 			a.welcome.MarkFailed("mcp")
 		}
@@ -338,6 +349,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "editor", Description: "Open prompt in $EDITOR"},
 			{Name: "shell", Description: "Open interactive shell session"},
 			{Name: "debug", Description: "Show diagnostics for bug reports"},
+			{Name: "mcp", Description: "Manage MCP servers"},
 			{Name: "thinking", Description: "Set reasoning level (off/low/medium/high/max)"},
 			{Name: "scoped-models", Description: "Toggle model scoping (favorites)"},
 			{Name: "undo", Description: "Revert last AI file changes"},

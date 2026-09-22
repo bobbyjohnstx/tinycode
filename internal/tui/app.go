@@ -24,6 +24,7 @@ type App struct {
 	modelDlg   ModelDialog
 	themeDlg   ThemeDialog
 	debugDlg   DebugDialog
+	mcpDlg     MCPDialog
 	permPrompt PermissionPrompt
 	toast      Toast
 	sidebar    Sidebar
@@ -57,6 +58,7 @@ func NewApp(serverURL string) App {
 		modelDlg:   NewModelDialog(),
 		themeDlg:   NewThemeDialog(),
 		debugDlg:   NewDebugDialog(),
+		mcpDlg:     NewMCPDialog(),
 		permPrompt: NewPermissionPrompt(),
 		toast:      NewToast(DefaultTheme()),
 		sidebar:    NewSidebar(),
@@ -156,6 +158,9 @@ func (a App) View() string {
 	if a.debugDlg.IsVisible() {
 		return a.debugDlg.View()
 	}
+	if a.mcpDlg.IsVisible() {
+		return a.mcpDlg.View()
+	}
 	if a.dialog.IsVisible() {
 		return a.dialog.View()
 	}
@@ -222,6 +227,7 @@ func (a *App) resize() {
 	a.modelDlg.SetSize(a.width, a.height)
 	a.themeDlg.SetSize(a.width, a.height)
 	a.debugDlg.SetSize(a.width, a.height)
+	a.mcpDlg.SetSize(a.width, a.height)
 	a.permPrompt.SetSize(a.width, a.height)
 	a.toast.SetSize(a.width)
 	a.sidebar.SetSize(l.sidebarWidth, l.chatHeight)
@@ -359,6 +365,7 @@ func (a *App) showPalette() {
 		"shell":         true,
 		"debug":         true,
 		"thinking":      true,
+		"mcp":           true,
 		"scoped-models": true,
 	}
 	items := []PaletteItem{
@@ -373,6 +380,7 @@ func (a *App) showPalette() {
 		{Label: "editor", Description: "Open prompt or file in $EDITOR (/editor @file)", Value: "editor"},
 		{Label: "shell", Description: "Open interactive shell session", Value: "shell"},
 		{Label: "debug", Description: "Show diagnostics for bug reports", Value: "debug"},
+		{Label: "mcp", Description: "Manage MCP servers", Value: "mcp"},
 		{Label: "thinking", Description: "Set reasoning level (off/low/medium/high/max)", Value: "thinking"},
 		{Label: "scoped-models", Description: "Toggle model scoping (favorites)", Value: "scoped-models"},
 	}
@@ -437,6 +445,10 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		a.debugDlg.Show(info)
 		a.setFocus(FocusDialog)
 		return nil, true
+	case "mcp":
+		a.mcpDlg.Show(a.sidebar.mcpServers)
+		a.setFocus(FocusDialog)
+		return nil, true
 	case "scoped-models":
 		a.state.PendingModelDialog = true
 		a.state.PendingScopingMode = true
@@ -492,6 +504,10 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 		return func() tea.Msg { return DiffRequestMsg{Dir: a.status.Cwd()} }
 	case LeaderActionThemePicker:
 		a.themeDlg.Show(a.themes.List(), a.state.CurrentTheme)
+		a.setFocus(FocusDialog)
+		return nil
+	case LeaderActionMCPList:
+		a.mcpDlg.Show(a.sidebar.mcpServers)
 		a.setFocus(FocusDialog)
 		return nil
 	}

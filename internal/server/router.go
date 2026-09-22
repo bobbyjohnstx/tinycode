@@ -102,6 +102,7 @@ func (s *Server) registerRoutes() {
 	// MCP
 	s.mux.HandleFunc("GET /mcp", s.handleMCPStatus)
 	s.mux.HandleFunc("GET /mcp/status", s.handleMCPStatus)
+	s.mux.HandleFunc("POST /mcp/{name}/reconnect", s.handleMCPReconnect)
 
 	// Plugin
 	s.mux.HandleFunc("GET /plugin", s.handlePluginList)

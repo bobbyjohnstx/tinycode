@@ -37,6 +37,7 @@ type KeyMap struct {
 	Editor        key.Binding // ctrl+x e
 	DiffView      key.Binding // ctrl+x d
 	ThemePicker   key.Binding // ctrl+x t
+	MCPList       key.Binding // ctrl+x i
 }
 
 // DefaultKeyMap returns the default key bindings matching the design doc.
@@ -148,6 +149,10 @@ func DefaultKeyMap() KeyMap {
 		ThemePicker: key.NewBinding(
 			key.WithKeys("t"),
 			key.WithHelp("ctrl+x t", "theme picker"),
+		),
+		MCPList: key.NewBinding(
+			key.WithKeys("i"),
+			key.WithHelp("ctrl+x i", "MCP servers"),
 		),
 	}
 }

@@ -31,6 +31,7 @@ const (
 	LeaderActionEditor        = "editor"
 	LeaderActionDiffView      = "diff-view"
 	LeaderActionThemePicker   = "theme-picker"
+	LeaderActionMCPList       = "mcp-list"
 )
 
 // LeaderState implements the ctrl+x leader key state machine.
@@ -128,6 +129,8 @@ func (l *LeaderState) matchBinding(msg tea.KeyMsg) string {
 		return LeaderActionDiffView
 	case key.Matches(msg, l.keys.ThemePicker):
 		return LeaderActionThemePicker
+	case key.Matches(msg, l.keys.MCPList):
+		return LeaderActionMCPList
 	default:
 		return ""
 	}
