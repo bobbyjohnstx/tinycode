@@ -87,6 +87,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /agent", s.handleAgentList)
 	s.mux.HandleFunc("GET /skill", s.handleSkillList)
 	s.mux.HandleFunc("GET /command", s.handleCommandList)
+	s.mux.HandleFunc("GET /help", s.handleHelp)
 
 	// VCS
 	s.mux.HandleFunc("GET /vcs", s.handleVCSInfo)
