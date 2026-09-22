@@ -72,6 +72,13 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		return a, cmd
 	}
 
+	// Route to chat search if active.
+	if a.chat.IsSearching() {
+		var cmd tea.Cmd
+		a.chat, cmd = a.chat.Update(msg)
+		return a, cmd
+	}
+
 	// Global keys handled before component dispatch.
 	if cmd := a.handleGlobalKey(msg); cmd != nil {
 		return a, cmd
