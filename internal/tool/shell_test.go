@@ -84,7 +84,7 @@ func TestIsDestructive_DetectsRmRecursiveForce(t *testing.T) {
 		"rm --recursive /tmp/dir",
 	}
 	for _, cmd := range destructive {
-		if !isDestructive(cmd) {
+		if !IsDestructive(cmd) {
 			t.Errorf("expected destructive for %q", cmd)
 		}
 	}
@@ -98,7 +98,7 @@ func TestIsDestructive_DetectsGitForceOperations(t *testing.T) {
 		"git branch -D feature",
 	}
 	for _, cmd := range destructive {
-		if !isDestructive(cmd) {
+		if !IsDestructive(cmd) {
 			t.Errorf("expected destructive for %q", cmd)
 		}
 	}
@@ -110,7 +110,7 @@ func TestIsDestructive_DetectsSQLDestructiveOps(t *testing.T) {
 		"TRUNCATE TABLE sessions",
 	}
 	for _, cmd := range destructive {
-		if !isDestructive(cmd) {
+		if !IsDestructive(cmd) {
 			t.Errorf("expected destructive for %q", cmd)
 		}
 	}
@@ -125,7 +125,7 @@ func TestIsDestructive_IgnoresSafeCommands(t *testing.T) {
 		"go test ./...",
 	}
 	for _, cmd := range safe {
-		if isDestructive(cmd) {
+		if IsDestructive(cmd) {
 			t.Errorf("expected safe for %q", cmd)
 		}
 	}

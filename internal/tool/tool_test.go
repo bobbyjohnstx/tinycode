@@ -464,9 +464,9 @@ func TestIsDestructive(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := isDestructive(tt.cmd)
+		got := IsDestructive(tt.cmd)
 		if got != tt.want {
-			t.Errorf("isDestructive(%q) = %v, want %v", tt.cmd, got, tt.want)
+			t.Errorf("IsDestructive(%q) = %v, want %v", tt.cmd, got, tt.want)
 		}
 	}
 }

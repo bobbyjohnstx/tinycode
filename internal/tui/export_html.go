@@ -12,7 +12,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/yuin/goldmark"
-	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 )
 
 // exportSessionHTML writes the active session transcript to a self-contained HTML file.
@@ -65,11 +64,7 @@ type htmlMessageData struct {
 }
 
 func renderSessionHTML(session SessionInfo, messages []MessageView) (string, error) {
-	md := goldmark.New(
-		goldmark.WithRendererOptions(
-			goldmarkhtml.WithUnsafe(),
-		),
-	)
+	md := goldmark.New()
 
 	data := htmlTemplateData{
 		Title: session.Title,

@@ -98,7 +98,7 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		slog.Warn("secret file access", "command", args.Command, "warning", warning)
 	}
 
-	if isDestructive(args.Command) {
+	if IsDestructive(args.Command) {
 		if tc.Perms != nil {
 			askErr := tc.Perms.Ask(ctx, permission.AskInput{
 				SessionID:  tc.SessionID,
@@ -161,7 +161,9 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	return &ExecuteResult{Output: output.String()}, nil
 }
 
-func isDestructive(command string) bool {
+// IsDestructive returns true if the command matches known destructive patterns
+// (e.g. rm -rf, git push --force, DROP TABLE).
+func IsDestructive(command string) bool {
 	for _, p := range destructivePatterns {
 		if p.MatchString(command) {
 			return true

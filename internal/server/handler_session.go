@@ -14,6 +14,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/project"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
 )
 
 func (s *Server) sessionStore() *session.Store {
@@ -379,29 +380,43 @@ func (s *Server) executeShellDirect(sessionID, command, dir string) {
 		"time": now,
 	})
 
-	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(context.Background(), "sh", "-c", command)
-	cmd.Dir = dir
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	cmdErr := cmd.Run()
+	var output string
+	var isErr bool
 
-	var outputBuf strings.Builder
-	if stdout.Len() > 0 {
-		outputBuf.Write(stdout.Bytes())
-	}
-	if stderr.Len() > 0 {
-		if outputBuf.Len() > 0 {
-			outputBuf.WriteString("\n")
+	// Block destructive commands (same patterns the bash tool checks).
+	if tool.IsDestructive(command) {
+		output = "Destructive command blocked: " + command + "\nUse the bash tool in an agent session for destructive operations."
+		isErr = true
+	} else {
+		// Enforce a timeout matching the bash tool default (120s).
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancel()
+
+		var stdout, stderr bytes.Buffer
+		cmd := exec.CommandContext(ctx, "sh", "-c", command)
+		cmd.Dir = dir
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		cmdErr := cmd.Run()
+
+		var outputBuf strings.Builder
+		if stdout.Len() > 0 {
+			outputBuf.Write(stdout.Bytes())
 		}
-		outputBuf.WriteString("STDERR:\n")
-		outputBuf.Write(stderr.Bytes())
+		if stderr.Len() > 0 {
+			if outputBuf.Len() > 0 {
+				outputBuf.WriteString("\n")
+			}
+			outputBuf.WriteString("STDERR:\n")
+			outputBuf.Write(stderr.Bytes())
+		}
+		output = outputBuf.String()
+		isErr = cmdErr != nil
+		if isErr && output == "" {
+			output = cmdErr.Error()
+		}
 	}
-	output := outputBuf.String()
-	isErr := cmdErr != nil
-	if isErr && output == "" {
-		output = cmdErr.Error()
-	}
+
 	input := map[string]any{"command": command}
 	completedAt := time.Now().UnixMilli()
 	toolCallID, _ := id2.Ascending("tool")
