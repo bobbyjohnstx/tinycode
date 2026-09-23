@@ -297,6 +297,158 @@ Context size vs GPU memory trade-off:
 | 8B FP16 | 32768 | 65536 |
 | 32B AWQ | 4096-8192 | 16384-32768 |
 
+## Model caching and persistence
+
+By default, KServe's storage initializer downloads the model from HuggingFace into an `emptyDir` volume every time a pod starts. When the pod is deleted (scaling, swapping models, restarts), the download is lost and must repeat (~2-15 minutes depending on model size).
+
+### Option 1: Accept re-download (sandbox/dev)
+
+For sandbox environments with good internet, the 2-minute re-download per swap is acceptable. No configuration needed — this is the default behavior.
+
+### Option 2: Pre-download to MinIO (production)
+
+The standard RHOAI pattern for model persistence uses MinIO or S3 object storage. Download the model once, store it in a bucket, then reference it with an `s3://` URI.
+
+**Set up MinIO** (if not already deployed):
+
+```bash
+# RHOAI's Data Science Pipelines often deploy MinIO automatically.
+# Check if MinIO is already available:
+oc get pods --all-namespaces | grep minio
+
+# If not, deploy MinIO:
+cat <<EOF | oc apply -n tinycode-models -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: quay.io/minio/minio:latest
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              value: minioadmin
+            - name: MINIO_ROOT_PASSWORD
+              value: minioadmin
+          ports:
+            - containerPort: 9000
+            - containerPort: 9001
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+    - name: console
+      port: 9001
+EOF
+```
+
+**Download model to MinIO**:
+
+```bash
+# Port-forward to MinIO
+oc port-forward svc/minio 9000:9000 -n tinycode-models &
+
+# Install mc (MinIO client) if needed: brew install minio/stable/mc
+mc alias set local http://localhost:9000 minioadmin minioadmin
+
+# Create a bucket and download the model
+mc mb local/models
+# Use huggingface-cli to download, then upload to MinIO:
+pip install huggingface_hub
+huggingface-cli download Qwen/Qwen2.5-7B-Instruct --local-dir /tmp/qwen25-7b
+mc cp --recursive /tmp/qwen25-7b/ local/models/qwen25-7b/
+```
+
+**Create a storage secret**:
+
+```bash
+cat <<EOF | oc apply -n tinycode-models -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-creds
+  annotations:
+    serving.kserve.io/s3-endpoint: minio.tinycode-models.svc:9000
+    serving.kserve.io/s3-usehttps: "0"
+stringData:
+  AWS_ACCESS_KEY_ID: minioadmin
+  AWS_SECRET_ACCESS_KEY: minioadmin
+EOF
+```
+
+**Reference the MinIO model in InferenceService**:
+
+```yaml
+spec:
+  predictor:
+    serviceAccountName: default
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: vllm-cuda
+      storageUri: s3://models/qwen25-7b
+      storage:
+        key: minio-creds
+```
+
+With this setup, the model loads from local MinIO storage in seconds instead of downloading from HuggingFace each time.
+
+### Option 3: OCI container image (air-gapped)
+
+Bake model weights into a container image. Best for air-gapped environments where external downloads aren't possible. Slow to build (~30 minutes for a 14GB model) but instant to deploy.
+
+```bash
+# Build a model image
+cat <<EOF > Containerfile.model
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+RUN microdnf install -y python3.12-pip && pip3 install huggingface_hub
+RUN huggingface-cli download Qwen/Qwen2.5-7B-Instruct --local-dir /models
+EOF
+podman build -t quay.io/yourorg/qwen25-7b:latest -f Containerfile.model .
+podman push quay.io/yourorg/qwen25-7b:latest
+```
+
+Then reference with `storageUri: oci://quay.io/yourorg/qwen25-7b:latest`.
+
+### Why PVCs don't work directly
+
+KServe's webhook manages the `/mnt/models` volume mount through its storage initializer init container. Adding a PVC volume mount at `/mnt/models` on the InferenceService spec conflicts with KServe's own volume management, resulting in: `admission webhook denied the request: unable to determine storage type`. The MinIO/S3 approach works because it goes through KServe's storage initializer protocol.
+
 ## Troubleshooting
 
 ### Pod stuck in Pending
