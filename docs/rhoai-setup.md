@@ -104,6 +104,30 @@ Replace `MODEL_NAME_HERE` with a short name for your model (e.g., `qwen2.5-7b-in
 | `--tool-call-parser` | Tool call format parser | `hermes` for Qwen, `llama3` for Llama |
 | `--served-model-name` | Model name in the API | Used in tinycode config |
 | `--quantization` | Force quantization method | `awq` or `gptq` (auto-detected if in model config) |
+| `--reasoning-parser` | Parse `<think>` tags into `reasoning_content` | `qwen3` for Qwen3, `deepseek_r1` for DeepSeek |
+
+### Enabling thinking/reasoning models
+
+Models like Qwen3 and DeepSeek R1 produce reasoning inside `<think>...</think>` tags. By default, vLLM sends this as part of the regular `content` field — tinycode won't display it as "Thinking" output.
+
+Add `--reasoning-parser` to make vLLM split thinking content into the `reasoning_content` response field, which tinycode displays as `+ Thought`:
+
+```bash
+args:
+  - --port=8080
+  - --model=/mnt/models
+  - --served-model-name=qwen3-8b
+  - --max-model-len=28000
+  - --enable-auto-tool-choice
+  - --tool-call-parser=hermes
+  - --reasoning-parser=qwen3        # <-- add this for thinking models
+```
+
+Supported parsers: `qwen3`, `deepseek_r1`, `granite`, `mistral`, `glm45`, `hunyuan_a13b`, `step3`.
+
+Without this flag, `<think>` tags appear as raw text in the assistant's response instead of being displayed as a collapsible thinking block.
+
+**Note:** Qwen3-8B uses ~15.3 GB VRAM (vs 14.2 GB for Qwen 2.5 7B), which limits the context window to ~28,000 tokens on a 24GB GPU instead of 32,768.
 
 ## Step 4: Deploy the model
 
