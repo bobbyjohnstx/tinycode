@@ -6,8 +6,54 @@ Deploy an LLM on RHOAI with vLLM serving runtime and connect tinycode-go to it a
 
 - An OpenShift cluster with RHOAI installed
 - At least one GPU node (NVIDIA L4, A10G, A100, or similar)
-- `oc` CLI authenticated to the cluster
+- `oc` CLI installed locally
 - `tinycode` binary built (`make build`)
+
+## Authentication and permissions
+
+All RHOAI admin operations use `oc login` with username and password — no tokens, certificates, or API keys required.
+
+```bash
+# Login as cluster admin (needed for initial setup)
+oc login --insecure-skip-tls-verify -u admin -p <password> https://api.cluster.example.com:6443
+```
+
+### What requires cluster-admin
+
+These one-time setup steps need the `admin` user (or equivalent cluster-admin):
+- Creating the data science project namespace (`oc new-project`)
+- Labeling the namespace for RHOAI (`oc label namespace`)
+- Granting roles to regular users (`oc adm policy add-role-to-user`)
+
+### What a regular user can do
+
+Once a cluster-admin grants the `edit` role on the namespace, a regular user can perform all day-to-day model operations:
+
+```bash
+# Cluster-admin grants access (one-time):
+oc adm policy add-role-to-user edit user1 -n tinycode-models
+
+# Then user1 can:
+oc login -u user1 -p <password> https://api.cluster.example.com:6443
+```
+
+| Operation | `edit` role | `admin` role | cluster-admin |
+|-----------|:-----------:|:------------:|:-------------:|
+| Create ServingRuntime | Yes | Yes | Yes |
+| Create InferenceService | Yes | Yes | Yes |
+| Create Service / Route | Yes | Yes | Yes |
+| Scale deployments | Yes | Yes | Yes |
+| View pods and logs | Yes | Yes | Yes |
+| Create namespace | No | No | Yes |
+| Label namespace | No | No | Yes |
+| Grant roles to users | No | Yes | Yes |
+
+### Model endpoint authentication
+
+The vLLM model endpoint exposed via the OCP route has **no authentication** by default — any client that can reach the route URL can send inference requests. For production, consider:
+- Restricting route access with network policies
+- Adding an OAuth proxy sidecar
+- Using OCP route annotations to limit source IPs
 
 ## Step 1: Verify GPU availability
 
