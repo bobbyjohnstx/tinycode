@@ -32,6 +32,12 @@ function openSessionContext(args: {
 
 type BalanceData = { remaining?: number | null; usage?: number; provider?: string }
 
+function formatTokenCount(total: number): string {
+  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(1)}m`
+  if (total >= 1_000) return `${Math.round(total / 1_000)}k`
+  return String(total)
+}
+
 export function SessionContextUsage(props: SessionContextUsageProps) {
   const sync = useSync()
   const file = useFile()
@@ -96,6 +102,22 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
     return undefined
   })
 
+  const tokenText = createMemo(() => {
+    const ctx = context()
+    if (!ctx) return undefined
+    return `${formatTokenCount(ctx.total)} tok`
+  })
+
+  const mcpStatus = createMemo(() => {
+    if (!sync.data.mcp_ready) return undefined
+    const servers = sync.data.mcp
+    const entries = Object.entries(servers)
+    if (entries.length === 0) return undefined
+    const connected = entries.filter(([, s]) => s.status === "connected").length
+    const hasErrors = entries.some(([, s]) => s.status === "failed")
+    return { total: entries.length, connected, hasErrors }
+  })
+
   const openContext = () => {
     if (!params.id) return
 
@@ -156,11 +178,37 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
             <Button
               type="button"
               variant="ghost"
-              class="size-6"
+              class="h-6 px-1.5 gap-1.5"
               onClick={openContext}
               aria-label={language.t("context.usage.view")}
             >
               {circle()}
+              <span class="flex items-center gap-1.5 text-11-regular text-text-weak">
+                <Show when={tokenText()}>
+                  {(text) => <span>{text()}</span>}
+                </Show>
+                <Show when={cost()}>
+                  {(c) => <span>{c()}</span>}
+                </Show>
+                <Show when={balanceText()}>
+                  {(text) => <span>{text()}</span>}
+                </Show>
+                <Show when={mcpStatus()}>
+                  {(mcp) => (
+                    <span class="flex items-center gap-0.5">
+                      <span>MCP</span>
+                      <span
+                        class="inline-block size-1.5 rounded-full"
+                        classList={{
+                          "bg-icon-success-base": !mcp().hasErrors,
+                          "bg-icon-critical-base": mcp().hasErrors,
+                        }}
+                      />
+                      <span>{mcp().connected}</span>
+                    </span>
+                  )}
+                </Show>
+              </span>
             </Button>
           </Match>
         </Switch>
