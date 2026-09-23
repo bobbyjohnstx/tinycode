@@ -1,5 +1,5 @@
 import type { Session } from "@tinycode/sdk/v2/client"
-import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
+import { createMemo, createSignal, For, Match, onMount, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useQuery } from "@tanstack/solid-query"
 import { Button } from "@tinycode/ui/button"
@@ -31,6 +31,7 @@ import { messageAgentColor } from "@/utils/agent"
 import { sessionPermissionRequest } from "@/pages/session/composer/session-request-tree"
 import { ServerHealthIndicator } from "@/components/server/server-row"
 import { useServers } from "@/context/servers"
+import { useServerSDK } from "@/context/server-sdk"
 import { useSettings } from "@/context/settings"
 
 const HOME_SESSION_LIMIT = 15
@@ -69,6 +70,7 @@ function HomeDesign() {
   const server = useServer()
   const language = useLanguage()
   const notification = useNotification()
+  const sdk = useServerSDK()
   const [state, setState] = createStore({ search: "", project: undefined as string | undefined })
 
   const projects = createMemo(() => layout.projects.list())
@@ -134,6 +136,18 @@ function HomeDesign() {
     server.projects.touch(dir)
     setState("project", dir)
   }
+
+  onMount(() => {
+    if (state.project) return
+    void (async () => {
+      try {
+        const { data } = await sdk.client.project.current()
+        if (data?.worktree && !state.project) {
+          addProject(data.worktree)
+        }
+      } catch {}
+    })()
+  })
 
   function openNewSession() {
     const raw = state.project ?? selectedProject()?.worktree ?? projects()[0]?.worktree
