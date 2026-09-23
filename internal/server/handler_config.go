@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -49,6 +50,18 @@ func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(data, &existing)
 	}
 
+	allowedFields := map[string]bool{
+		"model": true, "theme": true, "logLevel": true, "small_model": true,
+		"agents": true, "scopedModels": true, "temperature": true, "topP": true,
+		"maxTokens": true,
+	}
+	for k := range body {
+		if !allowedFields[k] {
+			respondError(w, http.StatusForbidden, fmt.Sprintf("field %q cannot be modified via API", k))
+			return
+		}
+	}
+
 	for k, v := range body {
 		existing[k] = v
 	}
@@ -64,7 +77,7 @@ func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := os.WriteFile(configPath, append(data, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(configPath, append(data, '\n'), 0o600); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to write config")
 		return
 	}

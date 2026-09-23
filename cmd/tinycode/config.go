@@ -42,7 +42,7 @@ func setupLogger() {
 	os.MkdirAll(dataDir, 0o755)
 
 	logPath := filepath.Join(dataDir, "tinycode.log")
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 		slog.Warn("failed to open log file, falling back to stderr", "path", logPath, "error", err)

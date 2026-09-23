@@ -120,7 +120,7 @@ func New(cfg Config, deps Dependencies) *Server {
 						Name:     "tinycode_auth",
 						Value:    qt,
 						Path:     "/",
-						HttpOnly: false,
+						HttpOnly: true,
 						SameSite: http.SameSiteStrictMode,
 					})
 				}
