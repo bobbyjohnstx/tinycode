@@ -67,7 +67,9 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
   const metrics = createMemo(() => getSessionContextMetrics(messages(), [...providers.all().values()]))
   const context = createMemo(() => metrics().context)
   const cost = createMemo(() => {
-    return usd().format(metrics().totalCost)
+    const c = metrics().totalCost
+    if (!c || !isFinite(c)) return undefined
+    return usd().format(c)
   })
 
   const [balance, setBalance] = createSignal<BalanceData | undefined>()
