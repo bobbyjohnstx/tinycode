@@ -126,6 +126,7 @@ func runWeb() {
 	defer disc.Stop()
 
 	dir, _ := os.Getwd()
+	ensureProject(db.DB, dir)
 	agentReg := initAgentRegistry(cfg, dir)
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)

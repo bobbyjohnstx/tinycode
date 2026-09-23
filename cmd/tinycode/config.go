@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
 	"github.com/bobbyjohnstx/tinycode-go/internal/lsp"
 	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode-go/internal/project"
 	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode-go/internal/session"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
@@ -51,6 +53,21 @@ func setupLogger() {
 
 	logFile = f
 	slog.SetDefault(slog.New(slog.NewTextHandler(f, &slog.HandlerOptions{Level: level})))
+}
+
+// ensureProject upserts the working directory into the project table
+// so the web UI's project picker can find it.
+func ensureProject(db *sql.DB, dir string) {
+	p := project.FromDirectory(dir)
+	_, err := db.Exec(
+		`INSERT INTO project (id, worktree, vcs, time_created, time_updated, time_initialized, sandboxes)
+		 VALUES (?, ?, ?, ?, ?, ?, '[]')
+		 ON CONFLICT(id) DO UPDATE SET time_updated = ?`,
+		p.ID, p.Worktree, p.VCS, p.Time.Created, p.Time.Updated, p.Time.Initialized, p.Time.Updated,
+	)
+	if err != nil {
+		slog.Warn("failed to register project", "dir", dir, "error", err)
+	}
 }
 
 func initDependencies() (*bus.Bus, *storage.DB, *config.Info) {
