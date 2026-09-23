@@ -35,6 +35,7 @@ type ProcessorConfig struct {
 	TopP             *float64
 	MaxTokens        *int
 	MaxIterations    int
+	TokenBudget      int
 	ThinkingBudget   *int
 	Perms            *permission.Service
 	Ruleset          permission.Ruleset
@@ -158,6 +159,15 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 		totalUsage.Reasoning += usage.Reasoning
 		totalUsage.Cache.Read += usage.Cache.Read
 		totalUsage.Cache.Write += usage.Cache.Write
+
+		if p.config.TokenBudget > 0 && totalUsage.Input+totalUsage.Output > p.config.TokenBudget {
+			slog.Warn("token budget exceeded", "sessionID", p.config.SessionID, "budget", p.config.TokenBudget, "used", totalUsage.Input+totalUsage.Output)
+			return &ProcessResult{
+				Messages: p.Messages(),
+				Usage:    totalUsage,
+				Error:    fmt.Errorf("token budget exceeded: used %d of %d", totalUsage.Input+totalUsage.Output, p.config.TokenBudget),
+			}
+		}
 
 		assistantMsg.Tokens = &MsgUsage{
 			Input:     usage.Input,

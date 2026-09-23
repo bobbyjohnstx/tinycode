@@ -19,6 +19,7 @@ type StatusBar struct {
 	provider       string
 	working        bool
 	leaderPending  bool
+	safeMode       bool
 	spinner        spinner.Model
 	agentColor     lipgloss.AdaptiveColor
 	width          int
@@ -106,6 +107,11 @@ func (s *StatusBar) SetAgent(agent string) {
 	}
 }
 
+// SetSafeMode sets the safe mode indicator.
+func (s *StatusBar) SetSafeMode(safe bool) {
+	s.safeMode = safe
+}
+
 // SetLeaderPending updates the leader-key pending state, which switches
 // the hints line to show available follow-up keys.
 func (s *StatusBar) SetLeaderPending(pending bool) {
@@ -176,8 +182,14 @@ func (s StatusBar) View() string {
 	innerWidth := s.width - 2
 
 	left := ""
+	if s.safeMode {
+		warn := lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#B35900", Dark: "#FFA500"}).
+			Bold(true)
+		left = warn.Render("SAFE MODE") + "  "
+	}
 	if s.cwd != "" {
-		left = shortenCwd(s.cwd)
+		left += shortenCwd(s.cwd)
 	}
 
 	var rightParts []string

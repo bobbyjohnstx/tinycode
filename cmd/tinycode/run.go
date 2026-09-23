@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
 	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
@@ -39,7 +40,24 @@ func runRun() {
 	permsFlag := fs.String("permissions", "default", "permission handling: default, json")
 	maxIterFlag := fs.Int("max-iterations", 0, "maximum processor iterations (0 = default 200)")
 	multiTurnFlag := fs.Bool("multi-turn", false, "multi-turn mode: loop on stdin after initial prompt")
+	appendSPFlag := fs.String("append-system-prompt", "", "append text to the system prompt")
+	appendSPFileFlag := fs.String("append-system-prompt-file", "", "append file contents to the system prompt")
+	maxTokensFlag := fs.Int("max-tokens", 0, "cumulative token budget (input+output); abort when exceeded")
+	safeModeFlag := fs.Bool("safe-mode", false, "skip plugins, MCP, and user agents")
 	_ = fs.Parse(os.Args[2:])
+
+	appendSP := *appendSPFlag
+	if *appendSPFileFlag != "" {
+		data, err := os.ReadFile(*appendSPFileFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading --append-system-prompt-file: %v\n", err)
+			os.Exit(1)
+		}
+		if appendSP != "" {
+			appendSP += "\n\n"
+		}
+		appendSP += string(data)
+	}
 
 	prompt := collectRunPrompt(fs.Args(), *multiTurnFlag)
 
@@ -51,7 +69,7 @@ func runRun() {
 	defer cancel()
 
 	var mcpSvc *mcp.Service
-	if len(cfg.MCP) > 0 {
+	if !*safeModeFlag && len(cfg.MCP) > 0 {
 		mcpSvc = mcp.NewService(b)
 		defer mcpSvc.Close()
 		mcpSvc.Configure(ctx, cfg.MCP)
@@ -62,7 +80,18 @@ func runRun() {
 	defer disc.Stop()
 
 	dir, _ := os.Getwd()
-	agentReg := initAgentRegistry(cfg, dir)
+	var agentReg *agent.Registry
+	if *safeModeFlag {
+		agentReg = agent.NewRegistry()
+		defaultPerms := permission.Ruleset{
+			{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
+		}
+		if err := agentReg.LoadDefaults(defaultPerms, nil); err != nil {
+			slog.Warn("failed to load default agents", "error", err)
+		}
+	} else {
+		agentReg = initAgentRegistry(cfg, dir)
+	}
 	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()
@@ -80,7 +109,9 @@ func runRun() {
 
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
-	loadConfigPlugins(pluginMgr, cfg, dir)
+	if !*safeModeFlag {
+		loadConfigPlugins(pluginMgr, cfg, dir)
+	}
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
 
 	modelStr := *modelFlag
@@ -89,7 +120,7 @@ func runRun() {
 	}
 	providerID, modelID, model := resolveRunModel(reg, modelStr)
 
-	agentName, agentPerms, systemPrompt := buildRunAgentPrompt(*agentFlag, cfg, agentReg, model, dir, toolReg)
+	agentName, agentPerms, systemPrompt := buildRunAgentPrompt(*agentFlag, cfg, agentReg, model, dir, toolReg, appendSP)
 
 	// Sync MCP tools
 	if mcpSvc != nil {
@@ -119,6 +150,7 @@ func runRun() {
 		Compaction:    compactionCfg,
 		AgentPerms:    agentPerms,
 		MaxIterations: *maxIterFlag,
+		TokenBudget:   *maxTokensFlag,
 	}, client, toolReg, b)
 	proc.SetMessages(existingMsgs)
 

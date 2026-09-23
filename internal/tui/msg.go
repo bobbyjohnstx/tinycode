@@ -277,6 +277,14 @@ type UnrevertSentMsg struct {
 	Err error
 }
 
+// CompactRequestMsg requests manual context compaction of the active session.
+type CompactRequestMsg struct{}
+
+// CompactDoneMsg reports that the compact (summarize) API call completed.
+type CompactDoneMsg struct {
+	Err error
+}
+
 // ArchiveRequestMsg requests archiving the active session.
 type ArchiveRequestMsg struct{}
 

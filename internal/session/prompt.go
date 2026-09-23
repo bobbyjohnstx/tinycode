@@ -11,12 +11,13 @@ import (
 
 // SystemPromptInput contains all inputs needed to build the system prompt.
 type SystemPromptInput struct {
-	AgentPrompt  string
-	Instructions string
-	Directory    string
-	ToolDefs     []llm.Tool
-	GitBranch    string
-	Platform     string
+	AgentPrompt        string
+	Instructions       string
+	Directory          string
+	ToolDefs           []llm.Tool
+	GitBranch          string
+	Platform           string
+	AppendSystemPrompt string
 }
 
 // BuildSystemPrompt assembles a system prompt from the agent persona, discovered
@@ -54,6 +55,10 @@ func BuildSystemPrompt(input SystemPromptInput) string {
 
 	if input.Instructions != "" {
 		sections = append(sections, input.Instructions)
+	}
+
+	if input.AppendSystemPrompt != "" {
+		sections = append(sections, input.AppendSystemPrompt)
 	}
 
 	return strings.Join(sections, "\n\n---\n\n")

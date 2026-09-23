@@ -368,6 +368,7 @@ func (a *App) hasMessages() bool {
 func (a *App) showPalette() {
 	clientNames := map[string]bool{
 		"connect":       true,
+		"compact":       true,
 		"copy":          true,
 		"diff":          true,
 		"export":        true,
@@ -386,6 +387,7 @@ func (a *App) showPalette() {
 		"archive":       true,
 	}
 	items := []PaletteItem{
+		{Label: "compact", Description: "Compact context (summarize session)", Value: "compact"},
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
 		{Label: "copy", Description: "Copy last response to clipboard", Value: "copy"},
 		{Label: "diff", Description: "Show uncommitted changes", Value: "diff"},
@@ -425,6 +427,11 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	switch name {
 	case "exit":
 		return tea.Quit, true
+	case "compact":
+		if a.state.ActiveSession == "" {
+			return a.toast.Show("No active session to compact", true), true
+		}
+		return func() tea.Msg { return CompactRequestMsg{} }, true
 	case "connect":
 		a.state.PendingModelDialog = true
 		return func() tea.Msg { return ProvidersRefreshMsg{} }, true

@@ -105,9 +105,11 @@ type SessionManager struct {
 	agentRegistry *agent.Registry
 	mcpSvc        *mcp.Service
 	cfg           *config.Info
-	revertState      *RevertState
-	clientFactory    func(*provider.Model) llm.Client
-	jobManager       *session.JobManager
+	revertState        *RevertState
+	clientFactory      func(*provider.Model) llm.Client
+	jobManager         *session.JobManager
+	appendSystemPrompt string
+	tokenBudget        int
 	subagentStreams  map[string]*activeSession // streaming state for subagent synthetic IDs
 	ctx              context.Context
 	ctxCancel        context.CancelFunc

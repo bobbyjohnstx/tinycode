@@ -369,6 +369,14 @@ func patchScopedModels(client *api.Client, models []string) tea.Cmd {
 	}
 }
 
+// summarizeSession triggers manual context compaction via POST /session/{id}/summarize.
+func summarizeSession(client *api.Client, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.SummarizeSession(sessionID)
+		return CompactDoneMsg{Err: err}
+	}
+}
+
 // archiveSession archives a session via POST /session/{id}/archive.
 func archiveSession(client *api.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {

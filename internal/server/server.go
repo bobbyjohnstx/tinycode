@@ -30,14 +30,16 @@ const (
 )
 
 type Config struct {
-	Port         int
-	Hostname     string
-	WebUIDir     string
-	ServeWebUI   bool
-	Directory    string
-	DefaultModel string
-	DefaultAgent string
-	Token        string
+	Port               int
+	Hostname           string
+	WebUIDir           string
+	ServeWebUI         bool
+	Directory          string
+	DefaultModel       string
+	DefaultAgent       string
+	Token              string
+	AppendSystemPrompt string
+	TokenBudget        int
 }
 
 type Listener struct {
@@ -96,6 +98,9 @@ func New(cfg Config, deps Dependencies) *Server {
 		questionStore:   NewQuestionStore(),
 		credentials:     newCredentialStore(),
 	}
+
+	s.sessionManager.appendSystemPrompt = cfg.AppendSystemPrompt
+	s.sessionManager.tokenBudget = cfg.TokenBudget
 
 	s.registerRoutes()
 	s.wirePluginHooks()

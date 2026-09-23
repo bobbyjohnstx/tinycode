@@ -353,6 +353,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 		a.state.Commands = msg.Commands
 		clientItems := []AutocompleteItem{
 			{Name: "exit", Description: "Exit the app"},
+			{Name: "compact", Description: "Compact context (summarize session)"},
 			{Name: "connect", Description: "Select provider and model"},
 			{Name: "copy", Description: "Copy last response to clipboard"},
 			{Name: "diff", Description: "Show uncommitted changes"},

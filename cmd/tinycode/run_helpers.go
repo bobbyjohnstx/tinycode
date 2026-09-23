@@ -178,7 +178,8 @@ func resolveRunModel(reg *provider.Registry, modelStr string) (string, string, *
 }
 
 // buildRunAgentPrompt resolves the agent and builds the system prompt.
-func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Registry, model *provider.Model, dir string, toolReg *tool.Registry) (string, []string, string) {
+// appendSystemPrompt is appended to the end of the system prompt if non-empty.
+func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Registry, model *provider.Model, dir string, toolReg *tool.Registry, appendSystemPrompt ...string) (string, []string, string) {
 	agentName := agentFlag
 	if agentName == "" {
 		agentName = cfg.DefaultAgent
@@ -207,11 +208,16 @@ func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Reg
 	if len(cfg.Instructions) > 0 {
 		instructions = strings.Join(cfg.Instructions, "\n\n")
 	}
+	var appendSP string
+	if len(appendSystemPrompt) > 0 {
+		appendSP = appendSystemPrompt[0]
+	}
 	systemPrompt := session.BuildSystemPrompt(session.SystemPromptInput{
-		AgentPrompt:  agentPrompt,
-		Instructions: instructions,
-		Directory:    dir,
-		ToolDefs:     toolReg.ToolDefs(agentPerms),
+		AgentPrompt:        agentPrompt,
+		Instructions:       instructions,
+		Directory:          dir,
+		ToolDefs:           toolReg.ToolDefs(agentPerms),
+		AppendSystemPrompt: appendSP,
 	})
 
 	return agentName, agentPerms, systemPrompt

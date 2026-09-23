@@ -21,6 +21,8 @@ type RunConfig struct {
 	Token        string
 	Version      string
 	ScopedModels []string
+	InitialTitle string
+	SafeMode     bool
 }
 
 // Run starts the bubbletea TUI program connected to the given server.
@@ -28,6 +30,10 @@ func Run(ctx context.Context, cfg RunConfig) error {
 	client := api.New(cfg.ServerURL, cfg.Directory, cfg.Token)
 
 	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme, cfg.Version, cfg.ScopedModels)
+	app.initialTitle = cfg.InitialTitle
+	if cfg.SafeMode {
+		app.app.status.SetSafeMode(true)
+	}
 
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
@@ -58,6 +64,7 @@ type connectedApp struct {
 	pendingPrompt string
 	pendingAgent  string
 	pendingImages []pendingImage
+	initialTitle  string
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
@@ -269,6 +276,26 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.updateApp(model)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
+		}
+		return c, tea.Batch(cmds...)
+
+	case CompactRequestMsg:
+		sessionID := c.app.state.ActiveSession
+		if sessionID == "" {
+			return c, tea.Batch(c.showErrorToast("No active session to compact")...)
+		}
+		return c, summarizeSession(c.client, sessionID)
+
+	case CompactDoneMsg:
+		if msg.Err != nil {
+			slog.Error("compact failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Compact failed: %v", msg.Err)...)
+		} else {
+			model, cmd := c.app.Update(ToastMsg{Text: "Compacting context...", IsError: false})
+			c.updateApp(model)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 		return c, tea.Batch(cmds...)
 

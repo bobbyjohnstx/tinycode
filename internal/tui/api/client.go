@@ -202,6 +202,11 @@ func (c *Client) GetProviderBalance(providerID string) (*BalanceResponse, error)
 	return &resp, nil
 }
 
+// SummarizeSession triggers manual context compaction via POST /session/{id}/summarize.
+func (c *Client) SummarizeSession(id string) error {
+	return c.doNoBody(http.MethodPost, "/session/"+id+"/summarize")
+}
+
 // ArchiveSession archives a session via POST /session/{id}/archive.
 func (c *Client) ArchiveSession(id string) error {
 	return c.doNoBody(http.MethodPost, "/session/"+id+"/archive")

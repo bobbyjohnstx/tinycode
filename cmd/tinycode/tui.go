@@ -8,7 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
 	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
+	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
 	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
 	"github.com/bobbyjohnstx/tinycode-go/internal/server"
@@ -28,7 +30,7 @@ func runTUI(args []string) {
 	defer cancel()
 
 	var mcpSvc *mcp.Service
-	if len(cfg.MCP) > 0 {
+	if !flags.safeMode && len(cfg.MCP) > 0 {
 		mcpSvc = mcp.NewService(b)
 		defer mcpSvc.Close()
 		mcpSvc.Configure(ctx, cfg.MCP)
@@ -39,7 +41,18 @@ func runTUI(args []string) {
 	defer disc.Stop()
 
 	dir, _ := os.Getwd()
-	agentReg := initAgentRegistry(cfg, dir)
+	var agentReg *agent.Registry
+	if flags.safeMode {
+		agentReg = agent.NewRegistry()
+		defaultPerms := permission.Ruleset{
+			{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
+		}
+		if err := agentReg.LoadDefaults(defaultPerms, nil); err != nil {
+			slog.Warn("failed to load default agents", "error", err)
+		}
+	} else {
+		agentReg = initAgentRegistry(cfg, dir)
+	}
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
 
@@ -50,7 +63,9 @@ func runTUI(args []string) {
 
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
-	loadConfigPlugins(pluginMgr, cfg, dir)
+	if !flags.safeMode {
+		loadConfigPlugins(pluginMgr, cfg, dir)
+	}
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
 
 	if flags.model != "" {
@@ -63,6 +78,8 @@ func runTUI(args []string) {
 	srvCfg := serverConfig(cfg, false)
 	srvCfg.Port = 0
 	srvCfg.Token = token
+	srvCfg.AppendSystemPrompt = flags.appendSystemPrompt
+	srvCfg.TokenBudget = flags.maxTokens
 	srv := server.New(srvCfg, server.Dependencies{
 		Bus:            b,
 		DB:             db.DB,
@@ -97,6 +114,8 @@ func runTUI(args []string) {
 		Token:        token,
 		Version:      version,
 		ScopedModels: cfg.ScopedModels,
+		InitialTitle: flags.title,
+		SafeMode:     flags.safeMode,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "tui: %v\n", err)
 		os.Exit(1)

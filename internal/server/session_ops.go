@@ -257,6 +257,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		UserDisplayText: displayText,
 		MaxIterations:   maxIter,
 		ThinkingBudget:  input.ThinkingBudget,
+		TokenBudget:     sm.tokenBudget,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 	if len(imageParts) > 0 {

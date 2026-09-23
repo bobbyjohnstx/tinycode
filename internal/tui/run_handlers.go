@@ -114,8 +114,13 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		slog.Info("no active session, creating new", "agent", agentOverride)
 		c.pendingPrompt = promptText
 		c.pendingAgent = agentOverride
+		title := "New Session"
+		if c.initialTitle != "" {
+			title = c.initialTitle
+			c.initialTitle = ""
+		}
 		input := api.SessionCreateInput{
-			Title: "New Session",
+			Title: title,
 			Agent: c.app.state.CurrentAgent,
 		}
 		if agentOverride != "" {
@@ -196,8 +201,13 @@ func (c *connectedApp) handleShellResult(msg ShellResultMsg) (tea.Model, tea.Cmd
 	sessionID := c.app.state.ActiveSession
 	if sessionID == "" {
 		c.pendingPrompt = promptText
+		title := "New Session"
+		if c.initialTitle != "" {
+			title = c.initialTitle
+			c.initialTitle = ""
+		}
 		input := api.SessionCreateInput{
-			Title: "New Session",
+			Title: title,
 			Agent: c.app.state.CurrentAgent,
 		}
 		if input.Agent == "" {

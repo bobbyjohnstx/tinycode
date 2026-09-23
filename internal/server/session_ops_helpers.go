@@ -63,10 +63,11 @@ func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *prov
 	}
 
 	systemPrompt = session.BuildSystemPrompt(session.SystemPromptInput{
-		AgentPrompt:  agentPrompt,
-		Instructions: instructions,
-		Directory:    sm.dir,
-		ToolDefs:     sm.tools.ToolDefs(agentPerms),
+		AgentPrompt:        agentPrompt,
+		Instructions:       instructions,
+		Directory:          sm.dir,
+		ToolDefs:           sm.tools.ToolDefs(agentPerms),
+		AppendSystemPrompt: sm.appendSystemPrompt,
 	})
 
 	slog.Info("system prompt built", "sessionID", input.SessionID, "agent", input.Agent, "promptLen", len(systemPrompt))
