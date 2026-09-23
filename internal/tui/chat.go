@@ -137,8 +137,14 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 		}
 
 	case tea.MouseMsg:
-		slog.Debug("chat mouse event", "button", msg.Button, "action", msg.Action, "x", msg.X, "y", msg.Y, "dragging", c.dragging)
-		contentLine := c.viewport.YOffset + msg.Y
+		// Bubbletea mouse Y is 0-indexed from terminal top. Subtract 1
+		// to align with viewport content (empirically confirmed off-by-one).
+		mouseY := msg.Y - 1
+		if mouseY < 0 {
+			mouseY = 0
+		}
+		slog.Debug("chat mouse", "x", msg.X, "y", msg.Y, "mouseY", mouseY, "contentLine", c.viewport.YOffset+mouseY)
+		contentLine := c.viewport.YOffset + mouseY
 		switch {
 		case msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress:
 			if partID, ok := c.thoughtLines[contentLine]; ok {
