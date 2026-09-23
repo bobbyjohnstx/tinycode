@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 type commonFlags struct {
@@ -32,6 +33,14 @@ func parseCommonFlags(name string, args []string) commonFlags {
 	fs.StringVar(&f.resumeSession, "r", "", "resume session by ID or name")
 	fs.StringVar(&f.resumeSession, "resume", "", "resume session by ID or name")
 	_ = fs.Parse(args)
+
+	// First positional argument is a directory.
+	if remaining := fs.Args(); len(remaining) > 0 {
+		if info, err := os.Stat(remaining[0]); err == nil && info.IsDir() {
+			absDir, _ := filepath.Abs(remaining[0])
+			_ = os.Chdir(absDir)
+		}
+	}
 
 	if f.appendSystemPromptFile != "" {
 		data, err := os.ReadFile(f.appendSystemPromptFile)
