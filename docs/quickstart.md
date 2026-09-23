@@ -214,6 +214,23 @@ tinycode includes 10 built-in skills available as slash commands:
 
 tinycode rings the terminal bell when a task finishes or when a permission prompt appears. If you work in another window while the model is running, you hear the bell when it needs your attention. Configure bell behavior in your terminal settings (audible vs. visual).
 
+### Quick diagnostics
+
+Run `tinycode doctor` at any time to verify all subsystems (config, database, providers, agents, plugins, skills):
+
+```bash
+tinycode doctor
+```
+
+### Session resume
+
+Resume where you left off without the TUI session picker:
+
+```bash
+tinycode -c                        # Continue the most recent session
+tinycode -r "my feature work"     # Resume by title substring
+```
+
 ## Next steps
 
 - Read the full [User Guide](user-guide.md) for detailed coverage of every feature

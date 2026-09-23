@@ -109,6 +109,13 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 		{Name: "Terminal Bell", Description: "Rings the terminal bell when a task completes or a permission prompt appears."},
 		{Name: "Session Archive", Description: "Use /archive to soft-delete the current session. Archived sessions are removed from the list but recoverable."},
 		{Name: "HTML Export", Description: "Use /export html to export the current session as a self-contained HTML file with syntax highlighting."},
+		{Name: "Manual Compaction", Description: "Use /compact to summarize older messages and free context window space."},
+		{Name: "tinycode doctor", Description: "Run tinycode doctor from the CLI for a headless health check of config, database, providers, agents, plugins, and skills."},
+		{Name: "Safe Mode", Description: "Start with --safe-mode to skip plugins, MCP servers, and user-defined agents. The status bar shows an orange SAFE MODE indicator."},
+		{Name: "Session Resume", Description: "Use -c/--continue to resume the most recent session, or -r/--resume to resume by ID or title substring."},
+		{Name: "System Prompt Override", Description: "Use --append-system-prompt or --append-system-prompt-file to inject custom instructions into the system prompt."},
+		{Name: "Token Budget", Description: "Use --max-tokens to set a cumulative token ceiling. The session aborts when total input+output tokens exceed the budget."},
+		{Name: "Session Title", Description: "Use --title to set the session title from the command line."},
 	}
 
 	respondJSON(w, http.StatusOK, HelpResponse{

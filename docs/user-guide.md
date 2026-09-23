@@ -122,6 +122,7 @@ Below the prompt. Shows:
 - Agent name (color-coded per agent)
 - An animated braille-wave spinner while the model is working
 - "ctrl+x ..." hint when the leader key is pending
+- **SAFE MODE** indicator (orange, bold) when `--safe-mode` is active
 
 ### Sidebar
 
@@ -147,8 +148,9 @@ These execute immediately without sending anything to the model.
 |---------|-------------|
 | `/connect` | Open the provider/model selector |
 | `/theme` | Open the theme picker (with live preview) |
+| `/compact` | Compact the current session context (summarize older messages to free tokens) |
 | `/export` | Export the current session as a Markdown file in the working directory |
-| `/export html` | Export the current session as an HTML file with syntax highlighting |
+| `/export html` | Export the current session as an HTML file with syntax highlighting (alias: `/export-html`) |
 | `/archive` | Soft-delete the current session (removes from session list, recoverable) |
 | `/copy` | Copy the last assistant response to the clipboard |
 | `/rename <title>` | Rename the current session |
@@ -577,7 +579,7 @@ tinycode session delete <id>       # Delete a session by ID
 
 ### Compaction
 
-When a conversation grows long and approaches the model's context limit, tinycode automatically compacts the session. Compaction summarizes old messages while preserving recent context, keeping the conversation usable within the token budget.
+When a conversation grows long and approaches the model's context limit, tinycode automatically compacts the session. Compaction summarizes old messages while preserving recent context, keeping the conversation usable within the token budget. You can also trigger compaction manually with the `/compact` command.
 
 Configure compaction behavior in config:
 
@@ -1115,10 +1117,65 @@ Running with no command starts the TUI.
 | `agent` | List available agents |
 | `plugin` | Manage plugins (`list`, `install`, `uninstall`) |
 | `init` | Interactive setup wizard |
+| `doctor` | Run diagnostics and check system health (providers, config, database, agents) |
 | `debug` | Debug info (`config`, `paths`) |
 | `status` | Show server health and version info |
 | `version` | Print version |
 | `help` | Show usage |
+
+### TUI and common flags
+
+These flags apply to the TUI (default mode) and `run` mode:
+
+| Flag | Description |
+|------|-------------|
+| `-m, --model` | Model to use (provider/model) |
+| `--title` | Set the session title |
+| `-c, --continue` | Continue the most recent session |
+| `-r, --resume <id>` | Resume a session by ID or title substring |
+| `--append-system-prompt <text>` | Append text to the system prompt |
+| `--append-system-prompt-file <path>` | Append file contents to the system prompt |
+| `--max-tokens <n>` | Cumulative token budget (input+output); session aborts when exceeded |
+| `--safe-mode` | Skip plugins, MCP servers, and user-defined agents |
+
+### Token budget ceiling
+
+The `--max-tokens` flag sets a cumulative token ceiling for a session. The processor tracks total input and output tokens across all iterations; when the sum exceeds the budget, the session stops with a "token budget exceeded" error. This is useful for unattended runs (`tinycode run`) where you want to cap cost.
+
+```bash
+# Abort after 50k total tokens
+tinycode run --max-tokens 50000 -m ollama/qwen3:8b "refactor main.go"
+
+# Also works in TUI mode
+tinycode --max-tokens 100000
+```
+
+### Safe mode
+
+`--safe-mode` starts tinycode without loading plugins, MCP servers, or user-defined agents. Only built-in agents and tools are available. The status bar shows a bold orange **SAFE MODE** indicator when active.
+
+```bash
+tinycode --safe-mode
+```
+
+### Session resume
+
+Resume a previous session from the command line:
+
+```bash
+# Continue the most recent session
+tinycode -c
+
+# Resume a specific session by ID or title substring
+tinycode -r "auth refactor"
+tinycode -r ses_01HQXY...
+```
+
+In `run` mode, the same flags work:
+
+```bash
+tinycode run -c -m ollama/qwen3:8b "now add tests for that"
+```
 
 ### Examples
 
@@ -1141,6 +1198,7 @@ tinycode models                       # List models
 tinycode providers                    # List providers
 tinycode agent                        # List agents
 tinycode status                       # Health check
+tinycode doctor                       # Full diagnostics check
 tinycode debug config                 # Dump merged config as JSON
 tinycode debug paths                  # Show all config/data paths
 ```
@@ -1156,6 +1214,16 @@ Logs are written to `~/.local/share/tinycode/tinycode.log`. For verbose output:
 ```bash
 TINYCODE_LOG_LEVEL=debug tinycode
 ```
+
+### tinycode doctor
+
+Run `tinycode doctor` for a headless health check that verifies every subsystem without starting the TUI:
+
+```bash
+tinycode doctor
+```
+
+It checks: version, Go runtime, config validity, data directory writability, database access, agent loading, provider connectivity, MCP servers, plugins, skills, and log file writability. Each check shows a green check, red X, or yellow warning. Non-zero exit code if any critical check fails.
 
 ### /debug command
 

@@ -34,6 +34,12 @@ tinycode reads your files, runs commands, edits code, and works through multi-st
 - **Which-key panel** --- press Ctrl+X to see all leader key follow-ups in a floating overlay
 - **Terminal bell** --- audible notification on task completion and permission prompts
 - **Leader key system** --- Ctrl+X prefix for sidebar, sessions, editor, diff, themes, MCP, and more
+- **Session resume from CLI** --- `-c` continues the most recent session; `-r` resumes by ID or title
+- **tinycode doctor** --- headless diagnostics that verify config, database, providers, agents, and plugins
+- **Safe mode** --- `--safe-mode` skips plugins, MCP, and user agents; status bar shows bold indicator
+- **System prompt override** --- `--append-system-prompt` and `--append-system-prompt-file` inject custom instructions
+- **Token budget ceiling** --- `--max-tokens` sets a cumulative token limit; session aborts when exceeded
+- **Manual compaction** --- `/compact` summarizes older messages to free context window space
 - **External editor** --- `/editor` opens `$EDITOR`; `/editor @file` edits a file directly
 - **Interactive shell** --- `/shell` drops into a shell session
 

@@ -106,6 +106,9 @@ The built binary is fully self-contained. No Node.js, no runtime dependencies, n
 # Check version
 tinycode version
 
+# Run diagnostics (checks config, database, providers, agents, plugins, skills)
+tinycode doctor
+
 # Show CLI usage
 tinycode help
 
@@ -116,6 +119,8 @@ tinycode debug paths
 # List discovered models (requires a running provider)
 tinycode models
 ```
+
+`tinycode doctor` is the recommended post-install check. It verifies every subsystem and exits non-zero if any critical check fails.
 
 ## Updating
 
