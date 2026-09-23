@@ -79,6 +79,8 @@ func main() {
 		runInit()
 	case "agent":
 		runAgent()
+	case "doctor":
+		runDoctor()
 	case "debug":
 		runDebug()
 	case "version", "--version", "-v":
@@ -118,6 +120,7 @@ func printUsage() {
 	fmt.Println("  plugin     Manage plugins (list, install, uninstall)")
 	fmt.Println("  init       Interactive plugin setup by role")
 	fmt.Println("  agent      List available agents")
+	fmt.Println("  doctor     Run diagnostics and check system health")
 	fmt.Println("  debug      Debug info (config, paths)")
 	fmt.Println("  version    Print version information")
 	fmt.Println("  help       Show this help message")
