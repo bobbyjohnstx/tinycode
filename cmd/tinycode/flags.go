@@ -13,6 +13,8 @@ type commonFlags struct {
 	appendSystemPromptFile string
 	maxTokens             int
 	safeMode              bool
+	continueSession       bool
+	resumeSession         string
 }
 
 func parseCommonFlags(name string, args []string) commonFlags {
@@ -25,6 +27,10 @@ func parseCommonFlags(name string, args []string) commonFlags {
 	fs.StringVar(&f.appendSystemPromptFile, "append-system-prompt-file", "", "append file contents to the system prompt")
 	fs.IntVar(&f.maxTokens, "max-tokens", 0, "cumulative token budget (input+output); abort when exceeded")
 	fs.BoolVar(&f.safeMode, "safe-mode", false, "skip plugins, MCP, and user agents")
+	fs.BoolVar(&f.continueSession, "c", false, "continue most recent session")
+	fs.BoolVar(&f.continueSession, "continue", false, "continue most recent session")
+	fs.StringVar(&f.resumeSession, "r", "", "resume session by ID or name")
+	fs.StringVar(&f.resumeSession, "resume", "", "resume session by ID or name")
 	_ = fs.Parse(args)
 
 	if f.appendSystemPromptFile != "" {

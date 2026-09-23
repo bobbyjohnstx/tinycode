@@ -15,14 +15,15 @@ import (
 
 // RunConfig holds the configuration for starting the TUI.
 type RunConfig struct {
-	ServerURL    string
-	Directory    string
-	Theme        string
-	Token        string
-	Version      string
-	ScopedModels []string
-	InitialTitle string
-	SafeMode     bool
+	ServerURL       string
+	Directory       string
+	Theme           string
+	Token           string
+	Version         string
+	ScopedModels    []string
+	InitialTitle    string
+	SafeMode        bool
+	ResumeSessionID string
 }
 
 // Run starts the bubbletea TUI program connected to the given server.
@@ -31,6 +32,7 @@ func Run(ctx context.Context, cfg RunConfig) error {
 
 	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme, cfg.Version, cfg.ScopedModels)
 	app.initialTitle = cfg.InitialTitle
+	app.resumeSessionID = cfg.ResumeSessionID
 	if cfg.SafeMode {
 		app.app.status.SetSafeMode(true)
 	}
@@ -57,14 +59,15 @@ type pendingImage struct {
 
 // connectedApp wraps App with an API client for server communication.
 type connectedApp struct {
-	app           App
-	client        *api.Client
-	ctx           context.Context
-	sseEvents     <-chan api.ServerEvent
-	pendingPrompt string
-	pendingAgent  string
-	pendingImages []pendingImage
-	initialTitle  string
+	app             App
+	client          *api.Client
+	ctx             context.Context
+	sseEvents       <-chan api.ServerEvent
+	pendingPrompt   string
+	pendingAgent    string
+	pendingImages   []pendingImage
+	initialTitle    string
+	resumeSessionID string
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
@@ -100,7 +103,7 @@ func (c *connectedApp) Init() tea.Cmd {
 	}
 	c.sseEvents = events
 	c.app.welcome.MarkDone("sse")
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		c.app.Init(),
 		waitForSSE(c.sseEvents),
 		fetchSessions(c.client, 50, 0),
@@ -109,7 +112,14 @@ func (c *connectedApp) Init() tea.Cmd {
 		fetchCommands(c.client),
 		fetchPlugins(c.client),
 		fetchMCPStatus(c.client),
-	)
+	}
+	if c.resumeSessionID != "" {
+		resumeID := c.resumeSessionID
+		cmds = append(cmds, func() tea.Msg {
+			return SessionSwitchedMsg{SessionID: resumeID}
+		})
+	}
+	return tea.Batch(cmds...)
 }
 
 func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
