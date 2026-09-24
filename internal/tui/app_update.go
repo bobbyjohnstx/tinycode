@@ -455,7 +455,7 @@ func (a App) forwardSSEMessages(msg tea.Msg) (App, tea.Cmd) {
 // handleMouseMsg routes mouse events to the appropriate component.
 func (a App) handleMouseMsg(msg tea.MouseMsg) (App, tea.Cmd) {
 	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen())
-	if msg.Y < l.chatHeight {
+	if msg.Y < l.chatHeight && msg.X < l.chatWidth {
 		var cmd tea.Cmd
 		a.chat, cmd = a.chat.Update(msg)
 		return a, cmd
