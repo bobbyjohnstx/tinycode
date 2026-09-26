@@ -4,7 +4,7 @@ tinycode is a single static binary with no runtime dependencies. Build from sour
 
 ## Prerequisites
 
-- **Go 1.22+** -- [download](https://go.dev/dl/)
+- **Go 1.27+** -- [download](https://go.dev/dl/)
 - **make** -- included on macOS and most Linux distributions
 - **git** -- to clone the repo
 

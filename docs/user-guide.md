@@ -28,7 +28,7 @@ A complete guide to tinycode -- the local-first AI coding assistant for the term
 
 ### Prerequisites
 
-- **Go 1.22+** -- [install here](https://go.dev/dl/)
+- **Go 1.27+** -- [install here](https://go.dev/dl/)
 - **make**
 - A running LLM provider. [Ollama](https://ollama.com) is the easiest way to start:
 
@@ -480,10 +480,8 @@ The agent cycles through: understand, plan, act, verify, assess. It continues wi
 | **vLLM** | Local | Set `TINYCODE_VLLM_HOST` to enable (e.g., `http://localhost:8000`) |
 | **LM Studio** | Local | Auto-discovered at `localhost:1234` (override with `TINYCODE_LMSTUDIO_HOST`) |
 | **OpenRouter** | Cloud | Set `OPENROUTER_API_KEY` to enable |
-| **Anthropic** | Cloud | Set `ANTHROPIC_API_KEY` to enable |
-| **OpenAI** | Cloud | Set `OPENAI_API_KEY` to enable |
 
-Any OpenAI-compatible API endpoint can also be configured as a provider.
+Any OpenAI-compatible API endpoint (Anthropic, OpenAI, Azure, etc.) can also be configured as a custom provider via the `provider` config block -- see [Configuration](#configuration).
 
 ### Provider auto-discovery
 
@@ -687,8 +685,6 @@ TINYCODE_LMSTUDIO_HOST=http://localhost:1234  # LM Studio URL (default)
 
 # Cloud providers
 OPENROUTER_API_KEY=your-key
-ANTHROPIC_API_KEY=your-key
-OPENAI_API_KEY=your-key
 
 # Server settings
 TINYCODE_PORT=4096           # API server port

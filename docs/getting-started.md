@@ -11,7 +11,7 @@ Step-by-step walkthrough to get tinycode running and productive in 10 minutes.
   - **Ollama** (recommended for getting started) -- [install here](https://ollama.ai)
   - **vLLM** -- fast inference via OpenAI-compatible API
   - **LM Studio** -- desktop app with OpenAI-compatible API
-  - **API key** to OpenRouter, Anthropic, OpenAI, or another cloud provider
+  - **API key** to OpenRouter or another OpenAI-compatible cloud provider
 
 ## Step 1: Install tinycode
 
@@ -43,7 +43,7 @@ ollama serve
 ollama pull qwen3.5:9b
 ```
 
-**Skip this step** if you are using OpenRouter, Anthropic, or another cloud provider.
+**Skip this step** if you are using OpenRouter or another cloud provider.
 
 ## Step 3: Run tinycode
 
@@ -52,9 +52,9 @@ ollama pull qwen3.5:9b
 ```
 
 This starts tinycode in TUI mode against your current directory. You will see:
-- Session sidebar on the left (toggled with `<leader>b`)
 - Conversation area in the center
 - Input prompt at the bottom
+- Sidebar on the right (hidden by default; toggle with `Ctrl+X b`)
 
 **What happens on startup:**
 - tinycode starts an embedded HTTP server on an ephemeral port
@@ -85,8 +85,6 @@ export TINYCODE_LMSTUDIO_HOST=http://localhost:1234
 
 # Cloud providers
 export OPENROUTER_API_KEY=your-key
-export ANTHROPIC_API_KEY=your-key
-export OPENAI_API_KEY=your-key
 ```
 
 ## Step 5: Select a model
