@@ -302,6 +302,19 @@ func (e *LazyEstimator) EstimateMessage(msg *Message) int {
 	return total
 }
 
+// elideOldResults replaces old tool results with stubs as a lightweight
+// alternative to full LLM compaction. This does NOT increment compactionCount
+// and does NOT count toward the circuit breaker.
+func (p *Processor) elideOldResults() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.elisionDone {
+		return
+	}
+	p.messages = maskObservations(p.messages)
+	p.elisionDone = true
+}
+
 func (e *LazyEstimator) FindPreserveBoundary(messages []Message, budgetTokens int) int {
 	budget := budgetTokens
 	if budget < MinPreserveRecentTokens {

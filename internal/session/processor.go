@@ -50,6 +50,7 @@ type Processor struct {
 	messages          []Message
 	priorSummary      string
 	compactionCount   int
+	elisionDone       bool
 	aborted           bool
 	recentToolCalls   []toolCallSignature
 	autoContinueCount int
@@ -120,6 +121,7 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID string) *ProcessResult {
 	p.mu.Lock()
 	p.aborted = false
+	p.elisionDone = false
 	p.autoContinueCount = 0
 	p.mu.Unlock()
 

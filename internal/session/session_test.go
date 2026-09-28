@@ -988,3 +988,172 @@ func TestStore_ArchiveSyncsTimeInfo(t *testing.T) {
 		t.Errorf("Time.Archived (%d) should match TimeArchived (%d)", got.Time.Archived, got.TimeArchived)
 	}
 }
+
+// --- Elision tests ---
+
+func TestElideOldResults_MasksToolResults(t *testing.T) {
+	p := &Processor{}
+	var messages []Message
+	for i := 0; i < 10; i++ {
+		messages = append(messages, Message{
+			Parts: []Part{
+				ToolResultPart(fmt.Sprintf("c%d", i), "read", fmt.Sprintf("output%d", i), false),
+			},
+		})
+	}
+	p.messages = messages
+
+	p.elideOldResults()
+
+	// First 5 should be masked (10 - preserveRecentOutputs = 5)
+	for i := 0; i < 5; i++ {
+		if p.messages[i].Parts[0].ToolResult != "[output masked for compaction]" {
+			t.Errorf("message %d should be masked, got %q", i, p.messages[i].Parts[0].ToolResult)
+		}
+	}
+	// Last 5 should be preserved
+	for i := 5; i < 10; i++ {
+		expected := fmt.Sprintf("output%d", i)
+		if p.messages[i].Parts[0].ToolResult != expected {
+			t.Errorf("message %d should be preserved as %q, got %q", i, expected, p.messages[i].Parts[0].ToolResult)
+		}
+	}
+}
+
+func TestElideOldResults_Idempotent(t *testing.T) {
+	p := &Processor{}
+	var messages []Message
+	for i := 0; i < 10; i++ {
+		messages = append(messages, Message{
+			Parts: []Part{
+				ToolResultPart(fmt.Sprintf("c%d", i), "read", fmt.Sprintf("output%d", i), false),
+			},
+		})
+	}
+	p.messages = messages
+
+	p.elideOldResults()
+	afterFirst := make([]Message, len(p.messages))
+	copy(afterFirst, p.messages)
+
+	p.elideOldResults()
+
+	for i := range afterFirst {
+		if p.messages[i].Parts[0].ToolResult != afterFirst[i].Parts[0].ToolResult {
+			t.Errorf("message %d changed on second call: %q vs %q",
+				i, afterFirst[i].Parts[0].ToolResult, p.messages[i].Parts[0].ToolResult)
+		}
+	}
+}
+
+func TestElideOldResults_ResetOnNewProcess(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "ok"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 10, CompletionTokens: 2}},
+			}},
+		},
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_elision_reset",
+		Model:      &provider.Model{ID: "test-model"},
+		Compaction: DefaultCompactionConfig(),
+	}, client, &mockToolExecutor{}, b)
+
+	p.elisionDone = true
+
+	p.Process(context.Background(), "hello")
+
+	if p.elisionDone {
+		t.Error("expected elisionDone to be reset after ProcessWithID")
+	}
+}
+
+func TestCheckCompaction_SoftThreshold(t *testing.T) {
+	// Model: context=100000, output=4096
+	// outputReserve = max(20000, 4096) = 20000
+	// threshold = 80000
+	// softThreshold = 64000
+	// Usage at 70000 => above soft, below hard => elision only
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "response"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 70000, CompletionTokens: 100}},
+			}},
+		},
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_soft",
+		Model:           &provider.Model{ID: "test-model", Limit: provider.ModelLimit{Context: 100000, Output: 4096}},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, client, &stubToolExecutor{}, b)
+
+	// Add some tool results so elision has something to mask
+	var messages []Message
+	for i := 0; i < 10; i++ {
+		messages = append(messages, Message{
+			Parts: []Part{
+				ToolResultPart(fmt.Sprintf("c%d", i), "read", fmt.Sprintf("output%d", i), false),
+			},
+		})
+	}
+	p.SetMessages(messages)
+
+	result := p.Process(context.Background(), "test query")
+	if result.Error != nil {
+		t.Fatalf("unexpected error: %v", result.Error)
+	}
+
+	// Elision should have fired
+	if !p.elisionDone {
+		t.Error("expected elisionDone to be true after soft threshold")
+	}
+
+	// compactionCount should NOT have incremented (no LLM compaction)
+	if p.compactionCount != 0 {
+		t.Errorf("expected compactionCount=0, got %d", p.compactionCount)
+	}
+}
+
+func TestCheckCompaction_HardThreshold_SkipsElision(t *testing.T) {
+	// Usage at 85000 (above threshold of 80000) => hard compaction, not elision
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "response"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 85000, CompletionTokens: 100}},
+			}},
+		},
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_hard",
+		Model:           &provider.Model{ID: "test-model", Limit: provider.ModelLimit{Context: 100000, Output: 4096}},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, client, &stubToolExecutor{}, b)
+
+	result := p.Process(context.Background(), "test query")
+	if result.Error != nil {
+		t.Fatalf("unexpected error: %v", result.Error)
+	}
+
+	// Elision should NOT have fired (usage >= threshold, not in soft range)
+	if p.elisionDone {
+		t.Error("expected elisionDone to be false at hard threshold")
+	}
+}

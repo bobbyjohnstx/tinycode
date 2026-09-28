@@ -146,10 +146,18 @@ func (p *Processor) checkCompaction(ctx context.Context, totalUsage TokenUsage) 
 	if p.config.Model != nil && p.config.Model.Limit.Context > 0 && totalUsage.Input > 0 {
 		outputReserve := max(p.config.Model.Limit.Output, 20000)
 		threshold := p.config.Model.Limit.Context - outputReserve
-		if threshold > 0 && totalUsage.Input >= threshold {
-			slog.Info("proactive compaction triggered", "sessionID", p.config.SessionID, "inputTokens", totalUsage.Input, "threshold", threshold)
-			if _, compactErr := p.compact(ctx); compactErr != nil {
-				slog.Warn("proactive compaction failed", "sessionID", p.config.SessionID, "error", compactErr)
+		if threshold > 0 {
+			softThreshold := int(float64(threshold) * 0.8)
+			if totalUsage.Input >= softThreshold && totalUsage.Input < threshold {
+				slog.Info("elision triggered", "sessionID", p.config.SessionID,
+					"inputTokens", totalUsage.Input, "softThreshold", softThreshold)
+				p.elideOldResults()
+			}
+			if totalUsage.Input >= threshold {
+				slog.Info("proactive compaction triggered", "sessionID", p.config.SessionID, "inputTokens", totalUsage.Input, "threshold", threshold)
+				if _, compactErr := p.compact(ctx); compactErr != nil {
+					slog.Warn("proactive compaction failed", "sessionID", p.config.SessionID, "error", compactErr)
+				}
 			}
 		}
 	}
