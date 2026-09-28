@@ -36,7 +36,79 @@ func Open(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("creating data directory: %w", err)
 	}
 
+	if err := archiveLegacyDB(dbPath); err != nil {
+		slog.Warn("legacy DB detection failed, continuing", "error", err)
+	}
+
 	return openDB(dbPath)
+}
+
+// archiveLegacyDB detects a TypeScript tinycode database (uses __drizzle_migrations)
+// and renames it so Go can start with a fresh schema. The TS and Go versions share
+// the same DB path but use incompatible migration tracking and may have schema
+// differences that cause silent query failures.
+func archiveLegacyDB(dbPath string) error {
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return nil
+	}
+
+	backupPath := dbPath + ".ts-backup"
+	if _, err := os.Stat(backupPath); err == nil {
+		slog.Info("legacy DB backup already exists, skipping", "backup", backupPath)
+		return nil
+	}
+
+	isLegacy, err := isLegacyTSDB(dbPath)
+	if err != nil {
+		return err
+	}
+	if !isLegacy {
+		return nil
+	}
+
+	slog.Warn("detected TypeScript tinycode database, archiving",
+		"path", dbPath, "backup", backupPath)
+
+	if err := os.Rename(dbPath, backupPath); err != nil {
+		return fmt.Errorf("archiving legacy database: %w", err)
+	}
+
+	for _, suffix := range []string{"-wal", "-shm"} {
+		src := dbPath + suffix
+		if _, err := os.Stat(src); err == nil {
+			os.Rename(src, backupPath+suffix)
+		}
+	}
+
+	slog.Info("legacy database archived", "backup", backupPath)
+	return nil
+}
+
+// isLegacyTSDB opens the database read-only and checks whether it was created
+// by TypeScript tinycode (has __drizzle_migrations table but no _migrations).
+// Opening the DB may checkpoint any WAL file, which is acceptable — the data
+// is preserved in the main DB file.
+func isLegacyTSDB(dbPath string) (bool, error) {
+	probe, err := sql.Open("sqlite", dbPath+"?mode=ro")
+	if err != nil {
+		return false, fmt.Errorf("probing database: %w", err)
+	}
+	defer probe.Close()
+	probe.SetMaxOpenConns(1)
+
+	var drizzleCount, goMigCount int
+	if err := probe.QueryRow(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='__drizzle_migrations'",
+	).Scan(&drizzleCount); err != nil {
+		return false, fmt.Errorf("checking for drizzle table: %w", err)
+	}
+	if err := probe.QueryRow(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='_migrations'",
+	).Scan(&goMigCount); err != nil {
+		return false, fmt.Errorf("checking for go migrations table: %w", err)
+	}
+
+	return drizzleCount > 0 && goMigCount == 0, nil
 }
 
 func openDB(dsn string) (*DB, error) {

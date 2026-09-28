@@ -1,7 +1,12 @@
 package storage
 
 import (
+	"database/sql"
+	"os"
+	"path/filepath"
 	"testing"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestOpenInMemory(t *testing.T) {
@@ -225,5 +230,168 @@ func TestDefaultPath(t *testing.T) {
 	path := DefaultPath()
 	if path == "" {
 		t.Error("DefaultPath should return a non-empty path")
+	}
+}
+
+func TestArchiveLegacyDB_NoFile(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+	err := archiveLegacyDB(dbPath)
+	if err != nil {
+		t.Fatalf("expected no error for nonexistent file, got %v", err)
+	}
+}
+
+func TestArchiveLegacyDB_FreshGoDB(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("failed to create Go DB: %v", err)
+	}
+	db.Close()
+
+	// archiveLegacyDB should leave a Go DB alone (has _migrations, no __drizzle_migrations).
+	err = archiveLegacyDB(dbPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		t.Fatal("Go DB should not have been archived")
+	}
+}
+
+func TestArchiveLegacyDB_DetectsTSDB(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	// Create a fake TS database with __drizzle_migrations but no _migrations.
+	sqlDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to create test DB: %v", err)
+	}
+	_, err = sqlDB.Exec(`
+		CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY, hash TEXT, created_at INTEGER);
+		CREATE TABLE session (id TEXT PRIMARY KEY, title TEXT);
+	`)
+	if err != nil {
+		t.Fatalf("failed to set up fake TS schema: %v", err)
+	}
+	sqlDB.Close()
+
+	err = archiveLegacyDB(dbPath)
+	if err != nil {
+		t.Fatalf("archiveLegacyDB failed: %v", err)
+	}
+
+	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
+		t.Error("original DB file should have been renamed")
+	}
+	backupPath := dbPath + ".ts-backup"
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		t.Error("backup file should exist")
+	}
+}
+
+func TestArchiveLegacyDB_SkipsIfBackupExists(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+	backupPath := dbPath + ".ts-backup"
+
+	// Create fake TS database.
+	sqlDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to create test DB: %v", err)
+	}
+	sqlDB.Exec("CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY)")
+	sqlDB.Close()
+
+	// Create pre-existing backup.
+	os.WriteFile(backupPath, []byte("previous backup"), 0o600)
+
+	err = archiveLegacyDB(dbPath)
+	if err != nil {
+		t.Fatalf("archiveLegacyDB failed: %v", err)
+	}
+
+	// Original should still be there because backup already existed.
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		t.Error("original DB should not have been moved when backup already exists")
+	}
+}
+
+func TestArchiveLegacyDB_MainFileArchived(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	// Create fake TS database with WAL mode active.
+	sqlDB, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL")
+	if err != nil {
+		t.Fatalf("failed to create test DB: %v", err)
+	}
+	sqlDB.Exec("CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY)")
+	sqlDB.Exec("INSERT INTO __drizzle_migrations VALUES (1, 'abc', 12345)")
+	sqlDB.Close()
+
+	// The main DB file should exist and contain the data (WAL checkpoint on close).
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		t.Fatal("DB file should exist")
+	}
+
+	err = archiveLegacyDB(dbPath)
+	if err != nil {
+		t.Fatalf("archiveLegacyDB failed: %v", err)
+	}
+
+	backupPath := dbPath + ".ts-backup"
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		t.Error("backup file should exist")
+	}
+	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
+		t.Error("original DB should have been renamed")
+	}
+}
+
+func TestOpen_WithLegacyDB_CreatesFresh(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	// Create a fake TS database.
+	sqlDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to create test DB: %v", err)
+	}
+	sqlDB.Exec("CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY)")
+	sqlDB.Exec("CREATE TABLE session (id TEXT PRIMARY KEY, title TEXT)")
+	sqlDB.Close()
+
+	// Open via the normal path — should archive and create fresh.
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	// Verify it's a fresh Go database with the full schema.
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM _migrations").Scan(&count)
+	if err != nil {
+		t.Fatalf("_migrations table missing: %v", err)
+	}
+	if count == 0 {
+		t.Error("expected migrations to be applied in fresh DB")
+	}
+
+	// Verify the session table has Go-specific columns.
+	var colCount int
+	err = db.QueryRow(`
+		SELECT COUNT(*) FROM pragma_table_info('session') WHERE name IN ('agent', 'model', 'cost', 'tokens_input')
+	`).Scan(&colCount)
+	if err != nil {
+		t.Fatalf("failed to check session columns: %v", err)
+	}
+	if colCount != 4 {
+		t.Errorf("expected 4 Go-specific session columns, got %d", colCount)
 	}
 }
