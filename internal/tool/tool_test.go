@@ -549,3 +549,100 @@ func TestWithAutoApprove_CreatesRegistryCopy(t *testing.T) {
 		t.Errorf("expected same tool count, got child=%d parent=%d", len(child.List()), len(r.List()))
 	}
 }
+
+// --- TruncPreview tests ---
+
+func TestTruncPreview_NoOp(t *testing.T) {
+	lines := make([]string, 40)
+	for i := range lines {
+		lines[i] = "short line"
+	}
+	content := strings.Join(lines, "\n")
+
+	result := TruncPreview(content)
+	if result.Truncated {
+		t.Error("expected not truncated for 40 lines")
+	}
+	if result.Content != content {
+		t.Error("expected content unchanged")
+	}
+}
+
+func TestTruncPreview_HeadTail(t *testing.T) {
+	lines := make([]string, 200)
+	for i := range lines {
+		lines[i] = strings.Repeat("x", 10)
+	}
+	content := strings.Join(lines, "\n")
+
+	result := TruncPreview(content)
+	if !result.Truncated {
+		t.Error("expected truncated for 200 lines")
+	}
+	if result.FullSize != len(content) {
+		t.Errorf("expected full size %d, got %d", len(content), result.FullSize)
+	}
+
+	// Verify head lines are present
+	resultLines := strings.Split(result.Content, "\n")
+	for i := 0; i < PreviewHeadLines; i++ {
+		if resultLines[i] != strings.Repeat("x", 10) {
+			t.Errorf("head line %d unexpected: %q", i, resultLines[i])
+		}
+	}
+
+	// Verify tail lines end with original content
+	for i := len(resultLines) - PreviewTailLines; i < len(resultLines); i++ {
+		if resultLines[i] != strings.Repeat("x", 10) {
+			t.Errorf("tail line %d unexpected: %q", i, resultLines[i])
+		}
+	}
+}
+
+func TestTruncPreview_HeaderFormat(t *testing.T) {
+	lines := make([]string, 200)
+	for i := range lines {
+		lines[i] = "line content"
+	}
+	content := strings.Join(lines, "\n")
+
+	result := TruncPreview(content)
+	if !strings.Contains(result.Content, "[preview:") {
+		t.Error("expected preview header")
+	}
+	if !strings.Contains(result.Content, "of 200 lines") {
+		t.Errorf("expected line count in header, got:\n%s", result.Content)
+	}
+	if !strings.Contains(result.Content, "total]") {
+		t.Error("expected 'total]' in header")
+	}
+}
+
+func TestTruncPreview_ByteLimit(t *testing.T) {
+	// Content over 50KB
+	content := strings.Repeat("x", PreviewMaxBytes+1000)
+	result := TruncPreview(content)
+	if !result.Truncated {
+		t.Error("expected truncated for content over byte limit")
+	}
+	if result.FullSize != len(content) {
+		t.Errorf("expected full size %d, got %d", len(content), result.FullSize)
+	}
+}
+
+func TestTruncPreview_ExactBoundary(t *testing.T) {
+	// Exactly 50 lines (PreviewHeadLines + PreviewTailLines)
+	lines := make([]string, PreviewHeadLines+PreviewTailLines)
+	for i := range lines {
+		lines[i] = "boundary line"
+	}
+	content := strings.Join(lines, "\n")
+
+	result := TruncPreview(content)
+	if result.Truncated {
+		t.Error("expected not truncated at exact boundary")
+	}
+	if result.Content != content {
+		t.Error("expected content unchanged at exact boundary")
+	}
+}

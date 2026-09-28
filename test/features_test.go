@@ -415,6 +415,53 @@ func TestHeadless_ApplyPatch_MultiFile(t *testing.T) {
 	}
 }
 
+func TestHeadless_BoundedPreview_LargeToolOutput(t *testing.T) {
+	h := NewTestHarness(t)
+
+	// Generate a shell command that produces >50 lines of output.
+	// The tool execution pipeline should truncate this to a head+tail preview.
+	h.MockServer.AddResponse(MockResponse{
+		ToolCalls: []MockToolCall{
+			{Name: "bash", Arguments: `{"command":"seq 1 200"}`},
+		},
+	})
+	h.MockServer.AddResponse(MockResponse{Content: "I saw the numbers"})
+
+	result := h.RunJSON("Count to 200")
+
+	if result.ExitCode != 0 {
+		t.Fatalf("exit code %d, stderr: %s", result.ExitCode, result.Stderr)
+	}
+
+	// The second LLM request should contain the tool result with a preview header.
+	// When the shell tool produces 200 lines, TruncPreview should format it as
+	// first 30 + last 20 lines with a "[preview: ..." header.
+	reqs := h.MockServer.Requests()
+	if len(reqs) < 2 {
+		t.Fatalf("expected at least 2 requests (tool call + follow-up), got %d", len(reqs))
+	}
+
+	// The second request includes the tool result in the conversation messages.
+	// Serialize messages to check for the preview format.
+	secondReq := reqs[1]
+	var foundPreview bool
+	for _, msgRaw := range secondReq.Messages {
+		msgStr := string(msgRaw)
+		if strings.Contains(msgStr, "[preview:") && strings.Contains(msgStr, "lines,") {
+			foundPreview = true
+			break
+		}
+	}
+
+	if !foundPreview {
+		// Log what we got for debugging.
+		for i, msg := range secondReq.Messages {
+			t.Logf("message[%d]: %.200s...", i, string(msg))
+		}
+		t.Error("expected tool result to contain [preview: ...] header for 200-line output")
+	}
+}
+
 func TestHeadless_ApplyPatch_DeleteFile(t *testing.T) {
 	h := NewTestHarness(t)
 

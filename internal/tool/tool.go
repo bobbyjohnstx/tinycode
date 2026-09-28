@@ -186,7 +186,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 	}
 
 	if !isError {
-		truncated := Truncate(output, TruncTail)
+		truncated := TruncPreview(output)
 		output = truncated.Content
 	}
 

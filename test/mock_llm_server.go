@@ -22,6 +22,8 @@ type MockResponse struct {
 	StatusCode   int
 	Delay        time.Duration
 	RawBody      string
+	PromptTokens int
+	CompletionTokens int
 }
 
 type CapturedRequest struct {
@@ -234,6 +236,15 @@ func (m *MockLLMServer) streamResponse(w http.ResponseWriter, resp MockResponse)
 		flusher.Flush()
 	}
 
+	promptTok := resp.PromptTokens
+	if promptTok == 0 {
+		promptTok = 10
+	}
+	completionTok := resp.CompletionTokens
+	if completionTok == 0 {
+		completionTok = 5
+	}
+
 	finishChunk := map[string]any{
 		"id":      "mock-1",
 		"object":  "chat.completion.chunk",
@@ -245,6 +256,11 @@ func (m *MockLLMServer) streamResponse(w http.ResponseWriter, resp MockResponse)
 				"delta":         map[string]any{},
 				"finish_reason": resp.FinishReason,
 			},
+		},
+		"usage": map[string]any{
+			"prompt_tokens":     promptTok,
+			"completion_tokens": completionTok,
+			"total_tokens":      promptTok + completionTok,
 		},
 	}
 	data, _ := json.Marshal(finishChunk)

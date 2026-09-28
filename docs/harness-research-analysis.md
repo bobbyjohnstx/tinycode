@@ -25,9 +25,9 @@ Research conducted 2026-09-28. Based on three sources analyzing agent harness de
 - NVIDIA: Append-only transcripts with bounded previews compound prefill cache hits across entire sessions. No compaction needed in most sessions.
 - Academic paper: T4 strategy (elision then summarization) had the lowest cost per task at every window budget across all models tested. Managed tiers had zero overflow failures vs 78.7% overflow at 32k without management.
 
-**What tinycode has**: `maskObservations()` in `compaction.go` replaces old tool results with stubs. `checkCompaction()` triggers proactive compaction based on input tokens.
+**What tinycode has**: Two-stage context management. `elideOldResults()` in `compaction.go` triggers at ~80% of context threshold, calling `maskObservations()` to replace old tool results with stubs without an LLM call. Full LLM summarization via `compact()` only fires at the hard threshold. `checkCompaction()` handles both stages.
 
-**Gap**: No two-stage strategy. `maskObservations` only runs during full compaction, not as a lighter incremental step. No soft/hard threshold separation. Single-stage = expensive LLM call every time.
+**Gap**: None for the core two-stage strategy. Potential future work: tunable soft threshold percentage, per-tool-type elision policies.
 
 **Effort**: M
 
@@ -43,7 +43,7 @@ Research conducted 2026-09-28. Based on three sources analyzing agent harness de
 
 **What tinycode has**: `model.SizeB()` for size detection. Compact agent variants for small models. Agent-level permission overrides (`WithOnlyTools`).
 
-**Gap**: No automatic tool profile selection. Same 19 tools exposed regardless of model size. No "bash-preferred" mode for capable models.
+**Gap**: No automatic tool profile selection. Same 12-14 tools exposed regardless of model size. No "bash-preferred" mode for capable models. **Note:** At 12-14 tools, this gap is below the threshold where research shows meaningful gains (studies tested 50+ tool harnesses). Deferred — see issue notes.
 
 **Effort**: L
 
@@ -57,9 +57,9 @@ Research conducted 2026-09-28. Based on three sources analyzing agent harness de
 - NVIDIA NOOA: "Pass by reference" — model sees bounded previews instead of serialized dumps. This is the #1 mechanism behind their 50% token reduction (29 calls/1.1M tokens vs competitors at 66 calls/2.2M tokens).
 - Academic paper: Recoverable recall (T2) added machinery models rarely used (56.3% of sessions never called recall). But bounded previews (not full dumps) are universally beneficial.
 
-**What tinycode has**: `truncate.go` truncates large outputs at ~100 lines. `maskObservations` replaces old results with stubs during compaction.
+**What tinycode has**: `TruncPreview()` in `truncate.go` produces head+tail previews (first 30 + last 20 lines) with structured headers showing total line count and byte size. Used by default for all tool results in `Registry.Execute()`. Original `Truncate()` preserved for directional truncation callers.
 
-**Gap**: Truncation is coarse (100 lines). No preview+recall pattern. Full tool results still go into context immediately. No token-budget-aware result sizing.
+**Gap**: No preview+recall pattern (model cannot request full content of a truncated result). No per-tool-type preview tuning. No token-budget-aware result sizing.
 
 **Effort**: M
 
