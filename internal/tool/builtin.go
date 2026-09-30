@@ -16,6 +16,7 @@ func RegisterBuiltins(r *Registry) {
 	r.Register(InvalidTool())
 	r.Register(TaskTool())
 	r.Register(TodoWriteTool())
+	r.Register(DiagnosticsTool())
 }
 
 // BuiltinConfig holds optional configuration for conditional tool registration.
