@@ -147,6 +147,8 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		sb.WriteString(fmt.Sprintf("\n... (%d more lines not shown, use offset/limit to read more)\n", len(lines)-end))
 	}
 
+	tc.ReadFiles[path] = true
+
 	return &ExecuteResult{Output: sb.String()}, nil
 }
 

@@ -41,6 +41,7 @@ type Context struct {
 	SubagentBudget *atomic.Int32 // per-session spawn budget (shared across copies)
 	TaskRoundDone  *atomic.Bool  // set after first foreground task batch completes (shared across copies)
 	AutoApprove    bool          // skip permission checks when true
+	ReadFiles      map[string]bool // tracks files the model has read or edited (shared across copies)
 }
 
 type Def struct {
@@ -71,6 +72,9 @@ type Registry struct {
 }
 
 func NewRegistry(toolCtx *Context) *Registry {
+	if toolCtx.ReadFiles == nil {
+		toolCtx.ReadFiles = make(map[string]bool)
+	}
 	return &Registry{
 		tools:    make(map[string]*Def),
 		disabled: make(map[string]bool),
@@ -123,6 +127,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		SubagentBudget: r.ctx.SubagentBudget,
 		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    r.ctx.AutoApprove,
+		ReadFiles:      r.ctx.ReadFiles,
 	}
 
 	// Check permissions if service is available and tool has a permission requirement
@@ -259,6 +264,7 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 		SubagentBudget: r.ctx.SubagentBudget,
 		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    r.ctx.AutoApprove,
+		ReadFiles:      r.ctx.ReadFiles,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))
@@ -301,6 +307,7 @@ func (r *Registry) WithDepth(depth int) *Registry {
 		SubagentBudget: r.ctx.SubagentBudget,
 		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    r.ctx.AutoApprove,
+		ReadFiles:      r.ctx.ReadFiles,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))
@@ -343,6 +350,7 @@ func (r *Registry) WithAutoApprove() *Registry {
 		SubagentBudget: r.ctx.SubagentBudget,
 		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    true,
+		ReadFiles:      r.ctx.ReadFiles,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))

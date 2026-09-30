@@ -137,6 +137,8 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		})
 	}
 
+	tc.ReadFiles[path] = true
+
 	return &ExecuteResult{
 		Output: fmt.Sprintf("Replaced in %s", path),
 	}, nil

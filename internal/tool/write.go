@@ -44,6 +44,14 @@ func executeWrite(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 
 	path := resolvePath(args.FilePath, tc.Directory)
 
+	// Check if file exists but hasn't been read or edited.
+	var warnUnread bool
+	if _, statErr := os.Stat(path); statErr == nil {
+		if !tc.ReadFiles[path] {
+			warnUnread = true
+		}
+	}
+
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Error creating directory: %v", err), IsError: true}, nil
@@ -67,7 +75,12 @@ func executeWrite(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		})
 	}
 
-	return &ExecuteResult{Output: fmt.Sprintf("Successfully wrote %d bytes to %s", len(args.Content), path)}, nil
+	output := fmt.Sprintf("Successfully wrote %d bytes to %s", len(args.Content), path)
+	if warnUnread {
+		output = "WARNING: You have not read this file. The write may be based on incorrect assumptions about the file's contents.\n\n" + output
+	}
+
+	return &ExecuteResult{Output: output}, nil
 }
 
 func preserveLineEndings(existing, newContent string) string {
