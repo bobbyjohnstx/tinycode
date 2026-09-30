@@ -1,6 +1,6 @@
 # tinycode
 
-Model-agnostic AI coding assistant. Bring any model — local or cloud — single binary, no runtime dependencies.
+Local-first AI coding assistant. Bring any model — single binary, no runtime dependencies.
 
 ![tinycode TUI](tinycode-screenshot.png)
 
@@ -8,7 +8,7 @@ Model-agnostic AI coding assistant. Bring any model — local or cloud — singl
 
 ## What it is
 
-tinycode is a model-agnostic, privacy-first AI coding assistant. A single Go binary embeds everything: HTTP server, terminal UI, session management, LLM client, and tool execution. No separate server process, no Node.js, no runtime dependencies.
+tinycode is a local-first, model-agnostic AI coding assistant. A single Go binary embeds everything: HTTP server, terminal UI, session management, LLM client, and tool execution. No separate server process, no Node.js, no runtime dependencies.
 
 **Works with any OpenAI-compatible endpoint.** Connect to local models (Ollama, vLLM, LM Studio), cloud providers (OpenRouter, Anthropic, OpenAI), or your own infrastructure (RHOAI, Azure, custom endpoints). Swap models mid-session. No vendor lock-in.
 
