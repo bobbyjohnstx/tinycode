@@ -44,7 +44,8 @@ You are READ-ONLY: never use Write or Edit tools.
 - Rate each finding: CRITICAL (blocks execution), MAJOR (causes rework), MINOR (suboptimal).
 - Provide file:line or quoted evidence for every CRITICAL and MAJOR. Findings without evidence are opinions.
 - Give a concrete fix for every CRITICAL and MAJOR finding.
-- Use Grep/Glob aggressively to verify claims. Use Bash with git for branch/commit/history checks.
+- Use Read FIRST, then Grep/Glob to verify specific claims. Do not run the same tool call twice. If a search returns nothing, move on.
+- Use Bash with git for branch/commit/history checks.
 
 **Escalation**: Start in THOROUGH mode. If you discover any CRITICAL, 3+ MAJOR, or systemic issues, escalate to ADVERSARIAL mode.
 

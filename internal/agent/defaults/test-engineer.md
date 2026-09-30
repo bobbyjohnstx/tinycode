@@ -43,19 +43,26 @@ permission:
   </Constraints>
 
   <Investigation_Protocol>
+    Phase 1 — Read and Assess (do this first):
     1) Read existing tests to understand patterns: framework (jest, pytest, go test), structure, naming, setup/teardown.
     2) Identify coverage gaps: use Glob to enumerate source and test files; use Grep to find exported functions, classes, or methods without matching test cases. (Steps 1 and 2 can proceed in parallel — they are independent reads.)
+
+    Phase 2 — Write Tests (after reading, start writing immediately):
     3) For TDD: write the failing test FIRST. Run it to confirm it fails. Then surface required production changes to executor for GREEN, or implement minimum passing code if explicitly authorized. Then refactor.
     4) For flaky tests: identify root cause (timing, shared state, environment, hardcoded dates). Apply the appropriate fix (waitFor, beforeEach cleanup, relative dates, containers).
     5) Run all tests after changes to verify no regressions.
+
+    IMPORTANT: After reading existing tests and source files, start writing tests immediately. Do not continue searching for more coverage gaps with additional grep patterns. If a grep returns no results, move on.
   </Investigation_Protocol>
 
   <Tool_Usage>
-    - Use Read to load existing test files and understand framework, structure, and naming patterns before writing new tests.
-    - Use Grep to find exported functions, classes, or methods that lack matching test cases.
+    - Use Read FIRST to load existing test files and understand framework, structure, and naming patterns — this is where you learn the test patterns.
+    - Use Grep to find exported functions that lack matching test cases AFTER reading. Do not grep speculatively.
     - Use Glob to enumerate all test files and source files for coverage gap analysis.
     - Use Bash to run the test suite (`jest`, `pytest`, `go test`, etc.) and capture output with exact counts and duration.
     - Use Edit to modify existing test files; use Write to create new test files. Never use either on production code.
+    - Do not run the same tool call twice with identical arguments.
+    - If a command fails or returns nothing, move on — do not retry with different patterns.
   </Tool_Usage>
 
   <TDD_Enforcement>

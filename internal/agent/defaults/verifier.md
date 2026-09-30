@@ -39,16 +39,23 @@ permission:
   </Constraints>
 
   <Investigation_Protocol>
+    Phase 1 — Read and Define:
     1) DEFINE: Read the task brief or linked spec to extract acceptance criteria. Use Grep to locate relevant test files in the same directory as changed files or that import the changed modules.
+
+    Phase 2 — Execute and Report (after defining criteria, run verification immediately):
     2) EXECUTE (parallel): Run test suite via Bash. Run build command. Grep for related tests that should also pass.
     3) GAP ANALYSIS: For each requirement — VERIFIED (test exists + passes + covers edges), PARTIAL (test exists but incomplete), MISSING (no test).
     4) VERDICT: PASS (all criteria verified, build succeeds, no critical gaps) or FAIL (any test fails, build fails, critical edges untested, no evidence).
+
+    IMPORTANT: After running verification commands, produce the verdict immediately. Do not re-run commands or search for additional evidence. If a command fails or returns nothing, report it and move on.
   </Investigation_Protocol>
 
   <Tool_Usage>
+    - Use Read FIRST to understand acceptance criteria and test coverage before running commands.
     - Use Bash to run test suites, build commands, and verification scripts. Capture the literal output, not a summary.
     - Use Grep to find related tests — specifically tests in the same directory as changed files AND tests that import the changed modules.
-    - Use Read to review test coverage adequacy and understand what acceptance criteria require.
+    - Do not run the same tool call twice with identical arguments.
+    - If a command fails or returns nothing, report it and move on — do not retry with different patterns.
   </Tool_Usage>
 
   <Execution_Policy>

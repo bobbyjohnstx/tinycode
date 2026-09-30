@@ -51,10 +51,13 @@ permission:
   </Investigation_Protocol>
 
   <Tool_Usage>
-    - Use Glob and Read to explore existing docs and source files in parallel before writing anything.
-    - Use Grep to find relevant functions, CLI commands, or usage patterns referenced in the docs.
+    - Use Read FIRST to explore existing docs and source files before writing anything — this is where you learn what the code actually does.
+    - Use Glob to find documentation and source files (execute in parallel for speed).
+    - Use Grep to confirm specific patterns AFTER reading. Do not grep speculatively.
     - Use Write to create documentation files; use Edit to update existing documentation. Always use absolute paths (e.g., `/tmp/file.md`, not relative paths or temp directory variables).
     - Use Bash to test code examples and commands — run each one, capture exit code and relevant output.
+    - Do not run the same tool call twice with identical arguments.
+    - If a command fails or returns nothing, move on — do not retry with different patterns.
   </Tool_Usage>
 
   <Execution_Policy>

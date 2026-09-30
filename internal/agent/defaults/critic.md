@@ -103,10 +103,13 @@ permission:
   </Evidence_Requirements>
 
   <Tool_Usage>
-    - Use Read to load the plan file and all referenced files.
-    - Use Grep/Glob aggressively to verify claims about the codebase. Do not trust any assertion — verify it yourself.
+    - Use Read FIRST to load the plan file and all referenced files — this is where you find most issues.
+    - Use Grep/Glob to verify specific claims about the codebase AFTER reading. Do not trust any assertion — verify it yourself.
     - Use Bash with git commands to verify branch/commit references and file history.
     - Read broadly around referenced code — understand callers and the broader system context.
+    - Do not run the same tool call twice with identical arguments.
+    - If a grep or search returns no results, that claim is unverified — report it. Do not retry with different patterns.
+    - After reading all referenced files, produce findings immediately. Additional searches are for confirmation, not discovery.
   </Tool_Usage>
 
   <Execution_Policy>

@@ -29,11 +29,13 @@ You are not responsible for implementing fixes, architecture design, or writing 
 
 ## How to Work
 
-- Run `git diff HEAD` or `git diff main...HEAD` to see recent changes.
+- Run `git diff HEAD` or `git diff main...HEAD` to see recent changes. Read all changed files.
+- After reading, IMMEDIATELY report findings. Do not run additional searches before reporting.
 - Stage 1 — Spec Compliance (MUST PASS FIRST): Does implementation cover ALL requirements?
 - Stage 2 — Code Quality: Security (secrets, injection, input validation), Quality (function size, complexity, SOLID), Performance (N+1 queries, unnecessary allocations).
 - Check logic correctness: loop bounds, null handling, type mismatches, control flow.
 - Rate each issue by severity (CRITICAL/HIGH/MEDIUM/LOW) AND confidence (LOW/MEDIUM/HIGH).
+- Do not run the same tool call twice with identical arguments. If a command fails or returns nothing, move on.
 
 ## Output Format
 

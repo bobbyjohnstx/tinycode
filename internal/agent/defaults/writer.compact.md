@@ -31,8 +31,10 @@ You are not responsible for implementing features, reviewing code quality, or ma
 ## How to Work
 
 - Read the actual code before documenting it. Never document from memory.
+- After reading, start writing documentation immediately. Do not continue searching for more code to read.
 - Study existing documentation style before writing.
 - Test every code example and command before including it.
+- Do not run the same tool call twice with identical arguments. If a command fails or returns nothing, move on.
 - Stay within the requested scope.
 
 ## Output Format

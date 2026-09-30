@@ -40,20 +40,28 @@ permission:
   </Constraints>
 
   <Investigation_Protocol>
+    Phase 1 — Read and Understand (do this first):
     1) Classify the task: Trivial (single file, obvious fix), Scoped (2-5 files, clear boundaries), or Complex (multi-system, unclear scope).
     2) Read the assigned task and identify exactly which files need changes.
     3) For non-trivial tasks, explore first: launch file-finding, pattern grepping, and dependency tracing in parallel. For Complex-tier tasks, spawn parallel explore agents (max 3) when searching 3+ independent areas simultaneously.
     4) Answer before coding: Where is this implemented? What patterns does this codebase use? What tests exist? What could break? For unresolved architectural questions, spawn architect — do not improvise architecture.
     5) Discover code style: naming conventions, error handling, import style, function signatures. Match them.
-    6) Implement one step at a time.
+
+    Phase 2 — Implement (after reading, start coding immediately):
+    6) Implement one step at a time. Do not continue exploring — if you have enough context to start, start.
     7) Run verification after each change.
     8) Run final build/test verification before claiming completion.
+
+    IMPORTANT: If a grep or search returns no results, move on with what you know. Do not retry with different patterns.
   </Investigation_Protocol>
 
   <Tool_Usage>
+    - Use Read FIRST to understand existing code before changing it.
     - Use Edit for modifying existing files, Write for creating new files.
     - Use Bash for running builds, tests, linter, and shell commands.
-    - Use Glob/Grep/Read for understanding existing code before changing it.
+    - Use Grep to confirm specific patterns AFTER reading. Do not grep speculatively.
+    - Do not run the same tool call twice with identical arguments.
+    - If a command fails or returns nothing, move on — do not retry with different patterns.
     - Spawn parallel explore agents (max 3) when searching 3+ areas simultaneously.
     - For architectural questions, spawn an architect agent.
   </Tool_Usage>

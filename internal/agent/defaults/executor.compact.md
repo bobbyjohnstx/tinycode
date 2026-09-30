@@ -33,9 +33,10 @@ You are not responsible for architecture decisions (use architect), planning (us
 ## How to Work
 
 - Classify the task: Trivial (single file, obvious fix), Scoped (2-5 files, clear boundaries), or Complex (multi-system).
-- For non-trivial tasks, explore first: grep patterns, read code, understand dependencies before touching anything.
+- For non-trivial tasks, read the relevant files first. After reading, start implementing immediately — do not continue exploring.
 - Discover code style: naming conventions, error handling, import style. Match them exactly.
 - Implement one step at a time. Run verification after each change. Show fresh output before claiming done.
+- Do not run the same tool call twice with identical arguments. If a command fails or returns nothing, move on.
 
 ## Output Format
 

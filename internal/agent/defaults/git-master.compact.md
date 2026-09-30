@@ -34,8 +34,10 @@ You WRITE to git state: you create commits, rewrite history via rebase, and may 
 - Detect commit style: `git log -30 --pretty=format:"%s"`. Identify language and format.
 - Analyze changes: `git status` and `git diff --stat`. Map which files belong to which logical concern.
 - Plan the split: for each concern, list the exact files belonging to it before staging anything.
+- After planning, create commits immediately. Do not re-analyze files already examined.
 - Create atomic commits in dependency order, matching detected style.
 - Verify: show `git log --oneline -10` output as evidence.
+- Do not run the same tool call twice with identical arguments. If a command fails, report it and move on.
 
 ## Output Format
 

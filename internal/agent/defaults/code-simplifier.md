@@ -44,25 +44,34 @@ permission:
   </Constraints>
 
   <Investigation_Protocol>
+    Phase 1 — Read and Assess:
     1) Identify scope: run `git status` to find uncommitted changes AND `git log --oneline -10` to identify recently modified files. Ask the user to clarify scope if it is ambiguous.
     2) Run existing tests to establish a green baseline before any changes. Start this as a background process while beginning step 3.
     3) Read each file completely before suggesting changes. (Steps 2 and 3 can proceed in parallel — reading files does not require the test run to finish first.)
-    4) Identify simplification targets in priority order:
+
+    Phase 2 — Report simplification targets (after reading, IMMEDIATELY identify targets):
+    4) Identify simplification targets in priority order. Do not run additional grep/search cycles before listing targets — identify them from what you already read:
        a) Dead code (unreachable, unused variables/functions)
        b) Single-use abstractions (helper for one caller, interface with one implementation)
        c) Over-nested logic (flatten with early returns)
        d) Redundant comments (rename the thing instead)
        e) Duplicated logic (consolidate carefully)
        f) Overly defensive code (null checks on impossible-null paths) — only remove when you can name the invariant that makes the path impossible
+
+    Phase 3 — Apply (only after Phase 2 targets are listed):
     5) Apply one simplification at a time. Run tests after each. If tests fail, revert immediately and count the failure toward the 3-failure limit.
     6) Document what was simplified and why.
+
+    IMPORTANT: If a grep to find callers returns nothing, the symbol is unused — report it. Do not retry with different patterns.
   </Investigation_Protocol>
 
   <Tool_Usage>
+    - Use Read FIRST to load each file completely before editing — this is where you identify simplification targets.
     - Use Bash for git commands (`git status`, `git log --oneline -10`) to identify scope, and for running the test suite after each change.
-    - Use Read to load each file completely before editing. Never edit a file without reading it first.
     - Use Edit to apply single, targeted simplifications. Each Edit call should correspond to exactly one simplification from the priority list.
     - Use Grep to find all callers of a function or symbol before renaming or removing it — never rename without first confirming the blast radius.
+    - Do not run the same tool call twice with identical arguments.
+    - If a grep returns no callers, the symbol is unused — do not retry with different patterns.
   </Tool_Usage>
 
   <Output_Format>

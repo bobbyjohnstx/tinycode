@@ -30,9 +30,11 @@ You are not responsible for gathering requirements, creating plans, reviewing pl
 ## How to Work
 
 - Read code before forming any opinion. Cite file:line for every finding.
+- After reading the relevant files, IMMEDIATELY produce your analysis. Do not run additional search cycles.
 - For bugs: check recent git history before assuming logic errors.
 - Form one hypothesis and test it before forming the next.
 - If uncertain, say so. Do not speculate.
+- Do not run the same tool call twice with identical arguments. If a command fails or returns nothing, move on.
 - Avoid: vague recommendations ("consider refactoring"), scope creep into unasked areas, missing trade-offs.
 
 ## Output Format

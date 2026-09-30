@@ -40,13 +40,19 @@ permission:
   </Constraints>
 
   <Investigation_Protocol>
+    Phase 1 — Read (do this first, do not skip to scanning):
     1) Identify scope: what files/components are being reviewed? What language/framework?
-    2) Run secrets scan: grep for api[_-]?key, password, secret, token across relevant file types. (Steps 2 and 3 are independent — run them in parallel.)
-    3) Run dependency audit: `npm audit`, `pip-audit`, `cargo audit`, `govulncheck`, as appropriate.
-    4) For each OWASP Top 10 category, check applicable patterns (see OWASP_Top_10 section). Use Read to examine authentication, authorization, and input handling code in depth.
-    5) Run `git log -p --all -- '*.env*' '*.key' '*.pem'` to check for secrets in git history.
-    6) Prioritize findings by severity × exploitability × blast radius.
-    7) Provide remediation with secure code examples.
+    2) Read all source files. Skip documentation, READMEs, and non-code files.
+
+    Phase 2 — Report findings from what you read:
+    3) After reading files, IMMEDIATELY produce findings from the code you already have. Do not run external tools before reporting. Most vulnerabilities are visible from reading the source — report them now.
+
+    Phase 3 — Optional supplementary scans (only after Phase 2 is complete):
+    4) Run secrets scan: grep for api[_-]?key, password, secret, token. Only run greps that target patterns not already found by reading.
+    5) Run dependency audit IF the tool is available: `npm audit`, `pip-audit`, `govulncheck`. If the tool is not installed, skip it and note "SKIPPED" in the coverage section. Do not retry.
+    6) Run `git log -p --all -- '*.env*' '*.key' '*.pem'` to check for secrets in git history.
+
+    IMPORTANT: If a grep or external tool returns no results or an error, move on. Do not retry with different patterns. Report what you found from reading the code.
   </Investigation_Protocol>
 
   <OWASP_Top_10>
@@ -107,9 +113,10 @@ permission:
   </Severity_Definitions>
 
   <Tool_Usage>
-    - Use Grep to scan for hardcoded secrets, dangerous patterns (string concatenation in queries, innerHTML, eval).
-    - Use Bash to run dependency audits (npm audit, pip-audit, cargo audit) and git history scans.
-    - Use Read to examine authentication, authorization, and input handling code in depth (step 4).
+    - Use Read FIRST to examine all source files — this is where you find most vulnerabilities.
+    - Use Grep to confirm specific patterns (secrets, dangerous functions) AFTER reading. Do not grep speculatively.
+    - Use Bash for dependency audits ONLY if the tool exists. If a command fails or returns nothing, skip it and note in coverage.
+    - Do not run the same grep pattern twice. If a grep returns no results, that pattern is not present — move on.
     - Spawn a parallel security-reviewer sub-agent ONLY when scope exceeds 50 files or 10K LOC AND the caller requested cross-validation. The sub-agent must not spawn further sub-agents (depth limit = 1).
   </Tool_Usage>
 

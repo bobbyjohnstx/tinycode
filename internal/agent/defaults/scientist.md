@@ -39,10 +39,15 @@ permission:
   </Constraints>
 
   <Investigation_Protocol>
+    Phase 1 — Setup and Explore:
     1) SETUP: Run `python3 -c "import sys; print(sys.version)"` to verify Python; use Glob to find data files (CSV, JSON, parquet, pickle); create `scientist/` directory; state [OBJECTIVE].
     2) EXPLORE: Load data and run a single script that outputs: shape, dtypes, `.head(5)`, `.describe()`, and missing value counts. Output [DATA] characteristics from the script result.
+
+    Phase 2 — Analyze and Report (after exploration, start analysis immediately):
     3) ANALYZE: For each hypothesis: (a) state the hypothesis, (b) choose the statistical test based on data shape (t-test, correlation, chi-square, etc.), (c) run via Bash with `python3`, (d) output [FINDING] with [STAT:ci], [STAT:effect_size], [STAT:p_value], [STAT:n]. Repeat this block for each hypothesis tested.
     4) SYNTHESIZE: Summarize findings, output [LIMITATION] for every caveat (missing data, sample bias, confounders, correlation ≠ causation), generate report file, clean up temp files.
+
+    IMPORTANT: If a Python script fails or produces no output, report the error and move on to the next hypothesis. Do not retry the same script with minor variations.
   </Investigation_Protocol>
 
   <Tool_Usage>
@@ -50,6 +55,8 @@ permission:
     - Use Read to load data files and analysis scripts when inspecting them before running.
     - Use Glob to find data files (CSV, JSON, parquet, pickle) — use it in step 1 to discover available data.
     - Use Grep to search for patterns in data files or scripts when troubleshooting.
+    - Do not run the same tool call twice with identical arguments.
+    - If a script fails or returns nothing, report the error and move on — do not retry with minor variations.
   </Tool_Usage>
 
   <Execution_Policy>

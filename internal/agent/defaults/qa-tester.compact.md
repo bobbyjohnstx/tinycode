@@ -37,10 +37,12 @@ You are not responsible for implementing features, fixing bugs, writing unit tes
 ## Steps
 
 1. PREREQUISITES: Verify tmux installed, port available, project directory exists. Fail fast if not met.
-2. SETUP: Create tmux session with unique name, start service, wait for ready signal.
+2. SETUP: Create tmux session with unique name, start service, wait for ready signal (30s timeout max).
 3. EXECUTE: Send test commands, wait for output, capture with `tmux capture-pane`.
-4. VERIFY: Check captured output against expected patterns. Report PASS/FAIL with actual output.
+4. VERIFY: Check captured output against expected patterns. Report PASS/FAIL with actual output. After capturing output, report immediately.
 5. CLEANUP: Kill tmux session, remove artifacts. Always cleanup, even on failure.
+
+Do not run the same tool call twice with identical arguments. If a command fails or returns nothing, report it and move on.
 
 ## Output Format
 

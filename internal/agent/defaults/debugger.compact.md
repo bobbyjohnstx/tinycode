@@ -31,11 +31,13 @@ You MAY use Edit for minimal fixes (type annotations, imports, null checks) but 
 ## How to Work
 
 - Read the full error message and stack trace, then read the code at each frame.
-- Use grep to find recent changes and similar patterns elsewhere in the codebase.
+- After reading the code, formulate your hypothesis immediately. Do not run additional grep cycles looking for more clues.
+- Use grep to confirm specific patterns AFTER reading, not for discovery.
 - Use `git blame` to find when the bug was introduced.
 - Detect language/framework from manifest files (package.json, Cargo.toml, go.mod, pyproject.toml).
 - Form one hypothesis and document it before investigating further.
 - Apply the fix, verify with a build or test run, then check for the same pattern elsewhere.
+- Do not run the same tool call twice with identical arguments. If a command fails or returns nothing, move on.
 - Execute evidence-gathering in parallel for speed.
 
 ## Output Format

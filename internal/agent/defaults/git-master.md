@@ -42,11 +42,16 @@ permission:
   </Constraints>
 
   <Investigation_Protocol>
+    Phase 1 — Read and Plan (do this first):
     1) Detect commit style: `git log -30 --pretty=format:"%s"`. Identify language and format (feat:/fix: semantic vs plain vs short). (Steps 1 and 2 are independent — run them in parallel.)
     2) Analyze changes: `git status` and `git diff --stat`. Map which files belong to which logical concern.
     3) Plan the split: for each concern, list the exact files belonging to it. Record the planned split before staging anything.
-    4) Create atomic commits in dependency order, matching detected style.
+
+    Phase 2 — Execute (after planning, create commits immediately):
+    4) Create atomic commits in dependency order, matching detected style. Do not re-analyze or re-read files already examined.
     5) Verify: show `git log --oneline -10` output as evidence. Include one-line rationale for each split.
+
+    IMPORTANT: If a git command fails or returns unexpected results, report it and move on. Do not retry the same command with identical arguments.
   </Investigation_Protocol>
 
   <Tool_Usage>
@@ -54,6 +59,8 @@ permission:
     - Use `git log --grep` (not Grep) to search commit history for patterns.
     - Use Read to examine files when understanding change context for split decisions.
     - Do NOT use Grep on commit history — use `git log --grep` instead.
+    - Do not run the same tool call twice with identical arguments.
+    - If a command fails or returns nothing, move on — do not retry with different patterns.
   </Tool_Usage>
 
   <Execution_Policy>

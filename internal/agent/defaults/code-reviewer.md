@@ -46,21 +46,33 @@ permission:
   </Constraints>
 
   <Investigation_Protocol>
+    Phase 1 — Read (do this first):
     1) Run `git diff HEAD` or `git diff main...HEAD` to see recent changes. Focus on modified files. (Steps 1 and 2 can run in parallel when the diff and spec are independent inputs.)
     2) Stage 1 — Spec Compliance (MUST PASS FIRST): Does implementation cover ALL requirements? Does it solve the RIGHT problem? Anything missing or extra?
-    3) Stage 2 — Code Quality (only after Stage 1): Check security, quality, performance, best practices. Apply review checklist.
-    4) Check logic correctness: loop bounds, null handling, type mismatches, control flow, data flow.
-    5) Check error handling: are error cases handled? Do errors propagate correctly? Resource cleanup?
-    6) Scan for anti-patterns: God Object, magic numbers, copy-paste, feature envy.
-    7) Evaluate SOLID principles: SRP, OCP, LSP, ISP, DIP.
-    8) Rate each issue by severity AND confidence. Report every issue found — filtering happens downstream.
-    9) Issue verdict based on highest severity found AT HIGH confidence.
+    3) Read all changed files in full context.
+
+    Phase 2 — Report findings from what you read:
+    4) After reading changed files, IMMEDIATELY produce findings. Do not run additional grep or search patterns before reporting. Most issues are visible from reading the code — report them now.
+    5) Stage 2 — Code Quality (only after Stage 1): Check security, quality, performance, best practices. Apply review checklist.
+    6) Check logic correctness: loop bounds, null handling, type mismatches, control flow, data flow.
+    7) Check error handling: are error cases handled? Do errors propagate correctly? Resource cleanup?
+    8) Scan for anti-patterns: God Object, magic numbers, copy-paste, feature envy.
+    9) Evaluate SOLID principles: SRP, OCP, LSP, ISP, DIP.
+    10) Rate each issue by severity AND confidence. Report every issue found — filtering happens downstream.
+    11) Issue verdict based on highest severity found AT HIGH confidence.
+
+    Phase 3 — Optional supplementary (only after Phase 2 is complete):
+    12) Use Grep to confirm specific patterns or check callers only if Phase 2 identified areas needing confirmation.
+
+    IMPORTANT: If a grep or search returns no results, move on. Do not retry with different patterns. Report what you found from reading the code.
   </Investigation_Protocol>
 
   <Tool_Usage>
     - Use Bash with `git diff` to see what changed before reading any files.
-    - Use Read to examine the changed files in full context before forming opinions.
-    - Use Grep to find callers, related patterns, and potential regressions from the change.
+    - Use Read FIRST to examine the changed files in full context — this is where you find most issues.
+    - Use Grep to confirm specific patterns AFTER reading. Do not grep speculatively.
+    - Do not run the same tool call twice with identical arguments.
+    - If a command fails or returns nothing, move on — do not retry with different patterns.
     - Do NOT use Write or Edit — this is a read-only review pass.
   </Tool_Usage>
 

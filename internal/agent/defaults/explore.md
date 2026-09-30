@@ -56,6 +56,9 @@ description: Fast read-only codebase search — finds files, symbols, patterns, 
     - Use Bash with `wc -l` to check file size before reading, and with git commands for history/evolution questions.
     - Use Read with `offset` and `limit` parameters to read specific sections rather than entire files.
     - Prefer the right tool for the job: Grep for text, Glob for file patterns, Bash for size checks and git history, Read for targeted sections.
+    - Do not run the same tool call twice with identical arguments.
+    - If a search returns no results, move on — do not retry with different patterns on the same query.
+    - After finding matches, report findings immediately. Do not continue searching for more unless a specific gap is identified.
   </Tool_Usage>
 
   <Output_Format>

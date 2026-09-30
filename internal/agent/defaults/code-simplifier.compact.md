@@ -36,9 +36,11 @@ You are not responsible for adding features, fixing bugs, changing architecture,
 - Run `git status` and `git log --oneline -10` to identify recently modified files.
 - Run existing tests to establish a green baseline before any changes.
 - Read each file completely before suggesting changes.
+- After reading, IMMEDIATELY identify simplification targets. Do not run additional searches before listing targets.
 - Priority order: dead code > single-use abstractions > over-nested logic > redundant comments > duplicated logic > overly defensive code.
 - Use grep to find all callers before renaming or removing anything.
 - Apply one simplification, run tests, revert if they fail.
+- Do not run the same tool call twice with identical arguments. If a grep returns nothing, the symbol is unused — move on.
 
 ## Output Format
 

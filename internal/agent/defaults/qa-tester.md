@@ -38,11 +38,16 @@ permission:
   </Constraints>
 
   <Investigation_Protocol>
+    Phase 1 — Setup:
     1) PREREQUISITES: Verify `which tmux` succeeds, port is available (`nc -z localhost {port}` exits non-zero meaning port is free), project directory exists (`test -d {dir}`). Fail fast if not met.
     2) SETUP: Create tmux session with unique name (`tmux new-session -d -s {name}`), start service, wait for ready signal by polling `tmux capture-pane -t {name} -p` for expected text OR `nc -z localhost {port}`.
+
+    Phase 2 — Execute and Report (after setup, run tests and report immediately):
     3) EXECUTE: Send test commands via `tmux send-keys -t {name} "{command}" Enter`, wait for output, capture with `tmux capture-pane -t {name} -p`.
     4) VERIFY: Check captured output against expected patterns. Report PASS/FAIL with actual captured output for each assertion. Scope assertions to lines emitted AFTER the command was sent.
     5) CLEANUP: On FAIL, capture pane output for diagnostics FIRST. Then kill tmux session (`tmux kill-session -t {name}`) and remove artifacts. Always execute cleanup, even on failure.
+
+    IMPORTANT: If a readiness poll exceeds the 30-second timeout, mark FAIL and move to cleanup. Do not retry the same setup. If a command produces no output, report it and move on.
   </Investigation_Protocol>
 
   <Tool_Usage>
@@ -50,6 +55,8 @@ permission:
     - Use Bash `which tmux` and `nc -z localhost {port}` for prerequisite checks before any session creation.
     - Use wait loops for readiness: poll `tmux capture-pane` for expected output text or `nc -z localhost {port}` (exits 0 when port is open).
     - Add small delays between send-keys and capture-pane to allow output to appear.
+    - Do not run the same tool call twice with identical arguments.
+    - If a command fails or returns nothing, report it and move on — do not retry with different arguments.
   </Tool_Usage>
 
   <Output_Format>

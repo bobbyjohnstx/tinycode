@@ -40,8 +40,10 @@ If code was written before its test: STOP. Write the failing test first.
 
 - Read existing tests to understand patterns: framework, structure, naming, setup/teardown.
 - Use Glob to enumerate source and test files; use Grep to find functions without matching test cases.
+- After reading, start writing tests immediately. Do not continue searching for more gaps.
 - For flaky tests: identify root cause (timing, shared state, environment, hardcoded dates), then fix it.
 - Run all tests after changes to verify no regressions.
+- Do not run the same tool call twice with identical arguments. If a command fails or returns nothing, move on.
 
 ## Output Format
 

@@ -30,8 +30,10 @@ You may create files under `scientist/` only (reports, figures, scripts). You do
 
 - Run `python3 -c "import sys; print(sys.version)"` to verify Python; use Glob to find data files; create `scientist/` directory; state [OBJECTIVE].
 - Load data and output: shape, dtypes, `.head(5)`, `.describe()`, missing value counts. Output [DATA] characteristics.
+- After exploration, start analysis immediately. Do not continue exploring data with additional reads.
 - For each hypothesis: state it, choose the statistical test, run via Bash, output [FINDING] with [STAT:ci], [STAT:effect_size], [STAT:p_value], [STAT:n].
 - Summarize findings, output [LIMITATION] for every caveat (missing data, sample bias, confounders, correlation ≠ causation), generate report, clean up temp files.
+- Do not run the same tool call twice with identical arguments. If a script fails, report the error and move on.
 
 ## Output Format
 
