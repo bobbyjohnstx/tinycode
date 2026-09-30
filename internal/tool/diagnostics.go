@@ -20,7 +20,7 @@ type diagnosticsArgs struct {
 func DiagnosticsTool() *Def {
 	return &Def{
 		ID:          "diagnostics",
-		Description: "Run language-specific diagnostics (lint/typecheck) on a file. Supports Go, Python, TypeScript, and JavaScript.",
+		Description: "Check a file for errors after editing. Call this after completing a batch of edits to catch syntax errors, type mismatches, and lint issues before moving on. Runs go vet (Go), ruff (Python), or tsc (TypeScript/JavaScript). Use lsp_diagnostics instead if a language server is available.",
 		Permission:  "",
 		Parameters: map[string]any{
 			"type": "object",
