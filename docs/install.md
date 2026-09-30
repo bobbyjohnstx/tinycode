@@ -1,6 +1,6 @@
 # Installation
 
-tinycode is a single static binary with no runtime dependencies. Build from source, then run.
+tinycode is a single static binary with no runtime dependencies. Works with any OpenAI-compatible LLM endpoint --- local or cloud. Build from source, then run.
 
 ## Prerequisites
 
