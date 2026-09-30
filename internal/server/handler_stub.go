@@ -712,7 +712,8 @@ func (s *Server) handleVCSDiffRaw(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleLSP(w http.ResponseWriter, _ *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{
-		"status": "unavailable",
+		"status": "available",
+		"note":   "LSP tools are registered via the tool registry; servers are lazily connected on first use",
 	})
 }
 
