@@ -66,6 +66,11 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		a.debugDlg, cmd = a.debugDlg.Update(msg)
 		return a, cmd
 	}
+	if a.privacyDlg.IsVisible() {
+		var cmd tea.Cmd
+		a.privacyDlg, cmd = a.privacyDlg.Update(msg)
+		return a, cmd
+	}
 	if a.mcpDlg.IsVisible() {
 		var cmd tea.Cmd
 		a.mcpDlg, cmd = a.mcpDlg.Update(msg)
@@ -372,6 +377,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "undo", Description: "Revert last AI file changes"},
 			{Name: "redo", Description: "Restore previously reverted changes"},
 			{Name: "archive", Description: "Archive current session"},
+			{Name: "privacy", Description: "Show what data is stored and where"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {

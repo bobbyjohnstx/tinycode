@@ -1201,6 +1201,30 @@ tinycode debug paths                  # Show all config/data paths
 
 ---
 
+## Privacy and Data
+
+tinycode is designed so your data stays on your machine by default.
+
+**What is stored locally:**
+
+| Data | Location |
+|------|----------|
+| Sessions, messages, conversation history | `~/.local/share/tinycode/tinycode.db` (SQLite) |
+| Config, agents, skills, themes | `~/.config/tinycode/` |
+| Logs | `~/.local/share/tinycode/log/` |
+
+**What leaves your machine:**
+
+Nothing --- unless you configure a cloud provider. When you send a prompt to a cloud provider (OpenRouter, Anthropic, OpenAI, etc.), the current prompt and conversation context are sent to that provider's API endpoint. Local providers (Ollama, LM Studio, vLLM) keep everything on your network.
+
+**What is not collected:**
+
+No telemetry, no analytics, no crash reports, no usage tracking. No sign-up or account required. The binary makes zero network calls unless you explicitly configure a provider.
+
+Type `/privacy` in the TUI to see this information with your configured providers listed.
+
+---
+
 ## Troubleshooting
 
 ### Logs

@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/bobbyjohnstx/tinycode-go/internal/config"
+	"github.com/bobbyjohnstx/tinycode-go/internal/storage"
 )
 
 // App is the root bubbletea model composing all TUI components.
@@ -24,6 +25,7 @@ type App struct {
 	modelDlg   ModelDialog
 	themeDlg   ThemeDialog
 	debugDlg   DebugDialog
+	privacyDlg DebugDialog
 	mcpDlg     MCPDialog
 	permPrompt PermissionPrompt
 	toast      Toast
@@ -59,6 +61,7 @@ func NewApp(serverURL string) App {
 		modelDlg:   NewModelDialog(),
 		themeDlg:   NewThemeDialog(),
 		debugDlg:   NewDebugDialog(),
+		privacyDlg: NewDebugDialog(),
 		mcpDlg:     NewMCPDialog(),
 		permPrompt: NewPermissionPrompt(),
 		toast:      NewToast(DefaultTheme()),
@@ -159,6 +162,9 @@ func (a App) View() string {
 	if a.debugDlg.IsVisible() {
 		return a.debugDlg.View()
 	}
+	if a.privacyDlg.IsVisible() {
+		return a.privacyDlg.View()
+	}
 	if a.mcpDlg.IsVisible() {
 		return a.mcpDlg.View()
 	}
@@ -241,6 +247,7 @@ func (a *App) resize() {
 	a.modelDlg.SetSize(a.width, a.height)
 	a.themeDlg.SetSize(a.width, a.height)
 	a.debugDlg.SetSize(a.width, a.height)
+	a.privacyDlg.SetSize(a.width, a.height)
 	a.mcpDlg.SetSize(a.width, a.height)
 	a.permPrompt.SetSize(a.width, a.height)
 	a.toast.SetSize(a.width)
@@ -481,6 +488,11 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		a.debugDlg.Show(info)
 		a.setFocus(FocusDialog)
 		return nil, true
+	case "privacy":
+		info := a.buildPrivacyInfo()
+		a.privacyDlg.Show(info)
+		a.setFocus(FocusDialog)
+		return nil, true
 	case "mcp":
 		a.mcpDlg.Show(a.sidebar.mcpServers)
 		a.setFocus(FocusDialog)
@@ -627,6 +639,58 @@ func (a *App) buildDebugInfo() string {
 			}
 		}
 		fmt.Fprintf(&sb, "MCP:        %d servers (%d connected)", mcpCount, connected)
+	}
+
+	return sb.String()
+}
+
+func isLocalProvider(id string) bool {
+	switch id {
+	case "ollama", "lmstudio", "vllm", "llamacpp":
+		return true
+	}
+	return strings.HasPrefix(id, "localhost") || strings.HasPrefix(id, "127.0.0.1")
+}
+
+func (a *App) buildPrivacyInfo() string {
+	var sb strings.Builder
+
+	sb.WriteString("DATA STORED LOCALLY\n\n")
+
+	fmt.Fprintf(&sb, "Config:       %s\n", config.ConfigDir())
+	fmt.Fprintf(&sb, "Database:     %s\n", storage.DefaultPath())
+	fmt.Fprintf(&sb, "Data dir:     %s\n", config.DataDir())
+
+	sb.WriteString("\n  Sessions, messages, and conversation history\n")
+	sb.WriteString("  are stored in the local SQLite database.\n")
+	sb.WriteString("  Config, agents, skills, and themes are in\n")
+	sb.WriteString("  the config directory. No other locations.\n")
+
+	sb.WriteString("\nWHAT LEAVES YOUR MACHINE\n\n")
+
+	sb.WriteString("  Nothing — unless you configure a cloud\n")
+	sb.WriteString("  provider. When you do, only the current\n")
+	sb.WriteString("  prompt and conversation context are sent\n")
+	sb.WriteString("  to that provider's API endpoint.\n")
+
+	sb.WriteString("\nWHAT IS NOT COLLECTED\n\n")
+
+	sb.WriteString("  No telemetry. No analytics. No crash\n")
+	sb.WriteString("  reports. No usage tracking. No sign-up.\n")
+	sb.WriteString("  No account required. No phone-home.\n")
+
+	sb.WriteString("\nCONFIGURED PROVIDERS\n\n")
+
+	if len(a.state.Providers) == 0 {
+		sb.WriteString("  (none discovered)\n")
+	} else {
+		for _, p := range a.state.Providers {
+			local := "cloud"
+			if isLocalProvider(p.ID) {
+				local = "local"
+			}
+			fmt.Fprintf(&sb, "  %-14s %s\n", p.ID, local)
+		}
 	}
 
 	return sb.String()
