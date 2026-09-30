@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -126,6 +127,9 @@ func runDoctor() {
 	}
 	fmt.Printf("%s Skills: %d bundled + %d user\n", checkPass, bundledSkills, userSkills)
 
+	// LSP and diagnostics tools
+	checkDevTools(dir)
+
 	// Log file
 	logPath := filepath.Join(dataDir, "tinycode.log")
 	if checkWritable(filepath.Dir(logPath)) {
@@ -228,6 +232,46 @@ func checkWritable(dir string) bool {
 	f.Close()
 	os.Remove(name)
 	return true
+}
+
+func checkDevTools(dir string) {
+	type devTool struct {
+		name    string
+		command string
+		install string
+		markers []string // only check if these files exist in project dir
+	}
+
+	tools := []devTool{
+		{name: "gopls (Go LSP)", command: "gopls", install: "go install golang.org/x/tools/gopls@latest", markers: []string{"go.mod"}},
+		{name: "typescript-language-server", command: "typescript-language-server", install: "npm install -g typescript-language-server typescript", markers: []string{"tsconfig.json", "package.json"}},
+		{name: "pyright (Python LSP)", command: "pyright-langserver", install: "npm install -g pyright", markers: []string{"pyproject.toml", "setup.py", "requirements.txt"}},
+		{name: "ruff (Python lint)", command: "ruff", install: "pip install ruff", markers: []string{"pyproject.toml", "setup.py", "requirements.txt", "*.py"}},
+		{name: "bash-language-server", command: "bash-language-server", install: "npm install -g bash-language-server", markers: nil},
+	}
+
+	for _, t := range tools {
+		relevant := t.markers == nil
+		if !relevant {
+			for _, m := range t.markers {
+				matches, _ := filepath.Glob(filepath.Join(dir, m))
+				if len(matches) > 0 {
+					relevant = true
+					break
+				}
+			}
+		}
+		if !relevant {
+			continue
+		}
+
+		if _, err := exec.LookPath(t.command); err == nil {
+			fmt.Printf("%s Dev tool: %s\n", checkPass, t.name)
+		} else {
+			fmt.Printf("%s Dev tool: %s -- not found\n", checkWarn, t.name)
+			fmt.Printf("    install: %s\n", t.install)
+		}
+	}
 }
 
 func countConfigPlugins(cfg *config.Info) int {
