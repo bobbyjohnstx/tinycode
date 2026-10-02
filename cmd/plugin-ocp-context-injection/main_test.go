@@ -14,18 +14,20 @@ func TestPluginID(t *testing.T) {
 
 func TestToolDefinitions(t *testing.T) {
 	p := newPlugin(options{})
-	if len(p.Tools) != 1 {
-		t.Fatalf("got %d tools, want 1", len(p.Tools))
+	if len(p.Tools) != 2 {
+		t.Fatalf("got %d tools, want 2", len(p.Tools))
 	}
-	tool := p.Tools[0]
-	if tool.Name != "cluster_context" {
-		t.Errorf("got name %q, want %q", tool.Name, "cluster_context")
-	}
-	if tool.Description == "" {
-		t.Error("tool description is empty")
-	}
-	if tool.Execute == nil {
-		t.Error("tool Execute is nil")
+	expected := []string{"cluster_context", "oc_login"}
+	for i, name := range expected {
+		if p.Tools[i].Name != name {
+			t.Errorf("tools[%d].Name = %q, want %q", i, p.Tools[i].Name, name)
+		}
+		if p.Tools[i].Description == "" {
+			t.Errorf("tools[%d].Description is empty", i)
+		}
+		if p.Tools[i].Execute == nil {
+			t.Errorf("tools[%d].Execute is nil", i)
+		}
 	}
 }
 
