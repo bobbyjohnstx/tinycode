@@ -168,3 +168,22 @@
     }
   }
 }
+
+/* tinycode theme: override v2 blue accents with brand pink */
+[data-theme="tinycode"] {
+  --v2-background-bg-accent: #c87898;
+  --v2-text-text-accent: #c87898;
+  --v2-text-text-accent-hover: #b06888;
+  --v2-icon-icon-accent: #c87898;
+  --v2-icon-icon-accent-hover: #b06888;
+  --v2-border-border-focus: #c87898;
+}
+
+[data-theme="tinycode"][data-color-scheme="dark"] {
+  --v2-background-bg-accent: #c87898;
+  --v2-text-text-accent: #d48aa8;
+  --v2-text-text-accent-hover: #e0a0b8;
+  --v2-icon-icon-accent: #d48aa8;
+  --v2-icon-icon-accent-hover: #e0a0b8;
+  --v2-border-border-focus: #c87898;
+}
