@@ -320,6 +320,15 @@ type GoalSetMsg struct {
 // GoalClearedMsg signals that the active goal has been cancelled.
 type GoalClearedMsg struct{}
 
+// RewindRequestMsg requests opening the rewind dialog.
+type RewindRequestMsg struct{}
+
+// RewindDoneMsg carries the result of a /rewind command.
+type RewindDoneMsg struct {
+	TurnIndex int
+	Err       error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

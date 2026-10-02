@@ -84,6 +84,14 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		a.mcpDlg, cmd = a.mcpDlg.Update(msg)
 		return a, cmd
 	}
+	if a.rewindDlg.IsVisible() {
+		var cmd tea.Cmd
+		a.rewindDlg, cmd = a.rewindDlg.Update(msg)
+		if !a.rewindDlg.IsVisible() {
+			a.setFocus(FocusPrompt)
+		}
+		return a, cmd
+	}
 
 	// Route to chat search if active.
 	if a.chat.IsSearching() {
@@ -311,6 +319,9 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 				Action:       msg.Action.String(),
 			}
 		}, true
+	case RewindSelectedMsg:
+		a.setFocus(FocusPrompt)
+		return a, func() tea.Msg { return msg }, true
 	case SidebarSessionSelectedMsg:
 		slog.Info("sidebar session selected", "sessionID", msg.SessionID)
 		return a, func() tea.Msg {

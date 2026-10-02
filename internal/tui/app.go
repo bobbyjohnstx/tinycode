@@ -28,6 +28,7 @@ type App struct {
 	privacyDlg DebugDialog
 	mcpDlg     MCPDialog
 	copyDlg    CodeBlockDialog
+	rewindDlg  RewindDialog
 	permPrompt PermissionPrompt
 	toast      Toast
 	sidebar    Sidebar
@@ -65,6 +66,7 @@ func NewApp(serverURL string) App {
 		privacyDlg: NewDebugDialog(),
 		mcpDlg:     NewMCPDialog(),
 		copyDlg:    NewCodeBlockDialog(),
+		rewindDlg:  NewRewindDialog(),
 		permPrompt: NewPermissionPrompt(),
 		toast:      NewToast(DefaultTheme()),
 		sidebar:    NewSidebar(),
@@ -173,6 +175,9 @@ func (a App) View() string {
 	if a.mcpDlg.IsVisible() {
 		return a.mcpDlg.View()
 	}
+	if a.rewindDlg.IsVisible() {
+		return a.rewindDlg.View()
+	}
 	if a.dialog.IsVisible() {
 		return a.dialog.View()
 	}
@@ -258,6 +263,7 @@ func (a *App) resize() {
 	a.privacyDlg.SetSize(a.width, a.height)
 	a.mcpDlg.SetSize(a.width, a.height)
 	a.copyDlg.SetSize(a.width, a.height)
+	a.rewindDlg.SetSize(a.width, a.height)
 	a.permPrompt.SetSize(a.width, a.height)
 	a.toast.SetSize(a.width)
 	a.sidebar.SetSize(l.sidebarWidth, l.chatHeight)
@@ -404,6 +410,7 @@ func (a *App) showPalette() {
 		"archive":       true,
 		"btw":           true,
 		"goal":          true,
+		"rewind":        true,
 	}
 	items := []PaletteItem{
 		{Label: "branch", Description: "Branch conversation to try a different approach", Value: "branch"},
@@ -427,6 +434,7 @@ func (a *App) showPalette() {
 		{Label: "archive", Description: "Archive current session", Value: "archive"},
 		{Label: "btw", Description: "Side question without polluting context", Value: "btw"},
 		{Label: "goal", Description: "Autonomous execution until condition met", Value: "goal"},
+		{Label: "rewind", Description: "Rewind conversation to a previous turn", Value: "rewind"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -533,6 +541,17 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return a.toast.Show("Usage: /btw <question> — ask without polluting context", false), true
 	case "goal":
 		return a.toast.Show("Usage: /goal <condition> — autonomous execution until condition met", false), true
+	case "rewind":
+		if a.state.ActiveSession == "" {
+			return a.toast.Show("No active session to rewind", true), true
+		}
+		turns := ExtractTurns(a.chat.Messages())
+		if len(turns) == 0 {
+			return a.toast.Show("No turns to rewind to", true), true
+		}
+		a.rewindDlg.Show(turns)
+		a.setFocus(FocusDialog)
+		return nil, true
 	}
 	return nil, false
 }

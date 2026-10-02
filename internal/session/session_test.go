@@ -453,6 +453,80 @@ func TestMessageStore_Delete(t *testing.T) {
 	}
 }
 
+func TestMessageStore_DeleteAfterTime(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+	ms := NewMessageStore(store)
+
+	ses, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp"})
+
+	// Create messages with incrementing timestamps.
+	baseTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	for i := 0; i < 5; i++ {
+		ms.Append(&Message{
+			ID:        fmt.Sprintf("msg_%d", i),
+			SessionID: ses.ID,
+			Role:      RoleUser,
+			Parts:     []Part{TextPart(fmt.Sprintf("message %d", i))},
+			CreatedAt: baseTime.Add(time.Duration(i) * time.Minute),
+		})
+	}
+
+	// Delete messages after msg_2 (timestamp = baseTime + 2min).
+	cutoffMs := baseTime.Add(2 * time.Minute).UnixMilli()
+	deleted, err := ms.DeleteAfterTime(ses.ID, cutoffMs)
+	if err != nil {
+		t.Fatalf("delete after time: %v", err)
+	}
+	if deleted != 2 {
+		t.Errorf("expected 2 deleted, got %d", deleted)
+	}
+
+	remaining, err := ms.List(ses.ID)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(remaining) != 3 {
+		t.Fatalf("expected 3 remaining messages, got %d", len(remaining))
+	}
+
+	// Verify the correct messages remain.
+	for i, msg := range remaining {
+		expected := fmt.Sprintf("msg_%d", i)
+		if msg.ID != expected {
+			t.Errorf("remaining[%d].ID = %q, want %q", i, msg.ID, expected)
+		}
+	}
+}
+
+func TestMessageStore_DeleteAfterTime_NoneDeleted(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+	ms := NewMessageStore(store)
+
+	ses, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp"})
+
+	now := time.Now()
+	ms.Append(&Message{
+		ID: "msg_0", SessionID: ses.ID, Role: RoleUser,
+		Parts: []Part{TextPart("hello")}, CreatedAt: now,
+	})
+
+	// Cutoff after all messages — nothing to delete.
+	deleted, err := ms.DeleteAfterTime(ses.ID, now.Add(time.Hour).UnixMilli())
+	if err != nil {
+		t.Fatalf("delete after time: %v", err)
+	}
+	if deleted != 0 {
+		t.Errorf("expected 0 deleted, got %d", deleted)
+	}
+
+	count, _ := ms.Count(ses.ID)
+	if count != 1 {
+		t.Errorf("expected 1 message remaining, got %d", count)
+	}
+}
+
 // Compaction tests
 
 func TestLazyEstimator_EstimateMessage(t *testing.T) {

@@ -436,6 +436,31 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case GoalEvalMsg:
 		return c.handleGoalEval(msg)
 
+	case RewindSelectedMsg:
+		sessionID := c.app.state.ActiveSession
+		if sessionID == "" {
+			return c, tea.Batch(c.showErrorToast("No active session to rewind")...)
+		}
+		cmd := c.app.toast.Show("Rewinding conversation...", false)
+		return c, tea.Batch(cmd, rewindSession(c.client, sessionID, msg.Turn.MessageID, msg.Turn.Index))
+
+	case RewindDoneMsg:
+		if msg.Err != nil {
+			slog.Error("rewind failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Rewind failed: %v", msg.Err)...)
+		} else {
+			toastCmd := c.app.toast.Show(fmt.Sprintf("Rewound to turn %d", msg.TurnIndex), false)
+			if toastCmd != nil {
+				cmds = append(cmds, toastCmd)
+			}
+			// Reload messages to reflect the truncated conversation.
+			sessionID := c.app.state.ActiveSession
+			if sessionID != "" {
+				cmds = append(cmds, fetchMessages(c.client, sessionID))
+			}
+		}
+		return c, tea.Batch(cmds...)
+
 	case BtwResponseMsg:
 		if msg.Err != nil {
 			slog.Error("btw failed", "error", msg.Err)

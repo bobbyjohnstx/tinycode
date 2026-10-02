@@ -389,6 +389,14 @@ func branchSession(client *api.Client, sessionID, title string) tea.Cmd {
 	}
 }
 
+// rewindSession rewinds a session to a specific message via POST /session/{id}/rewind.
+func rewindSession(client *api.Client, sessionID, messageID string, turnIndex int) tea.Cmd {
+	return func() tea.Msg {
+		err := client.RewindSession(sessionID, messageID)
+		return RewindDoneMsg{TurnIndex: turnIndex, Err: err}
+	}
+}
+
 // archiveSession archives a session via POST /session/{id}/archive.
 func archiveSession(client *api.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {

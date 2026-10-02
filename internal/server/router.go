@@ -34,6 +34,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /session/{id}/revert", s.handleSessionRevert)
 	s.mux.HandleFunc("POST /session/{id}/unrevert", s.handleSessionUnrevert)
 	s.mux.HandleFunc("POST /session/{id}/btw", s.handleSessionBtw)
+	s.mux.HandleFunc("POST /session/{id}/rewind", s.handleSessionRewindMessages)
 
 	// Session read
 	s.mux.HandleFunc("GET /session/{id}/message", s.handleMessageList)

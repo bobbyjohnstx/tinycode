@@ -188,6 +188,19 @@ func (ms *MessageStore) DeleteByID(messageID string) error {
 	return err
 }
 
+// DeleteAfterTime deletes all messages in a session created after the given
+// timestamp (in milliseconds). Returns the number of deleted messages.
+func (ms *MessageStore) DeleteAfterTime(sessionID string, afterMs int64) (int64, error) {
+	result, err := ms.store.db.Exec(
+		"DELETE FROM message WHERE session_id = ? AND time_created > ?",
+		sessionID, afterMs,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 func (ms *MessageStore) Count(sessionID string) (int, error) {
 	var count int
 	err := ms.store.db.QueryRow(

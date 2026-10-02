@@ -239,6 +239,13 @@ func (c *Client) BranchSession(sessionID, title string) (*session.Info, error) {
 	return &info, nil
 }
 
+// RewindSession rewinds a session to a specific message via POST /session/{id}/rewind.
+// All messages after the target message are deleted.
+func (c *Client) RewindSession(sessionID, messageID string) error {
+	body := map[string]string{"messageID": messageID}
+	return c.postNoResp("/session/"+sessionID+"/rewind", body)
+}
+
 // Btw sends a side question via POST /session/{id}/btw and returns the answer.
 func (c *Client) Btw(sessionID, question string) (string, error) {
 	var resp struct {

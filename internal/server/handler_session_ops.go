@@ -102,6 +102,64 @@ func (s *Server) handleSessionUnrevert(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, info)
 }
 
+func (s *Server) handleSessionRewindMessages(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("id")
+	var body struct {
+		MessageID string `json:"messageID"`
+	}
+	if err := decodeJSON(w, r, &body); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if body.MessageID == "" {
+		respondError(w, http.StatusBadRequest, "messageID is required")
+		return
+	}
+
+	ms := s.messageStore()
+	messages, err := ms.List(sessionID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Find the target message and get its timestamp.
+	var targetTime int64
+	found := false
+	for _, m := range messages {
+		if m.ID == body.MessageID {
+			targetTime = m.CreatedAt.UnixMilli()
+			found = true
+			break
+		}
+	}
+	if !found {
+		respondError(w, http.StatusNotFound, "message not found")
+		return
+	}
+
+	// Delete all messages created after the target message.
+	deleted, err := ms.DeleteAfterTime(sessionID, targetTime)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Clean up associated parts.
+	ps := s.partStore()
+	for _, m := range messages {
+		if m.CreatedAt.UnixMilli() > targetTime {
+			_ = ps.DeleteByMessage(m.ID)
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"sessionID":      sessionID,
+		"deletedCount":   deleted,
+		"rewindToMessage": body.MessageID,
+	})
+}
+
 func (s *Server) handleSessionChildren(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	store := s.sessionStore()

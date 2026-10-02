@@ -130,6 +130,12 @@ func builtinCommands() []Command {
 			Source:      "builtin",
 			Hints:       []string{"$1"},
 		},
+		{
+			Name:        "rewind",
+			Description: "Rewind conversation to a previous turn",
+			Source:      "builtin",
+			Hints:       []string{},
+		},
 	}
 }
 
