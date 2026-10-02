@@ -1,18 +1,14 @@
-FROM alpine AS base
+FROM registry.access.redhat.com/ubi9/ubi-minimal AS base
 
-# Disable the runtime transpiler cache by default inside Docker containers.
-# On ephemeral containers, the cache is not useful
-ARG BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
-ENV BUN_RUNTIME_TRANSPILER_CACHE_PATH=${BUN_RUNTIME_TRANSPILER_CACHE_PATH}
-RUN apk add libgcc libstdc++ ripgrep
+RUN microdnf install -y ripgrep && microdnf clean all
 
 ARG TARGETARCH
 FROM base AS build-amd64
-COPY dist/tinycode-linux-x64-baseline-musl/bin/tinycode /usr/local/bin/tinycode
+COPY dist/tinycode-linux-amd64 /usr/local/bin/tinycode
 
 FROM base AS build-arm64
-COPY dist/tinycode-linux-arm64-musl/bin/tinycode /usr/local/bin/tinycode
+COPY dist/tinycode-linux-arm64 /usr/local/bin/tinycode
 
 FROM build-${TARGETARCH}
-RUN tinycode --version
+RUN chmod +x /usr/local/bin/tinycode && tinycode --version
 ENTRYPOINT ["tinycode"]
