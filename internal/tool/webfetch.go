@@ -35,8 +35,20 @@ var ssrfBlockedPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("fe80::/10"),      // IPv6 link-local
 }
 
+// isPrivateIP reports whether ip falls within any SSRF-blocked prefix.
+func isPrivateIP(ip netip.Addr) bool {
+	for _, prefix := range ssrfBlockedPrefixes {
+		if prefix.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 // checkSSRF resolves the hostname of u and returns errSSRFBlocked if any
 // resolved address falls within a private/loopback/link-local range.
+// This is a fast-fail pre-check; the real guard is ssrfSafeTransport's
+// DialContext which validates IPs at connection time to prevent DNS rebinding.
 func checkSSRF(ctx context.Context, rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -57,25 +69,65 @@ func checkSSRF(ctx context.Context, rawURL string) error {
 		if err != nil {
 			continue
 		}
-		for _, prefix := range ssrfBlockedPrefixes {
-			if prefix.Contains(ip) {
-				return errSSRFBlocked
-			}
+		if isPrivateIP(ip) {
+			return errSSRFBlocked
 		}
 	}
 	return nil
 }
 
-// ssrfSafeClient returns an http.Client that validates each redirect target
-// against the SSRF blocklist before following it.
-func ssrfSafeClient(ctx context.Context) *http.Client {
+// ssrfSafeTransport returns an http.Transport that validates resolved IP
+// addresses at connection time, preventing DNS rebinding attacks. The
+// resolver result is checked before dialing, so an attacker cannot return
+// a public IP during a pre-check and rebind to a private IP for the
+// actual connection.
+func ssrfSafeTransport() *http.Transport {
+	return &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid address: %w", err)
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, err
+			}
+			if len(ips) == 0 {
+				return nil, fmt.Errorf("no addresses found for %s", host)
+			}
+			for _, ip := range ips {
+				parsed, ok := netip.AddrFromSlice(ip.IP)
+				if !ok {
+					continue
+				}
+				if isPrivateIP(parsed.Unmap()) {
+					return nil, errSSRFBlocked
+				}
+			}
+			// Connect to the first resolved IP directly, bypassing
+			// further DNS resolution to close the TOCTOU window.
+			dialer := &net.Dialer{Timeout: 10 * time.Second}
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+		},
+		TLSHandshakeTimeout:  10 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+		IdleConnTimeout:       30 * time.Second,
+		TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12},
+	}
+}
+
+// ssrfSafeClient returns an http.Client whose transport validates resolved
+// IPs at dial time and enforces a redirect limit.
+func ssrfSafeClient() *http.Client {
 	return &http.Client{
-		Transport: fetchClient.Transport,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		Transport: ssrfSafeTransport(),
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return errors.New("stopped after 10 redirects")
 			}
-			return checkSSRF(ctx, req.URL.String())
+			// IP validation happens in the transport's DialContext for
+			// every connection, including those triggered by redirects.
+			return nil
 		},
 	}
 }
@@ -178,8 +230,9 @@ func executeWebFetch(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 		req.Header.Set(k, v)
 	}
 
-	// Use a client with redirect validation to prevent SSRF via redirects.
-	client := ssrfSafeClient(fetchCtx)
+	// Use a client whose transport validates IPs at dial time, preventing
+	// both direct requests and redirects to private addresses.
+	client := ssrfSafeClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Fetch error: %v", err), IsError: true}, nil
