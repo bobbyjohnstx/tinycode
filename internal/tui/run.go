@@ -373,6 +373,43 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, tea.Batch(cmds...)
 
+	case BranchRequestMsg:
+		sessionID := c.app.state.ActiveSession
+		if sessionID == "" {
+			return c, tea.Batch(c.showErrorToast("No active session to branch")...)
+		}
+		title := msg.Name
+		if title == "" {
+			for _, s := range c.app.state.Sessions {
+				if s.ID == sessionID {
+					title = "branch of " + s.Title
+					break
+				}
+			}
+			if title == "" {
+				title = "branch"
+			}
+		}
+		return c, branchSession(c.client, sessionID, title)
+
+	case BranchDoneMsg:
+		if msg.Err != nil {
+			slog.Error("branch failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Branch failed: %v", msg.Err)...)
+		} else if msg.Session != nil {
+			c.app.state.Sessions = append([]SessionInfo{*msg.Session}, c.app.state.Sessions...)
+			c.app.sidebar.SetSessions(c.app.state.Sessions)
+			model, cmd := c.app.Update(ToastMsg{Text: "Switched to branch: " + msg.Session.Title, IsError: false})
+			c.updateApp(model)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			cmds = append(cmds, func() tea.Msg {
+				return SessionSwitchedMsg{SessionID: msg.Session.ID}
+			})
+		}
+		return c, tea.Batch(cmds...)
+
 	case BtwResponseMsg:
 		if msg.Err != nil {
 			slog.Error("btw failed", "error", msg.Err)

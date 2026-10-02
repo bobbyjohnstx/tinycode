@@ -228,6 +228,17 @@ func (c *Client) ReplyPermission(sessionID, permissionID, action string) error {
 	return c.postNoResp("/session/"+sessionID+"/permissions/"+permissionID, body)
 }
 
+// BranchSession branches a session via POST /session/{id}/fork.
+// It creates a new session with ParentID set to the source session and copies all messages.
+func (c *Client) BranchSession(sessionID, title string) (*session.Info, error) {
+	var info session.Info
+	body := map[string]string{"title": title}
+	if err := c.postJSON("/session/"+sessionID+"/fork", body, &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
 // Btw sends a side question via POST /session/{id}/btw and returns the answer.
 func (c *Client) Btw(sessionID, question string) (string, error) {
 	var resp struct {

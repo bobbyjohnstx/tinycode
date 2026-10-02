@@ -293,6 +293,17 @@ type ArchiveSentMsg struct {
 	Err error
 }
 
+// BranchRequestMsg requests branching the active session.
+type BranchRequestMsg struct {
+	Name string
+}
+
+// BranchDoneMsg carries the result of a /branch command.
+type BranchDoneMsg struct {
+	Session *SessionInfo
+	Err     error
+}
+
 // BtwResponseMsg carries the result of a /btw side question.
 type BtwResponseMsg struct {
 	Question string

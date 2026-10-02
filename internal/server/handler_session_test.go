@@ -503,6 +503,154 @@ func TestConfigModelResolution_UnavailableProviderResolvesToDefault(t *testing.T
 	_ = model // The resolved model depends on disk config; we verified the endpoint works.
 }
 
+// --- Branch (Fork) Tests ---
+
+func TestBranch_CreatesNewSessionWithParentID(t *testing.T) {
+	srv, _ := testServer(t)
+
+	// Create parent session.
+	req := httptest.NewRequest("POST", "/session?directory=/tmp", strings.NewReader(`{"title":"Parent","agent":"build"}`))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("create parent: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var parent session.Info
+	json.NewDecoder(w.Body).Decode(&parent)
+
+	// Branch the session.
+	req = httptest.NewRequest("POST", "/session/"+parent.ID+"/fork", strings.NewReader(`{"title":"My Branch"}`))
+	w = httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("branch: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var branch session.Info
+	json.NewDecoder(w.Body).Decode(&branch)
+
+	if branch.ParentID != parent.ID {
+		t.Errorf("expected parentID %q, got %q", parent.ID, branch.ParentID)
+	}
+	if branch.Title != "My Branch" {
+		t.Errorf("expected title 'My Branch', got %q", branch.Title)
+	}
+	if branch.ID == parent.ID {
+		t.Error("branch ID must differ from parent ID")
+	}
+	if branch.Agent != parent.Agent {
+		t.Errorf("expected agent %q inherited from parent, got %q", parent.Agent, branch.Agent)
+	}
+}
+
+func TestBranch_CopiesMessages(t *testing.T) {
+	srv, _ := testServer(t)
+
+	// Create parent session.
+	req := httptest.NewRequest("POST", "/session?directory=/tmp", strings.NewReader(`{"title":"Parent Msgs"}`))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	var parent session.Info
+	json.NewDecoder(w.Body).Decode(&parent)
+
+	// Add messages to the parent.
+	ms := srv.messageStore()
+	for i, text := range []string{"hello", "world", "test"} {
+		msg := &session.Message{
+			ID:        fmt.Sprintf("msg_branch_%d", i),
+			SessionID: parent.ID,
+			Role:      session.RoleUser,
+			Parts:     []session.Part{session.TextPart(text)},
+			CreatedAt: time.Now(),
+		}
+		if err := ms.Append(msg); err != nil {
+			t.Fatalf("append msg %d: %v", i, err)
+		}
+	}
+
+	// Branch the session.
+	req = httptest.NewRequest("POST", "/session/"+parent.ID+"/fork", strings.NewReader(`{"title":"Branch With Msgs"}`))
+	w = httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("branch: expected 201, got %d", w.Code)
+	}
+	var branch session.Info
+	json.NewDecoder(w.Body).Decode(&branch)
+
+	// Verify branch has copied messages.
+	branchMsgs, err := ms.List(branch.ID)
+	if err != nil {
+		t.Fatalf("list branch messages: %v", err)
+	}
+	if len(branchMsgs) != 3 {
+		t.Fatalf("expected 3 messages in branch, got %d", len(branchMsgs))
+	}
+
+	// Verify branch messages have different IDs but same content.
+	for i, bm := range branchMsgs {
+		if bm.SessionID != branch.ID {
+			t.Errorf("msg %d: expected sessionID %q, got %q", i, branch.ID, bm.SessionID)
+		}
+		if bm.ID == fmt.Sprintf("msg_branch_%d", i) {
+			t.Errorf("msg %d: branch message should have a new ID, got same as parent", i)
+		}
+	}
+}
+
+func TestBranch_OriginalSessionUnchanged(t *testing.T) {
+	srv, _ := testServer(t)
+
+	// Create parent session with messages.
+	req := httptest.NewRequest("POST", "/session?directory=/tmp", strings.NewReader(`{"title":"Unchanged Parent"}`))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	var parent session.Info
+	json.NewDecoder(w.Body).Decode(&parent)
+
+	ms := srv.messageStore()
+	msg := &session.Message{
+		ID:        "msg_unchanged_001",
+		SessionID: parent.ID,
+		Role:      session.RoleUser,
+		Parts:     []session.Part{session.TextPart("original message")},
+		CreatedAt: time.Now(),
+	}
+	if err := ms.Append(msg); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	// Branch the session.
+	req = httptest.NewRequest("POST", "/session/"+parent.ID+"/fork", strings.NewReader(`{"title":"Branch"}`))
+	w = httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("branch: expected 201, got %d", w.Code)
+	}
+
+	// Verify parent messages are unchanged.
+	parentMsgs, err := ms.List(parent.ID)
+	if err != nil {
+		t.Fatalf("list parent messages: %v", err)
+	}
+	if len(parentMsgs) != 1 {
+		t.Fatalf("expected 1 message in parent, got %d", len(parentMsgs))
+	}
+	if parentMsgs[0].ID != "msg_unchanged_001" {
+		t.Errorf("parent message ID changed: got %q", parentMsgs[0].ID)
+	}
+
+	// Verify parent session info is untouched.
+	store := srv.sessionStore()
+	info, err := store.Get(parent.ID)
+	if err != nil {
+		t.Fatalf("get parent: %v", err)
+	}
+	if info.Title != "Unchanged Parent" {
+		t.Errorf("parent title changed: got %q", info.Title)
+	}
+}
+
 func TestConfigModelResolution_EmptyModelStaysEmpty(t *testing.T) {
 	h := newTestHarness(t, nil)
 
