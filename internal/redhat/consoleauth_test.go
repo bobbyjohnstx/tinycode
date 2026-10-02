@@ -90,11 +90,7 @@ func TestConsoleAuthClient_ExchangeToken(t *testing.T) {
 	var callCount atomic.Int32
 	ts := newSSOServer(t, &callCount, "access-tok-1", 3600)
 
-	client := &ConsoleAuthClient{
-		ssoURL:       ts.URL,
-		offlineToken: "offline-tok",
-		httpClient:   &http.Client{Timeout: 5 * time.Second},
-	}
+	client := NewConsoleAuthClient(ConsoleAuthConfig{SSOURL: ts.URL, OfflineToken: "offline-tok"})
 
 	token, expiresIn, err := client.exchangeToken(context.Background())
 	if err != nil {
@@ -125,11 +121,7 @@ func TestConsoleAuthClient_ExchangeToken_FormData(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := &ConsoleAuthClient{
-		ssoURL:       ts.URL,
-		offlineToken: "my-offline-token",
-		httpClient:   &http.Client{Timeout: 5 * time.Second},
-	}
+	client := NewConsoleAuthClient(ConsoleAuthConfig{SSOURL: ts.URL, OfflineToken: "my-offline-token"})
 
 	_, _, err := client.exchangeToken(context.Background())
 	if err != nil {
@@ -147,11 +139,7 @@ func TestConsoleAuthClient_ExchangeToken_ErrorResponse(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	client := &ConsoleAuthClient{
-		ssoURL:       ts.URL,
-		offlineToken: "bad-token",
-		httpClient:   &http.Client{Timeout: 5 * time.Second},
-	}
+	client := NewConsoleAuthClient(ConsoleAuthConfig{SSOURL: ts.URL, OfflineToken: "bad-token"})
 
 	_, _, err := client.exchangeToken(context.Background())
 	if err == nil {
@@ -163,11 +151,7 @@ func TestConsoleAuthClient_GetAccessToken_CachesToken(t *testing.T) {
 	var callCount atomic.Int32
 	ts := newSSOServer(t, &callCount, "cached-tok", 3600)
 
-	client := &ConsoleAuthClient{
-		ssoURL:       ts.URL,
-		offlineToken: "offline-tok",
-		httpClient:   &http.Client{Timeout: 5 * time.Second},
-	}
+	client := NewConsoleAuthClient(ConsoleAuthConfig{SSOURL: ts.URL, OfflineToken: "offline-tok"})
 
 	ctx := context.Background()
 
@@ -196,13 +180,9 @@ func TestConsoleAuthClient_GetAccessToken_ReexchangesOnExpiry(t *testing.T) {
 	var callCount atomic.Int32
 	ts := newSSOServer(t, &callCount, "new-tok", 3600)
 
-	client := &ConsoleAuthClient{
-		ssoURL:       ts.URL,
-		offlineToken: "offline-tok",
-		httpClient:   &http.Client{Timeout: 5 * time.Second},
-		accessToken:  "old-tok",
-		expiresAt:    time.Now().Add(-1 * time.Second),
-	}
+	client := NewConsoleAuthClient(ConsoleAuthConfig{SSOURL: ts.URL, OfflineToken: "offline-tok"})
+	client.accessToken = "old-tok"
+	client.expiresAt = time.Now().Add(-1 * time.Second)
 
 	tok, err := client.GetAccessToken(context.Background())
 	if err != nil {
@@ -220,13 +200,9 @@ func TestConsoleAuthClient_GetAccessToken_ExpiryBufferTriggersRefresh(t *testing
 	var callCount atomic.Int32
 	ts := newSSOServer(t, &callCount, "refreshed-tok", 3600)
 
-	client := &ConsoleAuthClient{
-		ssoURL:       ts.URL,
-		offlineToken: "offline-tok",
-		httpClient:   &http.Client{Timeout: 5 * time.Second},
-		accessToken:  "about-to-expire",
-		expiresAt:    time.Now().Add(30 * time.Second),
-	}
+	client := NewConsoleAuthClient(ConsoleAuthConfig{SSOURL: ts.URL, OfflineToken: "offline-tok"})
+	client.accessToken = "about-to-expire"
+	client.expiresAt = time.Now().Add(30 * time.Second)
 
 	tok, err := client.GetAccessToken(context.Background())
 	if err != nil {
