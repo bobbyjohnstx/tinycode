@@ -575,9 +575,17 @@ tinycode session list              # List sessions for the current project
 tinycode session delete <id>       # Delete a session by ID
 ```
 
-### Compaction
+### Context Management
 
-When a conversation grows long and approaches the model's context limit, tinycode automatically compacts the session. Compaction summarizes old messages while preserving recent context, keeping the conversation usable within the token budget. You can also trigger compaction manually with the `/compact` command.
+tinycode uses a two-stage approach to keep conversations within the model's context window:
+
+**Stage 1 — Elision (~80% of context).** When input tokens reach approximately 80% of the available context window, tinycode automatically replaces old tool results with compact stubs (`[output masked]`), preserving the 5 most recent tool outputs. This is lightweight — no LLM call, no information loss from conversation text, just tool output trimming. Elision defers the more expensive summarization step and is especially valuable on local models with smaller context windows (32k-64k).
+
+**Stage 2 — Summarization (~100% of context).** When input tokens approach the full context limit, tinycode triggers a full LLM-powered summarization of older messages. This replaces the conversation history with a structured summary while preserving recent context. You can also trigger this manually with `/compact`.
+
+Both stages run automatically. Elision fires first and may be sufficient for shorter sessions — many conversations never need the full summarization step.
+
+**Bounded tool previews.** Tool outputs over 50 lines are automatically formatted as head+tail previews (first 30 + last 20 lines) with a structured header showing total size. This reduces context consumption at the source.
 
 Configure compaction behavior in config:
 
@@ -585,6 +593,7 @@ Configure compaction behavior in config:
 {
   "compaction": {
     "auto": true,
+    "max_messages": 80,
     "tail_turns": 4,
     "preserve_recent_tokens": 8000
   }

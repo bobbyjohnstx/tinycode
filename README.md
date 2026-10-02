@@ -41,7 +41,7 @@ tinycode reads your files, runs commands, edits code, and works through multi-st
 - **Safe mode** --- `--safe-mode` skips plugins, MCP, and user agents; status bar shows bold indicator
 - **System prompt override** --- `--append-system-prompt` and `--append-system-prompt-file` inject custom instructions
 - **Token budget ceiling** --- `--max-tokens` sets a cumulative token limit; session aborts when exceeded
-- **Manual compaction** --- `/compact` summarizes older messages to free context window space
+- **Two-stage context management** --- automatic elision at 80% context (replaces old tool outputs with stubs), full LLM summarization at the limit, bounded tool previews (head+tail format for large outputs), plus `/compact` for manual compaction
 - **External editor** --- `/editor` opens `$EDITOR`; `/editor @file` edits a file directly
 - **Interactive shell** --- `/shell` drops into a shell session
 
