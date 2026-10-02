@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
 //go:embed defaults/*.md defaults/*.txt
@@ -38,13 +39,8 @@ type Info struct {
 	Compact     bool                 `json:"compact,omitempty"`
 	Steps       *int                 `json:"steps,omitempty"`
 	Options     map[string]any       `json:"options"`
-	Model       *ModelRef            `json:"model,omitempty"`
+	Model       *session.ModelRef    `json:"model,omitempty"`
 	Variant     string               `json:"variant,omitempty"`
-}
-
-type ModelRef struct {
-	ProviderID string `json:"providerID"`
-	ModelID    string `json:"modelID"`
 }
 
 type ConfigOverride struct {
@@ -508,12 +504,12 @@ func readEmbeddedTxt(name string) string {
 }
 
 // ParseModel splits "provider/model" into a ModelRef.
-func ParseModel(s string) *ModelRef {
+func ParseModel(s string) *session.ModelRef {
 	idx := strings.IndexByte(s, '/')
 	if idx < 0 {
-		return &ModelRef{ModelID: s}
+		return &session.ModelRef{ModelID: s}
 	}
-	return &ModelRef{
+	return &session.ModelRef{
 		ProviderID: s[:idx],
 		ModelID:    s[idx+1:],
 	}

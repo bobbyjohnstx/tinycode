@@ -241,7 +241,7 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 			if body.Model == nil && info.Model != nil {
 				body.Model = &promptModel{
 					ProviderID: info.Model.ProviderID,
-					ModelID:    info.Model.ID,
+					ModelID:    info.Model.ModelID,
 				}
 			}
 			if body.Agent == "" {
@@ -286,7 +286,7 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 			if body.Model == nil && info.Model != nil {
 				body.Model = &promptModel{
 					ProviderID: info.Model.ProviderID,
-					ModelID:    info.Model.ID,
+					ModelID:    info.Model.ModelID,
 				}
 			}
 			if body.Agent == "" {
@@ -551,7 +551,7 @@ func (s *Server) resolveDefaultModel() *session.ModelRef {
 		providerID, modelID := provider.ParseModel(s.config.DefaultModel)
 		if providerID != "" && modelID != "" {
 			if _, err := s.deps.Registry.GetModel(providerID, modelID); err == nil {
-				return &session.ModelRef{ProviderID: providerID, ID: modelID}
+				return &session.ModelRef{ProviderID: providerID, ModelID: modelID}
 			}
 		}
 	}
@@ -594,7 +594,7 @@ func (s *Server) resolveDefaultModel() *session.ModelRef {
 		return candidates[i].modelID < candidates[j].modelID
 	})
 	if len(candidates) > 0 {
-		return &session.ModelRef{ProviderID: candidates[0].providerID, ID: candidates[0].modelID}
+		return &session.ModelRef{ProviderID: candidates[0].providerID, ModelID: candidates[0].modelID}
 	}
 
 	return nil
@@ -640,7 +640,7 @@ func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 			if sessInfo != nil && sessInfo.Model != nil {
 				info["providerID"] = sessInfo.Model.ProviderID
 				if m.Model == "" {
-					info["modelID"] = sessInfo.Model.ID
+					info["modelID"] = sessInfo.Model.ModelID
 				}
 			}
 		}

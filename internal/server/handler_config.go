@@ -24,11 +24,11 @@ func (s *Server) handleConfigGet(w http.ResponseWriter, r *http.Request) {
 		provID, modelID := provider.ParseModel(cfg.Model)
 		if provID == "" || modelID == "" {
 			if resolved := s.resolveDefaultModel(); resolved != nil {
-				cfg.Model = resolved.ProviderID + "/" + resolved.ID
+				cfg.Model = resolved.ProviderID + "/" + resolved.ModelID
 			}
 		} else if _, err := s.deps.Registry.GetModel(provID, modelID); err != nil {
 			if resolved := s.resolveDefaultModel(); resolved != nil {
-				cfg.Model = resolved.ProviderID + "/" + resolved.ID
+				cfg.Model = resolved.ProviderID + "/" + resolved.ModelID
 			}
 		}
 	}

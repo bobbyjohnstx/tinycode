@@ -132,7 +132,7 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		if c.app.state.CurrentModel.ModelID != "" {
 			input.Model = &session.ModelRef{
 				ProviderID: c.app.state.CurrentModel.ProviderID,
-				ID:         c.app.state.CurrentModel.ModelID,
+				ModelID:    c.app.state.CurrentModel.ModelID,
 			}
 		}
 		cmds = append(cmds, createSession(c.client, input))
@@ -216,7 +216,7 @@ func (c *connectedApp) handleShellResult(msg ShellResultMsg) (tea.Model, tea.Cmd
 		if c.app.state.CurrentModel.ModelID != "" {
 			input.Model = &session.ModelRef{
 				ProviderID: c.app.state.CurrentModel.ProviderID,
-				ID:         c.app.state.CurrentModel.ModelID,
+				ModelID:    c.app.state.CurrentModel.ModelID,
 			}
 		}
 		cmds = append(cmds, createSession(c.client, input))
