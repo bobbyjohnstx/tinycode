@@ -299,7 +299,7 @@ func initBuiltins(toolReg *tool.Registry) *plugin.BuiltinManager {
 	return bm
 }
 
-func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager, bm *plugin.BuiltinManager) {
+func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager, bm *plugin.BuiltinManager, shellRunner *plugin.ShellHookRunner) {
 	toolCtx.AfterHook = func(sessionID, toolName, output string, isError bool) (string, bool, bool) {
 		modified := false
 
@@ -312,13 +312,13 @@ func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager, bm *plugin.Bu
 			}
 		}
 
-		// Then run external plugin hooks.
+		// Then run external plugin hooks, followed by shell hooks.
 		result, err := plugin.DispatchToolExecAfter(mgr, plugin.ToolExecAfterEvent{
 			SessionID: sessionID,
 			ToolName:  toolName,
 			Output:    output,
 			IsError:   isError,
-		})
+		}, shellRunner)
 		if err == nil && result != nil {
 			output = result.Output
 			isError = result.IsError

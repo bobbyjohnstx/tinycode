@@ -69,7 +69,8 @@ func runTUI(args []string) {
 	if !flags.safeMode {
 		loadConfigPlugins(pluginMgr, cfg, dir)
 	}
-	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
+	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 
 	if flags.model != "" {
 		cfg.Model = flags.model
@@ -84,17 +85,18 @@ func runTUI(args []string) {
 	srvCfg.AppendSystemPrompt = flags.appendSystemPrompt
 	srvCfg.TokenBudget = flags.maxTokens
 	srv := server.New(srvCfg, server.Dependencies{
-		Bus:            b,
-		DB:             db.DB,
-		Registry:       reg,
-		AgentRegistry:  agentReg,
-		PluginManager:  pluginMgr,
-		BuiltinManager: builtinMgr,
-		ToolRegistry:   toolReg,
-		PermService:    permSvc,
-		MCPService:     mcpSvc,
-		Config:         cfg,
-		JobManager:     toolCtx.JobManager,
+		Bus:             b,
+		DB:              db.DB,
+		Registry:        reg,
+		AgentRegistry:   agentReg,
+		PluginManager:   pluginMgr,
+		BuiltinManager:  builtinMgr,
+		ShellHookRunner: shellRunner,
+		ToolRegistry:    toolReg,
+		PermService:     permSvc,
+		MCPService:      mcpSvc,
+		Config:          cfg,
+		JobManager:      toolCtx.JobManager,
 	})
 
 	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
@@ -119,6 +121,7 @@ func runTUI(args []string) {
 		Token:           token,
 		Version:         version,
 		ScopedModels:    cfg.ScopedModels,
+		ShellHooks:      cfg.Hooks,
 		InitialTitle:    flags.title,
 		SafeMode:        flags.safeMode,
 		ResumeSessionID: resumeSessionID,

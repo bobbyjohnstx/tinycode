@@ -49,17 +49,18 @@ type Listener struct {
 }
 
 type Dependencies struct {
-	Bus            *bus.Bus
-	DB             *sql.DB
-	Registry       *provider.Registry
-	AgentRegistry  *agent.Registry
-	PluginManager  *plugin.Manager
-	BuiltinManager *plugin.BuiltinManager
-	ToolRegistry   *tool.Registry
-	PermService    *permission.Service
-	MCPService     *mcp.Service
-	Config         *config.Info
-	JobManager     *session.JobManager
+	Bus             *bus.Bus
+	DB              *sql.DB
+	Registry        *provider.Registry
+	AgentRegistry   *agent.Registry
+	PluginManager   *plugin.Manager
+	BuiltinManager  *plugin.BuiltinManager
+	ShellHookRunner *plugin.ShellHookRunner
+	ToolRegistry    *tool.Registry
+	PermService     *permission.Service
+	MCPService      *mcp.Service
+	Config          *config.Info
+	JobManager      *session.JobManager
 }
 
 type Server struct {
@@ -218,6 +219,8 @@ func (s *Server) wirePluginHooks() {
 
 	s.pluginDone = make(chan struct{})
 
+	shellRunner := s.deps.ShellHookRunner
+
 	s.wirePluginEventLoop("session.created", func(props map[string]any) {
 		info, _ := props["info"].(map[string]any)
 		if info == nil {
@@ -225,7 +228,7 @@ func (s *Server) wirePluginHooks() {
 		}
 		sid, _ := info["id"].(string)
 		if sid != "" {
-			plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{SessionID: sid})
+			plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{SessionID: sid}, shellRunner)
 			if s.deps.BuiltinManager != nil {
 				s.deps.BuiltinManager.DispatchHook("session.start", sid)
 			}
@@ -235,7 +238,7 @@ func (s *Server) wirePluginHooks() {
 	s.wirePluginEventLoop("session.deleted", func(props map[string]any) {
 		sid, _ := props["sessionID"].(string)
 		if sid != "" {
-			plugin.DispatchSessionEnd(mgr, plugin.SessionEndEvent{SessionID: sid})
+			plugin.DispatchSessionEnd(mgr, plugin.SessionEndEvent{SessionID: sid}, shellRunner)
 			if s.deps.BuiltinManager != nil {
 				s.deps.BuiltinManager.DispatchHook("session.end", sid)
 			}
@@ -274,7 +277,7 @@ func (s *Server) wirePluginHooks() {
 			SessionID: sessionID,
 			ToolName:  toolName,
 			ToolArgs:  toolArgs,
-		})
+		}, shellRunner)
 	})
 
 	// tool.execute.after dispatch is handled synchronously via tool.Context.AfterHook

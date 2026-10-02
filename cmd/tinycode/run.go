@@ -112,7 +112,8 @@ func runRun() {
 	if !*safeModeFlag {
 		loadConfigPlugins(pluginMgr, cfg, dir)
 	}
-	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
+	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 
 	modelStr := *modelFlag
 	if modelStr == "" {

@@ -1,0 +1,198 @@
+package plugin
+
+import (
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/config"
+)
+
+func TestNewShellHookRunner_NilForEmpty(t *testing.T) {
+	r := NewShellHookRunner(nil, nil)
+	if r != nil {
+		t.Fatal("expected nil runner for nil hooks")
+	}
+
+	r = NewShellHookRunner(map[string][]config.HookConfig{}, nil)
+	if r != nil {
+		t.Fatal("expected nil runner for empty hooks")
+	}
+}
+
+func TestNewShellHookRunner_NonNil(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Command: "echo hello"}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+	if r == nil {
+		t.Fatal("expected non-nil runner")
+	}
+}
+
+func TestShellHookRunner_RunBefore_Success(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Command: "echo ok"}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	err := r.RunBefore("session.start", map[string]string{"SESSION_ID": "ses_1"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestShellHookRunner_RunBefore_NilRunner(t *testing.T) {
+	var r *ShellHookRunner
+	err := r.RunBefore("session.start", nil)
+	if err != nil {
+		t.Fatalf("expected no error for nil runner, got %v", err)
+	}
+}
+
+func TestShellHookRunner_RunBefore_NoMatchingEvent(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Command: "echo ok"}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	err := r.RunBefore("session.end", nil)
+	if err != nil {
+		t.Fatalf("expected no error for unmatched event, got %v", err)
+	}
+}
+
+func TestShellHookRunner_RunBefore_AbortOnNonZero(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.before": {{Command: "exit 1"}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	err := r.RunBefore("tool.execute.before", map[string]string{"TOOL": "bash"})
+	if err == nil {
+		t.Fatal("expected error for non-zero exit")
+	}
+}
+
+func TestShellHookRunner_RunAfter_NilRunner(t *testing.T) {
+	var r *ShellHookRunner
+	r.RunAfter("session.end", nil) // should not panic
+}
+
+func TestShellHookRunner_RunAfter_FiresAsync(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"session.end": {{Command: "echo done"}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	// Should not block.
+	r.RunAfter("session.end", map[string]string{"SESSION_ID": "ses_1"})
+	// Give the goroutine time to finish.
+	time.Sleep(100 * time.Millisecond)
+}
+
+func TestSubstituteVars(t *testing.T) {
+	tests := []struct {
+		command string
+		vars    map[string]string
+		want    string
+	}{
+		{"echo $TOOL", map[string]string{"TOOL": "bash"}, "echo bash"},
+		{"echo $SESSION_ID $TOOL", map[string]string{"SESSION_ID": "ses_1", "TOOL": "write"}, "echo ses_1 write"},
+		{"echo $FILE", map[string]string{"FILE": "/tmp/test.go"}, "echo /tmp/test.go"},
+		{"echo $MISSING", map[string]string{}, "echo $MISSING"},
+		{"no vars", nil, "no vars"},
+	}
+
+	for _, tt := range tests {
+		got := substituteVars(tt.command, tt.vars)
+		if got != tt.want {
+			t.Errorf("substituteVars(%q, %v) = %q, want %q", tt.command, tt.vars, got, tt.want)
+		}
+	}
+}
+
+func TestMatchesFilter(t *testing.T) {
+	tests := []struct {
+		match map[string]string
+		vars  map[string]string
+		want  bool
+	}{
+		{nil, nil, true},
+		{map[string]string{}, nil, true},
+		{map[string]string{"tool": "write"}, map[string]string{"TOOL": "write"}, true},
+		{map[string]string{"tool": "write"}, map[string]string{"TOOL": "bash"}, false},
+		{map[string]string{"tool": "write"}, map[string]string{}, false},
+		{map[string]string{"TOOL": "write"}, map[string]string{"TOOL": "write"}, true},
+	}
+
+	for i, tt := range tests {
+		got := matchesFilter(tt.match, tt.vars)
+		if got != tt.want {
+			t.Errorf("test %d: matchesFilter(%v, %v) = %v, want %v", i, tt.match, tt.vars, got, tt.want)
+		}
+	}
+}
+
+func TestShellHookRunner_MatchFilter(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.after": {
+			{Command: "echo matched", Match: map[string]string{"tool": "write"}},
+		},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	// Should not fire for non-matching tool.
+	err := r.RunBefore("tool.execute.after", map[string]string{"TOOL": "bash"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should fire for matching tool.
+	err = r.RunBefore("tool.execute.after", map[string]string{"TOOL": "write"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestShellHookRunner_Timeout(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Command: "sleep 10", Timeout: 1}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	start := time.Now()
+	err := r.RunBefore("session.start", nil)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected error for timed-out command")
+	}
+	if elapsed > 3*time.Second {
+		t.Errorf("timeout took too long: %v", elapsed)
+	}
+}
+
+func TestHookTimeout(t *testing.T) {
+	if got := shellHookTimeout(0); got != defaultShellHookTimeout {
+		t.Errorf("shellHookTimeout(0) = %v, want %v", got, defaultShellHookTimeout)
+	}
+	if got := shellHookTimeout(5); got != 5*time.Second {
+		t.Errorf("shellHookTimeout(5) = %v, want 5s", got)
+	}
+}
+
+func TestShellHookRunner_Hooks(t *testing.T) {
+	var r *ShellHookRunner
+	if r.Hooks() != nil {
+		t.Error("expected nil hooks for nil runner")
+	}
+
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Command: "echo hi"}},
+	}
+	r = NewShellHookRunner(hooks, nil)
+	if len(r.Hooks()) != 1 {
+		t.Errorf("expected 1 event type, got %d", len(r.Hooks()))
+	}
+}

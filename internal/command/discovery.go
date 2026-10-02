@@ -136,6 +136,12 @@ func builtinCommands() []Command {
 			Source:      "builtin",
 			Hints:       []string{},
 		},
+		{
+			Name:        "hooks",
+			Description: "Show configured hooks (plugin and shell)",
+			Source:      "builtin",
+			Hints:       []string{},
+		},
 	}
 }
 

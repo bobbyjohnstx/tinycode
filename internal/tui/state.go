@@ -1,6 +1,9 @@
 package tui
 
-import "github.com/bobbyjohnstx/tinycode/internal/tui/api"
+import (
+	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
+)
 
 // Route identifies which top-level view is active.
 type Route int
@@ -148,6 +151,9 @@ type AppState struct {
 	Commands      []api.CommandInfo
 	Plugins       []api.PluginInfo
 	SessionStatus map[string]SessionStatus
+
+	// Config-sourced data
+	ShellHooks    map[string][]config.HookConfig
 
 	// Local UI state
 	CurrentAgent       string

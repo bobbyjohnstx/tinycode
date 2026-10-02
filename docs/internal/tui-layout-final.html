@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tinycode TUI -- Focused Layout with Goal Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+    background: #0e0e18;
+    color: #c8c8d0;
+    padding: 24px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    color: #c87898;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .page-subtitle {
+    color: #606060;
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+
+  /* Tab bar */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #323232;
+  }
+
+  .tab-btn {
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 20px;
+    background: transparent;
+    color: #606060;
+    border: 1px solid transparent;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .tab-btn:hover {
+    color: #808080;
+  }
+
+  .tab-btn.active {
+    color: #c87898;
+    border-bottom-color: #c87898;
+  }
+
+  .tab-btn .tab-num {
+    color: #9d7cd8;
+    font-weight: 700;
+  }
+
+  .tab-btn.active .tab-num {
+    color: #c87898;
+  }
+
+  /* Tab panels */
+  .tab-panel {
+    display: none;
+  }
+
+  .tab-panel.active {
+    display: block;
+  }
+
+  /* Terminal frame */
+  .terminal {
+    background: #0a0a0a;
+    border: 1px solid #323232;
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 13px;
+    line-height: 1.4;
+    max-width: 1020px;
+    margin: 0 auto;
+  }
+
+  .terminal-titlebar {
+    background: #141414;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid #1e1e1e;
+  }
+
+  .terminal-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .terminal-dot.red { background: #e06c75; }
+  .terminal-dot.yellow { background: #e5c07b; }
+  .terminal-dot.green { background: #7fd88f; }
+
+  .terminal-title {
+    color: #606060;
+    font-size: 11px;
+    margin-left: 8px;
+  }
+
+  .terminal-body {
+    padding: 0;
+    white-space: pre;
+    overflow-x: auto;
+    color: #eeeeee;
+  }
+
+  /* Theme colors */
+  .c-primary { color: #c87898; }
+  .c-secondary { color: #5c9cf5; }
+  .c-accent { color: #9d7cd8; }
+  .c-error { color: #e06c75; }
+  .c-warning { color: #f5a742; }
+  .c-success { color: #7fd88f; }
+  .c-info { color: #56b6c2; }
+  .c-text { color: #eeeeee; }
+  .c-muted { color: #808080; }
+  .c-dim { color: #484848; }
+  .c-border { color: #323232; }
+  .c-yellow { color: #e5c07b; }
+  .c-green { color: #7fd88f; }
+  .c-cyan { color: #56b6c2; }
+  .c-orange { color: #f5a742; }
+  .c-diff-add { color: #4fd6be; }
+  .c-diff-rem { color: #c53b53; }
+
+  .bold { font-weight: 700; }
+  .italic { font-style: italic; }
+
+  .bg-highlight { background: #1e1e1e; }
+  .bg-status { background: #141414; }
+  .bg-code { background: #141414; }
+  .bg-selected { background: #282828; }
+  .bg-diff-add { background: #20303b; }
+  .bg-diff-rem { background: #37222c; }
+  .bg-panel { background: #141414; }
+
+  /* Goal tracker box */
+  .bg-goal { background: #0f0a0c; }
+
+  /* Annotations */
+  .annotation {
+    max-width: 1020px;
+    margin: 16px auto 40px;
+    padding: 16px 20px;
+    background: #111118;
+    border-left: 3px solid #9d7cd8;
+    border-radius: 0 4px 4px 0;
+    color: #808080;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .annotation h3 {
+    color: #c87898;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .annotation strong {
+    color: #eeeeee;
+    font-weight: 700;
+  }
+
+  .annotation em {
+    color: #9d7cd8;
+    font-style: italic;
+  }
+
+  .annotation code {
+    color: #7fd88f;
+    background: #1e1e1e;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  .annotation ul {
+    margin: 8px 0 0 16px;
+    list-style: none;
+  }
+
+  .annotation ul li {
+    margin-bottom: 4px;
+  }
+
+  .annotation ul li::before {
+    content: ">";
+    color: #9d7cd8;
+    margin-right: 8px;
+  }
+
+  /* Spinner animation for in-progress indicator */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .pulse {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+</style>
+</head>
+<body>
+
+<h1>tinycode Focused Layout -- Goal Tracker States</h1>
+<p class="page-subtitle">Layout A with conditionally expanding status bar -- four states showing the goal lifecycle</p>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="showTab('idle')"><span class="tab-num">1</span> Idle</button>
+  <button class="tab-btn" onclick="showTab('goal')"><span class="tab-num">2</span> Goal Active</button>
+  <button class="tab-btn" onclick="showTab('done')"><span class="tab-num">3</span> Goal Complete</button>
+  <button class="tab-btn" onclick="showTab('nav')"><span class="tab-num">4</span> With Left Nav</button>
+</div>
+
+<!-- ================================================================== -->
+<!-- TAB 1: IDLE -- no goal active                                      -->
+<!-- ================================================================== -->
+<div id="panel-idle" class="tab-panel active">
+<div class="terminal">
+  <div class="terminal-titlebar">
+    <span class="terminal-dot red"></span>
+    <span class="terminal-dot yellow"></span>
+    <span class="terminal-dot green"></span>
+    <span class="terminal-title">tinycode -- ~/projects/tinycode</span>
+  </div>
+  <div class="terminal-body">
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-secondary">&#9475;</span><span class="bold"> Fix the failing tests in internal/server/                                                                </span>
+<span class="c-muted"> </span><span class="c-secondary">&#9475;</span><span class="c-muted"> 2:14 PM                                                                                                </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-accent">+ Thought</span><span class="c-accent">: 1.2s                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span>I'll look at the failing tests and fix them. Let me start by running the test suite.
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">shell</span> <span class="c-muted">go test ./internal/server/... -count=1</span> <span class="c-success">done</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-muted">--- FAIL: TestHandleChat (0.02s)</span>
+<span class="c-muted">     server_test.go:45: expected status 200, got 500</span>
+<span class="c-muted"> </span><span class="c-muted">--- FAIL: TestHandleStream (0.01s)</span>
+<span class="c-muted">     server_test.go:78: expected streaming response, got EOF</span>
+<span class="c-muted"> </span><span class="c-error">FAIL  internal/server  0.034s</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span>Two tests are failing. <span class="c-yellow">`TestHandleChat`</span> returns 500 because the handler doesn't
+<span class="c-muted"> </span>initialize the response writer. <span class="c-yellow">`TestHandleStream`</span> hits EOF because the SSE
+<span class="c-muted"> </span>writer is nil. Both trace back to a missing parameter in <span class="c-yellow">`server.go`</span>.
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">read</span> <span class="c-muted">internal/server/server.go</span> <span class="c-success">done</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bg-code c-muted"> internal/server/server.go                                                                               </span>
+<span class="bg-diff-add"><span class="c-muted"> </span><span class="c-diff-add">+  func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {                                 </span></span>
+<span class="bg-diff-add"><span class="c-muted"> </span><span class="c-diff-add">+      w.Header().Set("Content-Type", "application/json")                                                </span></span>
+<span class="bg-diff-rem"><span class="c-muted"> </span><span class="c-diff-rem">-  func (s *Server) handleChat(r *http.Request) {                                                         </span></span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">edit</span> <span class="c-muted">internal/server/server.go:42</span> <span class="c-success">done</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">shell</span> <span class="c-muted">go test ./internal/server/... -count=1</span> <span class="c-success">done</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-success">ok   internal/server  0.028s</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span>Fixed. The <span class="c-yellow">`handleChat`</span> function was missing the <span class="c-yellow">`http.ResponseWriter`</span> parameter,
+<span class="c-muted"> </span>which caused a nil pointer dereference. Both <span class="c-yellow">`TestHandleChat`</span> and
+<span class="c-muted"> </span><span class="c-yellow">`TestHandleStream`</span> pass now.
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-primary">&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;</span>
+<span class="c-text"> </span><span class="c-dim">&#9612;</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-primary">build</span> <span class="c-dim">&#183;</span> <span class="c-muted">ornith-1.0-9b-mlx</span> <span class="c-dim">&#183;</span> <span class="c-muted">LM Studio</span> <span class="c-dim">&#183;</span> <span class="c-muted">high</span> <span class="c-dim">&#183;</span> <span class="c-info">56%</span> <span class="c-muted">ctx</span>
+<span class="bg-status">                                                                                                            </span>
+</div>
+</div>
+
+<div class="annotation">
+  <h3>Tab 1: Idle -- No Goal Active</h3>
+  <p>The default state. Maximum chat area, minimal chrome. The status bar is a single line showing agent, model, provider, effort level, and context usage. No goal tracker visible -- it only appears when <code>/goal</code> is invoked.</p>
+  <ul>
+    <li><strong>Status bar:</strong> 1 line. Agent name in primary color, model/provider/effort in muted, context percentage in info blue. Dot-separated for scannability.</li>
+    <li><strong>Prompt:</strong> Thin horizontal rule (primary color) separates chat from input. Cursor blinks alone -- no decorative box.</li>
+    <li><strong>Chat area:</strong> Full ~108 columns of usable width. Tool calls show inline with status badges. Diffs render with full-width colored backgrounds.</li>
+    <li><strong>Key insight:</strong> This state is identical to the original Layout A. The goal tracker is purely additive -- it grows the status bar when needed, never takes permanent space.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ================================================================== -->
+<!-- TAB 2: GOAL ACTIVE -- autonomous execution in progress             -->
+<!-- ================================================================== -->
+<div id="panel-goal" class="tab-panel">
+<div class="terminal">
+  <div class="terminal-titlebar">
+    <span class="terminal-dot red"></span>
+    <span class="terminal-dot yellow"></span>
+    <span class="terminal-dot green"></span>
+    <span class="terminal-title">tinycode -- ~/projects/tinycode</span>
+  </div>
+  <div class="terminal-body">
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-secondary">&#9475;</span><span class="bold"> Fix the failing tests in internal/server/                                                                </span>
+<span class="c-muted"> </span><span class="c-secondary">&#9475;</span><span class="c-muted"> 2:14 PM                                                                                                </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-accent">+ Thought</span><span class="c-accent">: 1.2s                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span>I'll look at the failing tests and fix them. Let me start by running the test suite.
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">shell</span> <span class="c-muted">go test ./internal/server/... -count=1</span> <span class="c-success">done</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-muted">--- FAIL: TestHandleChat (0.02s)</span>
+<span class="c-muted">     server_test.go:45: expected status 200, got 500</span>
+<span class="c-muted"> </span><span class="c-muted">--- FAIL: TestHandleStream (0.01s)</span>
+<span class="c-muted">     server_test.go:78: expected streaming response, got EOF</span>
+<span class="c-muted"> </span><span class="c-error">FAIL  internal/server  0.034s</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span>Two tests are failing. Let me read the source and fix the root cause.
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">read</span> <span class="c-muted">internal/server/server.go</span> <span class="c-success">done</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bg-code c-muted"> internal/server/server.go                                                                               </span>
+<span class="bg-diff-add"><span class="c-muted"> </span><span class="c-diff-add">+  func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {                                 </span></span>
+<span class="bg-diff-add"><span class="c-muted"> </span><span class="c-diff-add">+      w.Header().Set("Content-Type", "application/json")                                                </span></span>
+<span class="bg-diff-rem"><span class="c-muted"> </span><span class="c-diff-rem">-  func (s *Server) handleChat(r *http.Request) {                                                         </span></span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">edit</span> <span class="c-muted">internal/server/server.go:42</span> <span class="c-success">done</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">shell</span> <span class="c-muted">go test ./internal/server/... -count=1</span> <span class="c-warning pulse">running</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-primary">&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;</span>
+<span class="c-text"> </span><span class="c-dim">&#9612;</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-primary"> &#9484;&#9472; Goal: </span><span class="bold c-text">all tests pass</span><span class="c-primary"> (3/10) &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</span>
+<span class="c-primary"> &#9474;</span>  <span class="c-success">&#10003;</span> <span class="c-muted">Read test output</span>          <span class="c-success">&#10003;</span> <span class="c-muted">Fixed auth_test.go</span>        <span class="c-warning bold pulse">&#9889;</span> <span class="c-text">Running tests</span><span class="c-primary">              &#9474;</span>
+<span class="c-primary"> &#9474;</span>  <span class="c-dim">&#9675;</span> <span class="c-dim">Remaining iterations: 7</span>   <span class="c-dim">&#9675;</span> <span class="c-dim">Token budget: 12K/50K</span><span class="c-primary">                                       &#9474;</span>
+<span class="c-primary"> &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</span>
+<span class="c-muted"> </span><span class="c-primary">build</span> <span class="c-dim">&#183;</span> <span class="c-muted">ornith-1.0-9b-mlx</span> <span class="c-dim">&#183;</span> <span class="c-muted">LM Studio</span> <span class="c-dim">&#183;</span> <span class="c-muted">high</span> <span class="c-dim">&#183;</span> <span class="c-info">56%</span> <span class="c-muted">ctx</span>
+<span class="bg-status">                                                                                                            </span>
+</div>
+</div>
+
+<div class="annotation">
+  <h3>Tab 2: Goal Active -- Autonomous Execution</h3>
+  <p>When <code>/goal all tests pass</code> is invoked, the status bar expands from 1 line to 4 lines. The chat area shrinks by exactly 3 rows to accommodate the goal tracker. The expansion feels natural -- it's the same status region growing, not a separate panel.</p>
+  <ul>
+    <li><strong>Goal box:</strong> Bordered with primary color <code>#c87898</code> using box-drawing characters. Header shows the goal description and iteration count (3/10). The border is the only place primary color is used densely -- it makes the goal tracker feel like a "live zone" without clashing with chat content.</li>
+    <li><strong>Step icons:</strong> <span style="color:#7fd88f">&#10003;</span> done (success green), <span style="color:#f5a742">&#9889;</span> in-progress (warning amber, pulsing), <span style="color:#484848">&#9675;</span> pending (dim gray). Steps flow left-to-right in the first row, budget/iterations in the second row.</li>
+    <li><strong>Normal status bar:</strong> Remains underneath the goal box, unchanged. Agent/model/provider/effort/context in the same format as idle state.</li>
+    <li><strong>The running indicator</strong> pulses to show the tool is actively executing. This matches the existing spinner pattern in tinycode's StatusBar.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ================================================================== -->
+<!-- TAB 3: GOAL COMPLETE -- success state                              -->
+<!-- ================================================================== -->
+<div id="panel-done" class="tab-panel">
+<div class="terminal">
+  <div class="terminal-titlebar">
+    <span class="terminal-dot red"></span>
+    <span class="terminal-dot yellow"></span>
+    <span class="terminal-dot green"></span>
+    <span class="terminal-title">tinycode -- ~/projects/tinycode</span>
+  </div>
+  <div class="terminal-body">
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-secondary">&#9475;</span><span class="bold"> Fix the failing tests in internal/server/                                                                </span>
+<span class="c-muted"> </span><span class="c-secondary">&#9475;</span><span class="c-muted"> 2:14 PM                                                                                                </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-accent">+ Thought</span><span class="c-accent">: 1.2s                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span>I'll look at the failing tests and fix them. Let me start by running the test suite.
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">shell</span> <span class="c-muted">go test ./internal/server/... -count=1</span> <span class="c-success">done</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-muted">--- FAIL: TestHandleChat (0.02s)</span>
+<span class="c-muted">     server_test.go:45: expected status 200, got 500</span>
+<span class="c-muted"> </span><span class="c-muted">--- FAIL: TestHandleStream (0.01s)</span>
+<span class="c-muted">     server_test.go:78: expected streaming response, got EOF</span>
+<span class="c-muted"> </span><span class="c-error">FAIL  internal/server  0.034s</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span>Two tests are failing. Let me read the source and fix the root cause.
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="bold c-primary">read</span> <span class="c-muted">internal/server/server.go</span> <span class="c-success">done</span>
+<span class="c-muted"> </span><span class="bold c-primary">edit</span> <span class="c-muted">internal/server/server.go:42</span> <span class="c-success">done</span>
+<span class="c-muted"> </span><span class="bold c-primary">shell</span> <span class="c-muted">go test ./internal/server/... -count=1</span> <span class="c-success">done</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-success">ok   internal/server  0.028s</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span>Fixed. The <span class="c-yellow">`handleChat`</span> function was missing the <span class="c-yellow">`http.ResponseWriter`</span> parameter,
+<span class="c-muted"> </span>which caused a nil pointer dereference. Both <span class="c-yellow">`TestHandleChat`</span> and
+<span class="c-muted"> </span><span class="c-yellow">`TestHandleStream`</span> pass now.
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-primary">&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;</span>
+<span class="c-text"> </span><span class="c-dim">&#9612;</span>
+<span class="c-muted">                                                                                                            </span>
+<span class="c-muted"> </span><span class="c-success bold">&#10003;</span> <span class="c-success">Goal met:</span> <span class="c-text">all tests pass</span> <span class="c-muted">(3 iterations, 8.2K tokens)</span>
+<span class="c-muted"> </span><span class="c-primary">build</span> <span class="c-dim">&#183;</span> <span class="c-muted">ornith-1.0-9b-mlx</span> <span class="c-dim">&#183;</span> <span class="c-muted">LM Studio</span> <span class="c-dim">&#183;</span> <span class="c-muted">high</span> <span class="c-dim">&#183;</span> <span class="c-info">56%</span> <span class="c-muted">ctx</span>
+<span class="bg-status">                                                                                                            </span>
+</div>
+</div>
+
+<div class="annotation">
+  <h3>Tab 3: Goal Complete -- Success State</h3>
+  <p>When the goal condition is met, the goal tracker box collapses to a single summary line. After ~5 seconds, this line fades and the status bar returns to the idle 1-line state. The user sees a brief confirmation without permanent clutter.</p>
+  <ul>
+    <li><strong>Success line:</strong> <span style="color:#7fd88f">&#10003; Goal met:</span> in success green, followed by the goal description and stats (iterations used, tokens consumed). This gives closure -- the user knows exactly what happened and what it cost.</li>
+    <li><strong>No border box:</strong> The completed goal doesn't need the bordered tracker. A single line is sufficient because there are no in-progress steps to show. The transition from 4-line box to 1-line summary feels like the tracker "resolving" itself.</li>
+    <li><strong>Status bar underneath:</strong> Unchanged. The normal agent/model line sits directly below the goal summary.</li>
+    <li><strong>Auto-collapse:</strong> After 5 seconds, the success line disappears and the status bar returns to idle state (Tab 1). This prevents stale goal info from lingering. The user can always check <code>/goal</code> history via <code>/history</code>.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ================================================================== -->
+<!-- TAB 4: WITH LEFT NAV -- C layout with goal tracker                 -->
+<!-- ================================================================== -->
+<div id="panel-nav" class="tab-panel">
+<div class="terminal">
+  <div class="terminal-titlebar">
+    <span class="terminal-dot red"></span>
+    <span class="terminal-dot yellow"></span>
+    <span class="terminal-dot green"></span>
+    <span class="terminal-title">tinycode -- ~/projects/tinycode</span>
+  </div>
+  <div class="terminal-body">
+<span class="bg-panel c-muted">                            </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel"> </span><span class="bold c-text">Sessions</span><span class="bg-panel">                    </span><span class="c-dim">&#9474;</span> <span class="c-secondary">&#9475;</span><span class="bold"> Fix the failing tests in internal/server/                         </span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span> <span class="c-secondary">&#9475;</span><span class="c-muted"> 2:14 PM                                                          </span>
+<span class="bg-panel"> </span><span class="bg-selected bold"> &#9656; Fix server tests       </span><span class="bg-panel"> </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel">   </span><span class="c-muted">&#9492; Debug websocket</span><span class="bg-panel">       </span><span class="c-dim">&#9474;</span> <span class="c-accent">+ Thought</span><span class="c-accent">: 1.2s                                                       </span>
+<span class="bg-panel">   </span><span class="c-muted">Refactor auth middle..</span><span class="bg-panel">  </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel">   </span><span class="c-muted">Add rate limiting</span><span class="bg-panel">       </span><span class="c-dim">&#9474;</span> I'll look at the failing tests and fix them. Let me start by
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span> running the test suite.
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel"> </span><span class="bold c-text">Agents</span><span class="bg-panel">                      </span><span class="c-dim">&#9474;</span> <span class="bold c-primary">shell</span> <span class="c-muted">go test ./internal/server/... -count=1</span> <span class="c-success">done</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel"> </span><span class="c-primary">&#9632;</span><span class="bg-selected bold"> build           </span><span class="c-muted"> default</span><span class="bg-panel"> </span><span class="c-dim">&#9474;</span> <span class="c-muted">--- FAIL: TestHandleChat (0.02s)</span>
+<span class="bg-panel">   </span><span class="c-muted">architect</span><span class="bg-panel">               </span><span class="c-dim">&#9474;</span> <span class="c-muted">    server_test.go:45: expected 200, got 500</span>
+<span class="bg-panel">   </span><span class="c-muted">debugger</span><span class="bg-panel">                </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span> Two tests are failing. Let me read the source and fix the root
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span> cause.
+<span class="bg-panel"> </span><span class="bold c-text">MCP</span><span class="bg-panel">                         </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel"> </span><span class="c-success">&#9679;</span> <span class="c-muted">filesystem</span><span class="bg-panel">              </span><span class="c-dim">&#9474;</span> <span class="bold c-primary">read</span> <span class="c-muted">internal/server/server.go</span> <span class="c-success">done</span>
+<span class="bg-panel"> </span><span class="c-error">&#9679;</span> <span class="c-muted">google-docs</span> <span class="c-error">err</span><span class="bg-panel">         </span><span class="c-dim">&#9474;</span> <span class="bold c-primary">edit</span> <span class="c-muted">internal/server/server.go:42</span> <span class="c-success">done</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span> <span class="bold c-primary">shell</span> <span class="c-muted">go test ./internal/server/...</span> <span class="c-warning pulse">running</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span><span class="c-primary">&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span> <span class="c-dim">&#9612;</span>
+<span class="bg-panel">                            </span><span class="c-dim">&#9474;</span>
+<span class="c-primary"> &#9484;&#9472; Goal: </span><span class="bold c-text">all tests pass</span><span class="c-primary"> (3/10) &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</span>
+<span class="c-primary"> &#9474;</span>  <span class="c-success">&#10003;</span> <span class="c-muted">Read test output</span>          <span class="c-success">&#10003;</span> <span class="c-muted">Fixed auth_test.go</span>        <span class="c-warning bold pulse">&#9889;</span> <span class="c-text">Running tests</span><span class="c-primary">              &#9474;</span>
+<span class="c-primary"> &#9474;</span>  <span class="c-dim">&#9675;</span> <span class="c-dim">Remaining iterations: 7</span>   <span class="c-dim">&#9675;</span> <span class="c-dim">Token budget: 12K/50K</span><span class="c-primary">                                       &#9474;</span>
+<span class="c-primary"> &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</span>
+<span class="c-muted"> </span><span class="c-primary">build</span> <span class="c-dim">&#183;</span> <span class="c-muted">ornith-1.0-9b-mlx</span> <span class="c-dim">&#183;</span> <span class="c-muted">LM Studio</span> <span class="c-dim">&#183;</span> <span class="c-muted">high</span> <span class="c-dim">&#183;</span> <span class="c-info">56%</span> <span class="c-muted">ctx</span>
+<span class="bg-status">                                                                                                            </span>
+</div>
+</div>
+
+<div class="annotation">
+  <h3>Tab 4: With Left Nav -- C Layout + Goal Tracker</h3>
+  <p>Demonstrates that the goal tracker works identically when the left navigation rail is visible. The goal box spans the full terminal width (below both panels), while the chat area is narrower (~78 columns) due to the 28-column left rail.</p>
+  <ul>
+    <li><strong>Left rail (~28 columns):</strong> Three sections -- Sessions (with parent/child tree via <code>&#9492;</code> connector), Agents (quick-switch list with active highlight), and MCP (connection status with error states in red).</li>
+    <li><strong>Session tree:</strong> Shows "Debug websocket" as a child of "Fix server tests" using the <code>&#9492;</code> branch connector. This visualizes the <code>/branch</code> feature -- forked sessions appear as children of their parent.</li>
+    <li><strong>Goal box position:</strong> Spans full width, below both the left rail and chat area. This is intentional -- the goal is a global state, not scoped to either panel. The box-drawing border runs edge to edge.</li>
+    <li><strong>MCP section:</strong> Shows 1 connected server (filesystem, green dot) and 1 errored server (google-docs, red dot with "err" label). Gives at-a-glance infrastructure health.</li>
+    <li><strong>Chat area:</strong> Narrower but still usable at ~78 columns. Tool call lines and diffs wrap earlier but remain readable. The prompt separator and input are scoped to the chat pane.</li>
+  </ul>
+</div>
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+</script>
+
+</body>
+</html>

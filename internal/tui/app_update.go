@@ -406,6 +406,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "archive", Description: "Archive current session"},
 			{Name: "privacy", Description: "Show what data is stored and where"},
 			{Name: "goal", Description: "Autonomous execution until condition met"},
+			{Name: "hooks", Description: "Show configured hooks (plugin and shell)"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {

@@ -103,40 +103,42 @@ type shellEnvResult struct {
 	Env map[string]string `json:"env"`
 }
 
-// DispatchSessionStart notifies all loaded plugins of a session start.
-func DispatchSessionStart(mgr *Manager, evt SessionStartEvent) error {
-	if mgr == nil {
-		return nil
-	}
-	procs := mgr.pluginsWithHook("session.start")
-	if len(procs) == 0 {
-		return nil
+// DispatchSessionStart notifies all loaded plugins of a session start,
+// then fires any configured shell hooks for the same event.
+func DispatchSessionStart(mgr *Manager, evt SessionStartEvent, shellRunner ...*ShellHookRunner) error {
+	if mgr != nil {
+		procs := mgr.pluginsWithHook("session.start")
+		for _, proc := range procs {
+			_, err := proc.sendHook("session.start", evt)
+			if err != nil {
+				mgr.logger.Warn("session.start hook failed", "plugin", proc.info.Name, "error", err)
+			}
+		}
 	}
 
-	for _, proc := range procs {
-		_, err := proc.sendHook("session.start", evt)
-		if err != nil {
-			mgr.logger.Warn("session.start hook failed", "plugin", proc.info.Name, "error", err)
-		}
+	if len(shellRunner) > 0 && shellRunner[0] != nil {
+		vars := map[string]string{"SESSION_ID": evt.SessionID}
+		shellRunner[0].RunAfter("session.start", vars)
 	}
 	return nil
 }
 
-// DispatchSessionEnd notifies all loaded plugins of a session end.
-func DispatchSessionEnd(mgr *Manager, evt SessionEndEvent) error {
-	if mgr == nil {
-		return nil
-	}
-	procs := mgr.pluginsWithHook("session.end")
-	if len(procs) == 0 {
-		return nil
+// DispatchSessionEnd notifies all loaded plugins of a session end,
+// then fires any configured shell hooks for the same event.
+func DispatchSessionEnd(mgr *Manager, evt SessionEndEvent, shellRunner ...*ShellHookRunner) error {
+	if mgr != nil {
+		procs := mgr.pluginsWithHook("session.end")
+		for _, proc := range procs {
+			_, err := proc.sendHook("session.end", evt)
+			if err != nil {
+				mgr.logger.Warn("session.end hook failed", "plugin", proc.info.Name, "error", err)
+			}
+		}
 	}
 
-	for _, proc := range procs {
-		_, err := proc.sendHook("session.end", evt)
-		if err != nil {
-			mgr.logger.Warn("session.end hook failed", "plugin", proc.info.Name, "error", err)
-		}
+	if len(shellRunner) > 0 && shellRunner[0] != nil {
+		vars := map[string]string{"SESSION_ID": evt.SessionID}
+		shellRunner[0].RunAfter("session.end", vars)
 	}
 	return nil
 }
@@ -215,20 +217,27 @@ func DispatchShellEnv(mgr *Manager, input ShellEnvInput) (*ShellEnvOutput, error
 	return &ShellEnvOutput{Env: merged}, nil
 }
 
-// DispatchToolExecBefore notifies plugins that a tool is about to execute.
-func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent) error {
-	if mgr == nil {
-		return nil
-	}
-	procs := mgr.pluginsWithHook("tool.execute.before")
-	if len(procs) == 0 {
-		return nil
+// DispatchToolExecBefore notifies plugins that a tool is about to execute,
+// then runs any configured shell hooks. Shell hooks with non-zero exit abort.
+func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent, shellRunner ...*ShellHookRunner) error {
+	if mgr != nil {
+		procs := mgr.pluginsWithHook("tool.execute.before")
+		for _, proc := range procs {
+			_, err := proc.sendHook("tool.execute.before", evt)
+			if err != nil {
+				mgr.logger.Warn("tool.execute.before hook failed", "plugin", proc.info.Name, "error", err)
+			}
+		}
 	}
 
-	for _, proc := range procs {
-		_, err := proc.sendHook("tool.execute.before", evt)
-		if err != nil {
-			mgr.logger.Warn("tool.execute.before hook failed", "plugin", proc.info.Name, "error", err)
+	if len(shellRunner) > 0 && shellRunner[0] != nil {
+		vars := map[string]string{
+			"TOOL":       evt.ToolName,
+			"ARGS":       evt.ToolArgs,
+			"SESSION_ID": evt.SessionID,
+		}
+		if err := shellRunner[0].RunBefore("tool.execute.before", vars); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -249,36 +258,46 @@ type toolExecAfterResult struct {
 // DispatchToolExecAfter sends tool output through all plugins that handle
 // tool.execute.after. Each plugin can transform the output; the result chains
 // through so later plugins see earlier plugins' modifications.
-func DispatchToolExecAfter(mgr *Manager, evt ToolExecAfterEvent) (*ToolExecAfterOutput, error) {
-	if mgr == nil {
-		return nil, nil
-	}
-	procs := mgr.pluginsWithHook("tool.execute.after")
-	if len(procs) == 0 {
-		return nil, nil
-	}
-
+// Shell hooks fire asynchronously after plugin hooks.
+func DispatchToolExecAfter(mgr *Manager, evt ToolExecAfterEvent, shellRunner ...*ShellHookRunner) (*ToolExecAfterOutput, error) {
 	current := evt
 	modified := false
-	for _, proc := range procs {
-		raw, err := proc.sendHook("tool.execute.after", current)
-		if err != nil {
-			mgr.logger.Warn("tool.execute.after hook failed", "plugin", proc.info.Name, "error", err)
-			continue
+
+	if mgr != nil {
+		procs := mgr.pluginsWithHook("tool.execute.after")
+		for _, proc := range procs {
+			raw, err := proc.sendHook("tool.execute.after", current)
+			if err != nil {
+				mgr.logger.Warn("tool.execute.after hook failed", "plugin", proc.info.Name, "error", err)
+				continue
+			}
+			if raw == nil {
+				continue
+			}
+			var result toolExecAfterResult
+			if err := json.Unmarshal(raw, &result); err != nil {
+				mgr.logger.Warn("tool.execute.after invalid response", "plugin", proc.info.Name, "error", err)
+				continue
+			}
+			if result.Output != "" {
+				current.Output = result.Output
+				current.IsError = result.IsError
+				modified = true
+			}
 		}
-		if raw == nil {
-			continue
+	}
+
+	if len(shellRunner) > 0 && shellRunner[0] != nil {
+		isError := "false"
+		if current.IsError {
+			isError = "true"
 		}
-		var result toolExecAfterResult
-		if err := json.Unmarshal(raw, &result); err != nil {
-			mgr.logger.Warn("tool.execute.after invalid response", "plugin", proc.info.Name, "error", err)
-			continue
+		vars := map[string]string{
+			"TOOL":       evt.ToolName,
+			"IS_ERROR":   isError,
+			"SESSION_ID": evt.SessionID,
 		}
-		if result.Output != "" {
-			current.Output = result.Output
-			current.IsError = result.IsError
-			modified = true
-		}
+		shellRunner[0].RunAfter("tool.execute.after", vars)
 	}
 
 	if !modified {

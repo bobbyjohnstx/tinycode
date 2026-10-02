@@ -411,6 +411,7 @@ func (a *App) showPalette() {
 		"btw":           true,
 		"goal":          true,
 		"rewind":        true,
+		"hooks":         true,
 	}
 	items := []PaletteItem{
 		{Label: "branch", Description: "Branch conversation to try a different approach", Value: "branch"},
@@ -435,6 +436,7 @@ func (a *App) showPalette() {
 		{Label: "btw", Description: "Side question without polluting context", Value: "btw"},
 		{Label: "goal", Description: "Autonomous execution until condition met", Value: "goal"},
 		{Label: "rewind", Description: "Rewind conversation to a previous turn", Value: "rewind"},
+		{Label: "hooks", Description: "Show configured hooks (plugin and shell)", Value: "hooks"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -550,6 +552,11 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 			return a.toast.Show("No turns to rewind to", true), true
 		}
 		a.rewindDlg.Show(turns)
+		a.setFocus(FocusDialog)
+		return nil, true
+	case "hooks":
+		info := a.buildHooksInfo()
+		a.debugDlg.Show(info)
 		a.setFocus(FocusDialog)
 		return nil, true
 	}
@@ -678,6 +685,54 @@ func (a *App) buildDebugInfo() string {
 			}
 		}
 		fmt.Fprintf(&sb, "MCP:        %d servers (%d connected)", mcpCount, connected)
+	}
+
+	return sb.String()
+}
+
+// buildHooksInfo collects configured hooks (plugin and shell) for display.
+func (a *App) buildHooksInfo() string {
+	var sb strings.Builder
+
+	// Plugin hooks
+	pluginCount := len(a.state.Plugins)
+	fmt.Fprintf(&sb, "PLUGIN HOOKS\n\n")
+	if pluginCount == 0 {
+		sb.WriteString("  (none loaded)\n")
+	} else {
+		for _, p := range a.state.Plugins {
+			fmt.Fprintf(&sb, "  %s\n", p.Name)
+		}
+	}
+
+	// Shell hooks from config
+	sb.WriteString("\nSHELL HOOKS\n\n")
+	if len(a.state.ShellHooks) == 0 {
+		sb.WriteString("  (none configured)\n")
+		sb.WriteString("\n  Add hooks in settings.json:\n")
+		sb.WriteString("  \"hooks\": {\n")
+		sb.WriteString("    \"session.start\": [\n")
+		sb.WriteString("      {\"command\": \"echo started\"}\n")
+		sb.WriteString("    ]\n")
+		sb.WriteString("  }")
+	} else {
+		for event, hooks := range a.state.ShellHooks {
+			fmt.Fprintf(&sb, "  %s:\n", event)
+			for _, h := range hooks {
+				cmd := h.Command
+				if len(cmd) > 50 {
+					cmd = cmd[:47] + "..."
+				}
+				fmt.Fprintf(&sb, "    %s", cmd)
+				if len(h.Match) > 0 {
+					fmt.Fprintf(&sb, " (match: %v)", h.Match)
+				}
+				if h.Timeout > 0 {
+					fmt.Fprintf(&sb, " [%ds]", h.Timeout)
+				}
+				sb.WriteString("\n")
+			}
+		}
 	}
 
 	return sb.String()
