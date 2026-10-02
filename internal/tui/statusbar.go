@@ -17,6 +17,7 @@ type StatusBar struct {
 	model          string
 	agent          string
 	provider       string
+	goal           string
 	working        bool
 	leaderPending  bool
 	safeMode       bool
@@ -112,6 +113,11 @@ func (s *StatusBar) SetSafeMode(safe bool) {
 	s.safeMode = safe
 }
 
+// SetGoal updates the goal status display text. Pass "" to clear.
+func (s *StatusBar) SetGoal(text string) {
+	s.goal = text
+}
+
 // SetLeaderPending updates the leader-key pending state, which switches
 // the hints line to show available follow-up keys.
 func (s *StatusBar) SetLeaderPending(pending bool) {
@@ -187,6 +193,11 @@ func (s StatusBar) View() string {
 			Foreground(lipgloss.AdaptiveColor{Light: "#B35900", Dark: "#FFA500"}).
 			Bold(true)
 		left = warn.Render("SAFE MODE") + "  "
+	}
+	if s.goal != "" {
+		goalStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
+		left += goalStyle.Render(s.goal) + "  "
 	}
 	if s.cwd != "" {
 		left += shortenCwd(s.cwd)

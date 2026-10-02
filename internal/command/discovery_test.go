@@ -10,10 +10,10 @@ import (
 
 func TestBuiltinCommands_Count(t *testing.T) {
 	cmds := builtinCommands()
-	if len(cmds) != 7 {
-		t.Fatalf("expected 7 builtins, got %d", len(cmds))
+	if len(cmds) != 8 {
+		t.Fatalf("expected 8 builtins, got %d", len(cmds))
 	}
-	expected := []string{"branch", "init", "review", "ask", "swarm", "auto-approve", "btw"}
+	expected := []string{"branch", "init", "review", "ask", "swarm", "auto-approve", "btw", "goal"}
 	for i, name := range expected {
 		if cmds[i].Name != name {
 			t.Errorf("builtins[%d].Name = %q, want %q", i, cmds[i].Name, name)
@@ -34,18 +34,18 @@ func TestDiscover_EmptyDirsReturnsBuiltinsAndDefaults(t *testing.T) {
 	projectDir := t.TempDir()
 	cmds := Discover(configDir, projectDir, nil)
 
-	// Count expected: 6 builtins + default skills (minus "review" which is deduped with builtin)
+	// Count expected: 8 builtins + default skills (minus "review" which is deduped with builtin)
 	defaultSkills := skill.DefaultSkills()
 	deduped := 0
-	builtinNames := map[string]bool{"init": true, "review": true, "ask": true, "swarm": true, "auto-approve": true, "btw": true}
+	builtinNames := map[string]bool{"init": true, "review": true, "ask": true, "swarm": true, "auto-approve": true, "btw": true, "goal": true}
 	for _, ds := range defaultSkills {
 		if builtinNames[ds.Name] {
 			deduped++
 		}
 	}
-	expected := 7 + len(defaultSkills) - deduped
+	expected := 8 + len(defaultSkills) - deduped
 	if len(cmds) != expected {
-		t.Fatalf("expected %d commands (7 builtins + %d default skills - %d deduped), got %d", expected, len(defaultSkills), deduped, len(cmds))
+		t.Fatalf("expected %d commands (8 builtins + %d default skills - %d deduped), got %d", expected, len(defaultSkills), deduped, len(cmds))
 	}
 }
 

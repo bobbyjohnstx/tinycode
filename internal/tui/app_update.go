@@ -394,6 +394,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "redo", Description: "Restore previously reverted changes"},
 			{Name: "archive", Description: "Archive current session"},
 			{Name: "privacy", Description: "Show what data is stored and where"},
+			{Name: "goal", Description: "Autonomous execution until condition met"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {

@@ -76,6 +76,7 @@ type connectedApp struct {
 	initialTitle    string
 	resumeSessionID string
 	btwHistory      []sideQA
+	goal            *goalTracker
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
@@ -318,6 +319,11 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, tea.Batch(cmds...)
 
 	case AbortRequestMsg:
+		// Cancel any active goal when the user aborts.
+		if c.goal != nil {
+			c.goal = nil
+			c.app.status.SetGoal("")
+		}
 		sessionID := c.app.state.ActiveSession
 		if sessionID != "" {
 			return c, abortSession(c.client, sessionID)
@@ -409,6 +415,26 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 		return c, tea.Batch(cmds...)
+
+	case SessionStatusMsg:
+		// Forward to App first for working state / spinner.
+		model, cmd := c.app.Update(msg)
+		c.updateApp(model)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		// When the active session transitions from working to idle and a goal is active,
+		// trigger goal evaluation.
+		if msg.SessionID == c.app.state.ActiveSession && !msg.Status.Working && c.goal != nil {
+			dir := c.app.status.Cwd()
+			c.goal.state.Iteration++
+			c.app.status.SetGoal(c.goal.statusText())
+			cmds = append(cmds, evaluateGoal(c.goal.state.Command, dir, c.goal.state.Iteration))
+		}
+		return c, tea.Batch(cmds...)
+
+	case GoalEvalMsg:
+		return c.handleGoalEval(msg)
 
 	case BtwResponseMsg:
 		if msg.Err != nil {

@@ -403,6 +403,7 @@ func (a *App) showPalette() {
 		"scoped-models": true,
 		"archive":       true,
 		"btw":           true,
+		"goal":          true,
 	}
 	items := []PaletteItem{
 		{Label: "branch", Description: "Branch conversation to try a different approach", Value: "branch"},
@@ -425,6 +426,7 @@ func (a *App) showPalette() {
 		{Label: "scoped-models", Description: "Toggle model scoping (favorites)", Value: "scoped-models"},
 		{Label: "archive", Description: "Archive current session", Value: "archive"},
 		{Label: "btw", Description: "Side question without polluting context", Value: "btw"},
+		{Label: "goal", Description: "Autonomous execution until condition met", Value: "goal"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -529,6 +531,8 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return func() tea.Msg { return BranchRequestMsg{} }, true
 	case "btw":
 		return a.toast.Show("Usage: /btw <question> — ask without polluting context", false), true
+	case "goal":
+		return a.toast.Show("Usage: /goal <condition> — autonomous execution until condition met", false), true
 	}
 	return nil, false
 }

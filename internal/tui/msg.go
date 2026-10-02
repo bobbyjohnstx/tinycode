@@ -311,6 +311,15 @@ type BtwResponseMsg struct {
 	Err      error
 }
 
+// GoalSetMsg requests setting a new goal on the active session.
+type GoalSetMsg struct {
+	Text    string
+	Command string
+}
+
+// GoalClearedMsg signals that the active goal has been cancelled.
+type GoalClearedMsg struct{}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

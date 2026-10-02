@@ -70,6 +70,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c.handleBtwCommand(trimmed)
 	}
 
+	if trimmed == "/goal" || strings.HasPrefix(trimmed, "/goal ") {
+		return c.handleGoalCommand(trimmed)
+	}
+
 	if strings.HasPrefix(trimmed, "/rename ") {
 		newTitle := strings.TrimSpace(strings.TrimPrefix(trimmed, "/rename"))
 		if newTitle == "" || newTitle == "New Session" {
@@ -513,4 +517,157 @@ func askBtw(client *api.Client, sessionID, question string) tea.Cmd {
 		answer, err := client.Btw(sessionID, question)
 		return BtwResponseMsg{Question: question, Answer: answer, Err: err}
 	}
+}
+
+// handleGoalCommand processes a /goal [condition|clear|stop|off|cancel] command.
+func (c *connectedApp) handleGoalCommand(trimmed string) (tea.Model, tea.Cmd) {
+	arg := strings.TrimSpace(strings.TrimPrefix(trimmed, "/goal"))
+
+	// /goal with no argument: show current goal status.
+	if arg == "" {
+		if c.goal == nil {
+			model, cmd := c.app.Update(ToastMsg{Text: "No active goal", IsError: false})
+			c.updateApp(model)
+			return c, cmd
+		}
+		model, cmd := c.app.Update(ToastMsg{Text: c.goal.statusText(), IsError: false})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	// /goal clear|stop|off|cancel: cancel active goal.
+	switch arg {
+	case "clear", "stop", "off", "cancel":
+		if c.goal == nil {
+			model, cmd := c.app.Update(ToastMsg{Text: "No active goal to cancel", IsError: false})
+			c.updateApp(model)
+			return c, cmd
+		}
+		c.goal = nil
+		c.app.status.SetGoal("")
+		model, cmd := c.app.Update(ToastMsg{Text: "Goal cancelled", IsError: false})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	// /goal <condition>: set and start a new goal.
+	sessionID := c.app.state.ActiveSession
+	if sessionID == "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "No active session for goal", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	command, ok := session.ResolveGoalCommand(arg)
+	if !ok {
+		model, cmd := c.app.Update(ToastMsg{
+			Text:    fmt.Sprintf("Unrecognized goal condition: %s", arg),
+			IsError: true,
+		})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	c.goal = newGoalTracker(arg, command)
+	c.app.status.SetGoal(c.goal.statusText())
+
+	// Send the initial prompt to the model.
+	promptText := fmt.Sprintf("Goal: %s\nCommand to verify: `%s`\nPlease work toward making this command succeed (exit code 0). Start by running it to see the current state.", arg, command)
+	pi := c.buildPromptInput(promptText)
+
+	spinCmd := c.app.status.SetWorking(true)
+	var cmds []tea.Cmd
+	if spinCmd != nil {
+		cmds = append(cmds, spinCmd)
+	}
+	cmds = append(cmds, sendPrompt(c.client, sessionID, pi))
+	toastCmd := c.app.toast.Show(fmt.Sprintf("Goal set: %s", arg), false)
+	if toastCmd != nil {
+		cmds = append(cmds, toastCmd)
+	}
+
+	// Notify the app about prompt submission for working state.
+	model, cmd := c.app.Update(PromptSubmittedMsg{Content: "/goal " + arg})
+	c.updateApp(model)
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return c, tea.Batch(cmds...)
+}
+
+// handleGoalEval processes the result of a goal condition evaluation.
+func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
+	if c.goal == nil {
+		return c, nil
+	}
+
+	var cmds []tea.Cmd
+
+	// Goal met: stop and show success.
+	if msg.Met {
+		text := fmt.Sprintf("Goal met: %s (after %d iterations)", c.goal.state.Text, c.goal.state.Iteration)
+		c.goal = nil
+		c.app.status.SetGoal("")
+		toastCmd := c.app.toast.Show(text, false)
+		if toastCmd != nil {
+			cmds = append(cmds, toastCmd)
+		}
+		return c, tea.Batch(cmds...)
+	}
+
+	// Max iterations reached: stop with failure toast.
+	if c.goal.state.Iteration >= c.goal.state.MaxIterations {
+		text := fmt.Sprintf("Goal not met after %d iterations: %s", c.goal.state.MaxIterations, c.goal.state.Text)
+		c.goal = nil
+		c.app.status.SetGoal("")
+		toastCmd := c.app.toast.Show(text, true)
+		if toastCmd != nil {
+			cmds = append(cmds, toastCmd)
+		}
+		return c, tea.Batch(cmds...)
+	}
+
+	// Stuck detection: same output N times in a row.
+	if c.goal.isStuck(msg.Output) {
+		text := fmt.Sprintf("Goal appears stuck: %s (same output %d times)", c.goal.state.Text, goalStuckThreshold)
+		c.goal = nil
+		c.app.status.SetGoal("")
+		toastCmd := c.app.toast.Show(text, true)
+		if toastCmd != nil {
+			cmds = append(cmds, toastCmd)
+		}
+		return c, tea.Batch(cmds...)
+	}
+
+	// Goal not met, iterations remaining: inject follow-up prompt.
+	sessionID := c.app.state.ActiveSession
+	if sessionID == "" {
+		c.goal = nil
+		c.app.status.SetGoal("")
+		return c, nil
+	}
+
+	c.app.status.SetGoal(c.goal.statusText())
+
+	// Truncate output for the follow-up prompt to avoid overwhelming context.
+	output := msg.Output
+	const maxOutputLen = 4000
+	if len(output) > maxOutputLen {
+		output = output[:maxOutputLen] + "\n... (truncated)"
+	}
+
+	followUp := fmt.Sprintf("The goal '%s' is not met yet (iteration %d/%d).\nVerification command: `%s`\nOutput:\n```\n%s\n```\nPlease continue working toward making this command succeed.",
+		c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations,
+		c.goal.state.Command, output)
+
+	pi := c.buildPromptInput(followUp)
+	cmds = append(cmds, sendPrompt(c.client, sessionID, pi))
+
+	spinCmd := c.app.status.SetWorking(true)
+	if spinCmd != nil {
+		cmds = append(cmds, spinCmd)
+	}
+
+	return c, tea.Batch(cmds...)
 }
