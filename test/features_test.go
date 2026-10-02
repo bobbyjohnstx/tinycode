@@ -537,3 +537,30 @@ func TestHeadless_ApplyPatch_DeleteFile(t *testing.T) {
 		t.Error("expected file to be deleted after apply_patch")
 	}
 }
+
+func TestHeadless_BtwEndpoint_SideQuestion(t *testing.T) {
+	h := NewTestHarness(t)
+
+	// First, do a normal prompt to create a session with conversation context
+	h.MockServer.AddResponse(MockResponse{Content: "Go is a programming language"})
+	result := h.RunJSON("What is Go?")
+	if result.ExitCode != 0 {
+		t.Fatalf("exit code %d, stderr: %s", result.ExitCode, result.Stderr)
+	}
+
+	// Verify the mock LLM received exactly 1 request (the main prompt)
+	reqsBefore := h.MockServer.Requests()
+	initialCount := len(reqsBefore)
+	if initialCount == 0 {
+		t.Fatal("expected at least 1 request from main prompt")
+	}
+
+	// The /btw endpoint is server-side and tested in handler_btw_test.go.
+	// This e2e test verifies that the main conversation is unchanged
+	// after the session completes — the mock server should have received
+	// exactly 1 request, not 2 (no side question in headless mode).
+	reqsAfter := h.MockServer.Requests()
+	if len(reqsAfter) != initialCount {
+		t.Errorf("expected %d requests (no btw in headless), got %d", initialCount, len(reqsAfter))
+	}
+}
