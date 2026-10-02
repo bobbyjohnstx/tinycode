@@ -42,6 +42,7 @@ type Context struct {
 	TaskRoundDone  *atomic.Bool  // set after first foreground task batch completes (shared across copies)
 	AutoApprove    bool          // skip permission checks when true
 	ReadFiles      map[string]bool // tracks files the model has read or edited (shared across copies)
+	Findings       *[]Finding    // accumulated code review findings (shared across copies)
 }
 
 type Def struct {
@@ -74,6 +75,10 @@ type Registry struct {
 func NewRegistry(toolCtx *Context) *Registry {
 	if toolCtx.ReadFiles == nil {
 		toolCtx.ReadFiles = make(map[string]bool)
+	}
+	if toolCtx.Findings == nil {
+		findings := make([]Finding, 0)
+		toolCtx.Findings = &findings
 	}
 	return &Registry{
 		tools:    make(map[string]*Def),
@@ -128,6 +133,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    r.ctx.AutoApprove,
 		ReadFiles:      r.ctx.ReadFiles,
+		Findings:       r.ctx.Findings,
 	}
 
 	// Check permissions if service is available and tool has a permission requirement
@@ -265,6 +271,7 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    r.ctx.AutoApprove,
 		ReadFiles:      r.ctx.ReadFiles,
+		Findings:       r.ctx.Findings,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))
@@ -308,6 +315,7 @@ func (r *Registry) WithDepth(depth int) *Registry {
 		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    r.ctx.AutoApprove,
 		ReadFiles:      r.ctx.ReadFiles,
+		Findings:       r.ctx.Findings,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))
