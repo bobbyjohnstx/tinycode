@@ -5,7 +5,7 @@ import "github.com/charmbracelet/lipgloss"
 const (
 	statusBarHeight = 2 // hints line + status bar
 	promptHeight    = 6 // spacer (1) + textarea (3 lines) + metadata (1) + bottom border ╹▀▀▀ (1)
-	minSidebarWidth = 30
+	minSidebarWidth = 28
 	sidebarThreshold = 120
 )
 
@@ -55,8 +55,8 @@ func composeView(chat, prompt, status, sidebar string, l layout) string {
 	if l.hasSidebar {
 		mainArea = lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			lipgloss.NewStyle().Width(l.chatWidth).Height(l.chatHeight).Render(chat),
 			lipgloss.NewStyle().Width(l.sidebarWidth).Height(l.chatHeight).Render(sidebar),
+			lipgloss.NewStyle().Width(l.chatWidth).Height(l.chatHeight).Render(chat),
 		)
 	} else {
 		mainArea = lipgloss.NewStyle().Width(l.chatWidth).Height(l.chatHeight).Render(chat)
