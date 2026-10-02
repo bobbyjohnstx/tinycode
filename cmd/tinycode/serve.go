@@ -66,7 +66,7 @@ func runServe() {
 	} else if serveToken == "" {
 		serveToken = generateToken()
 	}
-	slog.Debug("auth token for serve mode", "token", serveToken[:8]+"...")
+	slog.Debug("auth token configured")
 
 	serveCfg := serverConfig(cfg, false)
 	serveCfg.Token = serveToken
@@ -152,7 +152,7 @@ func runWeb() {
 	} else if webToken == "" {
 		webToken = loadOrCreateWebToken()
 	}
-	slog.Debug("auth token for web mode", "token", webToken[:8]+"...")
+	slog.Debug("auth token configured")
 
 	webCfg := serverConfig(cfg, true)
 	webCfg.Token = webToken

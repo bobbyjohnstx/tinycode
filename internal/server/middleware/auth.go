@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -60,7 +61,7 @@ func TokenAuth(token string) func(http.Handler) http.Handler {
 }
 
 func MatchesToken(auth, token string) bool {
-	if auth == "Bearer "+token {
+	if strings.HasPrefix(auth, "Bearer ") && subtle.ConstantTimeCompare([]byte(auth[7:]), []byte(token)) == 1 {
 		return true
 	}
 	if !strings.HasPrefix(auth, "Basic ") {
@@ -71,5 +72,5 @@ func MatchesToken(auth, token string) bool {
 		return false
 	}
 	_, password, ok := strings.Cut(string(decoded), ":")
-	return ok && password == token
+	return ok && subtle.ConstantTimeCompare([]byte(password), []byte(token)) == 1
 }
