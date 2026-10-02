@@ -102,6 +102,7 @@ func New(cfg Config, deps Dependencies) *Server {
 
 	s.sessionManager.appendSystemPrompt = cfg.AppendSystemPrompt
 	s.sessionManager.tokenBudget = cfg.TokenBudget
+	s.wireSessionStartHook()
 
 	s.registerRoutes()
 	s.wirePluginHooks()
@@ -211,6 +212,28 @@ func (s *Server) Listen(ctx context.Context) (*Listener, error) {
 	return listener, nil
 }
 
+// wireSessionStartHook sets up the synchronous session.start hook on the
+// session manager so additionalContext from hooks is injected into the system
+// prompt on the first prompt.
+func (s *Server) wireSessionStartHook() {
+	mgr := s.deps.PluginManager
+	shellRunner := s.deps.ShellHookRunner
+	if mgr == nil && shellRunner == nil {
+		return
+	}
+	s.sessionManager.sessionStartHook = func(sessionID string) []string {
+		dir := s.config.Directory
+		ctx, err := plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{
+			SessionID: sessionID,
+			Directory: dir,
+		}, shellRunner)
+		if err != nil {
+			s.logger.Warn("session.start hook error", "sessionID", sessionID, "error", err)
+		}
+		return ctx
+	}
+}
+
 func (s *Server) wirePluginHooks() {
 	mgr := s.deps.PluginManager
 	if mgr == nil {
@@ -228,7 +251,8 @@ func (s *Server) wirePluginHooks() {
 		}
 		sid, _ := info["id"].(string)
 		if sid != "" {
-			plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{SessionID: sid}, shellRunner)
+			// DispatchSessionStart is now called synchronously in processPrompt
+			// to capture additionalContext. Builtin hooks still fire here.
 			if s.deps.BuiltinManager != nil {
 				s.deps.BuiltinManager.DispatchHook("session.start", sid)
 			}
@@ -269,19 +293,9 @@ func (s *Server) wirePluginHooks() {
 		})
 	})
 
-	s.wirePluginEventLoop("tool.execute.before", func(props map[string]any) {
-		sessionID, _ := props["sessionID"].(string)
-		toolName, _ := props["tool"].(string)
-		toolArgs, _ := props["args"].(string)
-		plugin.DispatchToolExecBefore(mgr, plugin.ToolExecBeforeEvent{
-			SessionID: sessionID,
-			ToolName:  toolName,
-			ToolArgs:  toolArgs,
-		}, shellRunner)
-	})
-
-	// tool.execute.after dispatch is handled synchronously via tool.Context.AfterHook
-	// to allow plugins to transform output before it's returned to the LLM.
+	// tool.execute.before and tool.execute.after dispatch is handled synchronously
+	// via tool.Context.BeforeHook and tool.Context.AfterHook respectively,
+	// to allow hooks to abort execution, transform output, and provide additionalContext.
 }
 
 // wirePluginEventLoop subscribes to a bus topic and runs the handler in a

@@ -113,6 +113,7 @@ func runRun() {
 		loadConfigPlugins(pluginMgr, cfg, dir)
 	}
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 
 	modelStr := *modelFlag

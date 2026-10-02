@@ -70,6 +70,7 @@ func runTUI(args []string) {
 		loadConfigPlugins(pluginMgr, cfg, dir)
 	}
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 
 	if flags.model != "" {

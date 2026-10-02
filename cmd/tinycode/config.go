@@ -299,8 +299,18 @@ func initBuiltins(toolReg *tool.Registry) *plugin.BuiltinManager {
 	return bm
 }
 
+func wireToolBeforeHook(toolCtx *tool.Context, mgr *plugin.Manager, shellRunner *plugin.ShellHookRunner) {
+	toolCtx.BeforeHook = func(sessionID, toolName, toolArgs string) ([]string, error) {
+		return plugin.DispatchToolExecBefore(mgr, plugin.ToolExecBeforeEvent{
+			SessionID: sessionID,
+			ToolName:  toolName,
+			ToolArgs:  toolArgs,
+		}, shellRunner)
+	}
+}
+
 func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager, bm *plugin.BuiltinManager, shellRunner *plugin.ShellHookRunner) {
-	toolCtx.AfterHook = func(sessionID, toolName, output string, isError bool) (string, bool, bool) {
+	toolCtx.AfterHook = func(sessionID, toolName, output string, isError bool) (string, bool, bool, []string) {
 		modified := false
 
 		// Run builtin hooks first (e.g., context-pruning).
@@ -319,16 +329,20 @@ func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager, bm *plugin.Bu
 			Output:    output,
 			IsError:   isError,
 		}, shellRunner)
+		var additionalContext []string
 		if err == nil && result != nil {
-			output = result.Output
-			isError = result.IsError
-			modified = true
+			if result.Output != "" {
+				output = result.Output
+				isError = result.IsError
+				modified = true
+			}
+			additionalContext = result.AdditionalContext
 		}
 
-		if modified {
-			return output, isError, true
+		if modified || len(additionalContext) > 0 {
+			return output, isError, modified, additionalContext
 		}
-		return "", false, false
+		return "", false, false, nil
 	}
 }
 

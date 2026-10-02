@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,9 +22,15 @@ type ExecuteResult struct {
 	IsError bool
 }
 
+// BeforeHookFunc is called before tool execution. If it returns an error,
+// the tool execution is aborted. Otherwise, any additionalContext strings
+// are appended to the tool result.
+type BeforeHookFunc func(sessionID, toolName, toolArgs string) (additionalContext []string, err error)
+
 // AfterHookFunc is called after tool execution with the tool output.
 // If it returns non-empty modifiedOutput, that replaces the original.
-type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool)
+// Any additionalContext strings are appended to the tool result.
+type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool, additionalContext []string)
 
 type SubagentRunnerFunc func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error)
 
@@ -36,6 +43,7 @@ type Context struct {
 	SubagentRunner SubagentRunnerFunc
 	SubagentDepth  int
 	DB             *sql.DB
+	BeforeHook     BeforeHookFunc
 	AfterHook      AfterHookFunc
 	SubagentCount  *atomic.Int32 // concurrent subagent counter (shared across copies)
 	SubagentBudget *atomic.Int32 // per-session spawn budget (shared across copies)
@@ -136,6 +144,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		SubagentRunner: r.ctx.SubagentRunner,
 		SubagentDepth:  r.ctx.SubagentDepth,
 		DB:             r.ctx.DB,
+		BeforeHook:     r.ctx.BeforeHook,
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
@@ -159,6 +168,17 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 			slog.Warn("tool permission denied", "tool", name, "sessionID", sessionID, "error", askErr)
 			return askErr.Error(), true, nil
 		}
+	}
+
+	// Before-hook: synchronous, can abort and/or provide context.
+	var beforeContext []string
+	if toolCtx.BeforeHook != nil {
+		bctx, berr := toolCtx.BeforeHook(sessionID, name, string(args))
+		if berr != nil {
+			slog.Warn("tool before-hook aborted", "tool", name, "sessionID", sessionID, "error", berr)
+			return berr.Error(), true, nil
+		}
+		beforeContext = bctx
 	}
 
 	if toolCtx.Bus != nil {
@@ -191,11 +211,14 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 	output := result.Output
 	isError := result.IsError
 
+	var afterContext []string
 	if toolCtx.AfterHook != nil {
-		if mod, modErr, changed := toolCtx.AfterHook(sessionID, name, output, isError); changed {
+		mod, modErr, changed, actx := toolCtx.AfterHook(sessionID, name, output, isError)
+		if changed {
 			output = mod
 			isError = modErr
 		}
+		afterContext = actx
 	}
 
 	if toolCtx.Bus != nil {
@@ -210,6 +233,12 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 	if !isError {
 		truncated := TruncPreview(output)
 		output = truncated.Content
+	}
+
+	// Append hook context to tool output so the model sees it.
+	hookCtx := append(beforeContext, afterContext...)
+	if len(hookCtx) > 0 {
+		output += "\n\n[Hook Context]\n" + strings.Join(hookCtx, "\n")
 	}
 
 	return output, isError, nil
@@ -276,6 +305,7 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 		SubagentRunner: r.ctx.SubagentRunner,
 		SubagentDepth:  r.ctx.SubagentDepth,
 		DB:             r.ctx.DB,
+		BeforeHook:     r.ctx.BeforeHook,
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
@@ -322,6 +352,7 @@ func (r *Registry) WithDepth(depth int) *Registry {
 		SubagentRunner: r.ctx.SubagentRunner,
 		SubagentDepth:  depth,
 		DB:             r.ctx.DB,
+		BeforeHook:     r.ctx.BeforeHook,
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,
@@ -368,6 +399,7 @@ func (r *Registry) WithAutoApprove() *Registry {
 		SubagentRunner: r.ctx.SubagentRunner,
 		SubagentDepth:  r.ctx.SubagentDepth,
 		DB:             r.ctx.DB,
+		BeforeHook:     r.ctx.BeforeHook,
 		AfterHook:      r.ctx.AfterHook,
 		SubagentCount:  r.ctx.SubagentCount,
 		SubagentBudget: r.ctx.SubagentBudget,

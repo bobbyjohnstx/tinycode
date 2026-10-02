@@ -104,23 +104,32 @@ type shellEnvResult struct {
 }
 
 // DispatchSessionStart notifies all loaded plugins of a session start,
-// then fires any configured shell hooks for the same event.
-func DispatchSessionStart(mgr *Manager, evt SessionStartEvent, shellRunner ...*ShellHookRunner) error {
+// then fires any configured shell hooks synchronously.
+// Returns collected additionalContext from both plugin and shell hooks.
+func DispatchSessionStart(mgr *Manager, evt SessionStartEvent, shellRunner ...*ShellHookRunner) ([]string, error) {
+	var collected []string
+
 	if mgr != nil {
 		procs := mgr.pluginsWithHook("session.start")
 		for _, proc := range procs {
-			_, err := proc.sendHook("session.start", evt)
+			raw, err := proc.sendHook("session.start", evt)
 			if err != nil {
 				mgr.logger.Warn("session.start hook failed", "plugin", proc.info.Name, "error", err)
+				continue
+			}
+			if ctx := parsePluginAdditionalContext(raw); len(ctx) > 0 {
+				collected = append(collected, ctx...)
 			}
 		}
 	}
 
 	if len(shellRunner) > 0 && shellRunner[0] != nil {
 		vars := map[string]string{"SESSION_ID": evt.SessionID}
-		shellRunner[0].RunAfter("session.start", vars)
+		if ctx := shellRunner[0].RunAfterSync("session.start", vars); len(ctx) > 0 {
+			collected = append(collected, ctx...)
+		}
 	}
-	return nil
+	return collected, nil
 }
 
 // DispatchSessionEnd notifies all loaded plugins of a session end,
@@ -219,13 +228,20 @@ func DispatchShellEnv(mgr *Manager, input ShellEnvInput) (*ShellEnvOutput, error
 
 // DispatchToolExecBefore notifies plugins that a tool is about to execute,
 // then runs any configured shell hooks. Shell hooks with non-zero exit abort.
-func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent, shellRunner ...*ShellHookRunner) error {
+// Returns collected additionalContext from both plugin and shell hooks.
+func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent, shellRunner ...*ShellHookRunner) ([]string, error) {
+	var collected []string
+
 	if mgr != nil {
 		procs := mgr.pluginsWithHook("tool.execute.before")
 		for _, proc := range procs {
-			_, err := proc.sendHook("tool.execute.before", evt)
+			raw, err := proc.sendHook("tool.execute.before", evt)
 			if err != nil {
 				mgr.logger.Warn("tool.execute.before hook failed", "plugin", proc.info.Name, "error", err)
+				continue
+			}
+			if ctx := parsePluginAdditionalContext(raw); len(ctx) > 0 {
+				collected = append(collected, ctx...)
 			}
 		}
 	}
@@ -236,32 +252,39 @@ func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent, shellRunner .
 			"ARGS":       evt.ToolArgs,
 			"SESSION_ID": evt.SessionID,
 		}
-		if err := shellRunner[0].RunBefore("tool.execute.before", vars); err != nil {
-			return err
+		ctx, err := shellRunner[0].RunBefore("tool.execute.before", vars)
+		if err != nil {
+			return nil, err
+		}
+		if len(ctx) > 0 {
+			collected = append(collected, ctx...)
 		}
 	}
-	return nil
+	return collected, nil
 }
 
 // ToolExecAfterOutput is the aggregated result of tool.execute.after hooks.
 type ToolExecAfterOutput struct {
-	Output  string `json:"output"`
-	IsError bool   `json:"isError"`
+	Output            string   `json:"output"`
+	IsError           bool     `json:"isError"`
+	AdditionalContext []string `json:"additionalContext,omitempty"`
 }
 
 // toolExecAfterResult is the JSON structure returned by a tool.execute.after hook.
 type toolExecAfterResult struct {
-	Output  string `json:"output"`
-	IsError bool   `json:"isError"`
+	Output            string   `json:"output"`
+	IsError           bool     `json:"isError"`
+	AdditionalContext []string `json:"additionalContext,omitempty"`
 }
 
 // DispatchToolExecAfter sends tool output through all plugins that handle
 // tool.execute.after. Each plugin can transform the output; the result chains
 // through so later plugins see earlier plugins' modifications.
-// Shell hooks fire asynchronously after plugin hooks.
+// Shell hooks fire synchronously to capture additionalContext.
 func DispatchToolExecAfter(mgr *Manager, evt ToolExecAfterEvent, shellRunner ...*ShellHookRunner) (*ToolExecAfterOutput, error) {
 	current := evt
 	modified := false
+	var collected []string
 
 	if mgr != nil {
 		procs := mgr.pluginsWithHook("tool.execute.after")
@@ -284,6 +307,9 @@ func DispatchToolExecAfter(mgr *Manager, evt ToolExecAfterEvent, shellRunner ...
 				current.IsError = result.IsError
 				modified = true
 			}
+			if len(result.AdditionalContext) > 0 {
+				collected = append(collected, capAdditionalContext(result.AdditionalContext)...)
+			}
 		}
 	}
 
@@ -297,11 +323,46 @@ func DispatchToolExecAfter(mgr *Manager, evt ToolExecAfterEvent, shellRunner ...
 			"IS_ERROR":   isError,
 			"SESSION_ID": evt.SessionID,
 		}
-		shellRunner[0].RunAfter("tool.execute.after", vars)
+		if ctx := shellRunner[0].RunAfterSync("tool.execute.after", vars); len(ctx) > 0 {
+			collected = append(collected, ctx...)
+		}
 	}
 
-	if !modified {
+	if !modified && len(collected) == 0 {
 		return nil, nil
 	}
-	return &ToolExecAfterOutput{Output: current.Output, IsError: current.IsError}, nil
+	return &ToolExecAfterOutput{
+		Output:            current.Output,
+		IsError:           current.IsError,
+		AdditionalContext: collected,
+	}, nil
+}
+
+// parsePluginAdditionalContext extracts additionalContext strings from a
+// plugin's JSON-RPC response. Applies the per-string character cap.
+// Returns nil if raw is nil or doesn't contain the field.
+func parsePluginAdditionalContext(raw json.RawMessage) []string {
+	if raw == nil {
+		return nil
+	}
+	var parsed struct {
+		AdditionalContext []string `json:"additionalContext"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil
+	}
+	return capAdditionalContext(parsed.AdditionalContext)
+}
+
+// capAdditionalContext enforces the 10,000 character cap on each string.
+func capAdditionalContext(ctx []string) []string {
+	if len(ctx) == 0 {
+		return nil
+	}
+	for i, s := range ctx {
+		if len(s) > maxAdditionalContextLen {
+			ctx[i] = s[:maxAdditionalContextLen] + "... [truncated]"
+		}
+	}
+	return ctx
 }

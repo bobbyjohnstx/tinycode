@@ -3,10 +3,10 @@ package server
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/bobbyjohnstx/tinycode/internal/command"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
-
 )
 
 // PromptInput describes a user prompt to be processed by a session.
@@ -234,6 +234,14 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	if err != nil {
 		slog.Warn("failed to load existing messages, starting with empty history", "sessionID", sessionID, "error", err)
 		existingMsgs = nil
+	}
+
+	// On first prompt, fire session.start hook synchronously and inject
+	// any additionalContext into the system prompt.
+	if len(existingMsgs) == 0 && sm.sessionStartHook != nil {
+		if hookCtx := sm.sessionStartHook(sessionID); len(hookCtx) > 0 {
+			systemPrompt += "\n\n[Hook Context]\n" + strings.Join(hookCtx, "\n")
+		}
 	}
 
 	client := sm.clientFactory(model)

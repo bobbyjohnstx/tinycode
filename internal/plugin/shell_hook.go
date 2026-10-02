@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 )
+
+const maxAdditionalContextLen = 10000
 
 const defaultShellHookTimeout = 10 * time.Second
 
@@ -32,17 +35,18 @@ func NewShellHookRunner(hooks map[string][]config.HookConfig, logger *slog.Logge
 }
 
 // RunBefore executes shell hooks for a "before" event synchronously.
-// Returns an error if any hook exits non-zero (abort signal).
-// The vars map provides variable substitutions ($TOOL, $SESSION_ID, etc.).
-func (r *ShellHookRunner) RunBefore(eventName string, vars map[string]string) error {
+// Returns collected additionalContext strings and an error if any hook exits
+// non-zero (abort signal). Non-JSON stdout is treated as no context (backward compat).
+func (r *ShellHookRunner) RunBefore(eventName string, vars map[string]string) ([]string, error) {
 	if r == nil {
-		return nil
+		return nil, nil
 	}
 	hooks, ok := r.hooks[eventName]
 	if !ok || len(hooks) == 0 {
-		return nil
+		return nil, nil
 	}
 
+	var collected []string
 	for _, h := range hooks {
 		if !matchesFilter(h.Match, vars) {
 			continue
@@ -61,13 +65,16 @@ func (r *ShellHookRunner) RunBefore(eventName string, vars map[string]string) er
 				"output", out,
 				"error", err,
 			)
-			return fmt.Errorf("shell hook %q aborted: %w", cmd, err)
+			return nil, fmt.Errorf("shell hook %q aborted: %w", cmd, err)
 		}
 		if out != "" {
 			r.logger.Debug("shell hook output", "event", eventName, "command", cmd, "output", out)
+			if ctx := parseAdditionalContext([]byte(out)); len(ctx) > 0 {
+				collected = append(collected, ctx...)
+			}
 		}
 	}
-	return nil
+	return collected, nil
 }
 
 // RunAfter executes shell hooks for an "after" event asynchronously.
@@ -106,6 +113,74 @@ func (r *ShellHookRunner) RunAfter(eventName string, vars map[string]string) {
 			}
 		}(cmd, timeout)
 	}
+}
+
+// RunAfterSync executes shell hooks for an "after" event synchronously,
+// capturing stdout and parsing additionalContext from JSON output.
+// Unlike RunAfter, errors are logged but do not abort — this is for events
+// where context capture is needed but failure is non-fatal.
+func (r *ShellHookRunner) RunAfterSync(eventName string, vars map[string]string) []string {
+	if r == nil {
+		return nil
+	}
+	hooks, ok := r.hooks[eventName]
+	if !ok || len(hooks) == 0 {
+		return nil
+	}
+
+	var collected []string
+	for _, h := range hooks {
+		if !matchesFilter(h.Match, vars) {
+			continue
+		}
+		cmd := substituteVars(h.Command, vars)
+		timeout := shellHookTimeout(h.Timeout)
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		out, err := execShellCommand(ctx, cmd)
+		cancel()
+
+		if err != nil {
+			r.logger.Warn("shell hook failed",
+				"event", eventName,
+				"command", cmd,
+				"output", out,
+				"error", err,
+			)
+		}
+		if out != "" {
+			r.logger.Debug("shell hook output", "event", eventName, "command", cmd, "output", out)
+			if ctx := parseAdditionalContext([]byte(out)); len(ctx) > 0 {
+				collected = append(collected, ctx...)
+			}
+		}
+	}
+	return collected
+}
+
+// parseAdditionalContext attempts to extract additionalContext strings from
+// JSON output matching the hookSpecificOutput.additionalContext structure.
+// Returns nil for non-JSON or JSON without the expected field (backward compat).
+// Each string is capped at 10,000 characters.
+func parseAdditionalContext(output []byte) []string {
+	var parsed struct {
+		HookSpecificOutput struct {
+			AdditionalContext []string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal(output, &parsed); err != nil {
+		return nil
+	}
+	ctx := parsed.HookSpecificOutput.AdditionalContext
+	if len(ctx) == 0 {
+		return nil
+	}
+	for i, s := range ctx {
+		if len(s) > maxAdditionalContextLen {
+			ctx[i] = s[:maxAdditionalContextLen] + "... [truncated]"
+		}
+	}
+	return ctx
 }
 
 // Hooks returns the configured hooks map.

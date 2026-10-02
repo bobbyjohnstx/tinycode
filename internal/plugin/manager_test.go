@@ -120,7 +120,13 @@ func helperHandleHookInvoke(encoder *json.Encoder, req pkgplugin.JSONRPCRequest,
 	var resultOutput json.RawMessage
 	switch params.Name {
 	case "session.start", "session.end", "tool.execute.before", "tool.execute.after":
-		resultOutput = nil
+		if behavior == "with_context" {
+			resultOutput, _ = json.Marshal(map[string]any{
+				"additionalContext": []string{"ctx from plugin"},
+			})
+		} else {
+			resultOutput = nil
+		}
 	case "dispose":
 		hr := pkgplugin.HookResult{Output: nil}
 		raw, _ := json.Marshal(hr)

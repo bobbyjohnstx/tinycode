@@ -54,6 +54,7 @@ func runServe() {
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 
 	if flags.model != "" {
@@ -143,6 +144,7 @@ func runWeb() {
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 
 	if flags.model != "" {

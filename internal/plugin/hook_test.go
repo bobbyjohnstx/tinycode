@@ -2,11 +2,14 @@ package plugin
 
 import (
 	"errors"
+	"log/slog"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 )
 
 func TestDispatchSessionStart_NilManager(t *testing.T) {
-	err := DispatchSessionStart(nil, SessionStartEvent{SessionID: "ses_1"})
+	_, err := DispatchSessionStart(nil, SessionStartEvent{SessionID: "ses_1"})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -14,7 +17,7 @@ func TestDispatchSessionStart_NilManager(t *testing.T) {
 
 func TestDispatchSessionStart_EmptyManager(t *testing.T) {
 	mgr := NewManagerWithRegistry(nil)
-	err := DispatchSessionStart(mgr, SessionStartEvent{SessionID: "ses_1"})
+	_, err := DispatchSessionStart(mgr, SessionStartEvent{SessionID: "ses_1"})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -141,7 +144,7 @@ func TestDispatchSessionStart_WithPlugin(t *testing.T) {
 	}
 	defer mgr.Shutdown()
 
-	err = DispatchSessionStart(mgr, SessionStartEvent{SessionID: "ses_1"})
+	_, err = DispatchSessionStart(mgr, SessionStartEvent{SessionID: "ses_1"})
 	if err != nil {
 		t.Fatalf("DispatchSessionStart: %v", err)
 	}
@@ -171,7 +174,7 @@ func TestDispatchSessionStart_NoMatchingHook(t *testing.T) {
 	}
 	defer mgr.Shutdown()
 
-	err = DispatchSessionStart(mgr, SessionStartEvent{SessionID: "ses_1"})
+	_, err = DispatchSessionStart(mgr, SessionStartEvent{SessionID: "ses_1"})
 	if err != nil {
 		t.Fatalf("DispatchSessionStart: %v", err)
 	}
@@ -287,7 +290,7 @@ func TestDispatchToolExecBefore_WithPlugin(t *testing.T) {
 	}
 	defer mgr.Shutdown()
 
-	err = DispatchToolExecBefore(mgr, ToolExecBeforeEvent{
+	_, err = DispatchToolExecBefore(mgr, ToolExecBeforeEvent{
 		SessionID: "ses_1",
 		ToolName:  "bash",
 		ToolArgs:  `{"command":"ls"}`,
@@ -318,7 +321,7 @@ func TestDispatchToolExecAfter_WithPlugin(t *testing.T) {
 }
 
 func TestDispatchToolExecBefore_NilManager(t *testing.T) {
-	err := DispatchToolExecBefore(nil, ToolExecBeforeEvent{SessionID: "ses_1", ToolName: "bash"})
+	_, err := DispatchToolExecBefore(nil, ToolExecBeforeEvent{SessionID: "ses_1", ToolName: "bash"})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -340,12 +343,156 @@ func TestDispatchToolExecBefore_NoHook(t *testing.T) {
 	}
 	defer mgr.Shutdown()
 
-	err = DispatchToolExecBefore(mgr, ToolExecBeforeEvent{
+	_, err = DispatchToolExecBefore(mgr, ToolExecBeforeEvent{
 		SessionID: "ses_1",
 		ToolName:  "bash",
 		ToolArgs:  `{"command":"ls"}`,
 	})
 	if err != nil {
 		t.Fatalf("DispatchToolExecBefore: %v", err)
+	}
+}
+
+func TestDispatchSessionStart_ReturnsContext(t *testing.T) {
+	mgr := newTestManager("with_context")
+
+	_, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	ctx, err := DispatchSessionStart(mgr, SessionStartEvent{SessionID: "ses_1"})
+	if err != nil {
+		t.Fatalf("DispatchSessionStart: %v", err)
+	}
+	if len(ctx) == 0 {
+		t.Fatal("expected additionalContext, got none")
+	}
+	if ctx[0] != "ctx from plugin" {
+		t.Errorf("expected 'ctx from plugin', got %q", ctx[0])
+	}
+}
+
+func TestDispatchToolExecBefore_ReturnsContext(t *testing.T) {
+	// Test with shell hook providing context (nil plugin manager).
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.before": {{Command: `echo '{"hookSpecificOutput":{"additionalContext":["shell before ctx"]}}'`}},
+	}
+	runner := NewShellHookRunner(hooks, slog.Default())
+
+	ctx, err := DispatchToolExecBefore(nil, ToolExecBeforeEvent{
+		SessionID: "ses_1",
+		ToolName:  "bash",
+		ToolArgs:  `{"command":"ls"}`,
+	}, runner)
+	if err != nil {
+		t.Fatalf("DispatchToolExecBefore: %v", err)
+	}
+	if len(ctx) != 1 || ctx[0] != "shell before ctx" {
+		t.Errorf("expected [shell before ctx], got %v", ctx)
+	}
+}
+
+func TestDispatchToolExecBefore_AbortWithContext(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.before": {{Command: "exit 1"}},
+	}
+	runner := NewShellHookRunner(hooks, slog.Default())
+
+	ctx, err := DispatchToolExecBefore(nil, ToolExecBeforeEvent{
+		SessionID: "ses_1",
+		ToolName:  "bash",
+	}, runner)
+	if err == nil {
+		t.Fatal("expected error for shell hook abort")
+	}
+	if ctx != nil {
+		t.Errorf("expected nil context on abort, got %v", ctx)
+	}
+}
+
+func TestDispatchToolExecAfter_AdditionalContext(t *testing.T) {
+	mgr := newTestManager("with_context")
+
+	_, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	result, err := DispatchToolExecAfter(mgr, ToolExecAfterEvent{
+		SessionID: "ses_1",
+		ToolName:  "bash",
+		Output:    "hello",
+		IsError:   false,
+	})
+	if err != nil {
+		t.Fatalf("DispatchToolExecAfter: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if len(result.AdditionalContext) == 0 {
+		t.Fatal("expected additionalContext, got none")
+	}
+	if result.AdditionalContext[0] != "ctx from plugin" {
+		t.Errorf("expected 'ctx from plugin', got %q", result.AdditionalContext[0])
+	}
+}
+
+func TestDispatchToolExecAfter_MultipleHooks_AggregatesContext(t *testing.T) {
+	// Use shell hooks to test multi-hook aggregation (two hooks on same event).
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.after": {
+			{Command: `echo '{"hookSpecificOutput":{"additionalContext":["shell ctx 1"]}}'`},
+			{Command: `echo '{"hookSpecificOutput":{"additionalContext":["shell ctx 2"]}}'`},
+		},
+	}
+	runner := NewShellHookRunner(hooks, slog.Default())
+
+	result, err := DispatchToolExecAfter(nil, ToolExecAfterEvent{
+		SessionID: "ses_1",
+		ToolName:  "bash",
+		Output:    "hello",
+	}, runner)
+	if err != nil {
+		t.Fatalf("DispatchToolExecAfter: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if len(result.AdditionalContext) != 2 {
+		t.Fatalf("expected 2 context strings, got %d: %v", len(result.AdditionalContext), result.AdditionalContext)
+	}
+	if result.AdditionalContext[0] != "shell ctx 1" {
+		t.Errorf("expected 'shell ctx 1', got %q", result.AdditionalContext[0])
+	}
+	if result.AdditionalContext[1] != "shell ctx 2" {
+		t.Errorf("expected 'shell ctx 2', got %q", result.AdditionalContext[1])
+	}
+}
+
+func TestDispatchToolExecAfter_NoContext_BackwardCompat(t *testing.T) {
+	mgr := newTestManager("")
+
+	_, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	result, err := DispatchToolExecAfter(mgr, ToolExecAfterEvent{
+		SessionID: "ses_1",
+		ToolName:  "bash",
+		Output:    "hello",
+		IsError:   false,
+	})
+	if err != nil {
+		t.Fatalf("DispatchToolExecAfter: %v", err)
+	}
+	// With no additionalContext and no output modification, result should be nil.
+	if result != nil {
+		t.Errorf("expected nil result for backward compat, got %+v", result)
 	}
 }

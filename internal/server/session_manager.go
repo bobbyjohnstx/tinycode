@@ -110,6 +110,7 @@ type SessionManager struct {
 	jobManager         *session.JobManager
 	appendSystemPrompt string
 	tokenBudget        int
+	sessionStartHook   func(sessionID string) []string
 	subagentStreams  map[string]*activeSession // streaming state for subagent synthetic IDs
 	ctx              context.Context
 	ctxCancel        context.CancelFunc
