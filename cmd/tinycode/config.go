@@ -89,6 +89,44 @@ func initDependencies() (*bus.Bus, *storage.DB, *config.Info) {
 	return b, db, cfg
 }
 
+// isLocalhostAddr returns true if the given host string resolves to a
+// loopback address (127.0.0.1, ::1, localhost).
+func isLocalhostAddr(host string) bool {
+	switch host {
+	case "127.0.0.1", "::1", "localhost":
+		return true
+	}
+	return false
+}
+
+// validateNoAuthSafety checks whether running without authentication is safe
+// for the given bind address. It returns:
+//   - ("", nil) when the address is localhost (always safe)
+//   - ("warn", nil) when TINYCODE_FORCE_NO_AUTH overrides the check
+//   - ("", error) when auth is disabled on a non-localhost address without override
+func validateNoAuthSafety(host string, forceNoAuth bool) (string, error) {
+	if isLocalhostAddr(host) {
+		return "", nil
+	}
+	if forceNoAuth {
+		return "warn", nil
+	}
+	return "", fmt.Errorf("refusing to start: authentication is disabled on non-localhost address %q; bind to localhost, enable auth, or set TINYCODE_FORCE_NO_AUTH=1 to override", host)
+}
+
+// checkNoAuthSafety exits with an error if authentication is disabled on a
+// non-localhost bind address, unless TINYCODE_FORCE_NO_AUTH is set.
+func checkNoAuthSafety(host string) {
+	level, err := validateNoAuthSafety(host, os.Getenv("TINYCODE_FORCE_NO_AUTH") != "")
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+	if level == "warn" {
+		slog.Warn("running without authentication on a non-localhost address — this is a security risk", "host", host)
+	}
+}
+
 // generateToken produces a cryptographically random 64-character hex token
 // for authenticating HTTP requests between the TUI client and the embedded server.
 func generateToken() string {
