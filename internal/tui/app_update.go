@@ -275,6 +275,9 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return a, nil, true
 	case PaletteSelectedMsg:
 		a.setFocus(FocusPrompt)
+		if a.frecStore != nil && msg.Item.Value != "" {
+			a.frecStore.Record("command:" + msg.Item.Value)
+		}
 		if cmd, handled := a.handleClientCommand(msg.Item.Value); handled {
 			return a, cmd, true
 		}

@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/frecency"
 	"github.com/bobbyjohnstx/tinycode/internal/storage"
 )
 
@@ -39,6 +42,7 @@ type App struct {
 	whichKey   WhichKeyPanel
 	leader     LeaderState
 	themes     *ThemeRegistry
+	frecStore  *frecency.Store
 	state      *AppState
 	focus      FocusTarget
 	width      int
@@ -55,6 +59,9 @@ func NewApp(serverURL string) App {
 
 	themes := NewThemeRegistry()
 	themes.LoadEmbedded()
+
+	fs := frecency.New(filepath.Join(config.DataDir(), "frecency.json"))
+	_ = fs.Load() // ignore error on first run
 
 	return App{
 		chat:       NewChatView(80, 24),
@@ -76,6 +83,7 @@ func NewApp(serverURL string) App {
 		sidebar:    NewSidebar(),
 		leader:     NewLeaderState(keys),
 		themes:     themes,
+		frecStore:  fs,
 		state:      state,
 		focus:      FocusPrompt,
 		serverURL:  serverURL,
@@ -457,6 +465,15 @@ func (a *App) showPalette() {
 			Value:       cmd.Name,
 		})
 	}
+	// Sort command items by frecency score before appending informational keybindings.
+	if a.frecStore != nil {
+		sort.SliceStable(items, func(i, j int) bool {
+			si := a.frecStore.Score("command:" + items[i].Value)
+			sj := a.frecStore.Score("command:" + items[j].Value)
+			return si > sj
+		})
+	}
+
 	items = append(items, keybindingPaletteItems(a.keys)...)
 	a.palette.Show(items)
 	a.focus = FocusPalette
