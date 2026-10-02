@@ -18,15 +18,21 @@ tinycode reads your files, runs commands, edits code, and works through multi-st
 
 ### Key features
 
-- **Multi-agent orchestration** --- build agent delegates to executor, architect, and critic subagents; `/swarm` runs parallel agents as goroutines
+- **Multi-agent orchestration** --- build agent delegates to executor, architect, and critic subagents; `/swarm` runs parallel agents as goroutines; `--plan` flag shows decomposition for review before dispatch
 - **16 built-in agents** --- architect, debugger, executor, code-reviewer, planner, and more (Tab to cycle, `/ask` for one-shot)
 - **10 bundled skills** --- debug, verify, trace, review, plan, test, doctor, mcp-setup, remember, deepinit
+- **Workflow commands** --- `/effort` adjusts reasoning depth per session, `/goal` runs autonomous multi-turn loops until a condition is met, `/branch` forks conversations to try alternatives
+- **Context management** --- `/context` visualizes context window usage with per-category breakdown, `/btw` asks side questions without polluting history, `/changes` shows only files tinycode modified (not all uncommitted changes); automatic elision at 80% context, LLM summarization at the limit, `/compact` for manual compaction
+- **Built-in tools** --- `monitor` watches background processes with buffered event delivery, `notepad` provides session-scoped scratch storage that survives compaction, `report_findings` outputs structured code review results, `notify` sends desktop notifications with urgency levels
+- **Hooks** --- shell hooks in `settings.json` for lightweight lifecycle automation without writing a plugin; `additionalContext` lets hooks inject text into the model's context
+- **Frecency ranking** --- command palette ranked by usage frequency + recency
 - **MCP integration** --- connect external tool servers via stdio, SSE, or streamable HTTP; manage with `/mcp` dialog
 - **Multimodal input** --- paste images from clipboard (`/paste-image`) for vision-capable models
 - **Extended thinking** --- `/thinking` controls reasoning budget (off/low/medium/high/max)
 - **Model scoping** --- `/scoped-models` favorites list to filter the model selector
-- **Snapshot undo/redo** --- `/undo` and `/redo` revert or restore AI file changes
+- **Snapshot undo/redo** --- `/undo` and `/redo` revert or restore AI file changes; `/rewind` rolls back to any earlier conversation turn
 - **Diff viewer** --- `/diff` shows uncommitted changes inline
+- **Clipboard copy** --- `/copy` copies responses to clipboard with code-block picker
 - **apply_patch tool** --- atomic multi-file edits via unified diff
 - **@ file references** --- autocomplete with directory drill-down
 - **Session auto-titling** --- titles generated from the first prompt
@@ -34,14 +40,13 @@ tinycode reads your files, runs commands, edits code, and works through multi-st
 - **Session archive** --- `/archive` soft-deletes sessions (recoverable)
 - **HTML export** --- `/export html` for self-contained HTML with syntax highlighting
 - **Which-key panel** --- press Ctrl+X to see all leader key follow-ups in a floating overlay
-- **Terminal bell** --- audible notification on task completion and permission prompts
+- **Terminal bell and desktop notifications** --- audible bell on task completion; `notify` tool for desktop alerts with WSL support
 - **Leader key system** --- Ctrl+X prefix for sidebar, sessions, editor, diff, themes, MCP, and more
 - **Session resume from CLI** --- `-c` continues the most recent session; `-r` resumes by ID or title
 - **tinycode doctor** --- headless diagnostics that verify config, database, providers, agents, and plugins
 - **Safe mode** --- `--safe-mode` skips plugins, MCP, and user agents; status bar shows bold indicator
 - **System prompt override** --- `--append-system-prompt` and `--append-system-prompt-file` inject custom instructions
 - **Token budget ceiling** --- `--max-tokens` sets a cumulative token limit; session aborts when exceeded
-- **Two-stage context management** --- automatic elision at 80% context (replaces old tool outputs with stubs), full LLM summarization at the limit, bounded tool previews (head+tail format for large outputs), plus `/compact` for manual compaction
 - **External editor** --- `/editor` opens `$EDITOR`; `/editor @file` edits a file directly
 - **Interactive shell** --- `/shell` drops into a shell session
 

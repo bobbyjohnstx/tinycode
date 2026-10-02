@@ -145,7 +145,22 @@ Review what changed before committing:
 
 This opens an inline diff viewer showing all uncommitted changes in the working directory. Or use **Ctrl+X d**.
 
-## 10. Export your session
+## 10. Workflow commands
+
+A few commands that change how tinycode works during a session:
+
+```
+/effort high          # More thorough analysis, more tool calls
+/effort low           # Quick concise answers
+/goal all tests pass  # Autonomous loop — keeps working until the condition is met
+/branch experiment    # Fork this conversation to try a different approach
+/rewind               # Roll back to an earlier turn if something went wrong
+/context              # See what's filling up the context window
+```
+
+`/goal` is especially useful for iterative tasks like fixing lint errors or getting a build working — it maps conditions to shell commands and loops automatically (max 10 iterations).
+
+## 11. Export your session
 
 Save the conversation for reference:
 
@@ -163,7 +178,7 @@ For a formatted version with syntax highlighting:
 
 This creates a self-contained HTML file you can open in any browser or share.
 
-## 11. Get help
+## 12. Get help
 
 ```
 /help

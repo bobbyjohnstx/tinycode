@@ -62,6 +62,17 @@ Skills inject specialized instructions into the conversation. They're prompts, n
 | `/doctor` | Check the tinycode environment — provider connectivity, model health, config audit. | First session, or when something seems misconfigured. |
 | `/remember` | Save findings from this session to memory for future conversations. | When you learn something that should persist across sessions. |
 
+## Tools Available to the Model
+
+These are not slash commands — they are tools the model can invoke during a conversation.
+
+| Tool | What it does | When the model uses it |
+|------|-------------|----------------------|
+| `notepad` | Session-scoped scratch storage (read/write/list/delete, 50 entries max). Survives compaction. | To remember intermediate results, plans, or checklists across a long session. |
+| `monitor` | Background process watcher with buffered event delivery (ring buffer, concurrent cap). | To watch a running process (e.g., build, test suite) and report output at turn boundaries. |
+| `report_findings` | Structured code review output — file, line, severity, summary per finding. | During code reviews to produce machine-readable, consistently formatted results. |
+| `notify` | Desktop notification with urgency levels. Supports WSL. Auto-fires on goal/subagent completion. | To alert you when a long-running task finishes or needs attention. |
+
 ## Keyboard Shortcuts
 
 | Key | Action |
