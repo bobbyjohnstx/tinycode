@@ -77,10 +77,25 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 	}()
 
 	allFailed := true
-	for tr := range ch {
-		results[tr.index] = tr.result
-		if !tr.failed {
-			allFailed = false
+	collected := 0
+	for collected < len(toolCalls) {
+		select {
+		case tr := <-ch:
+			results[tr.index] = tr.result
+			if !tr.failed {
+				allFailed = false
+			}
+			collected++
+		case <-ctx.Done():
+			// Context cancelled (abort). Fill uncollected slots with abort markers
+			// so the message has valid tool results. The next iteration's
+			// checkAbortAndContext will stop the processor.
+			for i := range results {
+				if results[i].Type == "" {
+					results[i] = ToolResultPart(toolCalls[i].ToolCallID, toolCalls[i].ToolName, "aborted", true)
+				}
+			}
+			return results, true
 		}
 	}
 

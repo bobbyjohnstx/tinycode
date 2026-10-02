@@ -86,7 +86,7 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 		}
 
 	case "session.error":
-		errMsg := stringProp(props, "error")
+		errMsg := extractSessionError(props)
 		if errMsg == "" {
 			errMsg = "unknown error"
 		}
@@ -535,6 +535,34 @@ func sessionInfoFromAPI(s session.Info) SessionInfo {
 func stringProp(props map[string]any, key string) string {
 	v, _ := props[key].(string)
 	return v
+}
+
+// extractSessionError extracts a human-readable error message from a session.error
+// SSE event. The server sends errors in two forms:
+//   - plain string: props["error"] = "some message"
+//   - structured payload: props["error"] = {"name": "...", "data": {"message": "..."}}
+//
+// This function handles both, preferring the structured data.message when available.
+func extractSessionError(props map[string]any) string {
+	raw := props["error"]
+	if raw == nil {
+		return ""
+	}
+	if s, ok := raw.(string); ok {
+		return s
+	}
+	if obj, ok := raw.(map[string]any); ok {
+		if data, ok := obj["data"].(map[string]any); ok {
+			if msg, ok := data["message"].(string); ok && msg != "" {
+				return msg
+			}
+		}
+		// Fallback: try the name field
+		if name, ok := obj["name"].(string); ok && name != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 // intFromAny extracts an int from a JSON number (float64) or int.
