@@ -50,12 +50,44 @@ Do NOT ask for confirmation between iterations. Keep going until done or blocked
 USER TASK:
 `
 
+// SwarmPlanPrefix is the instruction preamble prepended to /swarm --plan
+// prompts. It asks the model to present a plan for user review before
+// dispatching subagents.
+const SwarmPlanPrefix = `You are in SWARM PLANNING mode. You MUST first present a plan for the user to review before dispatching any work.
+
+STEP 1: Analyze the user's task and split it into 2-4 independent subtasks.
+STEP 2: Present the plan as a numbered markdown list. For each unit:
+  1. One-line description of what the unit does
+  2. Which files it will modify
+  3. Key instructions for the subagent
+
+Do NOT execute yet. Present the plan and wait for the user to approve, edit, or reject it.
+When the user approves (says "go", "approve", "yes", or similar), THEN call the task tool for each unit.
+
+TASK TOOL FORMAT — each call must include:
+  "description": short label (e.g. "Batch 1: files A-G")
+  "prompt": detailed instructions for the subagent — tell it exactly what to do and what to return
+  "subagent_type": "executor" (for running commands) or "explore" (for reading/searching)
+
+CONSTRAINTS:
+- Do NOT set "background": true — use foreground mode
+- Do NOT do the work yourself — you are the coordinator, subagents do the work
+- Do NOT call bash or any file tool — ONLY the task tool (after approval)
+- Make MULTIPLE task calls in ONE response to run them in parallel
+- Each subagent has its own tools (bash, read, etc.) and will do the actual work
+- If subagents return errors or timeouts, do NOT retry them — synthesize whatever results you have and report what failed
+- You get ONE round of subagent calls — make them count
+
+USER TASK:
+`
+
 // ExpandResult holds the expanded prompt text and any flags signaled by the
 // slash command (e.g. /swarm implies auto-approve).
 type ExpandResult struct {
 	Text        string
 	DisplayText string
 	AutoApprove bool
+	PlanOnly    bool
 }
 
 // ExpandSlashCommand detects /swarm and /work-loop prefixes and prepends
@@ -67,6 +99,17 @@ func ExpandSlashCommand(text string) ExpandResult {
 
 	if strings.HasPrefix(trimmed, "/swarm ") {
 		userTask := strings.TrimSpace(strings.TrimPrefix(trimmed, "/swarm"))
+		planFlag := strings.Contains(userTask, "--plan")
+		if planFlag {
+			userTask = strings.TrimSpace(strings.ReplaceAll(userTask, "--plan", ""))
+		}
+		if planFlag {
+			return ExpandResult{
+				Text:        SwarmPlanPrefix + userTask,
+				DisplayText: "/swarm --plan " + userTask,
+				PlanOnly:    true,
+			}
+		}
 		return ExpandResult{
 			Text:        SwarmPrefix + userTask,
 			DisplayText: "/swarm " + userTask,

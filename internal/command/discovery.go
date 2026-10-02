@@ -106,7 +106,7 @@ func builtinCommands() []Command {
 		},
 		{
 			Name:        "swarm",
-			Description: "Dispatch parallel subagents for multi-task work",
+			Description: "Dispatch parallel subagents -- /swarm [--plan] <task>",
 			Source:      "builtin",
 			Template:    "Break down this task and dispatch subagents.",
 			Subtask:     true,

@@ -78,3 +78,58 @@ func TestExpandSlashCommand_SwarmForegroundInstruction(t *testing.T) {
 		t.Error("expected parallel task call instruction")
 	}
 }
+
+func TestExpandSlashCommand_SwarmPlanFlag(t *testing.T) {
+	result := ExpandSlashCommand("/swarm --plan refactor the auth module")
+	if !strings.Contains(result.Text, "SWARM PLANNING mode") {
+		t.Error("expected SWARM PLANNING mode prefix")
+	}
+	if !strings.Contains(result.Text, "refactor the auth module") {
+		t.Error("expected user task preserved")
+	}
+	if strings.Contains(result.Text, "--plan") {
+		t.Error("expected --plan stripped from prompt text")
+	}
+	if !result.PlanOnly {
+		t.Error("expected PlanOnly=true")
+	}
+	if result.AutoApprove {
+		t.Error("expected AutoApprove=false for --plan")
+	}
+}
+
+func TestExpandSlashCommand_SwarmPlanFlagAfterTask(t *testing.T) {
+	result := ExpandSlashCommand("/swarm refactor the auth module --plan")
+	if !strings.Contains(result.Text, "SWARM PLANNING mode") {
+		t.Error("expected SWARM PLANNING mode prefix when --plan after task")
+	}
+	if !strings.Contains(result.Text, "refactor the auth module") {
+		t.Error("expected user task preserved")
+	}
+	if strings.Contains(result.Text, "--plan") {
+		t.Error("expected --plan stripped from prompt text")
+	}
+	if !result.PlanOnly {
+		t.Error("expected PlanOnly=true when --plan after task")
+	}
+}
+
+func TestExpandSlashCommand_SwarmWithoutPlanUnchanged(t *testing.T) {
+	result := ExpandSlashCommand("/swarm run tests on all packages")
+	if result.PlanOnly {
+		t.Error("expected PlanOnly=false for /swarm without --plan")
+	}
+	if !result.AutoApprove {
+		t.Error("expected AutoApprove=true for /swarm without --plan")
+	}
+	if !strings.Contains(result.Text, "SWARM mode") {
+		t.Error("expected SWARM mode prefix for /swarm without --plan")
+	}
+}
+
+func TestExpandSlashCommand_SwarmPlanDisplayText(t *testing.T) {
+	result := ExpandSlashCommand("/swarm --plan fix all lint errors")
+	if result.DisplayText != "/swarm --plan fix all lint errors" {
+		t.Errorf("expected display text with --plan, got %q", result.DisplayText)
+	}
+}
