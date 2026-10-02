@@ -96,11 +96,6 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 	lineNum := 0
 
 	agentThoughtStyle := styleReasoningLabel
-	agent := msg.Info.Agent
-	if agent == "" {
-		agent = "build"
-	}
-	agentThoughtStyle = lipgloss.NewStyle().Foreground(AgentColor(agent))
 
 	groups := groupSubagentParts(msg.Parts)
 

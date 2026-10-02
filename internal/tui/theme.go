@@ -153,7 +153,7 @@ func parseThemeJSON(id string, data []byte) *ColorTheme {
 }
 
 func ApplyColorTheme(ct *ColorTheme) {
-	styleSpinner = lipgloss.NewStyle().Foreground(ct.Info)
+	styleSpinner = lipgloss.NewStyle().Foreground(ct.Warning)
 	colorError = ct.Error
 	colorSuccess = ct.Success
 	styleSelected = lipgloss.NewStyle().Bold(true).Foreground(ct.Primary)
@@ -200,9 +200,10 @@ func ApplyColorTheme(ct *ColorTheme) {
 	styleSidebarSuccess = lipgloss.NewStyle().Foreground(ct.Success)
 	styleSidebarError = lipgloss.NewStyle().Foreground(ct.Error)
 
-	// Prompt surface and dim colors
+	// Prompt surface, dim, and primary colors
 	colorPromptSurface = ct.BgElement
 	colorPromptDim = ct.TextMuted
+	colorPromptPrimary = ct.Primary
 
 	// Diff colors
 	colorDiffAdded = ct.DiffAdded

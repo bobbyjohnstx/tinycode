@@ -17,6 +17,7 @@ var oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,
 var (
 	colorPromptSurface lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#F0F0F0", Dark: "#1E293B"}
 	colorPromptDim     lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}
+	colorPromptPrimary lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}
 )
 
 // PromptInput is a multi-line text input with a metadata bar,
@@ -332,8 +333,10 @@ func (p PromptInput) View() string {
 	composerBody := lipgloss.JoinVertical(lipgloss.Left, taView, meta)
 	paddedBody := lipgloss.NewStyle().PaddingLeft(1).Width(innerWidth).Render(composerBody)
 
-	// Spacer row above prompt
-	spacerLine := ""
+	// Separator line above prompt
+	spacerLine := lipgloss.NewStyle().
+		Foreground(colorPromptPrimary).
+		Render(strings.Repeat("─", p.width))
 
 	// Left border: ┃ with accent color, indented from left edge
 	indent := "  "
