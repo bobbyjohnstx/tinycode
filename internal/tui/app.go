@@ -395,6 +395,7 @@ func (a *App) showPalette() {
 		"paste-image":   true,
 		"scoped-models": true,
 		"archive":       true,
+		"btw":           true,
 	}
 	items := []PaletteItem{
 		{Label: "compact", Description: "Compact context (summarize session)", Value: "compact"},
@@ -415,6 +416,7 @@ func (a *App) showPalette() {
 		{Label: "paste-image", Description: "Paste image from clipboard", Value: "paste-image"},
 		{Label: "scoped-models", Description: "Toggle model scoping (favorites)", Value: "scoped-models"},
 		{Label: "archive", Description: "Archive current session", Value: "archive"},
+		{Label: "btw", Description: "Side question without polluting context", Value: "btw"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -516,6 +518,8 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 			return a.toast.Show("No active session to archive", true), true
 		}
 		return func() tea.Msg { return ArchiveRequestMsg{} }, true
+	case "btw":
+		return a.toast.Show("Usage: /btw <question> — ask without polluting context", false), true
 	}
 	return nil, false
 }

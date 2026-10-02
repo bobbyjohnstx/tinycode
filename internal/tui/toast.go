@@ -53,6 +53,22 @@ func (t *Toast) Show(text string, isError bool) tea.Cmd {
 	return nil
 }
 
+// ShowWithDuration enqueues a toast with a custom display duration.
+func (t *Toast) ShowWithDuration(text string, isError bool, dur time.Duration) tea.Cmd {
+	item := ToastItem{
+		Text:     text,
+		IsError:  isError,
+		Duration: dur,
+	}
+	if t.current == nil {
+		t.current = &item
+		t.id++
+		return t.tickCmd(t.id)
+	}
+	t.queue = append(t.queue, item)
+	return nil
+}
+
 // SetSize updates the available width for rendering.
 func (t *Toast) SetSize(width int) {
 	t.width = width

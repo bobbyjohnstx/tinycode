@@ -293,6 +293,13 @@ type ArchiveSentMsg struct {
 	Err error
 }
 
+// BtwResponseMsg carries the result of a /btw side question.
+type BtwResponseMsg struct {
+	Question string
+	Answer   string
+	Err      error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

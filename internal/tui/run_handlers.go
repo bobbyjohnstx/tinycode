@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -58,6 +59,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 
 	if strings.HasPrefix(trimmed, "/thinking") {
 		return c.handleThinkingCommand(trimmed)
+	}
+
+	if trimmed == "/btw" || strings.HasPrefix(trimmed, "/btw ") {
+		return c.handleBtwCommand(trimmed)
 	}
 
 	if strings.HasPrefix(trimmed, "/rename ") {
@@ -416,4 +421,40 @@ func (c *connectedApp) handleShellSessionDone(msg ShellSessionDoneMsg) (tea.Mode
 	model, cmd := c.app.Update(ToastMsg{Text: "Shell session ended", IsError: false})
 	c.updateApp(model)
 	return c, cmd
+}
+
+// handleBtwCommand processes a /btw side question command.
+func (c *connectedApp) handleBtwCommand(trimmed string) (tea.Model, tea.Cmd) {
+	question := strings.TrimSpace(strings.TrimPrefix(trimmed, "/btw"))
+
+	// /btw with no argument: show the last side answer.
+	if question == "" {
+		if len(c.btwHistory) == 0 {
+			model, cmd := c.app.Update(ToastMsg{Text: "No side questions yet", IsError: true})
+			c.updateApp(model)
+			return c, cmd
+		}
+		last := c.btwHistory[len(c.btwHistory)-1]
+		text := "Side Q: " + last.Question + "\n\nSide A: " + last.Answer
+		cmd := c.app.toast.ShowWithDuration(text, false, 10*time.Second)
+		return c, cmd
+	}
+
+	sessionID := c.app.state.ActiveSession
+	if sessionID == "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "No active session for side question", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	cmd := c.app.toast.Show("Asking side question...", false)
+	return c, tea.Batch(cmd, askBtw(c.client, sessionID, question))
+}
+
+// askBtw sends a side question to the server and returns the answer.
+func askBtw(client *api.Client, sessionID, question string) tea.Cmd {
+	return func() tea.Msg {
+		answer, err := client.Btw(sessionID, question)
+		return BtwResponseMsg{Question: question, Answer: answer, Err: err}
+	}
 }

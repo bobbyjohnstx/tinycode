@@ -228,6 +228,17 @@ func (c *Client) ReplyPermission(sessionID, permissionID, action string) error {
 	return c.postNoResp("/session/"+sessionID+"/permissions/"+permissionID, body)
 }
 
+// Btw sends a side question via POST /session/{id}/btw and returns the answer.
+func (c *Client) Btw(sessionID, question string) (string, error) {
+	var resp struct {
+		Answer string `json:"answer"`
+	}
+	if err := c.postJSON("/session/"+sessionID+"/btw", map[string]string{"question": question}, &resp); err != nil {
+		return "", err
+	}
+	return resp.Answer, nil
+}
+
 // getJSON performs a GET and decodes the JSON response into dest.
 func (c *Client) getJSON(path string, dest any) error {
 	body, err := c.doRequest(http.MethodGet, path, nil)

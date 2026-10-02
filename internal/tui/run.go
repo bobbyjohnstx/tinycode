@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -57,6 +58,12 @@ type pendingImage struct {
 	Size      int    // raw byte count
 }
 
+// sideQA stores a single side question and answer pair.
+type sideQA struct {
+	Question string
+	Answer   string
+}
+
 // connectedApp wraps App with an API client for server communication.
 type connectedApp struct {
 	app             App
@@ -68,6 +75,7 @@ type connectedApp struct {
 	pendingImages   []pendingImage
 	initialTitle    string
 	resumeSessionID string
+	btwHistory      []sideQA
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
@@ -362,6 +370,20 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			slog.Error("unrevert failed", "error", msg.Err)
 			cmds = append(cmds, c.showErrorToast("Restore failed: %v", msg.Err)...)
+		}
+		return c, tea.Batch(cmds...)
+
+	case BtwResponseMsg:
+		if msg.Err != nil {
+			slog.Error("btw failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Side question failed: %v", msg.Err)...)
+		} else {
+			c.btwHistory = append(c.btwHistory, sideQA{Question: msg.Question, Answer: msg.Answer})
+			text := "Side answer: " + msg.Answer
+			cmd := c.app.toast.ShowWithDuration(text, false, 10*time.Second)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 		return c, tea.Batch(cmds...)
 

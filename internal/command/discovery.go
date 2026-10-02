@@ -112,6 +112,12 @@ func builtinCommands() []Command {
 			Source:      "builtin",
 			Hints:       []string{},
 		},
+		{
+			Name:        "btw",
+			Description: "Side question without polluting context -- /btw <question>",
+			Source:      "builtin",
+			Hints:       []string{"$1"},
+		},
 	}
 }
 
