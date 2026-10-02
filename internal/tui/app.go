@@ -1,6 +1,7 @@
 package tui
 
 import (
+	_ "embed"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,6 +13,9 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/storage"
 )
+
+//go:embed help-commands.md
+var helpCommandsText string
 
 // App is the root bubbletea model composing all TUI components.
 type App struct {
@@ -500,7 +504,8 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		}
 		return a.toast.Show("Auto-approve "+label+" for this session", false), true
 	case "help":
-		a.showPalette()
+		a.debugDlg.Show(helpCommandsText)
+		a.setFocus(FocusDialog)
 		return nil, true
 	case "editor":
 		content := a.prompt.Value()
