@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
@@ -143,6 +144,16 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tuiMsg := mapSSEToMsg(msg.Event)
 		if _, ok := tuiMsg.(ProvidersRefreshMsg); ok {
 			cmds = append(cmds, fetchProviders(c.client))
+		}
+		if scMsg, ok := tuiMsg.(SubagentCompletedMsg); ok {
+			go func() {
+				title := "Subagent complete"
+				body := scMsg.Label
+				if scMsg.Agent != "" {
+					body = scMsg.Agent + ": " + scMsg.Label
+				}
+				_, _ = plugin.SendNotification(context.Background(), title, body, "low")
+			}()
 		}
 		model, cmd := c.app.Update(tuiMsg)
 		c.updateApp(model)
