@@ -45,6 +45,14 @@ type Info struct {
 	Theme             string                     `json:"theme,omitempty"`
 	AutoApprove       *bool                      `json:"autoApprove,omitempty"`
 	ScopedModels      []string                   `json:"scopedModels,omitempty"`
+	Hooks             map[string][]HookConfig    `json:"hooks,omitempty"`
+}
+
+// HookConfig defines a shell command to execute on a lifecycle event.
+type HookConfig struct {
+	Command string            `json:"command"`
+	Match   map[string]string `json:"match,omitempty"`
+	Timeout int               `json:"timeout,omitempty"`
 }
 
 // LSPConfig holds language server protocol client settings.
@@ -420,6 +428,14 @@ func mergeCollectionFields(result, src *Info) {
 		}
 		for k, v := range src.Agents {
 			result.Agents[k] = v
+		}
+	}
+	if len(src.Hooks) > 0 {
+		if result.Hooks == nil {
+			result.Hooks = make(map[string][]HookConfig)
+		}
+		for k, v := range src.Hooks {
+			result.Hooks[k] = v
 		}
 	}
 }

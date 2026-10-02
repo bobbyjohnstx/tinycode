@@ -11,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
@@ -22,6 +23,7 @@ type RunConfig struct {
 	Token           string
 	Version         string
 	ScopedModels    []string
+	ShellHooks      map[string][]config.HookConfig
 	InitialTitle    string
 	SafeMode        bool
 	ResumeSessionID string
@@ -32,6 +34,7 @@ func Run(ctx context.Context, cfg RunConfig) error {
 	client := api.New(cfg.ServerURL, cfg.Directory, cfg.Token)
 
 	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme, cfg.Version, cfg.ScopedModels)
+	app.app.state.ShellHooks = cfg.ShellHooks
 	app.initialTitle = cfg.InitialTitle
 	app.resumeSessionID = cfg.ResumeSessionID
 	if cfg.SafeMode {

@@ -53,7 +53,8 @@ func runServe() {
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
-	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
+	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 
 	if flags.model != "" {
 		cfg.Model = flags.model
@@ -72,17 +73,18 @@ func runServe() {
 	slog.Debug("auth token configured")
 	serveCfg.Token = serveToken
 	srv := server.New(serveCfg, server.Dependencies{
-		Bus:            b,
-		DB:             db.DB,
-		Registry:       reg,
-		AgentRegistry:  agentReg,
-		PluginManager:  pluginMgr,
-		BuiltinManager: builtinMgr,
-		ToolRegistry:   toolReg,
-		PermService:    permSvc,
-		MCPService:     mcpSvc,
-		Config:         cfg,
-		JobManager:     toolCtx.JobManager,
+		Bus:             b,
+		DB:              db.DB,
+		Registry:        reg,
+		AgentRegistry:   agentReg,
+		PluginManager:   pluginMgr,
+		BuiltinManager:  builtinMgr,
+		ShellHookRunner: shellRunner,
+		ToolRegistry:    toolReg,
+		PermService:     permSvc,
+		MCPService:      mcpSvc,
+		Config:          cfg,
+		JobManager:      toolCtx.JobManager,
 	})
 
 	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
@@ -140,7 +142,8 @@ func runWeb() {
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, cfg, dir)
-	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr)
+	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 
 	if flags.model != "" {
 		cfg.Model = flags.model
@@ -159,17 +162,18 @@ func runWeb() {
 	slog.Debug("auth token configured")
 	webCfg.Token = webToken
 	srv := server.New(webCfg, server.Dependencies{
-		Bus:            b,
-		DB:             db.DB,
-		Registry:       reg,
-		AgentRegistry:  agentReg,
-		PluginManager:  pluginMgr,
-		BuiltinManager: builtinMgr,
-		ToolRegistry:   toolReg,
-		PermService:    permSvc,
-		MCPService:     mcpSvc,
-		Config:         cfg,
-		JobManager:     toolCtx.JobManager,
+		Bus:             b,
+		DB:              db.DB,
+		Registry:        reg,
+		AgentRegistry:   agentReg,
+		PluginManager:   pluginMgr,
+		BuiltinManager:  builtinMgr,
+		ShellHookRunner: shellRunner,
+		ToolRegistry:    toolReg,
+		PermService:     permSvc,
+		MCPService:      mcpSvc,
+		Config:          cfg,
+		JobManager:      toolCtx.JobManager,
 	})
 
 	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
