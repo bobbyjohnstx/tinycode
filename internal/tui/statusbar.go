@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"strings"
@@ -14,15 +15,29 @@ import (
 var (
 	styleStatusDim    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#666666"})
 	styleStatusAccent = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
+	styleStatusInfo   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#1A8A9A", Dark: "#56B6C2"})
 )
 
-// StatusBar renders a two-line bottom area: hints line + status bar.
+// goalFadeMsg is sent after the goal completion success line should collapse.
+type goalFadeMsg struct{}
+
+// goalDisplayState tracks goal rendering in the status bar.
+type goalDisplayState struct {
+	text          string
+	iteration     int
+	maxIterations int
+	complete      bool // true when showing success line
+}
+
+// StatusBar renders a multi-line bottom area: hints line + optional goal box + status bar.
 type StatusBar struct {
 	cwd            string
 	model          string
 	agent          string
 	provider       string
-	goal           string
+	effort         string
+	contextPct     int // 0-100
+	goalDisplay    *goalDisplayState
 	working        bool
 	leaderPending  bool
 	safeMode       bool
@@ -118,9 +133,51 @@ func (s *StatusBar) SetSafeMode(safe bool) {
 	s.safeMode = safe
 }
 
-// SetGoal updates the goal status display text. Pass "" to clear.
+// SetGoal updates the goal status display. Pass "" to clear.
+// For the visual goal box, use SetGoalState instead.
 func (s *StatusBar) SetGoal(text string) {
-	s.goal = text
+	if text == "" {
+		s.goalDisplay = nil
+	} else if s.goalDisplay == nil {
+		s.goalDisplay = &goalDisplayState{text: text}
+	}
+}
+
+// SetGoalState updates the full goal display state for the visual goal box.
+func (s *StatusBar) SetGoalState(text string, iteration, maxIterations int) {
+	if text == "" {
+		s.goalDisplay = nil
+		return
+	}
+	s.goalDisplay = &goalDisplayState{
+		text:          text,
+		iteration:     iteration,
+		maxIterations: maxIterations,
+	}
+}
+
+// SetGoalComplete marks the goal as complete and returns a tea.Cmd
+// that will send a goalFadeMsg after 5 seconds to collapse the success line.
+func (s *StatusBar) SetGoalComplete(text string, iterations int) tea.Cmd {
+	s.goalDisplay = &goalDisplayState{
+		text:          text,
+		iteration:     iterations,
+		maxIterations: iterations,
+		complete:      true,
+	}
+	return tea.Tick(5*time.Second, func(time.Time) tea.Msg {
+		return goalFadeMsg{}
+	})
+}
+
+// SetEffort updates the effort level display. Only shown when not "medium".
+func (s *StatusBar) SetEffort(level string) {
+	s.effort = level
+}
+
+// SetContextPercent updates the context usage percentage (0-100).
+func (s *StatusBar) SetContextPercent(pct int) {
+	s.contextPct = pct
 }
 
 // SetLeaderPending updates the leader-key pending state, which switches
@@ -145,8 +202,26 @@ func (s StatusBar) Init() tea.Cmd {
 	return s.spinner.Tick
 }
 
+// Height returns the current height of the status bar area.
+// Idle: 2 lines (hints + status). Goal active: 4 lines (hints + goal box + status).
+// Goal complete: 3 lines (hints + success line + status).
+func (s StatusBar) Height() int {
+	if s.goalDisplay == nil {
+		return 2
+	}
+	if s.goalDisplay.complete {
+		return 3
+	}
+	return 4
+}
+
 // Update implements tea.Model.
 func (s StatusBar) Update(msg tea.Msg) (StatusBar, tea.Cmd) {
+	switch msg.(type) {
+	case goalFadeMsg:
+		s.goalDisplay = nil
+		return s, nil
+	}
 	if s.working {
 		var cmd tea.Cmd
 		s.spinner, cmd = s.spinner.Update(msg)
@@ -155,7 +230,7 @@ func (s StatusBar) Update(msg tea.Msg) (StatusBar, tea.Cmd) {
 	return s, nil
 }
 
-// View renders the hints line and the status bar.
+// View renders the hints line, optional goal box, and the status bar.
 func (s StatusBar) View() string {
 	dim := styleStatusDim
 	accent := styleStatusAccent
@@ -187,33 +262,44 @@ func (s StatusBar) View() string {
 	}
 	hintsLine := hintsLeft + strings.Repeat(" ", hintsGap) + hintsRight
 
-	// Status bar: cwd left, model right.
+	// Goal box (between hints and status bar)
+	goalLine := s.renderGoal()
+
+	// Status bar: dot-separated format.
+	// agent · model · provider · effort · NN% ctx
 	innerWidth := s.width - 2
 
-	left := ""
+	dot := dim.Render(" · ")
+
+	var leftParts []string
 	if s.safeMode {
 		warn := lipgloss.NewStyle().
 			Foreground(lipgloss.AdaptiveColor{Light: "#B35900", Dark: "#FFA500"}).
 			Bold(true)
-		left = warn.Render("SAFE MODE") + "  "
+		leftParts = append(leftParts, warn.Render("SAFE MODE"))
 	}
-	if s.goal != "" {
-		goalStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
-		left += goalStyle.Render(s.goal) + "  "
+	if s.agent != "" {
+		leftParts = append(leftParts, accent.Render(s.agent))
 	}
-	if s.cwd != "" {
-		left += shortenCwd(s.cwd)
-	}
-
-	var rightParts []string
 	if s.model != "" {
-		rightParts = append(rightParts, accent.Render(s.model))
+		leftParts = append(leftParts, dim.Render(s.model))
 	}
 	if s.provider != "" {
-		rightParts = append(rightParts, dim.Render(s.provider))
+		leftParts = append(leftParts, dim.Render(s.provider))
 	}
-	right := strings.Join(rightParts, "  ")
+	if s.effort != "" && s.effort != "medium" {
+		leftParts = append(leftParts, dim.Render(s.effort))
+	}
+	if s.contextPct > 0 {
+		leftParts = append(leftParts, styleStatusInfo.Render(fmt.Sprintf("%d%% ctx", s.contextPct)))
+	}
+	left := strings.Join(leftParts, dot)
+
+	// Spinner on the right side when working.
+	right := ""
+	if s.working {
+		right = s.spinner.View()
+	}
 
 	statusGap := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
 	if statusGap < 1 {
@@ -221,7 +307,72 @@ func (s StatusBar) View() string {
 	}
 	statusLine := left + strings.Repeat(" ", statusGap) + right
 
-	return hintsLine + "\n" + styleStatusBar.Width(s.width).Render(statusLine)
+	result := hintsLine
+	if goalLine != "" {
+		result += "\n" + goalLine
+	}
+	result += "\n" + styleStatusBar.Width(s.width).Render(statusLine)
+
+	return result
+}
+
+// renderGoal returns the goal box or success line, or "" if no goal is active.
+func (s StatusBar) renderGoal() string {
+	if s.goalDisplay == nil {
+		return ""
+	}
+
+	if s.goalDisplay.complete {
+		// Single success line
+		successStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"})
+		return successStyle.Render(fmt.Sprintf(
+			"  ✓ Goal met: %s (%d iterations)",
+			s.goalDisplay.text, s.goalDisplay.iteration,
+		))
+	}
+
+	// Bordered goal box using box-drawing characters.
+	borderColor := accent()
+	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
+
+	progress := fmt.Sprintf("%d/%d", s.goalDisplay.iteration, s.goalDisplay.maxIterations)
+	topContent := fmt.Sprintf(" Goal: %s (%s) ", s.goalDisplay.text, progress)
+	bottomContent := fmt.Sprintf("  Iteration %d of %d", s.goalDisplay.iteration, s.goalDisplay.maxIterations)
+
+	boxWidth := s.width - 2 // leave some margin
+	if boxWidth < 20 {
+		boxWidth = 20
+	}
+
+	// Top border
+	topLen := lipgloss.Width(topContent)
+	topPad := boxWidth - topLen - 2 // -2 for corners
+	if topPad < 0 {
+		topPad = 0
+	}
+	topLine := borderStyle.Render("┌─") + borderStyle.Render(topContent) + borderStyle.Render(strings.Repeat("─", topPad)+"┐")
+
+	// Middle line
+	midLen := lipgloss.Width(bottomContent)
+	midPad := boxWidth - midLen - 2
+	if midPad < 0 {
+		midPad = 0
+	}
+	midLine := borderStyle.Render("│") + bottomContent + strings.Repeat(" ", midPad) + borderStyle.Render("│")
+
+	// Bottom border
+	botLine := borderStyle.Render("└" + strings.Repeat("─", boxWidth-2) + "┘")
+
+	return topLine + "\n" + midLine + "\n" + botLine
+}
+
+// accent returns the themed primary color for goal borders.
+func accent() lipgloss.TerminalColor {
+	if themeAgentColor != nil {
+		return *themeAgentColor
+	}
+	return lipgloss.AdaptiveColor{Light: "#C87898", Dark: "#C87898"}
 }
 
 // truncatedModelProvider builds a "model  provider" string that fits within

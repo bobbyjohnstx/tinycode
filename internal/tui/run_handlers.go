@@ -579,7 +579,7 @@ func (c *connectedApp) handleGoalCommand(trimmed string) (tea.Model, tea.Cmd) {
 	command, _ := session.ResolveGoalCommand(arg)
 
 	c.goal = newGoalTracker(arg, command)
-	c.app.status.SetGoal(c.goal.statusText())
+	c.app.status.SetGoalState(c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations)
 
 	// Send the initial prompt to the model.
 	var promptText string
@@ -621,12 +621,17 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 
 	var cmds []tea.Cmd
 
-	// Goal met: stop and show success.
+	// Goal met: stop and show success with auto-fade.
 	if msg.Met {
-		text := fmt.Sprintf("Goal met: %s (after %d iterations)", c.goal.state.Text, c.goal.state.Iteration)
+		text := c.goal.state.Text
+		iterations := c.goal.state.Iteration
 		c.goal = nil
-		c.app.status.SetGoal("")
-		toastCmd := c.app.toast.Show(text, false)
+		fadeCmd := c.app.status.SetGoalComplete(text, iterations)
+		if fadeCmd != nil {
+			cmds = append(cmds, fadeCmd)
+		}
+		toastText := fmt.Sprintf("Goal met: %s (after %d iterations)", text, iterations)
+		toastCmd := c.app.toast.Show(toastText, false)
 		if toastCmd != nil {
 			cmds = append(cmds, toastCmd)
 		}
@@ -665,7 +670,7 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 		return c, nil
 	}
 
-	c.app.status.SetGoal(c.goal.statusText())
+	c.app.status.SetGoalState(c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations)
 
 	// Truncate output for the follow-up prompt to avoid overwhelming context.
 	output := msg.Output

@@ -430,7 +430,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// trigger goal evaluation.
 		if msg.SessionID == c.app.state.ActiveSession && !msg.Status.Working && c.goal != nil {
 			c.goal.state.Iteration++
-			c.app.status.SetGoal(c.goal.statusText())
+			c.app.status.SetGoalState(c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations)
 			if c.goal.state.Command != "" {
 				// Shell-verifiable goal: run the command to check.
 				dir := c.app.status.Cwd()

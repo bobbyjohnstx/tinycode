@@ -135,3 +135,161 @@ func TestStatusBar_ViewShowsSpinnerWhenWorking(t *testing.T) {
 		t.Error("expected hints line content")
 	}
 }
+
+func TestStatusBar_DotSeparatedFormat(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetAgent("executor")
+	sb.SetModel("opus-4", "anthropic")
+
+	view := sb.View()
+	if !strings.Contains(view, "executor") {
+		t.Error("expected agent name in status bar")
+	}
+	if !strings.Contains(view, "opus-4") {
+		t.Error("expected model name in status bar")
+	}
+	if !strings.Contains(view, "anthropic") {
+		t.Error("expected provider in status bar")
+	}
+	// Dot separator should be present
+	if !strings.Contains(view, "·") {
+		t.Error("expected dot separator in status bar")
+	}
+}
+
+func TestStatusBar_EffortHiddenWhenMedium(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetAgent("build")
+	sb.SetEffort("medium")
+
+	view := sb.View()
+	// "medium" should not appear in the status bar
+	if strings.Contains(view, "medium") {
+		t.Error("effort 'medium' should be hidden from status bar")
+	}
+}
+
+func TestStatusBar_EffortShownWhenNotMedium(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetAgent("build")
+	sb.SetEffort("high")
+
+	view := sb.View()
+	if !strings.Contains(view, "high") {
+		t.Error("expected effort 'high' in status bar")
+	}
+}
+
+func TestStatusBar_ContextPercent(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetAgent("build")
+	sb.SetContextPercent(42)
+
+	view := sb.View()
+	if !strings.Contains(view, "42% ctx") {
+		t.Error("expected '42% ctx' in status bar")
+	}
+}
+
+func TestStatusBar_ContextPercentZeroHidden(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetAgent("build")
+	sb.SetContextPercent(0)
+
+	view := sb.View()
+	if strings.Contains(view, "% ctx") {
+		t.Error("context percent should be hidden when 0")
+	}
+}
+
+func TestStatusBar_Height_Idle(t *testing.T) {
+	sb := NewStatusBar(120)
+	if sb.Height() != 2 {
+		t.Errorf("idle height = %d, want 2", sb.Height())
+	}
+}
+
+func TestStatusBar_Height_GoalActive(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetGoalState("all tests pass", 3, 10)
+	if sb.Height() != 4 {
+		t.Errorf("goal active height = %d, want 4", sb.Height())
+	}
+}
+
+func TestStatusBar_Height_GoalComplete(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetGoalComplete("all tests pass", 5)
+	if sb.Height() != 3 {
+		t.Errorf("goal complete height = %d, want 3", sb.Height())
+	}
+}
+
+func TestStatusBar_GoalBox_Renders(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetGoalState("all tests pass", 3, 10)
+
+	view := sb.View()
+	if !strings.Contains(view, "Goal:") {
+		t.Error("expected 'Goal:' in goal box")
+	}
+	if !strings.Contains(view, "3/10") {
+		t.Error("expected '3/10' progress in goal box")
+	}
+	if !strings.Contains(view, "Iteration 3 of 10") {
+		t.Error("expected 'Iteration 3 of 10' in goal box")
+	}
+	// Box drawing characters
+	if !strings.Contains(view, "┌") {
+		t.Error("expected top-left box corner")
+	}
+	if !strings.Contains(view, "┘") {
+		t.Error("expected bottom-right box corner")
+	}
+}
+
+func TestStatusBar_GoalComplete_SuccessLine(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetGoalComplete("all tests pass", 5)
+
+	view := sb.View()
+	if !strings.Contains(view, "✓") {
+		t.Error("expected checkmark in success line")
+	}
+	if !strings.Contains(view, "Goal met") {
+		t.Error("expected 'Goal met' in success line")
+	}
+	if !strings.Contains(view, "5 iterations") {
+		t.Error("expected '5 iterations' in success line")
+	}
+}
+
+func TestStatusBar_GoalFadeMsg_ClearsGoal(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetGoalComplete("all tests pass", 5)
+
+	if sb.Height() != 3 {
+		t.Fatalf("expected height 3 before fade, got %d", sb.Height())
+	}
+
+	sb, _ = sb.Update(goalFadeMsg{})
+	if sb.goalDisplay != nil {
+		t.Error("expected goalDisplay to be nil after fade")
+	}
+	if sb.Height() != 2 {
+		t.Errorf("expected height 2 after fade, got %d", sb.Height())
+	}
+}
+
+func TestStatusBar_SetGoalClearsDisplay(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetGoalState("all tests pass", 3, 10)
+	if sb.goalDisplay == nil {
+		t.Fatal("expected goalDisplay to be set")
+	}
+
+	sb.SetGoal("")
+	if sb.goalDisplay != nil {
+		t.Error("expected goalDisplay to be nil after SetGoal('')")
+	}
+}

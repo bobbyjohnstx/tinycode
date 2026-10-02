@@ -3,10 +3,10 @@ package tui
 import "github.com/charmbracelet/lipgloss"
 
 const (
-	statusBarHeight = 2 // hints line + status bar
-	promptHeight    = 6 // spacer (1) + textarea (3 lines) + metadata (1) + bottom border ╹▀▀▀ (1)
-	minSidebarWidth = 30
-	sidebarThreshold = 120
+	defaultStatusBarHeight = 2 // hints line + status bar
+	promptHeight           = 6 // spacer (1) + textarea (3 lines) + metadata (1) + bottom border ╹▀▀▀ (1)
+	minSidebarWidth        = 30
+	sidebarThreshold       = 120
 )
 
 // layout holds calculated dimensions for the TUI components.
@@ -22,7 +22,12 @@ type layout struct {
 }
 
 // calculateLayout computes component dimensions from terminal size.
-func calculateLayout(width, height int, sidebarOpen bool) layout {
+func calculateLayout(width, height int, sidebarOpen bool, statusHeight ...int) layout {
+	sbHeight := defaultStatusBarHeight
+	if len(statusHeight) > 0 && statusHeight[0] > 0 {
+		sbHeight = statusHeight[0]
+	}
+
 	l := layout{
 		totalWidth:  width,
 		totalHeight: height,
@@ -41,7 +46,7 @@ func calculateLayout(width, height int, sidebarOpen bool) layout {
 	}
 
 	// Chat area fills remaining vertical space.
-	l.chatHeight = height - promptHeight - statusBarHeight
+	l.chatHeight = height - promptHeight - sbHeight
 	if l.chatHeight < 1 {
 		l.chatHeight = 1
 	}
