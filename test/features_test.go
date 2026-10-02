@@ -462,6 +462,53 @@ func TestHeadless_BoundedPreview_LargeToolOutput(t *testing.T) {
 	}
 }
 
+func TestHeadless_ShellOutputTruncation(t *testing.T) {
+	h := NewTestHarness(t)
+
+	// Generate >10MB of shell output via dd+base64.
+	// dd produces 11MB of zeros, base64 expands to ~15MB of text.
+	h.MockServer.AddResponse(MockResponse{
+		ToolCalls: []MockToolCall{
+			{Name: "bash", Arguments: `{"command":"dd if=/dev/zero bs=1048576 count=11 2>/dev/null | base64"}`},
+		},
+	})
+	h.MockServer.AddResponse(MockResponse{Content: "Large output handled"})
+
+	result := h.RunJSON("Generate large output")
+
+	if result.ExitCode != 0 {
+		t.Fatalf("exit code %d, stderr: %s", result.ExitCode, result.Stderr)
+	}
+
+	// The second LLM request should contain the tool result with truncation notice.
+	reqs := h.MockServer.Requests()
+	if len(reqs) < 2 {
+		t.Fatalf("expected at least 2 requests, got %d", len(reqs))
+	}
+
+	secondReq := reqs[1]
+	var foundTruncation bool
+	for _, msgRaw := range secondReq.Messages {
+		msgStr := string(msgRaw)
+		// The output flows through two truncation stages:
+		// 1. LimitedWriter caps raw bytes at 10MB (shell.go)
+		// 2. TruncPreview reduces to head+tail with "[preview:" header (tool.go)
+		// Either marker confirms the output was truncated.
+		if strings.Contains(msgStr, "[output truncated") ||
+			strings.Contains(msgStr, "[preview:") {
+			foundTruncation = true
+			break
+		}
+	}
+
+	if !foundTruncation {
+		for i, msg := range secondReq.Messages {
+			t.Logf("message[%d]: %.200s...", i, string(msg))
+		}
+		t.Error("expected tool result to contain truncation notice for >10MB shell output")
+	}
+}
+
 func TestHeadless_ApplyPatch_DeleteFile(t *testing.T) {
 	h := NewTestHarness(t)
 
