@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,9 +97,25 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		}, nil
 	}
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return &ExecuteResult{Output: fmt.Sprintf("Error reading file: %v", err), IsError: true}, nil
+	var data []byte
+	var fileTruncated bool
+	if info.Size() > MaxOutputSize {
+		f, err := os.Open(path)
+		if err != nil {
+			return &ExecuteResult{Output: fmt.Sprintf("Error reading file: %v", err), IsError: true}, nil
+		}
+		data, err = io.ReadAll(io.LimitReader(f, MaxOutputSize))
+		f.Close()
+		if err != nil {
+			return &ExecuteResult{Output: fmt.Sprintf("Error reading file: %v", err), IsError: true}, nil
+		}
+		fileTruncated = true
+	} else {
+		var err error
+		data, err = os.ReadFile(path)
+		if err != nil {
+			return &ExecuteResult{Output: fmt.Sprintf("Error reading file: %v", err), IsError: true}, nil
+		}
 	}
 
 	// Binary detection: check first 8KB for non-text bytes.
@@ -145,6 +162,10 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 
 	if end < len(lines) {
 		sb.WriteString(fmt.Sprintf("\n... (%d more lines not shown, use offset/limit to read more)\n", len(lines)-end))
+	}
+
+	if fileTruncated {
+		sb.WriteString(fmt.Sprintf("\n[file truncated at 10MB, total size %d bytes]\n", info.Size()))
 	}
 
 	tc.ReadFiles[path] = true

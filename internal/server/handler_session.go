@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"os/exec"
@@ -392,16 +391,20 @@ func (s *Server) executeShellDirect(sessionID, command, dir string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
 
-		var stdout, stderr bytes.Buffer
+		stdout := tool.NewLimitedWriter(tool.MaxOutputSize)
+		stderr := tool.NewLimitedWriter(tool.MaxOutputSize)
 		cmd := exec.CommandContext(ctx, "sh", "-c", command)
 		cmd.Dir = dir
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
 		cmdErr := cmd.Run()
 
 		var outputBuf strings.Builder
 		if stdout.Len() > 0 {
 			outputBuf.Write(stdout.Bytes())
+			if stdout.Overflow {
+				outputBuf.WriteString("\n[output truncated at 10MB]")
+			}
 		}
 		if stderr.Len() > 0 {
 			if outputBuf.Len() > 0 {
@@ -409,6 +412,9 @@ func (s *Server) executeShellDirect(sessionID, command, dir string) {
 			}
 			outputBuf.WriteString("STDERR:\n")
 			outputBuf.Write(stderr.Bytes())
+			if stderr.Overflow {
+				outputBuf.WriteString("\n[stderr truncated at 10MB]")
+			}
 		}
 		output = outputBuf.String()
 		isErr = cmdErr != nil

@@ -18,8 +18,9 @@ import (
 var ErrPluginNotFound = errors.New("plugin not found")
 
 const (
-	hookTimeout = 5 * time.Second
-	killTimeout = 3 * time.Second
+	hookTimeout   = 5 * time.Second
+	killTimeout   = 3 * time.Second
+	maxOutputSize = 10 * 1024 * 1024 // 10MB — cap plugin stdout to prevent OOM
 )
 
 // jsonrpcRequest is a JSON-RPC 2.0 request.
@@ -246,13 +247,14 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 
 	info := &PluginInfo{ID: pid, Name: name}
 	doneCh := make(chan struct{})
+	limitedStdout := io.LimitReader(stdoutPipe, maxOutputSize)
 	proc := &pluginProcess{
 		info:    info,
 		cmd:     cmd,
 		stdin:   stdinPipe,
 		stdout:  stdoutPipe,
 		encoder: json.NewEncoder(stdinPipe),
-		decoder: json.NewDecoder(stdoutPipe),
+		decoder: json.NewDecoder(limitedStdout),
 		done:    doneCh,
 	}
 
