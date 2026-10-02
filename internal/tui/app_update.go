@@ -71,6 +71,14 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		a.privacyDlg, cmd = a.privacyDlg.Update(msg)
 		return a, cmd
 	}
+	if a.copyDlg.IsVisible() {
+		var cmd tea.Cmd
+		a.copyDlg, cmd = a.copyDlg.Update(msg)
+		if !a.copyDlg.IsVisible() {
+			a.setFocus(FocusPrompt)
+		}
+		return a, cmd
+	}
 	if a.mcpDlg.IsVisible() {
 		var cmd tea.Cmd
 		a.mcpDlg, cmd = a.mcpDlg.Update(msg)
@@ -216,6 +224,13 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 			return a, nil, true
 		}
 		cmd := a.toast.Show(fmt.Sprintf("Copied %d chars", msg.Chars), false)
+		return a, cmd, true
+	case CodeBlockWrittenMsg:
+		if msg.Err != nil {
+			cmd := a.toast.Show(fmt.Sprintf("Write failed: %v", msg.Err), true)
+			return a, cmd, true
+		}
+		cmd := a.toast.Show("Written to "+filepath.Base(msg.Path), false)
 		return a, cmd, true
 	case ExportSessionMsg:
 		if msg.Err != nil {

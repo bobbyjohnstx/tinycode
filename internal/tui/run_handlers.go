@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,6 +81,28 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		}
 		slog.Info("renaming session", "sessionID", sessionID, "title", newTitle)
 		return c, renameSession(c.client, sessionID, newTitle)
+	}
+
+	if strings.HasPrefix(trimmed, "/copy") {
+		arg := strings.TrimSpace(strings.TrimPrefix(trimmed, "/copy"))
+		n := 1
+		if arg != "" {
+			parsed, err := strconv.Atoi(arg)
+			if err != nil || parsed < 1 {
+				model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Invalid copy index: %s", arg), IsError: true})
+				c.updateApp(model)
+				return c, cmd
+			}
+			n = parsed
+		}
+		cmd := c.app.handleCopyCommand(n)
+		if cmd != nil {
+			model, updateCmd := c.app.Update(nil)
+			c.updateApp(model)
+			return c, tea.Batch(cmd, updateCmd)
+		}
+		c.updateApp(c.app)
+		return c, nil
 	}
 
 	if trimmed == "/export html" || trimmed == "/export-html" {

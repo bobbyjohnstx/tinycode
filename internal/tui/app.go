@@ -27,6 +27,7 @@ type App struct {
 	debugDlg   DebugDialog
 	privacyDlg DebugDialog
 	mcpDlg     MCPDialog
+	copyDlg    CodeBlockDialog
 	permPrompt PermissionPrompt
 	toast      Toast
 	sidebar    Sidebar
@@ -63,6 +64,7 @@ func NewApp(serverURL string) App {
 		debugDlg:   NewDebugDialog(),
 		privacyDlg: NewDebugDialog(),
 		mcpDlg:     NewMCPDialog(),
+		copyDlg:    NewCodeBlockDialog(),
 		permPrompt: NewPermissionPrompt(),
 		toast:      NewToast(DefaultTheme()),
 		sidebar:    NewSidebar(),
@@ -165,6 +167,9 @@ func (a App) View() string {
 	if a.privacyDlg.IsVisible() {
 		return a.privacyDlg.View()
 	}
+	if a.copyDlg.IsVisible() {
+		return a.copyDlg.View()
+	}
 	if a.mcpDlg.IsVisible() {
 		return a.mcpDlg.View()
 	}
@@ -252,6 +257,7 @@ func (a *App) resize() {
 	a.debugDlg.SetSize(a.width, a.height)
 	a.privacyDlg.SetSize(a.width, a.height)
 	a.mcpDlg.SetSize(a.width, a.height)
+	a.copyDlg.SetSize(a.width, a.height)
 	a.permPrompt.SetSize(a.width, a.height)
 	a.toast.SetSize(a.width)
 	a.sidebar.SetSize(l.sidebarWidth, l.chatHeight)
@@ -400,7 +406,7 @@ func (a *App) showPalette() {
 	items := []PaletteItem{
 		{Label: "compact", Description: "Compact context (summarize session)", Value: "compact"},
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
-		{Label: "copy", Description: "Copy last response to clipboard", Value: "copy"},
+		{Label: "copy", Description: "Copy response to clipboard (/copy N for Nth)", Value: "copy"},
 		{Label: "diff", Description: "Show uncommitted changes", Value: "diff"},
 		{Label: "export", Description: "Export session as Markdown", Value: "export"},
 		{Label: "export-html", Description: "Export session as HTML", Value: "export-html"},
@@ -466,11 +472,7 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		msgs := a.chat.Messages()
 		return exportSessionHTML(msgs, *session, a.status.Cwd()), true
 	case "copy":
-		text := lastAssistantText(a.chat.Messages())
-		if text == "" {
-			return a.toast.Show("No assistant response to copy", true), true
-		}
-		return copyToClipboard(text), true
+		return a.handleCopyCommand(1), true
 	case "auto-approve":
 		a.state.AutoApprove = !a.state.AutoApprove
 		label := "disabled"
@@ -574,27 +576,27 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 	return nil
 }
 
+// handleCopyCommand handles /copy with an optional Nth-response index.
+// If the selected response has code blocks, a picker dialog is shown.
+// Otherwise the full text is copied to clipboard.
+func (a *App) handleCopyCommand(n int) tea.Cmd {
+	text := nthAssistantText(a.chat.Messages(), n)
+	if text == "" {
+		return a.toast.Show("No assistant response to copy", true)
+	}
+	blocks := extractCodeBlocks(text)
+	if len(blocks) > 0 {
+		a.copyDlg.Show(blocks, text, a.status.Cwd())
+		a.setFocus(FocusDialog)
+		return nil
+	}
+	return copyToClipboard(text)
+}
+
 // lastAssistantText returns the concatenated text parts from the last assistant
 // message, or "" if none exists.
 func lastAssistantText(messages []MessageView) string {
-	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Info.Role != "assistant" {
-			continue
-		}
-		var sb strings.Builder
-		for _, p := range messages[i].Parts {
-			if p.Type == "text" && p.Text != "" {
-				if sb.Len() > 0 {
-					sb.WriteString("\n")
-				}
-				sb.WriteString(p.Text)
-			}
-		}
-		if sb.Len() > 0 {
-			return sb.String()
-		}
-	}
-	return ""
+	return nthAssistantText(messages, 1)
 }
 
 // buildDebugInfo collects environment and state diagnostics for bug reports.
