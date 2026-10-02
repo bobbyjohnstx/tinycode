@@ -1,25 +1,12 @@
 name: Release
 
-# Triggers on version tag pushes (e.g., v1.2.3)
-#
-# Prerequisites:
-#   - NPM_TOKEN secret configured in repository settings (required for npm publishing)
-#   - GITHUB_TOKEN is provided automatically by GitHub Actions
-#
-# What this workflow does:
-#   1. Builds 12 platform binaries (Linux/Darwin/Windows × arm64/x64 × baseline variants)
-#   2. Creates GitHub Release with auto-generated notes
-#   3. Uploads binary archives as release assets (.tar.gz for Linux, .zip for Darwin/Windows)
-#   4. Publishes to npm registry (tinycode-ai + platform-specific packages)
-#   5. Updates Docker, AUR, and Homebrew registries (non-preview releases only)
 on:
   push:
     tags:
       - "v*"
 
 permissions:
-  contents: write  # Required for creating releases and uploading assets
-  packages: write  # Required for Docker image publishing
+  contents: write
 
 jobs:
   release:
@@ -27,54 +14,39 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
         with:
-          bun-version: latest
+          go-version-file: go.mod
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Build binaries
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
+
+          for platform in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os="${platform%/*}"
+            arch="${platform#*/}"
+            output="tinycode"
+            archive="tinycode-${os}-${arch}"
+
+            echo "Building ${archive}..."
+            GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 \
+              go build -ldflags "$LDFLAGS" -o "dist/${output}" ./cmd/tinycode
+
+            tar -czf "dist/${archive}.tar.gz" -C dist "$output" \
+              -C "$GITHUB_WORKSPACE" LICENSE README.md
+            rm "dist/${output}"
+          done
+
+          cd dist && sha256sum *.tar.gz > checksums.txt
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}" --generate-notes --draft
-
-      - name: Build binaries and upload to release
-        env:
-          TINYCODE_VERSION: ${{ github.ref_name }}
-          TINYCODE_RELEASE: "true"
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run packages/tinycode/script/build.ts
-
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit ${{ github.ref_name }} --draft=false
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish to npm and registries
-        env:
-          TINYCODE_VERSION: ${{ github.ref_name }}
-          TINYCODE_RELEASE: "true"
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          # Configure npm authentication
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-
-          # Run publish script (handles npm, Docker, AUR, Homebrew)
-          bun run packages/tinycode/script/publish.ts
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            dist/*.tar.gz dist/checksums.txt
