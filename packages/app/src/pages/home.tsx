@@ -123,6 +123,14 @@ function HomeDesign() {
       .slice(0, HOME_SESSION_LIMIT)
   })
   const groups = createMemo(() => groupSessions(records(), language))
+  const servers = useServers()
+  const serverHealthy = createMemo(() => servers.health[server.key]?.healthy === true)
+  const currentProjectPath = createMemo(() => {
+    const project = selectedProject() ?? projects()[0]
+    if (!project) return undefined
+    const home = sync.data.path.home
+    return home ? project.worktree.replace(home, "~") : project.worktree
+  })
 
   function selectProject(directory: string) {
     const key = pathKey(directory)
@@ -221,28 +229,44 @@ function HomeDesign() {
   }
 
   return (
-    <div class="mx-auto grid w-full h-full max-w-[1080px] gap-8 px-6 pb-16 lg:grid-cols-[280px_minmax(0,720px)]">
-      <HomeProjectColumn
-        selectedProject={state.project}
-        selectProject={selectProject}
-        openNewSession={openProjectNewSession}
-        chooseProject={() => void chooseProject()}
-        editProject={showEditProjectDialog}
-        closeProject={(directory) => {
-          layout.projects.close(directory)
-          if (state.project && pathKey(state.project) === pathKey(directory)) setState("project", undefined)
+    <div
+      class="mx-auto flex flex-col"
+      style={{
+        "max-width": "680px",
+        "padding-top": "80px",
+        "padding-left": "32px",
+        "padding-right": "32px",
+        "min-height": "100vh",
+      }}
+    >
+      <div
+        class="font-mono text-center"
+        style={{
+          "font-size": "22px",
+          "font-weight": "700",
+          color: "#c87898",
+          "letter-spacing": "-0.02em",
+          "margin-bottom": "40px",
         }}
-        clearNotifications={clearNotifications}
-        unseenCount={unseenCount}
-        openSettings={openSettings}
-        openHelp={() => platform.openLink("")}
-        language={language}
-      />
-
-      <section
-        class="min-w-0 flex-1 flex flex-col overflow-y-hidden pt-12"
-        aria-label={language.t("sidebar.project.recentSessions")}
       >
+        tinycode
+      </div>
+
+      <button
+        type="button"
+        onClick={openNewSession}
+        class="w-full cursor-pointer rounded-full border-0 font-mono transition-all duration-150 bg-[#c87898] text-[#0a0a0a] hover:bg-[#d48aa8] hover:-translate-y-[1px]"
+        style={{
+          "font-size": "14px",
+          "font-weight": "600",
+          padding: "14px 24px",
+          "margin-bottom": "48px",
+        }}
+      >
+        {language.t("command.session.new")}
+      </button>
+
+      <div class="flex-1 overflow-y-auto">
         <Show
           when={projectDirectories().length > 0}
           fallback={
@@ -255,59 +279,74 @@ function HomeDesign() {
             />
           }
         >
-          <HomeSessionSearch
-            value={state.search}
-            placeholder={language.t("home.sessions.search.placeholder")}
-            onInput={(value) => setState("search", value)}
-            clearLabel={language.t("common.clear")}
-            onClear={() => setState("search", "")}
-          />
-          <div class="mt-3 overflow-auto flex-1">
-            <div class="pt-3 flex flex-col gap-6">
-              <Show
-                when={!sessionLoad.isLoading}
-                fallback={<HomeSessionSkeleton label={language.t("common.loading")} />}
-              >
-                <Show
-                  when={groups().length > 0}
-                  fallback={
-                    <HomeEmptyState
-                      icon="edit"
-                      title={language.t("home.sessions.empty")}
-                      description={language.t("home.sessions.empty.description")}
-                      action={language.t("command.session.new")}
-                      onAction={() => {
-                        const dir = state.project
-                        if (dir) {
-                          openProjectNewSession(dir)
-                        } else {
-                          openNewSession()
-                        }
+          <Show
+            when={!sessionLoad.isLoading}
+            fallback={<HomeSessionSkeleton label={language.t("common.loading")} />}
+          >
+            <Show
+              when={groups().length > 0}
+              fallback={
+                <HomeEmptyState
+                  icon="edit"
+                  title={language.t("home.sessions.empty")}
+                  description={language.t("home.sessions.empty.description")}
+                  action={language.t("command.session.new")}
+                  onAction={openNewSession}
+                />
+              }
+            >
+              <For each={groups()}>
+                {(group) => (
+                  <div style={{ "margin-bottom": "24px" }}>
+                    <div
+                      class="font-mono uppercase"
+                      style={{
+                        "font-size": "11px",
+                        "font-weight": "600",
+                        "letter-spacing": "0.06em",
+                        color: "#484848",
+                        "margin-bottom": "8px",
                       }}
-                    />
-                  }
-                >
-                  <For each={groups()}>
-                    {(group, index) => (
-                      <div class="flex min-w-0 flex-col gap-4">
-                        <HomeSessionGroupHeader
-                          title={group.title}
-                          onNewSession={index() === 0 ? openNewSession : undefined}
-                        />
-                        <div class="flex min-w-0 flex-col gap-px">
-                          <For each={group.sessions}>
-                            {(record) => <HomeSessionRow record={record} openSession={openSession} />}
-                          </For>
-                        </div>
-                      </div>
-                    )}
-                  </For>
-                </Show>
-              </Show>
-            </div>
-          </div>
+                    >
+                      {group.title}
+                    </div>
+                    <div class="flex flex-col">
+                      <For each={group.sessions}>
+                        {(record) => <HomeSessionRow record={record} openSession={openSession} />}
+                      </For>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </Show>
+          </Show>
         </Show>
-      </section>
+      </div>
+
+      <div
+        class="flex items-center justify-between font-mono"
+        style={{
+          "margin-top": "auto",
+          "padding-top": "16px",
+          "padding-bottom": "24px",
+          "font-size": "11px",
+        }}
+      >
+        <div class="flex items-center" style={{ gap: "8px" }}>
+          <div
+            style={{
+              width: "7px",
+              height: "7px",
+              "border-radius": "50%",
+              background: serverHealthy() ? "#7fd88f" : "#666",
+            }}
+          />
+          <span style={{ color: "#808080" }}>{server.name}</span>
+        </div>
+        <Show when={currentProjectPath()}>
+          {(path) => <span style={{ color: "#484848" }}>{path()}</span>}
+        </Show>
+      </div>
     </div>
   )
 }
@@ -626,12 +665,19 @@ function HomeSessionRow(props: { record: HomeSessionRecord; openSession: (sessio
   })
   const tint = createMemo(() => messageAgentColor(sessionStore.message[props.record.session.id], sessionStore.agent))
   const showStatus = createMemo(() => isWorking() || hasPermissions() || hasError() || unseenCount() > 0)
+  const timeStr = createMemo(() => {
+    const ts = props.record.session.time.updated ?? props.record.session.time.created
+    const dt = DateTime.fromMillis(ts)
+    const now = DateTime.local()
+    if (dt.hasSame(now, "day")) return dt.toFormat("h:mm a")
+    return dt.toRelative()
+  })
 
   return (
     <button
       type="button"
       data-component="home-session-row"
-      class={`${HOME_ROW} h-10 gap-2 px-6 py-3 pl-4`}
+      class="flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2 text-left font-mono transition-colors duration-[120ms] hover:bg-[#1e1e1e] focus-visible:bg-[#1e1e1e] focus-visible:outline-none"
       onClick={() => props.openSession(props.record.session)}
     >
       <Show when={showStatus()}>
@@ -656,15 +702,25 @@ function HomeSessionRow(props: { record: HomeSessionRecord; openSession: (sessio
         </div>
       </Show>
       <span
-        class={`min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-v2-text-text-base [font-weight:530] ${props.record.projectName ? "max-w-[min(70%,480px)] flex-[0_1_auto]" : "flex-[1_1_auto]"}`}
+        class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
+        style={{ "font-size": "13px", color: "#eeeeee" }}
       >
         {title()}
       </span>
       <Show when={props.record.projectName}>
-        <span class="min-w-0 flex-[1_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-v2-text-text-muted [font-weight:440]">
+        <span
+          class="shrink-0"
+          style={{ "font-size": "11px", color: "#5c9cf5" }}
+        >
           {props.record.projectName}
         </span>
       </Show>
+      <span
+        class="shrink-0 text-right"
+        style={{ "font-size": "11px", color: "#484848" }}
+      >
+        {timeStr()}
+      </span>
     </button>
   )
 }
