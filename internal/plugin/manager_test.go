@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"testing"
 	"time"
+
+	pkgplugin "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 func TestNewManager_Empty(t *testing.T) {
@@ -56,7 +58,7 @@ func TestHelperProcess(t *testing.T) {
 	encoder := json.NewEncoder(os.Stdout)
 
 	for {
-		var req jsonrpcRequest
+		var req pkgplugin.JSONRPCRequest
 		if err := decoder.Decode(&req); err != nil {
 			os.Exit(0)
 		}
@@ -75,16 +77,16 @@ func TestHelperProcess(t *testing.T) {
 		case "hook/invoke":
 			helperHandleHookInvoke(encoder, req, behavior)
 		default:
-			encoder.Encode(jsonrpcResponse{
+			encoder.Encode(pkgplugin.JSONRPCResponse{
 				JSONRPC: "2.0",
 				ID:      req.ID,
-				Error:   &jsonrpcError{Code: -32601, Message: "method not found"},
+				Error:   &pkgplugin.JSONRPCError{Code: -32601, Message: "method not found"},
 			})
 		}
 	}
 }
 
-func helperHandleInitialize(encoder *json.Encoder, req jsonrpcRequest, behavior string) {
+func helperHandleInitialize(encoder *json.Encoder, req pkgplugin.JSONRPCRequest, behavior string) {
 	hooks := []string{"session.start", "session.end", "permission.ask", "shell.env", "tool.execute.before", "tool.execute.after"}
 	if behavior == "no_hooks" {
 		hooks = nil
@@ -92,38 +94,37 @@ func helperHandleInitialize(encoder *json.Encoder, req jsonrpcRequest, behavior 
 	if behavior == "session_hooks_only" {
 		hooks = []string{"session.start", "session.end"}
 	}
-	tools := []toolManifest{}
+	tools := []pkgplugin.ToolManifest{}
 	if behavior == "with_tools" {
-		tools = []toolManifest{
+		tools = []pkgplugin.ToolManifest{
 			{Name: "greet", Description: "Greet someone", InputSchema: map[string]any{"type": "object"}},
 		}
 	}
-	result := initializeResult{
+	result := pkgplugin.InitializeResult{
 		ID:    "test-plugin",
 		Tools: tools,
 		Hooks: hooks,
 	}
 	raw, _ := json.Marshal(result)
-	encoder.Encode(jsonrpcResponse{
+	encoder.Encode(pkgplugin.JSONRPCResponse{
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result:  raw,
 	})
 }
 
-func helperHandleHookInvoke(encoder *json.Encoder, req jsonrpcRequest, behavior string) {
-	var params hookInvokeParams
-	paramsBytes, _ := json.Marshal(req.Params)
-	json.Unmarshal(paramsBytes, &params)
+func helperHandleHookInvoke(encoder *json.Encoder, req pkgplugin.JSONRPCRequest, behavior string) {
+	var params pkgplugin.HookParams
+	json.Unmarshal(req.Params, &params)
 
 	var resultOutput json.RawMessage
 	switch params.Name {
 	case "session.start", "session.end", "tool.execute.before", "tool.execute.after":
 		resultOutput = nil
 	case "dispose":
-		hr := hookResult{Output: nil}
+		hr := pkgplugin.HookResult{Output: nil}
 		raw, _ := json.Marshal(hr)
-		encoder.Encode(jsonrpcResponse{
+		encoder.Encode(pkgplugin.JSONRPCResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,
 			Result:  raw,
@@ -146,17 +147,17 @@ func helperHandleHookInvoke(encoder *json.Encoder, req jsonrpcRequest, behavior 
 		}
 		resultOutput, _ = json.Marshal(envResult)
 	default:
-		encoder.Encode(jsonrpcResponse{
+		encoder.Encode(pkgplugin.JSONRPCResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,
-			Error:   &jsonrpcError{Code: -32601, Message: "unknown hook: " + params.Name},
+			Error:   &pkgplugin.JSONRPCError{Code: -32601, Message: "unknown hook: " + params.Name},
 		})
 		return
 	}
 
-	hr := hookResult{Output: resultOutput}
+	hr := pkgplugin.HookResult{Output: resultOutput}
 	raw, _ := json.Marshal(hr)
-	encoder.Encode(jsonrpcResponse{
+	encoder.Encode(pkgplugin.JSONRPCResponse{
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result:  raw,

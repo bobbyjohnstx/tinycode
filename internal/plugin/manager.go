@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/id"
+	pkgplugin "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 var ErrPluginNotFound = errors.New("plugin not found")
@@ -23,80 +24,14 @@ const (
 	maxOutputSize = 10 * 1024 * 1024 // 10MB — cap plugin stdout to prevent OOM
 )
 
-// jsonrpcRequest is a JSON-RPC 2.0 request.
-type jsonrpcRequest struct {
-	JSONRPC string `json:"jsonrpc"`
-	ID      int    `json:"id"`
-	Method  string `json:"method"`
-	Params  any    `json:"params,omitempty"`
-}
-
-// jsonrpcResponse is a JSON-RPC 2.0 response.
-type jsonrpcResponse struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      int             `json:"id"`
-	Result  json.RawMessage `json:"result,omitempty"`
-	Error   *jsonrpcError   `json:"error,omitempty"`
-}
-
-type jsonrpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-// initializeParams is sent during the initialize handshake.
-// Wire format matches pkg/plugin.InitializeParams.
-type initializeParams struct {
-	Version   string         `json:"version"`
-	Directory string         `json:"directory"`
-	Options   map[string]any `json:"options,omitempty"`
-}
-
-// initializeResult is returned by the plugin during initialization.
-// Wire format matches pkg/plugin.InitializeResult.
-type initializeResult struct {
-	ID    string         `json:"id"`
-	Tools []toolManifest `json:"tools"`
-	Hooks []string       `json:"hooks"`
-}
-
-type toolManifest struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	InputSchema map[string]any `json:"inputSchema,omitempty"`
-}
-
 // PluginInfo describes a loaded plugin.
 type PluginInfo struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-// ToolManifest describes a tool exposed by a plugin. Mirrors pkg/plugin.ToolManifest.
-type ToolManifest struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	InputSchema map[string]any `json:"inputSchema,omitempty"`
-}
-
-// toolCallParams matches pkg/plugin.ToolCallParams for wire compatibility.
-type toolCallParams struct {
-	Name    string          `json:"name"`
-	Args    json.RawMessage `json:"args"`
-	Context toolCallContext `json:"context"`
-}
-
-// toolCallContext matches pkg/plugin.ToolContext for wire compatibility.
-type toolCallContext struct {
-	SessionID string `json:"sessionId"`
-	Directory string `json:"directory"`
-}
-
-// toolCallResult matches pkg/plugin.ToolCallResult for wire compatibility.
-type toolCallResult struct {
-	Content string `json:"content"`
-	IsError bool   `json:"isError,omitempty"`
-}
+// ToolManifest is an alias for the canonical type in pkg/plugin.
+type ToolManifest = pkgplugin.ToolManifest
 
 // pluginProcess tracks a running plugin subprocess.
 type pluginProcess struct {
@@ -267,7 +202,7 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 	}()
 
 	// Initialize handshake.
-	result, err := proc.sendRPC("initialize", initializeParams{
+	result, err := proc.sendRPC("initialize", pkgplugin.InitializeParams{
 		Version:   "1.0",
 		Directory: dir,
 		Options:   options,
@@ -281,12 +216,12 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 		return nil, fmt.Errorf("initialize plugin %s: %w", name, err)
 	}
 
-	var initResult initializeResult
+	var initResult pkgplugin.InitializeResult
 	if result != nil {
 		_ = json.Unmarshal(result, &initResult)
 	}
 	proc.hooks = initResult.Hooks
-	proc.tools = convertTools(initResult.Tools)
+	proc.tools = initResult.Tools
 
 	m.mu.Lock()
 	m.plugins[pid] = proc
@@ -398,12 +333,20 @@ func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, err
 		return nil, fmt.Errorf("process is dead")
 	}
 
-	reqID := int(p.nextID.Add(1))
-	req := jsonrpcRequest{
+	var paramsRaw json.RawMessage
+	if params != nil {
+		var err error
+		paramsRaw, err = json.Marshal(params)
+		if err != nil {
+			return nil, fmt.Errorf("marshal params: %w", err)
+		}
+	}
+
+	req := pkgplugin.JSONRPCRequest{
 		JSONRPC: "2.0",
-		ID:      reqID,
+		ID:      p.nextID.Add(1),
 		Method:  method,
-		Params:  params,
+		Params:  paramsRaw,
 	}
 
 	if err := p.encoder.Encode(req); err != nil {
@@ -412,12 +355,12 @@ func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, err
 
 	// Use a channel + goroutine for timeout on the blocking decode.
 	type rpcResult struct {
-		resp jsonrpcResponse
+		resp pkgplugin.JSONRPCResponse
 		err  error
 	}
 	ch := make(chan rpcResult, 1)
 	go func() {
-		var resp jsonrpcResponse
+		var resp pkgplugin.JSONRPCResponse
 		err := p.decoder.Decode(&resp)
 		ch <- rpcResult{resp: resp, err: err}
 	}()
@@ -438,19 +381,6 @@ func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, err
 	case <-p.done:
 		return nil, fmt.Errorf("process exited while waiting for response to %s", method)
 	}
-}
-
-// convertTools converts internal toolManifest to exported ToolManifest.
-func convertTools(internal []toolManifest) []ToolManifest {
-	out := make([]ToolManifest, len(internal))
-	for i, t := range internal {
-		out[i] = ToolManifest{
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
-		}
-	}
-	return out
 }
 
 // Tools returns the tools declared by all loaded plugins.
@@ -476,7 +406,7 @@ func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage) (jso
 		return nil, fmt.Errorf("plugin %s not found", pluginID)
 	}
 
-	raw, err := proc.sendRPC("tool/call", toolCallParams{
+	raw, err := proc.sendRPC("tool/call", pkgplugin.ToolCallParams{
 		Name: toolName,
 		Args: args,
 	})
@@ -484,7 +414,7 @@ func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage) (jso
 		return nil, err
 	}
 
-	var result toolCallResult
+	var result pkgplugin.ToolCallResult
 	if raw != nil {
 		if err := json.Unmarshal(raw, &result); err != nil {
 			return nil, fmt.Errorf("unmarshal tool result: %w", err)

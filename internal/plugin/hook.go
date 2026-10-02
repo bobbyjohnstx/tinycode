@@ -3,19 +3,9 @@ package plugin
 import (
 	"encoding/json"
 	"fmt"
+
+	pkgplugin "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
-
-// hookInvokeParams matches the wire format of pkg/plugin.HookParams.
-type hookInvokeParams struct {
-	Name   string          `json:"name"`
-	Input  json.RawMessage `json:"input,omitempty"`
-	Output json.RawMessage `json:"output,omitempty"`
-}
-
-// hookResult matches the wire format of pkg/plugin.HookResult.
-type hookResult struct {
-	Output json.RawMessage `json:"output,omitempty"`
-}
 
 // sendHook sends a hook/invoke JSON-RPC call with the given hook name and input.
 // Returns the unwrapped Output from the HookResult.
@@ -28,14 +18,14 @@ func (p *pluginProcess) sendHook(hookName string, input any) (json.RawMessage, e
 			return nil, fmt.Errorf("marshal hook input: %w", err)
 		}
 	}
-	raw, err := p.sendRPC("hook/invoke", hookInvokeParams{
+	raw, err := p.sendRPC("hook/invoke", pkgplugin.HookParams{
 		Name:  hookName,
 		Input: inputJSON,
 	})
 	if err != nil {
 		return nil, err
 	}
-	var result hookResult
+	var result pkgplugin.HookResult
 	if raw != nil {
 		if err := json.Unmarshal(raw, &result); err != nil {
 			return nil, fmt.Errorf("unmarshal hook result: %w", err)
