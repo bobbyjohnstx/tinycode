@@ -178,6 +178,11 @@ func blockDetail(toolName, toolArgs string, width int) string {
 	return ""
 }
 
+// SetToolNameStyle updates the tool name style (called by the theme system).
+func SetToolNameStyle(s lipgloss.Style) {
+	styleToolName = s
+}
+
 // truncate shortens s to maxLen, appending an ellipsis if needed.
 func truncate(s string, maxLen int) string {
 	if maxLen < 4 {

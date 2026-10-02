@@ -11,6 +11,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var (
+	styleStatusDim    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#666666"})
+	styleStatusAccent = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
+)
+
 // StatusBar renders a two-line bottom area: hints line + status bar.
 type StatusBar struct {
 	cwd            string
@@ -152,10 +157,8 @@ func (s StatusBar) Update(msg tea.Msg) (StatusBar, tea.Cmd) {
 
 // View renders the hints line and the status bar.
 func (s StatusBar) View() string {
-	dim := lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#666666"})
-	accent := lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
+	dim := styleStatusDim
+	accent := styleStatusAccent
 
 	// Hints line
 	var hintsLeft string

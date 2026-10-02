@@ -14,6 +14,11 @@ import (
 
 var oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,2}\\?$`)
 
+var (
+	colorPromptSurface lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#F0F0F0", Dark: "#1E293B"}
+	colorPromptDim     lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}
+)
+
 // PromptInput is a multi-line text input with a metadata bar,
 // autocomplete popover, and prompt history navigation.
 type PromptInput struct {
@@ -317,7 +322,7 @@ func (p PromptInput) cursorOffset() int {
 // View implements tea.Model.
 func (p PromptInput) View() string {
 	accentColor := p.agentColor
-	surfaceColor := lipgloss.AdaptiveColor{Light: "#F0F0F0", Dark: "#1E293B"}
+	surfaceColor := colorPromptSurface
 
 	innerWidth := p.width - 3 // ┃ + padding
 
@@ -366,7 +371,7 @@ func (p PromptInput) View() string {
 
 // renderMetadata renders the status line below the textarea.
 func (p PromptInput) renderMetadata() string {
-	dimColor := lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}
+	dimColor := colorPromptDim
 
 	agentStyle := lipgloss.NewStyle().Foreground(p.agentColor)
 	dimStyle := lipgloss.NewStyle().Foreground(dimColor)

@@ -19,7 +19,12 @@ var (
 	stylePromptBorder = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).BorderTop(true).BorderBottom(false).BorderLeft(false).BorderRight(false)
 	stylePromptAccent = lipgloss.NewStyle().BorderStyle(lipgloss.ThickBorder()).BorderLeft(true).BorderTop(false).BorderRight(false).BorderBottom(false).BorderForeground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"})
 	styleStatusBar    = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#F5F5F5", Dark: "#1A1A1A"}).Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}).Padding(0, 1)
+	colorDiffAdded  lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"}
+	colorDiffRemoved lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF6666"}
 )
+
+// themeAgentColor overrides per-agent colors when a color theme is active.
+var themeAgentColor *lipgloss.AdaptiveColor
 
 var agentColorMap = map[string]lipgloss.AdaptiveColor{
 	"build":             {Light: "#CC0000", Dark: "#CC4444"},
@@ -56,7 +61,11 @@ var agentPalette = []lipgloss.AdaptiveColor{
 }
 
 // AgentColor returns the color for a given agent name.
+// When a color theme is active, returns the theme's primary color for all agents.
 func AgentColor(name string) lipgloss.AdaptiveColor {
+	if themeAgentColor != nil {
+		return *themeAgentColor
+	}
 	lower := strings.ToLower(name)
 	if c, ok := agentColorMap[lower]; ok {
 		return c

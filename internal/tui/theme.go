@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/bobbyjohnstx/tinycode/internal/tui/render"
 )
 
 //go:embed themes/*.json
@@ -177,4 +179,32 @@ func ApplyColorTheme(ct *ColorTheme) {
 	styleTimestamp = lipgloss.NewStyle().Foreground(ct.TextMuted)
 	styleAgentFooter = lipgloss.NewStyle().Foreground(ct.TextMuted)
 	styleReasoningText = lipgloss.NewStyle().Foreground(ct.TextMuted)
+
+	// render package tool name style
+	render.SetToolNameStyle(lipgloss.NewStyle().Bold(true).Foreground(ct.Primary))
+
+	// Agent color override
+	primary := ct.Primary
+	themeAgentColor = &primary
+
+	// Reasoning label uses accent instead of per-agent color
+	styleReasoningLabel = lipgloss.NewStyle().Foreground(ct.Accent)
+
+	// Status bar inline styles
+	styleStatusDim = lipgloss.NewStyle().Foreground(ct.TextMuted)
+	styleStatusAccent = lipgloss.NewStyle().Foreground(ct.Accent)
+
+	// Sidebar styles
+	styleSidebarHeader = lipgloss.NewStyle().Bold(true).Foreground(ct.Primary)
+	styleSidebarMuted = lipgloss.NewStyle().Foreground(ct.TextMuted)
+	styleSidebarSuccess = lipgloss.NewStyle().Foreground(ct.Success)
+	styleSidebarError = lipgloss.NewStyle().Foreground(ct.Error)
+
+	// Prompt surface and dim colors
+	colorPromptSurface = ct.BgElement
+	colorPromptDim = ct.TextMuted
+
+	// Diff colors
+	colorDiffAdded = ct.DiffAdded
+	colorDiffRemoved = ct.DiffRemoved
 }
