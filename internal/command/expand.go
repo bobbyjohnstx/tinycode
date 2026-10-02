@@ -116,6 +116,9 @@ func ExpandSlashCommand(text string) ExpandResult {
 			AutoApprove: true,
 		}
 	}
+	// /work-loop is intercepted TUI-side and routed to /goal. This branch
+	// remains as a fallback for headless mode (serve/acp) where the TUI
+	// handler does not run.
 	if strings.HasPrefix(trimmed, "/work-loop ") {
 		userTask := strings.TrimSpace(strings.TrimPrefix(trimmed, "/work-loop"))
 		return ExpandResult{

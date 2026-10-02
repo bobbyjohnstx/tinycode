@@ -126,7 +126,7 @@ func builtinCommands() []Command {
 		},
 		{
 			Name:        "goal",
-			Description: "Autonomous execution until condition met -- /goal <condition>",
+			Description: "Autonomous execution until condition met or task done -- /goal <condition|task>",
 			Source:      "builtin",
 			Hints:       []string{"$1"},
 		},

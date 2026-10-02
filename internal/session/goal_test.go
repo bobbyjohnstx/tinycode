@@ -64,3 +64,22 @@ func TestDefaultGoalMaxIterations(t *testing.T) {
 		t.Errorf("defaultGoalMaxIterations = %d, want 10", defaultGoalMaxIterations)
 	}
 }
+
+func TestResolveGoalCommand_UnrecognizedReturnsEmpty(t *testing.T) {
+	// Unrecognized conditions should return ("", false) — the caller
+	// creates a self-assessment goal with an empty command.
+	tests := []string{
+		"make the auth module work",
+		"fix all lint errors",
+		"refactor the database layer",
+	}
+	for _, cond := range tests {
+		cmd, ok := ResolveGoalCommand(cond)
+		if ok {
+			t.Errorf("ResolveGoalCommand(%q) ok = true, want false", cond)
+		}
+		if cmd != "" {
+			t.Errorf("ResolveGoalCommand(%q) = %q, want empty", cond, cmd)
+		}
+	}
+}
