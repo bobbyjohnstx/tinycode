@@ -32,6 +32,8 @@ import { showToast } from "@tinycode/ui/toast"
 import { checksum } from "tinycode/core/util/encode"
 import { useLocation, useSearchParams } from "@solidjs/router"
 import { NewSessionDesignView, NewSessionView, SessionHeader } from "@/components/session"
+import { StatusBar } from "@/components/status-bar"
+import { GoalTracker } from "@/components/goal-tracker"
 import { useComments } from "@/context/comments"
 import { getSessionPrefetch, SESSION_PREFETCH_TTL } from "@/context/global-sync/session-prefetch"
 import { useServerSync } from "@/context/server-sync"
@@ -1737,6 +1739,28 @@ export default function Page() {
     <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
       {sessionSync() ?? ""}
       <SessionHeader />
+      <Show when={!!params.id}>
+        <StatusBar
+          agentName={info()?.agent ?? "claude"}
+          model={local.model.current()?.model?.id ?? ""}
+          provider={local.model.current()?.provider?.id ?? ""}
+          effort="medium"
+          contextUsed={0}
+          contextTotal={0}
+          isWorking={
+            !!(params.id && sync.data.session_status[params.id]?.type === "busy")
+          }
+        />
+      </Show>
+      <Show when={false}>
+        <GoalTracker
+          description=""
+          steps={[]}
+          iteration={0}
+          maxIterations={0}
+          isComplete={false}
+        />
+      </Show>
       <div class="flex-1 min-h-0 flex flex-col md:flex-row">
         <Show when={!isDesktop() && !!params.id}>
           <Tabs value={store.mobileTab} class="h-auto">

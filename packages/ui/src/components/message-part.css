@@ -132,6 +132,7 @@
     overflow: hidden;
     background: var(--surface-base);
     border: 1px solid var(--border-weak-base);
+    border-left: 3px solid #5c9cf5;
     padding: 8px 12px;
     border-radius: 6px;
 
