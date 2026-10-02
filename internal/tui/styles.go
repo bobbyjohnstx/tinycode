@@ -152,7 +152,7 @@ func buildTheme(c themeColors) Theme {
 		UserMessage:      lipgloss.NewStyle().Foreground(c.user).Bold(true).PaddingLeft(2),
 		AssistantMessage: lipgloss.NewStyle().Foreground(c.assistant).PaddingLeft(2),
 		ChatBorder:       lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(c.subtle),
-		SidebarBox:       lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(c.subtle).Padding(0, 1),
+		SidebarBox:       lipgloss.NewStyle().Border(lipgloss.NormalBorder(), false, true, false, false).BorderForeground(c.subtle).Padding(0, 1),
 		PromptBorder:     lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(c.accent).BorderTop(true),
 		StatusBar:        lipgloss.NewStyle().Background(c.bg).Foreground(c.subtle).Padding(0, 1),
 		StatusBarModel:   lipgloss.NewStyle().Foreground(c.accent).Bold(true),

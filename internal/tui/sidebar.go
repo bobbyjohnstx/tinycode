@@ -20,7 +20,7 @@ type SidebarSessionSelectedMsg struct {
 	SessionID string
 }
 
-const sidebarWidth = 42
+const sidebarWidth = 28
 
 // ContextStats holds computed context usage for sidebar display.
 type ContextStats struct {
