@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 )
@@ -178,5 +179,51 @@ func TestWebFetch_LegitimateRequestSucceeds(t *testing.T) {
 	// for httptest servers.
 	if !result.IsError {
 		t.Error("expected SSRF block for loopback test server")
+	}
+}
+
+func TestIsPrivateIP(t *testing.T) {
+	tests := []struct {
+		name    string
+		ip      string
+		blocked bool
+	}{
+		{"loopback", "127.0.0.1", true},
+		{"loopback_other", "127.0.0.2", true},
+		{"private_10", "10.0.0.1", true},
+		{"private_172", "172.16.0.1", true},
+		{"private_192", "192.168.1.1", true},
+		{"link_local", "169.254.169.254", true},
+		{"unspecified", "0.0.0.0", true},
+		{"ipv6_loopback", "::1", true},
+		{"ipv6_private", "fd00::1", true},
+		{"ipv6_link_local", "fe80::1", true},
+		{"public_8888", "8.8.8.8", false},
+		{"public_1111", "1.1.1.1", false},
+		{"public_93", "93.184.216.34", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ip := netip.MustParseAddr(tt.ip)
+			got := isPrivateIP(ip)
+			if got != tt.blocked {
+				t.Errorf("isPrivateIP(%s) = %v, want %v", tt.ip, got, tt.blocked)
+			}
+		})
+	}
+}
+
+func TestSSRFSafeTransport_BlocksPrivateAtDialTime(t *testing.T) {
+	transport := ssrfSafeTransport()
+	client := &http.Client{Transport: transport}
+
+	// 127.0.0.1 is a private IP — the transport's DialContext must block it.
+	req, _ := http.NewRequestWithContext(context.Background(), "GET", "http://127.0.0.1/secret", nil)
+	_, err := client.Do(req)
+	if err == nil {
+		t.Fatal("expected error when dialing private IP through SSRF-safe transport")
+	}
+	if !strings.Contains(err.Error(), "private/internal") {
+		t.Errorf("expected SSRF block error, got: %v", err)
 	}
 }
