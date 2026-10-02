@@ -99,6 +99,11 @@ func (t Toast) IsVisible() bool {
 	return t.current != nil
 }
 
+// Dismiss clears the current toast and advances to the next queued item.
+func (t *Toast) Dismiss() tea.Cmd {
+	return t.advance()
+}
+
 // advance moves to the next queued toast, or clears the display.
 func (t *Toast) advance() tea.Cmd {
 	if len(t.queue) == 0 {

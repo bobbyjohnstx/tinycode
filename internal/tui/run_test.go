@@ -87,6 +87,35 @@ func TestMapSSEToMsg_SessionErrorDefaultMessage(t *testing.T) {
 	}
 }
 
+func TestMapSSEToMsg_SessionErrorStructuredPayload(t *testing.T) {
+	evt := api.ServerEvent{
+		Type: "session.error",
+		Properties: map[string]any{
+			"sessionID": "ses_789",
+			"error": map[string]any{
+				"name": "UnknownError",
+				"data": map[string]any{
+					"message": "doom loop detected: last 3 tool calls were identical (bash)",
+				},
+			},
+		},
+	}
+
+	msg := mapSSEToMsg(evt)
+
+	errMsg, ok := msg.(SessionErrorMsg)
+	if !ok {
+		t.Fatalf("expected SessionErrorMsg, got %T", msg)
+	}
+	if errMsg.SessionID != "ses_789" {
+		t.Errorf("expected SessionID ses_789, got %s", errMsg.SessionID)
+	}
+	expected := "doom loop detected: last 3 tool calls were identical (bash)"
+	if errMsg.Error != expected {
+		t.Errorf("expected error %q, got %q", expected, errMsg.Error)
+	}
+}
+
 func TestAppUpdate_SessionErrorClearsWorking(t *testing.T) {
 	app := NewApp("http://localhost:4096")
 	app.width = 100
@@ -456,6 +485,29 @@ func TestPermissionDismissed_RestoresFocusAndEmitsReply(t *testing.T) {
 	}
 	if reply.Action != "allow" {
 		t.Errorf("expected action 'allow', got %q", reply.Action)
+	}
+}
+
+func TestEscDismissesToastWhenNotWorking(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "ses_123"
+	app.state.SessionStatus["ses_123"] = SessionStatus{Working: false}
+
+	// Show an error toast
+	app.toast.Show("doom loop detected", true)
+
+	if !app.toast.IsVisible() {
+		t.Fatal("expected toast to be visible before escape")
+	}
+
+	result, _ := app.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated := result.(App)
+
+	if updated.toast.IsVisible() {
+		t.Error("expected toast to be dismissed by escape key")
 	}
 }
 

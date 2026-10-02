@@ -217,6 +217,12 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 			return result
 		}
 
+		// Check abort immediately after tool execution so we don't start
+		// another LLM call when the user has already pressed escape.
+		if result := p.checkAbortAndContext(ctx, iteration, totalUsage); result != nil {
+			return result
+		}
+
 		hadPriorToolCalls = hadToolCalls
 	}
 }

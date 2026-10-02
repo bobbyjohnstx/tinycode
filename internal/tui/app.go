@@ -221,6 +221,9 @@ func (a *App) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {
 		if a.isSessionWorking() {
 			return func() tea.Msg { return AbortRequestMsg{} }
 		}
+		if a.toast.IsVisible() {
+			return a.toast.Dismiss()
+		}
 		return nil
 	}
 	return nil
