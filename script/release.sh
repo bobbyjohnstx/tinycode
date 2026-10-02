@@ -79,7 +79,7 @@ cat "$DIST/checksums.txt"
 echo ""
 echo "Creating tag ${VERSION}..."
 git tag -a "$VERSION" -m "Release ${VERSION}"
-git push tinycode "$VERSION"
+git push origin "$VERSION"
 
 # Create Gitea release
 echo ""
