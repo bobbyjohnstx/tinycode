@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tinycode Web UI -- Design Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ================================================================
+     CSS CUSTOM PROPERTIES -- tinycode theme palette
+     ================================================================ */
+  :root {
+    --bg-base: #0a0a0a;
+    --bg-panel: #141414;
+    --bg-element: #1e1e1e;
+    --bg-hover: #1a1a1a;
+    --bg-selected: #282828;
+    --bg-status: #111111;
+    --bg-diff-add: #20303b;
+    --bg-diff-rem: #37222c;
+    --bg-goal: #0f0a0c;
+
+    --c-primary: #c87898;
+    --c-secondary: #5c9cf5;
+    --c-accent: #9d7cd8;
+    --c-success: #7fd88f;
+    --c-warning: #f5a742;
+    --c-error: #e06c75;
+    --c-info: #56b6c2;
+
+    --c-text: #eeeeee;
+    --c-text-secondary: #c8c8d0;
+    --c-muted: #808080;
+    --c-dim: #484848;
+    --c-border: #2a2a2a;
+    --c-border-subtle: #1e1e1e;
+
+    --font-ui: 'Inter', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+
+    --sidebar-width: 260px;
+  }
+
+  /* ================================================================
+     RESET & BASE
+     ================================================================ */
+  *, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+    background: #0e0e18;
+    color: var(--c-text-secondary);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ================================================================
+     PAGE CHROME -- title, tab bar, annotations
+     ================================================================ */
+  .page-header {
+    padding: 24px 24px 0;
+  }
+
+  .page-header h1 {
+    font-family: var(--font-mono);
+    color: var(--c-primary);
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .page-subtitle {
+    font-family: var(--font-mono);
+    color: var(--c-dim);
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    margin: 0 24px 20px;
+    border-bottom: 1px solid var(--c-border);
+  }
+
+  .tab-btn {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 8px 20px;
+    background: transparent;
+    color: var(--c-dim);
+    border: 1px solid transparent;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .tab-btn:hover {
+    color: var(--c-muted);
+  }
+
+  .tab-btn.active {
+    color: var(--c-primary);
+    border-bottom-color: var(--c-primary);
+  }
+
+  .tab-btn .tab-num {
+    color: var(--c-accent);
+    font-weight: 700;
+  }
+
+  .tab-btn.active .tab-num {
+    color: var(--c-primary);
+  }
+
+  .tab-panel {
+    display: none;
+    padding: 0 24px 24px;
+  }
+
+  .tab-panel.active {
+    display: block;
+  }
+
+  /* ================================================================
+     ANNOTATION BLOCKS (below each tab)
+     ================================================================ */
+  .annotation {
+    max-width: 1200px;
+    margin: 20px auto 0;
+    padding: 16px 20px;
+    background: #111118;
+    border-left: 3px solid var(--c-accent);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    color: var(--c-muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .annotation h3 {
+    color: var(--c-primary);
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .annotation strong {
+    color: var(--c-text);
+    font-weight: 700;
+  }
+
+  .annotation em {
+    color: var(--c-accent);
+    font-style: italic;
+  }
+
+  .annotation code {
+    color: var(--c-success);
+    background: var(--bg-element);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  .annotation ul {
+    margin: 8px 0 0 16px;
+    list-style: none;
+  }
+
+  .annotation ul li {
+    margin-bottom: 4px;
+  }
+
+  .annotation ul li::before {
+    content: ">";
+    color: var(--c-accent);
+    margin-right: 8px;
+  }
+
+  /* ================================================================
+     APP FRAME -- the browser viewport simulation
+     ================================================================ */
+  .app-frame {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: var(--bg-base);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 720px;
+    position: relative;
+  }
+
+  /* ================================================================
+     LAYOUT -- sidebar + main
+     ================================================================ */
+  .app-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ================================================================
+     SIDEBAR
+     ================================================================ */
+  .sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    background: var(--bg-panel);
+    border-right: 1px solid var(--c-border-subtle);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .sidebar-section {
+    padding: 16px 14px 8px;
+  }
+
+  .sidebar-section:not(:last-child) {
+    border-bottom: 1px solid var(--c-border-subtle);
+  }
+
+  .sidebar-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--c-dim);
+    margin-bottom: 8px;
+  }
+
+  .session-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.12s;
+    font-size: 13px;
+    color: var(--c-muted);
+  }
+
+  .session-item:hover {
+    background: var(--bg-hover);
+    color: var(--c-text-secondary);
+  }
+
+  .session-item.active {
+    background: var(--bg-selected);
+    color: var(--c-text);
+  }
+
+  .session-item .session-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--c-dim);
+    flex-shrink: 0;
+  }
+
+  .session-item.active .session-indicator {
+    background: var(--c-primary);
+  }
+
+  .session-item .session-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .session-child {
+    padding-left: 28px;
+    position: relative;
+  }
+
+  .session-child::before {
+    content: '';
+    position: absolute;
+    left: 22px;
+    top: 0;
+    bottom: 50%;
+    width: 1px;
+    background: var(--c-border);
+  }
+
+  .session-child::after {
+    content: '';
+    position: absolute;
+    left: 22px;
+    top: 50%;
+    width: 8px;
+    height: 1px;
+    background: var(--c-border);
+  }
+
+  .session-time {
+    font-size: 11px;
+    color: var(--c-dim);
+    font-family: var(--font-mono);
+  }
+
+  /* MCP status items */
+  .mcp-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--c-muted);
+    font-family: var(--font-mono);
+  }
+
+  .mcp-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .mcp-dot.connected { background: var(--c-success); }
+  .mcp-dot.error { background: var(--c-error); }
+
+  .mcp-err-label {
+    color: var(--c-error);
+    font-size: 10px;
+    margin-left: auto;
+  }
+
+  /* Agent list items */
+  .agent-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.12s;
+    font-size: 13px;
+    color: var(--c-muted);
+  }
+
+  .agent-item:hover {
+    background: var(--bg-hover);
+  }
+
+  .agent-item.active {
+    background: var(--bg-selected);
+    color: var(--c-text);
+  }
+
+  .agent-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .agent-item.active .agent-dot {
+    background: var(--c-primary);
+  }
+
+  .agent-default {
+    font-size: 10px;
+    color: var(--c-dim);
+    margin-left: auto;
+    font-family: var(--font-mono);
+  }
+
+  /* ================================================================
+     MAIN CONTENT AREA
+     ================================================================ */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* ================================================================
+     CHAT AREA
+     ================================================================ */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* User message */
+  .msg-user {
+    margin-bottom: 16px;
+  }
+
+  .msg-user-bubble {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .msg-user-bar {
+    width: 3px;
+    min-height: 100%;
+    background: var(--c-secondary);
+    border-radius: 2px;
+    margin-right: 12px;
+    flex-shrink: 0;
+    align-self: stretch;
+  }
+
+  .msg-user-content {
+    flex: 1;
+  }
+
+  .msg-user-text {
+    color: var(--c-text);
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .msg-user-meta {
+    font-size: 11px;
+    color: var(--c-dim);
+    margin-top: 2px;
+    font-family: var(--font-mono);
+  }
+
+  /* Assistant message */
+  .msg-assistant {
+    margin-bottom: 16px;
+  }
+
+  /* Thinking block */
+  .thinking-block {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+
+  .thinking-label {
+    color: var(--c-accent);
+    cursor: pointer;
+  }
+
+  .thinking-label:hover {
+    text-decoration: underline;
+  }
+
+  .thinking-duration {
+    color: var(--c-accent);
+  }
+
+  /* Prose text */
+  .msg-prose {
+    color: var(--c-text-secondary);
+    font-size: 14px;
+    line-height: 1.65;
+    margin-bottom: 12px;
+  }
+
+  .msg-prose code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    background: var(--bg-element);
+    color: #e5c07b;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  /* Tool calls */
+  .tool-call {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-panel);
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    transition: background 0.12s;
+    cursor: pointer;
+  }
+
+  .tool-call:hover {
+    background: var(--bg-element);
+  }
+
+  .tool-name {
+    color: var(--c-primary);
+    font-weight: 700;
+  }
+
+  .tool-args {
+    color: var(--c-muted);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tool-status {
+    font-size: 12px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .tool-status.done { color: var(--c-success); }
+  .tool-status.running { color: var(--c-warning); }
+  .tool-status.error { color: var(--c-error); }
+
+  .tool-duration {
+    color: var(--c-dim);
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  /* Tool output (collapsible) */
+  .tool-output {
+    background: var(--bg-panel);
+    border-left: 2px solid var(--c-border);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--c-muted);
+    overflow-x: auto;
+  }
+
+  .tool-output .fail-line {
+    color: var(--c-muted);
+  }
+
+  .tool-output .fail-detail {
+    color: var(--c-muted);
+    padding-left: 16px;
+  }
+
+  .tool-output .fail-summary {
+    color: var(--c-error);
+  }
+
+  .tool-output .pass-summary {
+    color: var(--c-success);
+  }
+
+  /* Diff block */
+  .diff-block {
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-bottom: 12px;
+    border: 1px solid var(--c-border-subtle);
+  }
+
+  .diff-header {
+    background: var(--bg-element);
+    padding: 6px 12px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--c-muted);
+    border-bottom: 1px solid var(--c-border-subtle);
+  }
+
+  .diff-body {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+
+  .diff-line {
+    padding: 1px 12px;
+    white-space: pre;
+  }
+
+  .diff-line.added {
+    background: var(--bg-diff-add);
+    color: #4fd6be;
+  }
+
+  .diff-line.removed {
+    background: var(--bg-diff-rem);
+    color: #c53b53;
+  }
+
+  .diff-line.context {
+    color: var(--c-muted);
+  }
+
+  /* ================================================================
+     PROMPT AREA
+     ================================================================ */
+  .prompt-area {
+    border-top: 2px solid var(--c-primary);
+    background: var(--bg-base);
+    padding: 12px 24px 10px;
+  }
+
+  .prompt-input-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    background: var(--bg-panel);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    transition: border-color 0.15s;
+  }
+
+  .prompt-input-wrap:focus-within {
+    border-color: var(--c-primary);
+  }
+
+  .prompt-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--c-text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    resize: none;
+    min-height: 20px;
+    max-height: 120px;
+  }
+
+  .prompt-input::placeholder {
+    color: var(--c-dim);
+  }
+
+  .prompt-send {
+    background: transparent;
+    border: none;
+    color: var(--c-dim);
+    cursor: pointer;
+    padding: 2px;
+    transition: color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .prompt-send:hover {
+    color: var(--c-primary);
+  }
+
+  .prompt-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 2px 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--c-dim);
+  }
+
+  .prompt-meta .agent-badge {
+    color: var(--c-primary);
+  }
+
+  .prompt-meta .sep {
+    color: var(--c-dim);
+  }
+
+  /* Slash command autocomplete */
+  .slash-autocomplete {
+    position: absolute;
+    bottom: 100%;
+    left: 24px;
+    right: 24px;
+    background: var(--bg-panel);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    margin-bottom: 4px;
+    overflow: hidden;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
+  }
+
+  .slash-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .slash-item:hover,
+  .slash-item.selected {
+    background: var(--bg-selected);
+  }
+
+  .slash-cmd {
+    color: var(--c-primary);
+    font-weight: 500;
+    min-width: 90px;
+  }
+
+  .slash-desc {
+    color: var(--c-muted);
+    font-size: 12px;
+  }
+
+  /* ================================================================
+     STATUS BAR
+     ================================================================ */
+  .status-bar {
+    background: var(--bg-status);
+    border-top: 1px solid var(--c-border-subtle);
+    padding: 6px 24px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .status-item {
+    color: var(--c-muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .status-item.agent-name {
+    color: var(--c-primary);
+    font-weight: 500;
+  }
+
+  .status-sep {
+    color: var(--c-dim);
+    margin: 0 8px;
+  }
+
+  .status-ctx {
+    color: var(--c-info);
+  }
+
+  .status-ctx-label {
+    color: var(--c-muted);
+    margin-left: 2px;
+  }
+
+  .status-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Working spinner */
+  .spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--c-border);
+    border-top-color: var(--c-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .idle-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--c-dim);
+  }
+
+  /* Context meter */
+  .ctx-meter {
+    width: 48px;
+    height: 4px;
+    background: var(--c-border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .ctx-meter-fill {
+    height: 100%;
+    background: var(--c-info);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  /* ================================================================
+     GOAL TRACKER (expands above status bar)
+     ================================================================ */
+  .goal-tracker {
+    background: var(--bg-goal);
+    border: 1px solid var(--c-primary);
+    border-radius: var(--radius-md);
+    margin: 0 24px 8px;
+    overflow: hidden;
+  }
+
+  .goal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(200, 120, 152, 0.2);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .goal-label {
+    color: var(--c-primary);
+    font-weight: 600;
+  }
+
+  .goal-desc {
+    color: var(--c-text);
+    font-weight: 500;
+  }
+
+  .goal-iter {
+    color: var(--c-muted);
+    margin-left: auto;
+    font-size: 11px;
+  }
+
+  .goal-steps {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 14px;
+    flex-wrap: wrap;
+  }
+
+  .goal-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .step-icon {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .step-icon.done { color: var(--c-success); }
+  .step-icon.active { color: var(--c-warning); }
+  .step-icon.pending { color: var(--c-dim); }
+
+  .step-label.done { color: var(--c-muted); }
+  .step-label.active { color: var(--c-text); }
+  .step-label.pending { color: var(--c-dim); }
+
+  .goal-budget {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 4px 14px 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--c-dim);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .pulse {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  /* ================================================================
+     GOAL COMPLETE (single-line summary)
+     ================================================================ */
+  .goal-complete {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 24px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--bg-status);
+    border-bottom: 1px solid var(--c-border-subtle);
+  }
+
+  .goal-complete-icon {
+    color: var(--c-success);
+    font-weight: 700;
+  }
+
+  .goal-complete-label {
+    color: var(--c-success);
+  }
+
+  .goal-complete-desc {
+    color: var(--c-text);
+  }
+
+  .goal-complete-stats {
+    color: var(--c-muted);
+    margin-left: auto;
+  }
+
+  /* ================================================================
+     UTILITY
+     ================================================================ */
+  /* ================================================================
+     HOME / LANDING PAGE
+     ================================================================ */
+  .home-container {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 80px 32px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .home-wordmark {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--c-primary);
+    letter-spacing: -0.02em;
+    margin-bottom: 40px;
+    user-select: none;
+  }
+
+  .home-new-session {
+    width: 100%;
+    padding: 14px 24px;
+    background: var(--c-primary);
+    color: #0a0a0a;
+    border: none;
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    letter-spacing: 0.01em;
+    margin-bottom: 48px;
+  }
+
+  .home-new-session:hover {
+    background: #d48aa8;
+    transform: translateY(-1px);
+  }
+
+  .home-new-session:active {
+    transform: translateY(0);
+  }
+
+  .home-sessions {
+    width: 100%;
+    flex: 1;
+  }
+
+  .home-date-label {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--c-dim);
+    padding: 0 0 8px;
+    margin-top: 8px;
+  }
+
+  .home-date-label:first-child {
+    margin-top: 0;
+  }
+
+  .home-session-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background 0.12s;
+    margin-bottom: 2px;
+  }
+
+  .home-session-row:hover {
+    background: var(--bg-element);
+  }
+
+  .home-session-title {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--c-text);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .home-session-row:hover .home-session-title {
+    color: #ffffff;
+  }
+
+  .home-session-agent {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--c-secondary);
+    flex-shrink: 0;
+  }
+
+  .home-session-model {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--c-dim);
+    flex-shrink: 0;
+  }
+
+  .home-session-time {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--c-dim);
+    flex-shrink: 0;
+    min-width: 64px;
+    text-align: right;
+  }
+
+  .home-session-child {
+    padding-left: 28px;
+    position: relative;
+  }
+
+  .home-session-child::before {
+    content: '';
+    position: absolute;
+    left: 18px;
+    top: 0;
+    bottom: 50%;
+    width: 1px;
+    background: var(--c-border);
+  }
+
+  .home-session-child::after {
+    content: '';
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    width: 10px;
+    height: 1px;
+    background: var(--c-border);
+  }
+
+  .home-status {
+    width: 100%;
+    margin-top: auto;
+    padding-top: 32px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .home-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .home-status-dot.connected {
+    background: var(--c-success);
+  }
+
+  .home-status-dot.disconnected {
+    background: var(--c-dim);
+  }
+
+  .home-status-text {
+    color: var(--c-muted);
+  }
+
+  .home-status-text.connected {
+    color: var(--c-muted);
+  }
+
+  .home-status-text.disconnected {
+    color: var(--c-dim);
+  }
+
+  .home-project-path {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--c-dim);
+  }
+
+  .hidden { display: none !important; }
+
+  /* Scroll styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--c-border);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--c-dim);
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>tinycode Web UI -- Design Mockup</h1>
+  <p class="page-subtitle">Consistent mental model, not consistent pixels. Same hierarchy, same vocabulary, different medium.</p>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="showTab('home')"><span class="tab-num">0</span> Home</button>
+  <button class="tab-btn" onclick="showTab('chat')"><span class="tab-num">1</span> Chat</button>
+  <button class="tab-btn" onclick="showTab('goal')"><span class="tab-num">2</span> Goal Active</button>
+  <button class="tab-btn" onclick="showTab('sidebar')"><span class="tab-num">3</span> With Sidebar</button>
+</div>
+
+<!-- ================================================================== -->
+<!-- TAB 0: HOME -- landing page, session launcher                      -->
+<!-- ================================================================== -->
+<div id="panel-home" class="tab-panel active">
+<div class="app-frame">
+  <div class="app-body">
+    <div class="main">
+      <div class="home-container">
+
+        <div class="home-wordmark">tinycode</div>
+
+        <button class="home-new-session" aria-label="Start a new coding session">New Session</button>
+
+        <div class="home-sessions">
+
+          <div class="home-date-label">Today</div>
+
+          <div class="home-session-row">
+            <span class="home-session-title">fix auth tests in internal/server</span>
+            <span class="home-session-agent">build</span>
+            <span class="home-session-model">ornith-1.0-9b-mlx</span>
+            <span class="home-session-time">2 min ago</span>
+          </div>
+
+          <div class="home-session-row">
+            <span class="home-session-title">add /goal command</span>
+            <span class="home-session-agent">build</span>
+            <span class="home-session-model">ornith-1.0-9b-mlx</span>
+            <span class="home-session-time">4 hours ago</span>
+          </div>
+
+          <div class="home-date-label">Yesterday</div>
+
+          <div class="home-session-row">
+            <span class="home-session-title">security review audit</span>
+            <span class="home-session-agent">architect</span>
+            <span class="home-session-model">ornith-1.0-9b-mlx</span>
+            <span class="home-session-time">yesterday</span>
+          </div>
+
+          <div class="home-session-row home-session-child">
+            <span class="home-session-title">try different approach</span>
+            <span class="home-session-agent">build</span>
+            <span class="home-session-model">ornith-1.0-9b-mlx</span>
+            <span class="home-session-time">yesterday</span>
+          </div>
+
+          <div class="home-session-row">
+            <span class="home-session-title">refactor plugin SDK types</span>
+            <span class="home-session-agent">build</span>
+            <span class="home-session-model">ornith-1.0-9b-mlx</span>
+            <span class="home-session-time">yesterday</span>
+          </div>
+
+          <div class="home-date-label">Last week</div>
+
+          <div class="home-session-row">
+            <span class="home-session-title">add MCP filesystem server</span>
+            <span class="home-session-agent">architect</span>
+            <span class="home-session-model">ornith-1.0-9b-mlx</span>
+            <span class="home-session-time">5 days ago</span>
+          </div>
+
+          <div class="home-session-row">
+            <span class="home-session-title">TUI color scheme iteration</span>
+            <span class="home-session-agent">build</span>
+            <span class="home-session-model">ornith-1.0-9b-mlx</span>
+            <span class="home-session-time">6 days ago</span>
+          </div>
+
+        </div>
+
+        <div class="home-status">
+          <div class="home-status-dot connected"></div>
+          <span class="home-status-text connected">ornith-1.0-9b-mlx &middot; LM Studio</span>
+          <span class="home-project-path">~/projects/tinycode</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="annotation">
+  <h3>Tab 0: Home -- Landing Page</h3>
+  <p>The first thing users see when opening tinycode in a browser. The goal is to get them into a session within one click, not to impress them with a dashboard. Inspired by opening a notebook, not a control panel.</p>
+  <ul>
+    <li><strong>Wordmark, not logo:</strong> "tinycode" in JetBrains Mono at 22px with the pink accent (<code>#c87898</code>). Understated -- the tool is the product, not the branding. No tagline, no description. If you're here, you know what this is.</li>
+    <li><strong>New Session button:</strong> Full-width pill shape, pink background (<code>#c87898</code>) with dark text. This is the only saturated element on the page -- it pulls focus immediately. The pill radius (100px) is intentionally different from the rest of the UI's 4-8px radii to mark it as the primary call-to-action.</li>
+    <li><strong>Session list:</strong> Grouped by date (Today / Yesterday / Last week). Each row uses JetBrains Mono for the title to match how sessions appear in the TUI. Agent names in blue (<code>#5c9cf5</code>) give you context at a glance. The child session "try different approach" uses the same <code>::before / ::after</code> connector lines as the sidebar tab, showing <code>/branch</code> parentage.</li>
+    <li><strong>No status bar:</strong> Unlike the chat tabs, the home page has no bottom status bar. Instead, connection info and project path are a single muted line at the bottom of the content area. You're not in a session yet -- there's no agent, no context window, no effort level to show.</li>
+    <li><strong>What's missing on purpose:</strong> No project picker (the project is already configured in web mode). No search (there are only a handful of sessions). No settings. No onboarding wizard. The TUI doesn't have any of this friction either -- you start it and you're immediately in a session. The web landing page should feel the same: one click away from working.</li>
+    <li><strong>680px max-width:</strong> Narrower than the 1200px app frame. The session list doesn't need wide space -- tight content feels more deliberate and focused. The vertical centering with <code>padding-top: 80px</code> gives breathing room without feeling empty.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ================================================================== -->
+<!-- TAB 1: CHAT -- main conversation view, no sidebar                  -->
+<!-- ================================================================== -->
+<div id="panel-chat" class="tab-panel">
+<div class="app-frame">
+  <div class="app-body">
+    <div class="main">
+      <!-- Chat messages -->
+      <div class="chat-area">
+
+        <!-- User message -->
+        <div class="msg-user">
+          <div class="msg-user-bubble">
+            <div class="msg-user-bar"></div>
+            <div class="msg-user-content">
+              <div class="msg-user-text">Fix the failing tests in internal/server/</div>
+              <div class="msg-user-meta">2:14 PM</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Assistant response -->
+        <div class="msg-assistant">
+          <!-- Thinking -->
+          <div class="thinking-block">
+            <span class="thinking-label">+ Thought</span>
+            <span class="thinking-duration">: 1.2s</span>
+          </div>
+
+          <div class="msg-prose">
+            I'll look at the failing tests and fix them. Let me start by running the test suite.
+          </div>
+
+          <!-- Tool: shell (first run, fails) -->
+          <div class="tool-call">
+            <span class="tool-name">shell</span>
+            <span class="tool-args">go test ./internal/server/... -count=1</span>
+            <span class="tool-duration">0.03s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <!-- Tool output (test failures) -->
+          <div class="tool-output">
+            <div class="fail-line">--- FAIL: TestHandleChat (0.02s)</div>
+            <div class="fail-detail">server_test.go:45: expected status 200, got 500</div>
+            <div class="fail-line">--- FAIL: TestHandleStream (0.01s)</div>
+            <div class="fail-detail">server_test.go:78: expected streaming response, got EOF</div>
+            <div class="fail-summary">FAIL  internal/server  0.034s</div>
+          </div>
+
+          <div class="msg-prose">
+            Two tests are failing. <code>TestHandleChat</code> returns 500 because the handler doesn't
+            initialize the response writer. <code>TestHandleStream</code> hits EOF because the SSE
+            writer is nil. Both trace back to a missing parameter in <code>server.go</code>.
+          </div>
+
+          <!-- Tool: read -->
+          <div class="tool-call">
+            <span class="tool-name">read</span>
+            <span class="tool-args">internal/server/server.go</span>
+            <span class="tool-duration">0.01s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <!-- Diff block -->
+          <div class="diff-block">
+            <div class="diff-header">internal/server/server.go</div>
+            <div class="diff-body">
+              <div class="diff-line added">+  func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {</div>
+              <div class="diff-line added">+      w.Header().Set("Content-Type", "application/json")</div>
+              <div class="diff-line removed">-  func (s *Server) handleChat(r *http.Request) {</div>
+            </div>
+          </div>
+
+          <!-- Tool: edit -->
+          <div class="tool-call">
+            <span class="tool-name">edit</span>
+            <span class="tool-args">internal/server/server.go:42</span>
+            <span class="tool-duration">0.02s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <!-- Tool: shell (second run, passes) -->
+          <div class="tool-call">
+            <span class="tool-name">shell</span>
+            <span class="tool-args">go test ./internal/server/... -count=1</span>
+            <span class="tool-duration">0.03s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <div class="tool-output">
+            <div class="pass-summary">ok   internal/server  0.028s</div>
+          </div>
+
+          <div class="msg-prose">
+            Fixed. The <code>handleChat</code> function was missing the <code>http.ResponseWriter</code> parameter,
+            which caused a nil pointer dereference. Both <code>TestHandleChat</code> and
+            <code>TestHandleStream</code> pass now.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Prompt input -->
+      <div class="prompt-area">
+        <div class="prompt-input-wrap">
+          <textarea class="prompt-input" rows="1" placeholder="Ask anything... (/ for commands)"></textarea>
+          <button class="prompt-send" aria-label="Send message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </div>
+        <div class="prompt-meta">
+          <span class="agent-badge">build</span>
+          <span class="sep">/</span>
+          <span>ornith-1.0-9b-mlx</span>
+          <span class="sep">/</span>
+          <span>LM Studio</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span class="status-item agent-name">build</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-item">ornith-1.0-9b-mlx</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-item">LM Studio</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-item">high</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-ctx">56%</span>
+    <span class="status-ctx-label">ctx</span>
+    <span class="status-right">
+      <div class="ctx-meter"><div class="ctx-meter-fill" style="width: 56%"></div></div>
+      <span class="status-item" style="color: var(--c-dim); font-size: 10px">18,450 / 32,768</span>
+      <div class="idle-dot"></div>
+    </span>
+  </div>
+</div>
+
+<div class="annotation">
+  <h3>Tab 1: Chat -- Main Conversation View</h3>
+  <p>The default state with no sidebar. Maximum space for conversation. Translates the TUI's focused layout into a browser-native experience.</p>
+  <ul>
+    <li><strong>User messages:</strong> Blue left bar (<code>#5c9cf5</code>) matches the TUI's <code>&#9475;</code> border character. The bar is 3px wide, not a full bubble -- keeps the same visual weight as the TUI without looking like a chat app.</li>
+    <li><strong>Tool calls:</strong> Compact row with pink tool name, muted args, duration, and status badge. Clickable to expand output. Same information as TUI's inline tool calls, but interactive.</li>
+    <li><strong>Diff blocks:</strong> Same diff colors as TUI: added <code>#20303b</code> background, removed <code>#37222c</code>. File header bar for context. Richer than TUI because the browser can do full syntax highlighting.</li>
+    <li><strong>Prompt area:</strong> Pink top border (<code>#c87898</code>) mirrors TUI's pink horizontal rule separator. Multi-line textarea with JetBrains Mono. Agent/model metadata line below, same data as TUI status bar but compact.</li>
+    <li><strong>Status bar:</strong> Bottom-pinned, same order as TUI: agent (pink) &middot; model &middot; provider &middot; effort &middot; context%. Adds a visual context meter bar since the browser has room for it. Idle dot replaces TUI's cursor-block indicator.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ================================================================== -->
+<!-- TAB 2: GOAL ACTIVE -- autonomous execution in progress             -->
+<!-- ================================================================== -->
+<div id="panel-goal" class="tab-panel">
+<div class="app-frame">
+  <div class="app-body">
+    <div class="main">
+      <div class="chat-area">
+
+        <!-- User message -->
+        <div class="msg-user">
+          <div class="msg-user-bubble">
+            <div class="msg-user-bar"></div>
+            <div class="msg-user-content">
+              <div class="msg-user-text">Fix the failing tests in internal/server/</div>
+              <div class="msg-user-meta">2:14 PM</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Assistant response -->
+        <div class="msg-assistant">
+          <div class="thinking-block">
+            <span class="thinking-label">+ Thought</span>
+            <span class="thinking-duration">: 1.2s</span>
+          </div>
+
+          <div class="msg-prose">
+            I'll look at the failing tests and fix them. Let me start by running the test suite.
+          </div>
+
+          <div class="tool-call">
+            <span class="tool-name">shell</span>
+            <span class="tool-args">go test ./internal/server/... -count=1</span>
+            <span class="tool-duration">0.03s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <div class="tool-output">
+            <div class="fail-line">--- FAIL: TestHandleChat (0.02s)</div>
+            <div class="fail-detail">server_test.go:45: expected status 200, got 500</div>
+            <div class="fail-line">--- FAIL: TestHandleStream (0.01s)</div>
+            <div class="fail-detail">server_test.go:78: expected streaming response, got EOF</div>
+            <div class="fail-summary">FAIL  internal/server  0.034s</div>
+          </div>
+
+          <div class="msg-prose">
+            Two tests are failing. Let me read the source and fix the root cause.
+          </div>
+
+          <div class="tool-call">
+            <span class="tool-name">read</span>
+            <span class="tool-args">internal/server/server.go</span>
+            <span class="tool-duration">0.01s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <div class="diff-block">
+            <div class="diff-header">internal/server/server.go</div>
+            <div class="diff-body">
+              <div class="diff-line added">+  func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {</div>
+              <div class="diff-line added">+      w.Header().Set("Content-Type", "application/json")</div>
+              <div class="diff-line removed">-  func (s *Server) handleChat(r *http.Request) {</div>
+            </div>
+          </div>
+
+          <div class="tool-call">
+            <span class="tool-name">edit</span>
+            <span class="tool-args">internal/server/server.go:42</span>
+            <span class="tool-duration">0.02s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <!-- Currently running tool -->
+          <div class="tool-call" style="border-left: 2px solid var(--c-warning);">
+            <span class="tool-name">shell</span>
+            <span class="tool-args">go test ./internal/server/... -count=1</span>
+            <div class="spinner"></div>
+            <span class="tool-status running pulse">running</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Prompt input -->
+      <div class="prompt-area">
+        <div class="prompt-input-wrap">
+          <textarea class="prompt-input" rows="1" placeholder="Ask anything... (/ for commands)"></textarea>
+          <button class="prompt-send" aria-label="Send message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </div>
+        <div class="prompt-meta">
+          <span class="agent-badge">build</span>
+          <span class="sep">/</span>
+          <span>ornith-1.0-9b-mlx</span>
+          <span class="sep">/</span>
+          <span>LM Studio</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Goal tracker (expanded) -->
+  <div style="padding: 0 0 0 0; background: var(--bg-status); border-top: 1px solid var(--c-border-subtle);">
+    <div class="goal-tracker" style="margin: 8px 16px;">
+      <div class="goal-header">
+        <span class="goal-label">Goal:</span>
+        <span class="goal-desc">all tests pass</span>
+        <span class="goal-iter">iteration 3 / 10</span>
+      </div>
+      <div class="goal-steps">
+        <div class="goal-step">
+          <span class="step-icon done">&#10003;</span>
+          <span class="step-label done">Read test output</span>
+        </div>
+        <div class="goal-step">
+          <span class="step-icon done">&#10003;</span>
+          <span class="step-label done">Fixed auth_test.go</span>
+        </div>
+        <div class="goal-step">
+          <span class="step-icon active pulse">&#9889;</span>
+          <span class="step-label active">Running tests</span>
+        </div>
+      </div>
+      <div class="goal-budget">
+        <span>&#9675; Remaining iterations: 7</span>
+        <span>&#9675; Token budget: 12K / 50K</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span class="status-item agent-name">build</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-item">ornith-1.0-9b-mlx</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-item">LM Studio</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-item">high</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-ctx">56%</span>
+    <span class="status-ctx-label">ctx</span>
+    <span class="status-right">
+      <div class="ctx-meter"><div class="ctx-meter-fill" style="width: 56%"></div></div>
+      <span class="status-item" style="color: var(--c-dim); font-size: 10px">18,450 / 32,768</span>
+      <div class="spinner"></div>
+    </span>
+  </div>
+</div>
+
+<div class="annotation">
+  <h3>Tab 2: Goal Active -- Autonomous Execution</h3>
+  <p>When <code>/goal all tests pass</code> is active, the goal tracker expands between the prompt and the status bar. Same information as TUI's bordered box, adapted for the browser.</p>
+  <ul>
+    <li><strong>Goal tracker box:</strong> Pink border (<code>#c87898</code>) matching the TUI exactly. Background is <code>#0f0a0c</code> (the TUI's <em>bg-goal</em>). Rounds corners because the browser supports it -- the TUI uses box-drawing characters for the same visual separation.</li>
+    <li><strong>Step icons:</strong> <span style="color:#7fd88f">&#10003;</span> done, <span style="color:#f5a742">&#9889;</span> in-progress (pulsing), <span style="color:#484848">&#9675;</span> pending -- identical to TUI. Steps flow horizontally in a flex row that wraps on narrow screens.</li>
+    <li><strong>Running tool:</strong> The active <code>shell</code> call gets a warning-color left border accent and a CSS spinner (replacing TUI's text-based spinner). The "running" label pulses.</li>
+    <li><strong>Status bar spinner:</strong> The idle dot becomes a spinning indicator when work is in progress. Same semantic as TUI's <code>SetWorking(true)</code> spinner.</li>
+    <li><strong>Layout impact:</strong> The goal tracker takes ~80px of height. The chat area scrolls to accommodate, unlike the TUI where chat rows are consumed. Browser scrolling is more natural here.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ================================================================== -->
+<!-- TAB 3: WITH SIDEBAR -- session management                          -->
+<!-- ================================================================== -->
+<div id="panel-sidebar" class="tab-panel">
+<div class="app-frame">
+  <div class="app-body">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Sessions</div>
+
+        <div class="session-item active">
+          <div class="session-indicator"></div>
+          <span class="session-name">Fix server tests</span>
+          <span class="session-time">2:14</span>
+        </div>
+
+        <div class="session-item session-child">
+          <div class="session-indicator"></div>
+          <span class="session-name">Debug websocket</span>
+          <span class="session-time">2:22</span>
+        </div>
+
+        <div class="session-item">
+          <div class="session-indicator"></div>
+          <span class="session-name">Refactor auth middleware</span>
+          <span class="session-time">1:45</span>
+        </div>
+
+        <div class="session-item">
+          <div class="session-indicator"></div>
+          <span class="session-name">Add rate limiting</span>
+          <span class="session-time">11:30</span>
+        </div>
+
+        <div class="session-item">
+          <div class="session-indicator"></div>
+          <span class="session-name">Plugin SDK documentation</span>
+          <span class="session-time">Tue</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Agents</div>
+
+        <div class="agent-item active">
+          <div class="agent-dot"></div>
+          <span>build</span>
+          <span class="agent-default">default</span>
+        </div>
+        <div class="agent-item">
+          <div class="agent-dot"></div>
+          <span>architect</span>
+        </div>
+        <div class="agent-item">
+          <div class="agent-dot"></div>
+          <span>debugger</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">MCP</div>
+        <div class="mcp-item">
+          <div class="mcp-dot connected"></div>
+          <span>filesystem</span>
+        </div>
+        <div class="mcp-item">
+          <div class="mcp-dot error"></div>
+          <span>google-docs</span>
+          <span class="mcp-err-label">err</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="main">
+      <div class="chat-area">
+
+        <div class="msg-user">
+          <div class="msg-user-bubble">
+            <div class="msg-user-bar"></div>
+            <div class="msg-user-content">
+              <div class="msg-user-text">Fix the failing tests in internal/server/</div>
+              <div class="msg-user-meta">2:14 PM</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="msg-assistant">
+          <div class="thinking-block">
+            <span class="thinking-label">+ Thought</span>
+            <span class="thinking-duration">: 1.2s</span>
+          </div>
+
+          <div class="msg-prose">
+            I'll look at the failing tests and fix them. Let me start by running the test suite.
+          </div>
+
+          <div class="tool-call">
+            <span class="tool-name">shell</span>
+            <span class="tool-args">go test ./internal/server/... -count=1</span>
+            <span class="tool-duration">0.03s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <div class="tool-output">
+            <div class="fail-line">--- FAIL: TestHandleChat (0.02s)</div>
+            <div class="fail-detail">server_test.go:45: expected status 200, got 500</div>
+            <div class="fail-line">--- FAIL: TestHandleStream (0.01s)</div>
+            <div class="fail-detail">server_test.go:78: expected streaming response, got EOF</div>
+            <div class="fail-summary">FAIL  internal/server  0.034s</div>
+          </div>
+
+          <div class="msg-prose">
+            Two tests are failing. Let me read the source and fix the root cause.
+          </div>
+
+          <div class="tool-call">
+            <span class="tool-name">read</span>
+            <span class="tool-args">internal/server/server.go</span>
+            <span class="tool-duration">0.01s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <div class="diff-block">
+            <div class="diff-header">internal/server/server.go</div>
+            <div class="diff-body">
+              <div class="diff-line added">+  func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {</div>
+              <div class="diff-line added">+      w.Header().Set("Content-Type", "application/json")</div>
+              <div class="diff-line removed">-  func (s *Server) handleChat(r *http.Request) {</div>
+            </div>
+          </div>
+
+          <div class="tool-call">
+            <span class="tool-name">edit</span>
+            <span class="tool-args">internal/server/server.go:42</span>
+            <span class="tool-duration">0.02s</span>
+            <span class="tool-status done">done</span>
+          </div>
+
+          <div class="tool-call" style="border-left: 2px solid var(--c-warning);">
+            <span class="tool-name">shell</span>
+            <span class="tool-args">go test ./internal/server/... -count=1</span>
+            <div class="spinner"></div>
+            <span class="tool-status running pulse">running</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prompt input -->
+      <div class="prompt-area">
+        <div class="prompt-input-wrap">
+          <textarea class="prompt-input" rows="1" placeholder="Ask anything... (/ for commands)"></textarea>
+          <button class="prompt-send" aria-label="Send message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </div>
+        <div class="prompt-meta">
+          <span class="agent-badge">build</span>
+          <span class="sep">/</span>
+          <span>ornith-1.0-9b-mlx</span>
+          <span class="sep">/</span>
+          <span>LM Studio</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Goal tracker (expanded, full width) -->
+  <div style="padding: 0 0 0 0; background: var(--bg-status); border-top: 1px solid var(--c-border-subtle);">
+    <div class="goal-tracker" style="margin: 8px 16px;">
+      <div class="goal-header">
+        <span class="goal-label">Goal:</span>
+        <span class="goal-desc">all tests pass</span>
+        <span class="goal-iter">iteration 3 / 10</span>
+      </div>
+      <div class="goal-steps">
+        <div class="goal-step">
+          <span class="step-icon done">&#10003;</span>
+          <span class="step-label done">Read test output</span>
+        </div>
+        <div class="goal-step">
+          <span class="step-icon done">&#10003;</span>
+          <span class="step-label done">Fixed auth_test.go</span>
+        </div>
+        <div class="goal-step">
+          <span class="step-icon active pulse">&#9889;</span>
+          <span class="step-label active">Running tests</span>
+        </div>
+      </div>
+      <div class="goal-budget">
+        <span>&#9675; Remaining iterations: 7</span>
+        <span>&#9675; Token budget: 12K / 50K</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span class="status-item agent-name">build</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-item">ornith-1.0-9b-mlx</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-item">LM Studio</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-item">high</span>
+    <span class="status-sep">&middot;</span>
+    <span class="status-ctx">56%</span>
+    <span class="status-ctx-label">ctx</span>
+    <span class="status-right">
+      <div class="ctx-meter"><div class="ctx-meter-fill" style="width: 56%"></div></div>
+      <span class="status-item" style="color: var(--c-dim); font-size: 10px">18,450 / 32,768</span>
+      <div class="spinner"></div>
+    </span>
+  </div>
+</div>
+
+<div class="annotation">
+  <h3>Tab 3: With Sidebar -- Session Management</h3>
+  <p>The left sidebar shows sessions, agents, and MCP status. It mirrors the TUI's left nav (Tab 4 in the TUI mockup) but uses mouse-driven interactions instead of keyboard navigation.</p>
+  <ul>
+    <li><strong>Session hierarchy:</strong> "Debug websocket" appears indented under "Fix server tests" with a connecting line, showing the <code>/branch</code> parent-child relationship. Same tree concept as TUI's <code>&#9492;</code> connector, rendered as CSS pseudo-elements.</li>
+    <li><strong>Active indicators:</strong> Pink dot (<code>#c87898</code>) marks the current session. Hover states use <code>#1a1a1a</code>, a half-step between base and panel backgrounds. Selected state uses <code>#282828</code>.</li>
+    <li><strong>Agent list:</strong> Quick-switch between agents. Active agent gets the pink dot and "default" label. Same information as TUI's Agents section.</li>
+    <li><strong>MCP section:</strong> Green dot for connected, red dot + "err" label for failed. Same status visualization as TUI, but clickable for reconnect actions.</li>
+    <li><strong>Goal tracker:</strong> Spans full width below both sidebar and chat, below the sidebar/main split. Same as TUI where the goal box runs edge-to-edge regardless of left nav state.</li>
+    <li><strong>Sidebar width:</strong> 260px -- wider than TUI's 28 columns because the browser has more horizontal space and mouse targets need adequate click area. Collapsible (hidden by default on screens under 768px).</li>
+  </ul>
+</div>
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+</script>
+
+</body>
+</html>
