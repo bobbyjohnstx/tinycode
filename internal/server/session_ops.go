@@ -292,6 +292,19 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 
 	sm.persistPromptResult(result, existingMsgs, ms, sessionID)
 
+	// Drain buffered monitor output and inject as a follow-up prompt
+	// for the next turn. Published on the bus so the normal prompt
+	// subscriber picks it up after this processPrompt returns.
+	if sm.tools != nil {
+		if monitorOutput := sm.tools.DrainMonitorOutput(); monitorOutput != "" {
+			slog.Info("injecting monitor output at turn boundary", "sessionID", sessionID)
+			sm.bus.Publish("session.prompt", map[string]any{
+				"sessionID": sessionID,
+				"content":   "Background monitor output:\n\n" + monitorOutput,
+			})
+		}
+	}
+
 	if result != nil && result.Error != nil {
 		slog.Error("processor error", "error", result.Error, "sessionID", sessionID)
 		sm.bus.Publish("session.error", map[string]any{

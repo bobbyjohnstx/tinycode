@@ -221,6 +221,10 @@ func (sm *SessionManager) Shutdown() {
 		sm.jobManager.Shutdown()
 	}
 
+	if sm.tools != nil {
+		sm.tools.ShutdownMonitors()
+	}
+
 	for _, done := range doneChans {
 		<-done
 	}

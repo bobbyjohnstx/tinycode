@@ -43,6 +43,7 @@ type Context struct {
 	AutoApprove    bool          // skip permission checks when true
 	ReadFiles      map[string]bool // tracks files the model has read or edited (shared across copies)
 	Findings       *[]Finding    // accumulated code review findings (shared across copies)
+	MonitorManager *MonitorManager // background process watcher (shared across copies)
 }
 
 type Def struct {
@@ -79,6 +80,9 @@ func NewRegistry(toolCtx *Context) *Registry {
 	if toolCtx.Findings == nil {
 		findings := make([]Finding, 0)
 		toolCtx.Findings = &findings
+	}
+	if toolCtx.MonitorManager == nil {
+		toolCtx.MonitorManager = NewMonitorManager()
 	}
 	return &Registry{
 		tools:    make(map[string]*Def),
@@ -134,6 +138,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		AutoApprove:    r.ctx.AutoApprove,
 		ReadFiles:      r.ctx.ReadFiles,
 		Findings:       r.ctx.Findings,
+		MonitorManager: r.ctx.MonitorManager,
 	}
 
 	// Check permissions if service is available and tool has a permission requirement
@@ -272,6 +277,7 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 		AutoApprove:    r.ctx.AutoApprove,
 		ReadFiles:      r.ctx.ReadFiles,
 		Findings:       r.ctx.Findings,
+		MonitorManager: r.ctx.MonitorManager,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))
@@ -316,6 +322,7 @@ func (r *Registry) WithDepth(depth int) *Registry {
 		AutoApprove:    r.ctx.AutoApprove,
 		ReadFiles:      r.ctx.ReadFiles,
 		Findings:       r.ctx.Findings,
+		MonitorManager: r.ctx.MonitorManager,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))
@@ -359,6 +366,7 @@ func (r *Registry) WithAutoApprove() *Registry {
 		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    true,
 		ReadFiles:      r.ctx.ReadFiles,
+		MonitorManager: r.ctx.MonitorManager,
 	}
 
 	tools := make(map[string]*Def, len(r.tools))
@@ -446,6 +454,22 @@ func (r *Registry) Snapshot() *Registry {
 func (r *Registry) ResetTaskRound() {
 	if r.ctx != nil && r.ctx.TaskRoundDone != nil {
 		r.ctx.TaskRoundDone.Store(false)
+	}
+}
+
+// DrainMonitorOutput returns any buffered output from background monitors
+// and clears the buffers. Returns empty string if nothing to report.
+func (r *Registry) DrainMonitorOutput() string {
+	if r.ctx != nil && r.ctx.MonitorManager != nil {
+		return r.ctx.MonitorManager.DrainAll()
+	}
+	return ""
+}
+
+// ShutdownMonitors cancels all running background monitors.
+func (r *Registry) ShutdownMonitors() {
+	if r.ctx != nil && r.ctx.MonitorManager != nil {
+		r.ctx.MonitorManager.Shutdown()
 	}
 }
 
