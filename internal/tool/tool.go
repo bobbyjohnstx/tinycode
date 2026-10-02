@@ -43,6 +43,7 @@ type Context struct {
 	AutoApprove    bool          // skip permission checks when true
 	ReadFiles      map[string]bool // tracks files the model has read or edited (shared across copies)
 	Findings       *[]Finding    // accumulated code review findings (shared across copies)
+	Notepad        *map[string]string // session scratch notes (shared across copies)
 	MonitorManager *MonitorManager // background process watcher (shared across copies)
 }
 
@@ -80,6 +81,10 @@ func NewRegistry(toolCtx *Context) *Registry {
 	if toolCtx.Findings == nil {
 		findings := make([]Finding, 0)
 		toolCtx.Findings = &findings
+	}
+	if toolCtx.Notepad == nil {
+		notepad := make(map[string]string)
+		toolCtx.Notepad = &notepad
 	}
 	if toolCtx.MonitorManager == nil {
 		toolCtx.MonitorManager = NewMonitorManager()
@@ -138,6 +143,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		AutoApprove:    r.ctx.AutoApprove,
 		ReadFiles:      r.ctx.ReadFiles,
 		Findings:       r.ctx.Findings,
+		Notepad:        r.ctx.Notepad,
 		MonitorManager: r.ctx.MonitorManager,
 	}
 
@@ -277,6 +283,7 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 		AutoApprove:    r.ctx.AutoApprove,
 		ReadFiles:      r.ctx.ReadFiles,
 		Findings:       r.ctx.Findings,
+		Notepad:        r.ctx.Notepad,
 		MonitorManager: r.ctx.MonitorManager,
 	}
 
@@ -322,6 +329,7 @@ func (r *Registry) WithDepth(depth int) *Registry {
 		AutoApprove:    r.ctx.AutoApprove,
 		ReadFiles:      r.ctx.ReadFiles,
 		Findings:       r.ctx.Findings,
+		Notepad:        r.ctx.Notepad,
 		MonitorManager: r.ctx.MonitorManager,
 	}
 
@@ -366,6 +374,8 @@ func (r *Registry) WithAutoApprove() *Registry {
 		TaskRoundDone:  r.ctx.TaskRoundDone,
 		AutoApprove:    true,
 		ReadFiles:      r.ctx.ReadFiles,
+		Findings:       r.ctx.Findings,
+		Notepad:        r.ctx.Notepad,
 		MonitorManager: r.ctx.MonitorManager,
 	}
 
