@@ -16,3 +16,16 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		"version": serverVersion,
 	})
 }
+
+func (s *Server) handleLSP(w http.ResponseWriter, _ *http.Request) {
+	respondJSON(w, http.StatusOK, map[string]any{
+		"status": "available",
+		"note":   "LSP tools are registered via the tool registry; servers are lazily connected on first use",
+	})
+}
+
+func (s *Server) handleFormatter(w http.ResponseWriter, _ *http.Request) {
+	respondJSON(w, http.StatusOK, map[string]any{
+		"status": "unavailable",
+	})
+}

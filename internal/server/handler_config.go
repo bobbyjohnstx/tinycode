@@ -84,3 +84,26 @@ func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 
 	respondJSON(w, http.StatusOK, existing)
 }
+
+func (s *Server) handleConfigProviders(w http.ResponseWriter, r *http.Request) {
+	providers := s.deps.Registry.ListProviders()
+
+	type providerSummary struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Source string `json:"source"`
+		Models int    `json:"models"`
+	}
+
+	result := make([]providerSummary, 0, len(providers))
+	for _, p := range providers {
+		result = append(result, providerSummary{
+			ID:     p.ID,
+			Name:   p.Name,
+			Source: p.Source,
+			Models: len(p.Models),
+		})
+	}
+
+	respondJSON(w, http.StatusOK, result)
+}

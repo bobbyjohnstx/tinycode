@@ -9,6 +9,17 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 )
 
+func (s *Server) handleGlobalEventStream(w http.ResponseWriter, r *http.Request) {
+	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory, s.sessionManager.sessionDir)
+}
+
+func (s *Server) handleGlobalDispose(w http.ResponseWriter, r *http.Request) {
+	s.deps.Bus.Publish("global.disposed", map[string]any{
+		"timestamp": time.Now().UnixMilli(),
+	})
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *Server) handleEventStream(w http.ResponseWriter, r *http.Request) {
 	StreamEvents(r.Context(), w, s.deps.Bus, "")
 }
