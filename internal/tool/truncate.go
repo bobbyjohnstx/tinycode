@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -13,7 +14,49 @@ const (
 	PreviewHeadLines = 30
 	PreviewTailLines = 20
 	PreviewMaxBytes  = 50 * 1024 // 50KB
+
+	// MaxOutputSize caps the bytes buffered from shell commands and file
+	// reads to prevent OOM when a process produces unbounded output.
+	MaxOutputSize = 10 * 1024 * 1024 // 10MB
 )
+
+// LimitedWriter wraps a bytes.Buffer and silently discards writes after max
+// bytes. It always returns len(p), nil so exec.Cmd does not abort on write
+// errors.
+type LimitedWriter struct {
+	buf      bytes.Buffer
+	max      int
+	Overflow bool
+}
+
+// NewLimitedWriter returns a LimitedWriter that captures at most max bytes.
+func NewLimitedWriter(max int) *LimitedWriter {
+	return &LimitedWriter{max: max}
+}
+
+func (w *LimitedWriter) Write(p []byte) (int, error) {
+	if w.Overflow {
+		return len(p), nil
+	}
+	remaining := w.max - w.buf.Len()
+	if remaining <= 0 {
+		w.Overflow = true
+		return len(p), nil
+	}
+	if len(p) > remaining {
+		w.buf.Write(p[:remaining])
+		w.Overflow = true
+		return len(p), nil
+	}
+	w.buf.Write(p)
+	return len(p), nil
+}
+
+// Bytes returns the captured bytes.
+func (w *LimitedWriter) Bytes() []byte { return w.buf.Bytes() }
+
+// Len returns the number of captured bytes.
+func (w *LimitedWriter) Len() int { return w.buf.Len() }
 
 type TruncDirection int
 

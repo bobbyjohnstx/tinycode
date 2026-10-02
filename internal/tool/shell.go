@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -123,9 +122,10 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	cmd := exec.CommandContext(cmdCtx, "sh", "-c", args.Command)
 	cmd.Dir = tc.Directory
 
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdout := NewLimitedWriter(MaxOutputSize)
+	stderr := NewLimitedWriter(MaxOutputSize)
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
 	slog.Info("shell exec", "command", args.Command, "dir", tc.Directory, "timeout", timeout)
 	start := time.Now()
@@ -135,6 +135,9 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	var output strings.Builder
 	if stdout.Len() > 0 {
 		output.Write(stdout.Bytes())
+		if stdout.Overflow {
+			output.WriteString("\n[output truncated at 10MB]")
+		}
 	}
 	if stderr.Len() > 0 {
 		if output.Len() > 0 {
@@ -142,6 +145,9 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		}
 		output.WriteString("STDERR:\n")
 		output.Write(stderr.Bytes())
+		if stderr.Overflow {
+			output.WriteString("\n[stderr truncated at 10MB]")
+		}
 	}
 
 	if err != nil {

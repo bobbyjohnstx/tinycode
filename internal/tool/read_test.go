@@ -1,6 +1,11 @@
 package tool
 
 import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +30,35 @@ func TestIsBinaryData(t *testing.T) {
 				t.Errorf("isBinaryData() = %v, want %v", got, tt.wantBi)
 			}
 		})
+	}
+}
+
+func TestExecuteRead_TruncatesLargeFile(t *testing.T) {
+	dir := t.TempDir()
+	largePath := filepath.Join(dir, "large.txt")
+
+	// Create a file larger than MaxOutputSize (10MB).
+	f, err := os.Create(largePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chunk := strings.Repeat("A", 1024*1024) + "\n" // ~1MB line
+	for i := 0; i < 11; i++ {
+		f.WriteString(chunk)
+	}
+	f.Close()
+
+	args := readArgs{FilePath: largePath}
+	raw, _ := json.Marshal(args)
+	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+
+	result, err := executeRead(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(result.Output, "[file truncated at 10MB") {
+		t.Error("expected truncation notice in output")
 	}
 }
 

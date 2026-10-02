@@ -1,6 +1,11 @@
 package tool
 
-import "testing"
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestCheckSecretAccess_DetectsStandaloneDotEnv(t *testing.T) {
 	// Standalone .env preceded by space — the original \b\.env\b regex missed this
@@ -128,5 +133,28 @@ func TestIsDestructive_IgnoresSafeCommands(t *testing.T) {
 		if IsDestructive(cmd) {
 			t.Errorf("expected safe for %q", cmd)
 		}
+	}
+}
+
+func TestExecuteShell_TruncatesLargeOutput(t *testing.T) {
+	// Generate >10MB of stdout via a shell command.
+	// yes produces infinite output; head caps it at 11MB.
+	args := shellArgs{Command: "yes AAAA | head -c 11534336"}
+	raw, _ := json.Marshal(args)
+
+	tc := &Context{Directory: t.TempDir(), ReadFiles: make(map[string]bool)}
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(result.Output, "[output truncated at 10MB]") {
+		t.Error("expected truncation notice in output")
+	}
+
+	// The captured content should be at most MaxOutputSize + truncation message.
+	maxExpected := MaxOutputSize + 200 // allow for the truncation message itself
+	if len(result.Output) > maxExpected {
+		t.Errorf("output size %d exceeds expected cap %d", len(result.Output), maxExpected)
 	}
 }
