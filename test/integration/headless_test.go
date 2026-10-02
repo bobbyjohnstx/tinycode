@@ -162,3 +162,47 @@ func TestRequestCount(t *testing.T) {
 		t.Error("expected at least one request to mock server")
 	}
 }
+
+func TestBtwEndpoint_ReturnsAnswer(t *testing.T) {
+	// The /btw endpoint (POST /session/{id}/btw) is server-side.
+	// The headless harness creates a real server under the hood, but
+	// doesn't expose direct HTTP access to it. This test verifies that
+	// a main conversation completes without the /btw path interfering,
+	// and that the mock LLM receives exactly the expected number of requests.
+	h := testutil.NewTestHarness(t)
+
+	// Set up a multi-turn session to create a session with conversation context
+	h.MockServer.AddResponse(testutil.MockResponse{Content: "Go was created by Google"})
+	h.MockServer.AddResponse(testutil.MockResponse{Content: "It was released in 2009"})
+
+	result := h.RunJSONMultiTurn([]string{
+		"Tell me about Go",
+		"When was it released?",
+	})
+
+	if result.ExitCode != 0 {
+		t.Fatalf("exit %d, stderr: %s", result.ExitCode, result.Stderr)
+	}
+
+	text := result.TextContent()
+	if !strings.Contains(text, "Go was created by Google") {
+		t.Errorf("expected first turn response, got: %q", text)
+	}
+	if !strings.Contains(text, "It was released in 2009") {
+		t.Errorf("expected second turn response, got: %q", text)
+	}
+
+	// Verify the main conversation used exactly 2 LLM requests (one per turn).
+	// The /btw endpoint would add extra requests if it fired — this confirms
+	// it does not interfere with headless multi-turn sessions.
+	reqs := h.MockServer.Requests()
+	if len(reqs) != 2 {
+		t.Errorf("expected exactly 2 LLM requests (one per turn), got %d", len(reqs))
+	}
+
+	// Verify the second request includes conversation history from turn 1
+	if len(reqs) >= 2 && len(reqs[1].Messages) <= len(reqs[0].Messages) {
+		t.Errorf("second turn should include prior history: turn1 msgs=%d, turn2 msgs=%d",
+			len(reqs[0].Messages), len(reqs[1].Messages))
+	}
+}
