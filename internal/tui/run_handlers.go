@@ -12,6 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	commandpkg "github.com/bobbyjohnstx/tinycode/internal/command"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
@@ -74,6 +75,23 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c.handleGoalCommand(trimmed)
 	}
 
+	// /work-loop <task> is an alias for /goal <task>.
+	if strings.HasPrefix(trimmed, "/work-loop ") {
+		task := strings.TrimSpace(strings.TrimPrefix(trimmed, "/work-loop"))
+		if task != "" {
+			var cmds []tea.Cmd
+			toastCmd := c.app.toast.Show("Tip: /work-loop is now /goal", false)
+			if toastCmd != nil {
+				cmds = append(cmds, toastCmd)
+			}
+			_, goalCmd := c.handleGoalCommand("/goal " + task)
+			if goalCmd != nil {
+				cmds = append(cmds, goalCmd)
+			}
+			return c, tea.Batch(cmds...)
+		}
+	}
+
 	if strings.HasPrefix(trimmed, "/rename ") {
 		newTitle := strings.TrimSpace(strings.TrimPrefix(trimmed, "/rename"))
 		if newTitle == "" || newTitle == "New Session" {
@@ -130,7 +148,7 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 
 	// Parse /ask <agent> <message> into agent override + stripped text.
 	// Slash command expansion (/swarm, /work-loop) happens server-side
-	// in processPrompt so the display text stays short in the chat.
+	// in processPrompt for headless mode; /work-loop is intercepted above in TUI.
 	promptText, agentOverride := parseAskCommand(msg.Content)
 	slog.Info("parsed prompt", "text", promptText, "agent", agentOverride, "knownAgents", len(c.app.state.Agents))
 
@@ -558,21 +576,20 @@ func (c *connectedApp) handleGoalCommand(trimmed string) (tea.Model, tea.Cmd) {
 		return c, cmd
 	}
 
-	command, ok := session.ResolveGoalCommand(arg)
-	if !ok {
-		model, cmd := c.app.Update(ToastMsg{
-			Text:    fmt.Sprintf("Unrecognized goal condition: %s", arg),
-			IsError: true,
-		})
-		c.updateApp(model)
-		return c, cmd
-	}
+	command, _ := session.ResolveGoalCommand(arg)
 
 	c.goal = newGoalTracker(arg, command)
 	c.app.status.SetGoal(c.goal.statusText())
 
 	// Send the initial prompt to the model.
-	promptText := fmt.Sprintf("Goal: %s\nCommand to verify: `%s`\nPlease work toward making this command succeed (exit code 0). Start by running it to see the current state.", arg, command)
+	var promptText string
+	if command != "" {
+		// Shell-verifiable goal: tell the model which command to make pass.
+		promptText = fmt.Sprintf("Goal: %s\nCommand to verify: `%s`\nPlease work toward making this command succeed (exit code 0). Start by running it to see the current state.", arg, command)
+	} else {
+		// Self-assessment goal: use work-loop prefix for autonomous iteration.
+		promptText = commandpkg.WorkLoopPrefix + arg
+	}
 	pi := c.buildPromptInput(promptText)
 
 	spinCmd := c.app.status.SetWorking(true)

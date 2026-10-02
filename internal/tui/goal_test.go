@@ -73,3 +73,31 @@ func TestNewGoalTracker_Defaults(t *testing.T) {
 		t.Errorf("Iteration = %d, want 0", g.state.Iteration)
 	}
 }
+
+func TestNewGoalTracker_EmptyCommand(t *testing.T) {
+	g := newGoalTracker("make the auth module work", "")
+	if g.state.Text != "make the auth module work" {
+		t.Errorf("Text = %q, want %q", g.state.Text, "make the auth module work")
+	}
+	if g.state.Command != "" {
+		t.Errorf("Command = %q, want empty", g.state.Command)
+	}
+	if g.state.MaxIterations != 10 {
+		t.Errorf("MaxIterations = %d, want 10", g.state.MaxIterations)
+	}
+}
+
+func TestGoalTracker_EmptyCommandSkipsShellEval(t *testing.T) {
+	// A goalTracker with empty command should not produce a shell evaluation.
+	// The evaluateGoal function requires a non-empty command; an empty command
+	// means the model self-assesses via its prompt protocol.
+	g := newGoalTracker("fix the auth module", "")
+	if g.state.Command != "" {
+		t.Fatal("expected empty command for self-assessment goal")
+	}
+	// Iteration tracking still works.
+	g.state.Iteration++
+	if g.state.Iteration != 1 {
+		t.Errorf("Iteration = %d, want 1", g.state.Iteration)
+	}
+}

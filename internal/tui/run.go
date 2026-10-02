@@ -429,10 +429,25 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// When the active session transitions from working to idle and a goal is active,
 		// trigger goal evaluation.
 		if msg.SessionID == c.app.state.ActiveSession && !msg.Status.Working && c.goal != nil {
-			dir := c.app.status.Cwd()
 			c.goal.state.Iteration++
 			c.app.status.SetGoal(c.goal.statusText())
-			cmds = append(cmds, evaluateGoal(c.goal.state.Command, dir, c.goal.state.Iteration))
+			if c.goal.state.Command != "" {
+				// Shell-verifiable goal: run the command to check.
+				dir := c.app.status.Cwd()
+				cmds = append(cmds, evaluateGoal(c.goal.state.Command, dir, c.goal.state.Iteration))
+			}
+			// Self-assessment goals (empty command): the model self-terminates
+			// via its prompt protocol. Iteration counter and max-iterations
+			// cap still apply — they are checked on the next idle transition.
+			if c.goal.state.Command == "" && c.goal.state.Iteration >= c.goal.state.MaxIterations {
+				text := fmt.Sprintf("Goal not met after %d iterations: %s", c.goal.state.MaxIterations, c.goal.state.Text)
+				c.goal = nil
+				c.app.status.SetGoal("")
+				toastCmd := c.app.toast.Show(text, true)
+				if toastCmd != nil {
+					cmds = append(cmds, toastCmd)
+				}
+			}
 		}
 		return c, tea.Batch(cmds...)
 
