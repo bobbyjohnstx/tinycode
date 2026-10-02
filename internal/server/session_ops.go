@@ -85,7 +85,7 @@ func (sm *SessionManager) subscribePrompts() {
 				SessionID: sessionID,
 				Model: &promptModel{
 					ProviderID: info.Model.ProviderID,
-					ModelID:    info.Model.ID,
+					ModelID:    info.Model.ModelID,
 				},
 				Agent: info.Agent,
 				Parts: []promptPart{{Type: "text", Text: content}},

@@ -255,7 +255,7 @@ func resolveRunSession(db *storage.DB, sessionIDFlag string, cont bool, title, d
 			Directory: dir,
 			Title:     title,
 			Agent:     agentName,
-			Model:     &session.ModelRef{ID: modelID, ProviderID: providerID},
+			Model:     &session.ModelRef{ModelID: modelID, ProviderID: providerID},
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error creating session: %v\n", err)

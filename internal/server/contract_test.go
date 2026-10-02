@@ -731,7 +731,7 @@ func TestContract_SessionInfo_TimeShape(t *testing.T) {
 // serializes "id" field (not legacy "modelID").
 func TestContract_ModelRef_SerializesIDNotModelID(t *testing.T) {
 	ref := session.ModelRef{
-		ID:         "claude-opus-4",
+		ModelID:    "claude-opus-4",
 		ProviderID: "anthropic",
 	}
 	data := marshalOrFail(t, ref)
@@ -765,8 +765,8 @@ func TestContract_ModelRef_DeserializesBothIDAndModelID(t *testing.T) {
 			if err := json.Unmarshal([]byte(tt.input), &ref); err != nil {
 				t.Fatalf("unmarshal error: %v", err)
 			}
-			if ref.ID != tt.expected {
-				t.Errorf("expected ID %q, got %q", tt.expected, ref.ID)
+			if ref.ModelID != tt.expected {
+				t.Errorf("expected ModelID %q, got %q", tt.expected, ref.ModelID)
 			}
 		})
 	}
@@ -830,7 +830,7 @@ func TestContract_SessionInfo_HasRequiredSDKFields(t *testing.T) {
 		Version:   "1",
 		Agent:     "build",
 		Model: &session.ModelRef{
-			ID:         "test-model",
+			ModelID:    "test-model",
 			ProviderID: "test-provider",
 		},
 		CreatedAt: time.Now(),

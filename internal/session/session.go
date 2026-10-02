@@ -43,7 +43,7 @@ func (i *Info) SyncTime() {
 }
 
 type ModelRef struct {
-	ID         string `json:"id"`
+	ModelID    string `json:"id"`
 	ProviderID string `json:"providerID"`
 	Variant    string `json:"variant,omitempty"`
 }
@@ -59,8 +59,8 @@ func (m *ModelRef) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*m = ModelRef(raw.alias)
-	if m.ID == "" {
-		m.ID = raw.LegacyID
+	if m.ModelID == "" {
+		m.ModelID = raw.LegacyID
 	}
 	return nil
 }

@@ -49,16 +49,16 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 	if modelRef == nil {
 		models := sm.registry.ListModels()
 		if len(models) > 0 {
-			modelRef = &session.ModelRef{ProviderID: models[0].ProviderID, ID: models[0].ID}
+			modelRef = &session.ModelRef{ProviderID: models[0].ProviderID, ModelID: models[0].ID}
 		}
 	}
 	if modelRef == nil {
 		return "", fmt.Errorf("no model available for subagent — configure a default model")
 	}
 
-	model, err := sm.registry.GetModel(modelRef.ProviderID, modelRef.ID)
+	model, err := sm.registry.GetModel(modelRef.ProviderID, modelRef.ModelID)
 	if err != nil {
-		return "", fmt.Errorf("cannot resolve model %s/%s for subagent: %w", modelRef.ProviderID, modelRef.ID, err)
+		return "", fmt.Errorf("cannot resolve model %s/%s for subagent: %w", modelRef.ProviderID, modelRef.ModelID, err)
 	}
 
 	// Build system prompt for the subagent.

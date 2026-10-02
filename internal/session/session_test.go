@@ -121,7 +121,7 @@ func TestStore_CreateWithModel(t *testing.T) {
 	info, err := store.Create(CreateInput{
 		ProjectID: "proj-1",
 		Directory: "/tmp",
-		Model:     &ModelRef{ID: "llama3.2", ProviderID: "ollama"},
+		Model:     &ModelRef{ModelID: "llama3.2", ProviderID: "ollama"},
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -134,8 +134,8 @@ func TestStore_CreateWithModel(t *testing.T) {
 	if got.Model == nil {
 		t.Fatal("expected model to be set")
 	}
-	if got.Model.ID != "llama3.2" {
-		t.Errorf("expected model id 'llama3.2', got %q", got.Model.ID)
+	if got.Model.ModelID != "llama3.2" {
+		t.Errorf("expected model id 'llama3.2', got %q", got.Model.ModelID)
 	}
 }
 
@@ -894,7 +894,7 @@ func TestDefaultTitle(t *testing.T) {
 }
 
 func TestModelRef_MarshalJSON_UsesID(t *testing.T) {
-	m := ModelRef{ID: "x", ProviderID: "p"}
+	m := ModelRef{ModelID: "x", ProviderID: "p"}
 	data, err := json.Marshal(m)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -915,8 +915,8 @@ func TestModelRef_UnmarshalJSON_LegacyModelID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if m.ID != "x" {
-		t.Errorf("expected ID=x from legacy modelID, got %q", m.ID)
+	if m.ModelID != "x" {
+		t.Errorf("expected ModelID=x from legacy modelID, got %q", m.ModelID)
 	}
 	if m.ProviderID != "p" {
 		t.Errorf("expected ProviderID=p, got %q", m.ProviderID)
@@ -929,8 +929,8 @@ func TestModelRef_UnmarshalJSON_NewID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if m.ID != "y" {
-		t.Errorf("expected ID=y, got %q", m.ID)
+	if m.ModelID != "y" {
+		t.Errorf("expected ModelID=y, got %q", m.ModelID)
 	}
 }
 
@@ -940,8 +940,8 @@ func TestModelRef_UnmarshalJSON_NewIDTakesPrecedence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if m.ID != "new" {
-		t.Errorf("expected id to take precedence over modelID, got %q", m.ID)
+	if m.ModelID != "new" {
+		t.Errorf("expected id to take precedence over modelID, got %q", m.ModelID)
 	}
 }
 

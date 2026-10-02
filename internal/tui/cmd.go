@@ -525,7 +525,7 @@ func sessionInfoFromAPI(s session.Info) SessionInfo {
 		UpdatedAt: s.Time.Updated,
 	}
 	if s.Model != nil {
-		si.ModelID = s.Model.ID
+		si.ModelID = s.Model.ModelID
 		si.ProviderID = s.Model.ProviderID
 	}
 	return si
