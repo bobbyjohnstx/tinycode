@@ -64,11 +64,17 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 	if a.debugDlg.IsVisible() {
 		var cmd tea.Cmd
 		a.debugDlg, cmd = a.debugDlg.Update(msg)
+		if !a.debugDlg.IsVisible() {
+			a.setFocus(FocusPrompt)
+		}
 		return a, cmd
 	}
 	if a.privacyDlg.IsVisible() {
 		var cmd tea.Cmd
 		a.privacyDlg, cmd = a.privacyDlg.Update(msg)
+		if !a.privacyDlg.IsVisible() {
+			a.setFocus(FocusPrompt)
+		}
 		return a, cmd
 	}
 	if a.copyDlg.IsVisible() {
