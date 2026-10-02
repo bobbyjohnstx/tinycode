@@ -69,6 +69,64 @@ func TestLoadOrCreateWebToken_ReadsExisting(t *testing.T) {
 	}
 }
 
+func TestIsLocalhostAddr(t *testing.T) {
+	tests := []struct {
+		host string
+		want bool
+	}{
+		{"127.0.0.1", true},
+		{"::1", true},
+		{"localhost", true},
+		{"0.0.0.0", false},
+		{"192.168.1.1", false},
+		{"10.0.0.1", false},
+		{"example.com", false},
+		{"::", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.host, func(t *testing.T) {
+			if got := isLocalhostAddr(tt.host); got != tt.want {
+				t.Errorf("isLocalhostAddr(%q) = %v, want %v", tt.host, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateNoAuthSafety_LocalhostAllowed(t *testing.T) {
+	for _, host := range []string{"127.0.0.1", "::1", "localhost"} {
+		t.Run(host, func(t *testing.T) {
+			level, err := validateNoAuthSafety(host, false)
+			if err != nil {
+				t.Errorf("expected no error for localhost %q, got %v", host, err)
+			}
+			if level != "" {
+				t.Errorf("expected empty level for localhost, got %q", level)
+			}
+		})
+	}
+}
+
+func TestValidateNoAuthSafety_NonLocalhostBlocked(t *testing.T) {
+	for _, host := range []string{"0.0.0.0", "192.168.1.1", "10.0.0.1"} {
+		t.Run(host, func(t *testing.T) {
+			_, err := validateNoAuthSafety(host, false)
+			if err == nil {
+				t.Errorf("expected error for non-localhost %q, got nil", host)
+			}
+		})
+	}
+}
+
+func TestValidateNoAuthSafety_ForceOverride(t *testing.T) {
+	level, err := validateNoAuthSafety("0.0.0.0", true)
+	if err != nil {
+		t.Errorf("expected no error with force override, got %v", err)
+	}
+	if level != "warn" {
+		t.Errorf("expected warn level with force override, got %q", level)
+	}
+}
+
 func TestInitTooling_SetsJobManager(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

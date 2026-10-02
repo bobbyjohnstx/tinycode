@@ -59,16 +59,17 @@ func runServe() {
 		cfg.Model = flags.model
 	}
 
+	serveCfg := serverConfig(cfg, false)
+
 	serveToken := os.Getenv("TINYCODE_AUTH_TOKEN")
 	if os.Getenv("TINYCODE_NO_AUTH") != "" {
 		serveToken = ""
 		slog.Info("auth disabled via TINYCODE_NO_AUTH")
+		checkNoAuthSafety(serveCfg.Hostname)
 	} else if serveToken == "" {
 		serveToken = generateToken()
 	}
 	slog.Debug("auth token configured")
-
-	serveCfg := serverConfig(cfg, false)
 	serveCfg.Token = serveToken
 	srv := server.New(serveCfg, server.Dependencies{
 		Bus:            b,
@@ -145,16 +146,17 @@ func runWeb() {
 		cfg.Model = flags.model
 	}
 
+	webCfg := serverConfig(cfg, true)
+
 	webToken := os.Getenv("TINYCODE_AUTH_TOKEN")
 	if os.Getenv("TINYCODE_NO_AUTH") != "" {
 		webToken = ""
 		slog.Info("auth disabled via TINYCODE_NO_AUTH")
+		checkNoAuthSafety(webCfg.Hostname)
 	} else if webToken == "" {
 		webToken = loadOrCreateWebToken()
 	}
 	slog.Debug("auth token configured")
-
-	webCfg := serverConfig(cfg, true)
 	webCfg.Token = webToken
 	srv := server.New(webCfg, server.Dependencies{
 		Bus:            b,
