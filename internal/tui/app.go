@@ -107,6 +107,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleMouseMsg(msg)
 	case MessagePartDeltaMsg, MessageUpdatedMsg, MessagePartUpdatedMsg, MessagesLoadedMsg, SubagentCompletedMsg:
 		return a.forwardSSEMessages(msg)
+	case goalFadeMsg:
+		a.status, _ = a.status.Update(msg)
+		a.resize()
+		return a, nil
 	}
 
 	if model, cmd, ok := a.handleStateMsg(msg); ok {
@@ -129,7 +133,7 @@ func (a App) View() string {
 		return "Loading..."
 	}
 
-	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen())
+	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen(), a.status.Height())
 
 	// Show welcome screen when no messages exist yet.
 	var chatView string
@@ -249,7 +253,7 @@ func (a *App) isSessionWorking() bool {
 
 // resize recalculates all component sizes.
 func (a *App) resize() {
-	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen())
+	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen(), a.status.Height())
 
 	a.chat.SetSize(l.chatWidth, l.chatHeight)
 	a.prompt.SetSize(l.promptWidth)
@@ -366,6 +370,7 @@ func (a *App) updateSidebarContext() {
 		Percent:      pct,
 		Cost:         totalCost,
 	})
+	a.status.SetContextPercent(pct)
 }
 
 // activeSessionInfo returns the SessionInfo for the currently active session, or nil.
