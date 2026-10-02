@@ -52,6 +52,12 @@ func Run(ctx context.Context, cfg RunConfig) error {
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("TUI error: %w", err)
 	}
+
+	// Save frecency data on graceful shutdown.
+	if app.app.frecStore != nil {
+		app.app.frecStore.Shutdown()
+	}
+
 	return nil
 }
 
