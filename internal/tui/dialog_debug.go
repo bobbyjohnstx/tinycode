@@ -54,7 +54,7 @@ func (d DebugDialog) Update(msg tea.Msg) (DebugDialog, tea.Cmd) {
 	}
 
 	switch keyMsg.String() {
-	case "esc", "q":
+	case "esc", "q", "ctrl+c", "ctrl+p":
 		d.visible = false
 	case "c":
 		d.visible = false
