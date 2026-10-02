@@ -62,6 +62,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c.handleThinkingCommand(trimmed)
 	}
 
+	if trimmed == "/branch" || strings.HasPrefix(trimmed, "/branch ") {
+		return c.handleBranchCommand(trimmed)
+	}
+
 	if trimmed == "/btw" || strings.HasPrefix(trimmed, "/btw ") {
 		return c.handleBtwCommand(trimmed)
 	}
@@ -444,6 +448,35 @@ func (c *connectedApp) handleShellSessionDone(msg ShellSessionDoneMsg) (tea.Mode
 	model, cmd := c.app.Update(ToastMsg{Text: "Shell session ended", IsError: false})
 	c.updateApp(model)
 	return c, cmd
+}
+
+// handleBranchCommand processes a /branch [name] command.
+func (c *connectedApp) handleBranchCommand(trimmed string) (tea.Model, tea.Cmd) {
+	name := strings.TrimSpace(strings.TrimPrefix(trimmed, "/branch"))
+
+	sessionID := c.app.state.ActiveSession
+	if sessionID == "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "No active session to branch", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	// Auto-generate title if none provided.
+	title := name
+	if title == "" {
+		for _, s := range c.app.state.Sessions {
+			if s.ID == sessionID {
+				title = "branch of " + s.Title
+				break
+			}
+		}
+		if title == "" {
+			title = "branch"
+		}
+	}
+
+	cmd := c.app.toast.Show("Branching conversation...", false)
+	return c, tea.Batch(cmd, branchSession(c.client, sessionID, title))
 }
 
 // handleBtwCommand processes a /btw side question command.

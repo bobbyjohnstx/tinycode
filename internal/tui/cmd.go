@@ -377,6 +377,18 @@ func summarizeSession(client *api.Client, sessionID string) tea.Cmd {
 	}
 }
 
+// branchSession creates a branch of the session via POST /session/{id}/fork.
+func branchSession(client *api.Client, sessionID, title string) tea.Cmd {
+	return func() tea.Msg {
+		info, err := client.BranchSession(sessionID, title)
+		if err != nil {
+			return BranchDoneMsg{Err: err}
+		}
+		si := sessionInfoFromAPI(*info)
+		return BranchDoneMsg{Session: &si}
+	}
+}
+
 // archiveSession archives a session via POST /session/{id}/archive.
 func archiveSession(client *api.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {

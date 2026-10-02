@@ -76,6 +76,12 @@ func Discover(configDir, projectDir string, agentNames []string) []Command {
 func builtinCommands() []Command {
 	return []Command{
 		{
+			Name:        "branch",
+			Description: "Branch conversation -- /branch [name]",
+			Source:      "builtin",
+			Hints:       []string{"$1"},
+		},
+		{
 			Name:        "init",
 			Description: "Guided project setup",
 			Source:      "builtin",

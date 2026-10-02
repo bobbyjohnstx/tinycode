@@ -383,6 +383,7 @@ func (a *App) hasMessages() bool {
 // showPalette opens the command palette with available commands.
 func (a *App) showPalette() {
 	clientNames := map[string]bool{
+		"branch":        true,
 		"connect":       true,
 		"compact":       true,
 		"copy":          true,
@@ -404,6 +405,7 @@ func (a *App) showPalette() {
 		"btw":           true,
 	}
 	items := []PaletteItem{
+		{Label: "branch", Description: "Branch conversation to try a different approach", Value: "branch"},
 		{Label: "compact", Description: "Compact context (summarize session)", Value: "compact"},
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
 		{Label: "copy", Description: "Copy response to clipboard (/copy N for Nth)", Value: "copy"},
@@ -520,6 +522,11 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 			return a.toast.Show("No active session to archive", true), true
 		}
 		return func() tea.Msg { return ArchiveRequestMsg{} }, true
+	case "branch":
+		if a.state.ActiveSession == "" {
+			return a.toast.Show("No active session to branch", true), true
+		}
+		return func() tea.Msg { return BranchRequestMsg{} }, true
 	case "btw":
 		return a.toast.Show("Usage: /btw <question> — ask without polluting context", false), true
 	}
