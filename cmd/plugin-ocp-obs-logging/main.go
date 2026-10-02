@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
-	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/redhat"
+	"github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 type options struct {

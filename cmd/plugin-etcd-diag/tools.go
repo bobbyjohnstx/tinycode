@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/pkg/mustgather"
+	"github.com/bobbyjohnstx/tinycode/pkg/mustgather"
 )
 
 // etcd log patterns

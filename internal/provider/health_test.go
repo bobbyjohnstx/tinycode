@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
 )
 
 func TestProviderRemovedAfterConsecutiveFailures(t *testing.T) {

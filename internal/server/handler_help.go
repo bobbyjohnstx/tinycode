@@ -3,8 +3,8 @@ package server
 import (
 	"net/http"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/command"
-	"github.com/bobbyjohnstx/tinycode-go/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/command"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 )
 
 // HelpKeybinding describes a single keyboard shortcut.

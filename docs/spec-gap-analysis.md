@@ -1,4 +1,4 @@
-# Spec Gap Analysis — tinycode-go vs. tc-spec.md
+# Spec Gap Analysis — tinycode vs. tc-spec.md
 
 **Date:** 2026-09-09
 **Reviewers:** Architect agent, Critic agent (parallel independent reviews)

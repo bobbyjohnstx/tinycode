@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/pkg/mustgather"
-	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+	"github.com/bobbyjohnstx/tinycode/pkg/mustgather"
+	"github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 func TestPluginID(t *testing.T) {

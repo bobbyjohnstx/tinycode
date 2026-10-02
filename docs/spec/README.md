@@ -1,13 +1,13 @@
-# tinycode-go Technical Specification
+# tinycode Technical Specification
 
 Version: 2.0
 Date: 2026-09-11
 
-This specification documents tinycode-go, the Go rewrite of [tinycode](https://github.com/bobbyjohnstx/tinycode). It serves as:
+This specification documents tinycode, the Go rewrite of [tinycode](https://github.com/bobbyjohnstx/tinycode). It serves as:
 
-1. **Contributor reference** — how tinycode-go actually works, with exact constants, thresholds, and formulas
+1. **Contributor reference** — how tinycode actually works, with exact constants, thresholds, and formulas
 2. **Parity tracker** — what's been ported from the TypeScript original vs. what's missing
-3. **Standalone spec** — tinycode-go on its own terms, including Go-only features
+3. **Standalone spec** — tinycode on its own terms, including Go-only features
 
 ## Sections
 
@@ -34,4 +34,4 @@ This specification documents tinycode-go, the Go rewrite of [tinycode](https://g
 
 ## Relationship to TS spec
 
-The TypeScript specification (`tc-spec.md`) documents the original tinycode 1.x implementation. This Go spec documents the 2.0 rewrite. Where behavior differs, this spec is authoritative for tinycode-go. The [not-implemented](16-not-implemented.md) section summarizes TS behaviors that have not been ported.
+The TypeScript specification (`tc-spec.md`) documents the original tinycode 1.x implementation. This Go spec documents the 2.0 rewrite. Where behavior differs, this spec is authoritative for tinycode. The [not-implemented](16-not-implemented.md) section summarizes TS behaviors that have not been ported.

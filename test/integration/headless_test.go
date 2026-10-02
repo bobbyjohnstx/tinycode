@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	testutil "github.com/bobbyjohnstx/tinycode-go/test"
+	testutil "github.com/bobbyjohnstx/tinycode/test"
 )
 
 func TestBasicPrompt(t *testing.T) {

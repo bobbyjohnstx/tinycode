@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 )
 
 // ResolveBinary locates the plugin binary for the given name. It checks, in

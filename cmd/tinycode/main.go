@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	_ "github.com/bobbyjohnstx/tinycode-go/internal/earlyinit"
+	_ "github.com/bobbyjohnstx/tinycode/internal/earlyinit"
 )
 
 var (

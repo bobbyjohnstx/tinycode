@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
+	"github.com/bobbyjohnstx/tinycode/internal/llm"
 )
 
 func TestBuildSystemPrompt_AgentPromptOnly(t *testing.T) {

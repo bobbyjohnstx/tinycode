@@ -1,4 +1,4 @@
-# tinycode-go Technical Specification
+# tinycode Technical Specification
 
 Version: 2.0
 Date: 2026-09-11
@@ -7,7 +7,7 @@ Date: 2026-09-11
 
 ## 1. Overview
 
-tinycode-go is a Go rewrite of [tinycode](https://github.com/bobbyjohnstx/tinycode) (TypeScript). It is a standalone Go binary — a single process embeds the HTTP server (ephemeral port), terminal UI (bubbletea), session management, LLM client, tool execution, and plugin system.
+tinycode is a Go rewrite of [tinycode](https://github.com/bobbyjohnstx/tinycode) (TypeScript). It is a standalone Go binary — a single process embeds the HTTP server (ephemeral port), terminal UI (bubbletea), session management, LLM client, tool execution, and plugin system.
 
 The system manages AI conversation sessions, coordinates tool execution, handles LLM provider discovery, and provides an extensible plugin and skill framework. It is designed to work well with small local models (8B–14B parameters) while scaling gracefully to larger cloud models.
 
@@ -33,8 +33,8 @@ curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.
 brew install bobbyjohnstx/tap/tinycode
 
 # Build from source
-git clone https://github.com/bobbyjohnstx/tinycode-go.git
-cd tinycode-go && make build
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode && make build
 # Binary at dist/tinycode
 ```
 

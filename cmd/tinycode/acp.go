@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/acp"
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/acp"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
 func runACP() {

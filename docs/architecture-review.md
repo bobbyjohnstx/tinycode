@@ -1,4 +1,4 @@
-# Architecture Review — tinycode-go
+# Architecture Review — tinycode
 
 **Date:** 2026-09-08
 **Scope:** All packages in `internal/`, `cmd/`, `pkg/` (110+ non-test source files, 20+ packages)

@@ -4,7 +4,7 @@ Local-first AI coding assistant. Bring any model — single binary, no runtime d
 
 ![tinycode TUI](tinycode-screenshot.png)
 
-[![CI](https://github.com/bobbyjohnstx/tinycode-go/actions/workflows/ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode-go/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## What it is
 
@@ -59,7 +59,7 @@ tinycode also supports:
 
 ```bash
 # Build from source
-git clone https://github.com/bobbyjohnstx/tinycode-go.git && cd tinycode-go
+git clone https://github.com/bobbyjohnstx/tinycode.git && cd tinycode
 make build
 ./dist/tinycode
 

@@ -14,8 +14,8 @@ No C toolchain needed. SQLite is pure Go (`modernc.org/sqlite`), so CGO is not r
 
 ```bash
 # Clone and build
-git clone https://github.com/bobbyjohnstx/tinycode-go.git
-cd tinycode-go
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
 make build
 
 # Run from the build directory
@@ -40,8 +40,8 @@ sudo apt install golang
 # Or download from https://go.dev/dl/ for the latest version
 
 # Clone and build
-git clone https://github.com/bobbyjohnstx/tinycode-go.git
-cd tinycode-go
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
 make build
 
 # Run
@@ -127,7 +127,7 @@ tinycode models
 Pull the latest source and rebuild:
 
 ```bash
-cd tinycode-go
+cd tinycode
 git pull
 make build
 ```

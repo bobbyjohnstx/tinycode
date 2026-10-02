@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/tui/render"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/render"
 )
 
 func testRenderer() *render.MarkdownRenderer {

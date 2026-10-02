@@ -14,7 +14,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+	"github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 // bufferedToolCall holds a tool call record waiting to be flushed to the DB.

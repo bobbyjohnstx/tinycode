@@ -9,10 +9,10 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/config"
-	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
-	"github.com/bobbyjohnstx/tinycode-go/internal/skill"
-	"github.com/bobbyjohnstx/tinycode-go/internal/storage"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/skill"
+	"github.com/bobbyjohnstx/tinycode/internal/storage"
 )
 
 const (

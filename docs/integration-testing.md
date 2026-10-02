@@ -1,6 +1,6 @@
 # Integration Testing
 
-tinycode-go has two integration test suites: **headless** (run-mode) and **TUI** (tmux-based). Both live in `script/` and are shell scripts that exercise the built binary end-to-end against a real Ollama model.
+tinycode has two integration test suites: **headless** (run-mode) and **TUI** (tmux-based). Both live in `script/` and are shell scripts that exercise the built binary end-to-end against a real Ollama model.
 
 ## Prerequisites
 

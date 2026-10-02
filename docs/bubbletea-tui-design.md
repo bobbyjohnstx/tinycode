@@ -231,4 +231,4 @@ go test ./internal/tui/... -count=1
 
 ### Side-by-side TUI comparison
 
-`script/tui-compare.sh` runs TS tinycode and Go tinycode-go in a split tmux session for visual comparison. See the script for commands (`launch`, `send`, `capture`, `diff`, `kill`).
+`script/tui-compare.sh` runs TS tinycode and Go tinycode in a split tmux session for visual comparison. See the script for commands (`launch`, `send`, `capture`, `diff`, `kill`).

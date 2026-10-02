@@ -11,13 +11,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
-	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
-	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
-	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	"github.com/bobbyjohnstx/tinycode/internal/llm"
+	"github.com/bobbyjohnstx/tinycode/internal/mcp"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
 // runRun implements the headless CLI runner. Helper functions are in run_helpers.go.

@@ -1,6 +1,6 @@
 # 16. Not Implemented (TS Features)
 
-Features present in the TypeScript tinycode that are not implemented in tinycode-go. This section summarizes the TS behavior for each, to serve as a reference for future porting.
+Features present in the TypeScript tinycode that are not implemented in tinycode. This section summarizes the TS behavior for each, to serve as a reference for future porting.
 
 ---
 

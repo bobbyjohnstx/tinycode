@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+	"github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 // sensitivePatterns defines regex patterns for secrets and sensitive data.

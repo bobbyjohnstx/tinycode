@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
 // handleKeyMsg handles all keyboard input: leader keys, overlay routing, and global keys.

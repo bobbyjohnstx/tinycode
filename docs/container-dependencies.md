@@ -1,6 +1,6 @@
 # External Tool Dependencies
 
-External CLI tools that tinycode-go shells out to at runtime. Required for containerized deployments.
+External CLI tools that tinycode shells out to at runtime. Required for containerized deployments.
 
 ## Core (always needed)
 

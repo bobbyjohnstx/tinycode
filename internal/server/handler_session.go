@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	id2 "github.com/bobbyjohnstx/tinycode-go/internal/id"
-	"github.com/bobbyjohnstx/tinycode-go/internal/project"
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
-	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
+	id2 "github.com/bobbyjohnstx/tinycode/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/project"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
 func (s *Server) sessionStore() *session.Store {

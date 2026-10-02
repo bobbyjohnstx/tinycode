@@ -1,6 +1,6 @@
 # 3. Event System
 
-tinycode-go uses a multi-layer event system: an internal bus for inter-component communication, SSE for client streaming, and LLM streaming events for model responses.
+tinycode uses a multi-layer event system: an internal bus for inter-component communication, SSE for client streaming, and LLM streaming events for model responses.
 
 ## 3.1 Internal Event Bus
 

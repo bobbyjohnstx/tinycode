@@ -10,7 +10,7 @@ set -euo pipefail
 VERSION="${1:?Usage: $0 <version> (e.g., v1.0.0)}"
 GITEA_URL="${GITEA_URL:-http://localhost:3000}"
 GITEA_OWNER="${GITEA_OWNER:-bjohns}"
-GITEA_REPO="${GITEA_REPO:-tinycode-go}"
+GITEA_REPO="${GITEA_REPO:-tinycode}"
 GITEA_TOKEN="${GITEA_TOKEN:-}"
 
 if [ -z "$GITEA_TOKEN" ]; then
@@ -79,7 +79,7 @@ cat "$DIST/checksums.txt"
 echo ""
 echo "Creating tag ${VERSION}..."
 git tag -a "$VERSION" -m "Release ${VERSION}"
-git push tinycode-go "$VERSION"
+git push tinycode "$VERSION"
 
 # Create Gitea release
 echo ""

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
+	"github.com/bobbyjohnstx/tinycode/internal/llm"
 )
 
 // SystemPromptInput contains all inputs needed to build the system prompt.

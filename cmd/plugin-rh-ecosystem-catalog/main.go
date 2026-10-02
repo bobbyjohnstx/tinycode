@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+	"github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 const pyxisBase = "https://catalog.redhat.com/api/containers/v1"

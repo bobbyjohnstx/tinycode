@@ -10,8 +10,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
-	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
 // handlePromptSubmission processes a PromptSubmittedMsg: parses slash/ask

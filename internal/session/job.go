@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
 )
 
 // JobStatus represents the current state of a background job.

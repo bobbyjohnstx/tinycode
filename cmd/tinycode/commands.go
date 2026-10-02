@@ -12,12 +12,12 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/config"
-	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
-	"github.com/bobbyjohnstx/tinycode-go/internal/project"
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
-	"github.com/bobbyjohnstx/tinycode-go/internal/storage"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/project"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/storage"
 )
 
 func runModels() {

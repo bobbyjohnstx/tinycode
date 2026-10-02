@@ -18,7 +18,7 @@ Plugins are standalone Go binaries that communicate with tinycode over JSON-RPC 
 The public SDK lives in `pkg/plugin/`. Import it as:
 
 ```go
-import "github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+import "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 ```
 
 The SDK provides three core types:
@@ -40,7 +40,7 @@ import (
     "encoding/json"
     "fmt"
 
-    "github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+    "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 func main() {

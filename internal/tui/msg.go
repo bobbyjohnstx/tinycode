@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
+import "github.com/bobbyjohnstx/tinycode/internal/tui/api"
 
 // --- SSE event messages ---
 

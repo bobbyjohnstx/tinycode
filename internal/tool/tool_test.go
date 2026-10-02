@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 func TestTruncate_NoOp(t *testing.T) {

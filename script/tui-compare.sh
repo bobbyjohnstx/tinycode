@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Side-by-side TUI comparison: TS tinycode (left) vs Go tinycode-go (right).
+# Side-by-side TUI comparison: TS tinycode (left) vs Go tinycode (right).
 #
 # Usage:
 #   ./script/tui-compare.sh                    # launch both, interactive
@@ -16,7 +16,7 @@ set -euo pipefail
 
 SESSION="tui-compare"
 TS_BIN="/Users/bjohns/projects/tinycode/packages/tinycode/dist/tinycode-darwin-arm64/bin/tinycode"
-GO_BIN="/Users/bjohns/projects/tinycode-go/dist/tinycode"
+GO_BIN="/Users/bjohns/projects/tinycode/dist/tinycode"
 WORK_DIR="/tmp/tui-compare-workdir"
 CAPTURE_DIR="/tmp/tui-compare-captures"
 
@@ -39,14 +39,14 @@ cmd_launch() {
 
     # Label panes
     tmux select-pane -t "$SESSION:0.0" -T "TS tinycode"
-    tmux select-pane -t "$SESSION:0.1" -T "Go tinycode-go"
+    tmux select-pane -t "$SESSION:0.1" -T "Go tinycode"
 
     # Equal split
     tmux select-layout -t "$SESSION" even-horizontal
 
     echo "Launched tmux session: $SESSION"
     echo "  Left pane:  TS tinycode"
-    echo "  Right pane: Go tinycode-go"
+    echo "  Right pane: Go tinycode"
     echo ""
     echo "Commands:"
     echo "  tmux attach -t $SESSION              # view side-by-side"
@@ -100,7 +100,7 @@ cmd_diff() {
     echo "=== TS tinycode ==="
     cat "$ts"
     echo ""
-    echo "=== Go tinycode-go ==="
+    echo "=== Go tinycode ==="
     cat "$go"
     echo ""
     echo "=== Differences ==="

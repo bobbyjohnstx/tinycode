@@ -3,7 +3,7 @@ package bus
 import (
 	"sync"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/id"
 )
 
 const defaultCapacity = 4096

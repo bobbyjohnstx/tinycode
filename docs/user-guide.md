@@ -40,8 +40,8 @@ ollama serve            # Start the server (if not already running)
 ### Build and run
 
 ```bash
-git clone https://github.com/bobbyjohnstx/tinycode-go.git
-cd tinycode-go
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
 make build
 ./dist/tinycode
 ```

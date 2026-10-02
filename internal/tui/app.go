@@ -9,8 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/config"
-	"github.com/bobbyjohnstx/tinycode-go/internal/storage"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/storage"
 )
 
 // App is the root bubbletea model composing all TUI components.

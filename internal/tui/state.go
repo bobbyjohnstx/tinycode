@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
+import "github.com/bobbyjohnstx/tinycode/internal/tui/api"
 
 // Route identifies which top-level view is active.
 type Route int

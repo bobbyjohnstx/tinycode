@@ -1,4 +1,4 @@
-# Harness Research Analysis — What tinycode-go Can Learn
+# Harness Research Analysis — What tinycode Can Learn
 
 Research conducted 2026-09-28. Based on three sources analyzing agent harness design.
 

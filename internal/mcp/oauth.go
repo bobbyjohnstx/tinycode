@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 )
 
 const (

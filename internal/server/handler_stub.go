@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
-	"github.com/bobbyjohnstx/tinycode-go/internal/command"
-	"github.com/bobbyjohnstx/tinycode-go/internal/config"
-	"github.com/bobbyjohnstx/tinycode-go/internal/project"
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
-	"github.com/bobbyjohnstx/tinycode-go/internal/skill"
-	"github.com/bobbyjohnstx/tinycode-go/internal/vcs"
+	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	"github.com/bobbyjohnstx/tinycode/internal/command"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/project"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/skill"
+	"github.com/bobbyjohnstx/tinycode/internal/vcs"
 )
 
 func (s *Server) handleGlobalEventStream(w http.ResponseWriter, r *http.Request) {

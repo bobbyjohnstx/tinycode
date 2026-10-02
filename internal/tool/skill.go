@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/skill"
+	"github.com/bobbyjohnstx/tinycode/internal/skill"
 )
 
 type skillArgs struct {

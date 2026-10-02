@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/pkg/mustgather"
+	"github.com/bobbyjohnstx/tinycode/pkg/mustgather"
 )
 
 func toolClusterVersion(root *mustgather.Root) (string, error) {

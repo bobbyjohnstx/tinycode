@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
 // sessionErrorPayload builds a structured error object matching the SDK contract:

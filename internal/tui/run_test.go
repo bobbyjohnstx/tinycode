@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
 func TestBuildPromptInput_IncludesModel(t *testing.T) {

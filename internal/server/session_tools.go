@@ -3,11 +3,11 @@ package server
 import (
 	"log/slog"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
-	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
-	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/llm"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
 // ToolSnapshot returns a point-in-time snapshot of the tool registry that is

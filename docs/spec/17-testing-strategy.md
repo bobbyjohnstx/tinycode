@@ -1,6 +1,6 @@
 # 17. Automated Testing Strategy
 
-This document defines the automated testing approach for tinycode-go, combining unit tests, headless run-mode integration tests, and tmux-based TUI tests.
+This document defines the automated testing approach for tinycode, combining unit tests, headless run-mode integration tests, and tmux-based TUI tests.
 
 ## 17.1 Testing Tiers
 

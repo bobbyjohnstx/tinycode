@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/id"
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 const (

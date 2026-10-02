@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 RESET='\033[0m'
 
 # Configuration
-REPO="${TINYCODE_REPO:-bobbyjohnstx/tinycode-go}"
+REPO="${TINYCODE_REPO:-bobbyjohnstx/tinycode}"
 BASE_URL="${TINYCODE_BASE_URL:-https://github.com}"
 API_URL="${TINYCODE_API_URL:-https://api.github.com}"
 INSTALL_DIR="${TINYCODE_INSTALL_DIR:-$HOME/.local/bin}"

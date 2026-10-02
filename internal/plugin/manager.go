@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/id"
 )
 
 var ErrPluginNotFound = errors.New("plugin not found")

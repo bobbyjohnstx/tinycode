@@ -588,7 +588,7 @@ import (
     "context"
     "encoding/json"
 
-    "github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+    "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 func main() {

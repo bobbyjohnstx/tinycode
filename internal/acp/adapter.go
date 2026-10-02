@@ -3,7 +3,7 @@ package acp
 import (
 	"context"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
 type StoreAdapter struct {

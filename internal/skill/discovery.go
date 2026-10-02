@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/frontmatter"
+	"github.com/bobbyjohnstx/tinycode/internal/frontmatter"
 )
 
 // Skill represents a discovered skill definition.

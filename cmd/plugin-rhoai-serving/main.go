@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
-	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/redhat"
+	"github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 const defaultSandboxAPIBaseURL = "https://api.sandbox.devshift.net/api/v1"

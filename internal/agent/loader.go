@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 // LoadFromDirectory loads agent definitions from .md files in dir.

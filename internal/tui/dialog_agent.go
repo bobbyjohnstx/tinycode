@@ -6,7 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
 // AgentDialogOpenMsg signals the agent dialog should open.

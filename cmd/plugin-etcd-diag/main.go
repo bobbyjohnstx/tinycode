@@ -8,8 +8,8 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"github.com/bobbyjohnstx/tinycode-go/pkg/mustgather"
-	"github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+	"github.com/bobbyjohnstx/tinycode/pkg/mustgather"
+	"github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 type state struct {

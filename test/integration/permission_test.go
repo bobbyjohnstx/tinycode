@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	testutil "github.com/bobbyjohnstx/tinycode-go/test"
+	testutil "github.com/bobbyjohnstx/tinycode/test"
 )
 
 func TestPermission_SkipPerms_AllowsExecution(t *testing.T) {

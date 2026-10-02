@@ -9,15 +9,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
-	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
-	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
-	"github.com/bobbyjohnstx/tinycode-go/internal/project"
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
-	"github.com/bobbyjohnstx/tinycode-go/internal/server"
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
-	"github.com/bobbyjohnstx/tinycode-go/internal/tui"
+	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	"github.com/bobbyjohnstx/tinycode/internal/mcp"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/project"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/server"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/tui"
 )
 
 func runTUI(args []string) {

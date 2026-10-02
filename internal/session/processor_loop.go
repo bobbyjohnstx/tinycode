@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/id"
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
 
 // runLLMStep publishes step events, calls the LLM, and returns the result.

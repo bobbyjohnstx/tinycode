@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
 func TestTaskTool_Foreground_WithRunner(t *testing.T) {

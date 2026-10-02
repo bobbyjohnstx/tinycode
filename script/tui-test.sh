@@ -1383,7 +1383,7 @@ test_T46() {
     # We must type /quit and restart, or use tmux to write the file.
     # Since the session runs inside tinycode, the simplest approach is
     # to ask the model to read a well-known file (CLAUDE.md in the project).
-    send_text "$session" "Read the file /Users/bjohns/projects/tinycode-go/CLAUDE.md and tell me what the first heading says."
+    send_text "$session" "Read the file /Users/bjohns/projects/tinycode/CLAUDE.md and tell me what the first heading says."
 
     # Wait for the model to process. The local model can be very fast
     # (completing within seconds), so check for activity indicators OR

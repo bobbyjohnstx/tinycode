@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/id"
 )
 
 type questionArgs struct {

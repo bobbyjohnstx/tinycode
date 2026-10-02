@@ -1,6 +1,6 @@
 # Using tinycode with Red Hat OpenShift AI (RHOAI)
 
-Deploy an LLM on RHOAI with vLLM serving runtime and connect tinycode-go to it as an OpenAI-compatible provider.
+Deploy an LLM on RHOAI with vLLM serving runtime and connect tinycode to it as an OpenAI-compatible provider.
 
 ## Prerequisites
 

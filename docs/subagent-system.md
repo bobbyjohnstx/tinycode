@@ -1,6 +1,6 @@
 # Subagent System Design
 
-Native goroutine-based multi-agent orchestration — tinycode-go's primary differentiator from the TypeScript original.
+Native goroutine-based multi-agent orchestration — tinycode's primary differentiator from the TypeScript original.
 
 ## Build Agent Delegation
 

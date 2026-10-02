@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/agent"
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
-	"github.com/bobbyjohnstx/tinycode-go/internal/config"
-	"github.com/bobbyjohnstx/tinycode-go/internal/llm"
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
-	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
+	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/llm"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
 // stubLLMClient returns a fixed text response with usage data.

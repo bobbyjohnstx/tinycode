@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
 
 func (s *Server) handleProviderList(w http.ResponseWriter, r *http.Request) {

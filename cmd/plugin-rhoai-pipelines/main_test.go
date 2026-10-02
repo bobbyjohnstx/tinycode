@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/redhat"
+	"github.com/bobbyjohnstx/tinycode/internal/redhat"
 )
 
 func TestPluginID(t *testing.T) {

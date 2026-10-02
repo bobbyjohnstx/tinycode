@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
 func TestReadNextPrompt_TextMode(t *testing.T) {

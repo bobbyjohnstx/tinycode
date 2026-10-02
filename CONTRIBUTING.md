@@ -77,7 +77,7 @@ refactor(session): extract compaction logic into separate function
 
 ## Pull Request Process
 
-Please open a [GitHub Issue](https://github.com/bobbyjohnstx/tinycode-go/issues) before submitting a PR for anything beyond a typo or documentation fix. Code PRs without a prior issue may be closed.
+Please open a [GitHub Issue](https://github.com/bobbyjohnstx/tinycode/issues) before submitting a PR for anything beyond a typo or documentation fix. Code PRs without a prior issue may be closed.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-feature`)
@@ -101,4 +101,4 @@ No CLA or DCO is required to contribute.
 
 ## Questions?
 
-Open a [GitHub Issue](https://github.com/bobbyjohnstx/tinycode-go/issues) for bugs or feature requests. For security vulnerabilities, see [SECURITY.md](SECURITY.md).
+Open a [GitHub Issue](https://github.com/bobbyjohnstx/tinycode/issues) for bugs or feature requests. For security vulnerabilities, see [SECURITY.md](SECURITY.md).

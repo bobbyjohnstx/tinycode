@@ -10,10 +10,10 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/mcp"
-	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
-	"github.com/bobbyjohnstx/tinycode-go/internal/provider"
-	"github.com/bobbyjohnstx/tinycode-go/internal/server"
+	"github.com/bobbyjohnstx/tinycode/internal/mcp"
+	"github.com/bobbyjohnstx/tinycode/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/server"
 )
 
 func runServe() {

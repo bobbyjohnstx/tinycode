@@ -18,8 +18,8 @@ Step-by-step walkthrough to get tinycode running and productive in 10 minutes.
 ### From source
 
 ```bash
-git clone https://github.com/bobbyjohnstx/tinycode-go.git
-cd tinycode-go
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
 make build
 ```
 

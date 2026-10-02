@@ -101,7 +101,7 @@ import (
     "os/exec"
     "runtime"
 
-    "github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+    "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 func main() {

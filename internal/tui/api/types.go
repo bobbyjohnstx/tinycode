@@ -1,6 +1,6 @@
 package api
 
-import "github.com/bobbyjohnstx/tinycode-go/internal/session"
+import "github.com/bobbyjohnstx/tinycode/internal/session"
 
 // PromptInput is the request body for POST /session/{id}/prompt_async.
 type PromptInput struct {

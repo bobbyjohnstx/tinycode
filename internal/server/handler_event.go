@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
 )
 
 func (s *Server) handleEventStream(w http.ResponseWriter, r *http.Request) {

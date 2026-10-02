@@ -1,6 +1,6 @@
 # Agent Orchestration Reference
 
-How Claude Code decides when to execute directly vs spawn subagents, and patterns for tinycode-go's own multi-agent system.
+How Claude Code decides when to execute directly vs spawn subagents, and patterns for tinycode's own multi-agent system.
 
 ## Decision Tree
 
@@ -44,7 +44,7 @@ How Claude Code decides when to execute directly vs spawn subagents, and pattern
 - Forks bypass concurrency limits but can't spawn their own subagents
 - When limits hit, fail loudly — don't retry silently
 
-## Applying to tinycode-go
+## Applying to tinycode
 
 Five levers to expose: **direct**, **fork** (inherit context), **fresh** (clean start), **parallel dispatch**, and **scripted workflows**.
 

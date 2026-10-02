@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 )
 
 func (s *Server) pluginManager() *plugin.Manager {

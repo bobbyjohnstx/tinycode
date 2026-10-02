@@ -138,7 +138,7 @@ No manual endpoint registration. No config file wrestling. Auto-probes model met
 
 ## Built on Production-Tested Architecture
 
-tinycode-go is a ground-up Go rewrite of the original TypeScript codebase (13,700+ commits), built on proven patterns:
+tinycode is a ground-up Go rewrite of the original TypeScript codebase (13,700+ commits), built on proven patterns:
 
 - **net/http + chi router** — Standard Go HTTP server with middleware
 - **bubbletea** — Elm-architecture TUI framework (Charmbracelet)
@@ -160,8 +160,8 @@ tinycode serve                              # headless API server
 tinycode acp --cwd /path/to/project         # Connect from VS Code via ACP
 
 # Build from source
-git clone https://github.com/bobbyjohnstx/tinycode-go.git
-cd tinycode-go
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
 make build
 ./dist/tinycode
 

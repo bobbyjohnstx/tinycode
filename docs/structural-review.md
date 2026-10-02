@@ -1,4 +1,4 @@
-# Structural Review: tinycode-go
+# Structural Review: tinycode
 
 ## 1. Project Layout and Conventions
 
@@ -16,7 +16,7 @@ This separation is clean and follows the "internal" convention correctly. The `p
 - Total Go lines across `internal/`: ~46,838 lines
 
 ### 1.3 Package Naming
-All internal packages use lowercase names matching Go conventions: `tui`, `server`, `session`, `llm`, `provider`, etc. The module path is `github.com/bobbyjohnstx/tinycode-go`.
+All internal packages use lowercase names matching Go conventions: `tui`, `server`, `session`, `llm`, `provider`, etc. The module path is `github.com/bobbyjohnstx/tinycode`.
 
 ---
 

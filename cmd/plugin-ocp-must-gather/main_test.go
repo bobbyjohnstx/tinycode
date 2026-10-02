@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/pkg/mustgather"
+	"github.com/bobbyjohnstx/tinycode/pkg/mustgather"
 )
 
 func TestPluginID(t *testing.T) {

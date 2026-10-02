@@ -3,7 +3,7 @@ package tui
 import (
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/tui/api"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
 func TestParsePartView_UnifiedToolPart(t *testing.T) {

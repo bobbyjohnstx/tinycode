@@ -1,6 +1,6 @@
 # TUI Layout Redesign Options
 
-Four layout concepts for tinycode-go's TUI, each distinctly different from the current opencode-derived layout.
+Four layout concepts for tinycode's TUI, each distinctly different from the current opencode-derived layout.
 
 ## Current Layout (opencode-style)
 
@@ -24,7 +24,7 @@ Right sidebar (30 cols), chat in center, prompt + 2-line status bar at bottom.
 │                                                                                │ Agent: Build                  │
 │                                                                                │ Model: claude-4-opus          │
 │                                                                                │                               │
-│                                                                                │ ~/projects/tinycode-go        │
+│                                                                                │ ~/projects/tinycode        │
 │                                                                                │ • tinycode 0.1.0              │
 ├────────────────────────────────────────────────────────────────────────────────┤                               │
 │                                                                                │                               │
@@ -34,7 +34,7 @@ Right sidebar (30 cols), chat in center, prompt + 2-line status bar at bottom.
 │  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│                               │
 ├────────────────────────────────────────────────────────────────────────────────┴───────────────────────────────┤
 │ ·······█▓▒·· esc interrupt                                              tab agents  ctrl+p commands          │
-│ ~/projects/tinycode-go                                                        claude-4-opus  anthropic        │
+│ ~/projects/tinycode                                                        claude-4-opus  anthropic        │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -64,7 +64,7 @@ Chat gets full terminal width at all times.
 │  I've updated line 42 to expect `45` instead of `50`.                                                         │
 │                                                                                                               │
 │    $ bash  go test ./internal/tui/... -count=1                                                 done           │
-│    PASS ok  github.com/bobbyjohnstx/tinycode-go/internal/tui  0.234s                                         │
+│    PASS ok  github.com/bobbyjohnstx/tinycode/internal/tui  0.234s                                         │
 │                                                                                                               │
 │  All tests pass now. The issue was a stale expected value after the context                                    │
 │  calculation was updated in the previous commit.                                                               │
@@ -79,7 +79,7 @@ Chat gets full terminal width at all times.
 │  ┃                                                                                                            │
 │  ┃  Build · claude-4-opus · anthropic                                                                         │
 │  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│
-│  ·······█▓▒·· working                                    ~/projects/tinycode-go     tab ctrl+p ctrl+x        │
+│  ·······█▓▒·· working                                    ~/projects/tinycode     tab ctrl+p ctrl+x        │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -128,7 +128,7 @@ diffs, and shell output. Separates "what was said" from "what was done."
 │  ┃ _                                                                                                          │
 │  ┃  Build · claude-4-opus · anthropic              ██████████░░░░░░░░░░ 45%  12k  $0.02                      │
 │  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│
-│  ·······█▓▒·· working                         ~/projects/tinycode-go          tab ctrl+p ctrl+x o sessions   │
+│  ·······█▓▒·· working                         ~/projects/tinycode          tab ctrl+p ctrl+x o sessions   │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -167,7 +167,7 @@ Everything else accessed through overlays.
 │  I've updated line 42 to expect `45` instead of `50`.                                                         │
 │                                                                                                               │
 │    $ bash  go test ./internal/tui/... -count=1                                                 done           │
-│    PASS ok  github.com/bobbyjohnstx/tinycode-go/internal/tui  0.234s                                         │
+│    PASS ok  github.com/bobbyjohnstx/tinycode/internal/tui  0.234s                                         │
 │                                                                                                               │
 │  All tests pass now. The issue was a stale expected value after the context                                    │
 │  calculation was updated in the previous commit.                                                               │
@@ -182,7 +182,7 @@ Everything else accessed through overlays.
 │╶─────────────────────────────────────────────────────────────────────────────────────────────────────────────╴│
 │  ┃ _                                                                                                          │
 │  ┃                                                                                                            │
-│  ┃  Build · claude-4-opus · anthropic · ~/projects/tinycode-go                                                │
+│  ┃  Build · claude-4-opus · anthropic · ~/projects/tinycode                                                │
 │  ╹                                                                                                            │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -234,7 +234,7 @@ spinner. Always visible even at 80 cols. VS Code activity-bar energy.
 │    Refactor  │  ┃                                                                                             │
 │              │  ┃  Build · claude-4-opus · anthropic                                                          │
 │  ·······█▓▒  │  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│
-│ ·tinycode·   │  ~/projects/tinycode-go                                         tab ctrl+p ctrl+x            │
+│ ·tinycode·   │  ~/projects/tinycode                                         tab ctrl+p ctrl+x            │
 └──────────────┴────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 

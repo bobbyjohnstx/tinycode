@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/frontmatter"
-	"github.com/bobbyjohnstx/tinycode-go/internal/skill"
+	"github.com/bobbyjohnstx/tinycode/internal/frontmatter"
+	"github.com/bobbyjohnstx/tinycode/internal/skill"
 )
 
 // Command represents a discoverable slash command.

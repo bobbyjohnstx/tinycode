@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 func defaultPerms() permission.Ruleset {

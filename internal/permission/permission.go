@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
-	"github.com/bobbyjohnstx/tinycode-go/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/id"
 )
 
 // sameSessionFamily returns true if two session IDs belong to the same

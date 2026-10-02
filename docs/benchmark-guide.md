@@ -15,8 +15,8 @@ Ollama must be running before you start: `ollama serve` (or the Ollama desktop a
 ## Setup
 
 ```bash
-git clone https://github.com/bobbyjohnstx/tinycode-go.git
-cd tinycode-go
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
 make build
 ```
 

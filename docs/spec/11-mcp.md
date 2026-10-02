@@ -2,7 +2,7 @@
 
 Package: `internal/mcp/`
 
-MCP provides a standardized protocol for connecting to external tool servers. tinycode-go acts as an MCP client, connecting to one or more MCP servers that expose tools via JSON-RPC 2.0.
+MCP provides a standardized protocol for connecting to external tool servers. tinycode acts as an MCP client, connecting to one or more MCP servers that expose tools via JSON-RPC 2.0.
 
 ## 11.1 Service
 

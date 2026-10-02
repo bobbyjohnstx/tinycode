@@ -1,4 +1,4 @@
-module github.com/bobbyjohnstx/tinycode-go
+module github.com/bobbyjohnstx/tinycode
 
 go 1.27.1
 

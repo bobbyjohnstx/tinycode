@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 func TestExtractAllowedPerms_WildcardDenyOverridesWildcardAllow(t *testing.T) {

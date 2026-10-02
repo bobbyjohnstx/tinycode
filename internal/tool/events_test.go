@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 func collectEvents(sub *bus.Subscription, count int, timeout time.Duration) []bus.Event {

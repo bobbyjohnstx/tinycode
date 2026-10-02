@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
 )
 
 func TestDiscoverLMStudio_RegistersModelsFromAPI(t *testing.T) {

@@ -47,7 +47,7 @@ changelog:
 release:
   gitea:
     owner: bjohns
-    name: tinycode-go
+    name: tinycode
   draft: false
   prerelease: auto
   name_template: "v{{.Version}}"

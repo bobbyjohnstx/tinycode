@@ -2,7 +2,7 @@
 
 Packages: `internal/llm/`, `internal/provider/`
 
-tinycode-go uses an OpenAI-compatible API client to communicate with all LLM providers. Provider discovery runs in the background, polling local endpoints and registering models.
+tinycode uses an OpenAI-compatible API client to communicate with all LLM providers. Provider discovery runs in the background, polling local endpoints and registering models.
 
 ## 6.1 LLM Client
 

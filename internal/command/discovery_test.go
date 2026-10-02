@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/skill"
+	"github.com/bobbyjohnstx/tinycode/internal/skill"
 )
 
 func TestBuiltinCommands_Count(t *testing.T) {

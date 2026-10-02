@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/tool"
+	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
 // RegisterTools registers all LSP tools on the tool registry.

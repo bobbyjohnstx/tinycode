@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
 // Client wraps net/http for all tinycode server API endpoints.

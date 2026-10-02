@@ -11,7 +11,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/tui/render"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/render"
 )
 
 var (

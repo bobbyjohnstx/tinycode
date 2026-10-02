@@ -1,6 +1,6 @@
-# Repository Migration: tinycode-go → tinycode
+# Repository Migration: tinycode → tinycode
 
-Guide for replacing the original TypeScript `tinycode` repo with the Go rewrite `tinycode-go`.
+Guide for replacing the original TypeScript `tinycode` repo with the Go rewrite `tinycode`.
 
 ## Overview
 
@@ -32,7 +32,7 @@ git push origin v1-final
 
 ### 3. Rename the Go repo
 
-1. Go to `http://localhost:3000/bjohns/tinycode-go/settings`
+1. Go to `http://localhost:3000/bjohns/tinycode/settings`
 2. Change repository name to `tinycode`
 3. Gitea will set up redirects from the old URL automatically
 
@@ -41,17 +41,17 @@ git push origin v1-final
 The module path in `go.mod` determines all import paths. This is the biggest change.
 
 ```bash
-cd ~/projects/tinycode-go  # still the local directory name
+cd ~/projects/tinycode  # still the local directory name
 
 # Update go.mod module path
-sed -i '' 's|github.com/bobbyjohnstx/tinycode-go|github.com/bobbyjohnstx/tinycode|g' go.mod
+sed -i '' 's|github.com/bobbyjohnstx/tinycode|github.com/bobbyjohnstx/tinycode|g' go.mod
 
 # Update all Go import paths
 find . -name '*.go' -not -path './vendor/*' -not -path './.claude/*' -not -path './node_modules/*' \
-  -exec sed -i '' 's|github.com/bobbyjohnstx/tinycode-go|github.com/bobbyjohnstx/tinycode|g' {} +
+  -exec sed -i '' 's|github.com/bobbyjohnstx/tinycode|github.com/bobbyjohnstx/tinycode|g' {} +
 
 # Verify no old references remain
-grep -r "tinycode-go" --include="*.go" . | grep -v ".claude/" | grep -v "node_modules/"
+grep -r "tinycode" --include="*.go" . | grep -v ".claude/" | grep -v "node_modules/"
 # Should return nothing (or only comments/docs)
 ```
 
@@ -59,7 +59,7 @@ grep -r "tinycode-go" --include="*.go" . | grep -v ".claude/" | grep -v "node_mo
 
 ```bash
 # Makefile, scripts, configs
-sed -i '' 's|tinycode-go|tinycode|g' \
+sed -i '' 's|tinycode|tinycode|g' \
   Makefile \
   install.sh \
   script/release.sh \
@@ -67,7 +67,7 @@ sed -i '' 's|tinycode-go|tinycode|g' \
   CLAUDE.md
 
 # Verify
-grep -r "tinycode-go" \
+grep -r "tinycode" \
   Makefile install.sh script/release.sh .goreleaser.yml CLAUDE.md
 ```
 
@@ -75,17 +75,17 @@ grep -r "tinycode-go" \
 
 ```bash
 # Update the remote URL
-git remote set-url tinycode-go http://localhost:3000/bjohns/tinycode.git
+git remote set-url tinycode http://localhost:3000/bjohns/tinycode.git
 
 # Rename the remote for clarity
-git remote rename tinycode-go origin
+git remote rename tinycode origin
 ```
 
 ### 7. Rename local directory (optional)
 
 ```bash
 cd ~/projects
-mv tinycode-go tinycode
+mv tinycode tinycode
 cd tinycode
 ```
 
@@ -103,7 +103,7 @@ make build
 
 ```bash
 git add -A
-git commit -m "chore: rename module from tinycode-go to tinycode
+git commit -m "chore: rename module from tinycode to tinycode
 
 Updated go.mod module path, all Go import paths, Makefile, scripts,
 and configuration files."
@@ -140,7 +140,7 @@ This TypeScript version is archived and no longer maintained.
 ## Rollback
 
 If something goes wrong:
-1. Rename `tinycode` back to `tinycode-go` on Gitea
+1. Rename `tinycode` back to `tinycode` on Gitea
 2. Rename `tinycode-ts` back to `tinycode` on Gitea
 3. Revert the go.mod/import path commit: `git revert HEAD`
 
@@ -155,4 +155,4 @@ If something goes wrong:
 - [ ] Old repo has archive notice or redirect
 - [ ] CI/CD pipelines updated (if any)
 - [ ] Container/operator repos updated to reference new name (#56, #57)
-- [ ] Any documentation referencing `tinycode-go` updated
+- [ ] Any documentation referencing `tinycode` updated

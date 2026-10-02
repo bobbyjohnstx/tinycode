@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 //go:embed defaults/*.md defaults/*.txt

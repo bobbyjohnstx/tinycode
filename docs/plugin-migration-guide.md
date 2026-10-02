@@ -8,7 +8,7 @@ Guide for converting TypeScript tinycode plugins to Go plugins using the `pkg/pl
 |--------|-----------------|---------|
 | Runtime | Node.js / Bun | Native binary |
 | Package format | npm package | Go binary |
-| SDK import | `@tinycode/plugin` or `tinycode-plugin` | `github.com/bobbyjohnstx/tinycode-go/pkg/plugin` |
+| SDK import | `@tinycode/plugin` or `tinycode-plugin` | `github.com/bobbyjohnstx/tinycode/pkg/plugin` |
 | Entry point | `export default { server: ... }` | `plugin.Run(plugin.Plugin{...})` |
 | Tool definition | `tool({ ... })` helper | `plugin.ToolDef{}` struct |
 | Parameter schema | Zod (`tool.schema.string()`) | JSON Schema (`map[string]any`) |
@@ -43,7 +43,7 @@ export default {
 ```go
 package main
 
-import "github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+import "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 
 func main() {
     plugin.Run(plugin.Plugin{
@@ -167,7 +167,7 @@ The reduced surface is intentional -- Go plugins run as separate processes and d
 ```bash
 mkdir my-plugin && cd my-plugin
 go mod init github.com/example/tinycode-plugin-my-plugin
-go get github.com/bobbyjohnstx/tinycode-go/pkg/plugin
+go get github.com/bobbyjohnstx/tinycode/pkg/plugin
 ```
 
 ### 2. Translate the plugin definition
@@ -177,7 +177,7 @@ Start with the `main()` function calling `plugin.Run()`:
 ```go
 package main
 
-import "github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+import "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 
 func main() {
     plugin.Run(plugin.Plugin{
@@ -305,7 +305,7 @@ import (
     "os/exec"
     "runtime"
 
-    "github.com/bobbyjohnstx/tinycode-go/pkg/plugin"
+    "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
 type notifyArgs struct {

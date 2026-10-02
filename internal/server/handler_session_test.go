@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bobbyjohnstx/tinycode-go/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
 // --- Shell Direct Execution Tests ---

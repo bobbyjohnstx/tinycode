@@ -23,8 +23,8 @@ tinycode run "fix the bug"  # non-interactive single prompt
 tinycode run --multi-turn   # multi-turn mode for scripts
 
 # Build from source
-git clone https://github.com/bobbyjohnstx/tinycode-go.git
-cd tinycode-go
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
 make build
 ./dist/tinycode             # TUI against current directory
 ./dist/tinycode serve       # headless API server
