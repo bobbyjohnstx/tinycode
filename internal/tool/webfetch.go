@@ -22,6 +22,15 @@ const (
 
 var errSSRFBlocked = errors.New("blocked: URL resolves to private/internal network address")
 
+// blockedHeaders prevents the LLM from overriding security-sensitive headers.
+var blockedHeaders = map[string]bool{
+	"authorization":       true,
+	"cookie":              true,
+	"set-cookie":          true,
+	"proxy-authorization": true,
+	"x-api-key":           true,
+}
+
 // ssrfBlockedPrefixes lists the CIDR ranges that must never be reached by webfetch.
 var ssrfBlockedPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("127.0.0.0/8"),    // loopback
@@ -227,6 +236,9 @@ func executeWebFetch(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 	}
 
 	for k, v := range args.Headers {
+		if blockedHeaders[strings.ToLower(k)] {
+			continue
+		}
 		req.Header.Set(k, v)
 	}
 
