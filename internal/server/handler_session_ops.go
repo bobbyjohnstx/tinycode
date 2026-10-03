@@ -220,7 +220,15 @@ func (s *Server) handleSessionTodo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSessionDiff(w http.ResponseWriter, r *http.Request) {
-	diff, err := vcs.GitDiff(s.config.Directory)
+	dir := s.config.Directory
+	if id := r.PathValue("id"); id != "" {
+		store := s.sessionStore()
+		if info, err := store.Get(id); err == nil && info.Directory != "" {
+			dir = info.Directory
+		}
+	}
+
+	diff, err := vcs.GitDiff(dir)
 	if err != nil {
 		respondJSON(w, http.StatusOK, map[string]any{
 			"diff":    "",
