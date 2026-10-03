@@ -154,7 +154,7 @@ func (c *AnthropicClient) readSSE(ctx context.Context, body io.ReadCloser, ch ch
 	defer close(ch)
 	defer body.Close()
 
-	lines := make(chan string)
+	lines := make(chan string, 1)
 	scanDone := make(chan error, 1)
 	go func() {
 		defer close(lines)
@@ -401,6 +401,12 @@ func resolveContentPartsAnthropic(parts []ContentPart) []map[string]any {
 					"media_type": cp.MediaType,
 					"data":       cp.ImageData,
 				},
+			})
+		default:
+			slog.Debug("unsupported content part type, passing as text", "type", cp.Type)
+			result = append(result, map[string]any{
+				"type": "text",
+				"text": fmt.Sprintf("[%s: %s]", cp.Type, cp.Text),
 			})
 		}
 	}
