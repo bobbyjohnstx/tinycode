@@ -191,11 +191,19 @@ func (r *ShellHookRunner) Hooks() map[string][]config.HookConfig {
 	return r.hooks
 }
 
+// shellQuote wraps s in POSIX single quotes, escaping any internal single
+// quotes with the '\'' idiom. This prevents shell metacharacter injection
+// when substituting untrusted values into sh -c commands.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 // substituteVars replaces $VAR placeholders in the command string.
+// All values are shell-quoted to prevent command injection.
 func substituteVars(command string, vars map[string]string) string {
 	result := command
 	for k, v := range vars {
-		result = strings.ReplaceAll(result, "$"+k, v)
+		result = strings.ReplaceAll(result, "$"+k, shellQuote(v))
 	}
 	return result
 }

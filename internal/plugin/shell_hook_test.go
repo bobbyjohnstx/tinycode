@@ -97,9 +97,9 @@ func TestSubstituteVars(t *testing.T) {
 		vars    map[string]string
 		want    string
 	}{
-		{"echo $TOOL", map[string]string{"TOOL": "bash"}, "echo bash"},
-		{"echo $SESSION_ID $TOOL", map[string]string{"SESSION_ID": "ses_1", "TOOL": "write"}, "echo ses_1 write"},
-		{"echo $FILE", map[string]string{"FILE": "/tmp/test.go"}, "echo /tmp/test.go"},
+		{"echo $TOOL", map[string]string{"TOOL": "bash"}, "echo 'bash'"},
+		{"echo $SESSION_ID $TOOL", map[string]string{"SESSION_ID": "ses_1", "TOOL": "write"}, "echo 'ses_1' 'write'"},
+		{"echo $FILE", map[string]string{"FILE": "/tmp/test.go"}, "echo '/tmp/test.go'"},
 		{"echo $MISSING", map[string]string{}, "echo $MISSING"},
 		{"no vars", nil, "no vars"},
 	}
@@ -109,6 +109,34 @@ func TestSubstituteVars(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("substituteVars(%q, %v) = %q, want %q", tt.command, tt.vars, got, tt.want)
 		}
+	}
+}
+
+func TestShellQuote(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"simple string", "hello", "'hello'"},
+		{"empty string", "", "''"},
+		{"command substitution", "$(rm -rf /)", "'$(rm -rf /)'"},
+		{"backticks", "`curl evil.com`", "'`curl evil.com`'"},
+		{"semicolon and pipe", "foo; rm -rf / | cat /etc/passwd", "'foo; rm -rf / | cat /etc/passwd'"},
+		{"newlines", "line1\nline2", "'line1\nline2'"},
+		{"single quotes", "it's a test", "'it'\\''s a test'"},
+		{"multiple single quotes", "a'b'c", "'a'\\''b'\\''c'"},
+		{"double quotes", `key="value"`, `'key="value"'`},
+		{"json payload", `{"tool":"bash","args":["rm -rf /"]}`, `'{"tool":"bash","args":["rm -rf /"]}'`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := shellQuote(tt.input)
+			if got != tt.want {
+				t.Errorf("shellQuote(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }
 
