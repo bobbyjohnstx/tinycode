@@ -188,12 +188,20 @@ func (db *DB) migrate() error {
 		}
 
 		slog.Info("applying migration", "name", name)
-		if _, err := db.Exec(string(content)); err != nil {
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("starting transaction for migration %s: %w", name, err)
+		}
+		if _, err := tx.Exec(string(content)); err != nil {
+			tx.Rollback()
 			return fmt.Errorf("applying migration %s: %w", name, err)
 		}
-
-		if _, err := db.Exec("INSERT INTO _migrations (name) VALUES (?)", name); err != nil {
+		if _, err := tx.Exec("INSERT INTO _migrations (name) VALUES (?)", name); err != nil {
+			tx.Rollback()
 			return fmt.Errorf("recording migration %s: %w", name, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("committing migration %s: %w", name, err)
 		}
 	}
 
