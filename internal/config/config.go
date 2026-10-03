@@ -363,6 +363,9 @@ func mergeScalarFields(result, src *Info) {
 	if src.AutoApprove != nil {
 		result.AutoApprove = src.AutoApprove
 	}
+	if src.Theme != "" {
+		result.Theme = src.Theme
+	}
 	if len(src.ScopedModels) > 0 {
 		result.ScopedModels = src.ScopedModels
 	}
@@ -439,7 +442,7 @@ func mergeCollectionFields(result, src *Info) {
 			result.Hooks = make(map[string][]HookConfig)
 		}
 		for k, v := range src.Hooks {
-			result.Hooks[k] = v
+			result.Hooks[k] = append(result.Hooks[k], v...)
 		}
 	}
 }
