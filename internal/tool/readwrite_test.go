@@ -14,7 +14,7 @@ func TestReadRecordsFile(t *testing.T) {
 	path := filepath.Join(dir, "test.txt")
 	os.WriteFile(path, []byte("hello\n"), 0644)
 
-	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
 	result, err := executeRead(context.Background(), tc, mustJSON(t, readArgs{FilePath: path}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -22,7 +22,7 @@ func TestReadRecordsFile(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("unexpected tool error: %s", result.Output)
 	}
-	if !tc.ReadFiles[path] {
+	if !tc.ReadFiles.Has(path) {
 		t.Error("expected ReadFiles to record the file after read")
 	}
 }
@@ -32,7 +32,7 @@ func TestEditRecordsFile(t *testing.T) {
 	path := filepath.Join(dir, "test.txt")
 	os.WriteFile(path, []byte("foo bar baz"), 0644)
 
-	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
 	result, err := executeEdit(context.Background(), tc, mustJSON(t, editArgs{
 		FilePath:  path,
 		OldString: "bar",
@@ -44,7 +44,7 @@ func TestEditRecordsFile(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("unexpected tool error: %s", result.Output)
 	}
-	if !tc.ReadFiles[path] {
+	if !tc.ReadFiles.Has(path) {
 		t.Error("expected ReadFiles to record the file after edit")
 	}
 }
@@ -53,7 +53,7 @@ func TestWriteNewFileNoWarning(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "new.txt")
 
-	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
 	result, err := executeWrite(context.Background(), tc, mustJSON(t, writeArgs{
 		FilePath: path,
 		Content:  "hello world",
@@ -74,7 +74,7 @@ func TestWriteExistingUnreadFileWarning(t *testing.T) {
 	path := filepath.Join(dir, "existing.txt")
 	os.WriteFile(path, []byte("original content"), 0644)
 
-	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
 	result, err := executeWrite(context.Background(), tc, mustJSON(t, writeArgs{
 		FilePath: path,
 		Content:  "overwritten",
@@ -98,9 +98,9 @@ func TestWriteExistingReadFileNoWarning(t *testing.T) {
 	path := filepath.Join(dir, "existing.txt")
 	os.WriteFile(path, []byte("original content"), 0644)
 
-	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
 	// Simulate having read the file.
-	tc.ReadFiles[path] = true
+	tc.ReadFiles.Mark(path)
 
 	result, err := executeWrite(context.Background(), tc, mustJSON(t, writeArgs{
 		FilePath: path,

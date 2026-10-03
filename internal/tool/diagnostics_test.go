@@ -79,7 +79,7 @@ func TestDiagnostics_ValidGoFile(t *testing.T) {
 	// go vet needs a go.mod to work on a directory
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n\ngo 1.21\n"), 0644)
 
-	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
 	result, err := executeDiagnostics(context.Background(), tc, mustJSON(t, diagnosticsArgs{FilePath: path}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -98,7 +98,7 @@ func TestDiagnostics_UnknownExtension(t *testing.T) {
 	path := filepath.Join(dir, "data.xyz")
 	os.WriteFile(path, []byte("some data"), 0644)
 
-	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
 	result, err := executeDiagnostics(context.Background(), tc, mustJSON(t, diagnosticsArgs{FilePath: path}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -124,7 +124,7 @@ func TestDiagnostics_Timeout(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // immediately canceled
 
-	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
 	result, err := executeDiagnostics(ctx, tc, mustJSON(t, diagnosticsArgs{FilePath: path}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

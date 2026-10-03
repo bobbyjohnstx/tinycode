@@ -8,10 +8,9 @@ import (
 )
 
 func newFindingsContext() *Context {
-	findings := make([]Finding, 0)
 	return &Context{
 		SessionID: "test-session",
-		Findings:  &findings,
+		Findings:  NewSafeFindings(),
 	}
 }
 
@@ -42,8 +41,8 @@ func TestReportFindings_ValidInput(t *testing.T) {
 	if !strings.Contains(result.Output, "high effort level") {
 		t.Errorf("expected effort level in output, got: %s", result.Output)
 	}
-	if len(*tc.Findings) != 2 {
-		t.Errorf("expected 2 stored findings, got %d", len(*tc.Findings))
+	if tc.Findings.Len() != 2 {
+		t.Errorf("expected 2 stored findings, got %d", tc.Findings.Len())
 	}
 }
 
@@ -163,11 +162,12 @@ func TestReportFindings_Accumulates(t *testing.T) {
 		t.Errorf("unexpected error: %s", result.Output)
 	}
 
-	if len(*tc.Findings) != 3 {
-		t.Errorf("expected 3 accumulated findings, got %d", len(*tc.Findings))
+	if tc.Findings.Len() != 3 {
+		t.Errorf("expected 3 accumulated findings, got %d", tc.Findings.Len())
 	}
-	if (*tc.Findings)[0].Summary != "first" {
-		t.Errorf("expected first finding preserved, got: %s", (*tc.Findings)[0].Summary)
+	all := tc.Findings.All()
+	if all[0].Summary != "first" {
+		t.Errorf("expected first finding preserved, got: %s", all[0].Summary)
 	}
 }
 

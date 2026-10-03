@@ -168,7 +168,7 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		sb.WriteString(fmt.Sprintf("\n[file truncated at 10MB, total size %d bytes]\n", info.Size()))
 	}
 
-	tc.ReadFiles[path] = true
+	tc.ReadFiles.Mark(path)
 
 	return &ExecuteResult{Output: sb.String()}, nil
 }
