@@ -411,6 +411,7 @@ func (a *App) showPalette() {
 		"compact":       true,
 		"copy":          true,
 		"diff":          true,
+		"effort":        true,
 		"export":        true,
 		"export-html":   true,
 		"theme":         true,
@@ -436,6 +437,7 @@ func (a *App) showPalette() {
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
 		{Label: "copy", Description: "Copy response to clipboard (/copy N for Nth)", Value: "copy"},
 		{Label: "diff", Description: "Show uncommitted changes", Value: "diff"},
+		{Label: "effort", Description: "Set reasoning depth (low/medium/high/max)", Value: "effort"},
 		{Label: "export", Description: "Export session as Markdown", Value: "export"},
 		{Label: "export-html", Description: "Export session as HTML", Value: "export-html"},
 		{Label: "theme", Description: "Change color theme", Value: "theme"},
@@ -568,6 +570,12 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return func() tea.Msg { return BranchRequestMsg{} }, true
 	case "btw":
 		return a.toast.Show("Usage: /btw <question> — ask without polluting context", false), true
+	case "effort":
+		current := a.state.EffortLevel
+		if current == "" {
+			current = "medium"
+		}
+		return a.toast.Show(fmt.Sprintf("Effort level: %s (use /effort low|medium|high|max)", current), false), true
 	case "goal":
 		return a.toast.Show("Usage: /goal <condition> — autonomous execution until condition met", false), true
 	case "rewind":

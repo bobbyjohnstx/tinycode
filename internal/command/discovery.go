@@ -119,6 +119,12 @@ func builtinCommands() []Command {
 			Hints:       []string{},
 		},
 		{
+			Name:        "effort",
+			Description: "Set reasoning depth -- /effort [low|medium|high|max]",
+			Source:      "builtin",
+			Hints:       []string{"$1"},
+		},
+		{
 			Name:        "btw",
 			Description: "Side question without polluting context -- /btw <question>",
 			Source:      "builtin",

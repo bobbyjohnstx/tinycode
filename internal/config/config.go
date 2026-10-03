@@ -43,6 +43,7 @@ type Info struct {
 	Watcher           []string                   `json:"watcher,omitempty"`
 	LSP               *LSPConfig                 `json:"lsp,omitempty"`
 	Theme             string                     `json:"theme,omitempty"`
+	Effort            string                     `json:"effort,omitempty"`
 	AutoApprove       *bool                      `json:"autoApprove,omitempty"`
 	ScopedModels      []string                   `json:"scopedModels,omitempty"`
 	Hooks             map[string][]HookConfig    `json:"hooks,omitempty"`
@@ -355,6 +356,9 @@ func mergeScalarFields(result, src *Info) {
 	}
 	if src.LSP != nil {
 		result.LSP = src.LSP
+	}
+	if src.Effort != "" {
+		result.Effort = src.Effort
 	}
 	if src.AutoApprove != nil {
 		result.AutoApprove = src.AutoApprove

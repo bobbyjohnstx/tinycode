@@ -160,6 +160,7 @@ type AppState struct {
 	CurrentModel       ModelSelection
 	CurrentTheme       string
 	ThinkingLevel      string
+	EffortLevel        string
 	ScopedModels       []string
 	SidebarOpen        bool
 	Connected          bool

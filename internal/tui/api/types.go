@@ -10,6 +10,9 @@ type PromptInput struct {
 	Parts          []PromptPart `json:"parts"`
 	Variant        string       `json:"variant,omitempty"`
 	ThinkingBudget *int         `json:"thinkingBudget,omitempty"`
+	MaxTokens      *int         `json:"maxTokens,omitempty"`
+	SystemPrefix   string       `json:"systemPrefix,omitempty"`
+	MaxIterations  *int         `json:"maxIterations,omitempty"`
 }
 
 // PromptModel identifies a model for the prompt request.

@@ -17,6 +17,9 @@ type PromptInput struct {
 	Parts          []promptPart
 	MessageID      string
 	ThinkingBudget *int
+	MaxTokens      *int
+	SystemPrefix   string
+	MaxIterations  *int
 }
 
 type promptModel struct {
@@ -222,6 +225,11 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 
 	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model)
 
+	// Prepend effort-level system prefix if provided.
+	if input.SystemPrefix != "" {
+		systemPrompt = input.SystemPrefix + "\n\n" + systemPrompt
+	}
+
 	if sm.mcpSvc != nil {
 		mcpTools := sm.mcpSvc.Tools(ctx)
 		for _, def := range mcpTools {
@@ -254,6 +262,9 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		displayText = userText
 	}
 	maxIter := swarmMaxIterations(expandResult.AutoApprove)
+	if input.MaxIterations != nil && *input.MaxIterations > 0 && maxIter == 0 {
+		maxIter = *input.MaxIterations
+	}
 	proc := session.NewProcessor(session.ProcessorConfig{
 		SessionID:       sessionID,
 		Agent:           input.Agent,
@@ -264,6 +275,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		Perms:           sm.perms,
 		UserDisplayText: displayText,
 		MaxIterations:   maxIter,
+		MaxTokens:       input.MaxTokens,
 		ThinkingBudget:  input.ThinkingBudget,
 		TokenBudget:     sm.tokenBudget,
 	}, client, sessionTools, sm.bus)
