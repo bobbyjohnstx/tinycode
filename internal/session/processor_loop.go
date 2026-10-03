@@ -61,9 +61,12 @@ func (p *Processor) addUserMessage(userMessage string, messageID string) {
 		userMsgID, _ = id.Ascending("message")
 	}
 	parts := []Part{TextPart(userMessage)}
-	if len(p.userExtraParts) > 0 {
-		parts = append(parts, p.userExtraParts...)
-		p.userExtraParts = nil
+	p.mu.Lock()
+	extra := p.userExtraParts
+	p.userExtraParts = nil
+	p.mu.Unlock()
+	if len(extra) > 0 {
+		parts = append(parts, extra...)
 	}
 	userMsg := Message{
 		ID:        userMsgID,
