@@ -110,5 +110,5 @@ func IsOverflow(errMsg string) bool {
 			return true
 		}
 	}
-	return strings.HasPrefix(errMsg, "HTTP 400:") || strings.HasPrefix(errMsg, "HTTP 413:")
+	return strings.HasPrefix(errMsg, "HTTP 413:")
 }

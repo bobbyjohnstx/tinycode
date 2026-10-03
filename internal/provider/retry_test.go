@@ -11,7 +11,7 @@ func TestIsOverflow_HTTPFormat(t *testing.T) {
 		msg  string
 		want bool
 	}{
-		{"HTTP 400: invalid request body", true},
+		{"HTTP 400: invalid request body", false},
 		{"HTTP 400: context_length_exceeded", true},
 		{"HTTP 413: request entity too large", true},
 	}
