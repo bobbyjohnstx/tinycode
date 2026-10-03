@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"strings"
 )
 
 func respondJSON(w http.ResponseWriter, status int, data any) {
@@ -21,16 +23,39 @@ func respondError(w http.ResponseWriter, status int, message string) {
 }
 
 func requestDirectory(r *http.Request, fallback string) string {
-	if dir := r.URL.Query().Get("directory"); dir != "" {
-		return dir
-	}
-	if hdr := r.Header.Get("x-tinycode-directory"); hdr != "" {
+	dir := fallback
+	if q := r.URL.Query().Get("directory"); q != "" {
+		dir = q
+	} else if hdr := r.Header.Get("x-tinycode-directory"); hdr != "" {
 		if decoded, err := url.PathUnescape(hdr); err == nil {
-			return decoded
+			dir = decoded
+		} else {
+			dir = hdr
 		}
-		return hdr
 	}
-	return fallback
+
+	return validateDirectoryPath(dir, fallback)
+}
+
+// validateDirectoryPath ensures dir is under root. If not, it returns root.
+func validateDirectoryPath(dir, root string) string {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return root
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return root
+	}
+	// Clean both paths and ensure the directory is under root.
+	cleanRoot := filepath.Clean(absRoot) + string(filepath.Separator)
+	cleanDir := filepath.Clean(absDir)
+
+	// Allow exact match or subdirectory.
+	if cleanDir == filepath.Clean(absRoot) || strings.HasPrefix(cleanDir, cleanRoot) {
+		return cleanDir
+	}
+	return root
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
