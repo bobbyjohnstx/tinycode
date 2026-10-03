@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"sync"
@@ -303,6 +304,7 @@ func (t *StdioTransport) roundTrip(req jsonrpcRequest) (*jsonrpcResponse, error)
 			if resp.ID == req.ID {
 				return resp, nil
 			}
+			slog.Debug("discarding non-matching RPC response", "expected", req.ID, "got", resp.ID)
 		case <-timer.C:
 			return nil, fmt.Errorf("roundTrip timeout after %v", timeout)
 		case <-t.done:
