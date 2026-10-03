@@ -41,12 +41,37 @@ type pluginProcess struct {
 	stdout  io.ReadCloser
 	encoder *json.Encoder
 	decoder *json.Decoder
-	mu      sync.Mutex // protects writes/reads to stdin/stdout
-	hooks   []string   // hooks declared during initialize
+	counter *countingReader // per-response byte counter for stdout
+	mu      sync.Mutex     // protects writes/reads to stdin/stdout
+	hooks   []string       // hooks declared during initialize
 	tools   []ToolManifest
 	nextID  atomic.Int64
 	dead    atomic.Bool
 	done    chan struct{} // closed when the process exits
+}
+
+// countingReader wraps a reader and counts bytes read since the last reset.
+// Used to enforce per-response size limits on plugin stdout.
+type countingReader struct {
+	r     io.Reader
+	n     int64
+	limit int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	if c.n >= c.limit {
+		return 0, fmt.Errorf("response exceeded %d byte limit", c.limit)
+	}
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	if c.n > c.limit {
+		return n, fmt.Errorf("response exceeded %d byte limit", c.limit)
+	}
+	return n, err
+}
+
+func (c *countingReader) reset() {
+	c.n = 0
 }
 
 // CommandFactory creates exec.Cmd instances. Tests can override this.
@@ -182,14 +207,15 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 
 	info := &PluginInfo{ID: pid, Name: name}
 	doneCh := make(chan struct{})
-	limitedStdout := io.LimitReader(stdoutPipe, maxOutputSize)
+	cr := &countingReader{r: stdoutPipe, limit: maxOutputSize}
 	proc := &pluginProcess{
 		info:    info,
 		cmd:     cmd,
 		stdin:   stdinPipe,
 		stdout:  stdoutPipe,
 		encoder: json.NewEncoder(stdinPipe),
-		decoder: json.NewDecoder(limitedStdout),
+		decoder: json.NewDecoder(cr),
+		counter: cr,
 		done:    doneCh,
 	}
 
@@ -353,6 +379,11 @@ func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, err
 		return nil, fmt.Errorf("encode request: %w", err)
 	}
 
+	// Reset per-response byte counter before each decode (#382).
+	if p.counter != nil {
+		p.counter.reset()
+	}
+
 	// Use a channel + goroutine for timeout on the blocking decode.
 	type rpcResult struct {
 		resp pkgplugin.JSONRPCResponse
@@ -375,8 +406,13 @@ func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, err
 		}
 		return r.resp.Result, nil
 	case <-time.After(hookTimeout):
-		// Close stdout to unblock the decode goroutine
+		// Close stdout to unblock the decode goroutine, then kill the
+		// process to prevent a goroutine leak (#386).
 		_ = p.stdout.Close()
+		if p.cmd != nil && p.cmd.Process != nil {
+			_ = p.cmd.Process.Kill()
+		}
+		p.dead.Store(true)
 		return nil, fmt.Errorf("timeout waiting for response to %s", method)
 	case <-p.done:
 		return nil, fmt.Errorf("process exited while waiting for response to %s", method)
@@ -397,9 +433,10 @@ func (m *Manager) Tools() []ToolManifest {
 
 // CallTool invokes a tool on the plugin that owns it. Returns the tool output
 // as raw JSON, or an error if the plugin or tool is not found.
-func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage) (json.RawMessage, error) {
+func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage, sessionID string) (json.RawMessage, error) {
 	m.mu.RLock()
 	proc, ok := m.plugins[pluginID]
+	dir := m.directory
 	m.mu.RUnlock()
 
 	if !ok {
@@ -409,6 +446,10 @@ func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage) (jso
 	raw, err := proc.sendRPC("tool/call", pkgplugin.ToolCallParams{
 		Name: toolName,
 		Args: args,
+		Context: pkgplugin.ToolContext{
+			SessionID: sessionID,
+			Directory: dir,
+		},
 	})
 	if err != nil {
 		return nil, err
