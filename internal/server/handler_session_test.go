@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -148,9 +150,10 @@ func TestShellDirect_PublishesToolPartWithCompletedStatus(t *testing.T) {
 func TestShellDirect_RunsInSpecifiedDirectory(t *testing.T) {
 	h := newTestHarness(t, nil)
 
-	dir := t.TempDir()
+	dir := filepath.Join(h.server.config.Directory, "subdir")
+	os.MkdirAll(dir, 0o755)
 
-	// Create a session with directory set to the temp dir.
+	// Create a session with directory set to a subdirectory of the server root.
 	body := fmt.Sprintf(`{"title":"Shell Dir","agent":"build","model":{"modelID":"test-model","providerID":"test-provider"}}`)
 	resp, err := http.Post(h.baseURL()+"/session?directory="+dir, "application/json", strings.NewReader(body))
 	if err != nil {

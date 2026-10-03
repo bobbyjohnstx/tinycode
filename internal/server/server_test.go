@@ -938,12 +938,15 @@ func TestSessionCreate_DirectoryFromHeader(t *testing.T) {
 			"model-1": {ID: "model-1", ProviderID: "test", API: provider.ModelAPI{URL: "http://localhost"}},
 		},
 	})
-	srv := New(Config{Directory: "/default/dir", DefaultModel: "test/model-1"}, Dependencies{Bus: b, DB: db, Registry: reg})
+	rootDir := t.TempDir()
+	subDir := filepath.Join(rootDir, "custom", "project")
+	os.MkdirAll(subDir, 0o755)
+	srv := New(Config{Directory: rootDir, DefaultModel: "test/model-1"}, Dependencies{Bus: b, DB: db, Registry: reg})
 
 	body := `{}`
 	req := httptest.NewRequest("POST", "/session", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-tinycode-directory", "/custom/project")
+	req.Header.Set("x-tinycode-directory", subDir)
 	w := httptest.NewRecorder()
 	srv.mux.ServeHTTP(w, req)
 
@@ -954,8 +957,8 @@ func TestSessionCreate_DirectoryFromHeader(t *testing.T) {
 	var result map[string]any
 	json.NewDecoder(w.Body).Decode(&result)
 	dir, _ := result["directory"].(string)
-	if dir != "/custom/project" {
-		t.Errorf("expected directory /custom/project, got %s", dir)
+	if dir != subDir {
+		t.Errorf("expected directory %s, got %s", subDir, dir)
 	}
 }
 
