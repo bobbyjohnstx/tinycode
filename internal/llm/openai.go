@@ -76,7 +76,11 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 		respBody, _ := io.ReadAll(resp.Body)
-		slog.Error("LLM HTTP error", "model", req.Model, "status", resp.StatusCode, "body", string(respBody), "elapsed", time.Since(start))
+		logBody := string(respBody)
+		if len(logBody) > 500 {
+			logBody = logBody[:500] + "...(truncated)"
+		}
+		slog.Error("LLM HTTP error", "model", req.Model, "status", resp.StatusCode, "body", logBody, "elapsed", time.Since(start))
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -90,7 +94,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 	defer close(ch)
 	defer body.Close()
 
-	lines := make(chan string)
+	lines := make(chan string, 1)
 	scanDone := make(chan error, 1)
 	go func() {
 		defer close(lines)
