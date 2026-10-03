@@ -761,10 +761,3 @@ func parseFloat(s string) (float64, error) {
 	_, err := fmt.Sscanf(s, "%f", &result)
 	return result, err
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
