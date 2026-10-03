@@ -77,6 +77,14 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		}
 		return a, cmd
 	}
+	if a.contextDlg.IsVisible() {
+		var cmd tea.Cmd
+		a.contextDlg, cmd = a.contextDlg.Update(msg)
+		if !a.contextDlg.IsVisible() {
+			a.setFocus(FocusPrompt)
+		}
+		return a, cmd
+	}
 	if a.copyDlg.IsVisible() {
 		var cmd tea.Cmd
 		a.copyDlg, cmd = a.copyDlg.Update(msg)
@@ -416,6 +424,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "privacy", Description: "Show what data is stored and where"},
 			{Name: "goal", Description: "Autonomous execution until condition met"},
 			{Name: "hooks", Description: "Show configured hooks (plugin and shell)"},
+			{Name: "context", Description: "Show context window usage breakdown"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {

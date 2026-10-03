@@ -142,6 +142,12 @@ func builtinCommands() []Command {
 			Source:      "builtin",
 			Hints:       []string{},
 		},
+		{
+			Name:        "context",
+			Description: "Show context window usage breakdown",
+			Source:      "builtin",
+			Hints:       []string{},
+		},
 	}
 }
 

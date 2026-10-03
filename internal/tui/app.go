@@ -33,6 +33,7 @@ type App struct {
 	themeDlg   ThemeDialog
 	debugDlg   DebugDialog
 	privacyDlg DebugDialog
+	contextDlg ContextDialog
 	mcpDlg     MCPDialog
 	copyDlg    CodeBlockDialog
 	rewindDlg  RewindDialog
@@ -75,6 +76,7 @@ func NewApp(serverURL string) App {
 		themeDlg:   NewThemeDialog(),
 		debugDlg:   NewDebugDialog(),
 		privacyDlg: NewDebugDialog(),
+		contextDlg: NewContextDialog(),
 		mcpDlg:     NewMCPDialog(),
 		copyDlg:    NewCodeBlockDialog(),
 		rewindDlg:  NewRewindDialog(),
@@ -185,6 +187,9 @@ func (a App) View() string {
 	if a.privacyDlg.IsVisible() {
 		return a.privacyDlg.View()
 	}
+	if a.contextDlg.IsVisible() {
+		return a.contextDlg.View()
+	}
 	if a.copyDlg.IsVisible() {
 		return a.copyDlg.View()
 	}
@@ -277,6 +282,7 @@ func (a *App) resize() {
 	a.themeDlg.SetSize(a.width, a.height)
 	a.debugDlg.SetSize(a.width, a.height)
 	a.privacyDlg.SetSize(a.width, a.height)
+	a.contextDlg.SetSize(a.width, a.height)
 	a.mcpDlg.SetSize(a.width, a.height)
 	a.copyDlg.SetSize(a.width, a.height)
 	a.rewindDlg.SetSize(a.width, a.height)
@@ -429,6 +435,7 @@ func (a *App) showPalette() {
 		"goal":          true,
 		"rewind":        true,
 		"hooks":         true,
+		"context":       true,
 	}
 	items := []PaletteItem{
 		{Label: "branch", Description: "Branch conversation to try a different approach", Value: "branch"},
@@ -454,6 +461,7 @@ func (a *App) showPalette() {
 		{Label: "goal", Description: "Autonomous execution until condition met", Value: "goal"},
 		{Label: "rewind", Description: "Rewind conversation to a previous turn", Value: "rewind"},
 		{Label: "hooks", Description: "Show configured hooks (plugin and shell)", Value: "hooks"},
+		{Label: "context", Description: "Show context window usage breakdown", Value: "context"},
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
@@ -584,6 +592,13 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	case "hooks":
 		info := a.buildHooksInfo()
 		a.debugDlg.Show(info)
+		a.setFocus(FocusDialog)
+		return nil, true
+	case "context":
+		contextLimit := a.sidebar.context.ContextLimit
+		apiTokens := a.sidebar.context.Tokens
+		breakdown := AnalyzeContext(a.chat.Messages(), contextLimit, apiTokens)
+		a.contextDlg.Show(breakdown)
 		a.setFocus(FocusDialog)
 		return nil, true
 	}
