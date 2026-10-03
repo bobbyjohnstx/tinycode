@@ -56,29 +56,7 @@ func (s *Store) Record(item string) {
 func (s *Store) Score(item string) float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	entry, ok := s.data[item]
-	if !ok {
-		return 0
-	}
-	now := time.Now().UnixMilli()
-	var score float64
-	for _, ts := range entry.Timestamps {
-		age := now - ts
-		switch {
-		case age < 4*60*60*1000: // 4 hours
-			score += 100
-		case age < 24*60*60*1000: // 1 day
-			score += 80
-		case age < 7*24*60*60*1000: // 1 week
-			score += 60
-		case age < 30*24*60*60*1000: // 1 month
-			score += 30
-		default:
-			score += 10
-		}
-	}
-	return score
+	return s.scoreLocked(item, time.Now().UnixMilli())
 }
 
 // Sort returns a copy of items sorted by descending frecency score.
