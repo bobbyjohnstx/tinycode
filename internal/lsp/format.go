@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -119,13 +120,18 @@ func symbolKindStr(kind int) string {
 }
 
 func readLinePreview(file string, line int) string {
-	data, err := os.ReadFile(file)
+	f, err := os.Open(file)
 	if err != nil {
 		return ""
 	}
-	lines := strings.Split(string(data), "\n")
-	if line < 0 || line >= len(lines) {
-		return ""
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	current := 0
+	for scanner.Scan() {
+		if current == line {
+			return strings.TrimSpace(scanner.Text())
+		}
+		current++
 	}
-	return strings.TrimSpace(lines[line])
+	return ""
 }
