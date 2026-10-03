@@ -588,6 +588,14 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 			current = "medium"
 		}
 		return a.toast.Show(fmt.Sprintf("Effort level: %s (use /effort low|medium|high|max)", current), false), true
+	case "rename":
+		return a.toast.Show("Usage: /rename <title> — rename current session", false), true
+	case "thinking":
+		current := a.state.ThinkingLevel
+		if current == "" {
+			current = "off"
+		}
+		return a.toast.Show(fmt.Sprintf("Thinking: %s (use /thinking off|low|medium|high|max)", current), false), true
 	case "goal":
 		return a.toast.Show("Usage: /goal <condition> — autonomous execution until condition met", false), true
 	case "rewind":

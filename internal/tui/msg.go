@@ -128,10 +128,6 @@ type FocusChangedMsg struct {
 	Target FocusTarget
 }
 
-type NavigateMsg struct {
-	Route Route
-}
-
 type ToastMsg struct {
 	Text    string
 	IsError bool
@@ -318,18 +314,6 @@ type BtwResponseMsg struct {
 	Answer   string
 	Err      error
 }
-
-// GoalSetMsg requests setting a new goal on the active session.
-type GoalSetMsg struct {
-	Text    string
-	Command string
-}
-
-// GoalClearedMsg signals that the active goal has been cancelled.
-type GoalClearedMsg struct{}
-
-// RewindRequestMsg requests opening the rewind dialog.
-type RewindRequestMsg struct{}
 
 // RewindDoneMsg carries the result of a /rewind command.
 type RewindDoneMsg struct {

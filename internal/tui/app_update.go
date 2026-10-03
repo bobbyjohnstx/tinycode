@@ -54,6 +54,9 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 	if a.modelDlg.IsVisible() {
 		var cmd tea.Cmd
 		a.modelDlg, cmd = a.modelDlg.Update(msg)
+		if !a.modelDlg.IsVisible() {
+			a.setFocus(FocusPrompt)
+		}
 		return a, cmd
 	}
 	if a.themeDlg.IsVisible() {
@@ -96,6 +99,9 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 	if a.mcpDlg.IsVisible() {
 		var cmd tea.Cmd
 		a.mcpDlg, cmd = a.mcpDlg.Update(msg)
+		if !a.mcpDlg.IsVisible() {
+			a.setFocus(FocusPrompt)
+		}
 		return a, cmd
 	}
 	if a.rewindDlg.IsVisible() {
@@ -426,6 +432,8 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 			{Name: "goal", Description: "Autonomous execution until condition met"},
 			{Name: "hooks", Description: "Show configured hooks (plugin and shell)"},
 			{Name: "context", Description: "Show context window usage breakdown"},
+			{Name: "effort", Description: "Set reasoning depth (low/medium/high/max)"},
+			{Name: "rewind", Description: "Rewind session to a previous turn"},
 		}
 		clientNames := make(map[string]bool, len(clientItems))
 		for _, item := range clientItems {

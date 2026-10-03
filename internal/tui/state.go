@@ -5,14 +5,6 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
-// Route identifies which top-level view is active.
-type Route int
-
-const (
-	RouteChat Route = iota
-	RouteSessionList
-)
-
 // FocusTarget identifies which component has keyboard focus.
 type FocusTarget int
 

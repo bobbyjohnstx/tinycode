@@ -1448,7 +1448,7 @@ section:last-of-type { border-bottom: none; }
 
 <!-- ===== NAVIGATION ===== -->
 <nav class="nav" role="navigation" aria-label="Main navigation">
-  <a href="#hero" class="nav-logo">tinycode<span>-go</span></a>
+  <a href="#hero" class="nav-logo">tinycode</a>
   <button class="nav-hamburger" aria-label="Toggle navigation menu" onclick="document.querySelector('.nav-links').classList.toggle('open')">&#9776;</button>
   <ul class="nav-links">
     <li><a href="#architecture">Architecture</a></li>
@@ -1456,6 +1456,7 @@ section:last-of-type { border-bottom: none; }
     <li><a href="#packages">Packages</a></li>
     <li><a href="#plugins">Plugins</a></li>
     <li><a href="#agents">Agents</a></li>
+    <li><a href="#commands">Commands</a></li>
     <li><a href="#tech-stack">Tech Stack</a></li>
     <li><a href="#getting-started">Get Started</a></li>
   </ul>
@@ -1468,7 +1469,7 @@ section:last-of-type { border-bottom: none; }
       <div class="hero-content animate-in">
         <div class="hero-badge">
           <span class="dot"></span>
-          v2.0 &mdash; Single Binary
+          v2.1 &mdash; Single Binary
         </div>
         <h1>
           <span class="highlight">tinycode</span><br>
@@ -1497,6 +1498,10 @@ section:last-of-type { border-bottom: none; }
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
+            <span>30+ slash commands</span>
+          </div>
+          <div class="hero-feature">
+            <span class="icon">&gt;</span>
             <span>No telemetry, no sign-up</span>
           </div>
           <div class="hero-feature">
@@ -1517,7 +1522,7 @@ section:last-of-type { border-bottom: none; }
         <div class="terminal-body">
           <div class="term-line"><span class="term-prompt">$ </span><span class="term-cmd">tinycode</span></div>
           <div class="term-line">&nbsp;</div>
-          <div class="term-line"><span class="term-success">tinycode</span> <span class="term-dim">v2.0.0</span> <span class="term-dim">&middot;</span> <span class="term-accent">ollama/qwen3:8b</span></div>
+          <div class="term-line"><span class="term-success">tinycode</span> <span class="term-dim">v2.1.1</span> <span class="term-dim">&middot;</span> <span class="term-accent">ollama/qwen3:8b</span></div>
           <div class="term-line"><span class="term-dim">session ses_01JAB &middot; ~/projects/myapp</span></div>
           <div class="term-line">&nbsp;</div>
           <div class="term-line"><span class="term-amber">you</span> <span class="term-dim">&gt;</span> <span class="term-output">add input validation to the user registration handler</span></div>
@@ -1710,13 +1715,14 @@ section:last-of-type { border-bottom: none; }
     <div class="section-label animate-in">Data Flow</div>
     <h2 class="section-title animate-in">How data moves through the system</h2>
     <p class="section-desc animate-in">
-      Three critical flows power tinycode. Click through each step or press Play to watch the animation.
+      Four critical flows power tinycode. Click through each step or press Play to watch the animation.
     </p>
 
     <div class="flow-tabs animate-in" role="tablist" aria-label="Data flow diagrams">
       <button class="flow-tab active" data-flow="request" role="tab" aria-selected="true" aria-controls="flow-request">Request Flow</button>
       <button class="flow-tab" data-flow="plugin" role="tab" aria-selected="false" aria-controls="flow-plugin">Plugin Lifecycle</button>
       <button class="flow-tab" data-flow="tool" role="tab" aria-selected="false" aria-controls="flow-tool">Tool Execution</button>
+      <button class="flow-tab" data-flow="hook" role="tab" aria-selected="false" aria-controls="flow-hook">Hook Lifecycle</button>
     </div>
 
     <!-- Request Flow -->
@@ -1916,6 +1922,50 @@ section:last-of-type { border-bottom: none; }
         <button class="flow-btn" onclick="resetFlow('tool')">&#8634; Reset</button>
       </div>
     </div>
+    <!-- Hook Lifecycle -->
+    <div class="flow-diagram" id="flow-hook" role="tabpanel">
+      <div class="flow-steps" data-flow-id="hook">
+        <div class="flow-step active-step" data-step="0">
+          <div class="flow-step-num">1</div>
+          <div class="flow-step-line"></div>
+          <div class="flow-step-content">
+            <div class="flow-step-title">Event triggers</div>
+            <div class="flow-step-desc">A lifecycle event fires: session_start, tool_exec_before, tool_exec_after, or a custom event defined in settings.json hooks.</div>
+            <div class="flow-step-code">bus.Publish("session.start") | bus.Publish("tool.execute.before")</div>
+          </div>
+        </div>
+        <div class="flow-step" data-step="1">
+          <div class="flow-step-num">2</div>
+          <div class="flow-step-line"></div>
+          <div class="flow-step-content">
+            <div class="flow-step-title">Shell hook or plugin hook dispatch</div>
+            <div class="flow-step-desc">The hook dispatcher checks settings.json for shell hooks and the plugin manager for registered plugin hooks. Both are invoked in parallel.</div>
+            <div class="flow-step-code">settings.hooks[event] &rarr; exec.Command() | plugin "hook/invoke"</div>
+          </div>
+        </div>
+        <div class="flow-step" data-step="2">
+          <div class="flow-step-num">3</div>
+          <div class="flow-step-line"></div>
+          <div class="flow-step-content">
+            <div class="flow-step-title">additionalContext returned</div>
+            <div class="flow-step-desc">Hooks can return additionalContext in their response. This text is collected from all hook responses and prepared for injection.</div>
+            <div class="flow-step-code">hookResult.AdditionalContext &rarr; collect</div>
+          </div>
+        </div>
+        <div class="flow-step" data-step="3">
+          <div class="flow-step-num">4</div>
+          <div class="flow-step-content">
+            <div class="flow-step-title">Context injected into next model call</div>
+            <div class="flow-step-desc">The collected additionalContext is appended to the system prompt or injected as a system message in the next LLM request, enriching the model's context.</div>
+            <div class="flow-step-code">additionalContext &rarr; system prompt &rarr; llm.ChatCompletionRequest</div>
+          </div>
+        </div>
+      </div>
+      <div class="flow-controls">
+        <button class="flow-btn" onclick="playFlow('hook')" id="play-hook">&#9654; Play</button>
+        <button class="flow-btn" onclick="resetFlow('hook')">&#8634; Reset</button>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -1925,12 +1975,12 @@ section:last-of-type { border-bottom: none; }
     <div class="section-label animate-in">Packages</div>
     <h2 class="section-title animate-in">Package explorer</h2>
     <p class="section-desc animate-in">
-      24 internal packages organized by domain. Click any package to expand its details, key types, and file locations.
+      25 internal packages organized by domain. Click any package to expand its details, key types, and file locations.
     </p>
 
     <div class="pkg-search animate-in">
       <input type="text" class="pkg-search-input" placeholder="Filter packages..." id="pkg-filter" aria-label="Filter packages by name or description">
-      <span class="pkg-count" id="pkg-count">24 packages</span>
+      <span class="pkg-count" id="pkg-count">25 packages</span>
     </div>
 
     <div id="pkg-container">
@@ -1950,9 +2000,11 @@ section:last-of-type { border-bottom: none; }
             <div class="pkg-card-desc">Terminal UI using bubbletea (Elm architecture: Model/Update/View)</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Key Types</div>
-              <div class="pkg-card-detail-value"><code>App</code>, <code>connectedApp</code>, <code>Prompt</code>, <code>Chat</code>, <code>Sidebar</code></div>
+              <div class="pkg-card-detail-value"><code>App</code>, <code>connectedApp</code>, <code>Prompt</code>, <code>Chat</code>, <code>Sidebar</code>, <code>StatusBar</code>, <code>ContextDialog</code>, <code>CommandPalette</code>, <code>LeaderState</code></div>
               <div class="pkg-card-detail-label">Key Files</div>
-              <div class="pkg-card-detail-value"><code>app.go</code> (root model), <code>run.go</code> (SSE wrapper), <code>prompt.go</code>, <code>chat.go</code>, <code>chat_render.go</code></div>
+              <div class="pkg-card-detail-value"><code>app.go</code> (root model), <code>run.go</code> (SSE wrapper), <code>prompt.go</code>, <code>chat.go</code>, <code>chat_render.go</code>, <code>run_handlers.go</code> (slash commands), <code>statusbar.go</code>, <code>goal.go</code>, <code>leader.go</code></div>
+              <div class="pkg-card-detail-label">Features</div>
+              <div class="pkg-card-detail-value">Leader key bindings, command palette (ctrl+p), frecency ranking, goal tracker, context visualization, theming, rewind, session branching</div>
               <div class="pkg-card-detail-label">Pattern</div>
               <div class="pkg-card-detail-value">Elm architecture: all state is immutable, Update() returns new model, tea.Cmd for async, tea.Msg for events</div>
             </div>
@@ -2014,7 +2066,7 @@ section:last-of-type { border-bottom: none; }
               <div class="pkg-card-detail-label">Key Types</div>
               <div class="pkg-card-detail-value"><code>Server</code>, route handlers, middleware stack</div>
               <div class="pkg-card-detail-label">Endpoints</div>
-              <div class="pkg-card-detail-value">Sessions, messages, prompts, providers, models, agents, config, permissions, SSE streaming</div>
+              <div class="pkg-card-detail-value">67 routes total. Sessions, messages, prompts, providers, models, agents, config, permissions, SSE streaming, /btw, /help, /rewind endpoints</div>
               <div class="pkg-card-detail-label">Pattern</div>
               <div class="pkg-card-detail-value">Binds to ephemeral port (port 0) in TUI mode. Same code path serves TUI, web UI, and ACP.</div>
             </div>
@@ -2027,9 +2079,9 @@ section:last-of-type { border-bottom: none; }
             <div class="pkg-card-desc">Session lifecycle, processor loop, LLM coordination</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Key Types</div>
-              <div class="pkg-card-detail-value"><code>Processor</code>, <code>Store</code>, <code>Session</code>, <code>Message</code></div>
+              <div class="pkg-card-detail-value"><code>Processor</code>, <code>Store</code>, <code>Session</code>, <code>Message</code>, <code>GoalState</code>, <code>CompactionConfig</code></div>
               <div class="pkg-card-detail-label">Key Files</div>
-              <div class="pkg-card-detail-value"><code>processor.go</code> (agent loop), <code>store.go</code> (SQLite persistence)</div>
+              <div class="pkg-card-detail-value"><code>processor.go</code> (agent loop), <code>session.go</code> (SQLite persistence), <code>goal.go</code> (goal state + command resolution), <code>compaction.go</code></div>
               <div class="pkg-card-detail-label">Pattern</div>
               <div class="pkg-card-detail-value">Main agent loop: send to LLM, stream response, execute tool calls, handle context overflow, track tokens</div>
             </div>
@@ -2052,12 +2104,12 @@ section:last-of-type { border-bottom: none; }
               <span class="pkg-card-name">tool/</span>
               <span class="pkg-card-arrow">&rsaquo;</span>
             </div>
-            <div class="pkg-card-desc">Tool definitions &amp; registry (read, write, edit, shell, grep, glob)</div>
+            <div class="pkg-card-desc">Tool definitions &amp; registry (read, write, edit, apply_patch, shell, grep, glob + 11 more)</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Key Types</div>
               <div class="pkg-card-detail-value"><code>Def</code> (ID, description, parameters, permission, execute), <code>Registry</code></div>
               <div class="pkg-card-detail-label">Built-in Tools</div>
-              <div class="pkg-card-detail-value">read, write, edit, shell, grep, glob, question, webfetch, task, todowrite, skill, websearch</div>
+              <div class="pkg-card-detail-value">read, write, edit, apply_patch, shell, grep, glob, question, webfetch, task, todowrite, diagnostics, report_findings, monitor, notepad, skill, websearch (18 total: 16 unconditional + 2 conditional)</div>
             </div>
           </div>
           <div class="pkg-card" data-pkg="permission" data-search="permission service allow deny prompt rules">
@@ -2119,7 +2171,7 @@ section:last-of-type { border-bottom: none; }
               <div class="pkg-card-detail-label">Key Types</div>
               <div class="pkg-card-detail-value"><code>Manager</code>, <code>Process</code>, plugin manifest types</div>
               <div class="pkg-card-detail-label">Pattern</div>
-              <div class="pkg-card-detail-value">Spawns plugin binaries as child processes, JSON-RPC initialize handshake, registers tools, dispatches hooks</div>
+              <div class="pkg-card-detail-value">Spawns plugin binaries as child processes, JSON-RPC initialize handshake, registers tools, dispatches hooks. Shell hooks (settings.json lifecycle hooks), additionalContext injection (hooks inject text into model context)</div>
             </div>
           </div>
           <div class="pkg-card" data-pkg="mcp" data-search="mcp model context protocol client stdio">
@@ -2283,6 +2335,19 @@ section:last-of-type { border-bottom: none; }
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Purpose</div>
               <div class="pkg-card-detail-value">Runs before other imports to set terminal rendering defaults and environment constraints</div>
+            </div>
+          </div>
+          <div class="pkg-card" data-pkg="frecency" data-search="frecency ranking frequency recency command palette">
+            <div class="pkg-card-header">
+              <span class="pkg-card-name">frecency/</span>
+              <span class="pkg-card-arrow">&rsaquo;</span>
+            </div>
+            <div class="pkg-card-desc">Frequency + recency ranking for command palette</div>
+            <div class="pkg-card-details">
+              <div class="pkg-card-detail-label">Key Types</div>
+              <div class="pkg-card-detail-value"><code>Store</code> (Score, Record, Sort, Load, Save)</div>
+              <div class="pkg-card-detail-label">Pattern</div>
+              <div class="pkg-card-detail-value">Time-bucket weighting (4h/1d/1w/1mo) with batched writes. Commands used recently rank higher in palette.</div>
             </div>
           </div>
         </div>
@@ -2683,6 +2748,55 @@ section:last-of-type { border-bottom: none; }
   </div>
 </section>
 
+<!-- ===== SLASH COMMANDS ===== -->
+<section id="commands">
+  <div class="container">
+    <div class="section-label animate-in">Commands</div>
+    <h2 class="section-title animate-in">30+ slash commands</h2>
+    <p class="section-desc animate-in">
+      Type <code>/</code> in the prompt to see all available commands. Built-in commands, skills, and agent names are merged into a single autocomplete list with frecency ranking.
+    </p>
+
+    <div class="agents-grid animate-in">
+      <!-- Session Commands -->
+      <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(57, 211, 83, 0.1); color: var(--accent-green);">/</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color: var(--accent-green);">Session</div>
+          <div class="agent-desc"><code>/compact</code> &middot; <code>/rename</code> &middot; <code>/archive</code> &middot; <code>/branch</code> &middot; <code>/rewind</code> &middot; <code>/export</code></div>
+        </div>
+      </div>
+
+      <!-- Navigation Commands -->
+      <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(88, 166, 255, 0.1); color: var(--accent-blue);">/</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color: var(--accent-blue);">Navigation</div>
+          <div class="agent-desc"><code>/connect</code> &middot; <code>/theme</code> &middot; <code>/help</code> &middot; <code>/debug</code> &middot; <code>/privacy</code> &middot; <code>/mcp</code> &middot; <code>/hooks</code></div>
+        </div>
+      </div>
+
+      <!-- Coding Commands -->
+      <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(240, 136, 62, 0.1); color: var(--accent-amber);">/</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color: var(--accent-amber);">Coding</div>
+          <div class="agent-desc"><code>/diff</code> &middot; <code>/changes</code> &middot; <code>/undo</code> &middot; <code>/redo</code> &middot; <code>/copy</code> &middot; <code>/editor</code> &middot; <code>/shell</code></div>
+        </div>
+      </div>
+
+      <!-- Agent Control Commands -->
+      <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(188, 140, 255, 0.1); color: var(--accent-purple);">/</div>
+        <div class="agent-info">
+          <div class="agent-name" style="color: var(--accent-purple);">Agent Control</div>
+          <div class="agent-desc"><code>/goal</code> &middot; <code>/thinking</code> &middot; <code>/effort</code> &middot; <code>/auto-approve</code> &middot; <code>/btw</code> &middot; <code>/paste-image</code> &middot; <code>/scoped-models</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ===== TECH STACK ===== -->
 <section id="tech-stack">
   <div class="container">
@@ -2766,8 +2880,8 @@ section:last-of-type { border-bottom: none; }
               <button class="code-copy" onclick="copyCode(this)" aria-label="Copy code to clipboard">copy</button>
             </div>
             <div class="code-body"><span class="comment"># Clone the repository</span>
-git clone https://github.com/bobbyjohnstx/tinycode-go.git
-cd tinycode-go
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode
 
 <span class="comment"># Build the binary</span>
 make build</div>
@@ -2854,9 +2968,7 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
 <footer class="footer">
   <div class="container">
     <p class="footer-text">
-      <a href="https://github.com/bobbyjohnstx/tinycode-go">tinycode-go</a> &middot; MIT License
-      <br>
-      Built on <a href="https://github.com/sst/opencode">opencode</a> by SST
+      <a href="https://github.com/bobbyjohnstx/tinycode">tinycode</a> &middot; MIT License
     </p>
   </div>
 </footer>
@@ -2941,7 +3053,7 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
     session: {
       title: 'Session Manager (internal/session/)',
       desc: 'Runs the main agent loop: build messages from history, send to LLM, stream response, execute tool calls, manage context overflow via compaction, handle retries, track token usage. Each session gets its own processor instance.',
-      files: 'session/processor.go, session/store.go, session/session.go'
+      files: 'session/processor.go, session/session.go, session/goal.go, session/compaction.go'
     },
     llm: {
       title: 'LLM Client (internal/llm/)',
@@ -2950,7 +3062,7 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
     },
     tool: {
       title: 'Tool Registry (internal/tool/)',
-      desc: 'Thread-safe registry for tool definitions. Built-in tools: read, write, edit, shell, grep, glob, question, webfetch, task, todowrite, skill, websearch. Execution includes permission checks, bus events, plugin after-hooks, and output truncation.',
+      desc: 'Thread-safe registry for tool definitions. 18 built-in tools: read, write, edit, apply_patch, shell, grep, glob, question, webfetch, task, todowrite, diagnostics, report_findings, monitor, notepad, skill, websearch (16 unconditional + 2 conditional). Execution includes permission checks, bus events, plugin after-hooks, and output truncation.',
       files: 'tool/tool.go, tool/builtin.go, tool/shell.go, tool/file_*.go'
     },
     permission: {
