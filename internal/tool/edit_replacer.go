@@ -419,7 +419,7 @@ func normalizeEscapes(s string) string {
 	s = strings.ReplaceAll(s, "\t", "    ")
 	// Normalize non-breaking spaces.
 	s = strings.Map(func(r rune) rune {
-		if r == ' ' {
+		if r == ' ' || r == ' ' || r == ' ' || r == '\uFEFF' {
 			return ' '
 		}
 		return r
