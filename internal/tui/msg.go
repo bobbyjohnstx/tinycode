@@ -51,6 +51,11 @@ type SSEEventMsg struct {
 	Event api.ServerEvent
 }
 
+// SSEReconnectMsg triggers an SSE reconnection attempt after a delay.
+type SSEReconnectMsg struct {
+	Attempt int
+}
+
 // --- API response messages ---
 
 type SessionsLoadedMsg struct {
