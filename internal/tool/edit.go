@@ -9,8 +9,6 @@ import (
 	"sync"
 )
 
-const fileMutexCleanupThreshold = 1000
-
 type fileMutexMap struct {
 	mu sync.Mutex
 	m  map[string]*sync.Mutex
@@ -26,22 +24,9 @@ func (fm *fileMutexMap) Get(path string) *sync.Mutex {
 		return mu
 	}
 
-	if len(fm.m) > fileMutexCleanupThreshold {
-		fm.cleanup()
-	}
-
 	mu := &sync.Mutex{}
 	fm.m[path] = mu
 	return mu
-}
-
-func (fm *fileMutexMap) cleanup() {
-	for path, mu := range fm.m {
-		if mu.TryLock() {
-			delete(fm.m, path)
-			mu.Unlock()
-		}
-	}
 }
 
 type editArgs struct {
@@ -125,7 +110,7 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	}
 	_ = strategy
 
-	if err := os.WriteFile(path, []byte(newContent), 0644); err != nil {
+	if err := writeFileSync(path, []byte(newContent), 0644); err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Error writing file: %v", err), IsError: true}, nil
 	}
 

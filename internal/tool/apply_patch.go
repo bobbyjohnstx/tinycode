@@ -87,6 +87,9 @@ func executeApplyPatch(ctx context.Context, tc *Context, rawArgs json.RawMessage
 
 		var original string
 		if !isNew {
+			// Intentional: defer mu.Unlock() in loop holds all file locks until
+			// function return, ensuring atomic multi-file patches cannot interleave
+			// with concurrent edits between the read-all and write-all phases.
 			mu := getFileMutex(targetPath)
 			mu.Lock()
 			defer mu.Unlock()
@@ -140,7 +143,7 @@ func executeApplyPatch(ctx context.Context, tc *Context, rawArgs json.RawMessage
 			}
 		}
 
-		if err := os.WriteFile(r.path, []byte(r.newContent), 0644); err != nil {
+		if err := writeFileSync(r.path, []byte(r.newContent), 0644); err != nil {
 			return &ExecuteResult{Output: fmt.Sprintf("Error writing file %s: %v", r.path, err), IsError: true}, nil
 		}
 
