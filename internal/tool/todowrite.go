@@ -97,13 +97,21 @@ func executeTodoWrite(_ context.Context, tc *Context, rawArgs json.RawMessage) (
 		}, nil
 	}
 
-	// Persist todos: delete existing and insert new
+	// Persist todos: delete existing and insert new within a transaction
 	todosJSON, err := json.Marshal(args.Todos)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Failed to serialize todos: %v", err), IsError: true}, nil
 	}
 
-	_, err = tc.DB.Exec("DELETE FROM todo WHERE session_id = ?", tc.SessionID)
+	tx, err := tc.DB.Begin()
+	if err != nil {
+		return &ExecuteResult{
+			Output: fmt.Sprintf("Updated %d todos for session %s (persistence skipped: %v)", len(args.Todos), tc.SessionID, err),
+		}, nil
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("DELETE FROM todo WHERE session_id = ?", tc.SessionID)
 	if err != nil {
 		// Table may not exist; treat as non-fatal
 		return &ExecuteResult{
@@ -112,7 +120,7 @@ func executeTodoWrite(_ context.Context, tc *Context, rawArgs json.RawMessage) (
 	}
 
 	for i, item := range args.Todos {
-		_, err = tc.DB.Exec(
+		_, err = tx.Exec(
 			"INSERT INTO todo (session_id, idx, content, status, priority, data) VALUES (?, ?, ?, ?, ?, ?)",
 			tc.SessionID, i, item.Content, item.Status, item.Priority, string(todosJSON),
 		)
@@ -121,6 +129,12 @@ func executeTodoWrite(_ context.Context, tc *Context, rawArgs json.RawMessage) (
 				Output: fmt.Sprintf("Updated %d todos for session %s (partial persistence: %v)", len(args.Todos), tc.SessionID, err),
 			}, nil
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return &ExecuteResult{
+			Output: fmt.Sprintf("Updated %d todos for session %s (persistence failed: %v)", len(args.Todos), tc.SessionID, err),
+		}, nil
 	}
 
 	if tc.Bus != nil {
