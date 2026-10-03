@@ -224,19 +224,25 @@ func dispatchHook(ctx context.Context, req JSONRPCRequest, hooks *HookHandlers) 
 	case "session.start":
 		if hooks.SessionStart != nil {
 			var event SessionStartEvent
-			_ = json.Unmarshal(params.Input, &event)
+			if err := json.Unmarshal(params.Input, &event); err != nil {
+				return errorResponse(req.ID, -32602, fmt.Sprintf("invalid hook input: %v", err))
+			}
 			hookErr = hooks.SessionStart(ctx, event)
 		}
 	case "session.end":
 		if hooks.SessionEnd != nil {
 			var event SessionEndEvent
-			_ = json.Unmarshal(params.Input, &event)
+			if err := json.Unmarshal(params.Input, &event); err != nil {
+				return errorResponse(req.ID, -32602, fmt.Sprintf("invalid hook input: %v", err))
+			}
 			hookErr = hooks.SessionEnd(ctx, event)
 		}
 	case "permission.ask":
 		if hooks.PermissionAsk != nil {
 			var input PermissionInput
-			_ = json.Unmarshal(params.Input, &input)
+			if err := json.Unmarshal(params.Input, &input); err != nil {
+				return errorResponse(req.ID, -32602, fmt.Sprintf("invalid hook input: %v", err))
+			}
 			var out *PermissionOutput
 			out, hookErr = hooks.PermissionAsk(ctx, input)
 			if out != nil && hookErr == nil {
@@ -246,7 +252,9 @@ func dispatchHook(ctx context.Context, req JSONRPCRequest, hooks *HookHandlers) 
 	case "shell.env":
 		if hooks.ShellEnv != nil {
 			var input ShellEnvInput
-			_ = json.Unmarshal(params.Input, &input)
+			if err := json.Unmarshal(params.Input, &input); err != nil {
+				return errorResponse(req.ID, -32602, fmt.Sprintf("invalid hook input: %v", err))
+			}
 			var out *ShellEnvOutput
 			out, hookErr = hooks.ShellEnv(ctx, input)
 			if out != nil && hookErr == nil {
@@ -256,13 +264,17 @@ func dispatchHook(ctx context.Context, req JSONRPCRequest, hooks *HookHandlers) 
 	case "tool.execute.before":
 		if hooks.ToolExecBefore != nil {
 			var input ToolExecBeforeInput
-			_ = json.Unmarshal(params.Input, &input)
+			if err := json.Unmarshal(params.Input, &input); err != nil {
+				return errorResponse(req.ID, -32602, fmt.Sprintf("invalid hook input: %v", err))
+			}
 			hookErr = hooks.ToolExecBefore(ctx, input)
 		}
 	case "tool.execute.after":
 		if hooks.ToolExecAfter != nil {
 			var input ToolExecAfterInput
-			_ = json.Unmarshal(params.Input, &input)
+			if err := json.Unmarshal(params.Input, &input); err != nil {
+				return errorResponse(req.ID, -32602, fmt.Sprintf("invalid hook input: %v", err))
+			}
 			var out *ToolExecAfterOutput
 			out, hookErr = hooks.ToolExecAfter(ctx, input)
 			if out != nil && hookErr == nil {
