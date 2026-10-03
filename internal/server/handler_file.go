@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -53,6 +54,17 @@ func (s *Server) handleFileRead(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respondError(w, http.StatusBadRequest, "invalid path")
+		return
+	}
+
+	info, err := os.Stat(resolved)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	const maxFileSize = 10 * 1024 * 1024 // 10MB
+	if info.Size() > maxFileSize {
+		respondError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("file too large: %d bytes (max %d)", info.Size(), maxFileSize))
 		return
 	}
 
