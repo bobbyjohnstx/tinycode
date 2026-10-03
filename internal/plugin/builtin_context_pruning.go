@@ -49,6 +49,17 @@ func (p *contextPruningPlugin) Hooks() BuiltinHooks {
 			defer p.mu.Unlock()
 
 			p.seq++
+
+			// Sliding window eviction: keep the map bounded to ~threshold entries.
+			if p.seq > 2*p.threshold {
+				cutoff := p.seq - p.threshold
+				for k, v := range p.seen {
+					if v < cutoff {
+						delete(p.seen, k)
+					}
+				}
+			}
+
 			prev, exists := p.seen[hash]
 			p.seen[hash] = p.seq
 
