@@ -7,6 +7,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/command"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
 // PromptInput describes a user prompt to be processed by a session.
@@ -144,9 +145,12 @@ func (sm *SessionManager) StartPrompt(ctx context.Context, input PromptInput) {
 func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, done chan struct{}) {
 	defer close(done)
 	sessionID := input.SessionID
+	myDone := done // capture this goroutine's done channel
 	defer func() {
 		sm.mu.Lock()
-		delete(sm.sessions, sessionID)
+		if active, ok := sm.sessions[sessionID]; ok && active.done == myDone {
+			delete(sm.sessions, sessionID)
+		}
 		sm.mu.Unlock()
 
 		sm.bus.Publish("session.status", map[string]any{
@@ -160,10 +164,13 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		"status":    map[string]any{"type": "busy"},
 	})
 
-	// Reset task round flag so this prompt gets a fresh round of task calls.
+	// Create a per-prompt snapshot so concurrent sessions don't race on
+	// shared tool registry state (ResetTaskRound / ResetBudget mutations).
+	var promptTools *tool.Registry
 	if sm.tools != nil {
-		sm.tools.ResetTaskRound()
-	sm.tools.ResetBudget(20)
+		promptTools = sm.tools.Snapshot()
+		promptTools.ResetTaskRound()
+		promptTools.ResetBudget(20)
 	}
 
 	var userText string
@@ -230,10 +237,10 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		systemPrompt = input.SystemPrefix + "\n\n" + systemPrompt
 	}
 
-	if sm.mcpSvc != nil {
+	if sm.mcpSvc != nil && promptTools != nil {
 		mcpTools := sm.mcpSvc.Tools(ctx)
 		for _, def := range mcpTools {
-			sm.tools.Register(def)
+			promptTools.Register(def)
 		}
 	}
 
@@ -253,7 +260,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	}
 
 	client := sm.clientFactory(model)
-	sessionTools := sm.tools
+	sessionTools := promptTools
 	if expandResult.AutoApprove {
 		sessionTools = sessionTools.WithAutoApprove().WithOnlyTools("task")
 	}
@@ -315,8 +322,8 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	// Drain buffered monitor output and inject as a follow-up prompt
 	// for the next turn. Published on the bus so the normal prompt
 	// subscriber picks it up after this processPrompt returns.
-	if sm.tools != nil {
-		if monitorOutput := sm.tools.DrainMonitorOutput(); monitorOutput != "" {
+	if promptTools != nil {
+		if monitorOutput := promptTools.DrainMonitorOutput(); monitorOutput != "" {
 			slog.Info("injecting monitor output at turn boundary", "sessionID", sessionID)
 			sm.bus.Publish("session.prompt", map[string]any{
 				"sessionID": sessionID,
