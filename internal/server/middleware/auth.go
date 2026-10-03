@@ -30,7 +30,9 @@ func TokenAuth(token string) func(http.Handler) http.Handler {
 				return
 			}
 
-			// 2. ?auth_token= query param — set cookie for future requests
+			// 2. ?auth_token= query param — set cookie, then redirect to strip token from URL.
+			// The redirect prevents the token from lingering in browser history,
+			// proxy logs, and Referer headers.
 			if qt := r.URL.Query().Get("auth_token"); qt != "" {
 				if MatchesToken("Basic "+qt, token) {
 					http.SetCookie(w, &http.Cookie{
@@ -40,7 +42,11 @@ func TokenAuth(token string) func(http.Handler) http.Handler {
 						HttpOnly: true,
 						SameSite: http.SameSiteStrictMode,
 					})
-					next.ServeHTTP(w, r)
+					cleanQuery := r.URL.Query()
+					cleanQuery.Del("auth_token")
+					cleanURL := *r.URL
+					cleanURL.RawQuery = cleanQuery.Encode()
+					http.Redirect(w, r, cleanURL.String(), http.StatusFound)
 					return
 				}
 			}
