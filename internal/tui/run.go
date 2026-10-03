@@ -177,10 +177,31 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, tea.Batch(append(cmds, waitForSSE(c.sseEvents))...)
 
 	case SSEDisconnectedMsg:
+		slog.Warn("SSE disconnected", "error", msg.Err)
 		events, err := c.client.Subscribe(c.ctx)
 		if err != nil {
-			return c, nil
+			// Start reconnection with exponential backoff.
+			model, cmd := c.app.Update(ToastMsg{Text: "Reconnecting...", IsError: false})
+			c.updateApp(model)
+			return c, tea.Batch(cmd, sseReconnectAfter(0))
 		}
+		c.sseEvents = events
+		return c, waitForSSE(c.sseEvents)
+
+	case SSEReconnectMsg:
+		events, err := c.client.Subscribe(c.ctx)
+		if err != nil {
+			if msg.Attempt >= 4 {
+				slog.Error("SSE reconnection failed after 5 attempts", "error", err)
+				cmds = append(cmds, c.showErrorToast("Connection lost")...)
+				return c, tea.Batch(cmds...)
+			}
+			slog.Warn("SSE reconnection attempt failed", "attempt", msg.Attempt+1, "error", err)
+			model, cmd := c.app.Update(ToastMsg{Text: "Reconnecting...", IsError: false})
+			c.updateApp(model)
+			return c, tea.Batch(cmd, sseReconnectAfter(msg.Attempt+1))
+		}
+		slog.Info("SSE reconnected", "attempt", msg.Attempt+1)
 		c.sseEvents = events
 		return c, waitForSSE(c.sseEvents)
 

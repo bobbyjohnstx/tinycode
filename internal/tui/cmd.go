@@ -14,6 +14,15 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
+// sseReconnectAfter returns a tea.Cmd that fires an SSEReconnectMsg after an
+// exponential backoff delay: 1s, 2s, 4s, 8s, 16s for attempts 0–4.
+func sseReconnectAfter(attempt int) tea.Cmd {
+	delay := time.Second << uint(attempt) // 1s, 2s, 4s, 8s, 16s
+	return tea.Tick(delay, func(_ time.Time) tea.Msg {
+		return SSEReconnectMsg{Attempt: attempt}
+	})
+}
+
 // waitForSSE waits for the next event on an existing SSE channel.
 func waitForSSE(events <-chan api.ServerEvent) tea.Cmd {
 	return func() tea.Msg {
