@@ -142,7 +142,7 @@ func TestExecuteShell_TruncatesLargeOutput(t *testing.T) {
 	args := shellArgs{Command: "yes AAAA | head -c 11534336"}
 	raw, _ := json.Marshal(args)
 
-	tc := &Context{Directory: t.TempDir(), ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: t.TempDir(), ReadFiles: NewSafeReadFiles()}
 	result, err := executeShell(context.Background(), tc, raw)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

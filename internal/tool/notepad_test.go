@@ -8,10 +8,9 @@ import (
 )
 
 func newNotepadContext() *Context {
-	notepad := make(map[string]string)
 	return &Context{
 		SessionID: "test-session",
-		Notepad:   &notepad,
+		Notepad:   NewSafeNotepad(),
 	}
 }
 
@@ -173,12 +172,10 @@ func TestNotepad_EmptyAction(t *testing.T) {
 }
 
 func TestWithAutoApprove_PropagatesFindings(t *testing.T) {
-	findings := make([]Finding, 0)
-	notepad := make(map[string]string)
 	reg := NewRegistry(&Context{
 		SessionID: "test",
-		Findings:  &findings,
-		Notepad:   &notepad,
+		Findings:  NewSafeFindings(),
+		Notepad:   NewSafeNotepad(),
 	})
 
 	autoReg := reg.WithAutoApprove()
@@ -192,12 +189,10 @@ func TestWithAutoApprove_PropagatesFindings(t *testing.T) {
 }
 
 func TestWithAutoApprove_PropagatesNotepad(t *testing.T) {
-	findings := make([]Finding, 0)
-	notepad := make(map[string]string)
 	reg := NewRegistry(&Context{
 		SessionID: "test",
-		Findings:  &findings,
-		Notepad:   &notepad,
+		Findings:  NewSafeFindings(),
+		Notepad:   NewSafeNotepad(),
 	})
 
 	autoReg := reg.WithAutoApprove()

@@ -47,7 +47,7 @@ func executeWrite(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	// Check if file exists but hasn't been read or edited.
 	var warnUnread bool
 	if _, statErr := os.Stat(path); statErr == nil {
-		if !tc.ReadFiles[path] {
+		if !tc.ReadFiles.Has(path) {
 			warnUnread = true
 		}
 	}

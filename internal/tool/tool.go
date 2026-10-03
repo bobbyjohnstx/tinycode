@@ -34,6 +34,106 @@ type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modif
 
 type SubagentRunnerFunc func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error)
 
+// SafeReadFiles is a mutex-protected set of file paths that tracks which files
+// the model has read or edited. Safe for concurrent access across Context copies.
+type SafeReadFiles struct {
+	mu    sync.Mutex
+	files map[string]bool
+}
+
+func NewSafeReadFiles() *SafeReadFiles {
+	return &SafeReadFiles{files: make(map[string]bool)}
+}
+
+func (s *SafeReadFiles) Mark(path string) {
+	s.mu.Lock()
+	s.files[path] = true
+	s.mu.Unlock()
+}
+
+func (s *SafeReadFiles) Has(path string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.files[path]
+}
+
+// SafeNotepad is a mutex-protected key-value store for session scratch notes.
+// Safe for concurrent access across Context copies.
+type SafeNotepad struct {
+	mu    sync.Mutex
+	notes map[string]string
+}
+
+func NewSafeNotepad() *SafeNotepad {
+	return &SafeNotepad{notes: make(map[string]string)}
+}
+
+func (s *SafeNotepad) Get(key string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.notes[key]
+	return v, ok
+}
+
+func (s *SafeNotepad) Set(key, value string) {
+	s.mu.Lock()
+	s.notes[key] = value
+	s.mu.Unlock()
+}
+
+func (s *SafeNotepad) Delete(key string) {
+	s.mu.Lock()
+	delete(s.notes, key)
+	s.mu.Unlock()
+}
+
+func (s *SafeNotepad) List() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := make(map[string]string, len(s.notes))
+	for k, v := range s.notes {
+		cp[k] = v
+	}
+	return cp
+}
+
+func (s *SafeNotepad) Len() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.notes)
+}
+
+// SafeFindings is a mutex-protected slice of code review findings.
+// Safe for concurrent access across Context copies.
+type SafeFindings struct {
+	mu       sync.Mutex
+	findings []Finding
+}
+
+func NewSafeFindings() *SafeFindings {
+	return &SafeFindings{findings: make([]Finding, 0)}
+}
+
+func (s *SafeFindings) Add(items ...Finding) {
+	s.mu.Lock()
+	s.findings = append(s.findings, items...)
+	s.mu.Unlock()
+}
+
+func (s *SafeFindings) All() []Finding {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := make([]Finding, len(s.findings))
+	copy(cp, s.findings)
+	return cp
+}
+
+func (s *SafeFindings) Len() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.findings)
+}
+
 type Context struct {
 	SessionID      string
 	Directory      string
@@ -49,9 +149,9 @@ type Context struct {
 	SubagentBudget *atomic.Int32 // per-session spawn budget (shared across copies)
 	TaskRoundDone  *atomic.Bool  // set after first foreground task batch completes (shared across copies)
 	AutoApprove    bool          // skip permission checks when true
-	ReadFiles      map[string]bool // tracks files the model has read or edited (shared across copies)
-	Findings       *[]Finding    // accumulated code review findings (shared across copies)
-	Notepad        *map[string]string // session scratch notes (shared across copies)
+	ReadFiles      *SafeReadFiles // tracks files the model has read or edited (shared across copies)
+	Findings       *SafeFindings  // accumulated code review findings (shared across copies)
+	Notepad        *SafeNotepad   // session scratch notes (shared across copies)
 	MonitorManager *MonitorManager // background process watcher (shared across copies)
 }
 
@@ -84,15 +184,13 @@ type Registry struct {
 
 func NewRegistry(toolCtx *Context) *Registry {
 	if toolCtx.ReadFiles == nil {
-		toolCtx.ReadFiles = make(map[string]bool)
+		toolCtx.ReadFiles = NewSafeReadFiles()
 	}
 	if toolCtx.Findings == nil {
-		findings := make([]Finding, 0)
-		toolCtx.Findings = &findings
+		toolCtx.Findings = NewSafeFindings()
 	}
 	if toolCtx.Notepad == nil {
-		notepad := make(map[string]string)
-		toolCtx.Notepad = &notepad
+		toolCtx.Notepad = NewSafeNotepad()
 	}
 	if toolCtx.MonitorManager == nil {
 		toolCtx.MonitorManager = NewMonitorManager()

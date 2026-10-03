@@ -50,7 +50,7 @@ func TestExecuteRead_TruncatesLargeFile(t *testing.T) {
 
 	args := readArgs{FilePath: largePath}
 	raw, _ := json.Marshal(args)
-	tc := &Context{Directory: dir, ReadFiles: make(map[string]bool)}
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
 
 	result, err := executeRead(context.Background(), tc, raw)
 	if err != nil {

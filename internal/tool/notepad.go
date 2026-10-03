@@ -62,31 +62,32 @@ func executeNotepad(_ context.Context, tc *Context, rawArgs json.RawMessage) (*E
 			}, nil
 		}
 		// Allow updating existing keys without counting against the limit.
-		if _, exists := (*tc.Notepad)[args.Key]; !exists && len(*tc.Notepad) >= maxNotepadEntries {
+		if _, exists := tc.Notepad.Get(args.Key); !exists && tc.Notepad.Len() >= maxNotepadEntries {
 			return &ExecuteResult{
 				Output:  fmt.Sprintf("notepad full: maximum of %d entries reached", maxNotepadEntries),
 				IsError: true,
 			}, nil
 		}
-		(*tc.Notepad)[args.Key] = args.Content
+		tc.Notepad.Set(args.Key, args.Content)
 		return &ExecuteResult{Output: fmt.Sprintf("Saved note %q (%d bytes)", args.Key, len(args.Content))}, nil
 
 	case "read":
 		if args.Key == "" {
 			return &ExecuteResult{Output: "key is required for read", IsError: true}, nil
 		}
-		content, ok := (*tc.Notepad)[args.Key]
+		content, ok := tc.Notepad.Get(args.Key)
 		if !ok {
 			return &ExecuteResult{Output: fmt.Sprintf("key %q not found", args.Key)}, nil
 		}
 		return &ExecuteResult{Output: content}, nil
 
 	case "list":
-		if len(*tc.Notepad) == 0 {
+		snapshot := tc.Notepad.List()
+		if len(snapshot) == 0 {
 			return &ExecuteResult{Output: "No notes stored."}, nil
 		}
-		keys := make([]string, 0, len(*tc.Notepad))
-		for k := range *tc.Notepad {
+		keys := make([]string, 0, len(snapshot))
+		for k := range snapshot {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
@@ -94,7 +95,7 @@ func executeNotepad(_ context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		var sb strings.Builder
 		fmt.Fprintf(&sb, "%d notes:\n", len(keys))
 		for _, k := range keys {
-			preview := firstLine((*tc.Notepad)[k])
+			preview := firstLine(snapshot[k])
 			fmt.Fprintf(&sb, "  %s: %s\n", k, preview)
 		}
 		return &ExecuteResult{Output: sb.String()}, nil
@@ -103,10 +104,10 @@ func executeNotepad(_ context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		if args.Key == "" {
 			return &ExecuteResult{Output: "key is required for delete", IsError: true}, nil
 		}
-		if _, ok := (*tc.Notepad)[args.Key]; !ok {
+		if _, ok := tc.Notepad.Get(args.Key); !ok {
 			return &ExecuteResult{Output: fmt.Sprintf("key %q not found", args.Key)}, nil
 		}
-		delete(*tc.Notepad, args.Key)
+		tc.Notepad.Delete(args.Key)
 		return &ExecuteResult{Output: fmt.Sprintf("Deleted note %q", args.Key)}, nil
 
 	default:

@@ -128,7 +128,7 @@ func executeReportFindings(_ context.Context, tc *Context, rawArgs json.RawMessa
 			IsError: true,
 		}, nil
 	}
-	*tc.Findings = append(*tc.Findings, args.Findings...)
+	tc.Findings.Add(args.Findings...)
 
 	// Build summary with severity counts.
 	counts := make(map[string]int)
@@ -157,7 +157,7 @@ func executeReportFindings(_ context.Context, tc *Context, rawArgs json.RawMessa
 		tc.Bus.Publish("session.findings.reported", map[string]any{
 			"sessionID": tc.SessionID,
 			"count":     len(args.Findings),
-			"total":     len(*tc.Findings),
+			"total":     tc.Findings.Len(),
 		})
 	}
 
