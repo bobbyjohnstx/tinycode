@@ -94,7 +94,11 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	}
 
 	if warning := checkSecretAccess(args.Command); warning != "" {
-		slog.Warn("secret file access", "command", args.Command, "warning", warning)
+		slog.Warn("secret file access blocked", "command", args.Command, "warning", warning)
+		return &ExecuteResult{
+			Output:  fmt.Sprintf("Access to secret file blocked: %s. Use the permission system to explicitly approve.", warning),
+			IsError: true,
+		}, nil
 	}
 
 	if IsDestructive(args.Command) {
