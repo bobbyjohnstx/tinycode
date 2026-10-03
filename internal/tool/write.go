@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -63,7 +64,7 @@ func executeWrite(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		args.Content = content
 	}
 
-	if err := os.WriteFile(path, []byte(args.Content), 0644); err != nil {
+	if err := writeFileSync(path, []byte(args.Content), 0644); err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Error writing file: %v", err), IsError: true}, nil
 	}
 
@@ -109,4 +110,36 @@ func toCRLF(s string) string {
 		result = append(result, s[i])
 	}
 	return string(result)
+}
+
+// writeFileSync writes data to a file atomically with fsync. It writes to a
+// temp file in the same directory, calls Sync to flush to disk, then renames
+// over the target path.
+func writeFileSync(path string, data []byte, perm fs.FileMode) error {
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, ".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := f.Name()
+
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Chmod(tmpPath, perm); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }

@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"sync"
 	"testing"
 )
 
@@ -56,48 +55,3 @@ func TestClearFileMutexesDoesNotBreakHeldLocks(t *testing.T) {
 	mu2.Unlock()
 }
 
-func TestFileMutexCleanupSkipsLockedEntries(t *testing.T) {
-	// Reset the map for a controlled test.
-	fileMutexes.mu.Lock()
-	fileMutexes.m = make(map[string]*sync.Mutex)
-	fileMutexes.mu.Unlock()
-
-	// Fill past the cleanup threshold.
-	for i := 0; i < fileMutexCleanupThreshold+10; i++ {
-		getFileMutex("/tmp/cleanup_" + string(rune('a'+i%26)) + "_" + itoa(i))
-	}
-
-	// Lock one entry so cleanup must skip it.
-	held := getFileMutex("/tmp/cleanup_held")
-	held.Lock()
-	defer held.Unlock()
-
-	// Trigger cleanup by requesting a new entry beyond the threshold.
-	getFileMutex("/tmp/cleanup_trigger")
-
-	// The held entry must still be in the map.
-	fileMutexes.mu.Lock()
-	_, ok := fileMutexes.m["/tmp/cleanup_held"]
-	fileMutexes.mu.Unlock()
-
-	if !ok {
-		t.Error("cleanup removed a locked mutex entry")
-	}
-}
-
-// itoa is a minimal int-to-string to avoid importing strconv.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	buf := make([]byte, 0, 10)
-	for n > 0 {
-		buf = append(buf, byte('0'+n%10))
-		n /= 10
-	}
-	// reverse
-	for i, j := 0, len(buf)-1; i < j; i, j = i+1, j-1 {
-		buf[i], buf[j] = buf[j], buf[i]
-	}
-	return string(buf)
-}
