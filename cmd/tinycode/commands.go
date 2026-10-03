@@ -23,8 +23,9 @@ import (
 func runModels() {
 	setupLogger()
 
-	b, _, cfg := initDependencies()
+	b, db, cfg := initDependencies()
 	defer b.Close()
+	defer db.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -54,8 +55,9 @@ func runModels() {
 func runProviders() {
 	setupLogger()
 
-	b, _, cfg := initDependencies()
+	b, db, cfg := initDependencies()
 	defer b.Close()
+	defer db.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
