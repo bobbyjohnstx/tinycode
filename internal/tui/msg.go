@@ -251,6 +251,14 @@ type DiffDoneMsg struct {
 	Err error
 }
 
+// ChangesRequestMsg requests showing session-scoped changes via git diff.
+type ChangesRequestMsg struct{}
+
+// ChangesDoneMsg reports that the changes pager has exited.
+type ChangesDoneMsg struct {
+	Err error
+}
+
 // ModelScopedMsg requests updating the scoped models list.
 type ModelScopedMsg struct {
 	ScopedModels []string

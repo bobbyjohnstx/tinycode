@@ -401,6 +401,7 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 		a.state.Commands = msg.Commands
 		clientItems := []AutocompleteItem{
 			{Name: "branch", Description: "Branch conversation to try a different approach"},
+			{Name: "changes", Description: "Show session-scoped diff of modified files"},
 			{Name: "exit", Description: "Exit the app"},
 			{Name: "compact", Description: "Compact context (summarize session)"},
 			{Name: "connect", Description: "Select provider and model"},

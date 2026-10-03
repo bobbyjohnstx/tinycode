@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -519,6 +520,73 @@ func (c *connectedApp) handleDiffDone(msg DiffDoneMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
 		slog.Error("diff pager exited with error", "error", msg.Err)
 		return c, tea.Batch(c.showErrorToast("Diff error: %v", msg.Err)...)
+	}
+	return c, nil
+}
+
+// extractModifiedFiles walks chat messages and returns deduplicated file paths
+// from write/edit tool calls.
+func extractModifiedFiles(messages []MessageView) []string {
+	seen := make(map[string]bool)
+	var files []string
+	for _, msg := range messages {
+		for _, part := range msg.Parts {
+			name := strings.ToLower(part.ToolName)
+			if name != "write" && name != "edit" {
+				continue
+			}
+			var args map[string]any
+			if err := json.Unmarshal([]byte(part.ToolArgs), &args); err != nil {
+				continue
+			}
+			fp, ok := args["file_path"].(string)
+			if !ok || fp == "" {
+				continue
+			}
+			if !seen[fp] {
+				seen[fp] = true
+				files = append(files, fp)
+			}
+		}
+	}
+	return files
+}
+
+// handleChangesRequest runs git diff from startHead scoped to files modified
+// in this session and opens the output in a pager.
+func (c *connectedApp) handleChangesRequest() (tea.Model, tea.Cmd) {
+	if c.startHead == "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "Session diff requires git", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	files := extractModifiedFiles(c.app.chat.Messages())
+	if len(files) == 0 {
+		model, cmd := c.app.Update(ToastMsg{Text: "No changes in this session", IsError: false})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	dir := c.app.status.Cwd()
+
+	// Build args: git diff <startHead> -- file1 file2 ...
+	args := []string{"diff", c.startHead, "--"}
+	args = append(args, files...)
+
+	pagerCmd := exec.Command("git", args...)
+	pagerCmd.Dir = dir
+	pagerCmd.Env = append(os.Environ(), "GIT_PAGER=less -R")
+	return c, tea.ExecProcess(pagerCmd, func(err error) tea.Msg {
+		return ChangesDoneMsg{Err: err}
+	})
+}
+
+// handleChangesDone shows a toast when the changes pager exits.
+func (c *connectedApp) handleChangesDone(msg ChangesDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		slog.Error("changes pager exited with error", "error", msg.Err)
+		return c, tea.Batch(c.showErrorToast("Changes error: %v", msg.Err)...)
 	}
 	return c, nil
 }
