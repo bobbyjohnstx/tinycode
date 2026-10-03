@@ -37,8 +37,15 @@ func parseCommonFlags(name string, args []string) commonFlags {
 	// First positional argument is a directory.
 	if remaining := fs.Args(); len(remaining) > 0 {
 		if info, err := os.Stat(remaining[0]); err == nil && info.IsDir() {
-			absDir, _ := filepath.Abs(remaining[0])
-			_ = os.Chdir(absDir)
+			absDir, err := filepath.Abs(remaining[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "cannot resolve directory %s: %v\n", remaining[0], err)
+				os.Exit(1)
+			}
+			if err := os.Chdir(absDir); err != nil {
+				fmt.Fprintf(os.Stderr, "cannot change to directory %s: %v\n", absDir, err)
+				os.Exit(1)
+			}
 		}
 	}
 
