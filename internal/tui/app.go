@@ -154,7 +154,7 @@ func (a App) View() string {
 	if a.hasMessages() {
 		chatView = a.chat.View()
 	} else {
-		provName, modName := lookupModelDisplay(
+		modName, provName := lookupModelDisplay(
 			a.state.Providers,
 			a.state.CurrentModel.ProviderID,
 			a.state.CurrentModel.ModelID,
@@ -713,7 +713,7 @@ func (a *App) buildDebugInfo() string {
 	fmt.Fprintf(&sb, "Terminal:   %s\n", os.Getenv("TERM"))
 
 	// Model and provider
-	provName, modName := lookupModelDisplay(
+	modName, provName := lookupModelDisplay(
 		a.state.Providers,
 		a.state.CurrentModel.ProviderID,
 		a.state.CurrentModel.ModelID,
