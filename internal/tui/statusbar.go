@@ -393,12 +393,18 @@ func truncatedModelProvider(model, provider string, maxWidth int) string {
 		providerWidth := lipgloss.Width(provider)
 		available := maxWidth - providerWidth - 5 // "  " separator + "..."
 		if available > 3 {
-			model = model[:available] + "..."
+			modelRunes := []rune(model)
+			if len(modelRunes) > available {
+				model = string(modelRunes[:available]) + "..."
+			}
 			return model + "  " + provider
 		}
 	}
 	if lipgloss.Width(combined) > maxWidth && maxWidth > 3 {
-		return combined[:maxWidth-3] + "..."
+		combinedRunes := []rune(combined)
+		if len(combinedRunes) > maxWidth-3 {
+			return string(combinedRunes[:maxWidth-3]) + "..."
+		}
 	}
 	return combined
 }
