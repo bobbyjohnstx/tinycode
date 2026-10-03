@@ -641,6 +641,15 @@ func (c *connectedApp) buildPromptInput(text string) api.PromptInput {
 			input.ThinkingBudget = &budget
 		}
 	}
+	if level := c.app.state.EffortLevel; level != "" && level != "medium" {
+		if settings, ok := effortLevelSettings(level); ok {
+			if settings.MaxTokens > 0 {
+				input.MaxTokens = &settings.MaxTokens
+			}
+			input.SystemPrefix = settings.SystemPrefix
+			input.MaxIterations = &settings.MaxIterations
+		}
+	}
 	return input
 }
 

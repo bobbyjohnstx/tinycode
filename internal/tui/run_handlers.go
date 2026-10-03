@@ -65,6 +65,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c.handleThinkingCommand(trimmed)
 	}
 
+	if strings.HasPrefix(trimmed, "/effort") {
+		return c.handleEffortCommand(trimmed)
+	}
+
 	if trimmed == "/branch" || strings.HasPrefix(trimmed, "/branch ") {
 		return c.handleBranchCommand(trimmed)
 	}
@@ -335,6 +339,62 @@ func (c *connectedApp) handleThinkingCommand(trimmed string) (tea.Model, tea.Cmd
 
 	_, label, _ := thinkingLevelBudget(level)
 	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Thinking level: %s (%s)", level, label)})
+	c.updateApp(model)
+	return c, cmd
+}
+
+// effortSettings holds the parameters for a given effort level.
+type effortSettings struct {
+	MaxTokens     int
+	SystemPrefix  string
+	MaxIterations int
+}
+
+// effortLevelSettings maps an effort level name to its settings.
+// Returns (settings, ok).
+func effortLevelSettings(level string) (effortSettings, bool) {
+	switch level {
+	case "low":
+		return effortSettings{MaxTokens: 1024, SystemPrefix: "Be concise and direct.", MaxIterations: 2}, true
+	case "medium":
+		return effortSettings{MaxTokens: 4096, MaxIterations: 5}, true
+	case "high":
+		return effortSettings{MaxTokens: 8192, SystemPrefix: "Be thorough and comprehensive.", MaxIterations: 10}, true
+	case "max":
+		return effortSettings{MaxTokens: 0, SystemPrefix: "Be exhaustive. Use every tool at your disposal.", MaxIterations: 20}, true
+	default:
+		return effortSettings{}, false
+	}
+}
+
+// handleEffortCommand handles the /effort slash command.
+func (c *connectedApp) handleEffortCommand(trimmed string) (tea.Model, tea.Cmd) {
+	level := strings.TrimSpace(strings.TrimPrefix(trimmed, "/effort"))
+
+	if level == "" {
+		current := c.app.state.EffortLevel
+		if current == "" {
+			current = "medium"
+		}
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Effort level: %s", current)})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	if _, ok := effortLevelSettings(level); !ok {
+		model, cmd := c.app.Update(ToastMsg{
+			Text:    fmt.Sprintf("Invalid effort level: %s (use low, medium, high, max)", level),
+			IsError: true,
+		})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	c.app.state.EffortLevel = level
+	c.app.prompt.SetEffortLevel(level)
+	c.app.status.SetEffort(level)
+
+	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Effort level: %s", level)})
 	c.updateApp(model)
 	return c, cmd
 }

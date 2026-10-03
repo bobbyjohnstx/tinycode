@@ -610,3 +610,76 @@ func TestBuildPromptInput_ThinkingUnset(t *testing.T) {
 		t.Errorf("expected ThinkingBudget to be nil when level is unset, got %d", *input.ThinkingBudget)
 	}
 }
+
+func TestEffortLevelSettings(t *testing.T) {
+	tests := []struct {
+		level         string
+		wantMaxTokens int
+		wantPrefix    string
+		wantMaxIter   int
+		wantOK        bool
+	}{
+		{"low", 1024, "Be concise and direct.", 2, true},
+		{"medium", 4096, "", 5, true},
+		{"high", 8192, "Be thorough and comprehensive.", 10, true},
+		{"max", 0, "Be exhaustive. Use every tool at your disposal.", 20, true},
+		{"invalid", 0, "", 0, false},
+		{"", 0, "", 0, false},
+	}
+	for _, tt := range tests {
+		settings, ok := effortLevelSettings(tt.level)
+		if ok != tt.wantOK {
+			t.Errorf("effortLevelSettings(%q) ok = %v, want %v", tt.level, ok, tt.wantOK)
+		}
+		if settings.MaxTokens != tt.wantMaxTokens {
+			t.Errorf("effortLevelSettings(%q) MaxTokens = %d, want %d", tt.level, settings.MaxTokens, tt.wantMaxTokens)
+		}
+		if settings.SystemPrefix != tt.wantPrefix {
+			t.Errorf("effortLevelSettings(%q) SystemPrefix = %q, want %q", tt.level, settings.SystemPrefix, tt.wantPrefix)
+		}
+		if settings.MaxIterations != tt.wantMaxIter {
+			t.Errorf("effortLevelSettings(%q) MaxIterations = %d, want %d", tt.level, settings.MaxIterations, tt.wantMaxIter)
+		}
+	}
+}
+
+func TestBuildPromptInput_WithEffort(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.EffortLevel = "high"
+	ca := &connectedApp{app: app}
+
+	input := ca.buildPromptInput("Hello")
+
+	if input.MaxTokens == nil {
+		t.Fatal("expected MaxTokens to be set for effort high")
+	}
+	if *input.MaxTokens != 8192 {
+		t.Errorf("expected MaxTokens 8192, got %d", *input.MaxTokens)
+	}
+	if input.SystemPrefix != "Be thorough and comprehensive." {
+		t.Errorf("expected SystemPrefix for high, got %q", input.SystemPrefix)
+	}
+	if input.MaxIterations == nil {
+		t.Fatal("expected MaxIterations to be set for effort high")
+	}
+	if *input.MaxIterations != 10 {
+		t.Errorf("expected MaxIterations 10, got %d", *input.MaxIterations)
+	}
+}
+
+func TestBuildPromptInput_EffortMediumDefault(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	input := ca.buildPromptInput("Hello")
+
+	if input.MaxTokens != nil {
+		t.Errorf("expected MaxTokens nil for default effort, got %d", *input.MaxTokens)
+	}
+	if input.SystemPrefix != "" {
+		t.Errorf("expected empty SystemPrefix for default effort, got %q", input.SystemPrefix)
+	}
+	if input.MaxIterations != nil {
+		t.Errorf("expected MaxIterations nil for default effort, got %d", *input.MaxIterations)
+	}
+}

@@ -32,6 +32,7 @@ type PromptInput struct {
 	provider     string
 	agentColor    lipgloss.AdaptiveColor
 	thinkingLevel string
+	effortLevel   string
 	cycleAgents   []string
 	width         int
 	cwd           string
@@ -131,6 +132,11 @@ func (p *PromptInput) SetMetadata(agent, model, provider string) {
 // SetThinkingLevel updates the thinking level display.
 func (p *PromptInput) SetThinkingLevel(level string) {
 	p.thinkingLevel = level
+}
+
+// SetEffortLevel updates the effort level display.
+func (p *PromptInput) SetEffortLevel(level string) {
+	p.effortLevel = level
 }
 
 // AddImage records that an image has been attached to the prompt.
@@ -395,6 +401,9 @@ func (p PromptInput) renderMetadata() string {
 	result := fmt.Sprintf("  %s %s %s", agent, dimStyle.Render("·"), dimStyle.Render(modelInfo))
 	if p.thinkingLevel != "" && p.thinkingLevel != "off" {
 		result += "  " + dimStyle.Render("thinking:"+p.thinkingLevel)
+	}
+	if p.effortLevel != "" && p.effortLevel != "medium" {
+		result += "  " + dimStyle.Render("effort:"+p.effortLevel)
 	}
 	if p.imageCount > 0 {
 		label := formatImageSize(p.imageSize)

@@ -217,6 +217,9 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 		Parts          []promptPart `json:"parts"`
 		Variant        string       `json:"variant,omitempty"`
 		ThinkingBudget *int         `json:"thinkingBudget,omitempty"`
+		MaxTokens      *int         `json:"maxTokens,omitempty"`
+		SystemPrefix   string       `json:"systemPrefix,omitempty"`
+		MaxIterations  *int         `json:"maxIterations,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -257,6 +260,9 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 		Parts:          body.Parts,
 		MessageID:      body.MessageID,
 		ThinkingBudget: body.ThinkingBudget,
+		MaxTokens:      body.MaxTokens,
+		SystemPrefix:   body.SystemPrefix,
+		MaxIterations:  body.MaxIterations,
 	})
 
 	w.WriteHeader(http.StatusNoContent)
@@ -272,6 +278,9 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 		Parts          []promptPart `json:"parts"`
 		Variant        string       `json:"variant,omitempty"`
 		ThinkingBudget *int         `json:"thinkingBudget,omitempty"`
+		MaxTokens      *int         `json:"maxTokens,omitempty"`
+		SystemPrefix   string       `json:"systemPrefix,omitempty"`
+		MaxIterations  *int         `json:"maxIterations,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -305,6 +314,9 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 		Parts:          body.Parts,
 		MessageID:      body.MessageID,
 		ThinkingBudget: body.ThinkingBudget,
+		MaxTokens:      body.MaxTokens,
+		SystemPrefix:   body.SystemPrefix,
+		MaxIterations:  body.MaxIterations,
 	})
 
 	w.WriteHeader(http.StatusNoContent)
