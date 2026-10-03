@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -87,6 +88,7 @@ type connectedApp struct {
 	resumeSessionID string
 	btwHistory      []sideQA
 	goal            *goalTracker
+	startHead       string // git HEAD at session start, for /changes
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
@@ -116,6 +118,12 @@ func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, 
 }
 
 func (c *connectedApp) Init() tea.Cmd {
+	// Capture git HEAD at session start for /changes.
+	dir := c.app.status.Cwd()
+	if out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output(); err == nil {
+		c.startHead = strings.TrimSpace(string(out))
+	}
+
 	events, err := c.client.Subscribe(c.ctx)
 	if err != nil {
 		return func() tea.Msg { return SSEDisconnectedMsg{Err: err} }
@@ -297,6 +305,12 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case DiffDoneMsg:
 		return c.handleDiffDone(msg)
+
+	case ChangesRequestMsg:
+		return c.handleChangesRequest()
+
+	case ChangesDoneMsg:
+		return c.handleChangesDone(msg)
 
 	case ClipboardImageMsg:
 		if msg.Err != nil {

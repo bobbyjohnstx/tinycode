@@ -407,6 +407,7 @@ func (a *App) hasMessages() bool {
 func (a *App) showPalette() {
 	clientNames := map[string]bool{
 		"branch":        true,
+		"changes":       true,
 		"connect":       true,
 		"compact":       true,
 		"copy":          true,
@@ -432,6 +433,7 @@ func (a *App) showPalette() {
 	}
 	items := []PaletteItem{
 		{Label: "branch", Description: "Branch conversation to try a different approach", Value: "branch"},
+		{Label: "changes", Description: "Show session-scoped diff of modified files", Value: "changes"},
 		{Label: "compact", Description: "Compact context (summarize session)", Value: "compact"},
 		{Label: "connect", Description: "Select provider and model", Value: "connect"},
 		{Label: "copy", Description: "Copy response to clipboard (/copy N for Nth)", Value: "copy"},
@@ -556,6 +558,8 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	case "diff":
 		dir := a.status.Cwd()
 		return func() tea.Msg { return DiffRequestMsg{Dir: dir} }, true
+	case "changes":
+		return func() tea.Msg { return ChangesRequestMsg{} }, true
 	case "archive":
 		if a.state.ActiveSession == "" {
 			return a.toast.Show("No active session to archive", true), true
