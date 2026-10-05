@@ -91,6 +91,7 @@ type AskInput struct {
 
 type pendingEntry struct {
 	info    Request
+	ruleset Ruleset
 	replyCh chan replyResult
 }
 
@@ -200,6 +201,7 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 
 	entry := &pendingEntry{
 		info:    info,
+		ruleset: input.Ruleset,
 		replyCh: make(chan replyResult, 1),
 	}
 	s.pending[reqID] = entry
@@ -286,7 +288,7 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 		}
 		allAllowed := true
 		for _, pattern := range other.info.Patterns {
-			if Evaluate(other.info.Permission, pattern, s.approved).Action != ActionAllow {
+			if Evaluate(other.info.Permission, pattern, s.baseRules, other.ruleset, s.approved).Action != ActionAllow {
 				allAllowed = false
 				break
 			}
