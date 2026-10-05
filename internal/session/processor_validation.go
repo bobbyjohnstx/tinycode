@@ -92,7 +92,7 @@ func extractPathsFromArgs(argsJSON string) []string {
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return nil
 	}
-	for _, key := range []string{"file_path", "path", "file", "directory", "dir", "folder", "target", "destination", "source", "src", "dest", "location", "root", "base_path", "working_directory", "cwd"} {
+	for _, key := range []string{"file_path", "path", "file", "directory", "dir", "folder", "target", "destination", "source", "src", "dest", "location", "root", "base_path", "working_directory", "cwd", "pattern"} {
 		raw, ok := args[key]
 		if !ok {
 			continue
@@ -115,6 +115,14 @@ func isInsideDirectory(path, directory string) bool {
 	absDir, err := filepath.Abs(directory)
 	if err != nil {
 		return false
+	}
+	// Resolve symlinks to prevent escaping the directory via symlink chains.
+	// Fall back to the absolute path if the target does not exist on disk.
+	if resolved, err := filepath.EvalSymlinks(absPath); err == nil {
+		absPath = resolved
+	}
+	if resolved, err := filepath.EvalSymlinks(absDir); err == nil {
+		absDir = resolved
 	}
 	rel, err := filepath.Rel(absDir, absPath)
 	if err != nil {
