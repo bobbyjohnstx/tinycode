@@ -7,17 +7,27 @@ import (
 	"sync"
 )
 
-var regexCache sync.Map // map[string]*regexp.Regexp
+var (
+	regexMu    sync.Mutex
+	regexCache = make(map[string]*regexp.Regexp)
+)
+
+const maxRegexCache = 256
 
 func cachedCompile(pattern string) (*regexp.Regexp, error) {
-	if cached, ok := regexCache.Load(pattern); ok {
-		return cached.(*regexp.Regexp), nil
+	regexMu.Lock()
+	defer regexMu.Unlock()
+	if re, ok := regexCache[pattern]; ok {
+		return re, nil
 	}
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, err
 	}
-	regexCache.Store(pattern, re)
+	if len(regexCache) >= maxRegexCache {
+		clear(regexCache)
+	}
+	regexCache[pattern] = re
 	return re, nil
 }
 
