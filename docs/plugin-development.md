@@ -73,13 +73,15 @@ func main() {
 }
 ```
 
-Build and install:
+Build and install (binary name must match the config plugin name):
 
 ```bash
-go build -o ~/.config/tinycode/plugins/greet ./cmd/my-plugin
+# from your plugin module root
+mkdir -p ~/.config/tinycode/plugins
+go build -o ~/.config/tinycode/plugins/greet .
 ```
 
-Add to your tinycode config (`~/.config/tinycode/config.json`):
+Or put `tinycode-plugin-greet` on your PATH. Add to your tinycode config (`~/.config/tinycode/tinycode.json`):
 
 ```json
 {
@@ -87,7 +89,7 @@ Add to your tinycode config (`~/.config/tinycode/config.json`):
 }
 ```
 
-Restart tinycode. The `greet` tool is now available to the LLM.
+Restart tinycode. The tool is registered as `plugin__greet__greet` (format: `plugin__{pluginName}__{toolName}`) and is available to the LLM.
 
 ---
 
@@ -131,10 +133,10 @@ type ToolDef struct {
 
 | Field | Purpose |
 |-------|---------|
-| `Name` | Unique tool name. The LLM uses this to invoke the tool. |
+| `Name` | Tool name within the plugin. On load, tinycode registers it as `plugin__{pluginName}__{toolName}` for the LLM. |
 | `Description` | Human-readable description shown to the LLM. |
 | `Parameters` | JSON Schema describing the tool's input. Use standard JSON Schema with `type`, `properties`, and `required`. |
-| `Execute` | The function called when the LLM invokes the tool. Receives raw JSON args and a `ToolContext`. Returns a string result or an error. |
+| `Execute` | The function called when the LLM invokes the tool. Receives raw JSON `args` (wire field is `"args"`, not `"arguments"`) and a `ToolContext`. Returns a string result or an error. |
 
 ### ToolContext
 
@@ -549,6 +551,8 @@ When tinycode loads a plugin by name, it searches for the binary in this order:
 2. **PATH**: looks for `tinycode-plugin-<name>` on the system PATH
 3. **Registry**: checks the built-in registry for install instructions
 
+The plugin name does not need to be in the curated registry; any binary found by this search can be loaded.
+
 ### Installing a plugin
 
 **Option 1: Build to the config directory**
@@ -608,7 +612,15 @@ Some plugins are listed in the built-in registry. If a plugin is in the registry
 | `plugin-tekton` | `tekton` | Tekton pipelines |
 | `plugin-telemetry` | `telemetry` | Usage telemetry and analytics |
 
-Build all plugins:
+Build all plugins (writes `dist/plugins/plugin-*`):
+
+```bash
+make build-plugins
+# e.g. dist/plugins/plugin-safety-net → install with:
+# tinycode plugin install safety-net --from dist/plugins/plugin-safety-net
+```
+
+Or install each into the config directory:
 
 ```bash
 for dir in cmd/plugin-*/; do

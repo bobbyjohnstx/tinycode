@@ -868,51 +868,69 @@ When enabled, tinycode detects available language servers on your PATH (gopls fo
 
 ## Plugins
 
-Plugins are standalone Go binaries that extend tinycode with custom tools and lifecycle hooks. They communicate over JSON-RPC via stdin/stdout.
+Plugins are standalone Go binaries that extend tinycode with custom tools and lifecycle hooks. They communicate over JSON-RPC via stdin/stdout. On load, each plugin tool is registered as `plugin__{pluginName}__{toolName}`.
+
+### Builtins (no install)
+
+These run in-process and are always available — do not add them to `"plugins"` or run `plugin install`:
+
+| Builtin | Description |
+|---------|-------------|
+| notify | Desktop notifications for session events |
+| code-review | Git diff formatted as a markdown review block |
+| handoff | Cross-session context save/load |
+| context-pruning | Deduplicates repeated tool outputs to save context |
 
 ### Installing plugins
 
 ```bash
-# List available plugins
+# List curated registry plugins (INSTALLED + IN_CONFIG columns)
 tinycode plugin list
 
-# List by category
-tinycode plugin list --category general
+# List by category (sre, security, ai-ml, platform, developer, essential)
+tinycode plugin list --category sre
 
 # Install from source (if cmd/plugin-<name> exists in the repo)
-tinycode plugin install notify
+tinycode plugin install safety-net
 
 # Install from a pre-built binary
-tinycode plugin install notify --from /path/to/binary
+tinycode plugin install safety-net --from dist/plugins/plugin-safety-net
 ```
 
-Plugins are installed to `~/.config/tinycode/plugins/<name>`. tinycode also checks for `tinycode-plugin-<name>` on your PATH.
+Binary resolution order when a plugin is loaded:
+
+1. `~/.config/tinycode/plugins/<name>`
+2. `tinycode-plugin-<name>` on your PATH
+3. Registry install hint if the name is curated but no binary was found
+
+From a tinycode checkout, `make build-plugins` writes binaries to `dist/plugins/plugin-*` (e.g. `dist/plugins/plugin-safety-net`). Copy or install with `--from` as above.
 
 ### Configuring plugins
 
-Add plugin names to your config:
+Add external plugin names to your config:
 
 ```json
 {
   "plugins": [
-    "notify",
-    "safety-net"
+    "safety-net",
+    "telemetry"
   ]
 }
 ```
 
 ### Available plugins
 
-Plugins are organized by category. Run `tinycode plugin list` for the full list. Highlights:
+Plugins are organized by category (`sre`, `security`, `ai-ml`, `platform`, `developer`, `essential`). Run `tinycode plugin list` for the full list. Highlights:
 
 | Plugin | Category | Description |
 |--------|----------|-------------|
-| notify | general | Desktop notifications for session events |
-| safety-net | general | Pre-execution safety checks for destructive commands |
-| web-search | general | Web search via DuckDuckGo |
-| pilot | general | Issue tracker integration (GitHub, GitLab, Gitea) |
-| ocp-context-injection | openshift | Cluster context injection |
-| container-linter | platform | Containerfile linting and bootc support |
+| safety-net | security | Pre-execution safety checks for destructive commands |
+| pilot | essential | Autonomous agent pilot mode |
+| telemetry | essential | Usage telemetry and analytics |
+| ocp-context-injection | sre | OpenShift cluster context injection |
+| container-linter | security | Containerfile linting and bootc support |
+
+See [plugin-catalog.md](plugin-catalog.md) for the complete catalog.
 
 ### Interactive plugin/role setup
 
@@ -925,7 +943,7 @@ Optional Red Hat plugin/role setup (not required for first run). Walks you throu
 ### Uninstalling
 
 ```bash
-tinycode plugin uninstall notify
+tinycode plugin uninstall safety-net
 ```
 
 ---

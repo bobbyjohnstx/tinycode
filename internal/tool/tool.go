@@ -32,6 +32,11 @@ type BeforeHookFunc func(sessionID, toolName, toolArgs string) (additionalContex
 // Any additionalContext strings are appended to the tool result.
 type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool, additionalContext []string)
 
+// ShellEnvHookFunc is called before shell command execution so plugins can
+// inject or modify environment variables. Returning nil or an empty map
+// leaves default process environment inheritance.
+type ShellEnvHookFunc func(sessionID, directory string, env map[string]string) map[string]string
+
 type SubagentRunnerFunc func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error)
 
 // SafeReadFiles is a mutex-protected set of file paths that tracks which files
@@ -145,6 +150,7 @@ type Context struct {
 	DB             *sql.DB
 	BeforeHook     BeforeHookFunc
 	AfterHook      AfterHookFunc
+	ShellEnvHook   ShellEnvHookFunc
 	SubagentCount  *atomic.Int32 // concurrent subagent counter (shared across copies)
 	SubagentBudget *atomic.Int32 // per-session spawn budget (shared across copies)
 	TaskRoundDone  *atomic.Bool  // set after first foreground task batch completes (shared across copies)
@@ -216,6 +222,23 @@ func (r *Registry) Register(def *Def) {
 		r.order = append(r.order, def.ID)
 	}
 	r.tools[def.ID] = def
+}
+
+// Unregister removes a tool by ID from the registry.
+func (r *Registry) Unregister(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.tools[id]; !exists {
+		return
+	}
+	delete(r.tools, id)
+	delete(r.disabled, id)
+	for i, name := range r.order {
+		if name == id {
+			r.order = append(r.order[:i], r.order[i+1:]...)
+			break
+		}
+	}
 }
 
 func (r *Registry) SetDisabled(disabled map[string]bool) {

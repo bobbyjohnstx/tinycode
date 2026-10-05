@@ -1,12 +1,16 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 func TestGenerateToken_Length(t *testing.T) {
@@ -149,5 +153,62 @@ func TestInitTooling_SetsBus(t *testing.T) {
 	}
 	if toolCtx.Bus != b {
 		t.Error("expected Bus to be the same instance passed to initTooling")
+	}
+}
+
+func TestPermissionAskToolArgs_PrefersCommand(t *testing.T) {
+	got := permissionAskToolArgs(permission.Request{
+		Patterns: []string{"fallback"},
+		Metadata: map[string]any{
+			"command": "rm -rf /",
+			"args":    `{"command":"ignored"}`,
+		},
+	})
+	if got != "rm -rf /" {
+		t.Fatalf("expected command metadata, got %q", got)
+	}
+}
+
+func TestPermissionAskToolName_FromMetadata(t *testing.T) {
+	got := permissionAskToolName(permission.Request{
+		Permission: "edit",
+		Metadata:   map[string]any{"tool": "write"},
+	})
+	if got != "write" {
+		t.Fatalf("expected tool metadata, got %q", got)
+	}
+	got = permissionAskToolName(permission.Request{Permission: "destructive-shell"})
+	if got != "destructive-shell" {
+		t.Fatalf("expected permission fallback, got %q", got)
+	}
+}
+
+func TestWirePermissionAskHook_DeniesDangerousCommand(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	permSvc := permission.NewService(b)
+
+	// Simulate the deny path wirePermissionAskHook uses when a plugin rejects.
+	permSvc.SetAskInterceptor(func(req permission.Request) error {
+		if permissionAskToolArgs(req) == "rm -rf /" {
+			return fmt.Errorf("%w: blocked by safety-net: command matches dangerous pattern", permission.ErrRejected)
+		}
+		return nil
+	})
+
+	err := permSvc.Ask(t.Context(), permission.AskInput{
+		SessionID:  "ses_test",
+		Permission: "destructive-shell",
+		Patterns:   []string{"rm -rf /"},
+		Metadata:   map[string]any{"command": "rm -rf /"},
+	})
+	if err == nil {
+		t.Fatal("expected deny for rm -rf /")
+	}
+	if !errors.Is(err, permission.ErrRejected) {
+		t.Fatalf("expected ErrRejected, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "safety-net") {
+		t.Fatalf("expected safety-net reason, got %v", err)
 	}
 }

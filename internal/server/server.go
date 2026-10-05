@@ -278,33 +278,12 @@ func (s *Server) wirePluginHooks() {
 		}
 	})
 
-	s.wirePluginEventLoop("permission.ask", func(props map[string]any) {
-		sessionID, _ := props["sessionID"].(string)
-		toolName, _ := props["toolName"].(string)
-		toolArgs, _ := props["toolArgs"].(string)
-		perm, _ := props["permission"].(string)
-		plugin.DispatchPermissionAsk(mgr, plugin.PermissionInput{
-			SessionID:  sessionID,
-			ToolName:   toolName,
-			ToolArgs:   toolArgs,
-			Permission: perm,
-		})
-	})
-
-	s.wirePluginEventLoop("shell.env", func(props map[string]any) {
-		sessionID, _ := props["sessionID"].(string)
-		directory, _ := props["directory"].(string)
-		env, _ := props["env"].(map[string]string)
-		plugin.DispatchShellEnv(mgr, plugin.ShellEnvInput{
-			SessionID: sessionID,
-			Directory: directory,
-			Env:       env,
-		})
-	})
-
-	// tool.execute.before and tool.execute.after dispatch is handled synchronously
-	// via tool.Context.BeforeHook and tool.Context.AfterHook respectively,
-	// to allow hooks to abort execution, transform output, and provide additionalContext.
+	// permission.ask is handled synchronously via permission.Service.AskInterceptor
+	// (wired in cmd/tinycode) so plugins like safety-net can deny before the UI ask.
+	// shell.env, tool.execute.before, and tool.execute.after dispatch is handled
+	// synchronously via tool.Context.ShellEnvHook, BeforeHook, and AfterHook
+	// respectively, so hooks can mutate env, abort execution, transform output,
+	// and provide additionalContext.
 }
 
 // wirePluginEventLoop subscribes to a bus topic and runs the handler in a

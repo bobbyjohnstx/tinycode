@@ -34,7 +34,8 @@ type Manager struct {
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `hookTimeout` | `5s` | Timeout for individual JSON-RPC calls |
+| `toolCallTimeout` | `30s` | Timeout for plugin `tool/call` JSON-RPC requests |
+| `hookTimeout` | `5s` | Timeout for individual hook JSON-RPC calls |
 | `killTimeout` | `3s` | Timeout for graceful process termination |
 
 ### Factory Functions
@@ -65,15 +66,15 @@ type Manager struct {
 
 ### Loading (`Manager.Load`)
 
-1. Validate plugin name is non-empty and exists in the curated registry
-2. Resolve binary path via `ResolveFunc` (see [9.8 Binary Resolution](#98-binary-resolution))
+1. Validate plugin name is non-empty
+2. Resolve binary path via `ResolveFunc` (see [9.8 Binary Resolution](#98-binary-resolution)). Name need not be in the curated registry when a binary resolves; known builtins without a binary are soft-skipped
 3. Generate ascending plugin ID with `plugin` prefix (e.g., `plugin_01J...`)
 4. Spawn process with `exec.CommandContext(context.Background(), binPath)` -- background context so process lives until explicitly stopped
 5. Pipe stdin/stdout, create JSON encoder/decoder
 6. Start health monitor goroutine: `cmd.Wait()` sets `dead` flag and closes `done` channel on exit
 7. Send `initialize` JSON-RPC request with `{version: "1.0", directory, options}`
 8. Receive `{id, tools, hooks}` response (tool manifests and supported hook names)
-9. Register plugin in the `plugins` map
+9. Register plugin in the `plugins` map; when a tool registry is set, register each tool as `plugin__{pluginName}__{toolName}`
 
 ### Process Health Monitor
 
@@ -194,11 +195,11 @@ Invokes a tool on the plugin that owns it.
 ```json
 // Request
 {"jsonrpc":"2.0","id":3,"method":"tool/call","params":{
-  "name":"web-search","args":{"query":"golang channels"},"context":{"sessionId":"ses_...","directory":"/path"}
+  "name":"greet","args":{"name":"World"},"context":{"sessionId":"ses_...","directory":"/path"}
 }}
 
 // Response
-{"jsonrpc":"2.0","id":3,"result":{"content":"search results...","isError":false}}
+{"jsonrpc":"2.0","id":3,"result":{"content":"Hello, World!","isError":false}}
 ```
 
 | Request Field | Type | Description |
@@ -387,17 +388,18 @@ Plugins are declared in the user's `config.json` under the `"plugins"` array.
 
 ```json
 {
-  "plugins": ["notify", "telemetry", "code-review"]
+  "plugins": ["safety-net", "telemetry"]
 }
 ```
+
+Builtins (`notify`, `code-review`, `handoff`, `context-pruning`) do not need config entries.
 
 **Tuple form** (with options):
 
 ```json
 {
   "plugins": [
-    "notify",
-    ["code-review", {"auto": true}],
+    "safety-net",
     ["telemetry", {"endpoint": "https://example.com"}]
   ]
 }
@@ -413,8 +415,8 @@ type PluginSpec struct {
 ```
 
 `UnmarshalJSON` handles both forms:
-- Bare string `"notify"` becomes `PluginSpec{Name: "notify"}`
-- Tuple `["code-review", {"auto": true}]` becomes `PluginSpec{Name: "code-review", Options: {"auto": true}}`
+- Bare string `"telemetry"` becomes `PluginSpec{Name: "telemetry"}`
+- Tuple `["telemetry", {"endpoint": "..."}]` becomes `PluginSpec{Name: "telemetry", Options: {...}}`
 - Tuple must have 1 or 2 elements; first must be a string
 
 `ParsePluginConfig(raw)` converts `[]json.RawMessage` to `[]PluginSpec`.

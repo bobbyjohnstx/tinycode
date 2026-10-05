@@ -243,8 +243,19 @@ func runPlugin() {
 			entries = plugin.Registry()
 		}
 
+		inConfig := map[string]bool{}
+		if dir, err := os.Getwd(); err == nil {
+			if cfg, err := config.Load(dir); err == nil {
+				if specs, err := plugin.ParsePluginConfig(cfg.Plugins); err == nil {
+					for _, s := range specs {
+						inConfig[s.Name] = true
+					}
+				}
+			}
+		}
+
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tCATEGORY\tDESCRIPTION\tINSTALLED")
+		fmt.Fprintln(w, "NAME\tCATEGORY\tDESCRIPTION\tINSTALLED\tIN_CONFIG")
 		pluginDir := filepath.Join(config.ConfigDir(), "plugins")
 		for _, e := range entries {
 			installed := "no"
@@ -254,7 +265,11 @@ func runPlugin() {
 			} else if _, err := exec.LookPath("tinycode-plugin-" + e.Name); err == nil {
 				installed = "yes (PATH)"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", e.Name, e.Category, e.Description, installed)
+			cfgStatus := "no"
+			if inConfig[e.Name] {
+				cfgStatus = "yes"
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.Name, e.Category, e.Description, installed, cfgStatus)
 		}
 		w.Flush()
 

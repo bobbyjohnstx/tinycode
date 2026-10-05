@@ -14,6 +14,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/id"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
+	"github.com/bobbyjohnstx/tinycode/internal/tool"
 	pkgplugin "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
@@ -47,6 +48,7 @@ type pluginProcess struct {
 	mu      sync.Mutex     // protects writes/reads to stdin/stdout
 	hooks   []string       // hooks declared during initialize
 	tools   []ToolManifest
+	toolIDs []string // tool registry IDs registered for this plugin
 	nextID  atomic.Int64
 	dead    atomic.Bool
 	done    chan struct{} // closed when the process exits
@@ -96,6 +98,7 @@ type Manager struct {
 	directory      string
 	commandFactory CommandFactory
 	resolveFunc    ResolveFunc
+	toolReg        *tool.Registry // optional; when set, Load/Unload register/unregister tools
 }
 
 // NewManager creates an empty plugin manager using the built-in registry.
@@ -145,6 +148,14 @@ func (m *Manager) SetResolveFunc(f ResolveFunc) {
 	m.resolveFunc = f
 }
 
+// SetToolRegistry sets the tool registry used to register plugin tools on Load
+// and unregister them on Unload/Shutdown. When nil, tools are not registered.
+func (m *Manager) SetToolRegistry(reg *tool.Registry) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.toolReg = reg
+}
+
 // List returns all loaded plugins.
 func (m *Manager) List() []PluginInfo {
 	m.mu.RLock()
@@ -157,32 +168,47 @@ func (m *Manager) List() []PluginInfo {
 	return out
 }
 
+// knownBuiltinIDs are in-process builtins (see builtin_*.go). Config entries
+// for these names are soft-skipped when no external binary is resolvable.
+var knownBuiltinIDs = map[string]struct{}{
+	"notify":          {},
+	"code-review":     {},
+	"handoff":         {},
+	"context-pruning": {},
+}
+
 // Load resolves a plugin binary, starts it as a subprocess, performs the
 // JSON-RPC initialize handshake, and registers the plugin.
+// The name need not be in the curated registry when resolveFunc finds a binary
+// (e.g. ~/.config/tinycode/plugins/<name> or PATH tinycode-plugin-<name>).
 func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error) {
 	if name == "" {
 		return nil, errors.New("plugin name is required")
 	}
 
 	m.mu.RLock()
-	found := false
+	inRegistry := false
 	for _, entry := range m.registry {
 		if entry.Name == name {
-			found = true
+			inRegistry = true
 			break
 		}
 	}
 	dir := m.directory
 	factory := m.commandFactory
 	resolve := m.resolveFunc
+	logger := m.logger
 	m.mu.RUnlock()
-
-	if !found {
-		return nil, fmt.Errorf("%w: %s", ErrPluginNotFound, name)
-	}
 
 	binPath, err := resolve(name)
 	if err != nil {
+		if !inRegistry {
+			if _, ok := knownBuiltinIDs[name]; ok {
+				logger.Info("skipping load for builtin plugin listed in config", "name", name)
+				return nil, nil
+			}
+			return nil, fmt.Errorf("%w: %s", ErrPluginNotFound, name)
+		}
 		return nil, fmt.Errorf("resolve plugin %s: %w", name, err)
 	}
 
@@ -251,6 +277,10 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 	proc.hooks = initResult.Hooks
 	proc.tools = initResult.Tools
 
+	// Register tools before publishing the plugin so Unload cannot race
+	// and leave orphaned registry entries.
+	m.registerPluginTools(proc)
+
 	m.mu.Lock()
 	m.plugins[pid] = proc
 	m.mu.Unlock()
@@ -270,6 +300,7 @@ func (m *Manager) Unload(pluginID string) error {
 	delete(m.plugins, pluginID)
 	m.mu.Unlock()
 
+	m.unregisterPluginTools(proc)
 	m.stopProcess(proc)
 	m.logger.Info("plugin unloaded", "id", pluginID)
 	return nil
@@ -311,6 +342,7 @@ func (m *Manager) Shutdown() {
 	m.mu.Unlock()
 
 	for _, proc := range procs {
+		m.unregisterPluginTools(proc)
 		m.stopProcess(proc)
 	}
 
@@ -433,16 +465,18 @@ func (m *Manager) Tools() []ToolManifest {
 	return out
 }
 
-// CallTool invokes a tool on the plugin that owns it. Returns the tool output
-// as raw JSON, or an error if the plugin or tool is not found.
-func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage, sessionID string) (json.RawMessage, error) {
+// CallTool invokes a tool on the plugin that owns it.
+// Transport/RPC failures return a Go error. Tool-level failures
+// (ToolCallResult.IsError) return content with isError=true and a nil error
+// so Registry.Execute can surface them as ExecuteResult.IsError.
+func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage, sessionID string) (content string, isError bool, err error) {
 	m.mu.RLock()
 	proc, ok := m.plugins[pluginID]
 	dir := m.directory
 	m.mu.RUnlock()
 
 	if !ok {
-		return nil, fmt.Errorf("plugin %s not found", pluginID)
+		return "", false, fmt.Errorf("plugin %s not found", pluginID)
 	}
 
 	raw, err := proc.sendRPC("tool/call", pkgplugin.ToolCallParams{
@@ -454,25 +488,72 @@ func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage, sess
 		},
 	}, toolCallTimeout)
 	if err != nil {
-		return nil, err
+		return "", false, err
 	}
 
 	var result pkgplugin.ToolCallResult
 	if raw != nil {
 		if err := json.Unmarshal(raw, &result); err != nil {
-			return nil, fmt.Errorf("unmarshal tool result: %w", err)
+			return "", false, fmt.Errorf("unmarshal tool result: %w", err)
 		}
 	}
 
-	if result.IsError {
-		return nil, fmt.Errorf("tool %s error: %s", toolName, result.Content)
+	return result.Content, result.IsError, nil
+}
+
+// registerPluginTools registers each tool declared by the plugin on the
+// optional tool registry with ID plugin__{pluginName}__{toolName}.
+func (m *Manager) registerPluginTools(proc *pluginProcess) {
+	m.mu.RLock()
+	reg := m.toolReg
+	m.mu.RUnlock()
+	if reg == nil || len(proc.tools) == 0 {
+		return
 	}
 
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("marshal tool result: %w", err)
+	pluginID := proc.info.ID
+	pluginName := proc.info.Name
+	ids := make([]string, 0, len(proc.tools))
+	for _, tm := range proc.tools {
+		tm := tm
+		toolID := fmt.Sprintf("plugin__%s__%s", pluginName, tm.Name)
+		toolName := tm.Name
+		params := tm.InputSchema
+		if params == nil {
+			params = map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			}
+		}
+		reg.Register(&tool.Def{
+			ID:          toolID,
+			Description: tm.Description,
+			Parameters:  params,
+			Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+				content, isErr, callErr := m.CallTool(pluginID, toolName, args, tc.SessionID)
+				if callErr != nil {
+					return &tool.ExecuteResult{Output: callErr.Error(), IsError: true}, nil
+				}
+				return &tool.ExecuteResult{Output: content, IsError: isErr}, nil
+			},
+		})
+		ids = append(ids, toolID)
 	}
-	return resultJSON, nil
+	proc.toolIDs = ids
+}
+
+// unregisterPluginTools removes tools previously registered for the plugin.
+func (m *Manager) unregisterPluginTools(proc *pluginProcess) {
+	m.mu.RLock()
+	reg := m.toolReg
+	m.mu.RUnlock()
+	if reg == nil || len(proc.toolIDs) == 0 {
+		return
+	}
+	for _, id := range proc.toolIDs {
+		reg.Unregister(id)
+	}
+	proc.toolIDs = nil
 }
 
 // stopProcess sends dispose (best-effort) and then kills the process.

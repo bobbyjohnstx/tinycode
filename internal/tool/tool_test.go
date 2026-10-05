@@ -66,6 +66,32 @@ func TestTruncate_HeadDirection(t *testing.T) {
 	}
 }
 
+func TestRegistry_Unregister(t *testing.T) {
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	r.Register(&Def{
+		ID:          "temp-tool",
+		Description: "temporary",
+		Parameters:  map[string]any{"type": "object"},
+		Execute: func(ctx context.Context, tc *Context, args json.RawMessage) (*ExecuteResult, error) {
+			return &ExecuteResult{Output: "ok"}, nil
+		},
+	})
+	if r.Get("temp-tool") == nil {
+		t.Fatal("expected tool registered")
+	}
+	r.Unregister("temp-tool")
+	if r.Get("temp-tool") != nil {
+		t.Fatal("expected tool unregistered")
+	}
+	for _, name := range r.List() {
+		if name == "temp-tool" {
+			t.Fatal("temp-tool still in List after Unregister")
+		}
+	}
+	// Idempotent.
+	r.Unregister("temp-tool")
+}
+
 func TestRegistry_RegisterAndExecute(t *testing.T) {
 	r := NewRegistry(&Context{Directory: t.TempDir()})
 

@@ -3,6 +3,8 @@ package permission
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -225,6 +227,111 @@ func TestService_AskBlocksUntilReply(t *testing.T) {
 	wg.Wait()
 	if askErr != nil {
 		t.Fatalf("expected nil after approval, got %v", askErr)
+	}
+}
+
+func TestService_AskInterceptor_Denies(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	svc.SetAskInterceptor(func(req Request) error {
+		cmd, _ := req.Metadata["command"].(string)
+		if cmd == "rm -rf /" {
+			return fmt.Errorf("%w: blocked by safety-net: dangerous pattern", ErrRejected)
+		}
+		return nil
+	})
+
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "destructive-shell",
+		Patterns:   []string{"rm -rf /"},
+		Metadata:   map[string]any{"command": "rm -rf /"},
+	})
+	if !errors.Is(err, ErrRejected) {
+		t.Fatalf("expected ErrRejected, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "blocked by safety-net") {
+		t.Fatalf("expected reason in error, got %v", err)
+	}
+	if n := len(svc.List()); n != 0 {
+		t.Fatalf("expected no pending after interceptor deny, got %d", n)
+	}
+}
+
+func TestService_AskInterceptor_AllowsContinuesToUI(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	called := false
+	svc.SetAskInterceptor(func(req Request) error {
+		called = true
+		return nil
+	})
+
+	var askErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		askErr = svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+			Always:     []string{"/tmp/foo"},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	if len(pending) != 1 {
+		t.Fatalf("expected 1 pending after interceptor allow, got %d", len(pending))
+	}
+	if !called {
+		t.Fatal("expected interceptor to be called")
+	}
+
+	if err := svc.RespondToAsk(ReplyInput{RequestID: pending[0].ID, Reply: ReplyOnce}); err != nil {
+		t.Fatalf("reply failed: %v", err)
+	}
+	wg.Wait()
+	if askErr != nil {
+		t.Fatalf("expected nil after approval, got %v", askErr)
+	}
+}
+
+func TestService_AskInterceptor_SkippedWhenAllowed(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	called := false
+	svc.SetAskInterceptor(func(req Request) error {
+		called = true
+		return fmt.Errorf("%w: should not run", ErrRejected)
+	})
+
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+		Ruleset:    Ruleset{{Permission: "bash", Pattern: "*", Action: ActionAllow}},
+	})
+	if err != nil {
+		t.Fatalf("expected allowed without interceptor, got %v", err)
+	}
+	if called {
+		t.Fatal("interceptor must not run when rules already allow")
 	}
 }
 

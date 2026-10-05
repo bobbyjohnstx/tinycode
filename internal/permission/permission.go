@@ -105,15 +105,20 @@ type RuleStore interface {
 	LoadRules(projectID string) (Ruleset, error)
 }
 
+// AskInterceptor is called when Ask would block for a user reply.
+// Return a non-nil error to deny; return nil to continue to the UI ask.
+type AskInterceptor func(req Request) error
+
 type Service struct {
-	mu        sync.Mutex
-	bus       *bus.Bus
-	pending   map[string]*pendingEntry
-	baseRules Ruleset
-	approved  Ruleset
-	closed    bool
-	store     RuleStore
-	projectID string
+	mu             sync.Mutex
+	bus            *bus.Bus
+	pending        map[string]*pendingEntry
+	baseRules      Ruleset
+	approved       Ruleset
+	closed         bool
+	store          RuleStore
+	projectID      string
+	askInterceptor AskInterceptor
 }
 
 func NewService(b *bus.Bus) *Service {
@@ -143,6 +148,14 @@ func (s *Service) SetBaseRules(rules Ruleset) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.baseRules = rules
+}
+
+// SetAskInterceptor registers a synchronous hook that can deny an ask
+// before permission.asked is published and the UI wait begins.
+func (s *Service) SetAskInterceptor(fn AskInterceptor) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.askInterceptor = fn
 }
 
 // Ask evaluates rules and either allows, denies, or blocks waiting for user reply.
@@ -197,6 +210,22 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 		Metadata:   input.Metadata,
 		Always:     always,
 		Tool:       input.Tool,
+	}
+
+	interceptor := s.askInterceptor
+	s.mu.Unlock()
+
+	// Plugin hooks (e.g. safety-net) can deny synchronously before the UI ask.
+	if interceptor != nil {
+		if err := interceptor(info); err != nil {
+			return err
+		}
+	}
+
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return ErrClosed
 	}
 
 	entry := &pendingEntry{

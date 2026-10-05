@@ -67,11 +67,12 @@ func runTUI(args []string) {
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	if !flags.safeMode {
-		loadConfigPlugins(pluginMgr, cfg, dir)
+		loadConfigPlugins(pluginMgr, toolReg, cfg, dir)
 	}
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
 	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
+	wirePermissionAskHook(permSvc, pluginMgr)
 
 	if flags.model != "" {
 		cfg.Model = flags.model

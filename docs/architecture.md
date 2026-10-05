@@ -100,7 +100,7 @@ In-process publish-subscribe event bus. Components publish typed events (session
 
 ### `internal/plugin/` -- Plugin Manager (Server Side)
 
-`manager.go` spawns plugin binaries as child processes, performs the JSON-RPC `initialize` handshake, registers plugin-provided tools into the tool registry, and dispatches hook invocations (session lifecycle, permission, tool execution) to plugins.
+`manager.go` spawns plugin binaries as child processes, performs the JSON-RPC `initialize` handshake, registers plugin-provided tools into the tool registry as `plugin__{pluginName}__{toolName}`, and dispatches hook invocations (session lifecycle, permission, shell env, tool execution) to plugins. Load works for any resolvable binary (`~/.config/tinycode/plugins/<name>` or `tinycode-plugin-<name>` on PATH), not only curated registry names.
 
 ### `internal/redhat/` -- Red Hat Product Integrations
 
@@ -173,13 +173,14 @@ User types prompt in TUI
 
 ```
 plugin.Manager.Load(name)
-  -> exec.Command("plugin-<name>")   # spawn binary
+  -> resolve binary (config dir / PATH)
+  -> exec.Command(binPath)           # spawn binary
   -> JSON-RPC "initialize" request
   -> plugin returns manifest (tools, hooks)
-  -> register plugin tools in tool registry
+  -> register tools as plugin__{name}__{tool}
 
 On tool call:
-  -> JSON-RPC "tool/call" request
+  -> JSON-RPC "tool/call" (params.args)
   -> plugin executes, returns result
 
 On hook event:

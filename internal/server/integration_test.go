@@ -116,11 +116,11 @@ func newTestHarness(t *testing.T, scenarios []mockScenario) *testHarness {
 		Source: "test",
 		Models: map[string]*provider.Model{
 			"test-model": {
-				ID:         "test-model",
-				ProviderID: "test-provider",
-				Name:       "Test Model 7B",
-				API:        provider.ModelAPI{ID: "test-model", URL: "http://localhost:0"},
-				Status:     "available",
+				ID:           "test-model",
+				ProviderID:   "test-provider",
+				Name:         "Test Model 7B",
+				API:          provider.ModelAPI{ID: "test-model", URL: "http://localhost:0"},
+				Status:       "available",
 				Capabilities: provider.ModelCaps{ToolCall: true, Input: provider.ModalityCaps{Text: true}, Output: provider.ModalityCaps{Text: true}},
 			},
 		},
@@ -133,6 +133,9 @@ func newTestHarness(t *testing.T, scenarios []mockScenario) *testHarness {
 		{Name: "test-plugin", Package: "test-plugin"},
 	})
 	pluginMgr.SetResolveFunc(func(name string) (string, error) {
+		if name != "test-plugin" {
+			return "", plugin.ErrPluginNotFound
+		}
 		return name, nil
 	})
 	pluginMgr.SetCommandFactory(func(ctx context.Context, name string, args ...string) *exec.Cmd {
@@ -764,8 +767,8 @@ func TestE2E_ClientFactoryReceivesAPIKey(t *testing.T) {
 	})
 
 	model := &provider.Model{
-		ID:   "test",
-		API:  provider.ModelAPI{URL: "http://localhost:11434"},
+		ID:      "test",
+		API:     provider.ModelAPI{URL: "http://localhost:11434"},
 		Options: map[string]any{"api_key": "sk-test-123"},
 	}
 	client := sm.clientFactory(model)

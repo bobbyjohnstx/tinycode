@@ -309,6 +309,70 @@ func wireToolBeforeHook(toolCtx *tool.Context, mgr *plugin.Manager, shellRunner 
 			ToolArgs:  toolArgs,
 		}, shellRunner)
 	}
+	toolCtx.ShellEnvHook = func(sessionID, directory string, env map[string]string) map[string]string {
+		out, err := plugin.DispatchShellEnv(mgr, plugin.ShellEnvInput{
+			SessionID: sessionID,
+			Directory: directory,
+			Env:       env,
+		})
+		if err != nil || out == nil {
+			return env
+		}
+		return out.Env
+	}
+}
+
+// wirePermissionAskHook installs a synchronous AskInterceptor so plugin
+// permission.ask hooks (e.g. safety-net) can deny before the UI prompt.
+func wirePermissionAskHook(permSvc *permission.Service, mgr *plugin.Manager) {
+	if permSvc == nil {
+		return
+	}
+	permSvc.SetAskInterceptor(func(req permission.Request) error {
+		out, err := plugin.DispatchPermissionAsk(mgr, plugin.PermissionInput{
+			SessionID:  req.SessionID,
+			ToolName:   permissionAskToolName(req),
+			ToolArgs:   permissionAskToolArgs(req),
+			Permission: req.Permission,
+		})
+		if err != nil {
+			slog.Warn("permission.ask interceptor failed", "error", err)
+			return nil // fail-open on hook errors
+		}
+		if out != nil && !out.Allowed {
+			if out.Reason != "" {
+				return fmt.Errorf("%w: %s", permission.ErrRejected, out.Reason)
+			}
+			return permission.ErrRejected
+		}
+		return nil
+	})
+}
+
+func permissionAskToolName(req permission.Request) string {
+	if req.Metadata != nil {
+		if tool, ok := req.Metadata["tool"].(string); ok && tool != "" {
+			return tool
+		}
+	}
+	return req.Permission
+}
+
+// permissionAskToolArgs prefers shell Metadata["command"] so safety-net
+// matchDangerous(input.ToolArgs) sees the raw command string.
+func permissionAskToolArgs(req permission.Request) string {
+	if req.Metadata != nil {
+		if cmd, ok := req.Metadata["command"].(string); ok && cmd != "" {
+			return cmd
+		}
+		if args, ok := req.Metadata["args"].(string); ok && args != "" {
+			return args
+		}
+	}
+	if len(req.Patterns) > 0 {
+		return req.Patterns[0]
+	}
+	return ""
 }
 
 func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager, bm *plugin.BuiltinManager, shellRunner *plugin.ShellHookRunner) {
@@ -484,8 +548,9 @@ func registerConfigProviders(reg *provider.Registry, cfg *config.Info) {
 	}
 }
 
-func loadConfigPlugins(mgr *plugin.Manager, cfg *config.Info, dir string) {
+func loadConfigPlugins(mgr *plugin.Manager, toolReg *tool.Registry, cfg *config.Info, dir string) {
 	mgr.SetDirectory(dir)
+	mgr.SetToolRegistry(toolReg)
 	if len(cfg.Plugins) == 0 {
 		return
 	}

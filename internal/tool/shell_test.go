@@ -136,6 +136,35 @@ func TestIsDestructive_IgnoresSafeCommands(t *testing.T) {
 	}
 }
 
+func TestExecuteShell_ShellEnvHookInjectsEnv(t *testing.T) {
+	args := shellArgs{Command: "echo $FOO"}
+	raw, _ := json.Marshal(args)
+
+	tc := &Context{
+		SessionID: "sess-env",
+		Directory: t.TempDir(),
+		ReadFiles: NewSafeReadFiles(),
+		ShellEnvHook: func(sessionID, directory string, env map[string]string) map[string]string {
+			if sessionID != "sess-env" {
+				t.Errorf("expected sessionID sess-env, got %q", sessionID)
+			}
+			env["FOO"] = "bar"
+			return env
+		},
+	}
+
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Output)
+	}
+	if got := strings.TrimSpace(result.Output); got != "bar" {
+		t.Errorf("expected FOO=bar in command output, got %q", got)
+	}
+}
+
 func TestExecuteShell_TruncatesLargeOutput(t *testing.T) {
 	// Generate >10MB of stdout via a shell command.
 	// yes produces infinite output; head caps it at 11MB.

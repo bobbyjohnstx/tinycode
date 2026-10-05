@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/tool"
 	pkgplugin "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
@@ -76,6 +78,8 @@ func TestHelperProcess(t *testing.T) {
 			helperHandleInitialize(encoder, req, behavior)
 		case "hook/invoke":
 			helperHandleHookInvoke(encoder, req, behavior)
+		case "tool/call":
+			helperHandleToolCall(encoder, req, behavior)
 		default:
 			encoder.Encode(pkgplugin.JSONRPCResponse{
 				JSONRPC: "2.0",
@@ -95,7 +99,7 @@ func helperHandleInitialize(encoder *json.Encoder, req pkgplugin.JSONRPCRequest,
 		hooks = []string{"session.start", "session.end"}
 	}
 	tools := []pkgplugin.ToolManifest{}
-	if behavior == "with_tools" {
+	if behavior == "with_tools" || behavior == "tool_error" {
 		tools = []pkgplugin.ToolManifest{
 			{Name: "greet", Description: "Greet someone", InputSchema: map[string]any{"type": "object"}},
 		}
@@ -107,6 +111,34 @@ func helperHandleInitialize(encoder *json.Encoder, req pkgplugin.JSONRPCRequest,
 	}
 	raw, _ := json.Marshal(result)
 	encoder.Encode(pkgplugin.JSONRPCResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result:  raw,
+	})
+}
+
+func helperHandleToolCall(encoder *json.Encoder, req pkgplugin.JSONRPCRequest, behavior string) {
+	var params pkgplugin.ToolCallParams
+	_ = json.Unmarshal(req.Params, &params)
+
+	content := "ok"
+	isError := false
+	switch {
+	case behavior == "tool_error":
+		content = "tool failed"
+		isError = true
+	case params.Name == "greet":
+		var args map[string]any
+		_ = json.Unmarshal(params.Args, &args)
+		if name, ok := args["name"].(string); ok {
+			content = "Hello, " + name
+		} else {
+			content = "Hello"
+		}
+	}
+
+	raw, _ := json.Marshal(pkgplugin.ToolCallResult{Content: content, IsError: isError})
+	_ = encoder.Encode(pkgplugin.JSONRPCResponse{
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Result:  raw,
@@ -218,6 +250,61 @@ func TestLoadPlugin_InitializeHandshake(t *testing.T) {
 	}
 	if list[0].Name != "test-plugin" {
 		t.Errorf("expected test-plugin in list, got %s", list[0].Name)
+	}
+}
+
+func TestLoadPlugin_NotInRegistry_ResolveSucceeds(t *testing.T) {
+	mgr := NewManagerWithRegistry(nil) // empty curated registry
+	mgr.SetCommandFactory(helperCommandFactory(""))
+	mgr.SetResolveFunc(func(name string) (string, error) {
+		return "greet-plugin-binary", nil
+	})
+	mgr.SetDirectory("/tmp/test")
+
+	info, err := mgr.Load("greet", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	if info.Name != "greet" {
+		t.Errorf("expected name greet, got %s", info.Name)
+	}
+	if len(mgr.List()) != 1 {
+		t.Fatalf("expected 1 loaded plugin, got %d", len(mgr.List()))
+	}
+}
+
+func TestLoadPlugin_NotInRegistry_ResolveFails(t *testing.T) {
+	mgr := NewManagerWithRegistry(nil)
+	mgr.SetResolveFunc(func(name string) (string, error) {
+		return "", fmt.Errorf("not found")
+	})
+
+	_, err := mgr.Load("greet", nil)
+	if err == nil {
+		t.Fatal("expected error when resolve fails and name not in registry")
+	}
+	if !errors.Is(err, ErrPluginNotFound) {
+		t.Errorf("expected ErrPluginNotFound, got %v", err)
+	}
+}
+
+func TestLoadPlugin_BuiltinSoftSkip(t *testing.T) {
+	mgr := NewManagerWithRegistry(nil)
+	mgr.SetResolveFunc(func(name string) (string, error) {
+		return "", fmt.Errorf("not found")
+	})
+
+	info, err := mgr.Load("notify", nil)
+	if err != nil {
+		t.Fatalf("expected soft-skip nil error, got %v", err)
+	}
+	if info != nil {
+		t.Errorf("expected nil PluginInfo on soft-skip, got %+v", info)
+	}
+	if len(mgr.List()) != 0 {
+		t.Errorf("expected 0 loaded plugins, got %d", len(mgr.List()))
 	}
 }
 
@@ -390,5 +477,69 @@ func TestTools_Empty(t *testing.T) {
 	tools := mgr.Tools()
 	if len(tools) != 0 {
 		t.Errorf("expected 0 tools, got %d", len(tools))
+	}
+}
+
+func TestLoad_RegistersToolsInRegistry(t *testing.T) {
+	mgr := newTestManager("with_tools")
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	mgr.SetToolRegistry(reg)
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	const toolID = "plugin__test-plugin__greet"
+	defs := reg.ToolDefs(nil)
+	found := false
+	for _, d := range defs {
+		if d.Function.Name == toolID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("ToolDefs missing %s; got %#v", toolID, defs)
+	}
+
+	out, isErr, err := reg.Execute(context.Background(), toolID, json.RawMessage(`{"name":"world"}`), "sess1")
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if isErr {
+		t.Fatalf("Execute IsError=true, output=%q", out)
+	}
+	if out != "Hello, world" {
+		t.Errorf("expected Hello, world, got %q", out)
+	}
+
+	if err := mgr.Unload(info.ID); err != nil {
+		t.Fatalf("Unload: %v", err)
+	}
+	if reg.Get(toolID) != nil {
+		t.Fatal("expected tool unregistered after Unload")
+	}
+}
+
+func TestCallTool_ToolLevelError(t *testing.T) {
+	mgr := newTestManager("tool_error")
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	content, isError, err := mgr.CallTool(info.ID, "greet", json.RawMessage(`{}`), "sess1")
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if !isError {
+		t.Fatal("expected isError=true")
+	}
+	if content != "tool failed" {
+		t.Errorf("expected tool failed, got %q", content)
 	}
 }

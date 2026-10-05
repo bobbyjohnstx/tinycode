@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -126,6 +127,14 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	cmd := exec.CommandContext(cmdCtx, "sh", "-c", args.Command)
 	cmd.Dir = tc.Directory
 
+	if tc.ShellEnvHook != nil {
+		env := environToMap(os.Environ())
+		merged := tc.ShellEnvHook(tc.SessionID, tc.Directory, env)
+		if len(merged) > 0 {
+			cmd.Env = flattenEnv(merged)
+		}
+	}
+
 	stdout := NewLimitedWriter(MaxOutputSize)
 	stderr := NewLimitedWriter(MaxOutputSize)
 	cmd.Stdout = stdout
@@ -191,4 +200,24 @@ func checkSecretAccess(command string) string {
 		}
 	}
 	return ""
+}
+
+func environToMap(environ []string) map[string]string {
+	m := make(map[string]string, len(environ))
+	for _, e := range environ {
+		k, v, ok := strings.Cut(e, "=")
+		if !ok {
+			continue
+		}
+		m[k] = v
+	}
+	return m
+}
+
+func flattenEnv(env map[string]string) []string {
+	out := make([]string, 0, len(env))
+	for k, v := range env {
+		out = append(out, k+"="+v)
+	}
+	return out
 }

@@ -123,11 +123,12 @@ func runRun() {
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	if !*safeModeFlag {
-		loadConfigPlugins(pluginMgr, cfg, dir)
+		loadConfigPlugins(pluginMgr, toolReg, cfg, dir)
 	}
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
 	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
+	wirePermissionAskHook(permSvc, pluginMgr)
 
 	modelStr := *modelFlag
 	if modelStr == "" {
