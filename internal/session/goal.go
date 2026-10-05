@@ -82,17 +82,17 @@ var ecosystemIndicators = []struct {
 }
 
 // detectEcosystem checks for indicator files in dir and returns the ecosystem key.
-// Returns "go" if no indicators are found.
+// Returns "" if no indicators are found or dir is empty.
 func detectEcosystem(dir string) string {
 	if dir == "" {
-		return "go"
+		return ""
 	}
 	for _, ind := range ecosystemIndicators {
 		if _, err := os.Stat(filepath.Join(dir, ind.file)); err == nil {
 			return ind.ecosystem
 		}
 	}
-	return "go"
+	return ""
 }
 
 // ResolveGoalCommand maps a natural language condition to a shell command,
