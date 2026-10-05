@@ -40,6 +40,7 @@ func TokenAuth(token string) func(http.Handler) http.Handler {
 						Value:    qt,
 						Path:     "/",
 						HttpOnly: true,
+						Secure:   r.TLS != nil,
 						SameSite: http.SameSiteStrictMode,
 					})
 					cleanQuery := r.URL.Query()
