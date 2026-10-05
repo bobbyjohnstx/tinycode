@@ -144,6 +144,9 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 					}
 				}
 			}
+			if strings.Contains(m.API.URL, "api.anthropic.com") {
+				return llm.NewAnthropicClient(m.API.URL, apiKey)
+			}
 			return llm.NewOpenAIClient(m.API.URL+"/v1", apiKey)
 		},
 	}
