@@ -341,6 +341,36 @@ func (s *Service) stopServer(conn *serverConn) {
 	}
 }
 
+// WaitForConnections blocks until every server reaches StatusConnected or
+// StatusError, or the timeout elapses. This prevents Tools() from returning
+// an empty set when called immediately after Configure().
+func (s *Service) WaitForConnections(ctx context.Context, timeout time.Duration) {
+	deadline := time.After(timeout)
+	tick := time.NewTicker(50 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		s.mu.RLock()
+		allSettled := true
+		for _, conn := range s.servers {
+			if conn.status != StatusConnected && conn.status != StatusError {
+				allSettled = false
+				break
+			}
+		}
+		s.mu.RUnlock()
+		if allSettled {
+			return
+		}
+		select {
+		case <-deadline:
+			return
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
+}
+
 func (s *Service) Tools(ctx context.Context) map[string]*tool.Def {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
