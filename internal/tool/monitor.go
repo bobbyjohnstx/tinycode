@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const (
@@ -166,15 +168,15 @@ func (mm *MonitorManager) Start(ctx context.Context, command, description, dir s
 		}
 	}
 	wg.Add(2)
-	go scanInto(stdout, "")
-	go scanInto(stderr, "STDERR: ")
+	safego.Go(func() { scanInto(stdout, "") })
+	safego.Go(func() { scanInto(stderr, "STDERR: ") })
 
-	go func() {
+	safego.Go(func() {
 		_ = cmd.Wait()
 		wg.Wait()
 		close(mon.done)
 		slog.Info("monitor finished", "id", monitorID, "description", description)
-	}()
+	})
 
 	slog.Info("monitor started", "id", monitorID, "command", command, "dir", dir, "timeout", timeout)
 	return monitorID, nil

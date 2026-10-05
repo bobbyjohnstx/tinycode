@@ -14,6 +14,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
@@ -45,10 +46,10 @@ func Run(ctx context.Context, cfg RunConfig) error {
 
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
-	go func() {
+	safego.Go(func() {
 		<-ctx.Done()
 		p.Quit()
-	}()
+	})
 
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("TUI error: %w", err)
@@ -160,14 +161,14 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, fetchProviders(c.client))
 		}
 		if scMsg, ok := tuiMsg.(SubagentCompletedMsg); ok {
-			go func() {
+			safego.Go(func() {
 				title := "Subagent complete"
 				body := scMsg.Label
 				if scMsg.Agent != "" {
 					body = scMsg.Agent + ": " + scMsg.Label
 				}
 				_, _ = plugin.SendNotification(context.Background(), title, body, "low")
-			}()
+			})
 		}
 		model, cmd := c.app.Update(tuiMsg)
 		c.updateApp(model)

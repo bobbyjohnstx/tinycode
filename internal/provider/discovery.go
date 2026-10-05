@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const (
@@ -60,7 +61,7 @@ func (d *Discovery) Start(ctx context.Context, ollamaURL, vllmURL, lmStudioURL s
 
 	d.poll(ctx, ollamaURL, vllmURL, lmStudioURL)
 
-	go func() {
+	safego.Go(func() {
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
 
@@ -72,7 +73,7 @@ func (d *Discovery) Start(ctx context.Context, ollamaURL, vllmURL, lmStudioURL s
 				d.poll(ctx, ollamaURL, vllmURL, lmStudioURL)
 			}
 		}
-	}()
+	})
 }
 
 // Stop halts the discovery polling.
@@ -425,7 +426,7 @@ func (d *Discovery) maybeWarmup(ctx context.Context, m *Model) {
 	d.warmedModels[m.ID] = true
 	d.warmedMu.Unlock()
 
-	go func() {
+	safego.Go(func() {
 		capable, err := WarmupProbe(ctx, d.client, m.API.URL, m.API.ID)
 		if err != nil {
 			slog.Warn("warmup probe failed", "model", m.ID, "error", err)
@@ -441,7 +442,7 @@ func (d *Discovery) maybeWarmup(ctx context.Context, m *Model) {
 			"modelID":     m.ID,
 			"toolCapable": capable,
 		})
-	}()
+	})
 }
 
 type vllmModelsResponse struct {

@@ -10,6 +10,7 @@ import (
 
 	id2 "github.com/bobbyjohnstx/tinycode/internal/id"
 	"github.com/bobbyjohnstx/tinycode/internal/project"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
@@ -346,7 +347,7 @@ func (s *Server) handleSessionShell(w http.ResponseWriter, r *http.Request) {
 		dir = info.Directory
 	}
 
-	go s.executeShellDirect(sessionID, command, dir)
+	safego.Go(func() { s.executeShellDirect(sessionID, command, dir) })
 	w.WriteHeader(http.StatusNoContent)
 }
 

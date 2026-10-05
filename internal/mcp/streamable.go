@@ -9,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const streamableCallTimeout = 60 * time.Second
@@ -102,7 +104,7 @@ func (t *StreamableHTTPTransport) sendRequest(ctx context.Context, req jsonrpcRe
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		if t.onDisconnect != nil {
-			go t.onDisconnect()
+			safego.Go(t.onDisconnect)
 		}
 		return nil, &UnauthorizedError{StatusCode: resp.StatusCode}
 	}

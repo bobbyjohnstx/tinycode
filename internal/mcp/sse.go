@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const (
@@ -72,7 +74,7 @@ func (t *SSETransport) Connect(ctx context.Context) error {
 		return fmt.Errorf("SSE connect: status %d", resp.StatusCode)
 	}
 
-	go t.readSSEStream(resp.Body)
+	safego.Go(func() { t.readSSEStream(resp.Body) })
 
 	select {
 	case <-t.connected:
@@ -165,7 +167,7 @@ func (t *SSETransport) handleSSEEvent(eventType, data string) {
 		// Handle server-initiated notifications (no ID, has method)
 		if resp.ID == 0 && resp.Method != "" {
 			if t.onNotification != nil {
-				go t.onNotification(resp.Method)
+				safego.Go(func() { t.onNotification(resp.Method) })
 			}
 			return
 		}

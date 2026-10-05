@@ -10,6 +10,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
@@ -88,7 +89,7 @@ func (s *Service) Configure(ctx context.Context, mcpConfigs map[string]config.MC
 	}
 
 	for name := range mcpConfigs {
-		go s.connectServer(ctx, name)
+		safego.Go(func() { s.connectServer(ctx, name) })
 	}
 }
 
@@ -158,7 +159,7 @@ func (s *Service) connectServer(ctx context.Context, name string) {
 func (s *Service) setTransportCallbacks(transport Transport, ctx context.Context, name string) {
 	onDisconnect := func() {
 		slog.Warn("mcp server disconnected", "name", name)
-		go s.reconnectServer(ctx, name)
+		safego.Go(func() { s.reconnectServer(ctx, name) })
 	}
 
 	onNotification := func(method string) {
@@ -392,7 +393,7 @@ func (s *Service) Restart(ctx context.Context, name string) error {
 	conn.tools = nil
 	s.mu.Unlock()
 
-	go s.connectServer(ctx, name)
+	safego.Go(func() { s.connectServer(ctx, name) })
 	return nil
 }
 

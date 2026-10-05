@@ -20,6 +20,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/server"
@@ -384,11 +385,11 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 	disc.Start(ctx, ollamaURL, vllmURL, lmStudioURL)
 
 	if apiKey := os.Getenv("OPENROUTER_API_KEY"); apiKey != "" {
-		go func() {
+		safego.Go(func() {
 			if err := disc.DiscoverOpenRouter(ctx, apiKey); err != nil {
 				slog.Warn("openrouter discovery failed", "error", err)
 			}
-		}()
+		})
 	}
 
 	registerConfigProviders(reg, cfg)

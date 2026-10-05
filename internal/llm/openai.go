@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const (
@@ -86,7 +88,7 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 
 	slog.Info("LLM stream started", "model", req.Model, "elapsed", time.Since(start))
 	ch := make(chan Event, 64)
-	go c.readSSE(ctx, resp.Body, ch)
+	safego.Go(func() { c.readSSE(ctx, resp.Body, ch) })
 	return ch, nil
 }
 
@@ -96,7 +98,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 
 	lines := make(chan string, 1)
 	scanDone := make(chan error, 1)
-	go func() {
+	safego.Go(func() {
 		defer close(lines)
 		scanner := bufio.NewScanner(body)
 		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -104,7 +106,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 			lines <- scanner.Text()
 		}
 		scanDone <- scanner.Err()
-	}()
+	})
 
 	toolCalls := make(map[int]*toolCallAccum)
 	timer := time.NewTimer(chunkTimeout)
