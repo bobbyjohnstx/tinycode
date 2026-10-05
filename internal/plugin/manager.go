@@ -19,9 +19,10 @@ import (
 var ErrPluginNotFound = errors.New("plugin not found")
 
 const (
-	hookTimeout   = 5 * time.Second
-	killTimeout   = 3 * time.Second
-	maxOutputSize = 10 * 1024 * 1024 // 10MB — cap plugin stdout to prevent OOM
+	hookTimeout     = 5 * time.Second
+	toolCallTimeout = 30 * time.Second
+	killTimeout     = 3 * time.Second
+	maxOutputSize   = 10 * 1024 * 1024 // 10MB — cap plugin stdout to prevent OOM
 )
 
 // PluginInfo describes a loaded plugin.
@@ -232,7 +233,7 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 		Version:   "1.0",
 		Directory: dir,
 		Options:   options,
-	})
+	}, hookTimeout)
 	if err != nil {
 		// Kill the process on handshake failure.
 		if cmd.Process != nil {
@@ -330,7 +331,7 @@ func (m *Manager) broadcastHook(pluginID, method string, params any) (json.RawMe
 		return nil, fmt.Errorf("plugin %s process is dead", pluginID)
 	}
 
-	return proc.sendRPC(method, params)
+	return proc.sendRPC(method, params, hookTimeout)
 }
 
 // pluginsWithHook returns processes that declared a given hook.
@@ -351,7 +352,7 @@ func (m *Manager) pluginsWithHook(hookName string) []*pluginProcess {
 }
 
 // sendRPC sends a JSON-RPC request and reads the response with a timeout.
-func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, error) {
+func (p *pluginProcess) sendRPC(method string, params any, timeout time.Duration) (json.RawMessage, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -405,7 +406,7 @@ func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, err
 			return nil, fmt.Errorf("rpc error %d: %s", r.resp.Error.Code, r.resp.Error.Message)
 		}
 		return r.resp.Result, nil
-	case <-time.After(hookTimeout):
+	case <-time.After(timeout):
 		// Close stdout to unblock the decode goroutine, then kill the
 		// process to prevent a goroutine leak (#386).
 		_ = p.stdout.Close()
@@ -450,7 +451,7 @@ func (m *Manager) CallTool(pluginID, toolName string, args json.RawMessage, sess
 			SessionID: sessionID,
 			Directory: dir,
 		},
-	})
+	}, toolCallTimeout)
 	if err != nil {
 		return nil, err
 	}
