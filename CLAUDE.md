@@ -38,6 +38,8 @@ Things that break silently if you guess wrong.
 - **Project config walks UP the directory tree**: Config files in nested directories merge with parent configs (innermost wins). Only checking the project root ignores monorepo nested configs.
 - **Plugin system is JSON-RPC over stdin/stdout**: Plugins are standalone Go binaries spawned as child processes, not HTTP services. `pkg/plugin/` is the public SDK.
 - **`packages/` is legacy TypeScript**: Not Go code. The web app in `packages/app` can be embedded via `make embed-webapp`, but the directory is from the original TypeScript repo.
+- **`safego.Go()` must wrap all goroutine launches**: Bare `go func()` skips panic recovery — a panic in the goroutine crashes the process with no log. `internal/safego` adds `recover()` + `slog.Error`.
+- **Plugin tool timeout is 30s, hook timeout is 5s**: `internal/plugin/manager.go` constants. Plugins that exceed these are killed. Changing them affects all plugins and shutdown timing.
 
 ## Agent Delegation
 

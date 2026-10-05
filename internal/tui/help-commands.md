@@ -23,6 +23,7 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 | `/effort [low\|medium\|high\|max]` | Adjust response depth. Low = concise answers, fewer tool calls. Max = exhaustive analysis, many iterations. Default: medium. | `/effort low` for quick questions. `/effort high` before a thorough security review. |
 | `/thinking [off\|low\|medium\|high\|max]` | Control the model's extended thinking budget (reasoning tokens). | When you want the model to think harder about a complex problem, or faster on a simple one. |
 | `/auto-approve` | Toggle auto-approval of tool calls for this session. When on, the model runs tools without asking permission. | When you trust the task and don't want to approve every shell command or file edit. |
+| `/shell` | Drop into an interactive shell session inside tinycode. Type `exit` to return. | Running a quick sequence of shell commands without tool-call overhead. |
 
 ## Context & Information
 
@@ -33,6 +34,8 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 | `/changes` | Show a diff of only the files tinycode modified in this session (excludes pre-existing uncommitted changes). | Before committing — see exactly what tinycode changed, not your other uncommitted work. |
 | `/diff` | Show all uncommitted changes in the working directory (full git diff). | Quick look at everything that's changed, regardless of source. |
 | `/copy [N]` | Copy the last assistant response to clipboard. Pass N for the Nth-latest. Shows a code-block picker if the response contains fenced blocks. | Grabbing code or output to paste elsewhere. `/copy 2` for the second-to-last response. |
+| `/editor [@file]` | Open your `$EDITOR` to compose a prompt. With `@file`, opens that file for editing. | Drafting a long or multi-line prompt, or making a quick file edit outside tinycode. |
+| `/paste-image` | Paste an image from the system clipboard and attach it to the next prompt. | Adding screenshots or diagrams as context for the model. |
 
 ## Configuration
 

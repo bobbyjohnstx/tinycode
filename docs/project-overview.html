@@ -1975,12 +1975,12 @@ section:last-of-type { border-bottom: none; }
     <div class="section-label animate-in">Packages</div>
     <h2 class="section-title animate-in">Package explorer</h2>
     <p class="section-desc animate-in">
-      25 internal packages organized by domain. Click any package to expand its details, key types, and file locations.
+      26 internal packages organized by domain. Click any package to expand its details, key types, and file locations.
     </p>
 
     <div class="pkg-search animate-in">
       <input type="text" class="pkg-search-input" placeholder="Filter packages..." id="pkg-filter" aria-label="Filter packages by name or description">
-      <span class="pkg-count" id="pkg-count">25 packages</span>
+      <span class="pkg-count" id="pkg-count">26 packages</span>
     </div>
 
     <div id="pkg-container">
@@ -2002,7 +2002,7 @@ section:last-of-type { border-bottom: none; }
               <div class="pkg-card-detail-label">Key Types</div>
               <div class="pkg-card-detail-value"><code>App</code>, <code>connectedApp</code>, <code>Prompt</code>, <code>Chat</code>, <code>Sidebar</code>, <code>StatusBar</code>, <code>ContextDialog</code>, <code>CommandPalette</code>, <code>LeaderState</code></div>
               <div class="pkg-card-detail-label">Key Files</div>
-              <div class="pkg-card-detail-value"><code>app.go</code> (root model), <code>run.go</code> (SSE wrapper), <code>prompt.go</code>, <code>chat.go</code>, <code>chat_render.go</code>, <code>run_handlers.go</code> (slash commands), <code>statusbar.go</code>, <code>goal.go</code>, <code>leader.go</code></div>
+              <div class="pkg-card-detail-value"><code>app.go</code> (root model), <code>run.go</code> (SSE wrapper), <code>prompt.go</code>, <code>chat.go</code>, <code>chat_render.go</code>, <code>commands.go</code> (canonical command list), <code>run_handlers.go</code> (slash commands), <code>statusbar.go</code>, <code>goal.go</code>, <code>leader.go</code></div>
               <div class="pkg-card-detail-label">Features</div>
               <div class="pkg-card-detail-value">Leader key bindings, command palette (ctrl+p), frecency ranking, goal tracker, context visualization, theming, rewind, session branching</div>
               <div class="pkg-card-detail-label">Pattern</div>
@@ -2348,6 +2348,19 @@ section:last-of-type { border-bottom: none; }
               <div class="pkg-card-detail-value"><code>Store</code> (Score, Record, Sort, Load, Save)</div>
               <div class="pkg-card-detail-label">Pattern</div>
               <div class="pkg-card-detail-value">Time-bucket weighting (4h/1d/1w/1mo) with batched writes. Commands used recently rank higher in palette.</div>
+            </div>
+          </div>
+          <div class="pkg-card" data-pkg="safego" data-search="safego goroutine panic recovery safe go">
+            <div class="pkg-card-header">
+              <span class="pkg-card-name">safego/</span>
+              <span class="pkg-card-arrow">&rsaquo;</span>
+            </div>
+            <div class="pkg-card-desc">Panic-recovering goroutine launcher</div>
+            <div class="pkg-card-details">
+              <div class="pkg-card-detail-label">Key Function</div>
+              <div class="pkg-card-detail-value"><code>safego.Go(fn)</code> wraps <code>go func()</code> with <code>recover()</code> + <code>slog.Error</code> to prevent panics from crashing the process</div>
+              <div class="pkg-card-detail-label">Pattern</div>
+              <div class="pkg-card-detail-value">All goroutine launches in the codebase use <code>safego.Go()</code> instead of bare <code>go func()</code></div>
             </div>
           </div>
         </div>
@@ -3023,7 +3036,7 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
     tui: {
       title: 'TUI (internal/tui/)',
       desc: 'Terminal UI built with bubbletea using Elm architecture. The root App model contains sub-components: prompt, chat, sidebar, statusbar, dialogs, palette, permission prompt, and toast overlay. The connectedApp wrapper in run.go handles server communication via SSE.',
-      files: 'app.go, run.go, prompt.go, chat.go, chat_render.go, sidebar.go, statusbar.go, palette.go'
+      files: 'app.go, run.go, prompt.go, chat.go, chat_render.go, commands.go, sidebar.go, statusbar.go, palette.go'
     },
     web: {
       title: 'Web UI (internal/static/)',
@@ -3043,7 +3056,7 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
     server: {
       title: 'HTTP Server (internal/server/)',
       desc: 'Standard net/http server with chi router. REST endpoints for sessions, messages, prompts, providers, models, agents, config, and permissions. SSE endpoints for real-time event streaming. Binds to ephemeral port (port 0) in TUI mode.',
-      files: 'server/server.go, server/handler_*.go, server/middleware.go'
+      files: 'server/server.go, server/handler_*.go, server/middleware.go, server/model_resolve.go'
     },
     api: {
       title: 'API Client (internal/tui/api/)',

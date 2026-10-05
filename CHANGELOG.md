@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.1.2] - 2026-10-05
+
+Security, stability, and correctness fixes from two rounds of code review (61 issues resolved).
+
+### Security
+- Path traversal hardening in file read/write tools with configurable size limits
+- Shell injection prevention via argument validation and safe command construction
+- Cookie secure/httponly flags enforced on all auth tokens
+- Secret access restricted to explicit opt-in with environment variable scoping
+- Health endpoint authentication bypass for monitoring probes
+- Wildcard regex cache bounded to prevent memory exhaustion
+
+### Concurrency
+- Panic recovery on all unprotected goroutines via `safego.Go()` wrapper
+- Concurrent map access guards on session extra parts, permission LRU, and frecency store
+- SSE goroutine leak prevention with proper context cancellation
+- SSE reconnect loop bounded to prevent infinite retry storms
+- Database connection leak fix in storage layer
+
+### Data Integrity
+- Context pruning bounded to prevent unbounded memory growth
+- Migration operations wrapped in transactions for atomicity
+- TodoWrite file operations wrapped in transactions
+- Token counting accuracy improvements for context window management
+- Rune-aware string truncation replacing byte-level cuts
+- Normalize escape sequences in terminal output
+
+### UX
+- Swapped model display names corrected (provider/model inversion)
+- Permission auto-resolve for previously approved tool patterns
+- Config merge for `effort` field across global and project configs
+- Goal patterns expanded to multi-ecosystem support (Go, Python, Node, Rust, Java)
+- Readline preview for command history
+- Overflow false-positive detection in context window warnings
+
+### Architecture
+- `Context.clone()` replaces manual copy sites in tool execution
+- `commands.go` as single canonical command list (prevents palette/autocomplete drift)
+- `model_resolve.go` extracted for provider model resolution logic
+- Plugin tool timeout set to 30s, hook timeout to 5s with graceful shutdown
+- MCP transport error handling for stdio and SSE modes
+
 ## [2.0.0] - Unreleased
 
 Complete rewrite from TypeScript to Go. tinycode is now a standalone Go binary -- no TypeScript runtime, no separate server process.
