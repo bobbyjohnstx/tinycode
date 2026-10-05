@@ -3,10 +3,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"sort"
 	"strings"
-
-	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
 
 func (s *Server) handleProviderList(w http.ResponseWriter, r *http.Request) {
@@ -22,51 +19,8 @@ func (s *Server) handleProviderList(w http.ResponseWriter, r *http.Request) {
 
 	defaults := map[string]string{}
 
-	if s.config.DefaultModel != "" {
-		provID, modelID := provider.ParseModel(s.config.DefaultModel)
-		if provID != "" && modelID != "" {
-			if _, err := reg.GetModel(provID, modelID); err == nil {
-				defaults[provID] = modelID
-			}
-		}
-	}
-
-	if len(defaults) == 0 && len(connected) > 0 {
-		localProviders := map[string]bool{"ollama": true, "lm-studio": true, "vllm": true}
-		type candidate struct {
-			providerID string
-			modelID    string
-			sizeB      float64
-			local      bool
-		}
-		var candidates []candidate
-		for _, p := range providers {
-			for id, m := range p.Models {
-				if strings.Contains(strings.ToLower(id), "embed") {
-					continue
-				}
-				size := 999.0
-				if s := m.SizeB(); s != nil {
-					size = *s
-				}
-				candidates = append(candidates, candidate{p.ID, id, size, localProviders[p.ID]})
-			}
-		}
-		sort.Slice(candidates, func(i, j int) bool {
-			if candidates[i].local != candidates[j].local {
-				return candidates[i].local
-			}
-			if candidates[i].sizeB != candidates[j].sizeB {
-				return candidates[i].sizeB < candidates[j].sizeB
-			}
-			if candidates[i].providerID != candidates[j].providerID {
-				return candidates[i].providerID < candidates[j].providerID
-			}
-			return candidates[i].modelID < candidates[j].modelID
-		})
-		if len(candidates) > 0 {
-			defaults[candidates[0].providerID] = candidates[0].modelID
-		}
+	if ref := resolveDefaultModelRef(reg, s.config.DefaultModel); ref != nil {
+		defaults[ref.ProviderID] = ref.ModelID
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
