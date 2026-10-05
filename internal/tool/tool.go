@@ -155,6 +155,13 @@ type Context struct {
 	MonitorManager *MonitorManager // background process watcher (shared across copies)
 }
 
+// clone returns a shallow copy of the Context. Pointer/interface fields
+// (ReadFiles, Notepad, Findings, MonitorManager, etc.) are intentionally
+// shared across copies so mutations propagate.
+func (c Context) clone() Context {
+	return c
+}
+
 type Def struct {
 	ID          string
 	Description string
@@ -233,26 +240,9 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		return fmt.Sprintf("Tool %s is disabled", name), true, nil
 	}
 
-	toolCtx := &Context{
-		SessionID:      sessionID,
-		Directory:      r.ctx.Directory,
-		Perms:          r.ctx.Perms,
-		Bus:            r.ctx.Bus,
-		JobManager:     r.ctx.JobManager,
-		SubagentRunner: r.ctx.SubagentRunner,
-		SubagentDepth:  r.ctx.SubagentDepth,
-		DB:             r.ctx.DB,
-		BeforeHook:     r.ctx.BeforeHook,
-		AfterHook:      r.ctx.AfterHook,
-		SubagentCount:  r.ctx.SubagentCount,
-		SubagentBudget: r.ctx.SubagentBudget,
-		TaskRoundDone:  r.ctx.TaskRoundDone,
-		AutoApprove:    r.ctx.AutoApprove,
-		ReadFiles:      r.ctx.ReadFiles,
-		Findings:       r.ctx.Findings,
-		Notepad:        r.ctx.Notepad,
-		MonitorManager: r.ctx.MonitorManager,
-	}
+	cp := r.ctx.clone()
+	cp.SessionID = sessionID
+	toolCtx := &cp
 
 	// Check permissions if service is available and tool has a permission requirement
 	if toolCtx.Perms != nil && def.Permission != "" && !toolCtx.AutoApprove {
@@ -394,26 +384,9 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	newCtx := &Context{
-		SessionID:      r.ctx.SessionID,
-		Directory:      dir,
-		Perms:          r.ctx.Perms,
-		Bus:            r.ctx.Bus,
-		JobManager:     r.ctx.JobManager,
-		SubagentRunner: r.ctx.SubagentRunner,
-		SubagentDepth:  r.ctx.SubagentDepth,
-		DB:             r.ctx.DB,
-		BeforeHook:     r.ctx.BeforeHook,
-		AfterHook:      r.ctx.AfterHook,
-		SubagentCount:  r.ctx.SubagentCount,
-		SubagentBudget: r.ctx.SubagentBudget,
-		TaskRoundDone:  r.ctx.TaskRoundDone,
-		AutoApprove:    r.ctx.AutoApprove,
-		ReadFiles:      r.ctx.ReadFiles,
-		Findings:       r.ctx.Findings,
-		Notepad:        r.ctx.Notepad,
-		MonitorManager: r.ctx.MonitorManager,
-	}
+	cp := r.ctx.clone()
+	cp.Directory = dir
+	newCtx := &cp
 
 	tools := make(map[string]*Def, len(r.tools))
 	for k, v := range r.tools {
@@ -441,26 +414,9 @@ func (r *Registry) WithDepth(depth int) *Registry {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	newCtx := &Context{
-		SessionID:      r.ctx.SessionID,
-		Directory:      r.ctx.Directory,
-		Perms:          r.ctx.Perms,
-		Bus:            r.ctx.Bus,
-		JobManager:     r.ctx.JobManager,
-		SubagentRunner: r.ctx.SubagentRunner,
-		SubagentDepth:  depth,
-		DB:             r.ctx.DB,
-		BeforeHook:     r.ctx.BeforeHook,
-		AfterHook:      r.ctx.AfterHook,
-		SubagentCount:  r.ctx.SubagentCount,
-		SubagentBudget: r.ctx.SubagentBudget,
-		TaskRoundDone:  r.ctx.TaskRoundDone,
-		AutoApprove:    r.ctx.AutoApprove,
-		ReadFiles:      r.ctx.ReadFiles,
-		Findings:       r.ctx.Findings,
-		Notepad:        r.ctx.Notepad,
-		MonitorManager: r.ctx.MonitorManager,
-	}
+	cp := r.ctx.clone()
+	cp.SubagentDepth = depth
+	newCtx := &cp
 
 	tools := make(map[string]*Def, len(r.tools))
 	for k, v := range r.tools {
@@ -488,26 +444,9 @@ func (r *Registry) WithAutoApprove() *Registry {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	newCtx := &Context{
-		SessionID:      r.ctx.SessionID,
-		Directory:      r.ctx.Directory,
-		Perms:          r.ctx.Perms,
-		Bus:            r.ctx.Bus,
-		JobManager:     r.ctx.JobManager,
-		SubagentRunner: r.ctx.SubagentRunner,
-		SubagentDepth:  r.ctx.SubagentDepth,
-		DB:             r.ctx.DB,
-		BeforeHook:     r.ctx.BeforeHook,
-		AfterHook:      r.ctx.AfterHook,
-		SubagentCount:  r.ctx.SubagentCount,
-		SubagentBudget: r.ctx.SubagentBudget,
-		TaskRoundDone:  r.ctx.TaskRoundDone,
-		AutoApprove:    true,
-		ReadFiles:      r.ctx.ReadFiles,
-		Findings:       r.ctx.Findings,
-		Notepad:        r.ctx.Notepad,
-		MonitorManager: r.ctx.MonitorManager,
-	}
+	cp := r.ctx.clone()
+	cp.AutoApprove = true
+	newCtx := &cp
 
 	tools := make(map[string]*Def, len(r.tools))
 	for k, v := range r.tools {
