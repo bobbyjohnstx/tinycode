@@ -246,6 +246,10 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 			a.status.SetWorking(false)
 		}
 		a.state.SessionStatus[msg.SessionID] = SessionStatus{Working: false}
+		if strings.Contains(strings.ToLower(msg.Error), "no model") {
+			a.state.PendingModelDialog = true
+			return a, tea.Batch(cmd, func() tea.Msg { return ProvidersRefreshMsg{} }), true
+		}
 		return a, cmd, true
 	case CopiedToClipboardMsg:
 		if msg.Err != nil {

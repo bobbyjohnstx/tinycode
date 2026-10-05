@@ -2,6 +2,8 @@ package server
 
 import (
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 )
 
@@ -46,6 +48,22 @@ func (s *Server) handleAuthPut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.credentials.Set(providerID, body)
+
+	if strings.EqualFold(providerID, "openrouter") {
+		key := body["apiKey"]
+		if key == "" {
+			key = body["api_key"]
+		}
+		if key != "" {
+			_ = os.Setenv("OPENROUTER_API_KEY", key)
+			if s.deps.Discovery != nil {
+				if err := s.deps.Discovery.DiscoverOpenRouter(r.Context(), key); err != nil {
+					respondError(w, http.StatusBadGateway, "openrouter discovery failed: "+err.Error())
+					return
+				}
+			}
+		}
+	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"providerID": providerID,

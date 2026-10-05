@@ -224,6 +224,14 @@ func (w WelcomeView) View(width, height int, providerName, modelName string, ses
 			"tab agents",
 			"ctrl+p palette",
 		}
+		if providerName == "" && modelName == "" {
+			tips1 = []string{
+				"/connect",
+				"/ commands",
+				"@ files",
+				"tab agents",
+			}
+		}
 		tips2 := []string{
 			"ctrl+x sidebar/sessions",
 			"shift+enter newline",

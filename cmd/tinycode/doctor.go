@@ -18,7 +18,7 @@ import (
 const (
 	checkPass = "\033[32m✓\033[0m" // green check
 	checkFail = "\033[31m✗\033[0m" // red X
-	checkWarn = "\033[33m!\033[0m"      // yellow !
+	checkWarn = "\033[33m!\033[0m" // yellow !
 )
 
 func runDoctor() {
@@ -160,21 +160,25 @@ func checkProviders(cfg *config.Info, failed *bool) {
 		probes = append(probes, providerProbe{name: "vllm", url: v})
 	}
 
+	anyLocal := false
 	for _, p := range probes {
 		if probeHTTP(p.url) {
 			fmt.Printf("%s Provider: %s -- connected (%s)\n", checkPass, p.name, p.url)
-		} else {
-			fmt.Printf("%s Provider: %s -- connection refused (%s)\n", checkFail, p.name, p.url)
-			*failed = true
+			anyLocal = true
+			continue
 		}
+		// Local refusal is a warning — fail only if no usable provider path remains.
+		fmt.Printf("%s Provider: %s -- connection refused (%s)\n", checkWarn, p.name, p.url)
 	}
 
-	// OpenRouter: check API key
+	hasCloudKey := false
 	if apiKey := os.Getenv("OPENROUTER_API_KEY"); apiKey != "" {
 		fmt.Printf("%s Provider: openrouter -- API key set\n", checkPass)
+		hasCloudKey = true
 	}
 
 	// Config-defined providers
+	anyConfig := false
 	knownProbe := map[string]bool{"ollama": true, "vllm": true, "lm-studio": true, "openrouter": true}
 	for id, pc := range cfg.Provider {
 		if knownProbe[id] {
@@ -184,15 +188,35 @@ func checkProviders(cfg *config.Info, failed *bool) {
 			if baseURL, ok := pc.Options["baseURL"].(string); ok && baseURL != "" {
 				if probeHTTP(baseURL) {
 					fmt.Printf("%s Provider: %s -- connected (%s)\n", checkPass, id, baseURL)
+					anyConfig = true
 				} else {
-					fmt.Printf("%s Provider: %s -- connection refused (%s)\n", checkFail, id, baseURL)
-					*failed = true
+					fmt.Printf("%s Provider: %s -- connection refused (%s)\n", checkWarn, id, baseURL)
 				}
 				continue
 			}
 		}
 		fmt.Printf("%s Provider: %s -- configured (no URL to probe)\n", checkWarn, id)
 	}
+
+	if providerPathUsable(anyLocal, hasCloudKey, anyConfig) {
+		return
+	}
+
+	fmt.Printf("%s Provider: no usable provider path (no local provider connected and no cloud API key)\n", checkWarn)
+	printProviderNextSteps()
+	*failed = true
+}
+
+// providerPathUsable reports whether doctor found at least one way to reach a model.
+func providerPathUsable(anyLocalConnected, hasCloudAPIKey, anyConfigConnected bool) bool {
+	return anyLocalConnected || hasCloudAPIKey || anyConfigConnected
+}
+
+func printProviderNextSteps() {
+	fmt.Println("    next steps:")
+	fmt.Println("    - start Ollama: ollama serve")
+	fmt.Println("    - or set OPENROUTER_API_KEY for cloud models")
+	fmt.Println("    - then run: tinycode models")
 }
 
 func ollamaURL() string {

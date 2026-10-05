@@ -914,13 +914,13 @@ Plugins are organized by category. Run `tinycode plugin list` for the full list.
 | ocp-context-injection | openshift | Cluster context injection |
 | container-linter | platform | Containerfile linting and bootc support |
 
-### Interactive setup
+### Interactive plugin/role setup
 
 ```bash
 tinycode init
 ```
 
-Walks you through model selection, username, and role-based plugin selection (OpenShift SRE, Security, AI/ML, Platform, Developer). Writes the config file for you.
+Optional Red Hat plugin/role setup (not required for first run). Walks you through username and role-based plugin selection (OpenShift SRE, Security, AI/ML, Platform, Developer), and can set a default model if providers are already available. For model setup on first run, use `/connect` in the TUI, set `OPENROUTER_API_KEY`, or run Ollama.
 
 ### Uninstalling
 
@@ -1121,7 +1121,7 @@ Running with no command starts the TUI.
 | `export` | Export session messages as JSON |
 | `agent` | List available agents |
 | `plugin` | Manage plugins (`list`, `install`, `uninstall`) |
-| `init` | Interactive setup wizard |
+| `init` | Red Hat plugin/role setup (optional; not first-run) |
 | `doctor` | Run diagnostics and check system health (providers, config, database, agents) |
 | `debug` | Debug info (`config`, `paths`) |
 | `status` | Show server health and version info |

@@ -146,3 +146,9 @@ func TestLeaderTimeoutCmdReturnsCmd(t *testing.T) {
 		t.Fatal("expected non-nil timeout command")
 	}
 }
+
+func TestLeaderTimeoutDuration(t *testing.T) {
+	if leaderTimeout < 2*time.Second {
+		t.Fatalf("leaderTimeout = %v, want at least 2s for readable which-key", leaderTimeout)
+	}
+}

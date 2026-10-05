@@ -443,7 +443,8 @@ func runInit() {
 		_ = json.Unmarshal(data, &result)
 	}
 
-	fmt.Println("tinycode init")
+	fmt.Println("tinycode init — Red Hat plugin/role setup")
+	fmt.Println("(Not required for first run. For models: /connect in the TUI, OPENROUTER_API_KEY, or Ollama.)")
 	fmt.Println()
 
 	// --- Step 1: Model selection ---

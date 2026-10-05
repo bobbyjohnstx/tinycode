@@ -34,6 +34,7 @@ Security, stability, and correctness fixes from two rounds of code review (61 is
 - Goal patterns expanded to multi-ecosystem support (Go, Python, Node, Rust, Java)
 - Readline preview for command history
 - Overflow false-positive detection in context window warnings
+- First-run `/connect` flow: empty-state Ollama/OpenRouter guidance, prompt short-circuit, and OpenRouter API key entry in the TUI
 
 ### Architecture
 - `Context.clone()` replaces manual copy sites in tool execution

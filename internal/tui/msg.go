@@ -199,6 +199,11 @@ type PluginListMsg struct {
 // ProvidersRefreshMsg signals that the provider list should be re-fetched.
 type ProvidersRefreshMsg struct{}
 
+// AuthStoredMsg reports the result of storing provider credentials.
+type AuthStoredMsg struct {
+	Err error
+}
+
 // ProviderBalanceMsg carries the balance response for a provider.
 type ProviderBalanceMsg struct {
 	Balance *ProviderBalance

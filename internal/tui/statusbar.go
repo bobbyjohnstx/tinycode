@@ -31,19 +31,19 @@ type goalDisplayState struct {
 
 // StatusBar renders a multi-line bottom area: hints line + optional goal box + status bar.
 type StatusBar struct {
-	cwd            string
-	model          string
-	agent          string
-	provider       string
-	effort         string
-	contextPct     int // 0-100
-	goalDisplay    *goalDisplayState
-	working        bool
-	leaderPending  bool
-	safeMode       bool
-	spinner        spinner.Model
-	agentColor     lipgloss.AdaptiveColor
-	width          int
+	cwd           string
+	model         string
+	agent         string
+	provider      string
+	effort        string
+	contextPct    int // 0-100
+	goalDisplay   *goalDisplayState
+	working       bool
+	leaderPending bool
+	safeMode      bool
+	spinner       spinner.Model
+	agentColor    lipgloss.AdaptiveColor
+	width         int
 }
 
 // NewStatusBar creates a StatusBar with the given width.
@@ -283,6 +283,8 @@ func (s StatusBar) View() string {
 	}
 	if s.model != "" {
 		leftParts = append(leftParts, dim.Render(s.model))
+	} else {
+		leftParts = append(leftParts, dim.Render("no model")+" "+accent.Render("/connect"))
 	}
 	if s.provider != "" {
 		leftParts = append(leftParts, dim.Render(s.provider))

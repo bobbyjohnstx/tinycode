@@ -498,7 +498,7 @@ If your `"plugins"` config array contains any removed or promoted plugin name, i
 
 ### New CLI commands
 
-- `tinycode init` — interactive guided setup: discovers providers/models, prompts for username, picks plugins by role
+- `tinycode init` — optional Red Hat plugin/role setup: prompts for username, picks plugins by role (models via `/connect`, `OPENROUTER_API_KEY`, or Ollama)
 - `tinycode plugin list --category <slug>` — filter plugins by category (`sre`, `security`, `ai-ml`, `platform`, `developer`, `essential`)
 
 ### Config migration example

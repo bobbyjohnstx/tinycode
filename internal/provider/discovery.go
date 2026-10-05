@@ -623,10 +623,21 @@ func (d *Discovery) discoverLMStudio(ctx context.Context, baseURL string) {
 }
 
 // DiscoverOpenRouter queries the OpenRouter API for available models.
+// openRouterModelsURL is overridable in tests via SetOpenRouterModelsURLForTest.
+var openRouterModelsURL = "https://openrouter.ai/api/v1/models"
+
+// SetOpenRouterModelsURLForTest overrides the OpenRouter models endpoint URL.
+// Returns the previous URL so callers can restore it.
+func SetOpenRouterModelsURLForTest(url string) string {
+	prev := openRouterModelsURL
+	openRouterModelsURL = url
+	return prev
+}
+
 func (d *Discovery) DiscoverOpenRouter(ctx context.Context, apiKey string) error {
 	client := &http.Client{Timeout: 5 * time.Second}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://openrouter.ai/api/v1/models", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", openRouterModelsURL, nil)
 	if err != nil {
 		return fmt.Errorf("creating openrouter request: %w", err)
 	}

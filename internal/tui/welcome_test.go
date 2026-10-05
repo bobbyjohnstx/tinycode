@@ -124,17 +124,23 @@ func TestWelcomeView_TipsAfterBoot(t *testing.T) {
 	}
 
 	view = w.View(120, 30, "", "", 0, 0, 0, 0)
+	if !strings.Contains(view, "/connect") {
+		t.Error("expected /connect tip when no provider/model selected")
+	}
 	if !strings.Contains(view, "/ commands") {
 		t.Error("expected tips to appear after boot completes")
-	}
-	if !strings.Contains(view, "ctrl+p palette") {
-		t.Error("expected 'ctrl+p palette' in tips")
 	}
 	if !strings.Contains(view, "ctrl+x sidebar/sessions") {
 		t.Error("expected 'ctrl+x sidebar/sessions' in second tips line")
 	}
 	if !strings.Contains(view, "/help reference") {
 		t.Error("expected '/help reference' in second tips line")
+	}
+
+	// With provider selected, /connect should not lead
+	view = w.View(120, 30, "ollama", "llama3", 0, 0, 0, 0)
+	if !strings.Contains(view, "ctrl+p palette") {
+		t.Error("expected 'ctrl+p palette' in tips when model selected")
 	}
 }
 

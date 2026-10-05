@@ -171,6 +171,17 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c, cmd
 	}
 
+	if c.app.state.CurrentModel.ModelID == "" {
+		c.app.state.PendingModelDialog = true
+		model, toastCmd := c.app.Update(ToastMsg{
+			Text:    "Select a provider and model first",
+			IsError: true,
+		})
+		c.updateApp(model)
+		c.app.status.SetWorking(false)
+		return c, tea.Batch(toastCmd, func() tea.Msg { return ProvidersRefreshMsg{} })
+	}
+
 	sessionID := c.app.state.ActiveSession
 	if sessionID == "" {
 		slog.Info("no active session, creating new", "agent", agentOverride)

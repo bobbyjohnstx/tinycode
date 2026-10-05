@@ -23,13 +23,13 @@ var (
 // PromptInput is a multi-line text input with a metadata bar,
 // autocomplete popover, and prompt history navigation.
 type PromptInput struct {
-	textarea     textarea.Model
-	autocomplete Autocomplete
-	fileComplete FileCompleter
-	history      PromptHistory
-	agent        string
-	model        string
-	provider     string
+	textarea      textarea.Model
+	autocomplete  Autocomplete
+	fileComplete  FileCompleter
+	history       PromptHistory
+	agent         string
+	model         string
+	provider      string
 	agentColor    lipgloss.AdaptiveColor
 	thinkingLevel string
 	effortLevel   string
@@ -395,7 +395,7 @@ func (p PromptInput) renderMetadata() string {
 
 	modelInfo := truncatedModelProvider(p.model, p.provider, p.width-len(p.agent)-10)
 	if modelInfo == "" {
-		modelInfo = "No provider selected"
+		modelInfo = "No provider selected · /connect"
 	}
 
 	result := fmt.Sprintf("  %s %s %s", agent, dimStyle.Render("·"), dimStyle.Render(modelInfo))

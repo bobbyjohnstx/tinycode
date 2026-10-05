@@ -15,11 +15,17 @@ type ModelSelectedMsg struct {
 	Selection ModelSelection
 }
 
+// StoreOpenRouterAuthMsg requests storing an OpenRouter API key then reloading providers.
+type StoreOpenRouterAuthMsg struct {
+	APIKey string
+}
+
 type modelDialogPhase int
 
 const (
 	phaseProviders modelDialogPhase = iota
 	phaseModels
+	phaseAPIKey
 )
 
 // ModelDialog displays a two-step provider/model selection dialog.
@@ -31,6 +37,7 @@ type ModelDialog struct {
 	scrollProv     int
 	scrollModel    int
 	filter         string
+	apiKey         string
 	pendingModelID string
 	scopedModels   map[string]bool
 	scopingMode    bool
@@ -54,6 +61,7 @@ func (d *ModelDialog) Show(providers []ProviderInfo, current ...ModelSelection) 
 	d.scrollProv = 0
 	d.scrollModel = 0
 	d.filter = ""
+	d.apiKey = ""
 	d.pendingModelID = ""
 	d.scopingMode = false
 
@@ -79,6 +87,7 @@ func (d *ModelDialog) ShowScoping(providers []ProviderInfo) {
 	d.scrollProv = 0
 	d.scrollModel = 0
 	d.filter = ""
+	d.apiKey = ""
 	d.pendingModelID = ""
 	d.scopingMode = true
 }
@@ -161,9 +170,14 @@ func (d ModelDialog) Update(msg tea.Msg) (ModelDialog, tea.Cmd) {
 	}
 
 	if keyMsg.String() == "esc" {
-		if d.phase == phaseModels {
+		switch d.phase {
+		case phaseModels:
 			d.phase = phaseProviders
 			d.filter = ""
+			return d, nil
+		case phaseAPIKey:
+			d.phase = phaseProviders
+			d.apiKey = ""
 			return d, nil
 		}
 		d.visible = false
@@ -175,12 +189,18 @@ func (d ModelDialog) Update(msg tea.Msg) (ModelDialog, tea.Cmd) {
 		return d.updateProviders(keyMsg)
 	case phaseModels:
 		return d.updateModels(keyMsg)
+	case phaseAPIKey:
+		return d.updateAPIKey(keyMsg)
 	}
 	return d, nil
 }
 
 func (d ModelDialog) updateProviders(keyMsg tea.KeyMsg) (ModelDialog, tea.Cmd) {
 	if len(d.providers) == 0 {
+		if keyMsg.String() == "o" {
+			d.phase = phaseAPIKey
+			d.apiKey = ""
+		}
 		return d, nil
 	}
 
@@ -290,6 +310,33 @@ func (d ModelDialog) updateModels(keyMsg tea.KeyMsg) (ModelDialog, tea.Cmd) {
 	return d, nil
 }
 
+func (d ModelDialog) updateAPIKey(keyMsg tea.KeyMsg) (ModelDialog, tea.Cmd) {
+	switch keyMsg.String() {
+	case "enter":
+		key := strings.TrimSpace(d.apiKey)
+		if key == "" {
+			return d, nil
+		}
+		d.phase = phaseProviders
+		d.apiKey = ""
+		return d, func() tea.Msg {
+			return StoreOpenRouterAuthMsg{APIKey: key}
+		}
+	case "backspace":
+		if len(d.apiKey) > 0 {
+			d.apiKey = d.apiKey[:len(d.apiKey)-1]
+		}
+	default:
+		r := keyMsg.String()
+		for _, ch := range r {
+			if ch >= ' ' && ch <= '~' {
+				d.apiKey += string(ch)
+			}
+		}
+	}
+	return d, nil
+}
+
 func (d *ModelDialog) filteredModels(prov ProviderInfo) []ModelInfo {
 	var candidates []ModelInfo
 
@@ -338,6 +385,8 @@ func (d ModelDialog) View() string {
 		content = d.viewProviders()
 	case phaseModels:
 		content = d.viewModels()
+	case phaseAPIKey:
+		content = d.viewAPIKey()
 	}
 
 	return lipgloss.Place(
@@ -353,6 +402,25 @@ func (d ModelDialog) viewProviders() string {
 		sb.WriteString("Scope Models (favorites)\n")
 	} else {
 		sb.WriteString("Select Provider\n")
+	}
+
+	if len(d.providers) == 0 {
+		sb.WriteString("\n")
+		sb.WriteString(styleMetadata.Render("  No providers found."))
+		sb.WriteString("\n\n")
+		sb.WriteString("  Start Ollama locally:\n")
+		sb.WriteString(styleMetadata.Render("    ollama serve"))
+		sb.WriteString("\n")
+		sb.WriteString(styleMetadata.Render("    ollama pull <model>"))
+		sb.WriteString("\n")
+		sb.WriteString(styleMetadata.Render("  then reopen /connect"))
+		sb.WriteString("\n\n")
+		sb.WriteString("  Or press ")
+		sb.WriteString(styleSelected.Render("o"))
+		sb.WriteString(" to enter an OpenRouter API key\n")
+		sb.WriteString("\n")
+		sb.WriteString(styleMetadata.Render("  esc close"))
+		return sb.String()
 	}
 
 	mv := d.maxVisibleProviders()
@@ -385,6 +453,20 @@ func (d ModelDialog) viewProviders() string {
 		sb.WriteString(styleMetadata.Render("  ▼ more"))
 	}
 
+	return sb.String()
+}
+
+func (d ModelDialog) viewAPIKey() string {
+	var sb strings.Builder
+	sb.WriteString("OpenRouter API Key\n\n")
+	sb.WriteString("  Enter your API key from openrouter.ai\n\n")
+	masked := strings.Repeat("•", len(d.apiKey))
+	sb.WriteString("  " + styleToolName.Render(masked))
+	if d.apiKey == "" {
+		sb.WriteString(styleMetadata.Render("▋"))
+	}
+	sb.WriteString("\n\n")
+	sb.WriteString(styleMetadata.Render("  enter submit  esc cancel"))
 	return sb.String()
 }
 

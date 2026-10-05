@@ -489,7 +489,7 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		}
 		return a.toast.Show("Auto-approve "+label+" for this session", false), true
 	case "help":
-		a.debugDlg.Show(helpCommandsText)
+		a.debugDlg.Show("Help", helpCommandsText)
 		a.setFocus(FocusDialog)
 		return nil, true
 	case "editor":
@@ -501,12 +501,12 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return readClipboardImage(), true
 	case "diagnostics":
 		info := a.buildDebugInfo()
-		a.debugDlg.Show(info)
+		a.debugDlg.Show("Diagnostics", info)
 		a.setFocus(FocusDialog)
 		return nil, true
 	case "privacy":
 		info := a.buildPrivacyInfo()
-		a.privacyDlg.Show(info)
+		a.privacyDlg.Show("Privacy", info)
 		a.setFocus(FocusDialog)
 		return nil, true
 	case "mcp":
@@ -567,7 +567,7 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return nil, true
 	case "hooks":
 		info := a.buildHooksInfo()
-		a.debugDlg.Show(info)
+		a.debugDlg.Show("Hooks", info)
 		a.setFocus(FocusDialog)
 		return nil, true
 	case "context":

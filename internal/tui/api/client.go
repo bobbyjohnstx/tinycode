@@ -97,12 +97,18 @@ func (c *Client) AbortSession(id string) error {
 }
 
 // ListProviders fetches all providers via GET /provider.
+// ListProviders fetches all providers via GET /provider.
 func (c *Client) ListProviders() (*ProviderListResponse, error) {
 	var resp ProviderListResponse
 	if err := c.getJSON("/provider", &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// SetProviderAuth stores credentials for a provider via PUT /auth/{providerID}.
+func (c *Client) SetProviderAuth(providerID string, creds map[string]string) error {
+	return c.putNoResp("/auth/"+providerID, creds)
 }
 
 // ListAgents fetches all agents via GET /agent.
@@ -290,6 +296,23 @@ func (c *Client) postNoResp(path string, payload any) error {
 	}
 
 	body, err := c.doRequest(http.MethodPost, path, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if body != nil {
+		body.Close()
+	}
+	return nil
+}
+
+// putNoResp performs a PUT with a JSON body, ignoring the response body.
+func (c *Client) putNoResp(path string, payload any) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshaling request: %w", err)
+	}
+
+	body, err := c.doRequest(http.MethodPut, path, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

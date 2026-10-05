@@ -88,5 +88,5 @@ These are not slash commands — they are tools the model can invoke during a co
 | `Ctrl+P` | Command palette |
 | `Ctrl+C` | Clear prompt or quit |
 | `Ctrl+D` | Quit |
-| `Ctrl+X` | Leader key (then: `b` sidebar, `a` agents, `m` models, `s` sessions, `n` new session, `e` export, `y` copy, `u` undo, `r` redo, `d` diff, `t` theme) |
+| `Ctrl+X` | Leader key (then: `b` sidebar, `a` agents, `m` models, `o` sessions, `n` new session, `e` export, `y` copy, `u` undo, `r` redo, `d` diff, `t` theme) |
 | `Esc` | Dismiss dialog / interrupt active request |

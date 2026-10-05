@@ -142,6 +142,52 @@ func TestAppUpdate_SessionErrorClearsWorking(t *testing.T) {
 	}
 }
 
+func TestAppUpdate_SessionErrorNoModel_OpensConnect(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "ses_123"
+	app.state.SessionStatus["ses_123"] = SessionStatus{Working: true}
+	app.status.SetWorking(true)
+
+	result, cmd := app.Update(SessionErrorMsg{
+		SessionID: "ses_123",
+		Error:     "no model specified for prompt — configure a default model",
+	})
+	updated := result.(App)
+
+	if !updated.state.PendingModelDialog {
+		t.Error("expected PendingModelDialog to be set for no-model error")
+	}
+	if !updated.toast.IsVisible() {
+		t.Error("expected toast to be visible after SessionErrorMsg")
+	}
+	if cmd == nil {
+		t.Fatal("expected ProvidersRefreshMsg cmd")
+	}
+	// tea.Batch may wrap; execute and look for ProvidersRefreshMsg
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		found := false
+		for _, c := range batch {
+			if c == nil {
+				continue
+			}
+			inner := c()
+			if _, ok := inner.(ProvidersRefreshMsg); ok {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected ProvidersRefreshMsg in batch, got %#v", batch)
+		}
+	} else if _, ok := msg.(ProvidersRefreshMsg); !ok {
+		t.Errorf("expected ProvidersRefreshMsg, got %T", msg)
+	}
+}
+
 func TestAppUpdate_SessionErrorDifferentSession(t *testing.T) {
 	app := NewApp("http://localhost:4096")
 	app.width = 100

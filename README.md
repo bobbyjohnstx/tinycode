@@ -6,15 +6,50 @@ Local-first AI coding assistant. Bring any model — single binary, no runtime d
 
 [![Go CI](https://github.com/bobbyjohnstx/tinycode/actions/workflows/go-ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode/actions/workflows/go-ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+Local-first, model-agnostic AI coding assistant. A single Go binary embeds the HTTP server, terminal UI, session management, LLM client, and tool execution --- no Node.js, no separate server process. Works with any OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, OpenRouter, and more). Your sessions stay in local SQLite; data leaves your machine only when you send a prompt to a provider you configured.
+
+## Quick start
+
+### Install
+
+```bash
+# One-liner (macOS / Linux) — installs to ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
+
+# Or Homebrew
+brew install bobbyjohnstx/tap/tinycode
+```
+
+See [docs/install.md](docs/install.md) for platform notes, PATH setup, and verifying the install.
+
+### First prompt
+
+Have a local model running (for example `ollama serve` and `ollama pull qwen3.5:9b`), then:
+
+```bash
+tinycode                          # TUI in the current directory
+tinycode /path/to/project         # TUI against a project
+```
+
+Type a prompt and press Enter:
+
+```
+Explain what this repository does in 2 sentences.
+```
+
+Press `Ctrl+X` then `m` to pick a model if needed. Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
+
+### Build from source
+
+```bash
+git clone https://github.com/bobbyjohnstx/tinycode.git && cd tinycode
+make build
+./dist/tinycode
+```
+
+Requires Go 1.27.1+. Other modes: `tinycode serve` (headless API), `tinycode acp` (IDE), `tinycode run` (non-interactive).
+
 ## What it is
-
-tinycode is a local-first, model-agnostic AI coding assistant. A single Go binary embeds everything: HTTP server, terminal UI, session management, LLM client, and tool execution. No separate server process, no Node.js, no runtime dependencies.
-
-**Works with any OpenAI-compatible endpoint.** Connect to local models (Ollama, vLLM, LM Studio), cloud providers (OpenRouter, Anthropic, OpenAI), or your own infrastructure (RHOAI, Azure, custom endpoints). Swap models mid-session. No vendor lock-in.
-
-**Your data stays on your machine.** Sessions, config, and conversation history are stored locally in SQLite. No telemetry, no cloud calls, no sign-up. Data only leaves your machine when you explicitly send a prompt to a cloud provider you configured.
-
-tinycode reads your files, runs commands, edits code, and works through multi-step tasks --- the same workflow as cloud AI coding tools, but you choose the model and control the data.
 
 ### Key features
 
@@ -60,24 +95,6 @@ tinycode also supports:
 - **Agent Client Protocol** (`tinycode acp`) --- stdio transport for IDE integration (VS Code, Zed, JetBrains)
 - **Non-interactive mode** (`tinycode run`) --- run a prompt and exit, for scripts and CI
 
-## Quick start
-
-```bash
-# Build from source
-git clone https://github.com/bobbyjohnstx/tinycode.git && cd tinycode
-make build
-./dist/tinycode
-
-# Or with a specific project directory
-./dist/tinycode /path/to/project
-
-# Headless API server
-./dist/tinycode serve
-
-# IDE integration (Agent Client Protocol)
-./dist/tinycode acp
-```
-
 ## Architecture
 
 Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/` for public SDK.
@@ -98,7 +115,7 @@ Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, 
 | `provider/`    | Provider auto-discovery (Ollama, vLLM, LM Studio, OpenRouter)                  |
 | `agent/`       | Agent definitions and prompt files                                             |
 | `tool/`        | Tool implementations (file ops, shell, grep, glob)                             |
-| `config/`      | Config file parsing (`~/.config/tinycode/config.json`), JSONC support          |
+| `config/`      | Config file parsing (`tinycode.jsonc` → `tinycode.json` → `config.json`)       |
 | `storage/`     | SQLite via modernc.org/sqlite, migrations                                      |
 | `bus/`         | Event bus for inter-component communication                                    |
 | `mcp/`         | Model Context Protocol client                                                  |
@@ -206,9 +223,10 @@ Agents with a `.compact.md` variant automatically use a smaller prompt for model
 
 ## Configuration
 
-Config lives at `~/.config/tinycode/config.json` (JSONC supported):
+Config is loaded from `~/.config/tinycode/` with a 3-name fallback per directory: `tinycode.jsonc` → `tinycode.json` → `config.json` (first file found wins; JSONC comments are supported). Project config uses the same names under `.tinycode/` (or walking up from the working directory); innermost wins.
 
 ```jsonc
+// ~/.config/tinycode/tinycode.jsonc
 {
   "model": "ollama/qwen3.5:9b",
   "small_model": "ollama/qwen3.5:1.7b",
@@ -286,7 +304,9 @@ The runtime is Go only. The `packages/` tree is legacy TypeScript retained for `
 
 ## Documentation
 
-- **Spec index (start here):** [docs/spec/README.md](docs/spec/README.md)
+- **Install:** [docs/install.md](docs/install.md)
+- **Getting started:** [docs/getting-started.md](docs/getting-started.md)
+- **Spec index:** [docs/spec/README.md](docs/spec/README.md)
 - **Architecture:** [docs/architecture.md](docs/architecture.md)
 - **Build & embed web UI:** [docs/building.md](docs/building.md)
 - **TypeScript features not in Go:** [docs/spec/16-not-implemented.md](docs/spec/16-not-implemented.md)

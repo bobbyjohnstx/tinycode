@@ -32,10 +32,10 @@ type ContextStats struct {
 
 // ProviderBalance holds balance info for a provider (e.g., OpenRouter).
 type ProviderBalance struct {
-	Remaining  float64
-	Usage      float64
-	HasLimit   bool
-	Provider   string
+	Remaining float64
+	Usage     float64
+	HasLimit  bool
+	Provider  string
 }
 
 // MCPServer holds status for a single MCP server.
@@ -48,12 +48,12 @@ type MCPServer struct {
 
 // Sidebar is a toggleable right panel showing the session tree and metadata.
 type Sidebar struct {
-	sessions []SessionInfo
-	active   string
-	agent    string
-	model    string
-	cwd      string
-	version  string
+	sessions   []SessionInfo
+	active     string
+	agent      string
+	model      string
+	cwd        string
+	version    string
 	context    ContextStats
 	balance    *ProviderBalance
 	mcpServers []MCPServer
@@ -235,7 +235,7 @@ func (s Sidebar) View() string {
 		}
 	}
 
-	// Session tree — only show sessions that have real titles.
+	// Session tree — skip sessions with empty titles.
 	titled := filterTitledSessions(s.sessions)
 	if len(titled) > 0 {
 		sb.WriteString("\n")
@@ -302,7 +302,7 @@ func (s Sidebar) renderFooter() string {
 func filterTitledSessions(sessions []SessionInfo) []SessionInfo {
 	var out []SessionInfo
 	for _, s := range sessions {
-		if s.Title != "" && s.Title != "New Session" {
+		if s.Title != "" {
 			out = append(out, s)
 		}
 	}

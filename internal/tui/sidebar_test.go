@@ -498,3 +498,22 @@ func TestFormatTokens(t *testing.T) {
 		}
 	}
 }
+
+func TestFilterTitledSessions_ShowsNewSession(t *testing.T) {
+	sessions := []SessionInfo{
+		{ID: "s1", Title: "New Session"},
+		{ID: "s2", Title: "Named"},
+		{ID: "s3", Title: ""},
+	}
+
+	got := filterTitledSessions(sessions)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 sessions, got %d", len(got))
+	}
+	if got[0].Title != "New Session" {
+		t.Errorf("expected New Session to be included, got %q", got[0].Title)
+	}
+	if got[1].Title != "Named" {
+		t.Errorf("expected Named, got %q", got[1].Title)
+	}
+}

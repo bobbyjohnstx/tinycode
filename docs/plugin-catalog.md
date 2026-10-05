@@ -5,7 +5,7 @@ Complete reference for the 30 plugins and 4 core builtins shipped with tinycode.
 ## Quick Start
 
 ```bash
-# Interactive setup — picks model, username, and plugins by role
+# Optional Red Hat plugin/role setup (not first-run; models via /connect or Ollama)
 tinycode init
 
 # Or install plugins manually

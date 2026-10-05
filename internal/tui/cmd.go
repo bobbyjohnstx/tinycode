@@ -293,6 +293,13 @@ func fetchProviders(client *api.Client) tea.Cmd {
 	}
 }
 
+func storeOpenRouterAuth(client *api.Client, apiKey string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.SetProviderAuth("openrouter", map[string]string{"apiKey": apiKey})
+		return AuthStoredMsg{Err: err}
+	}
+}
+
 // parseModelInfo converts a raw model map from the API into a ModelInfo.
 func parseModelInfo(modelID, providerID string, raw any) ModelInfo {
 	m := ModelInfo{ID: modelID, ProviderID: providerID, Name: modelID}

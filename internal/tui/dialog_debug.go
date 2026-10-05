@@ -7,8 +7,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// DebugDialog displays diagnostic information for bug reports.
+// DebugDialog displays informational content (help, diagnostics, etc.).
 type DebugDialog struct {
+	title   string
 	info    string
 	visible bool
 	width   int
@@ -20,8 +21,12 @@ func NewDebugDialog() DebugDialog {
 	return DebugDialog{}
 }
 
-// Show opens the dialog with the given info text.
-func (d *DebugDialog) Show(info string) {
+// Show opens the dialog with the given title and info text.
+func (d *DebugDialog) Show(title, info string) {
+	if title == "" {
+		title = "Diagnostics"
+	}
+	d.title = title
 	d.info = info
 	d.visible = true
 }
@@ -79,7 +84,7 @@ func (d DebugDialog) View() string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("Diagnostics  ")
+	sb.WriteString(d.title + "  ")
 	sb.WriteString(styleMetadata.Render("c=copy  esc=close"))
 	sb.WriteString("\n\n")
 	sb.WriteString(d.info)

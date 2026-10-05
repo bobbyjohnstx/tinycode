@@ -109,11 +109,8 @@ func (p PermissionPrompt) Update(msg tea.Msg) (PermissionPrompt, tea.Cmd) {
 			return PermissionDismissedMsg{Request: req, Action: action}
 		}
 	case "esc":
-		req := p.request
-		p.visible = false
-		return p, func() tea.Msg {
-			return PermissionDismissedMsg{Request: req, Action: PermissionReject}
-		}
+		// Ignore Esc so an accidental press does not reject the request.
+		// Reject requires selecting Reject and confirming with Enter.
 	}
 
 	return p, nil

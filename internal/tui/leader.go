@@ -15,7 +15,7 @@ type LeaderActionMsg struct {
 	Action string
 }
 
-const leaderTimeout = 500 * time.Millisecond
+const leaderTimeout = 2 * time.Second
 
 // Leader actions returned by HandleKey.
 const (
@@ -35,7 +35,7 @@ const (
 )
 
 // LeaderState implements the ctrl+x leader key state machine.
-// When ctrl+x is pressed, the state becomes pending and a 500ms deadline
+// When ctrl+x is pressed, the state becomes pending and a 2s deadline
 // is set. The next keypress within that window is matched against leader
 // bindings; unrecognized keys or timeout reset the state.
 type LeaderState struct {

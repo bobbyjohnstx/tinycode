@@ -118,7 +118,7 @@ func printUsage() {
 	fmt.Println("  status     Show server health and status")
 	fmt.Println("  export     Export session messages as JSON")
 	fmt.Println("  plugin     Manage plugins (list, install, uninstall)")
-	fmt.Println("  init       Interactive plugin setup by role")
+	fmt.Println("  init       Red Hat plugin/role setup (optional; not first-run)")
 	fmt.Println("  agent      List available agents")
 	fmt.Println("  doctor     Run diagnostics and check system health")
 	fmt.Println("  debug      Debug info (config, paths)")

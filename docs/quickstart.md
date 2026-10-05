@@ -113,7 +113,7 @@ Navigation        Edit              Tools             Actions
                     r  redo           i  MCP servers
 ```
 
-Press any follow-up key within 500ms. For example, **Ctrl+X d** opens the diff viewer, **Ctrl+X t** opens the theme picker.
+Press any follow-up key within 2 seconds. For example, **Ctrl+X d** opens the diff viewer, **Ctrl+X t** opens the theme picker.
 
 Press **Ctrl+P** to open the command palette showing all keybindings and slash commands.
 
@@ -251,4 +251,4 @@ tinycode -r "my feature work"     # Resume by title substring
 - Read the full [User Guide](user-guide.md) for detailed coverage of every feature
 - See [Plugin Development](plugin-development.md) to build custom tool plugins
 - Check [Architecture](architecture.md) for how tinycode works internally
-- Run `tinycode init` for an interactive setup wizard that configures providers and plugins
+- Run `tinycode init` for optional Red Hat plugin/role setup (models: `/connect`, `OPENROUTER_API_KEY`, or Ollama)

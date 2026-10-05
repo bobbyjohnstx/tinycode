@@ -570,6 +570,30 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, tea.Batch(cmds...)
 
+	case StoreOpenRouterAuthMsg:
+		cmds = append(cmds, storeOpenRouterAuth(c.client, msg.APIKey))
+		return c, tea.Batch(cmds...)
+
+	case AuthStoredMsg:
+		if msg.Err != nil {
+			model, cmd := c.app.Update(ToastMsg{
+				Text:    fmt.Sprintf("OpenRouter auth failed: %v", msg.Err),
+				IsError: true,
+			})
+			c.updateApp(model)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			return c, tea.Batch(cmds...)
+		}
+		c.app.state.PendingModelDialog = true
+		toastCmd := c.app.toast.Show("OpenRouter connected", false)
+		if toastCmd != nil {
+			cmds = append(cmds, toastCmd)
+		}
+		cmds = append(cmds, fetchProviders(c.client))
+		return c, tea.Batch(cmds...)
+
 	case ProviderBalanceMsg:
 		if msg.Err != nil {
 			slog.Warn("provider balance fetch failed", "error", msg.Err)
