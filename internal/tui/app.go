@@ -499,7 +499,7 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return func() tea.Msg { return ShellSessionRequestMsg{} }, true
 	case "paste-image":
 		return readClipboardImage(), true
-	case "debug":
+	case "diagnostics":
 		info := a.buildDebugInfo()
 		a.debugDlg.Show(info)
 		a.setFocus(FocusDialog)

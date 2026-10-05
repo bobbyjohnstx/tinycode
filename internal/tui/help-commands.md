@@ -46,7 +46,7 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 | `/mcp` | Manage MCP (Model Context Protocol) server connections. | Setting up external tool servers (web search, databases, etc.). |
 | `/hooks` | Show configured lifecycle hooks — both plugin hooks and shell hooks from settings.json. | Checking what automation runs on session events and tool calls. |
 | `/scoped-models` | Toggle model scoping (favorites). Only show preferred models in the picker. | When the provider has many models and you only use a few. |
-| `/debug` | Show diagnostics info for bug reports. | When something isn't working and you need to report it. |
+| `/diagnostics` | Show diagnostics info for bug reports. | When something isn't working and you need to report it. |
 | `/help` | Show this command reference and keybindings. | When you forget a command. |
 
 ## Skills (AI-driven commands)
