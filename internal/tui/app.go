@@ -411,61 +411,17 @@ func (a *App) hasMessages() bool {
 
 // showPalette opens the command palette with available commands.
 func (a *App) showPalette() {
-	clientNames := map[string]bool{
-		"branch":        true,
-		"changes":       true,
-		"connect":       true,
-		"compact":       true,
-		"copy":          true,
-		"diff":          true,
-		"effort":        true,
-		"export":        true,
-		"export-html":   true,
-		"theme":         true,
-		"help":          true,
-		"rename":        true,
-		"auto-approve":  true,
-		"editor":        true,
-		"shell":         true,
-		"debug":         true,
-		"thinking":      true,
-		"mcp":           true,
-		"paste-image":   true,
-		"scoped-models": true,
-		"archive":       true,
-		"btw":           true,
-		"goal":          true,
-		"rewind":        true,
-		"hooks":         true,
-		"context":       true,
-	}
-	items := []PaletteItem{
-		{Label: "branch", Description: "Branch conversation to try a different approach", Value: "branch"},
-		{Label: "changes", Description: "Show session-scoped diff of modified files", Value: "changes"},
-		{Label: "compact", Description: "Compact context (summarize session)", Value: "compact"},
-		{Label: "connect", Description: "Select provider and model", Value: "connect"},
-		{Label: "copy", Description: "Copy response to clipboard (/copy N for Nth)", Value: "copy"},
-		{Label: "diff", Description: "Show uncommitted changes", Value: "diff"},
-		{Label: "effort", Description: "Set reasoning depth (low/medium/high/max)", Value: "effort"},
-		{Label: "export", Description: "Export session as Markdown", Value: "export"},
-		{Label: "export-html", Description: "Export session as HTML", Value: "export-html"},
-		{Label: "theme", Description: "Change color theme", Value: "theme"},
-		{Label: "rename", Description: "Rename current session", Value: "rename"},
-		{Label: "help", Description: "Show keybindings and commands", Value: "help"},
-		{Label: "auto-approve", Description: "Toggle auto-approve for session", Value: "auto-approve"},
-		{Label: "editor", Description: "Open prompt or file in $EDITOR (/editor @file)", Value: "editor"},
-		{Label: "shell", Description: "Open interactive shell session", Value: "shell"},
-		{Label: "debug", Description: "Show diagnostics for bug reports", Value: "debug"},
-		{Label: "mcp", Description: "Manage MCP servers", Value: "mcp"},
-		{Label: "thinking", Description: "Set reasoning level (off/low/medium/high/max)", Value: "thinking"},
-		{Label: "paste-image", Description: "Paste image from clipboard", Value: "paste-image"},
-		{Label: "scoped-models", Description: "Toggle model scoping (favorites)", Value: "scoped-models"},
-		{Label: "archive", Description: "Archive current session", Value: "archive"},
-		{Label: "btw", Description: "Side question without polluting context", Value: "btw"},
-		{Label: "goal", Description: "Autonomous execution until condition met", Value: "goal"},
-		{Label: "rewind", Description: "Rewind conversation to a previous turn", Value: "rewind"},
-		{Label: "hooks", Description: "Show configured hooks (plugin and shell)", Value: "hooks"},
-		{Label: "context", Description: "Show context window usage breakdown", Value: "context"},
+	clientNames := make(map[string]bool, len(clientCommandDefs))
+	var items []PaletteItem
+	for _, def := range clientCommandDefs {
+		clientNames[def.Name] = true
+		if def.InPalette {
+			items = append(items, PaletteItem{
+				Label:       def.Name,
+				Description: def.Description,
+				Value:       def.Name,
+			})
+		}
 	}
 	for _, cmd := range a.state.Commands {
 		if clientNames[cmd.Name] {
