@@ -188,6 +188,7 @@ func serverConfig(cfg *config.Info, serveWebUI bool) server.Config {
 		Directory:    dir,
 		DefaultModel: cfg.Model,
 		DefaultAgent: cfg.DefaultAgent,
+		Version:      version,
 	}
 }
 

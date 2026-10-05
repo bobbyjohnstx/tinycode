@@ -40,6 +40,7 @@ type Config struct {
 	Token              string
 	AppendSystemPrompt string
 	TokenBudget        int
+	Version            string
 }
 
 type Listener struct {
