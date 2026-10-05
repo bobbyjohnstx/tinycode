@@ -147,7 +147,7 @@ func (p *Processor) handleLLMError(ctx context.Context, err error, totalUsage To
 // checkCompaction runs proactive overflow detection and message-count compaction.
 func (p *Processor) checkCompaction(ctx context.Context, totalUsage TokenUsage) {
 	if p.config.Model != nil && p.config.Model.Limit.Context > 0 && totalUsage.Input > 0 {
-		outputReserve := max(p.config.Model.Limit.Output, 20000)
+		outputReserve := compactionOutputReserve(p.config.Model.Limit.Context, p.config.Model.Limit.Output)
 		threshold := p.config.Model.Limit.Context - outputReserve
 		if threshold > 0 {
 			softThreshold := int(float64(threshold) * 0.8)

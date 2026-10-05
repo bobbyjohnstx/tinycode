@@ -15,24 +15,24 @@ import (
 )
 
 const (
-	probeTimeout            = 2 * time.Second
-	pollInterval            = 30 * time.Second
-	maxConsecutiveFailures  = 3
+	probeTimeout           = 2 * time.Second
+	pollInterval           = 30 * time.Second
+	maxConsecutiveFailures = 3
 )
 
 type Discovery struct {
-	registry    *Registry
-	bus         *bus.Bus
-	client      *http.Client
-	cancel      context.CancelFunc
-	autoProfile *AutoProfileConfig
-	detectGPU   func() (int64, error)
-	gpuMemory   int64
-	gpuOnce     sync.Once
-	warmedMu    sync.Mutex
+	registry     *Registry
+	bus          *bus.Bus
+	client       *http.Client
+	cancel       context.CancelFunc
+	autoProfile  *AutoProfileConfig
+	detectGPU    func() (int64, error)
+	gpuMemory    int64
+	gpuOnce      sync.Once
+	warmedMu     sync.Mutex
 	warmedModels map[string]bool
-	dormantMu   sync.Mutex
-	dormant     map[string]bool // providers removed after consecutive failures
+	dormantMu    sync.Mutex
+	dormant      map[string]bool // providers removed after consecutive failures
 }
 
 func NewDiscovery(registry *Registry, b *bus.Bus) *Discovery {
@@ -214,7 +214,7 @@ func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
 
 	d.diffModels("ollama", models)
 	d.handleDiscoverySuccess("ollama")
-	d.registerOllamaProvider(ctx, models)
+	d.registerOllamaProvider(models)
 }
 
 // buildOllamaModels converts the Ollama tags response into a model map,
@@ -326,8 +326,8 @@ func (d *Discovery) buildSingleOllamaModel(ctx context.Context, baseURL string, 
 }
 
 // registerOllamaProvider registers the discovered Ollama models with the
-// registry and triggers warmup probes.
-func (d *Discovery) registerOllamaProvider(ctx context.Context, models map[string]*Model) {
+// registry. Tool-call probes wait until a model is selected.
+func (d *Discovery) registerOllamaProvider(models map[string]*Model) {
 	d.registry.Register(&Info{
 		ID:      "ollama",
 		Name:    "Ollama",
@@ -341,10 +341,15 @@ func (d *Discovery) registerOllamaProvider(ctx context.Context, models map[strin
 		"providerID": "ollama",
 		"modelCount": len(models),
 	})
+}
 
-	for _, m := range models {
-		d.maybeWarmup(ctx, m)
+// Warmup probes tool-call support for a model the user has selected.
+// Only Ollama models are probed, and each model is probed once.
+func (d *Discovery) Warmup(ctx context.Context, m *Model) {
+	if d == nil || m == nil || m.ProviderID != "ollama" {
+		return
 	}
+	d.maybeWarmup(ctx, m)
 }
 
 // autoProfileEnabled returns true if auto-profiling is configured and not disabled.
@@ -415,6 +420,21 @@ func (d *Discovery) resolveNumCtx(ctx context.Context, baseURL, modelName string
 	return numCtx
 }
 
+// warmupClient returns an HTTP client whose timeout covers model load.
+// The discovery client times out in 2s, which aborts a probe while Ollama
+// is still loading weights.
+func (d *Discovery) warmupClient() *http.Client {
+	if d.client == nil || (d.client.Timeout > 0 && d.client.Timeout < warmupTimeout) {
+		clone := http.Client{Timeout: warmupTimeout}
+		if d.client != nil {
+			clone = *d.client
+			clone.Timeout = warmupTimeout
+		}
+		return &clone
+	}
+	return d.client
+}
+
 // maybeWarmup triggers a background warmup probe for a model if it hasn't
 // been warmed up yet. On probe failure, sets ToolCall capability to false.
 func (d *Discovery) maybeWarmup(ctx context.Context, m *Model) {
@@ -427,7 +447,7 @@ func (d *Discovery) maybeWarmup(ctx context.Context, m *Model) {
 	d.warmedMu.Unlock()
 
 	safego.Go(func() {
-		capable, err := WarmupProbe(ctx, d.client, m.API.URL, m.API.ID)
+		capable, err := WarmupProbe(ctx, d.warmupClient(), m.API.URL, m.API.ID)
 		if err != nil {
 			slog.Warn("warmup probe failed", "model", m.ID, "error", err)
 			capable = false
@@ -552,6 +572,17 @@ func (d *Discovery) discoverLMStudio(ctx context.Context, baseURL string) {
 
 	models := make(map[string]*Model, len(body.Data))
 	for _, m := range body.Data {
+		contextLen := m.MaxModelLen
+		if contextLen <= 0 {
+			contextLen = 8192
+		}
+		outputLen := 4096
+		if outputLen >= contextLen {
+			outputLen = contextLen / 2
+			if outputLen < 1 {
+				outputLen = contextLen
+			}
+		}
 		models[m.ID] = &Model{
 			ID:         m.ID,
 			ProviderID: "lm-studio",
@@ -563,7 +594,7 @@ func (d *Discovery) discoverLMStudio(ctx context.Context, baseURL string) {
 			Status:  "active",
 			Headers: make(map[string]string),
 			Options: make(map[string]any),
-			Limit:   ModelLimit{Context: 131072, Output: 4096},
+			Limit:   ModelLimit{Context: contextLen, Output: outputLen},
 			Capabilities: ModelCaps{
 				Temperature: true,
 				ToolCall:    true,
@@ -724,14 +755,14 @@ type openRouterResponse struct {
 }
 
 type openRouterModel struct {
-	ID                  string                    `json:"id"`
-	Name                string                    `json:"name"`
-	ContextLength       int                       `json:"context_length"`
-	Architecture        *openRouterArchitecture    `json:"architecture,omitempty"`
-	Pricing             *openRouterPricing         `json:"pricing,omitempty"`
-	TopProvider         *openRouterTopProvider     `json:"top_provider,omitempty"`
-	SupportedParameters []string                  `json:"supported_parameters,omitempty"`
-	Reasoning           *openRouterReasoning       `json:"reasoning,omitempty"`
+	ID                  string                  `json:"id"`
+	Name                string                  `json:"name"`
+	ContextLength       int                     `json:"context_length"`
+	Architecture        *openRouterArchitecture `json:"architecture,omitempty"`
+	Pricing             *openRouterPricing      `json:"pricing,omitempty"`
+	TopProvider         *openRouterTopProvider  `json:"top_provider,omitempty"`
+	SupportedParameters []string                `json:"supported_parameters,omitempty"`
+	Reasoning           *openRouterReasoning    `json:"reasoning,omitempty"`
 }
 
 type openRouterArchitecture struct {

@@ -134,6 +134,7 @@ func runRun() {
 		modelStr = cfg.Model
 	}
 	providerID, modelID, model := resolveRunModel(reg, modelStr)
+	disc.Warmup(ctx, model)
 
 	agentName, agentPerms, systemPrompt := buildRunAgentPrompt(*agentFlag, cfg, agentReg, model, dir, toolReg, appendSP)
 

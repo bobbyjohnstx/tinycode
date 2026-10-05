@@ -1150,7 +1150,7 @@ func TestElideOldResults_ResetOnNewProcess(t *testing.T) {
 
 func TestCheckCompaction_SoftThreshold(t *testing.T) {
 	// Model: context=100000, output=4096
-	// outputReserve = max(20000, 4096) = 20000
+	// compactionOutputReserve keeps the 20k reserve when the window can afford it.
 	// threshold = 80000
 	// softThreshold = 64000
 	// Usage at 70000 => above soft, below hard => elision only

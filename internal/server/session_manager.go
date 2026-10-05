@@ -93,27 +93,28 @@ type SessionStatus struct {
 }
 
 type SessionManager struct {
-	mu            sync.Mutex
-	sessions      map[string]*activeSession
-	bus           *bus.Bus
-	registry      *provider.Registry
-	db            *sql.DB
-	dir           string
-	tools         *tool.Registry
-	toolSnapshot  *tool.Registry
-	perms         *permission.Service
-	agentRegistry *agent.Registry
-	mcpSvc        *mcp.Service
-	cfg           *config.Info
+	mu                 sync.Mutex
+	sessions           map[string]*activeSession
+	bus                *bus.Bus
+	registry           *provider.Registry
+	db                 *sql.DB
+	dir                string
+	tools              *tool.Registry
+	toolSnapshot       *tool.Registry
+	perms              *permission.Service
+	agentRegistry      *agent.Registry
+	mcpSvc             *mcp.Service
+	cfg                *config.Info
 	revertState        *RevertState
 	clientFactory      func(*provider.Model) llm.Client
 	jobManager         *session.JobManager
 	appendSystemPrompt string
 	tokenBudget        int
 	sessionStartHook   func(sessionID string) []string
-	subagentStreams  map[string]*activeSession // streaming state for subagent synthetic IDs
-	ctx              context.Context
-	ctxCancel        context.CancelFunc
+	modelWarmup        func(context.Context, *provider.Model)
+	subagentStreams    map[string]*activeSession // streaming state for subagent synthetic IDs
+	ctx                context.Context
+	ctxCancel          context.CancelFunc
 }
 
 func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service, cfg *config.Info, jm *session.JobManager) *SessionManager {
@@ -121,33 +122,34 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 	sm := &SessionManager{
 		sessions:        make(map[string]*activeSession),
 		subagentStreams: make(map[string]*activeSession),
-		bus:           b,
-		registry:      reg,
-		db:            db,
-		dir:           dir,
-		tools:         tools,
-		perms:         perms,
-		agentRegistry: agents,
-		mcpSvc:        mcpSvc,
-		cfg:           cfg,
-		revertState:   NewRevertState(),
-		jobManager:    jm,
-		ctx:           ctx,
-		ctxCancel:     cancel,
-		clientFactory: func(m *provider.Model) llm.Client {
-			apiKey, _ := m.Options["api_key"].(string)
-			if apiKey == "" {
-				if info, err := reg.GetProvider(m.ProviderID); err == nil {
-					if k, ok := info.Options["apiKey"].(string); ok {
-						apiKey = k
-					}
+		bus:             b,
+		registry:        reg,
+		db:              db,
+		dir:             dir,
+		tools:           tools,
+		perms:           perms,
+		agentRegistry:   agents,
+		mcpSvc:          mcpSvc,
+		cfg:             cfg,
+		revertState:     NewRevertState(),
+		jobManager:      jm,
+		ctx:             ctx,
+		ctxCancel:       cancel,
+	}
+	sm.clientFactory = func(m *provider.Model) llm.Client {
+		sm.warmupModel(m)
+		apiKey, _ := m.Options["api_key"].(string)
+		if apiKey == "" {
+			if info, err := reg.GetProvider(m.ProviderID); err == nil {
+				if k, ok := info.Options["apiKey"].(string); ok {
+					apiKey = k
 				}
 			}
-			if strings.Contains(m.API.URL, "api.anthropic.com") {
-				return llm.NewAnthropicClient(m.API.URL, apiKey)
-			}
-			return llm.NewOpenAIClient(m.API.URL+"/v1", apiKey)
-		},
+		}
+		if strings.Contains(m.API.URL, "api.anthropic.com") {
+			return llm.NewAnthropicClient(m.API.URL, apiKey)
+		}
+		return llm.NewOpenAIClient(m.API.URL+"/v1", apiKey)
 	}
 	sm.subscribeCommands()
 	sm.subscribePrompts()
@@ -165,6 +167,28 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 	}
 
 	return sm
+}
+
+// SetModelWarmup registers a hook invoked when a prompt is about to call a
+// model. Used to probe the selected Ollama model instead of every discovered
+// model at startup.
+func (sm *SessionManager) SetModelWarmup(fn func(context.Context, *provider.Model)) {
+	sm.mu.Lock()
+	sm.modelWarmup = fn
+	sm.mu.Unlock()
+}
+
+func (sm *SessionManager) warmupModel(m *provider.Model) {
+	if m == nil {
+		return
+	}
+	sm.mu.Lock()
+	fn := sm.modelWarmup
+	sm.mu.Unlock()
+	if fn == nil {
+		return
+	}
+	fn(sm.ctx, m)
 }
 
 // subscribeProcessorEvents subscribes to Processor bus events and re-publishes

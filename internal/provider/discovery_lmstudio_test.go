@@ -64,11 +64,39 @@ func TestDiscoverLMStudio_SetsDefaultContextLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("model not found: %v", err)
 	}
-	if m.Limit.Context != 131072 {
-		t.Errorf("expected default context 131072, got %d", m.Limit.Context)
+	if m.Limit.Context != 8192 {
+		t.Errorf("expected default context 8192, got %d", m.Limit.Context)
 	}
 	if m.Limit.Output != 4096 {
 		t.Errorf("expected default output 4096, got %d", m.Limit.Output)
+	}
+}
+
+func TestDiscoverLMStudio_UsesMaxModelLen(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := vllmModelsResponse{
+			Data: []vllmModel{{ID: "loaded-model", MaxModelLen: 32768}},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	reg := NewRegistry()
+	b := bus.New()
+	defer b.Close()
+
+	d := NewDiscovery(reg, b)
+	d.discoverLMStudio(t.Context(), srv.URL)
+
+	m, err := reg.GetModel("lm-studio", "loaded-model")
+	if err != nil {
+		t.Fatalf("model not found: %v", err)
+	}
+	if m.Limit.Context != 32768 {
+		t.Errorf("expected context 32768 from max_model_len, got %d", m.Limit.Context)
+	}
+	if m.Limit.Output != 4096 {
+		t.Errorf("expected output 4096, got %d", m.Limit.Output)
 	}
 }
 

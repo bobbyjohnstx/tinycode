@@ -86,6 +86,7 @@ func runServe() {
 		MCPService:      mcpSvc,
 		Config:          cfg,
 		JobManager:      toolCtx.JobManager,
+		Discovery:       disc,
 	})
 
 	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
@@ -176,6 +177,7 @@ func runWeb() {
 		MCPService:      mcpSvc,
 		Config:          cfg,
 		JobManager:      toolCtx.JobManager,
+		Discovery:       disc,
 	})
 
 	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {

@@ -60,6 +60,42 @@ type CompactionConfig struct {
 
 const defaultMaxMessages = 80
 
+const (
+	// maxCompactionReserve is the completion budget kept for windows that
+	// can afford it. Smaller local contexts scale down instead.
+	maxCompactionReserve = 20000
+	minCompactionReserve = 2048
+)
+
+// compactionOutputReserve is the number of tokens left for a completion
+// before proactive compaction. Windows larger than the 20k reserve keep
+// that reserve (or the model's output limit, when that is larger). Smaller
+// windows use one fifth of the context, and never less than 2048 tokens
+// unless the window itself is smaller.
+func compactionOutputReserve(contextLen, outputLimit int) int {
+	reserve := maxCompactionReserve
+	if outputLimit > reserve {
+		reserve = outputLimit
+	}
+	if contextLen > reserve {
+		return reserve
+	}
+	if contextLen <= 1 {
+		return 1
+	}
+	scaled := contextLen / 5
+	if scaled < minCompactionReserve {
+		scaled = minCompactionReserve
+	}
+	if scaled >= contextLen {
+		scaled = contextLen / 2
+		if scaled < 1 {
+			scaled = 1
+		}
+	}
+	return scaled
+}
+
 func DefaultCompactionConfig() CompactionConfig {
 	return CompactionConfig{
 		MaskObservations: true,

@@ -18,15 +18,15 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
-	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/server/middleware"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/static"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
 const (
-	defaultPort      = 4096
-	shutdownTimeout  = 25 * time.Second
+	defaultPort       = 4096
+	shutdownTimeout   = 25 * time.Second
 	readHeaderTimeout = 10 * time.Second
 )
 
@@ -63,6 +63,7 @@ type Dependencies struct {
 	MCPService      *mcp.Service
 	Config          *config.Info
 	JobManager      *session.JobManager
+	Discovery       *provider.Discovery
 }
 
 type Server struct {
@@ -104,6 +105,12 @@ func New(cfg Config, deps Dependencies) *Server {
 
 	s.sessionManager.appendSystemPrompt = cfg.AppendSystemPrompt
 	s.sessionManager.tokenBudget = cfg.TokenBudget
+	if deps.Discovery != nil {
+		disc := deps.Discovery
+		s.sessionManager.SetModelWarmup(func(ctx context.Context, m *provider.Model) {
+			disc.Warmup(ctx, m)
+		})
+	}
 	s.wireSessionStartHook()
 
 	s.registerRoutes()
