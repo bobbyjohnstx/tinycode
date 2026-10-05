@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const defaultStdioTimeout = 60 * time.Second
@@ -79,7 +81,7 @@ func (t *StdioTransport) Connect(ctx context.Context) error {
 	t.done = make(chan struct{})
 	t.doneOnce = sync.Once{}
 
-	go t.readLoop(ctx)
+	safego.Go(func() { t.readLoop(ctx) })
 
 	initReq := jsonrpcRequest{
 		JSONRPC: "2.0",
@@ -137,7 +139,7 @@ func (t *StdioTransport) readLoop(ctx context.Context) {
 		// Handle notifications (no ID, has method, no result/error)
 		if resp.ID == 0 && resp.Result == nil && resp.Error == nil {
 			if resp.Method != "" && t.onNotification != nil {
-				go t.onNotification(resp.Method)
+				safego.Go(func() { t.onNotification(resp.Method) })
 			}
 			continue
 		}

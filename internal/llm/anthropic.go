@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const anthropicVersion = "2023-06-01"
@@ -78,7 +80,7 @@ func (c *AnthropicClient) Stream(ctx context.Context, req Request, opts ...Strea
 
 	slog.Info("Anthropic stream started", "model", req.Model, "elapsed", time.Since(start))
 	ch := make(chan Event, 64)
-	go c.readSSE(ctx, resp.Body, ch)
+	safego.Go(func() { c.readSSE(ctx, resp.Body, ch) })
 	return ch, nil
 }
 
@@ -156,7 +158,7 @@ func (c *AnthropicClient) readSSE(ctx context.Context, body io.ReadCloser, ch ch
 
 	lines := make(chan string, 1)
 	scanDone := make(chan error, 1)
-	go func() {
+	safego.Go(func() {
 		defer close(lines)
 		scanner := bufio.NewScanner(body)
 		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -164,7 +166,7 @@ func (c *AnthropicClient) readSSE(ctx context.Context, body io.ReadCloser, ch ch
 			lines <- scanner.Text()
 		}
 		scanDone <- scanner.Err()
-	}()
+	})
 
 	blocks := make(map[int]*anthropicBlockState)
 	timer := time.NewTimer(chunkTimeout)

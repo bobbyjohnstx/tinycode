@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	pkgplugin "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
@@ -220,12 +221,12 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 	}
 
 	// Start health monitor before handshake so we capture early exits.
-	go func() {
+	safego.Go(func() {
 		_ = cmd.Wait()
 		proc.dead.Store(true)
 		close(doneCh)
 		m.logger.Warn("plugin process exited", "id", pid, "name", name)
-	}()
+	})
 
 	// Initialize handshake.
 	result, err := proc.sendRPC("initialize", pkgplugin.InitializeParams{
@@ -390,11 +391,11 @@ func (p *pluginProcess) sendRPC(method string, params any) (json.RawMessage, err
 		err  error
 	}
 	ch := make(chan rpcResult, 1)
-	go func() {
+	safego.Go(func() {
 		var resp pkgplugin.JSONRPCResponse
 		err := p.decoder.Decode(&resp)
 		ch <- rpcResult{resp: resp, err: err}
-	}()
+	})
 
 	select {
 	case r := <-ch:

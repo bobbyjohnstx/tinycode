@@ -21,6 +21,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
@@ -73,10 +74,10 @@ func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, int
 	permSub := b.Subscribe("permission.asked")
 	if permsMode == "json" {
 		permReplyCh := make(chan permission.ReplyInput, 16)
-		go handleJSONPermissionEvents(permSub, permSvc, permReplyCh)
+		safego.Go(func() { handleJSONPermissionEvents(permSub, permSvc, permReplyCh) })
 		return permReplyCh
 	}
-	go handlePermissionEvents(permSub, permSvc, skipPerms, interactive)
+	safego.Go(func() { handlePermissionEvents(permSub, permSvc, skipPerms, interactive) })
 	return nil
 }
 
@@ -84,14 +85,14 @@ func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, int
 // reads replies from the permReplyCh channel.
 func handleJSONPermissionEvents(permSub *bus.Subscription, permSvc *permission.Service, permReplyCh <-chan permission.ReplyInput) {
 	pending := make(map[string]bool)
-	go func() {
+	safego.Go(func() {
 		for reply := range permReplyCh {
 			if pending[reply.RequestID] {
 				delete(pending, reply.RequestID)
 				permSvc.RespondToAsk(reply)
 			}
 		}
-	}()
+	})
 	for evt := range permSub.C {
 		req, ok := evt.Properties.(permission.Request)
 		if !ok {
@@ -279,7 +280,7 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 	warnSub := b.Subscribe("session.warning")
 	compactSub := b.Subscribe("session.compacted")
 
-	go func() {
+	safego.Go(func() {
 		for evt := range deltaSub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -293,8 +294,8 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 				fmt.Print(text)
 			}
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range toolBeginSub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -309,8 +310,8 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 				fmt.Println(string(line))
 			}
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range toolEndSub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -326,8 +327,8 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 				fmt.Println(string(line))
 			}
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range msgSub.C {
 			if !isJSON {
 				continue
@@ -351,8 +352,8 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 				}
 			}
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range stepStartSub.C {
 			if !isJSON {
 				continue
@@ -369,8 +370,8 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 			})
 			fmt.Println(string(line))
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range stepFinishSub.C {
 			if !isJSON {
 				continue
@@ -388,8 +389,8 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 			})
 			fmt.Println(string(line))
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range warnSub.C {
 			if !isJSON {
 				continue
@@ -404,8 +405,8 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 			})
 			fmt.Println(string(line))
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range compactSub.C {
 			if !isJSON {
 				continue
@@ -422,7 +423,7 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 			})
 			fmt.Println(string(line))
 		}
-	}()
+	})
 }
 
 // readNextPrompt reads one prompt from the scanner. In JSON mode it expects

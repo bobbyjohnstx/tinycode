@@ -16,6 +16,7 @@ import (
 
 	commandpkg "github.com/bobbyjohnstx/tinycode/internal/command"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
@@ -765,9 +766,9 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 		if toastCmd != nil {
 			cmds = append(cmds, toastCmd)
 		}
-		go func() {
+		safego.Go(func() {
 			_, _ = plugin.SendNotification(context.Background(), "Goal met", toastText, "normal")
-		}()
+		})
 		return c, tea.Batch(cmds...)
 	}
 

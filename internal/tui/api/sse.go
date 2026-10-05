@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 // ServerEvent represents a parsed SSE event from the tinycode server.
@@ -30,7 +32,7 @@ const (
 func (c *Client) Subscribe(ctx context.Context) (<-chan ServerEvent, error) {
 	events := make(chan ServerEvent, 256)
 
-	go c.sseLoop(ctx, events)
+	safego.Go(func() { c.sseLoop(ctx, events) })
 
 	return events, nil
 }

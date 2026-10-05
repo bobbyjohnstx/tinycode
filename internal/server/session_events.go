@@ -6,6 +6,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/vcs"
 )
@@ -520,7 +521,7 @@ func (sm *SessionManager) bridgeToolEnd(evt bus.Event) {
 
 	// Publish session.diff after file-modifying tool completions.
 	if isFileModifyingTool(toolName) {
-		go sm.publishSessionDiff(publishID)
+		safego.Go(func() { sm.publishSessionDiff(publishID) })
 	}
 }
 

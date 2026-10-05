@@ -7,6 +7,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
@@ -27,7 +28,7 @@ func (sm *SessionManager) subscribePermissionReplies() {
 		return
 	}
 	sub := sm.bus.Subscribe("permission.replied")
-	go func() {
+	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -56,14 +57,14 @@ func (sm *SessionManager) subscribePermissionReplies() {
 				Reply:     reply,
 			})
 		}
-	}()
+	})
 }
 
 // subscribeRevert listens for session.revert events and stashes the current
 // working tree changes.
 func (sm *SessionManager) subscribeRevert() {
 	sub := sm.bus.Subscribe("session.revert")
-	go func() {
+	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -85,14 +86,14 @@ func (sm *SessionManager) subscribeRevert() {
 			}
 			sm.bus.Publish("session.reverted", map[string]any{"sessionID": sessionID})
 		}
-	}()
+	})
 }
 
 // subscribeUnrevert listens for session.unrevert events and pops the stash
 // created by the corresponding revert.
 func (sm *SessionManager) subscribeUnrevert() {
 	sub := sm.bus.Subscribe("session.unrevert")
-	go func() {
+	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -114,7 +115,7 @@ func (sm *SessionManager) subscribeUnrevert() {
 			}
 			sm.bus.Publish("session.unreverted", map[string]any{"sessionID": sessionID})
 		}
-	}()
+	})
 }
 
 // subscribeSummarize listens for session.summarize events and publishes
@@ -122,7 +123,7 @@ func (sm *SessionManager) subscribeUnrevert() {
 // Processor; this subscriber signals that a manual summarize was requested.
 func (sm *SessionManager) subscribeSummarize() {
 	sub := sm.bus.Subscribe("session.summarize")
-	go func() {
+	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -149,7 +150,7 @@ func (sm *SessionManager) subscribeSummarize() {
 				"status":    map[string]any{"type": "idle"},
 			})
 		}
-	}()
+	})
 }
 
 // extractAllowedPerms returns the set of permission names that are effectively

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const maxAdditionalContextLen = 10000
@@ -96,7 +97,7 @@ func (r *ShellHookRunner) RunAfter(eventName string, vars map[string]string) {
 		timeout := shellHookTimeout(h.Timeout)
 		logger := r.logger
 
-		go func(cmd string, timeout time.Duration) {
+		safego.Go(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
@@ -111,7 +112,7 @@ func (r *ShellHookRunner) RunAfter(eventName string, vars map[string]string) {
 			} else if out != "" {
 				logger.Debug("shell hook output", "event", eventName, "command", cmd, "output", out)
 			}
-		}(cmd, timeout)
+		})
 	}
 }
 

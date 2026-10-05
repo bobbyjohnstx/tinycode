@@ -17,6 +17,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/server/middleware"
 	"github.com/bobbyjohnstx/tinycode/internal/static"
@@ -175,18 +176,18 @@ func (s *Server) Listen(ctx context.Context) (*Listener, error) {
 
 	s.logger.Info("server listening", "url", u.String())
 
-	go func() {
+	safego.Go(func() {
 		if err := s.httpServer.Serve(ln); err != nil && err != http.ErrServerClosed {
 			s.logger.Error("server error", "error", err)
 		}
-	}()
+	})
 
 	s.deps.Bus.Publish("server.connected", map[string]any{
 		"url": u.String(),
 	})
 
 	s.shutdownDone = make(chan struct{})
-	go func() {
+	safego.Go(func() {
 		defer close(s.shutdownDone)
 		<-ctx.Done()
 		s.logger.Info("shutting down server")
@@ -207,7 +208,7 @@ func (s *Server) Listen(ctx context.Context) (*Listener, error) {
 		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 			s.logger.Error("shutdown error", "error", err)
 		}
-	}()
+	})
 
 	return listener, nil
 }
@@ -303,7 +304,7 @@ func (s *Server) wirePluginHooks() {
 func (s *Server) wirePluginEventLoop(topic string, handler func(map[string]any)) {
 	sub := s.deps.Bus.Subscribe(topic)
 	s.pluginSubs = append(s.pluginSubs, sub)
-	go func() {
+	safego.Go(func() {
 		for {
 			select {
 			case <-s.pluginDone:
@@ -319,7 +320,7 @@ func (s *Server) wirePluginEventLoop(topic string, handler func(map[string]any))
 				handler(props)
 			}
 		}
-	}()
+	})
 }
 
 // WaitForShutdown blocks until the server's background shutdown goroutine

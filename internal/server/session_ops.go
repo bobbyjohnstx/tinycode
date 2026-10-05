@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/bobbyjohnstx/tinycode/internal/command"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
@@ -37,7 +38,7 @@ type promptPart struct {
 
 func (sm *SessionManager) subscribeCommands() {
 	sub := sm.bus.Subscribe("session.command")
-	go func() {
+	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -48,7 +49,7 @@ func (sm *SessionManager) subscribeCommands() {
 			args, _ := props["args"].(string)
 			sm.handleCommand(sessionID, command, args)
 		}
-	}()
+	})
 }
 
 func (sm *SessionManager) handleCommand(sessionID, command, args string) {
@@ -69,7 +70,7 @@ func (sm *SessionManager) handleCommand(sessionID, command, args string) {
 
 func (sm *SessionManager) subscribePrompts() {
 	sub := sm.bus.Subscribe("session.prompt")
-	go func() {
+	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -95,7 +96,7 @@ func (sm *SessionManager) subscribePrompts() {
 				Parts: []promptPart{{Type: "text", Text: content}},
 			})
 		}
-	}()
+	})
 }
 
 func (sm *SessionManager) Abort(sessionID string) {
@@ -139,7 +140,7 @@ func (sm *SessionManager) StartPrompt(ctx context.Context, input PromptInput) {
 		<-oldDone
 	}
 
-	go sm.processPrompt(pctx, input, done)
+	safego.Go(func() { sm.processPrompt(pctx, input, done) })
 }
 
 func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, done chan struct{}) {

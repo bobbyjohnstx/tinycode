@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 // JobStatus represents the current state of a background job.
@@ -84,7 +85,7 @@ func (jm *JobManager) Start(parentCtx context.Context, fn func(ctx context.Conte
 	jm.jobs[jobID] = job
 	jm.mu.Unlock()
 
-	go func() {
+	safego.Go(func() {
 		defer close(job.done)
 		result, err := fn(ctx)
 
@@ -112,7 +113,7 @@ func (jm *JobManager) Start(parentCtx context.Context, fn func(ctx context.Conte
 				"error":  jobError,
 			})
 		}
-	}()
+	})
 
 	return jobID
 }

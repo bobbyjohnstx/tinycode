@@ -15,6 +15,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const defaultRequestTimeout = 30 * time.Second
@@ -140,7 +142,7 @@ func (c *Client) connect(ctx context.Context) error {
 	c.stdin = stdin
 	c.reader = bufio.NewReaderSize(stdout, 1024*1024)
 
-	go c.readLoop()
+	safego.Go(c.readLoop)
 
 	_, err = c.request(ctx, "initialize", map[string]any{
 		"processId": os.Getpid(),

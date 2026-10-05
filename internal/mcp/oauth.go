@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const (
@@ -235,11 +236,11 @@ func (f *OAuthFlow) ensureCallbackServer(cfg *OAuthConfig) error {
 	f.listener = listener
 	f.running = true
 
-	go func() {
+	safego.Go(func() {
 		if err := srv.Serve(listener); err != nil && err != http.ErrServerClosed {
 			slog.Error("OAuth callback server error", "error", err)
 		}
-	}()
+	})
 
 	return nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
@@ -173,31 +174,31 @@ func (sm *SessionManager) subscribeProcessorEvents() {
 	toolEndSub := sm.bus.Subscribe("session.tool.end")
 	warnSub := sm.bus.Subscribe("session.warning")
 
-	go func() {
+	safego.Go(func() {
 		for evt := range msgSub.C {
 			sm.bridgeMessageEvent(evt)
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range deltaSub.C {
 			sm.bridgeTextDelta(evt)
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range toolBeginSub.C {
 			sm.bridgeToolBegin(evt)
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range toolEndSub.C {
 			sm.bridgeToolEnd(evt)
 		}
-	}()
-	go func() {
+	})
+	safego.Go(func() {
 		for evt := range warnSub.C {
 			sm.bridgeWarning(evt)
 		}
-	}()
+	})
 }
 
 // Shutdown cancels all active session processors and waits for them
