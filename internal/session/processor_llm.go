@@ -204,8 +204,18 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 
 		case llm.EventFinish:
 			if event.Usage != nil {
-				usage.Input = event.Usage.PromptTokens
-				usage.Output = event.Usage.CompletionTokens
+				if event.Usage.PromptTokens > 0 {
+					usage.Input = event.Usage.PromptTokens
+				}
+				if event.Usage.CompletionTokens > 0 {
+					usage.Output = event.Usage.CompletionTokens
+				}
+				if event.Usage.CacheCreationTokens > 0 {
+					usage.Cache.Write = event.Usage.CacheCreationTokens
+				}
+				if event.Usage.CacheReadTokens > 0 {
+					usage.Cache.Read = event.Usage.CacheReadTokens
+				}
 			}
 
 		case llm.EventError:

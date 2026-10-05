@@ -305,7 +305,9 @@ func (c *AnthropicClient) handleAnthropicSSEEvent(eventType string, raw json.Raw
 			ch <- Event{
 				Type: EventFinish,
 				Usage: &Usage{
-					PromptTokens: evt.Message.Usage.InputTokens,
+					PromptTokens:        evt.Message.Usage.InputTokens,
+					CacheCreationTokens: evt.Message.Usage.CacheCreationInputTokens,
+					CacheReadTokens:     evt.Message.Usage.CacheReadInputTokens,
 				},
 			}
 		}
@@ -377,7 +379,9 @@ type anthropicMessageDelta struct {
 type anthropicMessageStart struct {
 	Message struct {
 		Usage *struct {
-			InputTokens int `json:"input_tokens"`
+			InputTokens              int `json:"input_tokens"`
+			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 		} `json:"usage,omitempty"`
 	} `json:"message"`
 }

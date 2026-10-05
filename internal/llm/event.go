@@ -32,9 +32,11 @@ type Event struct {
 }
 
 type Usage struct {
-	PromptTokens     int `json:"promptTokens"`
-	CompletionTokens int `json:"completionTokens"`
-	TotalTokens      int `json:"totalTokens"`
+	PromptTokens         int `json:"promptTokens"`
+	CompletionTokens     int `json:"completionTokens"`
+	TotalTokens          int `json:"totalTokens"`
+	CacheCreationTokens  int `json:"cacheCreationTokens,omitempty"`
+	CacheReadTokens      int `json:"cacheReadTokens,omitempty"`
 }
 
 // ContentPart is a provider-agnostic content part for multipart messages
