@@ -412,6 +412,28 @@ func TestDispatchToolExecBefore_AbortWithContext(t *testing.T) {
 	}
 }
 
+func TestDispatchToolExecBefore_PluginAbort(t *testing.T) {
+	mgr := newTestManager("abort_before")
+
+	_, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	ctx, err := DispatchToolExecBefore(mgr, ToolExecBeforeEvent{
+		SessionID: "ses_1",
+		ToolName:  "bash",
+		ToolArgs:  `{"command":"ls"}`,
+	})
+	if err == nil {
+		t.Fatal("expected error when plugin before-hook returns error")
+	}
+	if ctx != nil {
+		t.Errorf("expected nil context on abort, got %v", ctx)
+	}
+}
+
 func TestDispatchToolExecAfter_AdditionalContext(t *testing.T) {
 	mgr := newTestManager("with_context")
 

@@ -328,7 +328,9 @@ ShellEnv: func(ctx context.Context, input plugin.ShellEnvInput) (*plugin.ShellEn
 
 #### ToolExecBefore
 
-Fires before any tool executes. Observe-only (cannot modify args from this hook).
+Fires before any tool executes. Cannot modify args from this hook. Returning a
+non-nil error aborts the tool (same as a shell `tool.execute.before` hook with
+a non-zero exit).
 
 ```go
 type ToolExecBeforeInput struct {
@@ -340,6 +342,9 @@ type ToolExecBeforeInput struct {
 
 ```go
 ToolExecBefore: func(ctx context.Context, input plugin.ToolExecBeforeInput) error {
+    if input.ToolName == "bash" {
+        return fmt.Errorf("bash blocked by policy")
+    }
     log.Printf("Tool %s called in session %s", input.ToolName, input.SessionID)
     return nil
 },

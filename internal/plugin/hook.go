@@ -227,8 +227,9 @@ func DispatchShellEnv(mgr *Manager, input ShellEnvInput) (*ShellEnvOutput, error
 }
 
 // DispatchToolExecBefore notifies plugins that a tool is about to execute,
-// then runs any configured shell hooks. Shell hooks with non-zero exit abort.
-// Returns collected additionalContext from both plugin and shell hooks.
+// then runs any configured shell hooks. A plugin hook error or shell hook
+// non-zero exit aborts the tool. Returns collected additionalContext from
+// both plugin and shell hooks.
 func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent, shellRunner ...*ShellHookRunner) ([]string, error) {
 	var collected []string
 
@@ -237,8 +238,7 @@ func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent, shellRunner .
 		for _, proc := range procs {
 			raw, err := proc.sendHook("tool.execute.before", evt)
 			if err != nil {
-				mgr.logger.Warn("tool.execute.before hook failed", "plugin", proc.info.Name, "error", err)
-				continue
+				return nil, fmt.Errorf("plugin %q tool.execute.before: %w", proc.info.Name, err)
 			}
 			if ctx := parsePluginAdditionalContext(raw); len(ctx) > 0 {
 				collected = append(collected, ctx...)

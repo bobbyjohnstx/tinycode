@@ -1,6 +1,8 @@
 package plugin
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -38,20 +40,21 @@ type ToolManifest = pkgplugin.ToolManifest
 
 // pluginProcess tracks a running plugin subprocess.
 type pluginProcess struct {
-	info    *PluginInfo
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	stdout  io.ReadCloser
-	encoder *json.Encoder
-	decoder *json.Decoder
-	counter *countingReader // per-response byte counter for stdout
-	mu      sync.Mutex     // protects writes/reads to stdin/stdout
-	hooks   []string       // hooks declared during initialize
-	tools   []ToolManifest
-	toolIDs []string // tool registry IDs registered for this plugin
-	nextID  atomic.Int64
-	dead    atomic.Bool
-	done    chan struct{} // closed when the process exits
+	info     *PluginInfo
+	cmd      *exec.Cmd
+	stdin    io.WriteCloser
+	stdout   io.ReadCloser
+	encoder  *json.Encoder
+	reader   *bufio.Reader   // line-oriented stdout reader (skips non-JSON pollution)
+	counter  *countingReader // per-response byte counter for stdout
+	mu       sync.Mutex      // protects writes/reads to stdin/stdout
+	hooks    []string        // hooks declared during initialize
+	tools    []ToolManifest
+	toolIDs  []string // tool registry IDs registered for this plugin
+	nextID   atomic.Int64
+	dead     atomic.Bool
+	done     chan struct{}       // closed when the process exits
+	onRemove func(reason string) // removes this plugin from the manager map + tools
 }
 
 // countingReader wraps a reader and counts bytes read since the last reset.
@@ -242,17 +245,23 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 		stdin:   stdinPipe,
 		stdout:  stdoutPipe,
 		encoder: json.NewEncoder(stdinPipe),
-		decoder: json.NewDecoder(cr),
+		reader:  bufio.NewReader(cr),
 		counter: cr,
 		done:    doneCh,
 	}
+	proc.onRemove = func(reason string) {
+		m.removeProcess(pid, reason)
+	}
 
 	// Start health monitor before handshake so we capture early exits.
+	// Do not call Unload here — Wait already completed; Unload would deadlock
+	// waiting on the process again. Only map delete + tool unregister.
 	safego.Go(func() {
 		_ = cmd.Wait()
 		proc.dead.Store(true)
 		close(doneCh)
 		m.logger.Warn("plugin process exited", "id", pid, "name", name)
+		m.removeProcess(pid, "process exited")
 	})
 
 	// Initialize handshake.
@@ -291,19 +300,34 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 
 // Unload removes a plugin by ID and stops its subprocess.
 func (m *Manager) Unload(pluginID string) error {
+	m.mu.RLock()
+	proc, ok := m.plugins[pluginID]
+	m.mu.RUnlock()
+	if !ok {
+		return errors.New("plugin not found")
+	}
+
+	m.stopProcess(proc)
+	m.removeProcess(pluginID, "unload")
+	m.logger.Info("plugin unloaded", "id", pluginID)
+	return nil
+}
+
+// removeProcess deletes a plugin from the manager map and unregisters its tools.
+// It does not Kill/Wait the subprocess — callers that need process teardown
+// must stopProcess first (or the process is already dead). Idempotent.
+func (m *Manager) removeProcess(pluginID string, reason string) {
 	m.mu.Lock()
 	proc, ok := m.plugins[pluginID]
 	if !ok {
 		m.mu.Unlock()
-		return errors.New("plugin not found")
+		return
 	}
 	delete(m.plugins, pluginID)
 	m.mu.Unlock()
 
 	m.unregisterPluginTools(proc)
-	m.stopProcess(proc)
-	m.logger.Info("plugin unloaded", "id", pluginID)
-	return nil
+	m.logger.Info("plugin removed", "id", pluginID, "reason", reason)
 }
 
 // Registry returns available registry entries.
@@ -418,15 +442,14 @@ func (p *pluginProcess) sendRPC(method string, params any, timeout time.Duration
 		p.counter.reset()
 	}
 
-	// Use a channel + goroutine for timeout on the blocking decode.
+	// Use a channel + goroutine for timeout on the blocking read.
 	type rpcResult struct {
 		resp pkgplugin.JSONRPCResponse
 		err  error
 	}
 	ch := make(chan rpcResult, 1)
 	safego.Go(func() {
-		var resp pkgplugin.JSONRPCResponse
-		err := p.decoder.Decode(&resp)
+		resp, err := p.readMatchingResponse(req.ID)
 		ch <- rpcResult{resp: resp, err: err}
 	})
 
@@ -440,16 +463,39 @@ func (p *pluginProcess) sendRPC(method string, params any, timeout time.Duration
 		}
 		return r.resp.Result, nil
 	case <-time.After(timeout):
-		// Close stdout to unblock the decode goroutine, then kill the
+		// Close stdout to unblock the read goroutine, then kill the
 		// process to prevent a goroutine leak (#386).
 		_ = p.stdout.Close()
 		if p.cmd != nil && p.cmd.Process != nil {
 			_ = p.cmd.Process.Kill()
 		}
 		p.dead.Store(true)
+		// Remove from manager immediately so tools are unregistered without
+		// waiting for Wait(); health monitor removeProcess is idempotent.
+		if p.onRemove != nil {
+			p.onRemove("rpc timeout")
+		}
 		return nil, fmt.Errorf("timeout waiting for response to %s", method)
 	case <-p.done:
 		return nil, fmt.Errorf("process exited while waiting for response to %s", method)
+	}
+}
+
+// readMatchingResponse reads stdout line-by-line, skipping empty lines and
+// non-JSON pollution, until it finds a JSON-RPC response whose ID matches.
+func (p *pluginProcess) readMatchingResponse(wantID int64) (pkgplugin.JSONRPCResponse, error) {
+	for {
+		line, err := p.reader.ReadBytes('\n')
+		line = bytes.TrimSpace(line)
+		if len(line) > 0 {
+			var resp pkgplugin.JSONRPCResponse
+			if jsonErr := json.Unmarshal(line, &resp); jsonErr == nil && resp.ID == wantID {
+				return resp, nil
+			}
+		}
+		if err != nil {
+			return pkgplugin.JSONRPCResponse{}, err
+		}
 	}
 }
 

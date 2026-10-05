@@ -73,6 +73,11 @@ func TestHelperProcess(t *testing.T) {
 			os.Exit(1)
 		}
 
+		// Simulate plugins that log to stdout before JSON-RPC responses.
+		if behavior == "stdout_pollution" {
+			fmt.Fprintln(os.Stdout, "DEBUG: not a json-rpc response")
+		}
+
 		switch req.Method {
 		case "initialize":
 			helperHandleInitialize(encoder, req, behavior)
@@ -99,7 +104,7 @@ func helperHandleInitialize(encoder *json.Encoder, req pkgplugin.JSONRPCRequest,
 		hooks = []string{"session.start", "session.end"}
 	}
 	tools := []pkgplugin.ToolManifest{}
-	if behavior == "with_tools" || behavior == "tool_error" {
+	if behavior == "with_tools" || behavior == "tool_error" || behavior == "stdout_pollution" {
 		tools = []pkgplugin.ToolManifest{
 			{Name: "greet", Description: "Greet someone", InputSchema: map[string]any{"type": "object"}},
 		}
@@ -151,7 +156,23 @@ func helperHandleHookInvoke(encoder *json.Encoder, req pkgplugin.JSONRPCRequest,
 
 	var resultOutput json.RawMessage
 	switch params.Name {
-	case "session.start", "session.end", "tool.execute.before", "tool.execute.after":
+	case "tool.execute.before":
+		if behavior == "abort_before" {
+			_ = encoder.Encode(pkgplugin.JSONRPCResponse{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Error:   &pkgplugin.JSONRPCError{Code: -32000, Message: "blocked by plugin"},
+			})
+			return
+		}
+		if behavior == "with_context" {
+			resultOutput, _ = json.Marshal(map[string]any{
+				"additionalContext": []string{"ctx from plugin"},
+			})
+		} else {
+			resultOutput = nil
+		}
+	case "session.start", "session.end", "tool.execute.after":
 		if behavior == "with_context" {
 			resultOutput, _ = json.Marshal(map[string]any{
 				"additionalContext": []string{"ctx from plugin"},
@@ -541,5 +562,72 @@ func TestCallTool_ToolLevelError(t *testing.T) {
 	}
 	if content != "tool failed" {
 		t.Errorf("expected tool failed, got %q", content)
+	}
+}
+
+func TestLoad_StdoutPollution_StillSucceeds(t *testing.T) {
+	mgr := newTestManager("stdout_pollution")
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	mgr.SetToolRegistry(reg)
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load with stdout pollution: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	content, isErr, err := mgr.CallTool(info.ID, "greet", json.RawMessage(`{"name":"world"}`), "sess1")
+	if err != nil {
+		t.Fatalf("CallTool with stdout pollution: %v", err)
+	}
+	if isErr {
+		t.Fatalf("CallTool IsError=true, output=%q", content)
+	}
+	if content != "Hello, world" {
+		t.Errorf("expected Hello, world, got %q", content)
+	}
+}
+
+func TestHealthMonitor_RemovesDeadPlugin(t *testing.T) {
+	mgr := newTestManager("with_tools")
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	mgr.SetToolRegistry(reg)
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	mgr.mu.RLock()
+	proc := mgr.plugins[info.ID]
+	mgr.mu.RUnlock()
+	if proc == nil {
+		t.Fatal("expected plugin in map after Load")
+	}
+
+	// Kill the subprocess; health monitor should remove it from the map
+	// and unregister tools without going through Unload.
+	if err := proc.cmd.Process.Kill(); err != nil {
+		t.Fatalf("Kill: %v", err)
+	}
+	select {
+	case <-proc.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for process exit")
+	}
+
+	// Allow health monitor to finish removeProcess.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(mgr.List()) == 0 && reg.Get("plugin__test-plugin__greet") == nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(mgr.List()) != 0 {
+		t.Errorf("expected plugin removed from map, still have %d", len(mgr.List()))
+	}
+	if reg.Get("plugin__test-plugin__greet") != nil {
+		t.Error("expected tool unregistered after process death")
 	}
 }
