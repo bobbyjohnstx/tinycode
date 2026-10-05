@@ -82,6 +82,10 @@ RUN useradd -u 1001 -r -g 0 -m -d /home/tinycode -s /bin/sh tinycode && \
     chmod -R g=u /home/tinycode /projects
 
 EXPOSE 4096
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -sf http://localhost:4096/global/health || exit 1
+
 USER 1001
 WORKDIR /projects
 
