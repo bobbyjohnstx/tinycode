@@ -345,17 +345,6 @@ func reconnectMCP(client *api.Client, name string) tea.Cmd {
 	}
 }
 
-// fetchAgents fetches the agent list from the server.
-func fetchAgents(client *api.Client) tea.Cmd {
-	return func() tea.Msg {
-		agents, err := client.ListAgents()
-		if err != nil {
-			return AgentListMsg{Err: err}
-		}
-		return AgentListMsg{Agents: agents}
-	}
-}
-
 // fetchAllAgents fetches all agents including disabled ones.
 func fetchAllAgents(client *api.Client) tea.Cmd {
 	return func() tea.Msg {

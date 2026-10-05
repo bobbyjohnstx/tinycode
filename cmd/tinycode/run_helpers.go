@@ -3,12 +3,14 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
@@ -81,15 +83,46 @@ func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, int
 	return nil
 }
 
+// startJSONPermissionStdinRouter forwards permission_reply NDJSON lines from stdin
+// to the JSON permission handler while a single-turn run is processing. Multi-turn
+// mode routes permission_reply via readNextPrompt between prompts instead.
+func startJSONPermissionStdinRouter(permReplyCh chan<- permission.ReplyInput) {
+	safego.Go(func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			var msg struct {
+				Type  string `json:"type"`
+				ID    string `json:"id"`
+				Reply string `json:"reply"`
+			}
+			if err := json.Unmarshal([]byte(scanner.Text()), &msg); err != nil {
+				continue
+			}
+			if msg.Type != "permission_reply" {
+				continue
+			}
+			permReplyCh <- permission.ReplyInput{
+				RequestID: msg.ID,
+				Reply:     permission.Reply(msg.Reply),
+			}
+		}
+	})
+}
+
 // handleJSONPermissionEvents emits permission requests as NDJSON on stdout and
 // reads replies from the permReplyCh channel.
 func handleJSONPermissionEvents(permSub *bus.Subscription, permSvc *permission.Service, permReplyCh <-chan permission.ReplyInput) {
-	pending := make(map[string]bool)
 	safego.Go(func() {
 		for reply := range permReplyCh {
-			if pending[reply.RequestID] {
-				delete(pending, reply.RequestID)
-				permSvc.RespondToAsk(reply)
+			for attempt := 0; attempt < 200; attempt++ {
+				err := permSvc.RespondToAsk(reply)
+				if err == nil {
+					break
+				}
+				if !errors.Is(err, permission.ErrNotFound) {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
 			}
 		}
 	})
@@ -98,7 +131,6 @@ func handleJSONPermissionEvents(permSub *bus.Subscription, permSvc *permission.S
 		if !ok {
 			continue
 		}
-		pending[req.ID] = true
 		line, _ := json.Marshal(map[string]any{
 			"type":       "permission",
 			"id":         req.ID,

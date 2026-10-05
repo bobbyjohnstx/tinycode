@@ -12,8 +12,6 @@ import (
 
 const defaultSandboxAPIBaseURL = "https://api.sandbox.devshift.net/api/v1"
 
-const defaultSandboxAPIPrefix = ""
-
 type options struct {
 	// From model-serving.
 	Namespace           string

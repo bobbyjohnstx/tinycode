@@ -80,7 +80,7 @@ func TestStatusBar_SetWorking(t *testing.T) {
 		t.Error("expected working to be true")
 	}
 
-	cmd = sb.SetWorking(false)
+	_ = sb.SetWorking(false)
 	if sb.working {
 		t.Error("expected working to be false")
 	}

@@ -99,6 +99,10 @@ package: build-all-full
 test:
 	go test ./... -count=1
 
+## test-race: Run all tests with the race detector
+test-race:
+	go test ./... -count=1 -race -timeout 300s
+
 ## test-verbose: Run all tests with verbose output
 test-verbose:
 	go test ./... -v -count=1
@@ -107,15 +111,19 @@ test-verbose:
 vet:
 	go vet ./...
 
+## staticcheck: Run staticcheck (install: go install honnef.co/go/tools/cmd/staticcheck@latest)
+staticcheck:
+	go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+
 ## fmt: Format Go source code
 fmt:
 	gofmt -w .
 
-## lint: Run go vet (add golangci-lint when configured)
-lint: vet
+## lint: Run go vet and staticcheck
+lint: vet staticcheck
 
-## check: Run vet + tests
-check: vet test
+## check: Run vet, staticcheck, and tests
+check: lint test
 
 ## build-webapp: Build SolidJS web app with esbuild (output in packages/app/dist/)
 build-webapp:

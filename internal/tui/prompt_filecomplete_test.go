@@ -140,7 +140,7 @@ func TestFileCompleter_UpdateAtCursor_ShowsAndHides(t *testing.T) {
 	}
 
 	// No @ token, should hide
-	cmd = fc.UpdateAtCursor("hello", 5)
+	_ = fc.UpdateAtCursor("hello", 5)
 	if fc.IsVisible() {
 		t.Fatal("expected file completer to be hidden without @token")
 	}

@@ -44,7 +44,7 @@ func pyxisGet(path string, params map[string]string) (json.RawMessage, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Pyxis API %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("pyxis API %d: %s", resp.StatusCode, string(body))
 	}
 	return json.RawMessage(body), nil
 }

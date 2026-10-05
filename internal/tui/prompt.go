@@ -541,8 +541,11 @@ func formatImageSize(bytes int) string {
 // response that leaked through bubbletea's input parser (raw ESC/C1 bytes
 // or OSC color response fragments like "rgb:" or "11;").
 func isTerminalEscape(s string) bool {
-	if strings.ContainsAny(s, "\x1b\x9c") {
-		return true
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == 0x1b || c == 0x9c {
+			return true
+		}
 	}
 	if strings.Contains(s, "rgb:") || strings.HasPrefix(s, "]10;") || strings.HasPrefix(s, "]11;") {
 		return true

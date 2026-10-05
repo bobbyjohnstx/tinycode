@@ -49,9 +49,5 @@ func TestClearFileMutexesDoesNotBreakHeldLocks(t *testing.T) {
 
 	// The original mutex is still held and can be unlocked without panic.
 	mu.Unlock()
-
-	// The new mutex is independently usable.
-	mu2.Lock()
-	mu2.Unlock()
 }
 

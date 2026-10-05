@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sync"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
@@ -21,7 +20,6 @@ type SessionService interface {
 }
 
 type Service struct {
-	mu       sync.RWMutex
 	sessions SessionService
 	bus      *bus.Bus
 	info     AgentInfo

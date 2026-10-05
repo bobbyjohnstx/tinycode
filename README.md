@@ -18,7 +18,7 @@ tinycode reads your files, runs commands, edits code, and works through multi-st
 
 ### Key features
 
-- **Multi-agent orchestration** --- build agent delegates to executor, architect, and critic subagents; `/swarm` runs parallel agents as goroutines; `--plan` flag shows decomposition for review before dispatch
+- **Multi-agent orchestration** --- build agent delegates to executor, architect, and critic subagents; `/swarm` dispatches parallel subagents as goroutines (not the legacy TypeScript tmux swarm — see [docs/spec/16-not-implemented.md](docs/spec/16-not-implemented.md)); `--plan` flag shows decomposition for review before dispatch
 - **15 built-in agents** --- architect, debugger, executor, code-reviewer, planner, and more (Tab to cycle, `/ask` for one-shot)
 - **10 bundled skills** --- debug, verify, trace, review, plan, test, doctor, mcp-setup, remember, deepinit
 - **Workflow commands** --- `/effort` adjusts reasoning depth per session, `/goal` runs autonomous multi-turn loops until a condition is met, `/branch` forks conversations to try alternatives
@@ -275,11 +275,21 @@ make build          # Build for current platform -> dist/tinycode
 make build-all      # Cross-compile for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64
 make package        # Create release archives for all platforms
 make test           # Run all tests
-make lint           # Run go vet
-make check          # Run vet + tests
-make embed-webapp   # Embed SolidJS web app into the binary
+make test-race      # Run all tests with -race
+make lint           # go vet + staticcheck
+make check          # lint + tests
+make embed-webapp   # Embed SolidJS web app into the binary (builds from packages/app)
 make clean          # Remove build artifacts
 ```
+
+The runtime is Go only. The `packages/` tree is legacy TypeScript retained for `make embed-webapp`; see [docs/building.md](docs/building.md) and [docs/spec/README.md](docs/spec/README.md).
+
+## Documentation
+
+- **Spec index (start here):** [docs/spec/README.md](docs/spec/README.md)
+- **Architecture:** [docs/architecture.md](docs/architecture.md)
+- **Build & embed web UI:** [docs/building.md](docs/building.md)
+- **TypeScript features not in Go:** [docs/spec/16-not-implemented.md](docs/spec/16-not-implemented.md)
 
 ## License
 

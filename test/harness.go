@@ -260,9 +260,23 @@ func findTinycodeBin(t *testing.T) string {
 
 func writeTestConfig(t *testing.T, configDir, mockURL string) {
 	t.Helper()
+	writeHarnessConfig(t, configDir, nil)
+}
+
+// WriteConfig merges overrides into the default harness config and rewrites config.json.
+func (h *TestHarness) WriteConfig(overrides map[string]any) {
+	h.t.Helper()
+	writeHarnessConfig(h.t, h.ConfigDir, overrides)
+}
+
+func writeHarnessConfig(t *testing.T, configDir string, overrides map[string]any) {
+	t.Helper()
 
 	config := map[string]any{
 		"disabled_providers": []string{"ollama", "openrouter", "lmstudio", "maas"},
+	}
+	for k, v := range overrides {
+		config[k] = v
 	}
 
 	data, err := json.MarshalIndent(config, "", "  ")

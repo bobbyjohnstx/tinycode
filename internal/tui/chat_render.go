@@ -55,15 +55,6 @@ func renderMessage(msg MessageView, width int, md *render.MarkdownRenderer) stri
 	return renderMessageWithOpts(msg, width, md, nil)
 }
 
-// renderMessageWithHits renders a message and optionally collects thought label positions.
-func renderMessageWithHits(msg MessageView, width int, md *render.MarkdownRenderer, hits *[]thoughtHit) string {
-	if hits == nil {
-		return renderMessageWithOpts(msg, width, md, nil)
-	}
-	opts := &renderOpts{thoughtHits: hits}
-	return renderMessageWithOpts(msg, width, md, opts)
-}
-
 // renderMessageWithOpts renders a message with full render options.
 func renderMessageWithOpts(msg MessageView, width int, md *render.MarkdownRenderer, opts *renderOpts) string {
 	switch msg.Info.Role {

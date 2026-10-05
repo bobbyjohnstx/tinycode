@@ -46,6 +46,8 @@ Uses `tinycode run` with NDJSON output and JSON permission protocol for end-to-e
 - No terminal emulator required (CI-friendly)
 - Permission responses can be programmatic
 
+**Interactive JSON permission replies** (`--permissions json` with stdin `permission_reply` lines) are covered in `cmd/tinycode/run_test.go` (`TestJSONPermissionProtocol_EndToEnd`). Integration tests in `test/integration/permission_test.go` cover config allow/deny and JSON mode with pre-approved rules.
+
 ### Tier 3: TUI Integration Tests (tmux)
 
 Uses `script/tui-compare.sh` and the `qa-tester` agent for interactive TUI testing. Tests visual rendering, keyboard shortcuts, and user interaction flows that headless mode cannot cover.

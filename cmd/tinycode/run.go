@@ -104,6 +104,9 @@ func runRun() {
 	}
 
 	permReplyCh := setupRunPermissions(b, permSvc, *skipPermsFlag, *interactiveFlag, *permsFlag)
+	if *permsFlag == "json" && permReplyCh != nil && !*multiTurnFlag {
+		startJSONPermissionStdinRouter(permReplyCh)
+	}
 
 	builtinMgr := initBuiltins(toolReg)
 

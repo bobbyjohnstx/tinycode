@@ -274,9 +274,6 @@ func newPlugin() plugin.Plugin {
 	}
 }
 
-// reportArgs is the input schema for telemetry_report (no required fields).
-type reportArgs struct{}
-
 // queryArgs is the input schema for telemetry_query.
 type queryArgs struct {
 	Tool string `json:"tool"`
@@ -320,7 +317,7 @@ func buildTools(s *state) []plugin.ToolDef {
 			},
 			Execute: func(_ context.Context, raw json.RawMessage, _ plugin.ToolContext) (string, error) {
 				var args queryArgs
-				if raw != nil && len(raw) > 0 {
+				if len(raw) > 0 {
 					if err := json.Unmarshal(raw, &args); err != nil {
 						return "", fmt.Errorf("invalid arguments: %w", err)
 					}

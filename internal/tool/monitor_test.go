@@ -145,6 +145,7 @@ func TestMonitorManager_ConcurrentCap(t *testing.T) {
 		}
 		ids = append(ids, id)
 	}
+	_ = ids
 
 	// 6th monitor should fail.
 	_, err := mm.Start(context.Background(), "sleep 2", "test", dir, 5*time.Second)

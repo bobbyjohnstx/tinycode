@@ -16,9 +16,7 @@ import (
 type SidebarToggleMsg struct{}
 
 // SidebarSessionSelectedMsg is emitted when a session is selected in the sidebar tree.
-type SidebarSessionSelectedMsg struct {
-	SessionID string
-}
+type SidebarSessionSelectedMsg = SessionSwitchedMsg
 
 const sidebarWidth = 28
 

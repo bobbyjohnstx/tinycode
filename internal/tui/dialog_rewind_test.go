@@ -172,7 +172,7 @@ func TestRewindDialog_Escape(t *testing.T) {
 func TestRewindDialog_InvisibleIgnoresKeys(t *testing.T) {
 	dlg := NewRewindDialog()
 	// Not visible — should not react to keys.
-	dlg, cmd := dlg.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := dlg.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
 		t.Fatal("invisible dialog should not emit a command")
 	}

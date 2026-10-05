@@ -9,6 +9,22 @@ This specification documents tinycode, the Go rewrite of [tinycode](https://gith
 2. **Parity tracker** — what's been ported from the TypeScript original vs. what's missing
 3. **Standalone spec** — tinycode on its own terms, including Go-only features
 
+## Start here (current documentation)
+
+Use this table before older gap analyses or September 2026 review notes (those files carry **Historical document** banners).
+
+| Audience | Document |
+|----------|----------|
+| New users | [../getting-started.md](../getting-started.md), [../user-guide.md](../user-guide.md), [../quickstart.md](../quickstart.md) |
+| Operators / deploy | [../install.md](../install.md), [../deployment.md](../deployment.md), [../troubleshooting.md](../troubleshooting.md) |
+| Contributors (Go) | [../building.md](../building.md), [../architecture.md](../architecture.md), [../adding-a-tool.md](../adding-a-tool.md), root [../../AGENTS.md](../../AGENTS.md) and [../../CLAUDE.md](../../CLAUDE.md) |
+| Plugins | [../plugin-development.md](../plugin-development.md), [../plugin-catalog.md](../plugin-catalog.md) |
+| IDE / automation | [../acp-integration.md](../acp-integration.md), [17-testing-strategy.md](17-testing-strategy.md) |
+| TS-only / not in Go | [16-not-implemented.md](16-not-implemented.md) (tmux swarm, Electron desktop, etc.) |
+| Release / changelog | [../../CHANGELOG.md](../../CHANGELOG.md), [../../README.md](../../README.md) feature list |
+
+**Repository layout:** The product is the Go tree (`cmd/`, `internal/`, `pkg/`). The `packages/` directory is legacy TypeScript used only to build the optional embedded web UI (`make embed-webapp`); it is not the runtime.
+
 ## Sections
 
 | # | File | Section |

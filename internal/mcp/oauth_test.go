@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -63,18 +64,7 @@ func TestOAuthFlow_StartAuth_GeneratesState(t *testing.T) {
 }
 
 func containsParam(url, param string) bool {
-	return len(url) > 0 && len(param) > 0 &&
-		(len(url) >= len(param)) &&
-		(url[0:len(url)] != "" && findInString(url, param))
-}
-
-func findInString(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
+	return param != "" && strings.Contains(url, param)
 }
 
 func TestOAuthFlow_HandleCallback_ValidState(t *testing.T) {
@@ -226,7 +216,7 @@ func TestExchangeCode_ErrorResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-200 response")
 	}
-	if !findInString(err.Error(), "status 400") {
+	if !strings.Contains(err.Error(), "status 400") {
 		t.Errorf("error = %q, want to contain 'status 400'", err.Error())
 	}
 }

@@ -7,8 +7,6 @@ import (
 )
 
 var (
-	styleUserMsg      = lipgloss.NewStyle().Bold(true).PaddingLeft(2)
-	styleAssistantMsg = lipgloss.NewStyle().PaddingLeft(2)
 	styleToolName     = lipgloss.NewStyle().Bold(true)
 	styleSpinner      = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
 	colorError   lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF6666"}
@@ -16,11 +14,7 @@ var (
 	styleSelected     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
 	styleMetadata     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
 	styleDialogBorder = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).Padding(1, 2)
-	stylePromptBorder = lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).BorderTop(true).BorderBottom(false).BorderLeft(false).BorderRight(false)
-	stylePromptAccent = lipgloss.NewStyle().BorderStyle(lipgloss.ThickBorder()).BorderLeft(true).BorderTop(false).BorderRight(false).BorderBottom(false).BorderForeground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"})
 	styleStatusBar    = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#F5F5F5", Dark: "#1A1A1A"}).Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}).Padding(0, 1)
-	colorDiffAdded  lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"}
-	colorDiffRemoved lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF6666"}
 )
 
 // themeAgentColor overrides per-agent colors when a color theme is active.
@@ -123,13 +117,10 @@ type Theme struct {
 // SetTheme updates the package-level style variables from a Theme,
 // connecting the theme system to actual rendering.
 func SetTheme(t Theme) {
-	styleUserMsg = t.UserMessage
-	styleAssistantMsg = t.AssistantMessage
 	styleSpinner = t.Spinner
 	styleSelected = t.DialogActive
 	styleMetadata = t.Dim
 	styleDialogBorder = t.DialogOverlay
-	stylePromptBorder = t.PromptBorder
 	styleStatusBar = t.StatusBar
 	colorError = t.ToastError.GetForeground()
 	colorSuccess = t.PermissionAllow.GetForeground()

@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -72,6 +71,4 @@ func TestLipglossHeightRendering(t *testing.T) {
 	withSidebar := lipgloss.JoinHorizontal(lipgloss.Top, sidebarChat, sidebarPanel)
 	withSidebarLines := strings.Split(withSidebar, "\n")
 	t.Logf("With sidebar (JoinHorizontal): %d lines, first=%q", len(withSidebarLines), withSidebarLines[0])
-
-	_ = fmt.Sprintf("prevent unused import")
 }

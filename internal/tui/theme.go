@@ -162,10 +162,6 @@ func ApplyColorTheme(ct *ColorTheme) {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(ct.Primary).
 		Padding(1, 2)
-	stylePromptBorder = lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(ct.Primary).
-		BorderTop(true).BorderBottom(false).BorderLeft(false).BorderRight(false)
 	styleStatusBar = lipgloss.NewStyle().
 		Background(ct.BgPanel).
 		Foreground(ct.TextMuted).
@@ -204,8 +200,4 @@ func ApplyColorTheme(ct *ColorTheme) {
 	colorPromptSurface = ct.BgElement
 	colorPromptDim = ct.TextMuted
 	colorPromptPrimary = ct.Primary
-
-	// Diff colors
-	colorDiffAdded = ct.DiffAdded
-	colorDiffRemoved = ct.DiffRemoved
 }

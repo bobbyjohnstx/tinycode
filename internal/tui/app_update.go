@@ -347,9 +347,7 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return a, func() tea.Msg { return msg }, true
 	case SidebarSessionSelectedMsg:
 		slog.Info("sidebar session selected", "sessionID", msg.SessionID)
-		return a, func() tea.Msg {
-			return SessionSwitchedMsg{SessionID: msg.SessionID}
-		}, true
+		return a, func() tea.Msg { return SessionSwitchedMsg(msg) }, true
 	case FocusChangedMsg:
 		if msg.Target == FocusPalette {
 			a.showPalette()

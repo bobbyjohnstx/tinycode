@@ -6,6 +6,18 @@
 - **make**
 - **git**
 
+## Repository layout
+
+| Path | Role |
+|------|------|
+| `cmd/tinycode/` | Main binary |
+| `cmd/plugin-*/` | Optional plugin binaries (30 plugins) |
+| `internal/` | Private application code |
+| `pkg/plugin/` | Public plugin SDK |
+| `packages/` | **Legacy TypeScript** — used only when building the optional embedded web UI (`make embed-webapp`). Not part of the Go runtime. |
+
+Agent and contributor guidance for Go lives in the repo root: `AGENTS.md` and `CLAUDE.md`. See [spec/README.md](spec/README.md) for a full documentation index.
+
 ## Quick Build
 
 ```bash
@@ -31,15 +43,19 @@ Run it:
 | `build-all` | Cross-compile for all supported platforms |
 | `package` | Create release archives for all platforms |
 | `test` | Run all tests (`go test ./... -count=1`) |
+| `test-race` | Run all tests with the race detector (`-timeout 300s`) |
 | `test-verbose` | Run all tests with verbose output |
 | `vet` | Run `go vet` |
-| `lint` | Run `go vet` (add golangci-lint when configured) |
-| `check` | Run vet + tests |
-| `build-plugins` | Build all 36 plugin binaries for the current platform |
+| `staticcheck` | Run [staticcheck](https://staticcheck.dev/) on `./...` |
+| `lint` | Run `go vet` and staticcheck |
+| `check` | Run lint + tests |
+| `build-plugins` | Build all plugin binaries for the current platform |
 | `build-full` | Build tinycode + all plugins (`build` + `build-plugins`) |
 | `embed-webapp` | Build SolidJS web app and embed into Go binary |
 | `clean` | Remove build artifacts |
 | `help` | Show all targets with descriptions |
+
+Cross-compilation and plugin tables below refer to the same **30** `cmd/plugin-*` directories as `make build-plugins`.
 
 ## Cross-Compilation
 
@@ -88,15 +104,17 @@ make build VERSION=v1.2.3 COMMIT=abc1234 DATE=2026-01-01T00:00:00Z
 
 ## Embedding the Web App
 
-The SolidJS web UI from `packages/app` can be embedded into the Go binary for single-file distribution:
+The SolidJS web UI from `packages/app` can be embedded into the Go binary for single-file distribution. **`packages/` is not required** for TUI, `serve`, `run`, or `acp` — only for this optional embed step.
 
 ```bash
 make embed-webapp
 ```
 
-This runs `script/embed-webapp.sh`, which builds the web app and places the output in `internal/static/dist/` for Go's `embed.FS` to include at compile time. Requires the web app dependencies to be installed first (`packages/app` from the legacy TypeScript repo).
+This runs `script/embed-webapp.sh`, which builds the web app and places the output in `internal/static/dist/` for Go's `embed.FS` to include at compile time. Requires Node.js and the web app dependencies under `packages/app` (legacy TypeScript tree).
 
 After embedding, `make build` produces a binary that serves the web UI without external files. Without embedding, the binary still works -- it just does not serve a web UI unless `TINYCODE_WEB_DIR` points to a directory with built web assets.
+
+**Not in Go:** The original TypeScript **tmux swarm** (multi-pane workers) is documented in [spec/16-not-implemented.md](spec/16-not-implemented.md). The Go binary implements goroutine-based `/swarm` and the `task` tool instead.
 
 ## Plugin Binaries
 

@@ -23,7 +23,7 @@ func TestShellDirect_PublishesStatusBusyThenIdle(t *testing.T) {
 	statusSub := h.bus.Subscribe("session.status")
 	defer statusSub.Unsubscribe()
 
-	body := fmt.Sprintf(`{"command":"echo hello"}`)
+	body := `{"command":"echo hello"}`
 	resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/shell", "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("shell request: %v", err)
@@ -100,7 +100,7 @@ func TestShellDirect_PublishesToolPartWithCompletedStatus(t *testing.T) {
 
 	// Create session with a valid directory so the shell command succeeds.
 	dir := t.TempDir()
-	body := fmt.Sprintf(`{"title":"Shell Tool Part","agent":"build","model":{"modelID":"test-model","providerID":"test-provider"}}`)
+	body := `{"title":"Shell Tool Part","agent":"build","model":{"modelID":"test-model","providerID":"test-provider"}}`
 	resp, err := http.Post(h.baseURL()+"/session?directory="+dir, "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("create session: %v", err)
@@ -154,7 +154,7 @@ func TestShellDirect_RunsInSpecifiedDirectory(t *testing.T) {
 	os.MkdirAll(dir, 0o755)
 
 	// Create a session with directory set to a subdirectory of the server root.
-	body := fmt.Sprintf(`{"title":"Shell Dir","agent":"build","model":{"modelID":"test-model","providerID":"test-provider"}}`)
+	body := `{"title":"Shell Dir","agent":"build","model":{"modelID":"test-model","providerID":"test-provider"}}`
 	resp, err := http.Post(h.baseURL()+"/session?directory="+dir, "application/json", strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("create session: %v", err)

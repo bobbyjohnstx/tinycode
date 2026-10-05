@@ -226,20 +226,6 @@ func resolveSpec(ctx context.Context, consoleClient *redhat.APIClient, catalogPa
 
 const notAvailableMsg = "API spec not available. Configure consoleOfflineToken for live fetching or catalogPath for cached specs."
 
-func stubTool(name, description, message string) plugin.ToolDef {
-	return plugin.ToolDef{
-		Name:        name,
-		Description: description,
-		Parameters: map[string]any{
-			"type":       "object",
-			"properties": map[string]any{},
-		},
-		Execute: func(_ context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
-			return message, nil
-		},
-	}
-}
-
 func buildTools(consoleClient *redhat.APIClient, catalogPath string) []plugin.ToolDef {
 	hasSource := consoleClient != nil || catalogPath != ""
 

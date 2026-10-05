@@ -18,12 +18,6 @@ type state struct {
 	db   *bolt.DB
 }
 
-func (s *state) get() *mustgather.Root {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.root
-}
-
 func (s *state) set(r *mustgather.Root) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -68,14 +62,6 @@ func newPlugin() plugin.Plugin {
 
 func main() {
 	plugin.Run(newPlugin())
-}
-
-func requireRoot(st *state) (*mustgather.Root, error) {
-	r := st.get()
-	if r == nil {
-		return nil, fmt.Errorf("no must-gather directory loaded — call etcd_diag_stats with a path first")
-	}
-	return r, nil
 }
 
 func requireDB(st *state) (*bolt.DB, error) {

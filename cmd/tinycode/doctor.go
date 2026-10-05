@@ -146,9 +146,8 @@ func runDoctor() {
 
 func checkProviders(cfg *config.Info, failed *bool) {
 	type providerProbe struct {
-		name   string
-		url    string
-		apiKey bool
+		name string
+		url  string
 	}
 
 	probes := []providerProbe{

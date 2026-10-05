@@ -17,7 +17,7 @@ go test ./... -count=1          # all tests (or: make test)
 go test ./internal/tui/... -count=1   # single package
 
 # Lint
-go vet ./...                    # or: make lint
+make lint                       # go vet + staticcheck (make test-race for -race)
 
 # Embed web app into binary (requires packages/app built first)
 make embed-webapp
