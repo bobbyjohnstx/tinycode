@@ -183,11 +183,11 @@ func (sm *SessionManager) bridgeAssistantMessage(sessionID string, active *activ
 			"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
 			"cost":       0,
 			"tokens": map[string]any{
-					"input":     inputTokens,
-					"output":    outputTokens,
-					"reasoning": reasoningTokens,
-					"cache":     map[string]any{"read": cacheRead, "write": cacheWrite},
-				},
+				"input":     inputTokens,
+				"output":    outputTokens,
+				"reasoning": reasoningTokens,
+				"cache":     map[string]any{"read": cacheRead, "write": cacheWrite},
+			},
 		},
 	})
 
@@ -534,16 +534,14 @@ func isFileModifyingTool(name string) bool {
 	return false
 }
 
-// publishSessionDiff runs git diff for the session's directory and publishes
-// a session.diff event with the results.
+// publishSessionDiff runs git diff --numstat for the session's directory and
+// publishes a session.diff event with file names and line counts.
 func (sm *SessionManager) publishSessionDiff(sessionID string) {
 	dir := sm.sessionDir(sessionID)
-	diff, err := vcs.GitDiff(dir)
+	files, additions, deletions, err := vcs.GitDiffNumstat(dir)
 	if err != nil {
 		return
 	}
-
-	files, additions, deletions := parseDiffStats(diff)
 	sm.bus.Publish("session.diff", map[string]any{
 		"sessionID": sessionID,
 		"diff":      files,

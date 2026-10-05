@@ -133,6 +133,35 @@ func TestGitDiff_CleanRepo(t *testing.T) {
 	}
 }
 
+func TestParseNumstat(t *testing.T) {
+	out := "3\t1\tfile.go\n-\t-\timage.png\n0\t4\tdir/other.go\n"
+	files, additions, deletions := parseNumstat(out)
+	if len(files) != 3 || files[0] != "file.go" || files[1] != "image.png" || files[2] != "dir/other.go" {
+		t.Fatalf("files = %v", files)
+	}
+	if additions != 3 || deletions != 5 {
+		t.Fatalf("additions=%d deletions=%d, want 3 and 5", additions, deletions)
+	}
+}
+
+func TestGitDiffNumstat_ModifiedFile(t *testing.T) {
+	dir := setupGitRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("modified content\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files, additions, deletions, err := GitDiffNumstat(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 1 || files[0] != "README.md" {
+		t.Fatalf("files = %v", files)
+	}
+	if additions == 0 && deletions == 0 {
+		t.Fatal("expected a non-zero line count")
+	}
+}
+
 func TestGitDiff_ModifiedFile(t *testing.T) {
 	dir := setupGitRepo(t)
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("modified content"), 0644); err != nil {

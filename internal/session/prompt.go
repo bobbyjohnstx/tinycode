@@ -21,9 +21,10 @@ type SystemPromptInput struct {
 }
 
 // BuildSystemPrompt assembles a system prompt from the agent persona, discovered
-// instruction files (CLAUDE.md, AGENTS.md walking up from Directory), tool
-// definitions, environment info, and any extra instructions from config. Files
-// that cannot be read are silently skipped.
+// instruction files (CLAUDE.md, AGENTS.md walking up from Directory), an LSP
+// hint when those tools are present, environment info, and any extra
+// instructions from config. Files that cannot be read are silently skipped.
+// Tool schemas are not copied into the prompt; the request carries them.
 func BuildSystemPrompt(input SystemPromptInput) string {
 	var sections []string
 
@@ -45,8 +46,8 @@ func BuildSystemPrompt(input SystemPromptInput) string {
 		}
 	}
 
-	if len(input.ToolDefs) > 0 {
-		sections = append(sections, buildToolSection(input.ToolDefs))
+	if section := buildToolSection(input.ToolDefs); section != "" {
+		sections = append(sections, section)
 	}
 
 	if env := buildEnvironmentSection(input); env != "" {
@@ -64,25 +65,16 @@ func BuildSystemPrompt(input SystemPromptInput) string {
 	return strings.Join(sections, "\n\n---\n\n")
 }
 
-// buildToolSection creates a section listing available tools and their descriptions.
+// buildToolSection returns the LSP usage hint when those tools are available.
+// Tool names and descriptions are omitted: the request already carries the
+// JSON schemas.
 func buildToolSection(tools []llm.Tool) string {
-	var sb strings.Builder
-	sb.WriteString("# Available Tools\n")
-	hasLSP := false
 	for _, tool := range tools {
-		sb.WriteString(fmt.Sprintf("- **%s**", tool.Function.Name))
-		if tool.Function.Description != "" {
-			sb.WriteString(fmt.Sprintf(": %s", tool.Function.Description))
-		}
-		sb.WriteString("\n")
-		if !hasLSP && strings.HasPrefix(tool.Function.Name, "lsp_") {
-			hasLSP = true
+		if strings.HasPrefix(tool.Function.Name, "lsp_") {
+			return "Use `lsp_diagnostics` to check files for errors after writing or editing code. Use `lsp_hover` and `lsp_definition` to understand APIs before coding against them."
 		}
 	}
-	if hasLSP {
-		sb.WriteString("\nUse `lsp_diagnostics` to check files for errors after writing or editing code. Use `lsp_hover` and `lsp_definition` to understand APIs before coding against them.\n")
-	}
-	return sb.String()
+	return ""
 }
 
 // buildEnvironmentSection creates a section with environment context.

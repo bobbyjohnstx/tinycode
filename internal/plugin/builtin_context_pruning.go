@@ -18,7 +18,7 @@ type contextPruningPlugin struct {
 }
 
 // NewContextPruningPlugin creates a builtin plugin that detects duplicate tool
-// calls within a sliding window and annotates the output.
+// calls within a sliding window and replaces the repeated output with a note.
 func NewContextPruningPlugin() BuiltinPlugin {
 	threshold := 20
 	if val := os.Getenv("CONTEXT_PRUNE_THRESHOLD"); val != "" {
@@ -64,7 +64,7 @@ func (p *contextPruningPlugin) Hooks() BuiltinHooks {
 			p.seen[hash] = p.seq
 
 			if exists && (p.seq-prev) <= p.threshold {
-				return fmt.Sprintf("[note: duplicate of recent %s call]\n%s", toolName, output), isError, true
+				return fmt.Sprintf("[note: duplicate of recent %s call]", toolName), isError, true
 			}
 			return "", false, false
 		},

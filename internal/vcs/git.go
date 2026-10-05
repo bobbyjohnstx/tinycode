@@ -2,6 +2,7 @@ package vcs
 
 import (
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -69,6 +70,38 @@ func GitStatus(dir string) (*Status, error) {
 // GitDiff returns the diff output for the git repo at dir.
 func GitDiff(dir string) (string, error) {
 	return gitCommand(dir, "diff")
+}
+
+// GitDiffNumstat returns the files touched by the working tree diff and the
+// summed added and deleted line counts. It does not load the patch.
+func GitDiffNumstat(dir string) (files []string, additions, deletions int, err error) {
+	out, err := gitCommand(dir, "diff", "--numstat")
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	files, additions, deletions = parseNumstat(out)
+	return files, additions, deletions, nil
+}
+
+func parseNumstat(out string) (files []string, additions, deletions int) {
+	files = []string{}
+	for _, line := range strings.Split(out, "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		if n, err := strconv.Atoi(parts[0]); err == nil {
+			additions += n
+		}
+		if n, err := strconv.Atoi(parts[1]); err == nil {
+			deletions += n
+		}
+		files = append(files, parts[2])
+	}
+	return files, additions, deletions
 }
 
 func gitCommand(dir string, args ...string) (string, error) {

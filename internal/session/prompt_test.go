@@ -235,14 +235,27 @@ func TestBuildSystemPrompt_WithToolDefs(t *testing.T) {
 		ToolDefs:    tools,
 	})
 
-	if !strings.Contains(result, "# Available Tools") {
-		t.Error("expected tools section header")
+	if strings.Contains(result, "Read a file") || strings.Contains(result, "**read**") {
+		t.Errorf("tool schemas are sent separately; prompt should not list them:\n%s", result)
 	}
-	if !strings.Contains(result, "**read**: Read a file") {
-		t.Error("expected read tool in output")
+}
+
+func TestBuildSystemPrompt_LSPHintWithoutToolList(t *testing.T) {
+	tools := []llm.Tool{
+		{Type: "function", Function: llm.ToolFunction{Name: "read", Description: "Read a file"}},
+		{Type: "function", Function: llm.ToolFunction{Name: "lsp_diagnostics", Description: "Show diagnostics"}},
 	}
-	if !strings.Contains(result, "**write**: Write a file") {
-		t.Error("expected write tool in output")
+
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt: "Agent.",
+		ToolDefs:    tools,
+	})
+
+	if !strings.Contains(result, "lsp_diagnostics") {
+		t.Error("expected the LSP usage hint")
+	}
+	if strings.Contains(result, "Read a file") || strings.Contains(result, "# Available Tools") {
+		t.Errorf("expected no tool inventory, got:\n%s", result)
 	}
 }
 
@@ -281,11 +294,7 @@ func TestBuildToolSection(t *testing.T) {
 		{Function: llm.ToolFunction{Name: "grep"}},
 	}
 	result := buildToolSection(tools)
-	if !strings.Contains(result, "**grep**") {
-		t.Error("expected tool name in section")
-	}
-	// No description means no colon
-	if strings.Contains(result, ":") {
-		t.Error("expected no colon for tool without description")
+	if result != "" {
+		t.Errorf("expected no tool section without LSP tools, got %q", result)
 	}
 }

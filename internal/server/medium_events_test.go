@@ -416,8 +416,8 @@ func TestBridgeToolEnd_PublishesDiffForFileModifyingTools(t *testing.T) {
 }
 
 func TestParseDiffStats_Consistency(t *testing.T) {
-	// Verify parseDiffStats is callable and returns expected structure
-	// (it's used by both handleSessionDiff and publishSessionDiff).
+	// Verify parseDiffStats for the endpoints that return a full patch.
+	// publishSessionDiff uses git diff --numstat instead.
 	diff := `diff --git a/file.go b/file.go
 --- a/file.go
 +++ b/file.go
