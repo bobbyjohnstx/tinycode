@@ -630,6 +630,56 @@ func TestTruncPreview_ByteLimit(t *testing.T) {
 	}
 }
 
+func TestExecute_ErrorOutputIsPreviewed(t *testing.T) {
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	r.Register(&Def{
+		ID:         "fail-big",
+		Permission: "read",
+		Parameters: map[string]any{"type": "object"},
+		Execute: func(ctx context.Context, tc *Context, args json.RawMessage) (*ExecuteResult, error) {
+			lines := make([]string, 200)
+			for i := range lines {
+				lines[i] = "error line"
+			}
+			return &ExecuteResult{Output: strings.Join(lines, "\n"), IsError: true}, nil
+		},
+	})
+
+	output, isErr, err := r.Execute(context.Background(), "fail-big", json.RawMessage(`{}`), "sess")
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !isErr {
+		t.Fatal("expected isError to stay true")
+	}
+	if !strings.Contains(output, "[preview:") {
+		t.Fatalf("expected error output to be previewed, got %d bytes", len(output))
+	}
+	if strings.Count(output, "error line") >= 200 {
+		t.Fatal("expected the full error output to be reduced")
+	}
+}
+
+func TestExecute_ShortErrorUnchanged(t *testing.T) {
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	r.Register(&Def{
+		ID:         "fail-small",
+		Permission: "read",
+		Parameters: map[string]any{"type": "object"},
+		Execute: func(ctx context.Context, tc *Context, args json.RawMessage) (*ExecuteResult, error) {
+			return &ExecuteResult{Output: "permission denied", IsError: true}, nil
+		},
+	})
+
+	output, isErr, err := r.Execute(context.Background(), "fail-small", json.RawMessage(`{}`), "sess")
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !isErr || output != "permission denied" {
+		t.Fatalf("short error changed: isErr=%v output=%q", isErr, output)
+	}
+}
+
 func TestTruncPreview_ExactBoundary(t *testing.T) {
 	// Exactly 50 lines (PreviewHeadLines + PreviewTailLines)
 	lines := make([]string, PreviewHeadLines+PreviewTailLines)

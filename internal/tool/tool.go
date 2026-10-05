@@ -318,10 +318,8 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		})
 	}
 
-	if !isError {
-		truncated := TruncPreview(output)
-		output = truncated.Content
-	}
+	truncated := TruncPreview(output)
+	output = truncated.Content
 
 	// Append hook context to tool output so the model sees it.
 	hookCtx := append(beforeContext, afterContext...)
