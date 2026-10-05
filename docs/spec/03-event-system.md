@@ -172,8 +172,9 @@ When running in headless mode with `--format json`, the run mode emits NDJSON (n
 |------------|--------|-------------|
 | `text` | `content` | Assistant text output |
 | `reasoning` | `content` | Reasoning/thinking content |
-| `tool_begin` | `tool`, `args` | Tool execution starting |
-| `tool_end` | `tool`, `output`, `isError` | Tool execution complete |
+| `tool_begin` | `toolName`, `toolCallID` | Tool call starting |
+| `tool_call_end` | `toolName`, `toolCallID`, `toolArgs` | LLM finished streaming tool-call args |
+| `tool_end` | `toolName`, `toolCallID`, `output`, `isError` | Tool execution complete |
 | `step_start` | `iteration` | Processor loop iteration starting |
 | `step_finish` | `iteration`, `usage` | Processor loop iteration complete |
 | `warning` | `message` | Warning (e.g., tool failures) |
@@ -184,8 +185,8 @@ When running in headless mode with `--format json`, the run mode emits NDJSON (n
 ```json
 {"type":"step_start","iteration":1}
 {"type":"text","content":"I'll fix the bug."}
-{"type":"tool_begin","tool":"read","args":{"file_path":"main.go"}}
-{"type":"tool_end","tool":"read","output":"package main...","isError":false}
+{"type":"tool_begin","toolName":"read","toolCallID":"call_1"}
+{"type":"tool_end","toolName":"read","toolCallID":"call_1","output":"package main...","isError":false}
 {"type":"step_finish","iteration":1,"usage":{"input":450,"output":120}}
 ```
 

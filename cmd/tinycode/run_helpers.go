@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,8 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
+
+const maxNDJSONToolOutput = 16 * 1024
 
 // collectRunPrompt handles directory changes from positional args and collects
 // the prompt text from remaining args and/or stdin. When multiTurn is true,
@@ -96,7 +99,9 @@ type stdinMux struct {
 
 func newStdinMux(isJSON bool, permReplyCh chan<- permission.ReplyInput) *stdinMux {
 	return &stdinMux{
-		prompts:     make(chan string, 1),
+		// Buffer generously so a pending prompt cannot block the mux from
+		// delivering a permission_reply while Process is blocked on Ask.
+		prompts:     make(chan string, 64),
 		permReplyCh: permReplyCh,
 		isJSON:      isJSON,
 	}
@@ -118,15 +123,23 @@ func (m *stdinMux) run() {
 func (m *stdinMux) dispatch(line string) bool {
 	if id, reply, ok := parsePermissionReply(line); ok {
 		if m.permReplyCh != nil {
-			m.permReplyCh <- permission.ReplyInput{
+			select {
+			case m.permReplyCh <- permission.ReplyInput{
 				RequestID: id,
 				Reply:     permission.Reply(reply),
+			}:
+			default:
+				slog.Warn("permission reply channel full, dropping reply", "id", id)
 			}
 		}
 		return false
 	}
 	if !m.isJSON {
-		m.prompts <- strings.TrimSpace(line)
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "exit" || trimmed == "quit" {
+			return true
+		}
+		m.sendPrompt(trimmed)
 		return false
 	}
 
@@ -135,16 +148,24 @@ func (m *stdinMux) dispatch(line string) bool {
 		Text string `json:"text"`
 	}
 	if err := json.Unmarshal([]byte(line), &msg); err != nil {
-		m.prompts <- strings.TrimSpace(line)
+		m.sendPrompt(strings.TrimSpace(line))
 		return false
 	}
 	switch msg.Type {
 	case "prompt":
-		m.prompts <- msg.Text
+		m.sendPrompt(msg.Text)
 	case "exit":
 		return true
 	}
 	return false
+}
+
+func (m *stdinMux) sendPrompt(text string) {
+	select {
+	case m.prompts <- text:
+	default:
+		slog.Warn("prompt channel full, dropping prompt")
+	}
 }
 
 func parsePermissionReply(line string) (id, reply string, ok bool) {
@@ -311,7 +332,9 @@ func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Reg
 
 // resolveRunSession creates or continues a session. Returns session ID,
 // existing messages, and the message store. Exits on error.
-func resolveRunSession(db *storage.DB, sessionIDFlag string, cont bool, title, dir, agentName, modelID, providerID string) (string, []session.Message, *session.MessageStore) {
+// resumeFlag resolves like TUI --resume (ID, then title/slug). sessionIDFlag
+// requires an exact session ID (-s/--session).
+func resolveRunSession(db *storage.DB, sessionIDFlag, resumeFlag string, cont bool, title, dir, agentName, modelID, providerID string) (string, []session.Message, *session.MessageStore) {
 	store := session.NewStore(db.DB)
 	ms := session.NewMessageStore(store)
 	projectID := project.IDFromDirectory(dir)
@@ -319,7 +342,15 @@ func resolveRunSession(db *storage.DB, sessionIDFlag string, cont bool, title, d
 	var sessionID string
 	var existingMsgs []session.Message
 
-	if sessionIDFlag != "" {
+	switch {
+	case resumeFlag != "":
+		sessionID = resolveResumeSessionID(store, projectID, resumeFlag)
+		if sessionID == "" {
+			fmt.Fprintf(os.Stderr, "error: session %q not found\n", resumeFlag)
+			os.Exit(1)
+		}
+		existingMsgs, _ = ms.List(sessionID)
+	case sessionIDFlag != "":
 		sessionID = sessionIDFlag
 		_, err := store.Get(sessionID)
 		if err != nil {
@@ -327,15 +358,20 @@ func resolveRunSession(db *storage.DB, sessionIDFlag string, cont bool, title, d
 			os.Exit(1)
 		}
 		existingMsgs, _ = ms.List(sessionID)
-	} else if cont {
+	case cont:
 		sessions, err := store.List(projectID, 1, 0)
 		if err != nil || len(sessions) == 0 {
 			fmt.Fprintf(os.Stderr, "error: no sessions to continue\n")
 			os.Exit(1)
 		}
 		sessionID = sessions[0].ID
+		if title != "" {
+			if err := store.UpdateTitle(sessionID, title); err != nil {
+				slog.Warn("failed to update session title", "error", err)
+			}
+		}
 		existingMsgs, _ = ms.List(sessionID)
-	} else {
+	default:
 		info, err := store.Create(session.CreateInput{
 			ProjectID: projectID,
 			Directory: dir,
@@ -353,12 +389,30 @@ func resolveRunSession(db *storage.DB, sessionIDFlag string, cont bool, title, d
 	return sessionID, existingMsgs, ms
 }
 
+// resolveResumeSessionID tries session ID first, then title/slug match.
+func resolveResumeSessionID(store *session.Store, projectID, resume string) string {
+	if info, err := store.Get(resume); err == nil {
+		return info.ID
+	}
+	sessions, err := store.List(projectID, 50, 0)
+	if err != nil {
+		return ""
+	}
+	for _, s := range sessions {
+		if s.Title == resume || s.Slug == resume {
+			return s.ID
+		}
+	}
+	return ""
+}
+
 // streamRunOutput subscribes to session events and streams text/tool output
 // to stdout. Goroutines run until the bus subscriptions are closed.
 func streamRunOutput(b *bus.Bus, isJSON bool) {
 	deltaSub := b.Subscribe("session.text.delta")
 	toolBeginSub := b.Subscribe("session.tool.begin")
-	toolEndSub := b.Subscribe("session.tool.end")
+	toolCallEndSub := b.Subscribe("session.tool.end")
+	toolResultSub := b.Subscribe("session.tool.result")
 	msgSub := b.Subscribe("session.message")
 	stepStartSub := b.Subscribe("session.step.start")
 	stepFinishSub := b.Subscribe("session.step.finish")
@@ -386,30 +440,64 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 			if !ok {
 				continue
 			}
+			toolName, _ := props["toolName"].(string)
+			toolCallID, _ := props["toolCallID"].(string)
 			if isJSON {
 				line, _ := json.Marshal(map[string]any{
 					"type":       "tool_begin",
-					"toolName":   props["toolName"],
-					"toolCallID": props["toolCallID"],
+					"toolName":   toolName,
+					"toolCallID": toolCallID,
 				})
 				fmt.Println(string(line))
+			} else {
+				fmt.Fprintf(os.Stderr, "tool %s begin\n", toolName)
 			}
 		}
 	})
 	safego.Go(func() {
-		for evt := range toolEndSub.C {
+		for evt := range toolCallEndSub.C {
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
 				continue
 			}
+			if !isJSON {
+				continue
+			}
+			// LLM finished streaming the tool call args (not execution result).
+			line, _ := json.Marshal(map[string]any{
+				"type":       "tool_call_end",
+				"toolName":   props["toolName"],
+				"toolCallID": props["toolCallID"],
+				"toolArgs":   props["toolArgs"],
+			})
+			fmt.Println(string(line))
+		}
+	})
+	safego.Go(func() {
+		for evt := range toolResultSub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			toolName, _ := props["toolName"].(string)
+			toolCallID, _ := props["toolCallID"].(string)
+			output, _ := props["output"].(string)
+			isError, _ := props["isError"].(bool)
 			if isJSON {
 				line, _ := json.Marshal(map[string]any{
 					"type":       "tool_end",
-					"toolName":   props["toolName"],
-					"toolCallID": props["toolCallID"],
-					"toolArgs":   props["toolArgs"],
+					"toolName":   toolName,
+					"toolCallID": toolCallID,
+					"output":     truncateStr(output, maxNDJSONToolOutput),
+					"isError":    isError,
 				})
 				fmt.Println(string(line))
+			} else {
+				status := "ok"
+				if isError {
+					status = "error"
+				}
+				fmt.Fprintf(os.Stderr, "tool %s end (%s)\n", toolName, status)
 			}
 		}
 	})
@@ -529,7 +617,11 @@ func readNextPrompt(scanner *bufio.Scanner, isJSON bool, permReplyCh chan<- perm
 	line := scanner.Text()
 
 	if !isJSON {
-		return strings.TrimSpace(line), true
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "exit" || trimmed == "quit" {
+			return "", false
+		}
+		return trimmed, true
 	}
 
 	var msg struct {
@@ -591,7 +683,45 @@ func finishRun(result *session.ProcessResult, existingMsgs []session.Message, ms
 	}
 
 	if result != nil && result.Error != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", result.Error)
-		os.Exit(1)
+		emitRunError(sessionID, result.Error, isJSON)
+		os.Exit(exitCodeForRunError(result.Error))
 	}
+	emitRunDone(sessionID, isJSON)
+}
+
+func emitRunSession(sessionID string, isJSON bool) {
+	if isJSON {
+		line, _ := json.Marshal(map[string]any{"type": "session", "sessionID": sessionID})
+		fmt.Println(string(line))
+		return
+	}
+	fmt.Fprintf(os.Stderr, "session: %s\n", sessionID)
+}
+
+func emitRunDone(sessionID string, isJSON bool) {
+	if !isJSON {
+		return
+	}
+	line, _ := json.Marshal(map[string]any{"type": "done", "sessionID": sessionID, "ok": true})
+	fmt.Println(string(line))
+}
+
+func emitRunError(sessionID string, err error, isJSON bool) {
+	if isJSON {
+		line, _ := json.Marshal(map[string]any{
+			"type":      "error",
+			"sessionID": sessionID,
+			"message":   err.Error(),
+		})
+		fmt.Println(string(line))
+		return
+	}
+	fmt.Fprintf(os.Stderr, "error: %v\n", err)
+}
+
+func exitCodeForRunError(err error) int {
+	if errors.Is(err, context.Canceled) {
+		return 130
+	}
+	return 1
 }

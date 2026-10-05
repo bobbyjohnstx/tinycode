@@ -1060,23 +1060,32 @@ tinycode run -c -m ollama/qwen3:8b "now add tests for that"
 | `-m, --model` | Model to use (provider/model) |
 | `--agent` | Agent to use (default: build) |
 | `--format` | Output format: `default` (text) or `json` (NDJSON events) |
-| `-c, --continue` | Continue the most recent session |
-| `-s, --session` | Session ID to continue |
-| `--title` | Session title |
+| `-c, --continue` | Continue the most recently updated session |
+| `-s, --session` | Session ID to continue (exact ID) |
+| `-r, --resume` | Resume by session ID or title/slug |
+| `--title` | Session title; with `-c`, updates the continued session title |
 | `--dangerously-skip-permissions` | Auto-approve all tool permissions |
 | `-i, --interactive` | Show permission prompts on stderr |
 | `--permissions` | Permission handling: `default` or `json` |
 | `--max-iterations` | Max processor iterations (default: 200) |
 | `--multi-turn` | Loop on stdin after initial prompt |
+| `--fail-fast` | Multi-turn: exit on first turn error |
+| `--append-system-prompt` | Append text to the system prompt |
+| `--append-system-prompt-file` | Append file contents to the system prompt |
+| `--max-tokens` | Cumulative token budget (input+output) |
+| `--safe-mode` | Skip plugins, MCP, and user agents |
 
 ### Permission modes
 
+Default rules allow `read *`. Asks (shell/edit/etc.) are auto-rejected in headless mode unless you opt in:
+
 | Mode | Flag | Behavior |
 |------|------|----------|
-| Auto-deny | *(default)* | All tool permissions rejected (safe for automation) |
+| Auto-reject asks | *(default)* | Allowed rules (e.g. `read *`) pass; Ask requests are rejected |
 | Auto-approve | `--dangerously-skip-permissions` | All permissions approved |
 | Interactive | `-i` | Prompts on stderr, reads yes/no from stdin |
 | JSON | `--permissions json` | NDJSON permission protocol via stdin/stdout |
+| Config | `permission.allow` / `deny` | Pre-approve or deny patterns |
 
 ### NDJSON output (`--format json`)
 
@@ -1084,34 +1093,44 @@ All output is emitted as newline-delimited JSON events:
 
 | Event type | Description |
 |------------|-------------|
+| `session` | Session resolved (`sessionID`) |
 | `text` | Text delta from the model |
-| `tool_begin` | Tool execution started |
-| `tool_end` | Tool execution completed |
+| `tool_begin` | Tool call started |
+| `tool_call_end` | LLM finished tool-call args |
+| `tool_end` | Tool execution completed (`output`, `isError`) |
 | `reasoning` | Model thinking/reasoning block |
 | `step_start` | Processor iteration started |
 | `step_finish` | Processor iteration completed |
 | `warning` | Non-fatal warning |
 | `compacted` | Context compaction occurred |
+| `permission` | Ask request (`--permissions json`) |
+| `ready` | Multi-turn ready for next prompt |
+| `done` | Run finished (`ok: true`) |
+| `error` | Run/turn failed (`message`) |
+
+In text format, tool progress goes to stderr (`tool <name> begin` / `tool <name> end (...)`).
 
 ### Multi-turn mode
 
-With `--multi-turn`, tinycode loops on stdin after the initial prompt:
+With `--multi-turn`, tinycode loops on stdin after the initial prompt. Any turn error causes a non-zero exit at the end (or immediately with `--fail-fast`). Type `exit`/`quit` or Ctrl+D to stop.
 
 ```bash
 tinycode run --multi-turn -m ollama/qwen3:8b "explain main.go"
 # After response, type next prompt:
 # > now add error handling
-# > (Ctrl+D to exit)
+# > exit
 ```
 
 In JSON mode, use structured messages:
 
 ```
+← stdout: {"type":"session","sessionID":"ses_..."}
 → stdin:  {"type":"prompt","text":"explain main.go"}
 ← stdout: {"type":"ready"}
 → stdin:  {"type":"prompt","text":"now add tests"}
 ← stdout: {"type":"ready"}
 → stdin:  {"type":"exit"}
+← stdout: {"type":"done","sessionID":"ses_...","ok":true}
 ```
 
 ---
@@ -1198,6 +1217,8 @@ In `run` mode, the same flags work:
 
 ```bash
 tinycode run -c -m ollama/qwen3:8b "now add tests for that"
+tinycode run -r "auth refactor" -m ollama/qwen3:8b "continue"
+tinycode run -c --title "renamed" -m ollama/qwen3:8b "next step"
 ```
 
 ### Examples

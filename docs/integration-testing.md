@@ -102,7 +102,8 @@ The `--format json` output emits one JSON object per line with these `type` valu
 | `text` | Text delta from LLM | `text` |
 | `reasoning` | Reasoning/thinking delta | `text` |
 | `tool_begin` | Tool call starts | `toolName`, `toolCallID` |
-| `tool_end` | Tool call finishes | `toolName`, `toolCallID` |
+| `tool_call_end` | LLM finished tool-call args | `toolName`, `toolCallID`, `toolArgs` |
+| `tool_end` | Tool execution finishes | `toolName`, `toolCallID`, `output`, `isError` |
 | `ready` | Multi-turn: ready for next input | — |
 | `permission` | Permission request (with `--permissions json`) | `id`, `permission`, `metadata` |
 | `compacted` | Context compaction occurred | — |

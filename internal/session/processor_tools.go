@@ -34,9 +34,11 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 			defer func() {
 				if r := recover(); r != nil {
 					slog.Error("tool panicked", "tool", call.ToolName, "panic", r)
+					msg := fmt.Sprintf("tool panicked: %v", r)
+					p.publishToolResult(call, msg, true)
 					ch <- toolResult{
 						index:  idx,
-						result: ToolResultPart(call.ToolCallID, call.ToolName, fmt.Sprintf("tool panicked: %v", r), true),
+						result: ToolResultPart(call.ToolCallID, call.ToolName, msg, true),
 						failed: true,
 					}
 				}
@@ -45,6 +47,7 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 			// Permission check: if tool args reference paths outside the
 			// configured directory, ask the permission service.
 			if denied := p.checkExternalDirectory(ctx, call); denied != "" {
+				p.publishToolResult(call, denied, true)
 				ch <- toolResult{
 					index:  idx,
 					result: ToolResultPart(call.ToolCallID, call.ToolName, denied, true),
@@ -55,6 +58,7 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 
 			output, isErr, err := p.tools.Execute(ctx, call.ToolName, json.RawMessage(call.ToolArgs), p.config.SessionID)
 			if err != nil {
+				p.publishToolResult(call, err.Error(), true)
 				ch <- toolResult{
 					index:  idx,
 					result: ToolResultPart(call.ToolCallID, call.ToolName, err.Error(), true),
@@ -63,6 +67,7 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 				return
 			}
 
+			p.publishToolResult(call, output, isErr)
 			ch <- toolResult{
 				index:  idx,
 				result: ToolResultPart(call.ToolCallID, call.ToolName, output, isErr),
@@ -93,6 +98,7 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 			for i := range results {
 				if results[i].Type == "" {
 					results[i] = ToolResultPart(toolCalls[i].ToolCallID, toolCalls[i].ToolName, "aborted", true)
+					p.publishToolResult(toolCalls[i], "aborted", true)
 				}
 			}
 			return results, true
@@ -100,6 +106,21 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 	}
 
 	return results, allFailed
+}
+
+// publishToolResult emits session.tool.result after a tool finishes executing
+// so headless/JSON consumers can observe real output (distinct from LLM call-end).
+func (p *Processor) publishToolResult(call Part, output string, isError bool) {
+	if p.bus == nil {
+		return
+	}
+	p.bus.Publish("session.tool.result", map[string]any{
+		"sessionID":  p.config.SessionID,
+		"toolCallID": call.ToolCallID,
+		"toolName":   call.ToolName,
+		"output":     output,
+		"isError":    isError,
+	})
 }
 
 func extractToolCalls(msg *Message) []Part {

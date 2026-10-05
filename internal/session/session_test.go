@@ -202,6 +202,42 @@ func TestStore_UpdateTitle(t *testing.T) {
 	}
 }
 
+func TestStore_List_OrdersByTimeUpdated(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+
+	older, err := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp", Title: "older"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	newer, err := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp", Title: "newer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sessions, err := store.List("proj-1", 1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || sessions[0].ID != newer.ID {
+		t.Fatalf("expected newest-created first, got %+v", sessions)
+	}
+
+	time.Sleep(2 * time.Millisecond)
+	if err := store.UpdateTitle(older.ID, "touched"); err != nil {
+		t.Fatal(err)
+	}
+
+	sessions, err = store.List("proj-1", 1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || sessions[0].ID != older.ID {
+		t.Fatalf("expected updated session first, got %+v (want %s)", sessions, older.ID)
+	}
+}
+
 func TestStore_UpdateCost(t *testing.T) {
 	db := testDB(t)
 	store := NewStore(db)

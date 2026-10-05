@@ -204,7 +204,7 @@ func (s *Store) Get(sessionID string) (*Info, error) {
 
 func (s *Store) List(projectID string, limit, offset int) ([]Info, error) {
 	rows, err := s.db.Query(
-		`SELECT `+sessionSelectCols+` FROM session WHERE project_id = ? ORDER BY time_created DESC LIMIT ? OFFSET ?`,
+		`SELECT `+sessionSelectCols+` FROM session WHERE project_id = ? ORDER BY time_updated DESC LIMIT ? OFFSET ?`,
 		projectID, limit, offset,
 	)
 	if err != nil {

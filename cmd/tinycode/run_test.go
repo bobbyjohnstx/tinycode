@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/storage"
 )
 
 func TestReadNextPrompt_TextMode(t *testing.T) {
@@ -38,6 +41,18 @@ func TestReadNextPrompt_TextMode(t *testing.T) {
 			input:    "   \n",
 			wantText: "",
 			wantOK:   true,
+		},
+		{
+			name:     "exits on exit",
+			input:    "exit\n",
+			wantText: "",
+			wantOK:   false,
+		},
+		{
+			name:     "exits on quit",
+			input:    "quit\n",
+			wantText: "",
+			wantOK:   false,
 		},
 	}
 
@@ -380,6 +395,10 @@ func TestStreamRunOutput_ToolCallFlow(t *testing.T) {
 		"sessionID": "ses_1", "toolName": "read", "toolCallID": "call_1",
 		"toolArgs": `{"path":"main.go"}`,
 	})
+	b.Publish("session.tool.result", map[string]any{
+		"sessionID": "ses_1", "toolName": "read", "toolCallID": "call_1",
+		"output": "package main\n", "isError": false,
+	})
 	b.Publish("session.step.finish", map[string]any{
 		"sessionID": "ses_1", "stepID": "step_1", "iteration": 1,
 		"usage": map[string]any{"input": 100, "output": 50}, "error": "",
@@ -404,26 +423,41 @@ func TestStreamRunOutput_ToolCallFlow(t *testing.T) {
 		}
 	}
 
-	for _, want := range []string{"step_start", "text", "tool_begin", "tool_end", "step_finish"} {
+	for _, want := range []string{"step_start", "text", "tool_begin", "tool_call_end", "tool_end", "step_finish"} {
 		if typeCounts[want] != 1 {
 			t.Errorf("event type %q: count=%d, want 1; all types: %v", want, typeCounts[want], typeCounts)
 		}
 	}
 
-	// Verify tool_end contains the args
-	foundToolArgs := false
+	foundResult := false
+	foundCallEnd := false
 	for _, l := range lines {
 		var evt map[string]any
-		json.Unmarshal([]byte(l), &evt)
-		if evt["type"] == "tool_end" {
-			foundToolArgs = true
+		_ = json.Unmarshal([]byte(l), &evt)
+		switch evt["type"] {
+		case "tool_end":
+			foundResult = true
+			if evt["output"] != "package main\n" {
+				t.Errorf("tool_end output = %v, want package main", evt["output"])
+			}
+			if evt["isError"] != false {
+				t.Errorf("tool_end isError = %v, want false", evt["isError"])
+			}
+			if evt["toolName"] != "read" || evt["toolCallID"] != "call_1" {
+				t.Errorf("tool_end ids = %v/%v", evt["toolName"], evt["toolCallID"])
+			}
+		case "tool_call_end":
+			foundCallEnd = true
 			if evt["toolArgs"] != `{"path":"main.go"}` {
-				t.Errorf("tool_end toolArgs = %v, want %q", evt["toolArgs"], `{"path":"main.go"}`)
+				t.Errorf("tool_call_end toolArgs = %v", evt["toolArgs"])
 			}
 		}
 	}
-	if !foundToolArgs {
+	if !foundResult {
 		t.Error("tool_end event not found")
+	}
+	if !foundCallEnd {
+		t.Error("tool_call_end event not found")
 	}
 }
 
@@ -561,3 +595,191 @@ func TestStdinMux_TextModeRoutesPermissionReply(t *testing.T) {
 		t.Fatal("mux did not exit on stdin EOF")
 	}
 }
+
+func TestExitCodeForRunError(t *testing.T) {
+	if got := exitCodeForRunError(context.Canceled); got != 130 {
+		t.Errorf("canceled = %d, want 130", got)
+	}
+	if got := exitCodeForRunError(fmt.Errorf("wrap: %w", context.Canceled)); got != 130 {
+		t.Errorf("wrapped canceled = %d, want 130", got)
+	}
+	if got := exitCodeForRunError(errors.New("boom")); got != 1 {
+		t.Errorf("other = %d, want 1", got)
+	}
+}
+
+func TestEmitRunSessionAndDone(t *testing.T) {
+	cap := captureStdout(t)
+	emitRunSession("ses_abc", true)
+	emitRunDone("ses_abc", true)
+	emitRunError("ses_abc", errors.New("fail"), true)
+	out := cap.read()
+
+	var types []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		var evt map[string]any
+		if err := json.Unmarshal([]byte(line), &evt); err != nil {
+			t.Fatalf("invalid JSON %q: %v", line, err)
+		}
+		types = append(types, evt["type"].(string))
+		switch evt["type"] {
+		case "session", "done", "error":
+			if evt["sessionID"] != "ses_abc" {
+				t.Errorf("%s sessionID = %v", evt["type"], evt["sessionID"])
+			}
+		}
+		if evt["type"] == "done" && evt["ok"] != true {
+			t.Errorf("done.ok = %v", evt["ok"])
+		}
+		if evt["type"] == "error" && evt["message"] != "fail" {
+			t.Errorf("error.message = %v", evt["message"])
+		}
+	}
+	if strings.Join(types, ",") != "session,done,error" {
+		t.Errorf("types = %v", types)
+	}
+}
+
+func TestStreamRunOutput_TextToolProgressOnStderr(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	oldErr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = w
+	defer func() {
+		os.Stderr = oldErr
+		_ = r.Close()
+	}()
+
+	streamRunOutput(b, false)
+	b.Publish("session.tool.begin", map[string]any{
+		"toolName": "shell", "toolCallID": "c1",
+	})
+	b.Publish("session.tool.result", map[string]any{
+		"toolName": "shell", "toolCallID": "c1",
+		"output": "ok", "isError": false,
+	})
+	time.Sleep(50 * time.Millisecond)
+	_ = w.Close()
+	os.Stderr = oldErr
+
+	buf := make([]byte, 4096)
+	n, _ := r.Read(buf)
+	stderr := string(buf[:n])
+	if !strings.Contains(stderr, "tool shell begin") {
+		t.Errorf("stderr missing begin: %q", stderr)
+	}
+	if !strings.Contains(stderr, "tool shell end (ok)") {
+		t.Errorf("stderr missing end: %q", stderr)
+	}
+}
+
+func TestResolveResumeSessionID(t *testing.T) {
+	db, err := storage.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	store := session.NewStore(db.DB)
+	info, err := store.Create(session.CreateInput{
+		ProjectID: "proj_test",
+		Directory: "/tmp",
+		Title:     "auth refactor",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := resolveResumeSessionID(store, "proj_test", info.ID); got != info.ID {
+		t.Errorf("by ID: got %q want %q", got, info.ID)
+	}
+	if got := resolveResumeSessionID(store, "proj_test", "auth refactor"); got != info.ID {
+		t.Errorf("by title: got %q want %q", got, info.ID)
+	}
+	if got := resolveResumeSessionID(store, "proj_test", info.Slug); got != info.ID {
+		t.Errorf("by slug: got %q want %q", got, info.ID)
+	}
+	if got := resolveResumeSessionID(store, "proj_test", "missing"); got != "" {
+		t.Errorf("missing: got %q", got)
+	}
+}
+
+func TestStdinMux_PermissionReplyDuringAsk(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	permSvc := permission.NewService(b)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() {
+		os.Stdin = old
+		_ = r.Close()
+		_ = w.Close()
+	})
+
+	replyCh := make(chan permission.ReplyInput, 16)
+	// Wire the JSON permission responder that drains replyCh into RespondToAsk.
+	_ = setupRunPermissions(b, permSvc, false, false, "json")
+	// Replace the channel setupRunPermissions created — feed our mux replies
+	// into the same RespondToAsk path via a dedicated forwarder.
+	go func() {
+		for reply := range replyCh {
+			for attempt := 0; attempt < 200; attempt++ {
+				err := permSvc.RespondToAsk(reply)
+				if err == nil || !errors.Is(err, permission.ErrNotFound) {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+	}()
+
+	mux := newStdinMux(true, replyCh)
+	go mux.run()
+
+	askDone := make(chan error, 1)
+	go func() {
+		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+			ID:         "perm_mux_1",
+			SessionID:  "ses_1",
+			Permission: "shell",
+			Patterns:   []string{"echo hi"},
+		})
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+
+	// Queue a prompt (would fill a buffer-1 channel) then the reply.
+	if _, err := fmt.Fprintf(w, "{\"type\":\"prompt\",\"text\":\"hello\"}\n{\"type\":\"permission_reply\",\"id\":\"perm_mux_1\",\"reply\":\"once\"}\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case err := <-askDone:
+		if err != nil {
+			t.Fatalf("Ask error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not complete — permission reply likely blocked behind prompt send")
+	}
+
+	select {
+	case p := <-mux.prompts:
+		if p != "hello" {
+			t.Errorf("prompt = %q", p)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("prompt not delivered")
+	}
+}
+
+

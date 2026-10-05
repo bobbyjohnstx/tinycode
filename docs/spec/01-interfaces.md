@@ -144,55 +144,75 @@ A headless mode for scripting, CI/CD, and programmatic interaction. Three permis
 |------|-------------|
 | `--agent` | Agent to use (default: `build`) |
 | `--format` | Output format: `default` (text) or `json` (NDJSON) |
-| `-c`, `--continue` | Continue the most recent session |
-| `-s`, `--session` | Continue a specific session by ID |
-| `--title` | Session title |
+| `-c`, `--continue` | Continue the most recently updated session |
+| `-s`, `--session` | Continue a specific session by exact ID |
+| `-r`, `--resume` | Resume by session ID or title/slug (TUI parity) |
+| `--title` | Session title; with `-c/--continue`, updates the continued session title |
 | `--dangerously-skip-permissions` | Auto-approve all tool permissions |
-| `-i`, `--interactive` | Show terminal permission prompts (default: auto-deny) |
+| `-i`, `--interactive` | Show terminal permission prompts |
 | `--permissions` | Permission handling: `default` or `json` |
 | `--max-iterations` | Maximum processor iterations per prompt (0 = default 200) |
 | `--multi-turn` | Multi-turn mode: loop on stdin after initial prompt |
+| `--fail-fast` | Multi-turn: exit immediately on the first turn error |
+| `--append-system-prompt` | Append text to the system prompt |
+| `--append-system-prompt-file` | Append file contents to the system prompt |
+| `--max-tokens` | Cumulative token budget (input+output) |
+| `--safe-mode` | Skip plugins, MCP servers, and user agents |
 
 ### Permission Modes
 
+Default rules allow `read *`. Headless ask handling is separate: when a tool needs an Ask (e.g. shell/edit), the reply is auto-rejected unless one of the modes below applies.
+
 | Mode | Behavior |
 |------|----------|
-| Default (no flags) | Auto-deny all permission requests |
-| `--interactive` / `-i` | Show terminal prompts for each permission request |
+| Default (no flags) | Auto-reject Ask requests (allowed rules like `read *` still pass without Ask) |
+| `--interactive` / `-i` | Show terminal prompts for each Ask |
 | `--dangerously-skip-permissions` | Auto-approve everything |
 | `--permissions json` | Programmatic JSON protocol over stdin/stdout |
+| Config `permission.allow` / `deny` | Pre-approve or deny patterns without prompting |
 
 ### NDJSON Event Output (`--format json`)
 
-Each line is a JSON object with a `type` field. 8 event types:
+Each line is a JSON object with a `type` field:
 
 | Type | Fields | Description |
 |------|--------|-------------|
-| `text` | `content` | LLM text output fragment |
-| `tool_begin` | `name`, `callID` | Tool execution starting |
-| `tool_end` | `name`, `callID`, `output`, `isError` | Tool execution completed with result |
-| `reasoning` | `content` | Model reasoning/thinking output |
-| `step_start` | `iteration` | Processor loop iteration beginning |
-| `step_finish` | `iteration`, `usage` | Processor loop iteration completed with token usage |
+| `session` | `sessionID` | Emitted once after session resolve |
+| `text` | `text` | LLM text output fragment |
+| `tool_begin` | `toolName`, `toolCallID` | Tool call starting (LLM began the call) |
+| `tool_call_end` | `toolName`, `toolCallID`, `toolArgs` | LLM finished streaming tool-call args |
+| `tool_end` | `toolName`, `toolCallID`, `output`, `isError` | Tool execution completed with result |
+| `reasoning` | `sessionID`, `text` | Model reasoning/thinking output |
+| `step_start` | `stepID`, `iteration`, `model` | Processor loop iteration beginning |
+| `step_finish` | `stepID`, `iteration`, `usage`, `error` | Processor loop iteration completed |
 | `warning` | `message` | Warning from the processor (e.g., doom loop detection) |
-| `compacted` | `summary` | Context compaction occurred, includes the summary |
+| `compacted` | `compactionNum`, `preMessages`, `postMessages` | Context compaction occurred |
+| `permission` | `id`, `permission`, `patterns` | Ask request (`--permissions json`) |
+| `ready` | — | Multi-turn: ready for next prompt |
+| `done` | `sessionID`, `ok` | Run finished successfully |
+| `error` | `sessionID`, `message` | Run or turn failed |
 
 Example stream:
 
 ```json
-{"type":"step_start","iteration":1}
-{"type":"text","content":"I'll read the file first.\n"}
-{"type":"tool_begin","name":"read","callID":"call_abc123"}
-{"type":"tool_end","name":"read","callID":"call_abc123","output":"file contents...","isError":false}
-{"type":"text","content":"The file contains..."}
-{"type":"step_finish","iteration":1,"usage":{"input":1200,"output":350}}
+{"type":"session","sessionID":"ses_01HQXY"}
+{"type":"step_start","stepID":"step_1","iteration":1,"model":"qwen3:8b"}
+{"type":"text","text":"I'll read the file first.\n"}
+{"type":"tool_begin","toolName":"read","toolCallID":"call_abc123"}
+{"type":"tool_call_end","toolName":"read","toolCallID":"call_abc123","toolArgs":"{\"path\":\"main.go\"}"}
+{"type":"tool_end","toolName":"read","toolCallID":"call_abc123","output":"file contents...","isError":false}
+{"type":"text","text":"The file contains..."}
+{"type":"step_finish","stepID":"step_1","iteration":1,"usage":{"input":1200,"output":350},"error":null}
+{"type":"done","sessionID":"ses_01HQXY","ok":true}
 ```
+
+In text format (`--format default`), tool progress is written to stderr (`tool <name> begin` / `tool <name> end (ok|error)`), and the session ID is written as `session: <id>` on stderr.
 
 ### Multi-Turn Protocol
 
-In `--multi-turn` mode, the processor is called multiple times. Messages accumulate across prompts; the iteration counter resets for each new prompt.
+In `--multi-turn` mode, the processor is called multiple times. Messages accumulate across prompts; the iteration counter resets for each new prompt. If any turn fails, the process exits non-zero after the loop (unless `--fail-fast` exits immediately). SIGINT exits with code 130.
 
-**Text protocol** (when `--format text`):
+**Text protocol** (when `--format default`):
 - One line per prompt from stdin
 - `exit` or `quit` to end the session
 - Empty lines are ignored
@@ -202,9 +222,9 @@ In `--multi-turn` mode, the processor is called multiple times. Messages accumul
 
 | Type | Fields | Description |
 |------|--------|-------------|
-| `prompt` | `content` | Submit a new prompt |
+| `prompt` | `text` | Submit a new prompt |
 | `exit` | — | End the session |
-| `permission_reply` | `requestID`, `reply` | Reply to a pending permission request |
+| `permission_reply` | `id`, `reply` | Reply to a pending permission request |
 
 `permission_reply` messages are routed to a dedicated `permReplyCh` channel. Only `prompt` and `exit` reach the main loop.
 
@@ -213,13 +233,13 @@ In `--multi-turn` mode, the processor is called multiple times. Messages accumul
 Permission requests are emitted as NDJSON objects on stdout:
 
 ```json
-{"type":"permission","requestID":"perm_abc","permission":"bash","patterns":["git status"],"metadata":{...}}
+{"type":"permission","id":"perm_abc","permission":"bash","patterns":["git status"]}
 ```
 
 Replies are read from stdin:
 
 ```json
-{"type":"permission_reply","requestID":"perm_abc","reply":"once"}
+{"type":"permission_reply","id":"perm_abc","reply":"once"}
 ```
 
 Valid `reply` values: `"once"`, `"always"`, `"reject"`.

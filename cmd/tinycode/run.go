@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -35,18 +36,28 @@ func runRun() {
 	fs.BoolVar(continueFlag, "continue", false, "continue most recent session")
 	sessionFlag := fs.String("s", "", "session ID to continue")
 	fs.StringVar(sessionFlag, "session", "", "session ID to continue")
+	resumeFlag := fs.String("r", "", "resume session by ID or title/slug")
+	fs.StringVar(resumeFlag, "resume", "", "resume session by ID or title/slug")
 	titleFlag := fs.String("title", "", "session title")
 	skipPermsFlag := fs.Bool("dangerously-skip-permissions", false, "auto-approve all tool permissions")
-	interactiveFlag := fs.Bool("i", false, "show permission prompts (default: auto-deny)")
-	fs.BoolVar(interactiveFlag, "interactive", false, "show permission prompts (default: auto-deny)")
+	interactiveFlag := fs.Bool("i", false, "show permission prompts (default: auto-deny asks)")
+	fs.BoolVar(interactiveFlag, "interactive", false, "show permission prompts (default: auto-deny asks)")
 	permsFlag := fs.String("permissions", "default", "permission handling: default, json")
 	maxIterFlag := fs.Int("max-iterations", 0, "maximum processor iterations (0 = default 200)")
 	multiTurnFlag := fs.Bool("multi-turn", false, "multi-turn mode: loop on stdin after initial prompt")
+	failFastFlag := fs.Bool("fail-fast", false, "in multi-turn mode, exit immediately on first turn error")
 	appendSPFlag := fs.String("append-system-prompt", "", "append text to the system prompt")
 	appendSPFileFlag := fs.String("append-system-prompt-file", "", "append file contents to the system prompt")
 	maxTokensFlag := fs.Int("max-tokens", 0, "cumulative token budget (input+output); abort when exceeded")
 	safeModeFlag := fs.Bool("safe-mode", false, "skip plugins, MCP, and user agents")
 	_ = fs.Parse(os.Args[2:])
+
+	switch *formatFlag {
+	case "default", "json", "":
+	default:
+		fmt.Fprintf(os.Stderr, "error: unknown --format %q (want default or json)\n", *formatFlag)
+		os.Exit(1)
+	}
 
 	appendSP := *appendSPFlag
 	if *appendSPFileFlag != "" {
@@ -148,7 +159,7 @@ func runRun() {
 		}
 	}
 
-	sessionID, existingMsgs, ms := resolveRunSession(db, *sessionFlag, *continueFlag, *titleFlag, dir, agentName, modelID, providerID)
+	sessionID, existingMsgs, ms := resolveRunSession(db, *sessionFlag, *resumeFlag, *continueFlag, *titleFlag, dir, agentName, modelID, providerID)
 
 	// Create LLM client and processor
 	apiKey := ""
@@ -159,20 +170,29 @@ func runRun() {
 	}
 	client := llm.NewOpenAIClient(model.API.URL+"/v1", apiKey)
 
+	autoContinueMax := 0
+	if cfg.Experimental != nil {
+		autoContinueMax = cfg.Experimental.AutoContinue
+	}
+
 	compactionCfg := session.DefaultCompactionConfig()
 	proc := session.NewProcessor(session.ProcessorConfig{
-		SessionID:     sessionID,
-		Agent:         agentName,
-		Model:         model,
-		SystemPrompt:  systemPrompt,
-		Compaction:    compactionCfg,
-		AgentPerms:    agentPerms,
-		MaxIterations: *maxIterFlag,
-		TokenBudget:   *maxTokensFlag,
+		SessionID:       sessionID,
+		Agent:           agentName,
+		Model:           model,
+		SystemPrompt:    systemPrompt,
+		Compaction:      compactionCfg,
+		AgentPerms:      agentPerms,
+		MaxIterations:   *maxIterFlag,
+		TokenBudget:     *maxTokensFlag,
+		Directory:       dir,
+		Perms:           permSvc,
+		AutoContinueMax: autoContinueMax,
 	}, client, toolReg, b)
 	proc.SetMessages(existingMsgs)
 
 	isJSON := *formatFlag == "json"
+	emitRunSession(sessionID, isJSON)
 	streamRunOutput(b, isJSON)
 
 	// When --permissions json with no positional prompt, read from the mux.
@@ -206,12 +226,20 @@ func runRun() {
 	}
 
 	// Multi-turn: persist results without exiting, then loop.
+	hadError := false
 	existingMsgs = persistRunResult(result, existingMsgs, ms, db, sessionID)
 	if !isJSON {
 		fmt.Println()
 	}
 	if result != nil && result.Error != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", result.Error)
+		hadError = true
+		emitRunError(sessionID, result.Error, isJSON)
+		if errors.Is(result.Error, context.Canceled) {
+			os.Exit(130)
+		}
+		if *failFastFlag {
+			os.Exit(1)
+		}
 	}
 
 	var scanner *bufio.Scanner
@@ -240,7 +268,19 @@ func runRun() {
 			fmt.Println()
 		}
 		if result != nil && result.Error != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", result.Error)
+			hadError = true
+			emitRunError(sessionID, result.Error, isJSON)
+			if errors.Is(result.Error, context.Canceled) {
+				os.Exit(130)
+			}
+			if *failFastFlag {
+				os.Exit(1)
+			}
 		}
 	}
+
+	if hadError {
+		os.Exit(1)
+	}
+	emitRunDone(sessionID, isJSON)
 }
