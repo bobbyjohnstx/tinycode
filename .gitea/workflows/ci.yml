@@ -15,13 +15,19 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
 
       - name: Vet
         run: go vet ./...
 
+      - name: Staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.5.1 ./...
+
       - name: Test
         run: go test $(go list ./internal/... ./pkg/... ./cmd/tinycode/... | grep -v internal/redhat) -count=1 -timeout 120s
+
+      - name: Test (race detector)
+        run: go test ./... -count=1 -race -timeout 300s
 
   tui-e2e:
     name: TUI E2E
@@ -32,7 +38,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
 
       - name: Install tmux
         run: sudo apt-get update && sudo apt-get install -y tmux
@@ -52,7 +58,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
 
       - uses: actions/setup-node@v4
         with:
