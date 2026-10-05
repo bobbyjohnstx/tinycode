@@ -106,36 +106,60 @@ func (m *stdinMux) run() {
 	defer close(m.prompts)
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		line := scanner.Text()
-		if !m.isJSON {
-			m.prompts <- strings.TrimSpace(line)
-			continue
-		}
-		var msg struct {
-			Type  string `json:"type"`
-			Text  string `json:"text"`
-			ID    string `json:"id"`
-			Reply string `json:"reply"`
-		}
-		if err := json.Unmarshal([]byte(line), &msg); err != nil {
-			// Non-JSON line treated as prompt text.
-			m.prompts <- strings.TrimSpace(line)
-			continue
-		}
-		switch msg.Type {
-		case "prompt":
-			m.prompts <- msg.Text
-		case "exit":
+		if m.dispatch(scanner.Text()) {
 			return
-		case "permission_reply":
-			if m.permReplyCh != nil {
-				m.permReplyCh <- permission.ReplyInput{
-					RequestID: msg.ID,
-					Reply:     permission.Reply(msg.Reply),
-				}
-			}
 		}
 	}
+}
+
+// dispatch handles one stdin line. Permission replies are recognized whenever
+// the mux is running (--permissions json), including when stdout format is
+// plain text. It returns true when the mux should stop.
+func (m *stdinMux) dispatch(line string) bool {
+	if id, reply, ok := parsePermissionReply(line); ok {
+		if m.permReplyCh != nil {
+			m.permReplyCh <- permission.ReplyInput{
+				RequestID: id,
+				Reply:     permission.Reply(reply),
+			}
+		}
+		return false
+	}
+	if !m.isJSON {
+		m.prompts <- strings.TrimSpace(line)
+		return false
+	}
+
+	var msg struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		m.prompts <- strings.TrimSpace(line)
+		return false
+	}
+	switch msg.Type {
+	case "prompt":
+		m.prompts <- msg.Text
+	case "exit":
+		return true
+	}
+	return false
+}
+
+func parsePermissionReply(line string) (id, reply string, ok bool) {
+	var msg struct {
+		Type  string `json:"type"`
+		ID    string `json:"id"`
+		Reply string `json:"reply"`
+	}
+	if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		return "", "", false
+	}
+	if msg.Type != "permission_reply" {
+		return "", "", false
+	}
+	return msg.ID, msg.Reply, true
 }
 
 // handleJSONPermissionEvents emits permission requests as NDJSON on stdout and

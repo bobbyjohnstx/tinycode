@@ -104,7 +104,7 @@ In-process publish-subscribe event bus. Components publish typed events (session
 
 ### `internal/redhat/` -- Red Hat Product Integrations
 
-Shared library for the 24 Red Hat plugins. Provides common helpers for OpenShift API access, Red Hat SSO/OAuth token management, UBI container conventions, and product-specific client wrappers (RHACM, RHACS, Quay, RHOAI, Satellite, etc.). Plugins in `cmd/plugin-rh*`, `cmd/plugin-ocp-*`, and other Red Hat-specific plugin directories import this package instead of duplicating integration logic.
+Shared library for the in-tree Red Hat and OpenShift plugins. Provides common helpers for OpenShift API access, Red Hat SSO/OAuth token management, UBI container conventions, and product-specific client wrappers (RHACM, RHACS, Quay, RHOAI, Satellite, etc.). Plugins in `cmd/plugin-rh*`, `cmd/plugin-ocp-*`, and other Red Hat-specific plugin directories import this package instead of duplicating integration logic.
 
 ### `internal/mcp/` -- Model Context Protocol
 

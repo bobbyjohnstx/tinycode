@@ -33,9 +33,9 @@ func Run(p Plugin)
 
 `Run()` starts the JSON-RPC stdin/stdout loop, handles the `initialize` handshake, and dispatches tool calls and hook invocations.
 
-### Minimal Example: plugin-notify
+### Minimal example
 
-The simplest plugin (`cmd/plugin-notify/main.go`) defines one tool with two required parameters:
+notify is an in-process builtin (`internal/plugin/builtin_notify.go`), not `cmd/plugin-notify`. An external tool plugin has the same shape: one tool with required parameters.
 
 ```go
 package main

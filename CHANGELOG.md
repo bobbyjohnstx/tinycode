@@ -48,9 +48,9 @@ Complete rewrite from TypeScript to Go. tinycode is now a standalone Go binary -
 
 ### Added
 - Standalone Go binary embedding HTTP server, TUI, session management, LLM client, and tool execution
-- Embedded HTTP server (net/http + chi router) with REST and SSE endpoints on ephemeral port
+- Embedded HTTP server (standard library `net/http`) with REST and SSE endpoints on an ephemeral port
 - Bubbletea TUI with Elm architecture (immutable state, tea.Cmd for async, tea.Msg for events)
-- 12 Go plugins converted from TypeScript: cluster-ops, code-review, command-inject, context-pruning, handoff, log-sanitizer, notify, pilot, safety-net, snippets, telemetry, web-search
+- 30 plugin binaries, plus 4 in-process builtins (notify, code-review, handoff, context-pruning). The binary list is `internal/plugin/registry.go`
 - Go plugin SDK (`pkg/plugin/`) with JSON-RPC protocol, lifecycle hooks, and tool definitions
 - Plugin wire protocol alignment between server-side manager and SDK
 - SQLite storage via modernc.org/sqlite (pure Go, no CGO)
@@ -63,16 +63,16 @@ Complete rewrite from TypeScript to Go. tinycode is now a standalone Go binary -
 - Sortable ID generation with typed prefixes
 - YAML frontmatter parser for agent and skill definitions
 - Project metadata with VCS detection and worktree paths
-- 24 Red Hat plugins converted from TypeScript: OpenShift (ocp-context-injection, ocp-oauth, ocp-obs-logging, ocp-obs-metrics), Ansible (aap-bridge, eda-events), RHOAI (eval-trustyai, experiment-tracker, mcp-bridge, mlflow-tools, model-serving, pipelines), and 12 platform plugins (satellite, quay, rhdh, tekton, rhacm, rhacs, rh-api-catalog, rh-dev-content, rh-ecosystem-catalog, rhdp-provisioner, container-linter, lightwell)
+- Red Hat and OpenShift plugins in `cmd/plugin-*`, sharing `internal/redhat/`
 - `internal/redhat/` shared library: OcClient, APIClient, ConsoleAuthClient, PromQLClient, ContainerfileParser, MLflow client, HTML stripping (21 tests)
 - `script/test-plugins-container.sh` -- disposable podman container for clean-room plugin testing
-- Plugin registry now has 36 entries (was 12)
+- Plugin registry lists the 30 binaries in `internal/plugin/registry.go`
 
 ### Changed
 - Architecture: single process replaces client-server split (no port 4096)
 - TUI: bubbletea replaces blessed/ink
 - Storage: modernc.org/sqlite replaces better-sqlite3
-- HTTP: net/http + chi replaces Effect HTTP
+- HTTP: standard library `net/http` replaces Effect HTTP
 - LLM client: native Go OpenAI-compatible client replaces AI SDK
 
 ### Fixed

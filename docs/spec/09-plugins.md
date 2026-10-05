@@ -371,6 +371,8 @@ type BuiltinManager struct {
 
 Built-in plugins support a subset of hooks: `session.start`, `session.end`, `dispose`. They do not support `permission.ask`, `shell.env`, `tool.execute.before`, or `tool.execute.after`.
 
+Shipped builtins are `context-pruning`, `notify`, `code-review`, and `handoff`. They are not `cmd/plugin-*` binaries.
+
 ---
 
 ## 9.7 Plugin Configuration
@@ -431,7 +433,7 @@ Source: `resolve.go`
 | 2 | System PATH | `tinycode-plugin-<name>` |
 | 3 | Registry (error with install hint) | "plugin found in registry but not installed" |
 
-Binary naming convention: `tinycode-plugin-<name>` (e.g., `tinycode-plugin-notify`).
+Binary naming convention: `tinycode-plugin-<name>` (e.g., `tinycode-plugin-safety-net`).
 
 Executability check: `info.Mode() & 0o111 != 0`.
 
@@ -462,51 +464,67 @@ type RegistryEntry struct {
 | `Registry()` | Returns a copy of all registry entries |
 | `LookupRegistry(name)` | Find entry by name; returns `(entry, bool)` |
 
-### Registry Entries (30 plugins)
+### Registry Entries (30 binaries)
 
-#### General-Purpose (12)
+Source: `internal/plugin/registry.go`. notify, code-review, handoff, and context-pruning are builtins (section 9.6), not registry binaries.
+
+#### Essential
 
 | Name | Binary | Description |
 |------|--------|-------------|
-| `cluster-ops` | `tinycode-plugin-cluster-ops` | Kubernetes cluster operations tools |
-| `code-review` | `tinycode-plugin-code-review` | Automated code review on session end |
-| `command-inject` | `tinycode-plugin-command-inject` | Custom command injection |
-| `context-pruning` | `tinycode-plugin-context-pruning` | Context window pruning strategies |
-| `handoff` | `tinycode-plugin-handoff` | Session handoff between agents |
-| `log-sanitizer` | `tinycode-plugin-log-sanitizer` | Sanitize sensitive data from logs |
-| `notify` | `tinycode-plugin-notify` | Desktop notifications for session events |
 | `pilot` | `tinycode-plugin-pilot` | Autonomous agent pilot mode |
-| `safety-net` | `tinycode-plugin-safety-net` | Pre-execution safety checks for destructive commands |
-| `snippets` | `tinycode-plugin-snippets` | Code snippet management |
 | `telemetry` | `tinycode-plugin-telemetry` | Usage telemetry and analytics |
-| `web-search` | `tinycode-plugin-web-search` | Web search tool for agents |
 
-#### Red Hat (24)
+#### Security
 
 | Name | Binary | Description |
 |------|--------|-------------|
-| `aap-bridge` | `tinycode-plugin-aap-bridge` | Ansible Automation Platform bridge (job templates, inventories, lint) |
 | `container-linter` | `tinycode-plugin-container-linter` | Containerfile linting, bootc validation, UBI base image suggestions |
-| `eda-events` | `tinycode-plugin-eda-events` | Event-Driven Ansible event bridge (session lifecycle, tool events) |
 | `lightwell` | `tinycode-plugin-lightwell` | Red Hat Lightwell package security (CVE checks, provenance, Containerfile scanning) |
-| `ocp-context-injection` | `tinycode-plugin-ocp-context-injection` | OpenShift cluster context injection (version, nodes, operators, alerts, cost) |
-| `ocp-oauth` | `tinycode-plugin-ocp-oauth` | OpenShift OAuth login and shell environment |
+| `log-sanitizer` | `tinycode-plugin-log-sanitizer` | Sanitize sensitive data from logs |
+| `rhacs` | `tinycode-plugin-rhacs` | Red Hat ACS security (image scan, policy check, violations, compliance) |
+| `safety-net` | `tinycode-plugin-safety-net` | Pre-execution safety checks for destructive commands |
+
+#### OpenShift SRE
+
+| Name | Binary | Description |
+|------|--------|-------------|
+| `audit-logs` | `tinycode-plugin-audit-logs` | API audit log analysis (top callers, search, timeline, anomaly detection) |
+| `etcd-diag` | `tinycode-plugin-etcd-diag` | etcd diagnostics and snapshot inspection |
+| `ingress-inspect` | `tinycode-plugin-ingress-inspect` | HAProxy/Ingress inspection |
+| `insights` | `tinycode-plugin-insights` | OpenShift Insights archive analysis |
+| `ocp-context-injection` | `tinycode-plugin-ocp-context-injection` | OpenShift cluster context injection |
+| `ocp-must-gather` | `tinycode-plugin-ocp-must-gather` | Must-gather offline analysis |
 | `ocp-obs-logging` | `tinycode-plugin-ocp-obs-logging` | OpenShift observability logging (Loki, Tempo, NetObserv) |
 | `ocp-obs-metrics` | `tinycode-plugin-ocp-obs-metrics` | OpenShift observability metrics (PromQL, alerts, silencing) |
+| `ocp-odf` | `tinycode-plugin-ocp-odf` | OpenShift Data Foundation storage health |
+| `ocp-virt` | `tinycode-plugin-ocp-virt` | OpenShift Virtualization VM lifecycle |
+
+#### Developer
+
+| Name | Binary | Description |
+|------|--------|-------------|
 | `quay` | `tinycode-plugin-quay` | Quay container registry (search, tags, manifests, vulnerabilities) |
 | `rh-api-catalog` | `tinycode-plugin-rh-api-catalog` | Red Hat API catalog (list, spec, endpoints) |
 | `rh-dev-content` | `tinycode-plugin-rh-dev-content` | Red Hat developer content (search, articles, recent posts) |
 | `rh-ecosystem-catalog` | `tinycode-plugin-rh-ecosystem-catalog` | Red Hat ecosystem catalog (containers, operators via Pyxis) |
-| `rhacm` | `tinycode-plugin-rhacm` | Red Hat ACM fleet management (clusters, policies, applications, observability) |
-| `rhacs` | `tinycode-plugin-rhacs` | Red Hat ACS security (image scan, policy check, violations, compliance) |
 | `rhdh` | `tinycode-plugin-rhdh` | Red Hat Developer Hub (catalog, APIs, TechDocs, dependencies) |
-| `rhdp-provisioner` | `tinycode-plugin-rhdp-provisioner` | Red Hat Developer Platform provisioner (search, provision, status) |
-| `rhoai-eval-trustyai` | `tinycode-plugin-rhoai-eval-trustyai` | RHOAI model evaluation and TrustyAI fairness metrics |
-| `rhoai-experiment-tracker` | `tinycode-plugin-rhoai-experiment-tracker` | RHOAI experiment tracking via MLflow |
-| `rhoai-mcp-bridge` | `tinycode-plugin-rhoai-mcp-bridge` | RHOAI Model Context Protocol bridge |
-| `rhoai-mlflow-tools` | `tinycode-plugin-rhoai-mlflow-tools` | MLflow experiment, run, and model registry tools |
-| `rhoai-model-serving` | `tinycode-plugin-rhoai-model-serving` | RHOAI model serving and sandbox provisioning |
+
+#### AI/ML
+
+| Name | Binary | Description |
+|------|--------|-------------|
+| `rhoai-mlflow` | `tinycode-plugin-rhoai-mlflow` | MLflow experiment tracking, model registry, and session metrics |
 | `rhoai-pipelines` | `tinycode-plugin-rhoai-pipelines` | RHOAI data science pipelines (list, run, status, create) |
+| `rhoai-serving` | `tinycode-plugin-rhoai-serving` | RHOAI model serving, evaluation, TrustyAI fairness, workbenches, and Developer Sandbox |
+
+#### Platform
+
+| Name | Binary | Description |
+|------|--------|-------------|
+| `aap-bridge` | `tinycode-plugin-aap-bridge` | Ansible Automation Platform bridge (job templates, inventories, lint) |
+| `rhacm` | `tinycode-plugin-rhacm` | Red Hat ACM fleet management (clusters, policies, applications, observability) |
+| `rhdp-provisioner` | `tinycode-plugin-rhdp-provisioner` | Red Hat Developer Platform provisioner (search, provision, status) |
 | `satellite` | `tinycode-plugin-satellite` | Red Hat Satellite (hosts, errata, content views, services, proxies, REX) |
 | `tekton` | `tinycode-plugin-tekton` | Tekton pipelines (list, runs, status, logs, tasks) |
 

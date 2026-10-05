@@ -254,7 +254,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - Deduplication: returns existing job if same ID already running
 - Scoped to instance, cleaned up on disposal
 
-**Go status:** Subagent spawning exists via the `task` tool but the formal background job system with wait/cancel semantics is not implemented.
+**Go status:** Implemented in `internal/session/job.go`. `JobManager` provides `Start`, `Get`, `Wait`, `Cancel`, `List`, and `Shutdown`. States are `running`, `completed`, `failed`, and `cancelled`. Job IDs are allocated by the manager (`job_N`); there is no caller-supplied ID deduplication.
 
 ---
 
@@ -343,7 +343,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 
 **TS behavior:** During compaction, if `compaction.mask_observations` is true (default), old tool outputs are replaced with `[output masked -- toolname on filepath]` placeholders, preserving the 5 most recent.
 
-**Go status:** Not confirmed whether this is implemented. See [05-context-compaction.md](05-context-compaction.md) for Go compaction details.
+**Go status:** Implemented. `MaskObservations` defaults to true (`DefaultCompactionConfig`). `maskObservations` replaces older tool results with `[output masked for compaction]` and keeps the 5 most recent.
 
 ---
 

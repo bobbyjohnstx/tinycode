@@ -235,10 +235,10 @@ func TestStreamRunOutput_AllEventTypes(t *testing.T) {
 		"message":   "test warning",
 	})
 	b.Publish("session.compacted", map[string]any{
-		"sessionID":    "ses_1",
+		"sessionID":     "ses_1",
 		"compactionNum": 1,
-		"preMessages":  10,
-		"postMessages": 3,
+		"preMessages":   10,
+		"postMessages":  3,
 	})
 	b.Publish("session.message", map[string]any{
 		"sessionID": "ses_1",
@@ -490,5 +490,69 @@ func TestJSONPermissionProtocol_EndToEnd(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("permission event not found in output: %q", output)
+	}
+}
+
+func TestStdinMux_TextModeRoutesPermissionReply(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() {
+		os.Stdin = old
+		_ = r.Close()
+		_ = w.Close()
+	})
+
+	replyCh := make(chan permission.ReplyInput, 1)
+	mux := newStdinMux(false, replyCh)
+	done := make(chan struct{})
+	go func() {
+		mux.run()
+		close(done)
+	}()
+
+	if _, err := fmt.Fprintf(w, "plain prompt\n{\"type\":\"permission_reply\",\"id\":\"req_1\",\"reply\":\"once\"}\nnext prompt\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case p := <-mux.prompts:
+		if p != "plain prompt" {
+			t.Fatalf("first prompt = %q", p)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first prompt")
+	}
+
+	select {
+	case got := <-replyCh:
+		if got.RequestID != "req_1" || got.Reply != permission.ReplyOnce {
+			t.Fatalf("reply = %+v", got)
+		}
+	case p := <-mux.prompts:
+		t.Fatalf("permission_reply treated as prompt %q", p)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for permission reply")
+	}
+
+	select {
+	case p := <-mux.prompts:
+		if p != "next prompt" {
+			t.Fatalf("second prompt = %q", p)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second prompt")
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("mux did not exit on stdin EOF")
 	}
 }

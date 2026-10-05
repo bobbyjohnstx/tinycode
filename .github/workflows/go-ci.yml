@@ -42,7 +42,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Staticcheck
-        run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
 
   test:
     runs-on: ubuntu-latest

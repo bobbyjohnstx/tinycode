@@ -82,7 +82,7 @@ cd tinycode && make build
 │  internal/redhat/    Red Hat shared library      │
 ├──────────────────────────────────────────────┤
 │  pkg/plugin/         Public plugin SDK          │
-│  cmd/plugin-*/       Plugin binaries (36)       │
+│  cmd/plugin-*/       Plugin binaries (30)       │
 └──────────────────────────────────────────────┘
 ```
 

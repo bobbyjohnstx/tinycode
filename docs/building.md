@@ -121,49 +121,43 @@ After embedding, `make build` produces a binary that serves the web UI without e
 Plugins are standalone Go binaries in `cmd/plugin-*/`. Build an individual plugin:
 
 ```bash
-go build -o dist/plugin-notify ./cmd/plugin-notify
+go build -o dist/plugin-safety-net ./cmd/plugin-safety-net
 ```
 
-Available plugins:
+notify, code-review, handoff, and context-pruning are in-process builtins, not `cmd/plugin-*` binaries. The 30 binaries match `internal/plugin/registry.go`:
 
 | Plugin | Description |
 |---|---|
-| `plugin-cluster-ops` | Kubernetes/OpenShift cluster operations |
-| `plugin-code-review` | Git diff for code review |
-| `plugin-command-inject` | Custom command injection |
-| `plugin-context-pruning` | Context window pruning |
-| `plugin-handoff` | Session handoff between agents |
+| `plugin-aap-bridge` | Ansible Automation Platform bridge (job templates, inventories, lint) |
+| `plugin-audit-logs` | API audit log analysis |
+| `plugin-container-linter` | Containerfile linting, bootc validation, UBI base image suggestions |
+| `plugin-etcd-diag` | etcd diagnostics and snapshot inspection |
+| `plugin-ingress-inspect` | HAProxy/Ingress inspection |
+| `plugin-insights` | OpenShift Insights archive analysis |
+| `plugin-lightwell` | Red Hat Lightwell package security |
 | `plugin-log-sanitizer` | Sanitize sensitive data from logs |
-| `plugin-notify` | Desktop notifications |
-| `plugin-pilot` | Git forge integration (Gitea, GitHub, GitLab) |
-| `plugin-safety-net` | Safety checks before destructive operations |
-| `plugin-snippets` | Code snippet management |
-| `plugin-telemetry` | Usage telemetry |
-| `plugin-web-search` | Web search via Exa API |
-| `plugin-aap-bridge` | Ansible Automation Platform bridge |
-| `plugin-container-linter` | Container/Dockerfile linting |
-| `plugin-eda-events` | Event-Driven Ansible event integration |
-| `plugin-lightwell` | Lightwell data pipeline integration |
-| `plugin-ocp-context-injection` | OpenShift context injection into sessions |
-| `plugin-ocp-oauth` | OpenShift OAuth token management |
-| `plugin-ocp-obs-logging` | OpenShift observability logging |
-| `plugin-ocp-obs-metrics` | OpenShift observability metrics |
-| `plugin-quay` | Quay container registry operations |
-| `plugin-rh-api-catalog` | Red Hat API catalog discovery |
-| `plugin-rh-dev-content` | Red Hat developer content integration |
-| `plugin-rh-ecosystem-catalog` | Red Hat ecosystem catalog lookups |
-| `plugin-rhacm` | Red Hat Advanced Cluster Management |
-| `plugin-rhacs` | Red Hat Advanced Cluster Security |
-| `plugin-rhdh` | Red Hat Developer Hub integration |
-| `plugin-rhdp-provisioner` | Red Hat Developer Platform provisioning |
-| `plugin-rhoai-eval-trustyai` | RHOAI TrustyAI model evaluation |
-| `plugin-rhoai-experiment-tracker` | RHOAI experiment tracking |
-| `plugin-rhoai-mcp-bridge` | RHOAI Model Context Protocol bridge |
-| `plugin-rhoai-mlflow-tools` | RHOAI MLflow tooling |
-| `plugin-rhoai-model-serving` | RHOAI model serving management |
-| `plugin-rhoai-pipelines` | RHOAI pipeline orchestration |
-| `plugin-satellite` | Red Hat Satellite administration |
-| `plugin-tekton` | Tekton pipeline operations |
+| `plugin-ocp-context-injection` | OpenShift cluster context injection |
+| `plugin-ocp-must-gather` | Must-gather offline analysis |
+| `plugin-ocp-obs-logging` | OpenShift observability logging (Loki, Tempo, NetObserv) |
+| `plugin-ocp-obs-metrics` | OpenShift observability metrics (PromQL, alerts, silencing) |
+| `plugin-ocp-odf` | OpenShift Data Foundation storage health |
+| `plugin-ocp-virt` | OpenShift Virtualization VM lifecycle |
+| `plugin-pilot` | Autonomous agent pilot mode |
+| `plugin-quay` | Quay container registry |
+| `plugin-rh-api-catalog` | Red Hat API catalog |
+| `plugin-rh-dev-content` | Red Hat developer content |
+| `plugin-rh-ecosystem-catalog` | Red Hat ecosystem catalog (Pyxis) |
+| `plugin-rhacm` | Red Hat ACM fleet management |
+| `plugin-rhacs` | Red Hat ACS security |
+| `plugin-rhdh` | Red Hat Developer Hub |
+| `plugin-rhdp-provisioner` | Red Hat Developer Platform provisioner |
+| `plugin-rhoai-mlflow` | MLflow experiment tracking and model registry |
+| `plugin-rhoai-pipelines` | RHOAI data science pipelines |
+| `plugin-rhoai-serving` | RHOAI model serving, evaluation, and TrustyAI |
+| `plugin-safety-net` | Pre-execution safety checks for destructive commands |
+| `plugin-satellite` | Red Hat Satellite |
+| `plugin-tekton` | Tekton pipelines |
+| `plugin-telemetry` | Usage telemetry and analytics |
 
 Build all plugins:
 
@@ -195,7 +189,7 @@ done
 ./script/test-plugins-container.sh
 
 # Test a single plugin
-./script/test-plugins-container.sh ocp-oauth
+./script/test-plugins-container.sh safety-net
 ```
 
 ## Testing

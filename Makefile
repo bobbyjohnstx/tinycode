@@ -111,9 +111,9 @@ test-verbose:
 vet:
 	go vet ./...
 
-## staticcheck: Run staticcheck (install: go install honnef.co/go/tools/cmd/staticcheck@latest)
+## staticcheck: Run staticcheck v0.8.1 (2026.2.1)
 staticcheck:
-	go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
 
 ## fmt: Format Go source code
 fmt:

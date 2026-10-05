@@ -188,7 +188,7 @@ Execute: func(ctx context.Context, args json.RawMessage, tc plugin.ToolContext) 
 
 ### Example: notify plugin
 
-The `cmd/plugin-notify/` plugin demonstrates a tool-only plugin. It sends desktop notifications using platform-specific commands (osascript on macOS, notify-send on Linux):
+notify ships as an in-process builtin (`internal/plugin/builtin_notify.go`), not as `cmd/plugin-notify`. A tool-only external plugin has this shape:
 
 ```go
 func newPlugin() plugin.Plugin {
@@ -573,68 +573,40 @@ Some plugins are listed in the built-in registry. If a plugin is in the registry
 
 ## Available plugins
 
-These plugins ship with tinycode in `cmd/plugin-*/`:
+30 binaries ship in `cmd/plugin-*/`. Names and descriptions match `internal/plugin/registry.go`. notify, code-review, handoff, and context-pruning are in-process builtins.
 
-**General (12)**
-
-| Plugin | ID | Type | Description |
-|--------|----|------|-------------|
-| `plugin-notify` | `notify` | Tool | Desktop notifications (macOS/Linux) |
-| `plugin-safety-net` | `safety-net` | Hook | Blocks destructive shell commands via PermissionAsk |
-| `plugin-telemetry` | `telemetry` | Tool + Hook | Session and tool-call analytics with SQLite storage |
-| `plugin-code-review` | `code-review` | Tool | Git diff formatted as markdown for code review |
-| `plugin-handoff` | `handoff` | Tool + Hook | Save/restore session context for handoff between sessions |
-| `plugin-web-search` | `web-search` | Tool | Web search via DuckDuckGo |
-| `plugin-pilot` | `pilot` | Tool | Issue tracker integration (GitHub, GitLab, Gitea) |
-| `plugin-cluster-ops` | `cluster-ops` | Tool | OpenShift cluster authentication via `oc login` |
-| `plugin-snippets` | `snippets` | Tool | Kubernetes resource templates |
-| `plugin-context-pruning` | `context-pruning` | Hook | Deduplicates repeated tool outputs via ToolExecAfter |
-| `plugin-log-sanitizer` | `log-sanitizer` | Hook | Strips secrets and sensitive data from tool output |
-| `plugin-command-inject` | `command-inject` | Hook | Custom slash command injection |
-
-**Red Hat — OpenShift (4)**
-
-| Plugin | ID | Type | Description |
-|--------|----|------|-------------|
-| `plugin-ocp-context-injection` | `ocp-context-injection` | Hook | Cluster context injection |
-| `plugin-ocp-oauth` | `ocp-oauth` | Tool | OAuth login + shell env |
-| `plugin-ocp-obs-logging` | `ocp-obs-logging` | Tool | Loki/Tempo/NetObserv |
-| `plugin-ocp-obs-metrics` | `ocp-obs-metrics` | Tool | PromQL/alerts/silencing |
-
-**Red Hat — Ansible (2)**
-
-| Plugin | ID | Type | Description |
-|--------|----|------|-------------|
-| `plugin-aap-bridge` | `aap-bridge` | Tool | Job templates/inventories/lint |
-| `plugin-eda-events` | `eda-events` | Tool | Event-Driven Ansible bridge |
-
-**Red Hat — RHOAI (6)**
-
-| Plugin | ID | Type | Description |
-|--------|----|------|-------------|
-| `plugin-rhoai-eval-trustyai` | `rhoai-eval-trustyai` | Tool | Model evaluation/fairness |
-| `plugin-rhoai-experiment-tracker` | `rhoai-experiment-tracker` | Tool | MLflow experiments |
-| `plugin-rhoai-mcp-bridge` | `rhoai-mcp-bridge` | Tool | Model Context Protocol |
-| `plugin-rhoai-mlflow-tools` | `rhoai-mlflow-tools` | Tool | MLflow tools |
-| `plugin-rhoai-model-serving` | `rhoai-model-serving` | Tool | Model serving/sandbox |
-| `plugin-rhoai-pipelines` | `rhoai-pipelines` | Tool | Data science pipelines |
-
-**Red Hat — Platform (12)**
-
-| Plugin | ID | Type | Description |
-|--------|----|------|-------------|
-| `plugin-satellite` | `satellite` | Tool | Satellite hosts/errata/services/REX |
-| `plugin-quay` | `quay` | Tool | Registry search/tags/vulns |
-| `plugin-rhdh` | `rhdh` | Tool | Developer Hub catalog/APIs |
-| `plugin-tekton` | `tekton` | Tool | Pipelines/runs/logs |
-| `plugin-rhacm` | `rhacm` | Tool | ACM fleet management |
-| `plugin-rhacs` | `rhacs` | Tool | ACS security scanning |
-| `plugin-rh-api-catalog` | `rh-api-catalog` | Tool | API catalog |
-| `plugin-rh-dev-content` | `rh-dev-content` | Tool | Developer content |
-| `plugin-rh-ecosystem-catalog` | `rh-ecosystem-catalog` | Tool | Ecosystem catalog via Pyxis |
-| `plugin-rhdp-provisioner` | `rhdp-provisioner` | Tool | Developer platform provisioner |
-| `plugin-container-linter` | `container-linter` | Tool | Containerfile linting/bootc |
-| `plugin-lightwell` | `lightwell` | Tool | Package security/CVEs |
+| Directory | ID | Description |
+|-----------|----|-------------|
+| `plugin-aap-bridge` | `aap-bridge` | Ansible Automation Platform bridge |
+| `plugin-audit-logs` | `audit-logs` | API audit log analysis |
+| `plugin-container-linter` | `container-linter` | Containerfile linting and bootc validation |
+| `plugin-etcd-diag` | `etcd-diag` | etcd diagnostics and snapshot inspection |
+| `plugin-ingress-inspect` | `ingress-inspect` | HAProxy/Ingress inspection |
+| `plugin-insights` | `insights` | OpenShift Insights archive analysis |
+| `plugin-lightwell` | `lightwell` | Red Hat Lightwell package security |
+| `plugin-log-sanitizer` | `log-sanitizer` | Sanitize sensitive data from logs |
+| `plugin-ocp-context-injection` | `ocp-context-injection` | OpenShift cluster context injection |
+| `plugin-ocp-must-gather` | `ocp-must-gather` | Must-gather offline analysis |
+| `plugin-ocp-obs-logging` | `ocp-obs-logging` | Loki, Tempo, and NetObserv |
+| `plugin-ocp-obs-metrics` | `ocp-obs-metrics` | PromQL, alerts, and silencing |
+| `plugin-ocp-odf` | `ocp-odf` | OpenShift Data Foundation storage health |
+| `plugin-ocp-virt` | `ocp-virt` | OpenShift Virtualization VM lifecycle |
+| `plugin-pilot` | `pilot` | Autonomous agent pilot mode |
+| `plugin-quay` | `quay` | Quay container registry |
+| `plugin-rh-api-catalog` | `rh-api-catalog` | Red Hat API catalog |
+| `plugin-rh-dev-content` | `rh-dev-content` | Red Hat developer content |
+| `plugin-rh-ecosystem-catalog` | `rh-ecosystem-catalog` | Ecosystem catalog via Pyxis |
+| `plugin-rhacm` | `rhacm` | ACM fleet management |
+| `plugin-rhacs` | `rhacs` | ACS security scanning |
+| `plugin-rhdh` | `rhdh` | Developer Hub catalog and APIs |
+| `plugin-rhdp-provisioner` | `rhdp-provisioner` | Developer platform provisioner |
+| `plugin-rhoai-mlflow` | `rhoai-mlflow` | MLflow experiment tracking and model registry |
+| `plugin-rhoai-pipelines` | `rhoai-pipelines` | RHOAI data science pipelines |
+| `plugin-rhoai-serving` | `rhoai-serving` | RHOAI model serving, evaluation, and TrustyAI |
+| `plugin-safety-net` | `safety-net` | Pre-execution safety checks |
+| `plugin-satellite` | `satellite` | Red Hat Satellite |
+| `plugin-tekton` | `tekton` | Tekton pipelines |
+| `plugin-telemetry` | `telemetry` | Usage telemetry and analytics |
 
 Build all plugins:
 

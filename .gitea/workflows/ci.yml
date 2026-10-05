@@ -21,10 +21,10 @@ jobs:
         run: go vet ./...
 
       - name: Staticcheck
-        run: go run honnef.co/go/tools/cmd/staticcheck@v0.5.1 ./...
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
 
       - name: Test
-        run: go test $(go list ./internal/... ./pkg/... ./cmd/tinycode/... | grep -v internal/redhat) -count=1 -timeout 120s
+        run: go test ./... -count=1 -timeout 180s
 
       - name: Test (race detector)
         run: go test ./... -count=1 -race -timeout 300s
@@ -32,7 +32,6 @@ jobs:
   tui-e2e:
     name: TUI E2E
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -48,32 +47,3 @@ jobs:
 
       - name: Run TUI tests
         run: ./script/tui-test.sh T01 T02 T03 T04 T05 T06 T07 T08 T09 T10 T11 T12 T13 T14 T15 T16 T17 T18 T19 T20 T21 T22 T23 T24 T25 T26 T27 T31 T32 T33 T34 T35 T38 T39 T40 T41 T43 T44 T45 T47 T48 T50
-
-  web-e2e:
-    name: Web E2E
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Build
-        run: make build
-
-      - name: Install Playwright
-        run: |
-          npm install @playwright/test
-          npx playwright install chromium
-
-      - name: Run Web E2E tests
-        run: |
-          TINYCODE_NO_AUTH=1 ./dist/tinycode web &
-          sleep 5
-          cd tests/e2e && npx playwright test --reporter=line

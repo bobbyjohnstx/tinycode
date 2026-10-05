@@ -7,7 +7,7 @@
 #
 # Usage:
 #   ./script/test-plugins-container.sh              # test all plugins
-#   ./script/test-plugins-container.sh ocp-oauth     # test one plugin
+#   ./script/test-plugins-container.sh safety-net   # test one plugin
 #   KEEP=1 ./script/test-plugins-container.sh       # keep container after run
 set -e
 

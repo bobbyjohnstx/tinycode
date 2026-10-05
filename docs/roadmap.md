@@ -16,10 +16,10 @@ The Go rewrite (2.0) replaces the TypeScript 1.x codebase with a standalone Go b
 - **Headless mode** -- `tinycode serve` for API-only deployments.
 
 ### Plugins
-- **36 Go plugins converted** -- cluster-ops, code-review, command-inject, context-pruning, handoff, log-sanitizer, notify, pilot, safety-net, snippets, telemetry, web-search, plus 24 Red Hat plugins (OpenShift, Ansible, RHOAI, platform).
+- **30 plugin binaries** -- curated in `internal/plugin/registry.go`. notify, code-review, handoff, and context-pruning are in-process builtins, not separate binaries.
 - **Go plugin SDK** -- `pkg/plugin/` with JSON-RPC protocol, lifecycle hooks, and tool definitions.
 - **Plugin wire protocol alignment** -- Server-side and SDK protocols unified.
-- **Red Hat plugin conversion** -- 24 plugins ported from TypeScript with `internal/redhat/` shared library and containerized test harness.
+- **Red Hat plugin conversion** -- OpenShift, Ansible, RHOAI, and platform plugins ported from TypeScript, sharing `internal/redhat/` and a containerized test harness.
 
 ### Run Mode (Non-Interactive CLI)
 - **Single prompt** -- `tinycode run "prompt"` processes a prompt and exits
