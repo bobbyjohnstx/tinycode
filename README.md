@@ -19,7 +19,7 @@ tinycode reads your files, runs commands, edits code, and works through multi-st
 ### Key features
 
 - **Multi-agent orchestration** --- build agent delegates to executor, architect, and critic subagents; `/swarm` runs parallel agents as goroutines; `--plan` flag shows decomposition for review before dispatch
-- **16 built-in agents** --- architect, debugger, executor, code-reviewer, planner, and more (Tab to cycle, `/ask` for one-shot)
+- **15 built-in agents** --- architect, debugger, executor, code-reviewer, planner, and more (Tab to cycle, `/ask` for one-shot)
 - **10 bundled skills** --- debug, verify, trace, review, plan, test, doctor, mcp-setup, remember, deepinit
 - **Workflow commands** --- `/effort` adjusts reasoning depth per session, `/goal` runs autonomous multi-turn loops until a condition is met, `/branch` forks conversations to try alternatives
 - **Context management** --- `/context` visualizes context window usage with per-category breakdown, `/btw` asks side questions without polluting history, `/changes` shows only files tinycode modified (not all uncommitted changes); automatic elision at 80% context, LLM summarization at the limit, `/compact` for manual compaction
@@ -84,7 +84,7 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 
 ### `cmd/tinycode/` --- Main binary
 
-Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, `models`, `providers`, `session`, `export`, `agent`, `debug`, `version`.
+Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, `models`, `providers`, `session`, `status`, `export`, `plugin`, `init`, `agent`, `doctor`, `debug`, `version`.
 
 ### `internal/` --- Core packages
 
@@ -121,65 +121,59 @@ Protocol definitions, hook interfaces, and tool registration for building plugin
 
 ## Plugins
 
-36 built-in plugins, each a standalone Go binary communicating over JSON-RPC via stdin/stdout.
+30 built-in plugins, each a standalone Go binary communicating over JSON-RPC via stdin/stdout.
 
 | Plugin               | Description                                                             |
 | -------------------- | ----------------------------------------------------------------------- |
-| `plugin-cluster-ops` | OpenShift cluster operations (oc login, status, cluster info)           |
-| `plugin-code-review` | Git diff formatting for code review                                     |
-| `plugin-command-inject` | Discovers and exposes project scripts as tools                       |
-| `plugin-context-pruning` | Detects duplicate tool calls and prunes redundant context           |
-| `plugin-handoff`     | Saves and restores session context for cross-session handoff            |
 | `plugin-log-sanitizer` | Redacts secrets and sensitive data from tool output                   |
-| `plugin-notify`      | Desktop notifications                                                   |
 | `plugin-pilot`       | Issue tracker integration (list, create, update, comment)               |
 | `plugin-safety-net`  | Blocks dangerous shell commands before execution                        |
-| `plugin-snippets`    | Kubernetes/OpenShift manifest templates                                 |
 | `plugin-telemetry`   | Tool call tracking and usage reporting                                  |
-| `plugin-web-search`  | Web search via DuckDuckGo and Red Hat knowledge base                    |
 
 #### Red Hat --- OpenShift
 
-| Plugin                        | Description                                                        |
-| ----------------------------- | ------------------------------------------------------------------ |
-| `plugin-ocp-context-injection` | Injects current OpenShift cluster/project context into sessions   |
-| `plugin-ocp-oauth`            | OpenShift OAuth token management and refresh                       |
-| `plugin-ocp-obs-logging`      | OpenShift observability: log queries via Loki/LokiStack            |
-| `plugin-ocp-obs-metrics`      | OpenShift observability: PromQL queries and alert inspection       |
+| Plugin                         | Description                                                         |
+| ------------------------------ | ------------------------------------------------------------------- |
+| `plugin-ocp-context-injection` | Injects current OpenShift cluster/project context into sessions     |
+| `plugin-ocp-obs-logging`       | OpenShift observability: log queries via Loki/LokiStack             |
+| `plugin-ocp-obs-metrics`       | OpenShift observability: PromQL queries and alert inspection        |
+| `plugin-ocp-must-gather`       | Must-gather directory management and structure validation           |
+| `plugin-ocp-odf`               | OpenShift Data Foundation StorageCluster status                     |
+| `plugin-ocp-virt`              | OpenShift Virtualization VM listing and management                  |
+| `plugin-audit-logs`            | Must-gather audit log aggregation and analysis                      |
+| `plugin-etcd-diag`             | Must-gather etcd diagnostics (slow writes, fsyncs, compaction)      |
+| `plugin-ingress-inspect`       | Must-gather IngressController inspection                            |
+| `plugin-insights`              | Red Hat Insights archive extraction and validation                  |
 
 #### Red Hat --- Ansible
 
 | Plugin                   | Description                                                             |
 | ------------------------ | ----------------------------------------------------------------------- |
-| `plugin-aap-bridge`     | Ansible Automation Platform bridge (job templates, inventories, credentials) |
-| `plugin-eda-events`     | Event-Driven Ansible event stream and rulebook activation               |
+| `plugin-aap-bridge`     | Ansible Automation Platform bridge (health, job templates, inventories)  |
 
 #### Red Hat --- RHOAI
 
 | Plugin                          | Description                                                       |
 | ------------------------------- | ----------------------------------------------------------------- |
-| `plugin-rhoai-eval-trustyai`   | TrustyAI model evaluation (bias, fairness, explainability)         |
-| `plugin-rhoai-experiment-tracker` | ML experiment tracking (metrics, parameters, runs)              |
-| `plugin-rhoai-mcp-bridge`      | MCP-to-RHOAI bridge for model context protocol integration        |
-| `plugin-rhoai-mlflow-tools`    | MLflow experiment and model registry operations                    |
-| `plugin-rhoai-model-serving`   | RHOAI model serving management (deploy, scale, monitor)            |
+| `plugin-rhoai-mlflow`          | MLflow experiment and run management                               |
 | `plugin-rhoai-pipelines`       | RHOAI/Kubeflow pipeline management (create, run, monitor)          |
+| `plugin-rhoai-serving`         | RHOAI model serving (inference services)                           |
 
 #### Red Hat --- Platform
 
 | Plugin                          | Description                                                       |
 | ------------------------------- | ----------------------------------------------------------------- |
-| `plugin-satellite`              | Satellite administration (hosts, errata, content views, services, REX) |
-| `plugin-quay`                   | Quay container registry operations (repos, tags, security scans)  |
+| `plugin-satellite`              | Satellite administration (hosts, errata, content views, health)   |
+| `plugin-quay`                   | Quay container registry (search, tags, security scans)            |
 | `plugin-rhdh`                   | Red Hat Developer Hub catalog and template operations              |
 | `plugin-tekton`                 | Tekton pipeline and task management                                |
-| `plugin-rhacm`                  | Red Hat Advanced Cluster Management (fleet, policies, placement)  |
-| `plugin-rhacs`                  | Red Hat Advanced Cluster Security (vulnerabilities, compliance)    |
+| `plugin-rhacm`                  | Red Hat Advanced Cluster Management (clusters, policies)          |
+| `plugin-rhacs`                  | Red Hat Advanced Cluster Security (image scanning, health)        |
 | `plugin-rh-api-catalog`        | Red Hat API catalog discovery and documentation                    |
 | `plugin-rh-dev-content`        | Red Hat developer content and learning resources                   |
-| `plugin-rh-ecosystem-catalog`  | Red Hat ecosystem and partner integration catalog                  |
-| `plugin-rhdp-provisioner`      | Red Hat Developer Platform environment provisioning                |
-| `plugin-container-linter`      | Containerfile/Dockerfile linting and best practice checks          |
+| `plugin-rh-ecosystem-catalog`  | Red Hat Ecosystem Catalog (certified images, operators)            |
+| `plugin-rhdp-provisioner`      | Red Hat Demo Platform environment provisioning                     |
+| `plugin-container-linter`      | Containerfile/Dockerfile linting and bootc validation              |
 | `plugin-lightwell`             | Lightwell integration for Red Hat product lifecycle data           |
 
 Plugins use the SDK in `pkg/plugin/`. See [docs/plugin-development.md](docs/plugin-development.md) for building custom plugins.
@@ -201,6 +195,7 @@ Press **Tab** to cycle through agents, or use `<leader>a` to pick from a list. U
 | `explore`           | Fast read-only codebase search (grep/glob)                                    |
 | `git-master`        | Git expert for atomic commits, rebasing, and history management               |
 | `planner`           | Strategic planning --- gathers requirements, produces actionable work plans   |
+| `qa-tester`         | Interactive CLI testing specialist using tmux for session management           |
 | `scientist`         | Data analysis and research --- hypothesis-driven, evidence required           |
 | `security-reviewer` | Security vulnerability detection (OWASP Top 10, secrets, CVEs)               |
 | `test-engineer`     | Test strategy, coverage authoring, flaky test hardening, TDD workflows        |
