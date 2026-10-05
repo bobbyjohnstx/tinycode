@@ -14,7 +14,11 @@ import (
 	"time"
 )
 
-const defaultStdioTimeout = 60 * time.Second
+const (
+	defaultStdioTimeout = 60 * time.Second
+	maxLineSize         = 10 * 1024 * 1024 // 10MB per JSON-RPC line
+	maxStderrSize       = 64 * 1024        // 64KB stderr ring buffer
+)
 
 type StdioTransport struct {
 	command string
@@ -22,11 +26,11 @@ type StdioTransport struct {
 	env     map[string]string
 	Timeout time.Duration
 
-	mu     sync.Mutex
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	reader *bufio.Reader
-	nextID atomic.Int64
+	mu        sync.Mutex
+	cmd       *exec.Cmd
+	stdin     io.WriteCloser
+	stderrBuf *cappedBuffer
+	nextID    atomic.Int64
 
 	messages chan *jsonrpcResponse
 	done     chan struct{}
@@ -66,7 +70,8 @@ func (t *StdioTransport) Connect(ctx context.Context) error {
 		return fmt.Errorf("creating stdout pipe: %w", err)
 	}
 
-	cmd.Stderr = io.Discard
+	t.stderrBuf = &cappedBuffer{max: maxStderrSize}
+	cmd.Stderr = t.stderrBuf
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("starting MCP server %s: %w", t.command, err)
@@ -74,12 +79,11 @@ func (t *StdioTransport) Connect(ctx context.Context) error {
 
 	t.cmd = cmd
 	t.stdin = stdin
-	t.reader = bufio.NewReaderSize(stdout, 1024*1024)
 	t.messages = make(chan *jsonrpcResponse, 64)
 	t.done = make(chan struct{})
 	t.doneOnce = sync.Once{}
 
-	go t.readLoop(ctx)
+	go t.readLoop(ctx, stdout)
 
 	initReq := jsonrpcRequest{
 		JSONRPC: "2.0",
@@ -117,17 +121,14 @@ func (t *StdioTransport) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (t *StdioTransport) readLoop(ctx context.Context) {
+func (t *StdioTransport) readLoop(ctx context.Context, r io.Reader) {
 	defer t.doneOnce.Do(func() { close(t.done) })
 
-	for {
-		line, err := t.reader.ReadBytes('\n')
-		if err != nil {
-			if ctx.Err() == nil && t.onDisconnect != nil {
-				t.onDisconnect()
-			}
-			return
-		}
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
 
 		var resp jsonrpcResponse
 		if err := json.Unmarshal(line, &resp); err != nil {
@@ -147,6 +148,20 @@ func (t *StdioTransport) readLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		slog.Error("MCP stdio read error", "command", t.command, "error", err)
+	}
+
+	if t.stderrBuf != nil {
+		if stderr := t.stderrBuf.String(); stderr != "" {
+			slog.Debug("MCP server stderr", "command", t.command, "stderr", stderr)
+		}
+	}
+
+	if ctx.Err() == nil && t.onDisconnect != nil {
+		t.onDisconnect()
 	}
 }
 
@@ -331,4 +346,31 @@ type jsonrpcResponse struct {
 type jsonrpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+}
+
+// cappedBuffer is a thread-safe writer that retains the last max bytes.
+type cappedBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+	max int
+}
+
+func (b *cappedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(p) >= b.max {
+		b.buf = append(b.buf[:0], p[len(p)-b.max:]...)
+		return len(p), nil
+	}
+	b.buf = append(b.buf, p...)
+	if len(b.buf) > b.max {
+		b.buf = b.buf[len(b.buf)-b.max:]
+	}
+	return len(p), nil
+}
+
+func (b *cappedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(b.buf)
 }
