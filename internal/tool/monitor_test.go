@@ -73,7 +73,7 @@ func TestMonitorManager_StartAndStop(t *testing.T) {
 	mm := NewMonitorManager()
 	defer mm.Shutdown()
 
-	id, err := mm.Start(context.Background(), "sleep 60", "test sleep", t.TempDir(), 5*time.Second)
+	id, err := mm.Start(context.Background(), "sleep 5", "test sleep", t.TempDir(), 5*time.Second)
 	if err != nil {
 		t.Fatalf("start failed: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestMonitorManager_ConcurrentCap(t *testing.T) {
 	dir := t.TempDir()
 	ids := make([]string, 0, maxMonitors)
 	for i := 0; i < maxMonitors; i++ {
-		id, err := mm.Start(context.Background(), "sleep 60", "test", dir, 5*time.Second)
+		id, err := mm.Start(context.Background(), "sleep 2", "test", dir, 5*time.Second)
 		if err != nil {
 			t.Fatalf("start %d failed: %v", i, err)
 		}
@@ -147,7 +147,7 @@ func TestMonitorManager_ConcurrentCap(t *testing.T) {
 	}
 
 	// 6th monitor should fail.
-	_, err := mm.Start(context.Background(), "sleep 60", "test", dir, 5*time.Second)
+	_, err := mm.Start(context.Background(), "sleep 2", "test", dir, 5*time.Second)
 	if err == nil {
 		t.Fatal("expected error when exceeding max concurrent monitors")
 	}
@@ -160,7 +160,7 @@ func TestMonitorManager_TimeoutEnforcement(t *testing.T) {
 	mm := NewMonitorManager()
 	defer mm.Shutdown()
 
-	id, err := mm.Start(context.Background(), "sleep 60", "timeout test", t.TempDir(), 500*time.Millisecond)
+	id, err := mm.Start(context.Background(), "sleep 5", "timeout test", t.TempDir(), 500*time.Millisecond)
 	if err != nil {
 		t.Fatalf("start failed: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestMonitorManager_Shutdown(t *testing.T) {
 
 	dir := t.TempDir()
 	for i := 0; i < 3; i++ {
-		_, err := mm.Start(context.Background(), "sleep 60", "test", dir, 30*time.Second)
+		_, err := mm.Start(context.Background(), "sleep 2", "test", dir, 5*time.Second)
 		if err != nil {
 			t.Fatalf("start failed: %v", err)
 		}
@@ -224,7 +224,7 @@ func TestMonitorTool_ListAction(t *testing.T) {
 	RegisterBuiltins(r)
 
 	// Start a monitor first.
-	startArgs := json.RawMessage(`{"command":"sleep 60","description":"list test"}`)
+	startArgs := json.RawMessage(`{"command":"sleep 2","description":"list test"}`)
 	r.Execute(context.Background(), "monitor", startArgs, "ses-list")
 
 	// List monitors.
@@ -253,7 +253,7 @@ func TestMonitorTool_StopAction(t *testing.T) {
 	RegisterBuiltins(r)
 
 	// Start a monitor.
-	startArgs := json.RawMessage(`{"command":"sleep 60","description":"stop test"}`)
+	startArgs := json.RawMessage(`{"command":"sleep 2","description":"stop test"}`)
 	output, _, _ := r.Execute(context.Background(), "monitor", startArgs, "ses-stop")
 
 	// Extract monitor ID from output.
@@ -297,7 +297,7 @@ func TestMonitorManager_ContextCancellation(t *testing.T) {
 	mm := NewMonitorManager()
 	defer mm.Shutdown()
 
-	_, err := mm.Start(ctx, "sleep 60", "cancel test", t.TempDir(), 30*time.Second)
+	_, err := mm.Start(ctx, "sleep 2", "cancel test", t.TempDir(), 5*time.Second)
 	if err != nil {
 		t.Fatalf("start failed: %v", err)
 	}

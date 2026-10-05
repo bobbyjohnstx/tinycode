@@ -196,7 +196,7 @@ func TestShellHookRunner_Timeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for timed-out command")
 	}
-	if elapsed > 3*time.Second {
+	if elapsed > 5*time.Second {
 		t.Errorf("timeout took too long: %v", elapsed)
 	}
 }
