@@ -706,7 +706,7 @@ func (c *connectedApp) handleGoalCommand(trimmed string) (tea.Model, tea.Cmd) {
 		return c, cmd
 	}
 
-	command, _ := session.ResolveGoalCommand(arg)
+	command, _ := session.ResolveGoalCommand(arg, c.app.status.Cwd())
 
 	c.goal = newGoalTracker(arg, command)
 	c.app.status.SetGoalState(c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations)
