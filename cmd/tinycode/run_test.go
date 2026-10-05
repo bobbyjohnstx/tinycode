@@ -527,15 +527,20 @@ func TestStdinMux_TextModeRoutesPermissionReply(t *testing.T) {
 		t.Fatal("timed out waiting for first prompt")
 	}
 
+	// Wait for the permission reply without racing the next prompt on the
+	// shared select — both channels can be ready and select is nondeterministic.
 	select {
 	case got := <-replyCh:
 		if got.RequestID != "req_1" || got.Reply != permission.ReplyOnce {
 			t.Fatalf("reply = %+v", got)
 		}
-	case p := <-mux.prompts:
-		t.Fatalf("permission_reply treated as prompt %q", p)
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for permission reply")
+		select {
+		case p := <-mux.prompts:
+			t.Fatalf("permission_reply treated as prompt %q", p)
+		default:
+			t.Fatal("timed out waiting for permission reply")
+		}
 	}
 
 	select {

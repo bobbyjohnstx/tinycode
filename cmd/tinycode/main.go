@@ -60,7 +60,7 @@ func main() {
 	case "web":
 		runWeb()
 	case "acp":
-		runACP()
+		runACP(os.Args[2:])
 	case "run":
 		runRun()
 	case "models":

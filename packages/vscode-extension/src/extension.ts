@@ -1,13 +1,18 @@
 import * as vscode from "vscode"
 import { spawn, type ChildProcess } from "child_process"
 import { ClientSideConnection, ndJsonStream } from "@agentclientprotocol/sdk"
-import type { AgentClientProtocol } from "@agentclientprotocol/sdk"
+import type {
+  RequestPermissionRequest,
+  RequestPermissionResponse,
+  SessionNotification,
+} from "@agentclientprotocol/sdk"
 import { registerChatProvider } from "./chat-provider"
 
 let childProcess: ChildProcess | undefined
 let connection: ClientSideConnection | undefined
 let outputChannel: vscode.OutputChannel | undefined
 let sessionId: string | undefined
+let latestUpdateHandler: ((params: SessionNotification) => void) | undefined
 
 export function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("tinycode")
@@ -32,11 +37,16 @@ export function activate(context: vscode.ExtensionContext) {
     })
   )
 
-  // Auto-start if workspace is open
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
   if (workspaceFolder) {
     startAgent(workspaceFolder.uri.fsPath)
   }
+}
+
+export function setSessionUpdateHandler(
+  handler: ((params: SessionNotification) => void) | undefined
+) {
+  latestUpdateHandler = handler
 }
 
 async function startAgent(cwd: string) {
@@ -60,7 +70,6 @@ async function startAgent(cwd: string) {
       throw new Error("Failed to create stdio streams")
     }
 
-    // Log stderr to output channel
     childProcess.stderr?.on("data", (data) => {
       outputChannel?.appendLine(`[stderr] ${data.toString()}`)
     })
@@ -80,16 +89,23 @@ async function startAgent(cwd: string) {
       cleanup()
     })
 
-    // Create ACP connection
     const stream = ndJsonStream(childProcess.stdout, childProcess.stdin)
-    connection = new ClientSideConnection(stream)
+    connection = new ClientSideConnection((_agent) => {
+      return {
+        async sessionUpdate(params: SessionNotification) {
+          latestUpdateHandler?.(params)
+        },
+        async requestPermission(
+          params: RequestPermissionRequest
+        ): Promise<RequestPermissionResponse> {
+          return handlePermissionRequest(params)
+        },
+      }
+    }, stream)
 
-    // Initialize the connection
     const initResult = await connection.initialize({
-      protocolVersion: "0.1.0",
-      capabilities: {
-        supportsPermissions: true,
-      },
+      protocolVersion: 1,
+      clientCapabilities: {},
       clientInfo: {
         name: "vscode-tinycode",
         version: "0.1.0",
@@ -97,19 +113,18 @@ async function startAgent(cwd: string) {
     })
 
     outputChannel?.appendLine(
-      `Connected to tinycode server: ${JSON.stringify(initResult.serverInfo)}`
+      `Connected to tinycode: ${JSON.stringify(initResult.agentInfo ?? initResult)}`
     )
 
-    // Create a new session
     const sessionResult = await connection.newSession({
       cwd,
+      mcpServers: [],
     })
 
     sessionId = sessionResult.sessionId
     outputChannel?.appendLine(`Session created: ${sessionId}`)
 
-    // Register chat provider
-    registerChatProvider(connection, sessionId, outputChannel)
+    registerChatProvider(connection, sessionId, outputChannel, setSessionUpdateHandler)
 
     vscode.window.showInformationMessage("tinycode AI assistant started")
   } catch (error) {
@@ -121,27 +136,51 @@ async function startAgent(cwd: string) {
   }
 }
 
-function stopAgent() {
-  if (!childProcess) {
-    vscode.window.showInformationMessage("tinycode is not running")
-    return
+async function handlePermissionRequest(
+  params: RequestPermissionRequest
+): Promise<RequestPermissionResponse> {
+  const title = params.toolCall?.title || "tool"
+  outputChannel?.appendLine(`Permission request: ${title}`)
+
+  const items = [
+    { label: "Allow Once", optionId: "allow_once" },
+    { label: "Allow Always", optionId: "allow_always" },
+    { label: "Reject", optionId: "reject_once" },
+  ]
+
+  const selected = await vscode.window.showQuickPick(items, {
+    placeHolder: `Allow tinycode to use ${title}?`,
+    title: `tinycode: ${title}`,
+  })
+
+  if (!selected) {
+    return { outcome: { outcome: "cancelled" } }
   }
 
-  outputChannel?.appendLine("Stopping tinycode")
-  cleanup()
-  vscode.window.showInformationMessage("tinycode AI assistant stopped")
+  outputChannel?.appendLine(`Permission decision: ${selected.optionId}`)
+  return {
+    outcome: {
+      outcome: "selected",
+      optionId: selected.optionId,
+    },
+  }
+}
+
+function stopAgent() {
+  if (childProcess) {
+    childProcess.kill()
+    cleanup()
+    vscode.window.showInformationMessage("tinycode AI assistant stopped")
+  }
 }
 
 function cleanup() {
-  if (childProcess) {
-    childProcess.kill()
-    childProcess = undefined
-  }
+  childProcess = undefined
   connection = undefined
   sessionId = undefined
+  latestUpdateHandler = undefined
 }
 
 export function deactivate() {
-  cleanup()
-  outputChannel?.dispose()
+  stopAgent()
 }

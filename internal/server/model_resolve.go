@@ -8,9 +8,13 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
-// resolveDefaultModelRef returns a ModelRef for the best available model,
+// ResolveDefaultModelRef returns a ModelRef for the best available model,
 // checking the configured default first, then falling back to the smallest
 // chat-capable model prioritizing local providers.
+func ResolveDefaultModelRef(reg *provider.Registry, defaultModel string) *session.ModelRef {
+	return resolveDefaultModelRef(reg, defaultModel)
+}
+
 func resolveDefaultModelRef(reg *provider.Registry, defaultModel string) *session.ModelRef {
 	// 1. Check configured default model (e.g. "ollama/llama3.2").
 	if defaultModel != "" {

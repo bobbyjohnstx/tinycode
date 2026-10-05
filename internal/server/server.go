@@ -320,6 +320,11 @@ func (s *Server) WaitForShutdown() {
 }
 
 // RunSubagent delegates to SessionManager.RunSubagent for use by the task tool.
+// SessionManager returns the in-process session manager used by the HTTP API.
+func (s *Server) SessionManager() *SessionManager {
+	return s.sessionManager
+}
+
 func (s *Server) RunSubagent(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
 	return s.sessionManager.RunSubagent(ctx, parentSessionID, parentDepth, prompt, agent, directory, autoApprove)
 }

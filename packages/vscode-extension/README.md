@@ -1,94 +1,78 @@
 # tinycode VS Code Extension
 
-AI coding assistant powered by local LLMs via tinycode.
+AI coding assistant powered by local (or cloud) LLMs via the Go `tinycode acp` binary and the [Agent Client Protocol](https://agentclientprotocol.com).
 
 ## Prerequisites
 
-Install tinycode first:
+Build the Go binary:
 
 ```bash
-# From the tinycode repository
-bun install
-bun ./packages/tinycode/script/build.ts --single
-
-# Or install from a pre-built binary
+make build   # → dist/tinycode
 ```
 
-Ensure `tinycode` is in your PATH, or configure the path in settings (see below).
+Ensure `tinycode` is on your PATH, or set `tinycode.path` in VS Code settings to the absolute path of `dist/tinycode`.
+
+> The TypeScript `packages/tinycode` tree is legacy. This extension speaks ACP to the **Go** binary.
 
 ## Installation
 
-1. Open this directory in VS Code: `packages/vscode-extension/`
-2. Install dependencies: `npm install`
-3. Build the extension: `npm run build`
-4. Press F5 to launch the extension in a new Extension Development Host window
+1. Open `packages/vscode-extension/` in VS Code
+2. `npm install`
+3. `npm run build`
+4. Press F5 to launch the Extension Development Host
 
 ## Usage
 
-1. Open a project folder in VS Code
-2. The extension will auto-start tinycode in ACP mode
-3. Open the chat panel (Ctrl+Shift+P → "Chat: Open Chat")
-4. Type `@tinycode` followed by your question or request
-
-Example:
-```
-@tinycode explain this file
-@tinycode add error handling to the UserService class
-@tinycode write unit tests for the login function
-```
+1. Open a project folder
+2. The extension auto-starts `tinycode acp --cwd <workspace>`
+3. Open Chat and message `@tinycode …`
 
 ## Configuration
 
-Configure the tinycode binary path in VS Code settings:
-
 ```json
 {
-  "tinycode.path": "/path/to/tinycode"
+  "tinycode.path": "/absolute/path/to/dist/tinycode"
 }
 ```
 
-If `tinycode` is in your PATH, you can leave this at the default value `"tinycode"`.
-
-## Commands
-
-- **tinycode: Start AI Assistant** — Manually start the tinycode agent
-- **tinycode: Stop AI Assistant** — Stop the running agent
-
 ## How It Works
 
-The extension spawns `tinycode acp --cwd <workspace-folder>` as a child process and communicates via the [Agent Client Protocol](https://agentclientprotocol.com) over stdio. All prompts are sent to the tinycode server, which executes them using the configured LLM (local via Ollama/vLLM or cloud via API key).
+1. Spawns `tinycode acp --cwd <workspace>` (stdio NDJSON)
+2. Completes ACP `initialize` (protocol version `1`) with a client that handles:
+   - `session/update` notifications (streamed text/tools)
+   - `session/request_permission` requests (quick-pick → allow_once / allow_always / reject_once)
+3. Creates a session via `session/new`
+4. Chat prompts use `session/prompt` and wait for `stopReason`
+
+## Status
+
+| Feature | Status |
+|---------|--------|
+| Spawn Go ACP + `--cwd` | Working |
+| Official wire methods | Working (`session/*`) |
+| Streamed assistant text | Working |
+| Permission quick-pick | Working |
+| Image / embedded context prompts | Not advertised by agent yet |
+| JetBrains / Zed packaging | Not included here (same protocol) |
 
 ## Troubleshooting
 
-**Extension fails to start:**
-- Check that `tinycode` is installed and in your PATH
-- Open the Output panel (View → Output) and select "tinycode" from the dropdown
-- Check for error messages in the tinycode log
+**Extension fails to start**
 
-**No response in chat:**
-- Ensure a workspace folder is open (File → Open Folder)
-- Check the tinycode output channel for errors
-- Restart the extension with "tinycode: Stop AI Assistant" then "tinycode: Start AI Assistant"
+- Confirm `tinycode path` points at the Go binary (`./dist/tinycode version`)
+- Check the **tinycode** output channel for stderr from bootstrap/discovery
 
-**Permission prompts:**
-The extension will show a quick-pick menu when tinycode requests permission to run tools (file read/write, shell commands). Select:
-- **Allow Once** — grant permission for this operation only
-- **Allow Always** — add the tool to the allowlist
-- **Deny** — reject the operation
+**No chat response**
+
+- Ensure a model is available (`tinycode models`) or configure a default model
+- Restart with **tinycode: Stop** then **tinycode: Start**
+
+**Permission prompts**
+
+- Choose Allow Once / Allow Always / Reject; dismissing the picker cancels (deny)
 
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Watch mode (auto-rebuild on changes)
-npm run watch
+npm run watch   # rebuild on change
 ```
-
-## License
-
-MIT

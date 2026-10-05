@@ -6,9 +6,9 @@ This guide covers building IDE integrations for tinycode using the Agent Client 
 
 The Agent Client Protocol is a standardized JSON-RPC 2.0 protocol for communication between IDEs and AI coding agents. Originally developed by Zed Industries, ACP defines a bidirectional stdio-based protocol for:
 
-- Session management (create, list, switch)
-- Prompt streaming with real-time events
-- Tool execution with permission requests
+- Session management (create, list, load, fork, close)
+- Prompt turns with streamed `session/update` notifications
+- Tool execution with `session/request_permission` requests
 - Multi-turn conversations with context preservation
 
 ACP enables tinycode to integrate with any editor that supports spawning a child process and communicating over stdin/stdout.
@@ -22,10 +22,19 @@ tinycode acp --cwd /path/to/project
 ```
 
 The process will:
-1. Start listening on stdin for JSON-RPC requests
-2. Write JSON-RPC responses and notifications to stdout
-3. Create a session scoped to the specified working directory
-4. Stream LLM responses and tool events back to the client
+1. Boot an embedded tinycode server (ephemeral localhost port) with providers, tools, permissions, agents, plugins, and MCP
+2. Listen on stdin for JSON-RPC requests using official ACP wire methods (`session/new`, `session/prompt`, …)
+3. Stream LLM responses and tool events as `session/update` notifications on stdout
+4. Ask the IDE for tool permissions via `session/request_permission` requests
+
+Flags:
+
+| Flag | Description |
+|------|-------------|
+| `--cwd <dir>` | Working directory for new sessions (also accepts `-cwd`) |
+| `--model` / `-m` | Default model (`provider/model`) |
+| `--safe-mode` | Skip plugins, MCP, and user agents |
+| Common TUI flags | `--title`, `--append-system-prompt`, `--max-tokens`, etc. |
 
 ## Architecture
 
@@ -38,24 +47,21 @@ The process will:
          │ stdio (NDJSON)
          │ JSON-RPC 2.0
          │
-┌────────▼────────┐
-│  tinycode acp   │
-│   (ACP server)  │
-└────────┬────────┘
-         │ HTTP (REST)
-         │ localhost:4096
-         │
-┌────────▼────────┐
-│ tinycode server │
-│  (session mgmt, │
-│   LLM, tools)   │
-└─────────────────┘
+┌────────▼──────────────────────────────┐
+│  tinycode acp                         │
+│  ┌────────────┐  ┌─────────────────┐  │
+│  │ ACP Service│──│ SessionManager  │  │
+│  │ + EventRelay│  │ (in-process)    │  │
+│  └────────────┘  └────────┬────────┘  │
+│                           │           │
+│              embedded HTTP server     │
+│              (port 0 / ephemeral)     │
+└───────────────────────────────────────┘
 ```
 
-The `tinycode acp` command acts as a protocol adapter:
-- Receives ACP requests via stdin
-- Translates them to HTTP calls against the tinycode REST API
-- Streams events back via stdout as ACP notifications
+Go `tinycode acp` boots the same core stack as TUI/serve (providers, tools, permissions, SessionManager, plugins, MCP) and speaks ACP over stdio. Session operations prefer in-process `SessionManager` calls; the ephemeral HTTP listener exists so the full server lifecycle (hooks, discovery, etc.) runs even when the IDE never opens an HTTP client.
+
+> Note: The legacy TypeScript `packages/tinycode` ACP path started HTTP + SDK separately. The Go binary is the supported ACP entrypoint.
 
 ## Building an IDE Extension
 
@@ -71,193 +77,120 @@ npm install @agentclientprotocol/sdk
 import { ClientSideConnection, ndJsonStream } from '@agentclientprotocol/sdk'
 import { spawn } from 'child_process'
 
-// Spawn the ACP server
 const proc = spawn('tinycode', ['acp', '--cwd', workspaceRoot], {
   stdio: ['pipe', 'pipe', 'pipe']
 })
 
-// Create the connection
 const stream = ndJsonStream(proc.stdout, proc.stdin)
-const conn = new ClientSideConnection(stream)
 
-// Initialize
-const initResult = await conn.initialize({
-  protocolVersion: '0.1.0',
-  capabilities: {
-    supportsPermissions: true
+const conn = new ClientSideConnection((agent) => ({
+  async sessionUpdate(params) {
+    // Handle streamed chunks / tool calls
+    const update = params.update
+    if (update.sessionUpdate === 'agent_message_chunk') {
+      console.log(update.content?.text)
+    }
   },
-  clientInfo: {
-    name: 'my-editor',
-    version: '1.0.0'
-  }
-})
-
-console.log('Connected to:', initResult.serverInfo)
-
-// Create a session
-const session = await conn.newSession({
-  cwd: workspaceRoot
-})
-
-console.log('Session ID:', session.sessionId)
-
-// Send a prompt
-await conn.prompt({
-  sessionId: session.sessionId,
-  prompt: [
-    { type: 'text', text: 'Explain this codebase' }
-  ]
-})
-```
-
-### Listening for Events
-
-```typescript
-conn.onNotification('sessionUpdate', (params) => {
-  console.log('Session update:', params.sessionId)
-
-  for (const event of params.events) {
-    switch (event.type) {
-      case 'message-part':
-        if (event.part.type === 'text') {
-          console.log('Text:', event.part.text)
-        }
-        break
-
-      case 'tool-call-started':
-        console.log('Tool started:', event.name)
-        break
-
-      case 'tool-call-completed':
-        console.log('Tool completed:', event.name, event.status)
-        break
-
-      case 'request-permission':
-        handlePermission(event)
-        break
+  async requestPermission(params) {
+    // Present options to the user; return selected optionId
+    return {
+      outcome: { outcome: 'selected', optionId: 'allow_once' }
     }
   }
+}), stream)
+
+const initResult = await conn.initialize({
+  protocolVersion: 1,
+  clientCapabilities: {},
+  clientInfo: { name: 'my-editor', version: '1.0.0' }
 })
+
+console.log('Connected to:', initResult.agentInfo)
+
+const session = await conn.newSession({ cwd: workspaceRoot })
+console.log('Session ID:', session.sessionId)
+
+const result = await conn.prompt({
+  sessionId: session.sessionId,
+  prompt: [{ type: 'text', text: 'Explain this codebase' }]
+})
+console.log('stopReason:', result.stopReason) // "end_turn" | "cancelled"
 ```
+
+### Listening for Session Updates
+
+Official ACP notifications use method `session/update`:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "session/update",
+  "params": {
+    "sessionId": "ses_…",
+    "update": {
+      "sessionUpdate": "agent_message_chunk",
+      "content": { "type": "text", "text": "Hello…" }
+    }
+  }
+}
+```
+
+Common `sessionUpdate` values:
+
+| Value | Meaning |
+|-------|---------|
+| `agent_message_chunk` | Assistant text |
+| `agent_thought_chunk` | Reasoning/thought text |
+| `user_message_chunk` | Replayed user text (loadSession) |
+| `tool_call` | Tool invocation started |
+| `tool_call_update` | Tool status change |
 
 ### Permission Handling
 
-When tinycode requests permission to execute a tool, respond with:
+When a tool needs approval, the agent sends a **request** (not a notification):
 
-```typescript
-async function handlePermission(event) {
-  // Show UI to user (dialog, quick-pick, etc.)
-  const decision = await askUser(
-    `Allow tinycode to use ${event.tool}?`,
-    ['allow-once', 'allow-always', 'deny']
-  )
-
-  await conn.respondToPermissionRequest({
-    sessionId: event.sessionId,
-    requestId: event.requestId,
-    decision
-  })
-}
-```
+- Method: `session/request_permission`
+- Client must reply with `{ outcome: { outcome: "selected", optionId: "allow_once" | "allow_always" | "reject_once" } }`
+- On timeout (120s) or disconnect, tinycode auto-denies
 
 ## Supported Operations
 
-| ACP Method             | Description                                      | tinycode Mapping       |
-|------------------------|--------------------------------------------------|------------------------|
-| `initialize`           | Establish connection and negotiate capabilities  | Returns server info    |
-| `newSession`           | Create a new conversation session                | `POST /session`        |
-| `listSessions`         | List all sessions                                | `GET /session`         |
-| `getSession`           | Get session details                              | `GET /session/:id`     |
-| `switchSession`        | Change active session                            | No-op (client-side)    |
-| `prompt`               | Send a user prompt                               | `POST /session/:id/prompt` |
-| `respondToPermissionRequest` | Respond to permission request           | Stored in-memory       |
+| Wire method | CamelCase alias | Status |
+|-------------|-----------------|--------|
+| `initialize` | — | Supported |
+| `authenticate` | — | Supported (no-op) |
+| `session/new` | `newSession` | Supported |
+| `session/load` | `loadSession` | Supported (replays text history) |
+| `session/list` | `listSessions` | Supported |
+| `session/resume` | `resumeSession` | Supported (no history replay) |
+| `session/close` | `closeSession` | Supported |
+| `session/fork` | `forkSession` | Supported (copies messages) |
+| `session/prompt` | `prompt` | Supported — waits until idle, returns `stopReason` |
+| `session/cancel` | `cancel` | Supported — aborts active run |
+| `session/set_mode` | `setSessionMode` | Supported — maps to agent name |
+| `session/set_model` | `setSessionModel` | Supported — `provider/model` |
+| `session/set_config_option` | `setSessionConfigOption` | Accepted (no-op) |
 
-## Event Handling
+### Capabilities (honest)
 
-tinycode streams events via `sessionUpdate` notifications. Each notification contains an array of events:
+During `initialize`, tinycode advertises:
 
-### Event Types
+- `loadSession: true`
+- `sessionCapabilities`: `close`, `fork`, `list`, `resume`
+- `promptCapabilities.image: false` (not yet supported)
+- `promptCapabilities.embeddedContext: false` (not yet supported)
 
-**`message-part`** — A chunk of the LLM's response
+## End-of-Turn Handling
 
-```typescript
-{
-  type: 'message-part',
-  part: {
-    type: 'text',
-    text: 'Here is the explanation...'
-  }
-}
+`session/prompt` blocks until the SessionManager reports idle (or cancel), then returns:
+
+```json
+{ "stopReason": "end_turn" }
 ```
 
-**`tool-call-started`** — Tool execution begins
+or `{ "stopReason": "cancelled" }` if the client sent `session/cancel`.
 
-```typescript
-{
-  type: 'tool-call-started',
-  name: 'Read',
-  callId: 'call-abc123'
-}
-```
-
-**`tool-call-completed`** — Tool execution finishes
-
-```typescript
-{
-  type: 'tool-call-completed',
-  name: 'Read',
-  callId: 'call-abc123',
-  status: 'success'
-}
-```
-
-**`request-permission`** — Agent requests permission to run a tool
-
-```typescript
-{
-  type: 'request-permission',
-  sessionId: 'sess-xyz',
-  requestId: 'req-123',
-  tool: 'Bash',
-  description: 'Run command: npm test'
-}
-```
-
-### Streaming Responses
-
-All text responses are streamed incrementally via `message-part` events. Accumulate them to build the full response:
-
-```typescript
-let fullResponse = ''
-
-conn.onNotification('sessionUpdate', (params) => {
-  for (const event of params.events) {
-    if (event.type === 'message-part' && event.part.type === 'text') {
-      fullResponse += event.part.text
-      updateUI(fullResponse)
-    }
-  }
-})
-```
-
-## Permission System
-
-tinycode requires explicit permission before executing tools that modify files or run shell commands. The IDE must handle `request-permission` events and respond with one of:
-
-- **`allow-once`** — Grant permission for this single operation
-- **`allow-always`** — Add the tool/command to the allowlist (stored in tinycode config)
-- **`deny`** — Reject the operation
-
-Example flow:
-
-1. User sends prompt: "Run the tests"
-2. tinycode decides to call the `Bash` tool
-3. ACP server emits `request-permission` event
-4. IDE shows permission dialog to user
-5. User selects "Allow Once"
-6. IDE calls `respondToPermissionRequest` with decision
-7. tinycode executes the tool
-8. ACP server emits `tool-call-completed` event
+Prompt params accept either official `prompt: ContentBlock[]` or legacy `content: ContentBlock[]`.
 
 ## Session Management
 
@@ -265,158 +198,60 @@ Example flow:
 
 ```typescript
 const session = await conn.newSession({
-  cwd: '/path/to/project',
-  agent: 'executor',  // optional: default agent
-  model: 'ollama/llama3.2'  // optional: override model
+  cwd: '/path/to/project'
 })
 ```
 
-### Listing Sessions
+New sessions use agent `build` and the default model from config/discovery (same heuristics as TUI).
+
+### Listing / Loading / Forking
 
 ```typescript
-const sessions = await conn.listSessions()
-for (const session of sessions) {
-  console.log(`${session.sessionId}: ${session.title}`)
-}
-```
-
-### Switching Sessions
-
-```typescript
-await conn.switchSession({
-  sessionId: 'sess-abc123'
-})
+const { sessions } = await conn.listSessions({ cwd: workspaceRoot })
+await conn.loadSession({ sessionId, cwd: workspaceRoot }) // replays history via session/update
+const forked = await conn.unstable_forkSession({ sessionId })
 ```
 
 ## Error Handling
 
-All ACP methods return promises that reject on error. Handle errors appropriately:
+All ACP methods return promises that reject on error. Handle JSON-RPC error codes (`-32602` invalid params, `-32603` internal, `-32601` method not found).
 
-```typescript
-try {
-  await conn.prompt({
-    sessionId: session.sessionId,
-    prompt: [{ type: 'text', text: 'Hello' }]
-  })
-} catch (error) {
-  if (error.code === -32602) {
-    // Invalid params
-    console.error('Invalid request:', error.message)
-  } else if (error.code === -32603) {
-    // Internal error
-    console.error('Server error:', error.message)
-  } else {
-    console.error('Unexpected error:', error)
-  }
-}
-```
+## Editor Status
 
-## Advanced: Multi-Modal Prompts
-
-Send images or other content types in prompts:
-
-```typescript
-await conn.prompt({
-  sessionId: session.sessionId,
-  prompt: [
-    { type: 'text', text: 'Explain this screenshot:' },
-    {
-      type: 'image',
-      source: {
-        type: 'base64',
-        mediaType: 'image/png',
-        data: base64ImageData
-      }
-    }
-  ]
-})
-```
-
-## End-of-Turn Handling
-
-ACP clients need to know when the agent has finished processing a prompt. tinycode uses SSE event draining internally to ensure all tool results and message parts are delivered before the `prompt()` call resolves.
-
-The `prompt()` method returns only after:
-1. The LLM finishes generating
-2. All tool executions complete
-3. All `sessionUpdate` notifications for the turn have been emitted
-
-This means clients can safely treat the `prompt()` promise resolution as the end-of-turn signal — no polling or timeout required.
-
-```typescript
-// prompt() resolves only after all events are delivered
-await conn.prompt({
-  sessionId: session.sessionId,
-  prompt: [{ type: 'text', text: 'Run the tests and report results' }]
-})
-// At this point, all tool-call-completed events have been emitted
-console.log('Turn complete — all results delivered')
-```
-
-For non-interactive integrations (CI pipelines, batch processing), this guarantees that reading the session messages after `prompt()` returns will include the complete response.
+| Editor | Status |
+|--------|--------|
+| VS Code (`packages/vscode-extension`) | Spawn + handshake aligned with Go ACP; chat streams `session/update` |
+| Zed | Use official ACP agent spawn pointing at `tinycode acp --cwd …` |
+| JetBrains | Not packaged yet; same stdio protocol applies |
 
 ## Troubleshooting
 
 ### Connection Failed
 
-**Symptom:** `spawn` fails or process exits immediately
-
-**Causes:**
-- `tinycode` binary not found in PATH
-- Binary missing execute permission
-- Wrong working directory
-
-**Solutions:**
-- Verify `which tinycode` or provide absolute path
-- Run `chmod +x /path/to/tinycode`
-- Check that `--cwd` points to a valid directory
+- Verify `which tinycode` (Go binary from `make build` → `dist/tinycode`)
+- Ensure `--cwd` points to a valid directory
+- Check stderr for bootstrap/discovery errors
 
 ### No Response to Prompts
 
-**Symptom:** `prompt()` succeeds but no `sessionUpdate` events arrive
-
-**Causes:**
-- Session was closed or invalid
-- Server crashed (check stderr)
-- Network issue (if using remote server)
-
-**Solutions:**
-- Call `getSession()` to verify session is active
-- Read from `proc.stderr` and log errors
-- Ensure tinycode server is running (`lsof -i :4096`)
+- Confirm a model is available (`tinycode models`) or pass `--model provider/model`
+- Read process stderr — missing providers surface there
+- `session/prompt` should eventually return a `stopReason`; if it hangs, check permission UI
 
 ### Permission Requests Hang
 
-**Symptom:** Tool execution pauses indefinitely
-
-**Cause:** IDE didn't respond to `request-permission` event
-
-**Solution:** Ensure you have a listener for `request-permission` and always call `respondToPermissionRequest`, even if the user cancels (send `deny`).
-
-### High Latency
-
-**Symptom:** Responses are slow
-
-**Causes:**
-- Large codebase (many files to index)
-- Slow LLM backend
-- Cold start (first request after spawn)
-
-**Solutions:**
-- Use `.tineignore` to exclude node_modules, build artifacts
-- Configure a faster model for quick responses
-- Keep the ACP process alive across multiple prompts
+- Client must implement `requestPermission` and always respond (deny on cancel)
+- Auto-deny kicks in after 120s
 
 ## Reference Implementation
 
-See `packages/vscode-extension/` for a complete VS Code extension that demonstrates:
+See `packages/vscode-extension/` for a VS Code extension that:
 
-- Spawning the ACP server as a child process
-- Creating sessions on workspace open
-- Registering a chat participant
-- Streaming responses to the chat UI
-- Handling permission requests with VS Code quick-picks
-- Logging to the output channel
+- Spawns `tinycode acp --cwd <workspace>`
+- Initializes with protocol version `1`
+- Creates a session and registers a chat participant
+- Streams `session/update` chunks into the chat UI
+- Handles `session/request_permission` with quick-picks
 
 ## Specification
 
@@ -424,6 +259,6 @@ The full ACP specification is available at [agentclientprotocol.com](https://age
 
 ## Next Steps
 
-- Read the [VS Code extension README](../packages/vscode-extension/README.md) for a working example
-- Explore the ACP SDK documentation at [@agentclientprotocol/sdk](https://www.npmjs.com/package/@agentclientprotocol/sdk)
-- Join the tinycode community to share your integration or ask questions
+- Read the [VS Code extension README](../packages/vscode-extension/README.md)
+- Explore [@agentclientprotocol/sdk](https://www.npmjs.com/package/@agentclientprotocol/sdk)
+)

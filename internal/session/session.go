@@ -10,22 +10,22 @@ import (
 )
 
 type Info struct {
-	ID        string     `json:"id"`
-	Slug      string     `json:"slug,omitempty"`
-	ProjectID string     `json:"projectID"`
-	Directory string     `json:"directory"`
-	ParentID  string     `json:"parentID,omitempty"`
-	Title     string     `json:"title"`
-	Agent     string     `json:"agent,omitempty"`
-	Model     *ModelRef  `json:"model,omitempty"`
-	Version   string     `json:"version"`
-	Summary   *Summary   `json:"summary,omitempty"`
-	Cost      float64    `json:"cost,omitempty"`
-	Tokens    TokenUsage `json:"tokens"`
-	Time      TimeInfo   `json:"time"`
-	CreatedAt    time.Time `json:"-"`
-	UpdatedAt    time.Time `json:"-"`
-	TimeArchived int64    `json:"-"`
+	ID           string     `json:"id"`
+	Slug         string     `json:"slug,omitempty"`
+	ProjectID    string     `json:"projectID"`
+	Directory    string     `json:"directory"`
+	ParentID     string     `json:"parentID,omitempty"`
+	Title        string     `json:"title"`
+	Agent        string     `json:"agent,omitempty"`
+	Model        *ModelRef  `json:"model,omitempty"`
+	Version      string     `json:"version"`
+	Summary      *Summary   `json:"summary,omitempty"`
+	Cost         float64    `json:"cost,omitempty"`
+	Tokens       TokenUsage `json:"tokens"`
+	Time         TimeInfo   `json:"time"`
+	CreatedAt    time.Time  `json:"-"`
+	UpdatedAt    time.Time  `json:"-"`
+	TimeArchived int64      `json:"-"`
 }
 
 type TimeInfo struct {
@@ -101,9 +101,9 @@ type CreateInput struct {
 }
 
 const (
-	defaultVersion     = "1"
-	parentTitlePrefix  = "New session - "
-	childTitlePrefix   = "Child session - "
+	defaultVersion    = "1"
+	parentTitlePrefix = "New session - "
+	childTitlePrefix  = "Child session - "
 )
 
 func DefaultTitle(isChild bool) string {
@@ -248,6 +248,32 @@ func (s *Store) UpdateTitle(sessionID, title string) error {
 	_, err := s.db.Exec(
 		"UPDATE session SET title = ?, time_updated = ? WHERE id = ?",
 		title, time.Now().UnixMilli(), sessionID,
+	)
+	return err
+}
+
+// UpdateModel updates the session's model reference.
+func (s *Store) UpdateModel(sessionID string, model *ModelRef) error {
+	var modelJSON string
+	if model != nil {
+		data, err := json.Marshal(model)
+		if err != nil {
+			return fmt.Errorf("marshal model: %w", err)
+		}
+		modelJSON = string(data)
+	}
+	_, err := s.db.Exec(
+		"UPDATE session SET model = ?, time_updated = ? WHERE id = ?",
+		modelJSON, time.Now().UnixMilli(), sessionID,
+	)
+	return err
+}
+
+// UpdateAgent updates the session's agent name.
+func (s *Store) UpdateAgent(sessionID, agent string) error {
+	_, err := s.db.Exec(
+		"UPDATE session SET agent = ?, time_updated = ? WHERE id = ?",
+		agent, time.Now().UnixMilli(), sessionID,
 	)
 	return err
 }

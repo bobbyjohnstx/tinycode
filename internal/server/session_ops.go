@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -97,6 +98,40 @@ func (sm *SessionManager) subscribePrompts() {
 			})
 		}
 	})
+}
+
+// StartTextPrompt loads the session's model/agent from the store and starts a prompt turn.
+func (sm *SessionManager) StartTextPrompt(ctx context.Context, sessionID, text string) error {
+	store := session.NewStore(sm.db)
+	info, err := store.Get(sessionID)
+	if err != nil {
+		return fmt.Errorf("get session: %w", err)
+	}
+	if info.Model == nil {
+		return fmt.Errorf("session %s has no model configured", sessionID)
+	}
+	agentName := info.Agent
+	if agentName == "" {
+		agentName = "build"
+	}
+	sm.StartPrompt(ctx, PromptInput{
+		SessionID: sessionID,
+		Model: &promptModel{
+			ProviderID: info.Model.ProviderID,
+			ModelID:    info.Model.ModelID,
+		},
+		Agent: agentName,
+		Parts: []promptPart{{Type: "text", Text: text}},
+	})
+	return nil
+}
+
+// IsBusy reports whether a prompt turn is currently active for the session.
+func (sm *SessionManager) IsBusy(sessionID string) bool {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	_, ok := sm.sessions[sessionID]
+	return ok
 }
 
 func (sm *SessionManager) Abort(sessionID string) {
