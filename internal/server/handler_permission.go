@@ -27,11 +27,20 @@ func (s *Server) handlePermissionReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Normalize to TS-contract Reply type
+	reply := body.Action
+	switch reply {
+	case "allow":
+		reply = "once"
+	case "deny":
+		reply = "reject"
+	}
+
 	s.permissionStore.Remove(id)
 
-	s.deps.Bus.Publish("permission.reply", map[string]any{
-		"permissionID": id,
-		"action":       body.Action,
+	s.deps.Bus.Publish("permission.replied", map[string]any{
+		"requestID": id,
+		"reply":     reply,
 	})
 
 	respondJSON(w, http.StatusOK, map[string]any{

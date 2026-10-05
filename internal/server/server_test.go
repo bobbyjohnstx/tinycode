@@ -1068,17 +1068,14 @@ func TestFileRead_BinaryType(t *testing.T) {
 func TestPermissionReply_SDKFieldNames(t *testing.T) {
 	srv, b := testServer(t)
 
-	// handleSessionPermissionReply publishes "permission.replied" with "reply" field.
-	// handlePermissionReply publishes "permission.reply" with "action" field.
+	// Both endpoints now publish "permission.replied" with "reply" field.
 	sessionSub := b.Subscribe("permission.replied")
-	permSub := b.Subscribe("permission.reply")
 
 	tests := []struct {
 		name      string
 		path      string
 		body      string
 		wantValue string
-		usePerm   bool // true = permission endpoint (permission.reply topic)
 	}{
 		{
 			name:      "session endpoint with SDK 'response' field (once)",
@@ -1109,14 +1106,12 @@ func TestPermissionReply_SDKFieldNames(t *testing.T) {
 			path:      "/permission/perm_5/reply",
 			body:      `{"action":"once"}`,
 			wantValue: "once",
-			usePerm:   true,
 		},
 		{
 			name:      "permission endpoint with 'action' field (always)",
 			path:      "/permission/perm_6/reply",
 			body:      `{"action":"always"}`,
 			wantValue: "always",
-			usePerm:   true,
 		},
 	}
 
@@ -1131,34 +1126,18 @@ func TestPermissionReply_SDKFieldNames(t *testing.T) {
 				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 			}
 
-			if tt.usePerm {
-				select {
-				case evt := <-permSub.C:
-					props, ok := evt.Properties.(map[string]any)
-					if !ok {
-						t.Fatal("expected map properties on bus event")
-					}
-					action, _ := props["action"].(string)
-					if action != tt.wantValue {
-						t.Errorf("expected action %q, got %q", tt.wantValue, action)
-					}
-				case <-time.After(time.Second):
-					t.Fatal("timed out waiting for permission.reply bus event")
+			select {
+			case evt := <-sessionSub.C:
+				props, ok := evt.Properties.(map[string]any)
+				if !ok {
+					t.Fatal("expected map properties on bus event")
 				}
-			} else {
-				select {
-				case evt := <-sessionSub.C:
-					props, ok := evt.Properties.(map[string]any)
-					if !ok {
-						t.Fatal("expected map properties on bus event")
-					}
-					reply, _ := props["reply"].(string)
-					if reply != tt.wantValue {
-						t.Errorf("expected reply %q, got %q", tt.wantValue, reply)
-					}
-				case <-time.After(time.Second):
-					t.Fatal("timed out waiting for permission.replied bus event")
+				reply, _ := props["reply"].(string)
+				if reply != tt.wantValue {
+					t.Errorf("expected reply %q, got %q", tt.wantValue, reply)
 				}
+			case <-time.After(time.Second):
+				t.Fatal("timed out waiting for permission.replied bus event")
 			}
 		})
 	}

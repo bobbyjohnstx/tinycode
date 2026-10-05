@@ -790,8 +790,8 @@ func TestE2E_ClientFactoryReceivesAPIKey(t *testing.T) {
 func TestE2E_PermissionReplyPropagates(t *testing.T) {
 	h := newTestHarness(t, nil)
 
-	// handlePermissionReply publishes to "permission.reply" with "permissionID" and "action".
-	sub := h.bus.Subscribe("permission.reply")
+	// handlePermissionReply publishes to "permission.replied" with "requestID" and "reply".
+	sub := h.bus.Subscribe("permission.replied")
 	defer sub.Unsubscribe()
 
 	// POST a permission reply — the handler should publish to the bus
@@ -809,14 +809,14 @@ func TestE2E_PermissionReplyPropagates(t *testing.T) {
 	select {
 	case evt := <-sub.C:
 		props := evt.Properties.(map[string]any)
-		if props["permissionID"] != "per_test123" {
-			t.Errorf("expected permissionID per_test123, got %v", props["permissionID"])
+		if props["requestID"] != "per_test123" {
+			t.Errorf("expected requestID per_test123, got %v", props["requestID"])
 		}
-		if props["action"] != "allow" {
-			t.Errorf("expected action 'allow', got %v", props["action"])
+		if props["reply"] != "once" {
+			t.Errorf("expected reply 'once', got %v", props["reply"])
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for permission.reply event")
+		t.Fatal("timeout waiting for permission.replied event")
 	}
 }
 
