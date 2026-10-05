@@ -1,3 +1,5 @@
+> **Historical document (September 2026).** This analysis predates v2.1 and the two-round code review (60+ fixes). Many findings are now resolved. See README.md and CHANGELOG.md for current state.
+
 # Architecture Review — tinycode
 
 **Date:** 2026-09-08

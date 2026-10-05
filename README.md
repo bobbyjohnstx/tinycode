@@ -4,7 +4,7 @@ Local-first AI coding assistant. Bring any model — single binary, no runtime d
 
 ![tinycode TUI](tinycode-screenshot.png)
 
-[![CI](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go CI](https://github.com/bobbyjohnstx/tinycode/actions/workflows/go-ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode/actions/workflows/go-ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## What it is
 

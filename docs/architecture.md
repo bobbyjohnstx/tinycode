@@ -13,7 +13,7 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 ```
 cmd/
   tinycode/           Main binary entry point
-  plugin-*/           Plugin binaries (36 plugins)
+  plugin-*/           Plugin binaries (30 plugins)
 internal/
   acp/                Agent Client Protocol (stdio for IDE integration)
   agent/              Agent definitions and defaults
@@ -21,6 +21,7 @@ internal/
   command/            Slash command discovery and merging
   config/             Config file parsing (JSONC)
   earlyinit/          Package-init side effects (e.g., lipgloss defaults)
+  frecency/           Frequency + recency ranking for command palette
   frontmatter/        YAML-like frontmatter parser for markdown files
   id/                 Sortable ID generation with typed prefixes
   llm/                LLM client abstraction (OpenAI-compatible)
@@ -35,7 +36,8 @@ internal/
   skill/              Skill discovery and loading
   static/             Embedded web app file server with SPA fallback
   storage/            SQLite via modernc.org/sqlite
-  tool/               Tool implementations (read, write, edit, shell, grep, glob, etc.)
+  safego/             Panic-recovery goroutine wrapper
+  tool/               Tool implementations (18 tools: read, write, edit, shell, grep, glob, etc.)
   tui/                Terminal UI (bubbletea, Elm architecture)
   tui/api/            HTTP client for the embedded server API
   vcs/                Git operations
@@ -86,7 +88,7 @@ OpenAI-compatible HTTP client with streaming SSE support. Sends chat completion 
 
 ### `internal/config/` -- Configuration
 
-Parses `~/.config/tinycode/config.json` (JSONC with comments). Project-level config from `.tinycode/tinycode.json`. Supports environment variable overrides (`TINYCODE_PORT`, `TINYCODE_HOST`, `TINYCODE_DB`, `TINYCODE_LOG_LEVEL`). Configs are merged from global, project, and environment sources.
+Parses config files with a 3-name fallback per directory: `tinycode.jsonc` → `tinycode.json` → `config.json`. Global config from `~/.config/tinycode/`. Project config from `.tinycode/` (walks up the directory tree, innermost wins). Supports environment variable overrides (`TINYCODE_PORT`, `TINYCODE_HOST`, `TINYCODE_DB`, `TINYCODE_LOG_LEVEL`). Configs are merged from global, project, and environment sources.
 
 ### `internal/storage/` -- Database
 
