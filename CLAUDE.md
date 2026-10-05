@@ -32,7 +32,6 @@ Things that break silently if you guess wrong.
 - **`defaultAutoContinueMax = 0` is intentional**: The agent does not auto-continue by default. Setting this to a positive number enables unsupervised agent loops that burn tokens and run tools without consent.
 - **`SetWorking(true)` return value must be propagated**: `StatusBar.SetWorking()` returns a `tea.Cmd` that drives the spinner tick chain. Discarding it freezes the spinner — the UI appears hung.
 - **Config file 3-name fallback**: Config loading tries `tinycode.jsonc` → `tinycode.json` → `config.json` in each directory. Only checking one name silently ignores user config.
-- **macOS config loads from two directories**: `~/Library/Application Support/tinycode/` first, then `~/.config/tinycode/`. The second path exists for TypeScript tinycode migration compatibility. Only checking one path loses user settings.
 - **`internal/static/dist/` is committed, not gitignored**: The `//go:embed dist/*` directive in `internal/static/static.go` requires these files at compile time. Deleting them as build artifacts breaks `go build`.
 - **`LSPConfig` accepts both forms**: `"lsp": true` (boolean shorthand) and `"lsp": { "enabled": true, ... }` (struct). Always expecting an object breaks boolean-shorthand users.
 - **SQLite is pure Go (`modernc.org/sqlite`), not cgo**: No C toolchain needed. Setting `CGO_ENABLED=1` or switching to `mattn/go-sqlite3` breaks cross-compilation.
