@@ -21,7 +21,7 @@ func (p *pluginProcess) sendHook(hookName string, input any) (json.RawMessage, e
 	raw, err := p.sendRPC("hook/invoke", pkgplugin.HookParams{
 		Name:  hookName,
 		Input: inputJSON,
-	})
+	}, hookTimeout)
 	if err != nil {
 		return nil, err
 	}
