@@ -40,7 +40,7 @@ Solutions to common tinycode issues and configuration problems.
 1. Verify vLLM is listening: `curl http://localhost:8000/v1/models`
 2. If running on a different host:
    ```bash
-   export TINYCODE_VLLM_URLS=http://your-vllm-host:8000
+   export TINYCODE_VLLM_HOST=http://your-vllm-host:8000
    ```
 3. If behind a firewall, ensure port 8000 is open
 4. Check vLLM didn't crash:
@@ -333,7 +333,7 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
 3. If missing vLLM, set environment variable:
    ```bash
    podman run -it \
-     -e TINYCODE_VLLM_URL=http://your-vllm:8000 \
+     -e TINYCODE_VLLM_HOST=http://your-vllm:8000 \
      -e TINYCODE_SERVER_PASSWORD=changeme \
      quay.io/bjohns/tinycode-container:latest
    ```

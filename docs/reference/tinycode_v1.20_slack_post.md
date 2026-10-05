@@ -10,7 +10,7 @@ Shipped v1.20 of tinycode - quick update since I first mentioned it on cloud-str
 
 I wanted an AI coding tool that worked like vi - no login, no subscription, runs air-gapped. Couldn't find one that didn't require frontier API tokens or phone home to a cloud service, so I built one. It runs local-first against Ollama, vLLM, or ramalama on your LAN. No data leaves your network.
 
-What started as a simple fork, has grown into a five-repo ecosystem: core app (TUI + web + Electron), a UBI9 multi-arch container image, a Kubernetes Operator, 36 plugins (25 are Red Hat product integrations - OpenShift, Ansible, RHACS, Tekton, Satellite), and a Homebrew tap.
+What started as a simple fork, has grown into a five-repo ecosystem: core app (TUI + web + Electron), a UBI9 multi-arch container image, a Kubernetes Operator, 30 plugins (25 are Red Hat product integrations - OpenShift, Ansible, RHACS, Tekton, Satellite), and a Homebrew tap.
 
 The Operator manages TinycodeInstance CRDs on OpenShift - SCCs, Routes, PVCs, cross-namespace vLLM auto-discovery, self-service provisioning. Building it made me a lot more empathetic to what our customers go through with Operators and SCCs.
 

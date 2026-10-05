@@ -14,7 +14,7 @@ What started as a fork has turned into a five-repo ecosystem:
 
 - A TUI, web UI (SolidJS), and Electron desktop app - same engine, three surfaces
 - 24 specialized agents (code review, security, debugging, cluster admin, architecture)
-- 36 plugins, including integrations for OpenShift, Ansible, RHACS, Tekton, and Satellite
+- 30 plugins, including integrations for OpenShift, Ansible, RHACS, Tekton, and Satellite
 - A multi-arch container image (UBI9, amd64 + arm64) that runs on OpenShift with arbitrary UIDs
 - A Kubernetes Operator that manages instances via CRDs - handles SCCs, Routes, PVCs, cross-namespace vLLM discovery, and self-service provisioning
 

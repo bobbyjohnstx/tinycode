@@ -85,14 +85,14 @@ spec:
 tinycode serve
 
 # Connect to shared vLLM service
-export TINYCODE_VLLM_URLS=http://vllm-service:8000
+export TINYCODE_VLLM_HOST=http://vllm-service:8000
 ```
 
 ### Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
-| `TINYCODE_VLLM_URLS` | Comma-separated vLLM service URLs |
+| `TINYCODE_VLLM_HOST` | vLLM service URL |
 | `TINYCODE_MAAS_HOST` | MaaS/LiteMaaS endpoint |
 | `TINYCODE_MAAS_API_KEY` | MaaS authentication key |
 | `TINYCODE_SERVER_PASSWORD` | Server authentication (required for remote access) |
@@ -147,7 +147,7 @@ tinycode serve
 | Variable | Purpose |
 |----------|---------|
 | `KUBECONFIG` | Path to kubeconfig (default: `~/.kube/config`) |
-| `TINYCODE_VLLM_URLS` | Model service endpoint |
+| `TINYCODE_VLLM_HOST` | Model service endpoint |
 
 ### Capabilities
 

@@ -130,7 +130,7 @@ Point tinycode at your network and it finds your models:
 tinycode
 
 # Or specify a vLLM endpoint
-export TINYCODE_VLLM_URL=http://your-vllm-server:8000
+export TINYCODE_VLLM_HOST=http://your-vllm-server:8000
 tinycode
 ```
 
@@ -140,7 +140,7 @@ No manual endpoint registration. No config file wrestling. Auto-probes model met
 
 tinycode is a ground-up Go rewrite of the original TypeScript codebase (13,700+ commits), built on proven patterns:
 
-- **net/http + chi router** — Standard Go HTTP server with middleware
+- **standard library `net/http`** — Standard Go HTTP server with middleware
 - **bubbletea** — Elm-architecture TUI framework (Charmbracelet)
 - **modernc.org/sqlite** — Pure-Go SQLite with migrations
 - **slog** — Structured logging via Go standard library

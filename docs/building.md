@@ -217,7 +217,7 @@ make test-verbose
 make lint
 ```
 
-Currently runs `go vet ./...`. When golangci-lint is configured, `make lint` will include it.
+Runs `go vet ./...` and [staticcheck](https://staticcheck.dev/) on `./...`.
 
 ## Clean
 
