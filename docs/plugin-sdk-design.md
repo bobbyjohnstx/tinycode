@@ -190,7 +190,7 @@ tinycode plugin install notify                                 # From registry
 - Options passed via `initialize` params
 - Shell: direct `os/exec` instead of `Bun.$`
 
-## Existing Plugin Inventory (36 plugins)
+## Existing Plugin Inventory (30 plugins)
 
 **General (12):** pilot, code-review, command-inject, context-pruning, handoff, notify, snippets, telemetry, documents, web-search, safety-net, log-sanitizer
 

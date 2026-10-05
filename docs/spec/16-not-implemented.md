@@ -60,7 +60,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - Parameters: `workers` (default 4, max 8), `stale_seconds` (240), `poll_seconds` (30)
 - Custom worker commands, shared directory, switch tmux client
 
-**Go status:** Not implemented. The `task` tool supports subagent spawning for single-agent delegation but not multi-worker swarm coordination.
+**Go status:** Implemented. `/swarm` dispatches parallel subagents as goroutines (not the legacy TypeScript tmux swarm).
 
 ---
 
@@ -202,7 +202,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - Reads service account token and namespace
 - Three priority tiers: `tinycode.dev/discover=vllm` annotation, KServe label, port probing (8080, 8000, 80)
 
-**Go status:** Not implemented. Go supports explicit `TINYCODE_VLLM_URLS` but not Kubernetes service discovery.
+**Go status:** Not implemented. Go supports explicit `TINYCODE_VLLM_HOST` but not Kubernetes service discovery.
 
 ---
 
@@ -241,7 +241,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - `--sanitize` flag: redacts file contents, tool outputs, paths using `[redacted:<type>:<id>]` format
 - Import: `tinycode import` to restore session data
 
-**Go status:** Go supports JSON export but not HTML export or sanitized export. Import is not implemented.
+**Go status:** Implemented. Go supports JSON and HTML export.
 
 ---
 
@@ -262,7 +262,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 
 **TS behavior:** Commands and files ranked by frequency + recency score, stored in namespaced store per project.
 
-**Go status:** Not implemented. Command palette uses static ordering.
+**Go status:** Implemented. Commands and files ranked by frecency score.
 
 ---
 
@@ -300,7 +300,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - Available when client is `app`, `cli`, or `desktop`, or `enableQuestionTool` flag is set
 - Denied by default in run mode
 
-**Go status:** Not implemented as a standalone tool. Permission prompts serve the same role for yes/no decisions.
+**Go status:** Implemented. `question` tool available for structured user interaction.
 
 ---
 
@@ -324,7 +324,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - Custom patch parser supporting add/update/delete/move operations
 - Per-file formatting and LSP diagnostics
 
-**Go status:** Not implemented. Go uses `edit` and `write` for all models.
+**Go status:** Implemented. `apply_patch` tool available for GPT models.
 
 ---
 
@@ -335,7 +335,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - `websearch`: two search providers (Exa and Parallel), session-hash-based selection
 - `webfetch`: 5 MB max, HTML-to-markdown, PDF text extraction, Cloudflare bot detection retry
 
-**Go status:** `webfetch` implemented. `websearch` not implemented (requires external search provider configuration).
+**Go status:** Implemented. Both `webfetch` and `websearch` tools available.
 
 ---
 

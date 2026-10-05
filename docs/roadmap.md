@@ -9,7 +9,7 @@ The Go rewrite (2.0) replaces the TypeScript 1.x codebase with a standalone Go b
 ### Core
 - **Standalone binary** -- Single Go binary embeds HTTP server, TUI, session management, LLM client, and tool execution. No separate server process, no TypeScript runtime required.
 - **Bubbletea TUI** -- Terminal interface rebuilt with [bubbletea](https://github.com/charmbracelet/bubbletea) (Elm architecture). Session tree sidebar, conversation history, model switching, command palette, leader-key navigation.
-- **Embedded HTTP server** -- net/http + chi router with REST and SSE endpoints. Ephemeral port, no port 4096 dependency.
+- **Embedded HTTP server** -- standard library `net/http` with REST and SSE endpoints. Ephemeral port, no port 4096 dependency.
 - **Provider abstraction** -- Ollama, OpenAI-compatible, OpenRouter auto-discovery with capability detection.
 - **Session management** -- SQLite-backed persistence, session tree hierarchy, context compaction.
 - **ACP mode** -- Agent Client Protocol for IDE integration (stdio transport).

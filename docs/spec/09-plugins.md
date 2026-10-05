@@ -11,7 +11,7 @@ Plugins are standalone Go binaries that communicate with tinycode over JSON-RPC 
 - Communication: JSON-RPC 2.0 over stdin/stdout (external) or direct function calls (built-in)
 - Plugin manager spawns processes, performs initialize handshake, dispatches hooks and tool calls
 - Tool IDs are namespaced: `plugin__{pluginName}__{toolName}`
-- 36 plugins in the curated registry (12 general-purpose + 24 Red Hat)
+- 30 plugin binaries + 4 in-process builtins (notify, code-review, context-pruning, handoff)
 
 ---
 
@@ -462,7 +462,7 @@ type RegistryEntry struct {
 | `Registry()` | Returns a copy of all registry entries |
 | `LookupRegistry(name)` | Find entry by name; returns `(entry, bool)` |
 
-### Registry Entries (36 plugins)
+### Registry Entries (30 plugins)
 
 #### General-Purpose (12)
 

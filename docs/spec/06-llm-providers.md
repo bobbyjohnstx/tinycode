@@ -239,7 +239,7 @@ Configuration via `config.Info`:
 
 ### vLLM
 
-- **Discovery URL:** `localhost:8000` (from `TINYCODE_VLLM_URLS` env)
+- **Discovery URL:** `localhost:8000` (from `TINYCODE_VLLM_HOST` env)
 - **API:** OpenAI-compatible `GET /v1/models`
 - **Context:** From `max_model_len`, fallback 8192
 - **Output limit:** `context / 2`

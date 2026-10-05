@@ -1,3 +1,5 @@
+> **Historical document (September 2026).** This analysis predates v2.1 and the code review fixes. Many findings are now resolved.
+
 # Structural Review: tinycode
 
 ## 1. Project Layout and Conventions
@@ -67,7 +69,7 @@ All internal packages use lowercase names matching Go conventions: `tui`, `serve
 | `project/` | *(none)* | Project metadata, VCS detection, worktree paths |
 | `provider/` | `bus` | Provider auto-discovery (Ollama, vLLM, LM Studio) |
 | `redhat/` | *(none)* | Red Hat shared library (OcClient, APIClient, etc.) |
-| `server/` | `agent`, `bus`, `config`, `mcp`, `permission`, `plugin`, `provider`, `session`, `tool` | HTTP server (chi router), REST + SSE endpoints |
+| `server/` | `agent`, `bus`, `config`, `mcp`, `permission`, `plugin`, `provider`, `session`, `tool` | HTTP server (standard library `net/http`), REST + SSE endpoints |
 | `session/` | `id`, `llm`, `provider`, `permission` | Session lifecycle, processor loop, LLM coordination |
 | `skill/` | `frontmatter` | Skill discovery and loading |
 | `static/` | *(none)* | Embedded web app file server with SPA fallback |
@@ -253,7 +255,7 @@ Tests are organized alongside source files (`foo.go` / `foo_test.go`).
 | Target | Description |
 |--------|-------------|
 | `build` | Build for current platform → `dist/tinycode` |
-| `build-plugins` | Build all 36 plugins for current platform → `dist/plugins/` |
+| `build-plugins` | Build all 30 plugins for current platform → `dist/plugins/` |
 | `build-full` | Build tinycode + all plugins for current platform |
 | `build-all` | Cross-compile for 5 platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64) |
 | `build-all-plugins` | Cross-compile all plugins for all platforms (25 binaries) |
@@ -271,8 +273,8 @@ Tests are organized alongside source files (`foo.go` / `foo_test.go`).
 - **Platforms**: 5 platforms supported for cross-compilation
 
 ### 6.3 Build Complexity
-- **26 binaries total**: 1 main binary + 36 plugins (but some platforms may not have all plugins)
-- **Cross-compilation**: 5 platforms × (1 + 36) = up to 185 binaries for `build-all-full`
+- **31 binaries total**: 1 main binary + 30 plugins (but some platforms may not have all plugins)
+- **Cross-compilation**: 5 platforms × (1 + 30) = up to 155 binaries for `build-all-full`
 - **No caching**: Each build recompiles from scratch — could benefit from `go build -o` with incremental builds or a build cache
 
 ---

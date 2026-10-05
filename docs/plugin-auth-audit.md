@@ -2,7 +2,7 @@
 
 # Plugin Auth Audit
 
-Audit of authentication mechanisms across all 36 plugins. Last updated: 2026-09-14.
+Audit of authentication mechanisms across all 30 plugins. Last updated: 2026-09-14.
 
 ## Auth Types
 

@@ -92,7 +92,7 @@ Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, 
 | -------------- | ------------------------------------------------------------------------------ |
 | `tui/`         | Terminal UI ([bubbletea](https://github.com/charmbracelet/bubbletea), Elm architecture) |
 | `tui/api/`     | HTTP client for the embedded server API                                        |
-| `server/`      | HTTP server (net/http + chi router), REST + SSE endpoints                      |
+| `server/`      | HTTP server (standard library `net/http`), REST + SSE endpoints                |
 | `session/`     | Session lifecycle, processor loop, LLM coordination                            |
 | `llm/`         | LLM client abstraction, OpenAI-compatible streaming, tool-call JSON repair     |
 | `provider/`    | Provider auto-discovery (Ollama, vLLM, LM Studio, OpenRouter)                  |
