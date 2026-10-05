@@ -7,31 +7,41 @@ import (
 )
 
 func TestResolveGoalCommand_KnownPatterns(t *testing.T) {
+	// Create a temp dir with go.mod to test Go ecosystem detection.
+	goDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(goDir, "go.mod"), []byte("module test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
 	tests := []struct {
 		condition string
+		dir       string
 		wantCmd   string
 		wantOK    bool
 	}{
-		{"all tests pass", "go test ./... -count=1", true},
-		{"tests pass", "go test ./... -count=1", true},
-		{"test passes", "go test ./... -count=1", true},
-		{"build succeeds", "go build ./...", true},
-		{"no lint errors", "go vet ./...", true},
-		{"lint passes", "go vet ./...", true},
-		{"vet clean", "go vet ./...", true},
+		{"all tests pass", goDir, "go test ./... -count=1", true},
+		{"tests pass", goDir, "go test ./... -count=1", true},
+		{"test passes", goDir, "go test ./... -count=1", true},
+		{"build succeeds", goDir, "go build ./...", true},
+		{"no lint errors", goDir, "go vet ./...", true},
+		{"lint passes", goDir, "go vet ./...", true},
+		{"vet clean", goDir, "go vet ./...", true},
 		// Case insensitive
-		{"All Tests Pass", "go test ./... -count=1", true},
-		{"BUILD SUCCEEDS", "go build ./...", true},
+		{"All Tests Pass", goDir, "go test ./... -count=1", true},
+		{"BUILD SUCCEEDS", goDir, "go build ./...", true},
 		// Substring match
-		{"make sure all tests pass please", "go test ./... -count=1", true},
-		// Unknown
-		{"deploy to staging", "", false},
-		{"fix the bug", "", false},
+		{"make sure all tests pass please", goDir, "go test ./... -count=1", true},
+		// Unknown patterns
+		{"deploy to staging", goDir, "", false},
+		{"fix the bug", goDir, "", false},
+		// No ecosystem detected (empty dir) — known pattern but no command
+		{"tests pass", "", "", false},
+		{"build succeeds", "", "", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.condition, func(t *testing.T) {
-			cmd, ok := ResolveGoalCommand(tt.condition, "")
+			cmd, ok := ResolveGoalCommand(tt.condition, tt.dir)
 			if ok != tt.wantOK {
 				t.Errorf("ResolveGoalCommand(%q) ok = %v, want %v", tt.condition, ok, tt.wantOK)
 			}
