@@ -1,3 +1,4 @@
+import { onCleanup } from "solid-js"
 import { useNavigate } from "@solidjs/router"
 import { useCommand, type CommandOption } from "@/context/command"
 import { useDialog } from "@tinycode/ui/context/dialog"
@@ -19,6 +20,8 @@ import { createSessionTabs } from "@/pages/session/helpers"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { UserMessage } from "@tinycode/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { continueGoalOnIdle, exportSessionTranscript, goalPromptParts } from "@/utils/session-slash"
+import { getGoal, goalStatusText } from "@/utils/session-goal"
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
@@ -272,6 +275,111 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     })
   }
 
+  const showHooks = () => {
+    void import("@/components/dialog-hooks").then((x) => {
+      dialog.show(() => <x.DialogHooks />)
+    })
+  }
+
+  const showPrivacy = () => {
+    void import("@/components/dialog-privacy").then((x) => {
+      dialog.show(() => <x.DialogPrivacy />)
+    })
+  }
+
+  const openContextTab = () => {
+    if (!params.id) {
+      showToast({ title: language.t("command.session.context.noSession") })
+      return
+    }
+    if (!view().reviewPanel.opened()) view().reviewPanel.open()
+    void tabs().open("context")
+    tabs().setActive("context")
+  }
+
+  const exportSession = (format: "md" | "html") => {
+    const sessionID = params.id
+    if (!sessionID) {
+      showToast({ title: language.t("command.session.export.noSession"), variant: "error" })
+      return
+    }
+    const session = info()
+    try {
+      const filename = exportSessionTranscript({
+        format,
+        session: {
+          id: sessionID,
+          title: session?.title,
+          time: session?.time,
+        },
+        messages: sync.data.message[sessionID] ?? [],
+        parts: sync.data.part,
+      })
+      showToast({
+        title: language.t("command.session.export.success"),
+        description: filename,
+        variant: "success",
+      })
+    } catch (err) {
+      showToast({
+        title: language.t("command.session.export.failed"),
+        description: err instanceof Error ? err.message : String(err),
+        variant: "error",
+      })
+    }
+  }
+
+  // Goal loop: when a session with an active goal goes idle, continue/verify.
+  let goalBusy = false
+  onCleanup(
+    sdk.event.on("session.status", (evt) => {
+      const sessionID = evt.properties.sessionID
+      if (evt.properties.status.type !== "idle") return
+      if (!getGoal(sessionID)) return
+      if (goalBusy) return
+      const currentModel = local.model.current()
+      const currentAgent = local.agent.current()
+      if (!currentModel || !currentAgent) return
+
+      goalBusy = true
+      void continueGoalOnIdle({
+        sessionID,
+        messages: sync.data.message[sessionID] ?? [],
+        parts: sync.data.part,
+        agent: currentAgent.name,
+        model: { providerID: currentModel.provider.id, modelID: currentModel.id },
+        shell: async (command) => {
+          await sdk.client.session.shell({
+            sessionID,
+            agent: currentAgent.name,
+            model: { providerID: currentModel.provider.id, modelID: currentModel.id },
+            command,
+          })
+        },
+        promptAsync: async (promptText) => {
+          await sdk.client.session.promptAsync({
+            sessionID,
+            agent: currentAgent.name,
+            model: { providerID: currentModel.provider.id, modelID: currentModel.id },
+            variant: local.model.variant.current(),
+            parts: goalPromptParts(promptText),
+          })
+        },
+        t: language.t as (key: string, vars?: Record<string, string | number>) => string,
+      })
+        .catch((err) => {
+          showToast({
+            title: language.t("command.session.goal.failed"),
+            description: err instanceof Error ? err.message : String(err),
+            variant: "error",
+          })
+        })
+        .finally(() => {
+          goalBusy = false
+        })
+    }),
+  )
+
   const showDiff = async () => {
     const res = await sdk.client.vcs.diff2
       .raw()
@@ -485,6 +593,67 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       hidden: true,
       onSelect: copyResponse,
     }),
+    sessionCommand({
+      id: "session.btw",
+      title: language.t("command.session.btw"),
+      description: language.t("command.session.btw.description"),
+      slash: "btw",
+      disabled: !params.id,
+      onSelect: () => {
+        showToast({ title: language.t("command.session.btw.usage") })
+      },
+    }),
+    sessionCommand({
+      id: "session.goal",
+      title: language.t("command.session.goal"),
+      description: language.t("command.session.goal.description"),
+      slash: "goal",
+      disabled: !params.id,
+      onSelect: () => {
+        const goal = params.id ? getGoal(params.id) : undefined
+        showToast({
+          title: goal ? goalStatusText(goal) : language.t("command.session.goal.usage"),
+        })
+      },
+    }),
+    sessionCommand({
+      id: "session.export",
+      title: language.t("command.session.export"),
+      description: language.t("command.session.export.description"),
+      slash: "export",
+      disabled: !params.id,
+      onSelect: () => exportSession("md"),
+    }),
+    sessionCommand({
+      id: "session.exportHtml",
+      title: language.t("command.session.exportHtml"),
+      description: language.t("command.session.exportHtml.description"),
+      slash: "export-html",
+      disabled: !params.id,
+      onSelect: () => exportSession("html"),
+    }),
+    sessionCommand({
+      id: "session.hooks",
+      title: language.t("command.session.hooks"),
+      description: language.t("command.session.hooks.description"),
+      slash: "hooks",
+      onSelect: showHooks,
+    }),
+    sessionCommand({
+      id: "session.privacy",
+      title: language.t("command.session.privacy"),
+      description: language.t("command.session.privacy.description"),
+      slash: "privacy",
+      onSelect: showPrivacy,
+    }),
+    sessionCommand({
+      id: "session.context",
+      title: language.t("command.session.context"),
+      description: language.t("command.session.context.description"),
+      slash: "context",
+      disabled: !params.id,
+      onSelect: openContextTab,
+    }),
   ]
 
   const fileCmds = () => [
@@ -532,6 +701,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "review.toggle",
       title: language.t("command.review.toggle"),
       keybind: "mod+shift+r",
+      slash: "changes",
       onSelect: () => view().reviewPanel.toggle(),
     }),
     ...(shown()
@@ -646,6 +816,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
         ? language.t("command.permissions.autoaccept.disable")
         : language.t("command.permissions.autoaccept.enable"),
       keybind: "mod+shift+a",
+      slash: "auto-approve",
       disabled: false,
       onSelect: toggleAutoAccept,
     }),

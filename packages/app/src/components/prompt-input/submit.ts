@@ -18,6 +18,13 @@ import { Worktree as WorktreeState } from "@/utils/worktree"
 import { buildRequestParts } from "./build-request-parts"
 import { setCursorPosition } from "./editor-dom"
 import { formatServerError } from "@/utils/server-errors"
+import {
+  exportSessionTranscript,
+  goalPromptParts,
+  handleBtwSlash,
+  handleGoalSlash,
+  matchClientSlash,
+} from "@/utils/session-slash"
 
 type PendingPrompt = {
   abort: AbortController
@@ -461,6 +468,83 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         draft.agent = agentInfo.name
         draft.prompt = [{ type: "text", content: askPrompt, start: 0, end: askPrompt.length }]
         text = askPrompt
+      }
+    }
+
+    const clientSlash = matchClientSlash(text)
+    if (clientSlash) {
+      clearInput()
+      const sessionInfo = sync.session.get(session.id)
+      const t = language.t
+
+      if (clientSlash.kind === "export" || clientSlash.kind === "export-html") {
+        try {
+          const filename = exportSessionTranscript({
+            format: clientSlash.kind === "export-html" ? "html" : "md",
+            session: {
+              id: session.id,
+              title: sessionInfo?.title,
+              time: sessionInfo?.time,
+            },
+            messages: sync.data.message[session.id] ?? [],
+            parts: sync.data.part,
+          })
+          showToast({
+            title: t("command.session.export.success"),
+            description: filename,
+            variant: "success",
+          })
+        } catch (err) {
+          showToast({
+            title: t("command.session.export.failed"),
+            description: err instanceof Error ? err.message : String(err),
+            variant: "error",
+          })
+        }
+        return
+      }
+
+      if (clientSlash.kind === "btw") {
+        void handleBtwSlash({
+          args: clientSlash.args,
+          url: sdk.url,
+          directory: sessionDirectory,
+          sessionID: session.id,
+          t: t as (key: string, vars?: Record<string, string | number>) => string,
+        })
+        return
+      }
+
+      if (clientSlash.kind === "goal") {
+        void handleGoalSlash({
+          args: clientSlash.args,
+          sessionID: session.id,
+          agent,
+          model,
+          variant,
+          listRoot: async () => {
+            const res = await client.file.list({ path: "." }).catch(() => ({ data: undefined as undefined }))
+            const entries = res.data ?? []
+            return entries.map((e) => e.name).filter(Boolean)
+          },
+          promptAsync: async (promptText: string) => {
+            await client.session.promptAsync({
+              sessionID: session.id,
+              agent,
+              model,
+              variant,
+              parts: goalPromptParts(promptText),
+            })
+          },
+          t: t as (key: string, vars?: Record<string, string | number>) => string,
+        }).catch((err) => {
+          showToast({
+            title: t("command.session.goal.failed"),
+            description: err instanceof Error ? err.message : String(err),
+            variant: "error",
+          })
+        })
+        return
       }
     }
 

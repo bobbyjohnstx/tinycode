@@ -676,6 +676,16 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       return
     }
 
+    // Arg-taking / submit-intercepted commands: seed the editor like custom slash.
+    const seedIds = new Set(["session.btw", "session.goal", "session.export", "session.exportHtml"])
+    if (seedIds.has(cmd.id)) {
+      const text = `/${cmd.trigger} `
+      setEditorText(text)
+      prompt.set([{ type: "text", content: text, start: 0, end: text.length }, ...images], text.length)
+      focusEditorEnd()
+      return
+    }
+
     clearEditor()
     prompt.set([...DEFAULT_PROMPT, ...images], 0)
     command.trigger(cmd.id, "slash")

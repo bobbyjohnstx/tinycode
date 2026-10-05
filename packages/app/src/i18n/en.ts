@@ -96,6 +96,63 @@ export const dict = {
   "command.session.diff": "Show working-tree diff",
   "command.session.diff.description": "Show uncommitted changes in the working tree",
 
+  "command.session.btw": "Side question",
+  "command.session.btw.description": "Ask a side question without polluting session context",
+  "command.session.btw.usage": "Usage: /btw <question>",
+  "command.session.btw.empty": "No side questions yet",
+  "command.session.btw.asking": "Asking side question…",
+  "command.session.btw.last.title": "Last side answer",
+  "command.session.btw.answer.title": "Side answer",
+  "command.session.btw.answer.empty": "(empty answer)",
+  "command.session.btw.failed": "Side question failed",
+
+  "command.session.goal": "Goal loop",
+  "command.session.goal.description": "Autonomous execution until a condition is met",
+  "command.session.goal.usage": "Usage: /goal <condition> — or /goal clear",
+  "command.session.goal.none": "No active goal",
+  "command.session.goal.noneCancel": "No active goal to cancel",
+  "command.session.goal.cancelled": "Goal cancelled",
+  "command.session.goal.set": "Goal set: {{goal}}",
+  "command.session.goal.met": "Goal met: {{goal}} (after {{count}} iterations)",
+  "command.session.goal.stuck": "Goal appears stuck: {{goal}}",
+  "command.session.goal.max": "Goal not met after {{count}} iterations: {{goal}}",
+  "command.session.goal.failed": "Goal command failed",
+
+  "command.session.export": "Export session",
+  "command.session.export.description": "Download the session transcript as Markdown",
+  "command.session.exportHtml": "Export session as HTML",
+  "command.session.exportHtml.description": "Download the session transcript as HTML",
+  "command.session.export.success": "Session exported",
+  "command.session.export.failed": "Export failed",
+  "command.session.export.noSession": "No active session to export",
+
+  "command.session.hooks": "Show hooks",
+  "command.session.hooks.description": "Show configured plugin and shell hooks",
+  "command.session.privacy": "Privacy",
+  "command.session.privacy.description": "Show what data stays local and what leaves your machine",
+  "command.session.context": "Session context",
+  "command.session.context.description": "Open the session context tab",
+  "command.session.context.noSession": "Open a session to view context",
+
+  "dialog.hooks.title": "Hooks",
+  "dialog.hooks.plugins": "Plugin hooks",
+  "dialog.hooks.plugins.none": "(none loaded)",
+  "dialog.hooks.shell": "Shell hooks",
+  "dialog.hooks.shell.none": "(none configured)",
+  "dialog.hooks.shell.hint":
+    'Add hooks in settings.json:\n"hooks": {\n  "session.start": [\n    {"command": "echo started"}\n  ]\n}',
+
+  "dialog.privacy.title": "Privacy",
+  "dialog.privacy.local.title": "Data stored locally",
+  "dialog.privacy.local.body":
+    "Sessions, messages, and conversation history are stored in the local SQLite database. Config, agents, skills, and themes live in the config directory.",
+  "dialog.privacy.leaves.label": "What leaves your machine",
+  "dialog.privacy.leaves.body":
+    "Nothing — unless you configure a cloud provider. When you do, only the current prompt and conversation context are sent to that provider's API.",
+  "dialog.privacy.notCollected.label": "What is not collected",
+  "dialog.privacy.notCollected.body":
+    "No telemetry. No analytics. No crash reports. No usage tracking. No sign-up. No account required. No phone-home.",
+
   "dialog.debug.title": "Diagnostics",
   "dialog.debug.server": "Server",
   "dialog.debug.version": "Version",
