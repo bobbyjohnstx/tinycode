@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	_ "modernc.org/sqlite"
 )
 
@@ -138,6 +139,13 @@ func openDB(dsn string) (*DB, error) {
 		}
 	}
 
+	var quickCheckResult string
+	if err := sqlDB.QueryRow("PRAGMA quick_check").Scan(&quickCheckResult); err != nil {
+		slog.Warn("SQLite integrity check error", "error", err)
+	} else if quickCheckResult != "ok" {
+		slog.Warn("SQLite integrity check failed", "result", quickCheckResult)
+	}
+
 	db := &DB{
 		DB:   sqlDB,
 		path: dsn,
@@ -218,18 +226,8 @@ func DefaultPath() string {
 		if v == ":memory:" || filepath.IsAbs(v) {
 			return v
 		}
-		return filepath.Join(dataDir(), v)
+		return filepath.Join(config.DataDir(), v)
 	}
-	return filepath.Join(dataDir(), "tinycode.db")
+	return filepath.Join(config.DataDir(), "tinycode.db")
 }
 
-func dataDir() string {
-	if v := os.Getenv("TINYCODE_DATA_DIR"); v != "" {
-		return v
-	}
-	if v := os.Getenv("XDG_DATA_HOME"); v != "" {
-		return filepath.Join(v, "tinycode")
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", "tinycode")
-}
