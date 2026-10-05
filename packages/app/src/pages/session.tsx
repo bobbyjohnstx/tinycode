@@ -1892,7 +1892,9 @@ export default function Page() {
         />
       </div>
 
-      <TerminalPanel />
+      <Show when={terminal.supported()}>
+        <TerminalPanel />
+      </Show>
     </div>
   )
 }

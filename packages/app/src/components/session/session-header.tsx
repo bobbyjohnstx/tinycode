@@ -24,6 +24,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
+import { sessionTitle } from "@/utils/session-title"
 import { StatusPopover, StatusPopoverV2 } from "../status-popover"
 import { IconButtonV2 } from "@tinycode/ui/v2/components/icon-button-v2.jsx"
 import { Icon as IconV2 } from "@tinycode/ui/v2/components/icon.jsx"
@@ -158,8 +159,18 @@ export function SessionHeader() {
   const isDesktopV2 = createMemo(() => platform.platform === "desktop" && settings.general.newLayoutDesigns())
   const search = createMemo(() => (isDesktopV2() ? settings.general.showSearch() : true))
   const tree = createMemo(() => (isDesktopV2() ? settings.general.showFileTree() : true))
-  const term = createMemo(() => (isDesktopV2() ? settings.general.showTerminal() : true))
+  const term = createMemo(
+    () => terminal.supported() && (isDesktopV2() ? settings.general.showTerminal() : true),
+  )
   const status = createMemo(() => (isDesktopV2() ? settings.general.showStatus() : true))
+
+  createEffect(() => {
+    if (typeof document === "undefined") return
+    const projectLabel = name()
+    const sessionLabel = sessionTitle(params.id ? sync.session.get(params.id)?.title : undefined)
+    const parts = [sessionLabel, projectLabel].filter((part): part is string => !!part && part.length > 0)
+    document.title = parts.length > 0 ? `${parts.join(" · ")} · tinycode` : "tinycode"
+  })
 
   const [exists, setExists] = createStore<Partial<Record<OpenApp, boolean>>>({
     finder: true,

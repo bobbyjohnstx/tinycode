@@ -33,7 +33,7 @@ import { useSettings } from "@/context/settings"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
-import { useProviders } from "@/hooks/use-providers"
+import { useModels } from "@/context/models"
 import { showToast, Toast, toaster } from "@tinycode/ui/toast"
 import { useServerSDK } from "@/context/server-sdk"
 import { clearWorkspaceTerminals, getTerminalServerScope } from "@/context/terminal"
@@ -122,7 +122,7 @@ export default function Layout(props: ParentProps) {
   const permission = usePermission()
   const navigate = useNavigate()
   setNavigate(navigate)
-  const providers = useProviders()
+  const models = useModels()
   const dialog = useDialog()
   const command = useCommand()
   const theme = useTheme()
@@ -192,6 +192,13 @@ export default function Layout(props: ParentProps) {
     installing: () => update.installing,
     install: installUpdate,
   }
+
+  createEffect(() => {
+    if (typeof document === "undefined") return
+    // SessionHeader owns the title inside project/session routes.
+    if (params.dir) return
+    document.title = "tinycode"
+  })
 
   const editor = createInlineEditorController()
   const setBusy = (directory: string, value: boolean) => {
@@ -2305,7 +2312,7 @@ export default function Layout(props: ParentProps) {
         <div
           class="shrink-0 px-3 py-3"
           classList={{
-            hidden: store.gettingStartedDismissed || !(providers.all().size > 0 && providers.paid().length === 0),
+            hidden: store.gettingStartedDismissed || models.list().length > 0,
           }}
         >
           <div class="rounded-xl bg-background-base shadow-xs-border-base" data-component="getting-started">

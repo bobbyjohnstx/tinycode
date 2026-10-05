@@ -26,7 +26,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - Desktop logging to disk
 - `Document-Policy: include-js-call-stacks-in-crash-reports` header
 
-**Go status:** Not planned. Go binary runs in terminal only.
+**Go status:** Unsupported / not planned. The supported GUI path is `tinycode web` (embedded SolidJS SPA served from the Go binary). `packages/desktop` (Electron) is experimental and unsupported for the Go product. A Go-native desktop app is not planned.
 
 ---
 

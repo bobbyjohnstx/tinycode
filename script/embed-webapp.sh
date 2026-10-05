@@ -27,6 +27,9 @@ if [ ! -d "$VENDORED" ] && [ ! -d "$WORKSPACE" ]; then
 fi
 
 echo "==> Building SolidJS web app..."
+# Embed builds ship as prod so newLayoutDesignsDefault stays false
+# (VITE_TINYCODE_CHANNEL !== "prod" enables experimental layout).
+export TINYCODE_CHANNEL="${TINYCODE_CHANNEL:-prod}"
 node "$ROOT/script/build-webapp.mjs"
 
 echo "==> Cleaning static dist..."

@@ -110,9 +110,11 @@ The SolidJS web UI from `packages/app` can be embedded into the Go binary for si
 make embed-webapp
 ```
 
-This runs `script/embed-webapp.sh`, which builds the web app and places the output in `internal/static/dist/` for Go's `embed.FS` to include at compile time. Requires Node.js and the web app dependencies under `packages/app` (legacy TypeScript tree).
+This runs `script/embed-webapp.sh`, which builds the web app (with `TINYCODE_CHANNEL=prod` by default) and places the output in `internal/static/dist/` for Go's `embed.FS` to include at compile time. Requires Node.js and the web app dependencies under `packages/app` (legacy TypeScript tree).
 
-After embedding, `make build` produces a binary that serves the web UI without external files. Without embedding, the binary still works -- it just does not serve a web UI unless `TINYCODE_WEB_DIR` points to a directory with built web assets.
+After embedding, `make build` produces a binary that serves the web UI without external files via `tinycode web`. Without embedding, the binary still works -- it just does not serve a web UI unless `TINYCODE_WEB_DIR` points to a directory with built web assets.
+
+**Desktop packaging:** The supported GUI path is `tinycode web` (embedded SolidJS SPA). The Electron shell in `packages/desktop` is experimental and unsupported for the Go product; a Go-native desktop app is not planned. See [spec/16-not-implemented.md](spec/16-not-implemented.md) §16.1.
 
 **Not in Go:** The original TypeScript **tmux swarm** (multi-pane workers) is documented in [spec/16-not-implemented.md](spec/16-not-implemented.md). The Go binary implements goroutine-based `/swarm` and the `task` tool instead.
 

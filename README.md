@@ -47,7 +47,7 @@ make build
 ./dist/tinycode
 ```
 
-Requires Go 1.27.1+. Other modes: `tinycode serve` (headless API), `tinycode acp` (IDE), `tinycode run` (non-interactive).
+Requires Go 1.27.1+. Other modes: `tinycode web` (browser UI), `tinycode serve` (headless API), `tinycode acp` (IDE), `tinycode run` (non-interactive).
 
 ## What it is
 
@@ -91,9 +91,12 @@ The primary interface is the **terminal UI (TUI)** --- a full-featured interacti
 
 tinycode also supports:
 
-- **Headless API server** (`tinycode serve`) --- REST + SSE endpoints for programmatic access
+- **Web UI** (`tinycode web`) --- serves the embedded SolidJS SPA plus API and opens a browser with an auth URL. This is the supported GUI path for the Go product.
+- **Headless API server** (`tinycode serve`) --- REST + SSE endpoints only (no SPA); for programmatic access
 - **Agent Client Protocol** (`tinycode acp`) --- stdio transport for IDE integration (VS Code, Zed, JetBrains)
 - **Non-interactive mode** (`tinycode run`) --- run a prompt and exit, for scripts and CI
+
+The Electron shell in `packages/desktop` is experimental and unsupported for the Go product. A Go-native desktop app is not planned.
 
 ## Architecture
 

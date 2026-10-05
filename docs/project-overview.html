@@ -1494,7 +1494,7 @@ section:last-of-type { border-bottom: none; }
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
-            <span>36 plugins, extensible</span>
+            <span>30 plugins + 4 builtins</span>
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
@@ -1814,8 +1814,8 @@ section:last-of-type { border-bottom: none; }
           <div class="flow-step-line"></div>
           <div class="flow-step-content">
             <div class="flow-step-title">Spawn child process</div>
-            <div class="flow-step-desc">The plugin binary is launched as a child process. Communication happens over stdin/stdout using JSON-RPC 2.0.</div>
-            <div class="flow-step-code">exec.Command("plugin-&lt;name&gt;")</div>
+            <div class="flow-step-desc">The plugin binary is launched as a child process. Communication happens over stdin/stdout using JSON-RPC 2.0. Binaries are named tinycode-plugin-&lt;name&gt; on PATH or in the config plugins directory.</div>
+            <div class="flow-step-code">exec.Command("tinycode-plugin-&lt;name&gt;")</div>
           </div>
         </div>
         <div class="flow-step" data-step="2">
@@ -1832,8 +1832,8 @@ section:last-of-type { border-bottom: none; }
           <div class="flow-step-line"></div>
           <div class="flow-step-content">
             <div class="flow-step-title">Tool &amp; hook registration</div>
-            <div class="flow-step-desc">Plugin-provided tools are added to the tool registry. Hooks are registered with the hook dispatcher for lifecycle events.</div>
-            <div class="flow-step-code">registry.Register(pluginTools...)</div>
+            <div class="flow-step-desc">Plugin-provided tools are added to the tool registry with namespaced IDs. Hooks are registered with the hook dispatcher for lifecycle events.</div>
+            <div class="flow-step-code">registry.Register("plugin__{name}__{tool}", ...)</div>
           </div>
         </div>
         <div class="flow-step" data-step="4">
@@ -2056,12 +2056,12 @@ section:last-of-type { border-bottom: none; }
           Core Engine
         </div>
         <div class="pkg-grid">
-          <div class="pkg-card" data-pkg="server" data-search="server http rest sse endpoints middleware chi">
+          <div class="pkg-card" data-pkg="server" data-search="server http rest sse endpoints middleware servemux">
             <div class="pkg-card-header">
               <span class="pkg-card-name">server/</span>
               <span class="pkg-card-arrow">&rsaquo;</span>
             </div>
-            <div class="pkg-card-desc">HTTP server (net/http + chi), REST + SSE endpoints</div>
+            <div class="pkg-card-desc">HTTP server (net/http ServeMux), REST + SSE endpoints</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Key Types</div>
               <div class="pkg-card-detail-value"><code>Server</code>, route handlers, middleware stack</div>
@@ -2203,7 +2203,7 @@ section:last-of-type { border-bottom: none; }
               <span class="pkg-card-name">redhat/</span>
               <span class="pkg-card-arrow">&rsaquo;</span>
             </div>
-            <div class="pkg-card-desc">Red Hat shared library for all 24 Red Hat plugins</div>
+            <div class="pkg-card-desc">Shared library for in-tree Red Hat and OpenShift plugins</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Key Types</div>
               <div class="pkg-card-detail-value"><code>OcClient</code>, <code>APIClient</code>, <code>ConsoleAuthClient</code>, <code>PromQLClient</code>, <code>MlflowClient</code>, <code>ContainerfileParser</code></div>
@@ -2219,7 +2219,7 @@ section:last-of-type { border-bottom: none; }
             <div class="pkg-card-desc">Skill discovery and loading</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Purpose</div>
-              <div class="pkg-card-detail-value">Discovers skill definitions from ~/.config/tinycode/skill/, .tinycode/skill/, and defaults. Skills surface as slash commands.</div>
+              <div class="pkg-card-detail-value">Discovers skill definitions from ~/.config/tinycode/skills/, .tinycode/skills/, and defaults. Skills surface as slash commands.</div>
             </div>
           </div>
           <div class="pkg-card" data-pkg="command" data-search="command slash discovery merge autocomplete">
@@ -2374,233 +2374,116 @@ section:last-of-type { border-bottom: none; }
 <section id="plugins">
   <div class="container">
     <div class="section-label animate-in">Plugin System</div>
-    <h2 class="section-title animate-in">36 plugins across two collections</h2>
+    <h2 class="section-title animate-in">30 plugins + 4 builtins</h2>
     <p class="section-desc animate-in">
-      Plugins are standalone binaries communicating over JSON-RPC via stdin/stdout. Three patterns cover all use cases: tool-only, hook-only, and combined.
+      Registry plugins are standalone binaries communicating over JSON-RPC via stdin/stdout. Four in-process builtins are always available. Tool IDs are namespaced as <code>plugin__{name}__{tool}</code>.
     </p>
 
-    <!-- General Plugins -->
+    <!-- Builtins -->
     <div class="plugin-subsection animate-in">
-      <div class="plugin-subsection-title">General Plugins</div>
-      <div class="plugin-subsection-meta">12 plugins &mdash; all converted to Go</div>
+      <div class="plugin-subsection-title">Builtins</div>
+      <div class="plugin-subsection-meta">4 in-process plugins &mdash; always available, not separate binaries</div>
 
-      <!-- Security -->
-      <div class="plugin-category">
-        <div class="plugin-category-title">
-          <span class="plugin-category-dot" style="background: var(--accent-red)"></span>
-          Security
+      <div class="plugin-card-grid">
+        <div class="plugin-card">
+          <div class="plugin-card-header">
+            <span class="plugin-card-name">notify</span>
+            <span class="plugin-badge badge-tool">Tool</span>
+          </div>
+          <div class="plugin-card-desc">Desktop and push notifications when long-running tasks complete</div>
         </div>
-        <div class="plugin-card-grid">
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">log-sanitizer</span>
-              <span class="plugin-badge badge-hook">Hook</span>
-            </div>
-            <div class="plugin-card-desc">Redacts secrets and sensitive data from tool outputs before they reach the LLM context</div>
+        <div class="plugin-card">
+          <div class="plugin-card-header">
+            <span class="plugin-card-name">code-review</span>
+            <span class="plugin-badge badge-tool">Tool</span>
           </div>
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">safety-net</span>
-              <span class="plugin-badge badge-hook">Hook</span>
-            </div>
-            <div class="plugin-card-desc">Blocks dangerous shell commands before execution &mdash; rm -rf /, git push --force main, kubectl delete namespace</div>
-          </div>
+          <div class="plugin-card-desc">Git diff viewer formatted for AI-assisted code review</div>
         </div>
-      </div>
-
-      <!-- Developer Experience -->
-      <div class="plugin-category">
-        <div class="plugin-category-title">
-          <span class="plugin-category-dot" style="background: var(--accent-blue)"></span>
-          Developer Experience
+        <div class="plugin-card">
+          <div class="plugin-card-header">
+            <span class="plugin-card-name">handoff</span>
+            <span class="plugin-badge badge-both">Both</span>
+          </div>
+          <div class="plugin-card-desc">Cross-session context handoff &mdash; saves goals, decisions, open tasks, and modified files for the next session</div>
         </div>
-        <div class="plugin-card-grid">
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">context-pruning</span>
-              <span class="plugin-badge badge-hook">Hook</span>
-            </div>
-            <div class="plugin-card-desc">Prunes stale and duplicate tool outputs from conversation context to optimize token usage</div>
+        <div class="plugin-card">
+          <div class="plugin-card-header">
+            <span class="plugin-card-name">context-pruning</span>
+            <span class="plugin-badge badge-hook">Hook</span>
           </div>
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">handoff</span>
-              <span class="plugin-badge badge-both">Both</span>
-            </div>
-            <div class="plugin-card-desc">Cross-session context handoff &mdash; saves goals, decisions, open tasks, and modified files for the next session</div>
-          </div>
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">notify</span>
-              <span class="plugin-badge badge-tool">Tool</span>
-            </div>
-            <div class="plugin-card-desc">Desktop and push notifications when long-running tasks complete</div>
-          </div>
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">command-inject</span>
-              <span class="plugin-badge badge-tool">Tool</span>
-            </div>
-            <div class="plugin-card-desc">Auto-discovers executable scripts in a directory and registers each as a callable tool</div>
-          </div>
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">snippets</span>
-              <span class="plugin-badge badge-tool">Tool</span>
-            </div>
-            <div class="plugin-card-desc">YAML template library for Kubernetes/OpenShift resources with variable substitution</div>
-          </div>
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">code-review</span>
-              <span class="plugin-badge badge-tool">Tool</span>
-            </div>
-            <div class="plugin-card-desc">Git diff viewer formatted for AI-assisted code review</div>
-          </div>
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">telemetry</span>
-              <span class="plugin-badge badge-both">Both</span>
-            </div>
-            <div class="plugin-card-desc">Tool call telemetry with local SQLite persistence and reporting</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Reference -->
-      <div class="plugin-category">
-        <div class="plugin-category-title">
-          <span class="plugin-category-dot" style="background: var(--accent-amber)"></span>
-          Reference
-        </div>
-        <div class="plugin-card-grid">
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">web-search</span>
-              <span class="plugin-badge badge-tool">Tool</span>
-            </div>
-            <div class="plugin-card-desc">Web search via DuckDuckGo with Red Hat knowledge base integration. No API key required.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Automation -->
-      <div class="plugin-category">
-        <div class="plugin-category-title">
-          <span class="plugin-category-dot" style="background: var(--accent-green)"></span>
-          Automation
-        </div>
-        <div class="plugin-card-grid">
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">pilot</span>
-              <span class="plugin-badge badge-tool">Tool</span>
-            </div>
-            <div class="plugin-card-desc">Multi-platform issue management (Gitea, GitHub, GitLab) &mdash; list, create, update, and comment on issues</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Kubernetes -->
-      <div class="plugin-category">
-        <div class="plugin-category-title">
-          <span class="plugin-category-dot" style="background: var(--accent-purple)"></span>
-          Kubernetes
-        </div>
-        <div class="plugin-card-grid">
-          <div class="plugin-card">
-            <div class="plugin-card-header">
-              <span class="plugin-card-name">cluster-ops</span>
-              <span class="plugin-badge badge-tool">Tool</span>
-            </div>
-            <div class="plugin-card-desc">Direct cluster visibility &mdash; get resources, tail logs, describe objects, view events, apply manifests</div>
-          </div>
+          <div class="plugin-card-desc">Prunes stale and duplicate tool outputs from conversation context to optimize token usage</div>
         </div>
       </div>
     </div>
 
-    <!-- Red Hat Plugins -->
+    <!-- Registry Plugins -->
     <div class="plugin-subsection animate-in">
-      <div class="plugin-subsection-title">Red Hat Plugins</div>
-      <div class="plugin-subsection-meta">24 plugins &mdash; all converted to Go</div>
+      <div class="plugin-subsection-title">Registry Plugins</div>
+      <div class="plugin-subsection-meta">30 binaries (<code>tinycode-plugin-&lt;name&gt;</code>) &mdash; categories from plugin registry</div>
 
-      <!-- OpenShift -->
       <div class="plugin-rh-group">
-        <div class="plugin-rh-domain">OpenShift <span class="plugin-rh-count">(4)</span></div>
+        <div class="plugin-rh-domain">Essential <span class="plugin-rh-count">(2)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">ocp-oauth</td><td class="rh-desc">OpenShift OAuth login via oc CLI and shell environment setup</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">ocp-context-injection</td><td class="rh-desc">Injects cluster metadata (version, nodes, operators, alerts, cost) as a tool</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">ocp-obs-metrics</td><td class="rh-desc">Observability metrics and alerts &mdash; PromQL queries, alert listing, alert silencing</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">ocp-obs-logging</td><td class="rh-desc">Observability logging and tracing &mdash; Loki logs, Tempo traces, network flows</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">pilot</td><td class="rh-desc">Autonomous agent pilot mode and multi-platform issue management (Gitea, GitHub, GitLab)</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">telemetry</td><td class="rh-desc">Usage telemetry and analytics with local SQLite persistence</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
-      <!-- Security -->
       <div class="plugin-rh-group">
-        <div class="plugin-rh-domain">Security <span class="plugin-rh-count">(3)</span></div>
+        <div class="plugin-rh-domain">Security <span class="plugin-rh-count">(5)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">rhacs</td><td class="rh-desc">RHACS security scanning via Central API &mdash; scan images, check policies, validate deployments, list violations</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">lightwell</td><td class="rh-desc">Red Hat Lightwell dependency checker &mdash; SLSA provenance, OSV vulnerabilities, build config auditing</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">container-linter</td><td class="rh-desc">Containerfile/Dockerfile linter with Red Hat best practices &mdash; UBI base image checks, bootc validation</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">container-linter</td><td class="rh-desc">Containerfile linting, bootc validation, UBI base image suggestions</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">lightwell</td><td class="rh-desc">Red Hat Lightwell package security &mdash; CVE checks, provenance, Containerfile scanning</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">log-sanitizer</td><td class="rh-desc">Sanitize sensitive data from logs before they reach the LLM context</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhacs</td><td class="rh-desc">Red Hat ACS security &mdash; image scan, policy check, violations, compliance</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">safety-net</td><td class="rh-desc">Pre-execution safety checks for destructive commands</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
-      <!-- DevEx -->
       <div class="plugin-rh-group">
-        <div class="plugin-rh-domain">DevEx <span class="plugin-rh-count">(3)</span></div>
+        <div class="plugin-rh-domain">OpenShift SRE <span class="plugin-rh-count">(10)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">tekton</td><td class="rh-desc">Tekton pipeline management &mdash; list pipelines, start runs, check status, view logs</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">quay</td><td class="rh-desc">Quay container registry &mdash; search repos, list tags, inspect manifests, Clair vulnerability scans</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">rhdh</td><td class="rh-desc">Red Hat Developer Hub catalog &mdash; search software catalog, fetch entity details, pull OpenAPI specs</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">audit-logs</td><td class="rh-desc">API audit log analysis &mdash; top callers, search, timeline, anomaly detection</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">etcd-diag</td><td class="rh-desc">etcd diagnostics and snapshot inspection &mdash; slow writes, leader elections</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ingress-inspect</td><td class="rh-desc">HAProxy/Ingress inspection &mdash; controllers, backends, route validation</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">insights</td><td class="rh-desc">OpenShift Insights archive analysis &mdash; nodes, operators, memory, etcd, storage, alerts</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ocp-context-injection</td><td class="rh-desc">OpenShift cluster context injection &mdash; version, nodes, operators, alerts, cost</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ocp-must-gather</td><td class="rh-desc">Must-gather offline analysis &mdash; cluster version, nodes, operators, certs, etcd, pods, events</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ocp-obs-logging</td><td class="rh-desc">OpenShift observability logging &mdash; Loki, Tempo, NetObserv</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ocp-obs-metrics</td><td class="rh-desc">OpenShift observability metrics &mdash; PromQL, alerts, silencing</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ocp-odf</td><td class="rh-desc">OpenShift Data Foundation storage health &mdash; Ceph status, pools, PVCs, buckets</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">ocp-virt</td><td class="rh-desc">OpenShift Virtualization VM lifecycle, migration, DataVolumes, templates</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
-      <!-- Automation -->
       <div class="plugin-rh-group">
-        <div class="plugin-rh-domain">Automation <span class="plugin-rh-count">(2)</span></div>
+        <div class="plugin-rh-domain">Developer <span class="plugin-rh-count">(5)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">aap-bridge</td><td class="rh-desc">Ansible Automation Platform tools &mdash; list/launch job templates, check status, search Automation Hub</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">eda-events</td><td class="rh-desc">Bridges tinycode session events to Event-Driven Ansible webhooks</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">quay</td><td class="rh-desc">Quay container registry &mdash; search, tags, manifests, vulnerabilities</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rh-api-catalog</td><td class="rh-desc">Red Hat API catalog &mdash; list APIs, fetch OpenAPI specs, list endpoints</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rh-dev-content</td><td class="rh-desc">Red Hat developer content &mdash; search, articles, recent posts</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rh-ecosystem-catalog</td><td class="rh-desc">Red Hat Ecosystem Catalog &mdash; certified containers and operators via Pyxis</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhdh</td><td class="rh-desc">Red Hat Developer Hub &mdash; catalog, APIs, TechDocs, dependencies</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
-      <!-- Fleet -->
       <div class="plugin-rh-group">
-        <div class="plugin-rh-domain">Fleet <span class="plugin-rh-count">(1)</span></div>
+        <div class="plugin-rh-domain">Platform <span class="plugin-rh-count">(5)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">rhacm</td><td class="rh-desc">RHACM multi-cluster management &mdash; managed clusters, governance policies, violations, observability via Thanos</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">aap-bridge</td><td class="rh-desc">Ansible Automation Platform bridge &mdash; job templates, inventories, lint</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhacm</td><td class="rh-desc">Red Hat ACM fleet management &mdash; clusters, policies, applications, observability</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhdp-provisioner</td><td class="rh-desc">Red Hat Developer Platform provisioner &mdash; search, provision, status</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">satellite</td><td class="rh-desc">Red Hat Satellite &mdash; hosts, errata, content views, services, proxies, REX</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">tekton</td><td class="rh-desc">Tekton pipelines &mdash; list, runs, status, logs, tasks</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
 
-      <!-- RHOAI -->
       <div class="plugin-rh-group">
-        <div class="plugin-rh-domain">RHOAI <span class="plugin-rh-count">(6)</span></div>
+        <div class="plugin-rh-domain">AI/ML <span class="plugin-rh-count">(3)</span></div>
         <table class="plugin-rh-table">
-          <tr><td class="rh-name">rhoai-model-serving</td><td class="rh-desc">RHOAI model serving and sandbox provisioning &mdash; list InferenceServices, check model status</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">rhoai-experiment-tracker</td><td class="rh-desc">Track session metrics to MLflow &mdash; tool call counts, session duration, model switches</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">rhoai-mcp-bridge</td><td class="rh-desc">Bridge to RHOAI MCP server &mdash; list and call tools exposed by the RHOAI MCP endpoint</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">rhoai-mlflow-tools</td><td class="rh-desc">MLflow experiment and model registry tools &mdash; list experiments, compare runs, browse artifacts</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">rhoai-pipelines</td><td class="rh-desc">RHOAI Data Science Pipelines (Kubeflow) &mdash; list pipelines, trigger runs, check status</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">rhoai-eval-trustyai</td><td class="rh-desc">RHOAI evaluation, TrustyAI fairness/drift monitoring, and workbench management</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-        </table>
-      </div>
-
-      <!-- Satellite -->
-      <div class="plugin-rh-group">
-        <div class="plugin-rh-domain">Satellite <span class="plugin-rh-count">(1)</span></div>
-        <table class="plugin-rh-table">
-          <tr><td class="rh-name">satellite-lightspeed</td><td class="rh-desc">Satellite Lightspeed AI assistant and host management &mdash; RHEL/Satellite knowledge, host search, errata</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-        </table>
-      </div>
-
-      <!-- Reference -->
-      <div class="plugin-rh-group">
-        <div class="plugin-rh-domain">Reference <span class="plugin-rh-count">(4)</span></div>
-        <table class="plugin-rh-table">
-          <tr><td class="rh-name">rh-dev-content</td><td class="rh-desc">Red Hat developer content browser &mdash; browse articles by topic, read full articles, RSS feed</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">rh-ecosystem-catalog</td><td class="rh-desc">Red Hat Ecosystem Catalog &mdash; search certified container images and operators via Pyxis API</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">rh-api-catalog</td><td class="rh-desc">Red Hat API catalog &mdash; browse 25 console.redhat.com APIs, fetch OpenAPI specs, list endpoints</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
-          <tr><td class="rh-name">rhdp-provisioner</td><td class="rh-desc">RHDP demo environment provisioner &mdash; search catalog, provision environments, check status</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhoai-mlflow</td><td class="rh-desc">MLflow experiment tracking, model registry, and session metrics</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhoai-pipelines</td><td class="rh-desc">RHOAI data science pipelines &mdash; list, run, status, create</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
+          <tr><td class="rh-name">rhoai-serving</td><td class="rh-desc">RHOAI model serving, evaluation, TrustyAI fairness, workbenches, and Developer Sandbox</td><td class="rh-badge"><span class="plugin-badge badge-converted">Go</span></td></tr>
         </table>
       </div>
     </div>
@@ -2619,7 +2502,7 @@ section:last-of-type { border-bottom: none; }
         <div class="wire-step">
           <div class="wire-step-box">
             <div class="wire-step-method">tool/call</div>
-            <div class="wire-step-desc">LLM invokes a plugin tool. Plugin executes and returns result string.</div>
+            <div class="wire-step-desc">LLM invokes a plugin tool. Params use the <code>args</code> field (not <code>arguments</code>). Plugin returns a result string.</div>
           </div>
           <div class="wire-arrow">&rarr;</div>
         </div>
@@ -2837,11 +2720,11 @@ section:last-of-type { border-bottom: none; }
         </div>
       </div>
       <div class="tech-card">
-        <div class="tech-icon" style="font-size: 1rem; color: var(--accent-amber);">chi</div>
+        <div class="tech-icon" style="font-size: 0.8rem; color: var(--accent-amber);">mux</div>
         <div>
-          <div class="tech-name">chi router</div>
-          <div class="tech-desc">Lightweight HTTP router compatible with net/http. Middleware chaining, context-based routing, zero allocations on hot paths.</div>
-          <div class="tech-why">Idiomatic net/http compatibility. No framework lock-in.</div>
+          <div class="tech-name">net/http ServeMux</div>
+          <div class="tech-desc">Standard library HTTP router. Pattern-based routing, middleware via handler wrapping, no third-party router dependency.</div>
+          <div class="tech-why">Zero external deps for HTTP. Same code path for TUI, web UI, and ACP.</div>
         </div>
       </div>
       <div class="tech-card">
@@ -2878,26 +2761,30 @@ section:last-of-type { border-bottom: none; }
     <div class="section-label animate-in">Get Started</div>
     <h2 class="section-title animate-in">Up and running in 60 seconds</h2>
     <p class="section-desc animate-in">
-      Clone, build, run. Configure a local LLM provider and start coding with AI in your terminal.
+      Install the binary, connect a model, and start coding with AI in your terminal.
     </p>
 
     <div class="start-steps animate-in">
       <div class="start-step">
         <div class="start-step-num">01</div>
         <div class="start-step-content">
-          <div class="start-step-title">Clone and build</div>
-          <div class="start-step-desc">Build produces a single binary at dist/tinycode. No runtime dependencies beyond the binary itself.</div>
+          <div class="start-step-title">Install</div>
+          <div class="start-step-desc">One-liner installs to ~/.local/bin. Or build from source if you prefer.</div>
           <div class="code-block">
             <div class="code-header">
               <span class="code-lang">bash</span>
               <button class="code-copy" onclick="copyCode(this)" aria-label="Copy code to clipboard">copy</button>
             </div>
-            <div class="code-body"><span class="comment"># Clone the repository</span>
-git clone https://github.com/bobbyjohnstx/tinycode.git
-cd tinycode
+            <div class="code-body"><span class="comment"># One-liner (macOS / Linux)</span>
+curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
 
-<span class="comment"># Build the binary</span>
-make build</div>
+<span class="comment"># Or Homebrew</span>
+brew install bobbyjohnstx/tap/tinycode
+
+<span class="comment"># Or build from source</span>
+git clone https://github.com/bobbyjohnstx/tinycode.git
+cd tinycode &amp;&amp; make build
+./dist/tinycode</div>
           </div>
         </div>
       </div>
@@ -2906,7 +2793,7 @@ make build</div>
         <div class="start-step-num">02</div>
         <div class="start-step-content">
           <div class="start-step-title">Start a local LLM</div>
-          <div class="start-step-desc">tinycode auto-discovers Ollama, vLLM, and LM Studio at their default addresses. Start any of them and tinycode finds them automatically.</div>
+          <div class="start-step-desc">tinycode auto-discovers Ollama, vLLM, and LM Studio at their default addresses. If no model is found, use /connect in the TUI.</div>
           <div class="code-block">
             <div class="code-header">
               <span class="code-lang">bash</span>
@@ -2916,7 +2803,10 @@ make build</div>
 ollama pull qwen3:8b
 
 <span class="comment"># Or use OpenRouter (cloud)</span>
-export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
+export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span>
+
+<span class="comment"># In the TUI, if no model is discovered:</span>
+/connect</div>
           </div>
         </div>
       </div>
@@ -2932,22 +2822,22 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
               <button class="code-copy" onclick="copyCode(this)" aria-label="Copy code to clipboard">copy</button>
             </div>
             <div class="code-body"><span class="comment"># Launch TUI in current directory</span>
-./dist/tinycode
+tinycode
 
 <span class="comment"># Or target a specific project</span>
-./dist/tinycode ~/projects/myapp
+tinycode ~/projects/myapp
 
 <span class="comment"># Headless API server</span>
-./dist/tinycode serve
+tinycode serve
 
 <span class="comment"># Non-interactive (scripts, CI)</span>
-./dist/tinycode run <span class="string">"explain the main function"</span>
+tinycode run <span class="string">"explain the main function"</span>
 
 <span class="comment"># Multi-turn with NDJSON output</span>
-./dist/tinycode run --multi-turn --format json
+tinycode run --multi-turn --format json
 
 <span class="comment"># Cap iterations, skip permissions</span>
-./dist/tinycode run --max-iterations 20 \
+tinycode run --max-iterations 20 \
   --dangerously-skip-permissions <span class="string">"summarize"</span></div>
           </div>
         </div>
@@ -3055,7 +2945,7 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
     },
     server: {
       title: 'HTTP Server (internal/server/)',
-      desc: 'Standard net/http server with chi router. REST endpoints for sessions, messages, prompts, providers, models, agents, config, and permissions. SSE endpoints for real-time event streaming. Binds to ephemeral port (port 0) in TUI mode.',
+      desc: 'Standard net/http server with ServeMux. REST endpoints for sessions, messages, prompts, providers, models, agents, config, and permissions. SSE endpoints for real-time event streaming. Binds to ephemeral port (port 0) in TUI mode.',
       files: 'server/server.go, server/handler_*.go, server/middleware.go, server/model_resolve.go'
     },
     api: {
@@ -3110,7 +3000,7 @@ export OPENROUTER_API_KEY=<span class="string">"sk-or-..."</span></div>
     },
     skill: {
       title: 'Skills (internal/skill/)',
-      desc: 'Discovers skill definitions from ~/.config/tinycode/skill/, project .tinycode/skill/, and built-in defaults. Each skill is a directory with SKILL.md containing YAML frontmatter. Skills surface as slash commands.',
+      desc: 'Discovers skill definitions from ~/.config/tinycode/skills/, project .tinycode/skills/, and built-in defaults. Each skill is a directory with SKILL.md containing YAML frontmatter. Skills surface as slash commands.',
       files: 'skill/loader.go'
     },
     bus: {

@@ -142,7 +142,7 @@ export const DESKTOP_MENU: DesktopMenu[] = [
     label: "View",
     items: [
       { type: "item", label: "Toggle Sidebar", command: "sidebar.toggle", accelerator: { macos: "Cmd+B" } },
-      { type: "item", label: "Toggle Terminal", command: "terminal.toggle", accelerator: { macos: "Ctrl+`" } },
+      // Toggle Terminal omitted: Go has no PTY HTTP API (docs/spec/16-not-implemented.md §16.11).
       { type: "item", label: "Toggle File Tree", command: "fileTree.toggle" },
       { type: "separator" },
       { type: "item", label: "Reload", action: "view.reload", role: "reload" },

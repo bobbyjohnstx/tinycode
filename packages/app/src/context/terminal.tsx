@@ -8,6 +8,9 @@ import { ServerConnection, useServer } from "./server"
 import { defaultTitle, titleNumber } from "./terminal-title"
 import { Persist, persisted, removePersisted } from "@/utils/persist"
 
+/** Go HTTP API has no PTY routes (docs/spec/16-not-implemented.md §16.11). */
+export const PTY_SUPPORTED = false
+
 export type LocalPTY = {
   id: string
   title: string
@@ -466,6 +469,8 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
     )
 
     return {
+      /** False until Go exposes PTY HTTP routes (docs/spec/16-not-implemented.md §16.11). */
+      supported: () => PTY_SUPPORTED,
       ready: () => workspace().ready(),
       all: () => workspace().all(),
       active: () => workspace().active(),

@@ -517,13 +517,17 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   ]
 
   const viewCmds = () => [
-    viewCommand({
-      id: "terminal.toggle",
-      title: language.t("command.terminal.toggle"),
-      keybind: "ctrl+`",
-      slash: "terminal",
-      onSelect: () => view().terminal.toggle(),
-    }),
+    ...(terminal.supported()
+      ? [
+          viewCommand({
+            id: "terminal.toggle",
+            title: language.t("command.terminal.toggle"),
+            keybind: "ctrl+`",
+            slash: "terminal",
+            onSelect: () => view().terminal.toggle(),
+          }),
+        ]
+      : []),
     viewCommand({
       id: "review.toggle",
       title: language.t("command.review.toggle"),
@@ -556,15 +560,18 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }),
   ]
 
-  const terminalCmds = () => [
-    terminalCommand({
-      id: "terminal.new",
-      title: language.t("command.terminal.new"),
-      description: language.t("command.terminal.new.description"),
-      keybind: "ctrl+alt+t",
-      onSelect: openTerminal,
-    }),
-  ]
+  const terminalCmds = () =>
+    terminal.supported()
+      ? [
+          terminalCommand({
+            id: "terminal.new",
+            title: language.t("command.terminal.new"),
+            description: language.t("command.terminal.new.description"),
+            keybind: "ctrl+alt+t",
+            onSelect: openTerminal,
+          }),
+        ]
+      : []
 
   const messageCmds = () => [
     sessionCommand({
