@@ -170,8 +170,8 @@ func (mm *MonitorManager) Start(ctx context.Context, command, description, dir s
 	go scanInto(stderr, "STDERR: ")
 
 	go func() {
-		wg.Wait()
 		_ = cmd.Wait()
+		wg.Wait()
 		close(mon.done)
 		slog.Info("monitor finished", "id", monitorID, "description", description)
 	}()
