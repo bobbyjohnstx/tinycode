@@ -21,7 +21,7 @@ var clientCommandDefs = []clientCommandDef{
 	{Name: "connect", Description: "Select provider and model", InPalette: true},
 	{Name: "context", Description: "Show context window usage breakdown", InPalette: true},
 	{Name: "copy", Description: "Copy response to clipboard (/copy N for Nth)", InPalette: true},
-	{Name: "debug", Description: "Show diagnostics for bug reports", InPalette: true},
+	{Name: "diagnostics", Description: "Show diagnostics for bug reports", InPalette: true},
 	{Name: "diff", Description: "Show uncommitted changes", InPalette: true},
 	{Name: "editor", Description: "Open prompt or file in $EDITOR (/editor @file)", InPalette: true},
 	{Name: "effort", Description: "Set reasoning depth (low/medium/high/max)", InPalette: true},
