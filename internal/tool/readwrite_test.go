@@ -10,7 +10,7 @@ import (
 )
 
 func TestReadRecordsFile(t *testing.T) {
-	dir := t.TempDir()
+	dir, _ := filepath.EvalSymlinks(t.TempDir())
 	path := filepath.Join(dir, "test.txt")
 	os.WriteFile(path, []byte("hello\n"), 0644)
 
@@ -28,7 +28,7 @@ func TestReadRecordsFile(t *testing.T) {
 }
 
 func TestEditRecordsFile(t *testing.T) {
-	dir := t.TempDir()
+	dir, _ := filepath.EvalSymlinks(t.TempDir())
 	path := filepath.Join(dir, "test.txt")
 	os.WriteFile(path, []byte("foo bar baz"), 0644)
 
@@ -94,7 +94,7 @@ func TestWriteExistingUnreadFileWarning(t *testing.T) {
 }
 
 func TestWriteExistingReadFileNoWarning(t *testing.T) {
-	dir := t.TempDir()
+	dir, _ := filepath.EvalSymlinks(t.TempDir())
 	path := filepath.Join(dir, "existing.txt")
 	os.WriteFile(path, []byte("original content"), 0644)
 

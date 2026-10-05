@@ -174,10 +174,16 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 }
 
 func resolvePath(path, dir string) string {
+	var cleaned string
 	if filepath.IsAbs(path) {
-		return filepath.Clean(path)
+		cleaned = filepath.Clean(path)
+	} else {
+		cleaned = filepath.Clean(filepath.Join(dir, path))
 	}
-	return filepath.Clean(filepath.Join(dir, path))
+	if resolved, err := filepath.EvalSymlinks(cleaned); err == nil {
+		return resolved
+	}
+	return cleaned
 }
 
 func suggestSimilar(path string) string {

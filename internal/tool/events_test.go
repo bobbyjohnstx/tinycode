@@ -168,7 +168,7 @@ func TestEditTool_FileModifiedEvent(t *testing.T) {
 	sub := b.Subscribe("file.modified")
 	defer sub.Unsubscribe()
 
-	dir := t.TempDir()
+	dir, _ := filepath.EvalSymlinks(t.TempDir())
 	path := filepath.Join(dir, "edit-event.txt")
 	os.WriteFile(path, []byte("old content"), 0644)
 
