@@ -9,10 +9,10 @@ Brief description of the changes.
 - [ ] Tests
 
 ## Checklist
-- [ ] `bun run lint` passes
-- [ ] `cd packages/tinycode && bun typecheck` passes
-- [ ] `cd packages/tinycode && bun test` passes
-- [ ] No new `console.log` or debug statements
+- [ ] `go vet ./...` passes
+- [ ] `go test ./... -count=1` passes
+- [ ] `make build` succeeds
+- [ ] No debug statements left in
 - [ ] Documentation updated (if applicable)
 
 ## Test Plan

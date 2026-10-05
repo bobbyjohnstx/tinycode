@@ -1,0 +1,4 @@
+# Tell GitHub linguist the primary language is Go
+packages/** linguist-vendored
+internal/static/dist/** linguist-vendored
+script/** linguist-vendored
