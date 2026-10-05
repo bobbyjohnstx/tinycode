@@ -44,7 +44,7 @@ func TestReadNextPrompt_TextMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			scanner := bufio.NewScanner(strings.NewReader(tt.input))
-			text, ok := readNextPrompt(scanner, false, nil)
+			text, ok := readNextPrompt(scanner, false, nil, nil)
 			if text != tt.wantText {
 				t.Errorf("text = %q, want %q", text, tt.wantText)
 			}
@@ -103,7 +103,7 @@ func TestReadNextPrompt_JSONMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			scanner := bufio.NewScanner(strings.NewReader(tt.input))
-			text, ok := readNextPrompt(scanner, true, nil)
+			text, ok := readNextPrompt(scanner, true, nil, nil)
 			if text != tt.wantText {
 				t.Errorf("text = %q, want %q", text, tt.wantText)
 			}
@@ -118,17 +118,17 @@ func TestReadNextPrompt_TextMultiLine(t *testing.T) {
 	input := "first prompt\nsecond prompt\n"
 	scanner := bufio.NewScanner(strings.NewReader(input))
 
-	text, ok := readNextPrompt(scanner, false, nil)
+	text, ok := readNextPrompt(scanner, false, nil, nil)
 	if text != "first prompt" || !ok {
 		t.Errorf("first: text=%q ok=%v, want %q %v", text, ok, "first prompt", true)
 	}
 
-	text, ok = readNextPrompt(scanner, false, nil)
+	text, ok = readNextPrompt(scanner, false, nil, nil)
 	if text != "second prompt" || !ok {
 		t.Errorf("second: text=%q ok=%v, want %q %v", text, ok, "second prompt", true)
 	}
 
-	text, ok = readNextPrompt(scanner, false, nil)
+	text, ok = readNextPrompt(scanner, false, nil, nil)
 	if text != "" || ok {
 		t.Errorf("EOF: text=%q ok=%v, want %q %v", text, ok, "", false)
 	}
@@ -141,24 +141,24 @@ func TestReadNextPrompt_JSONMultiLine(t *testing.T) {
 		`{"type":"exit"}` + "\n"
 	scanner := bufio.NewScanner(strings.NewReader(input))
 
-	text, ok := readNextPrompt(scanner, true, nil)
+	text, ok := readNextPrompt(scanner, true, nil, nil)
 	if text != "turn 1" || !ok {
 		t.Errorf("turn 1: text=%q ok=%v", text, ok)
 	}
 
 	// permission_reply should be skipped
-	text, ok = readNextPrompt(scanner, true, nil)
+	text, ok = readNextPrompt(scanner, true, nil, nil)
 	if text != "" || !ok {
 		t.Errorf("permission_reply: text=%q ok=%v, want empty+true", text, ok)
 	}
 
-	text, ok = readNextPrompt(scanner, true, nil)
+	text, ok = readNextPrompt(scanner, true, nil, nil)
 	if text != "turn 2" || !ok {
 		t.Errorf("turn 2: text=%q ok=%v", text, ok)
 	}
 
 	// exit should stop
-	text, ok = readNextPrompt(scanner, true, nil)
+	text, ok = readNextPrompt(scanner, true, nil, nil)
 	if text != "" || ok {
 		t.Errorf("exit: text=%q ok=%v, want empty+false", text, ok)
 	}
@@ -171,7 +171,7 @@ func TestReadNextPrompt_PermissionReplyRouting(t *testing.T) {
 	scanner := bufio.NewScanner(strings.NewReader(input))
 
 	// permission_reply should be routed to the channel
-	text, ok := readNextPrompt(scanner, true, permReplyCh)
+	text, ok := readNextPrompt(scanner, true, permReplyCh, nil)
 	if text != "" || !ok {
 		t.Errorf("permission_reply: text=%q ok=%v, want empty+true", text, ok)
 	}
@@ -189,7 +189,7 @@ func TestReadNextPrompt_PermissionReplyRouting(t *testing.T) {
 	}
 
 	// next prompt should still work
-	text, ok = readNextPrompt(scanner, true, permReplyCh)
+	text, ok = readNextPrompt(scanner, true, permReplyCh, nil)
 	if text != "next turn" || !ok {
 		t.Errorf("prompt: text=%q ok=%v, want %q %v", text, ok, "next turn", true)
 	}
@@ -200,7 +200,7 @@ func TestReadNextPrompt_PermissionReplyNilChannel(t *testing.T) {
 	scanner := bufio.NewScanner(strings.NewReader(input))
 
 	// With nil channel, permission_reply should be silently skipped (no panic)
-	text, ok := readNextPrompt(scanner, true, nil)
+	text, ok := readNextPrompt(scanner, true, nil, nil)
 	if text != "" || !ok {
 		t.Errorf("permission_reply with nil ch: text=%q ok=%v, want empty+true", text, ok)
 	}
@@ -329,7 +329,7 @@ func TestMultiTurnLoop_ReadySignals(t *testing.T) {
 		line, _ := json.Marshal(map[string]string{"type": "ready"})
 		fmt.Println(string(line))
 
-		prompt, ok := readNextPrompt(scanner, true, nil)
+		prompt, ok := readNextPrompt(scanner, true, nil, nil)
 		if !ok {
 			break
 		}

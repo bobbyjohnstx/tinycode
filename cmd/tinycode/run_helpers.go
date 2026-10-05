@@ -30,8 +30,10 @@ import (
 // collectRunPrompt handles directory changes from positional args and collects
 // the prompt text from remaining args and/or stdin. When multiTurn is true,
 // stdin is not consumed (it will be read line-by-line in the multi-turn loop)
-// and an empty prompt is returned instead of exiting.
-func collectRunPrompt(positional []string, multiTurn bool) string {
+// and an empty prompt is returned instead of exiting. When permsJSON is true,
+// stdin is reserved for the stdinMux so io.ReadAll is skipped; the prompt must
+// come from positional args or the mux's prompt channel.
+func collectRunPrompt(positional []string, multiTurn, permsJSON bool) string {
 	if len(positional) > 0 {
 		if info, err := os.Stat(positional[0]); err == nil && info.IsDir() {
 			absDir, err := filepath.Abs(positional[0])
@@ -48,7 +50,7 @@ func collectRunPrompt(positional []string, multiTurn bool) string {
 	}
 
 	prompt := strings.Join(positional, " ")
-	if !multiTurn && !term.IsTerminal(int(os.Stdin.Fd())) {
+	if !multiTurn && !permsJSON && !term.IsTerminal(int(os.Stdin.Fd())) {
 		stdinData, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "reading stdin: %v\n", err)
@@ -61,7 +63,7 @@ func collectRunPrompt(positional []string, multiTurn bool) string {
 			prompt += s
 		}
 	}
-	if prompt == "" && !multiTurn {
+	if prompt == "" && !multiTurn && !permsJSON {
 		fmt.Fprintf(os.Stderr, "error: no prompt provided\n")
 		os.Exit(1)
 	}
@@ -83,30 +85,57 @@ func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, int
 	return nil
 }
 
-// startJSONPermissionStdinRouter forwards permission_reply NDJSON lines from stdin
-// to the JSON permission handler while a single-turn run is processing. Multi-turn
-// mode routes permission_reply via readNextPrompt between prompts instead.
-func startJSONPermissionStdinRouter(permReplyCh chan<- permission.ReplyInput) {
-	safego.Go(func() {
-		scanner := bufio.NewScanner(os.Stdin)
-		for scanner.Scan() {
-			var msg struct {
-				Type  string `json:"type"`
-				ID    string `json:"id"`
-				Reply string `json:"reply"`
-			}
-			if err := json.Unmarshal([]byte(scanner.Text()), &msg); err != nil {
-				continue
-			}
-			if msg.Type != "permission_reply" {
-				continue
-			}
-			permReplyCh <- permission.ReplyInput{
-				RequestID: msg.ID,
-				Reply:     permission.Reply(msg.Reply),
+// stdinMux multiplexes stdin when --permissions json is active. A single
+// goroutine owns stdin for the process lifetime, dispatching JSON messages
+// to the appropriate channel based on their type field.
+type stdinMux struct {
+	prompts     chan string
+	permReplyCh chan<- permission.ReplyInput
+	isJSON      bool
+}
+
+func newStdinMux(isJSON bool, permReplyCh chan<- permission.ReplyInput) *stdinMux {
+	return &stdinMux{
+		prompts:     make(chan string, 1),
+		permReplyCh: permReplyCh,
+		isJSON:      isJSON,
+	}
+}
+
+func (m *stdinMux) run() {
+	defer close(m.prompts)
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !m.isJSON {
+			m.prompts <- strings.TrimSpace(line)
+			continue
+		}
+		var msg struct {
+			Type  string `json:"type"`
+			Text  string `json:"text"`
+			ID    string `json:"id"`
+			Reply string `json:"reply"`
+		}
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			// Non-JSON line treated as prompt text.
+			m.prompts <- strings.TrimSpace(line)
+			continue
+		}
+		switch msg.Type {
+		case "prompt":
+			m.prompts <- msg.Text
+		case "exit":
+			return
+		case "permission_reply":
+			if m.permReplyCh != nil {
+				m.permReplyCh <- permission.ReplyInput{
+					RequestID: msg.ID,
+					Reply:     permission.Reply(msg.Reply),
+				}
 			}
 		}
-	})
+	}
 }
 
 // handleJSONPermissionEvents emits permission requests as NDJSON on stdout and
@@ -458,12 +487,18 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 	})
 }
 
-// readNextPrompt reads one prompt from the scanner. In JSON mode it expects
-// {"type":"prompt","text":"..."} and returns false on {"type":"exit"} or EOF.
-// When permReplyCh is non-nil, JSON messages with type "permission_reply" are
-// parsed and sent to the channel for the permission handler goroutine.
-// In text mode it returns the trimmed line and false on EOF.
-func readNextPrompt(scanner *bufio.Scanner, isJSON bool, permReplyCh chan<- permission.ReplyInput) (string, bool) {
+// readNextPrompt reads one prompt. When mux is non-nil, prompts are read from
+// the mux's channel (permission replies are already dispatched by the mux).
+// Otherwise it reads directly from the scanner using the original line-by-line
+// protocol. In JSON mode it expects {"type":"prompt","text":"..."} and returns
+// false on {"type":"exit"} or EOF. In text mode it returns the trimmed line
+// and false on EOF.
+func readNextPrompt(scanner *bufio.Scanner, isJSON bool, permReplyCh chan<- permission.ReplyInput, mux *stdinMux) (string, bool) {
+	if mux != nil {
+		p, ok := <-mux.prompts
+		return p, ok
+	}
+
 	if !scanner.Scan() {
 		return "", false
 	}
@@ -474,10 +509,10 @@ func readNextPrompt(scanner *bufio.Scanner, isJSON bool, permReplyCh chan<- perm
 	}
 
 	var msg struct {
-		Type      string `json:"type"`
-		Text      string `json:"text"`
-		ID        string `json:"id"`
-		Reply     string `json:"reply"`
+		Type  string `json:"type"`
+		Text  string `json:"text"`
+		ID    string `json:"id"`
+		Reply string `json:"reply"`
 	}
 	if err := json.Unmarshal([]byte(line), &msg); err != nil {
 		return "", true
@@ -507,13 +542,17 @@ func persistRunResult(result *session.ProcessResult, existingMsgs []session.Mess
 	if result != nil && len(result.Messages) > len(existingMsgs) {
 		newMsgs := result.Messages[len(existingMsgs):]
 		for i := range newMsgs {
-			_ = ms.Append(&newMsgs[i])
+			if err := ms.Append(&newMsgs[i]); err != nil {
+				slog.Warn("failed to persist message", "error", err)
+			}
 		}
 		store := session.NewStore(db.DB)
-		_ = store.UpdateCost(sessionID, 0, session.TokenUsage{
+		if err := store.UpdateCost(sessionID, 0, session.TokenUsage{
 			Input:  result.Usage.Input,
 			Output: result.Usage.Output,
-		})
+		}); err != nil {
+			slog.Warn("failed to update session cost", "error", err)
+		}
 		return result.Messages
 	}
 	return existingMsgs

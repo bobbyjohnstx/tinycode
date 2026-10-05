@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
@@ -17,6 +18,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
@@ -59,7 +61,8 @@ func runRun() {
 		appendSP += string(data)
 	}
 
-	prompt := collectRunPrompt(fs.Args(), *multiTurnFlag)
+	permsJSON := *permsFlag == "json"
+	prompt := collectRunPrompt(fs.Args(), *multiTurnFlag, permsJSON)
 
 	b, db, cfg := initDependencies()
 	defer db.Close()
@@ -104,8 +107,15 @@ func runRun() {
 	}
 
 	permReplyCh := setupRunPermissions(b, permSvc, *skipPermsFlag, *interactiveFlag, *permsFlag)
-	if *permsFlag == "json" && permReplyCh != nil && !*multiTurnFlag {
-		startJSONPermissionStdinRouter(permReplyCh)
+
+	// When --permissions json is set, a single stdinMux goroutine owns stdin
+	// for the process lifetime, dispatching prompts and permission replies to
+	// separate channels. This prevents the deadlock where io.ReadAll consumed
+	// stdin before the permission router could read replies.
+	var mux *stdinMux
+	if permsJSON && permReplyCh != nil {
+		mux = newStdinMux(*formatFlag == "json", permReplyCh)
+		safego.Go(mux.run)
 	}
 
 	builtinMgr := initBuiltins(toolReg)
@@ -127,8 +137,9 @@ func runRun() {
 
 	agentName, agentPerms, systemPrompt := buildRunAgentPrompt(*agentFlag, cfg, agentReg, model, dir, toolReg, appendSP)
 
-	// Sync MCP tools
+	// Sync MCP tools — wait for async connections to settle first.
 	if mcpSvc != nil {
+		mcpSvc.WaitForConnections(ctx, 10*time.Second)
 		mcpTools := mcpSvc.Tools(ctx)
 		for _, def := range mcpTools {
 			toolReg.Register(def)
@@ -162,10 +173,23 @@ func runRun() {
 	isJSON := *formatFlag == "json"
 	streamRunOutput(b, isJSON)
 
+	// When --permissions json with no positional prompt, read from the mux.
+	if prompt == "" && !*multiTurnFlag && mux != nil {
+		p, ok := <-mux.prompts
+		if !ok || p == "" {
+			fmt.Fprintf(os.Stderr, "error: no prompt provided\n")
+			os.Exit(1)
+		}
+		prompt = p
+	}
+
 	// In multi-turn mode with no initial prompt from args, read the first line.
 	if *multiTurnFlag && prompt == "" {
-		scanner := bufio.NewScanner(os.Stdin)
-		p, ok := readNextPrompt(scanner, isJSON, permReplyCh)
+		var scanner *bufio.Scanner
+		if mux == nil {
+			scanner = bufio.NewScanner(os.Stdin)
+		}
+		p, ok := readNextPrompt(scanner, isJSON, permReplyCh, mux)
 		if !ok || p == "" {
 			return
 		}
@@ -188,7 +212,10 @@ func runRun() {
 		fmt.Fprintf(os.Stderr, "error: %v\n", result.Error)
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
+	var scanner *bufio.Scanner
+	if mux == nil {
+		scanner = bufio.NewScanner(os.Stdin)
+	}
 	for {
 		if isJSON {
 			line, _ := json.Marshal(map[string]string{"type": "ready"})
@@ -197,7 +224,7 @@ func runRun() {
 			fmt.Println()
 		}
 
-		prompt, ok := readNextPrompt(scanner, isJSON, permReplyCh)
+		prompt, ok := readNextPrompt(scanner, isJSON, permReplyCh, mux)
 		if !ok {
 			break
 		}
