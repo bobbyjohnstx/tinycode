@@ -21,7 +21,7 @@ PLATFORMS := \
 PLUGIN_DIRS := $(wildcard cmd/plugin-*)
 PLUGIN_NAMES := $(notdir $(PLUGIN_DIRS))
 
-.PHONY: build build-all build-plugins build-full clean test vet lint check build-webapp embed-webapp package image image-full
+.PHONY: build build-all build-plugins build-full clean test vet lint fmt check build-webapp embed-webapp package image image-full
 
 ## build: Build tinycode for the current platform
 build:
@@ -106,6 +106,10 @@ test-verbose:
 ## vet: Run go vet
 vet:
 	go vet ./...
+
+## fmt: Format Go source code
+fmt:
+	gofmt -w .
 
 ## lint: Run go vet (add golangci-lint when configured)
 lint: vet
