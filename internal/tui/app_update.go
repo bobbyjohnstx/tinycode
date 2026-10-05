@@ -405,39 +405,14 @@ func (a App) handleAgentListMsg(msg AgentListMsg) (App, tea.Cmd) {
 func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 	if msg.Err == nil {
 		a.state.Commands = msg.Commands
-		clientItems := []AutocompleteItem{
-			{Name: "branch", Description: "Branch conversation to try a different approach"},
-			{Name: "changes", Description: "Show session-scoped diff of modified files"},
-			{Name: "exit", Description: "Exit the app"},
-			{Name: "compact", Description: "Compact context (summarize session)"},
-			{Name: "connect", Description: "Select provider and model"},
-			{Name: "copy", Description: "Copy last response to clipboard"},
-			{Name: "diff", Description: "Show uncommitted changes"},
-			{Name: "export", Description: "Export session as Markdown"},
-			{Name: "theme", Description: "Change color theme"},
-			{Name: "help", Description: "Show keybindings and commands"},
-			{Name: "rename", Description: "Rename current session"},
-			{Name: "auto-approve", Description: "Toggle auto-approve for session"},
-			{Name: "editor", Description: "Open prompt in $EDITOR"},
-			{Name: "shell", Description: "Open interactive shell session"},
-			{Name: "debug", Description: "Show diagnostics for bug reports"},
-			{Name: "mcp", Description: "Manage MCP servers"},
-			{Name: "thinking", Description: "Set reasoning level (off/low/medium/high/max)"},
-			{Name: "paste-image", Description: "Paste image from clipboard"},
-			{Name: "scoped-models", Description: "Toggle model scoping (favorites)"},
-			{Name: "undo", Description: "Revert last AI file changes"},
-			{Name: "redo", Description: "Restore previously reverted changes"},
-			{Name: "archive", Description: "Archive current session"},
-			{Name: "privacy", Description: "Show what data is stored and where"},
-			{Name: "goal", Description: "Autonomous execution until condition met"},
-			{Name: "hooks", Description: "Show configured hooks (plugin and shell)"},
-			{Name: "context", Description: "Show context window usage breakdown"},
-			{Name: "effort", Description: "Set reasoning depth (low/medium/high/max)"},
-			{Name: "rewind", Description: "Rewind session to a previous turn"},
-		}
-		clientNames := make(map[string]bool, len(clientItems))
-		for _, item := range clientItems {
-			clientNames[item.Name] = true
+		clientItems := make([]AutocompleteItem, 0, len(clientCommandDefs))
+		clientNames := make(map[string]bool, len(clientCommandDefs))
+		for _, def := range clientCommandDefs {
+			clientItems = append(clientItems, AutocompleteItem{
+				Name:        def.Name,
+				Description: def.Description,
+			})
+			clientNames[def.Name] = true
 		}
 		items := append([]AutocompleteItem{}, clientItems...)
 		for _, cmd := range msg.Commands {
