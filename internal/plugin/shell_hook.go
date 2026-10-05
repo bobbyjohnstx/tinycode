@@ -234,6 +234,7 @@ func shellHookTimeout(seconds int) time.Duration {
 // execShellCommand runs a command via sh -c and returns combined output.
 func execShellCommand(ctx context.Context, command string) (string, error) {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.WaitDelay = 500 * time.Millisecond
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }

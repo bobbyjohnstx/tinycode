@@ -185,7 +185,7 @@ func TestShellHookRunner_MatchFilter(t *testing.T) {
 
 func TestShellHookRunner_Timeout(t *testing.T) {
 	hooks := map[string][]config.HookConfig{
-		"session.start": {{Command: "sleep 10", Timeout: 1}},
+		"session.start": {{Command: "sleep 30", Timeout: 1}},
 	}
 	r := NewShellHookRunner(hooks, slog.Default())
 

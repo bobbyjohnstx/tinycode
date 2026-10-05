@@ -113,6 +113,7 @@ func (mm *MonitorManager) Start(ctx context.Context, command, description, dir s
 
 	monCtx, cancel := context.WithTimeout(ctx, timeout)
 	cmd := exec.CommandContext(monCtx, "sh", "-c", command)
+	cmd.WaitDelay = 500 * time.Millisecond
 	cmd.Dir = dir
 
 	stdout, err := cmd.StdoutPipe()
