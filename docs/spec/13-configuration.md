@@ -402,7 +402,9 @@ Variable names are validated to contain only letters, digits, and underscores.
 | `TINYCODE_MAAS_HOST` | MaaS endpoint |
 | `TINYCODE_MAAS_API_KEY` | MaaS auth key |
 | `OPENROUTER_API_KEY` | OpenRouter auth key |
-| `TINYCODE_SERVER_PASSWORD` | Server auth password |
+| `TINYCODE_AUTH_TOKEN` | Server bearer auth token (serve/web) |
+| `TINYCODE_NO_AUTH` | Disable auth entirely (serve/web) |
+| `TINYCODE_SERVER_PASSWORD` | Deprecated alias for `TINYCODE_AUTH_TOKEN` |
 
 ## 13.9 Example Config
 

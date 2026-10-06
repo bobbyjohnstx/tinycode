@@ -97,12 +97,8 @@ func StreamEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus,
 		Data:  map[string]any{"timestamp": time.Now().UnixMilli()},
 	})
 
-	var sub *bus.Subscription
-	if sessionID != "" {
-		sub = eventBus.Subscribe(sessionID)
-	} else {
-		sub = eventBus.SubscribeAll()
-	}
+	// Always SubscribeAll — session filtering is by props["sessionID"], not event type.
+	sub := eventBus.SubscribeAll()
 	defer sub.Unsubscribe()
 
 	heartbeat := time.NewTicker(sseHeartbeatInterval)
@@ -120,11 +116,8 @@ func StreamEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus,
 				})
 				return
 			}
-			// Skip subagent events — they're forwarded to parent by the event bridge
-			if props, ok := evt.Properties.(map[string]any); ok {
-				if sid, ok := props["sessionID"].(string); ok && strings.Contains(sid, ":") {
-					continue
-				}
+			if !sseEventMatchesSession(evt, sessionID) {
+				continue
 			}
 			if err := sse.Send(SSEEvent{
 				Event: evt.Type,
@@ -138,5 +131,41 @@ func StreamEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus,
 				return
 			}
 		}
+	}
+}
+
+// sseEventMatchesSession returns true when the event should be forwarded on a
+// session-scoped (or global) SSE stream. When sessionID is empty, all non-subagent
+// events are forwarded. When set, only events whose properties.sessionID equals
+// the filter are forwarded (subagent IDs containing ":" are always skipped).
+func sseEventMatchesSession(evt bus.Event, sessionID string) bool {
+	sid := eventSessionID(evt.Properties)
+	// Skip subagent events — they're forwarded to parent by the event bridge.
+	if sid != "" && strings.Contains(sid, ":") {
+		return false
+	}
+	if sessionID == "" {
+		return true
+	}
+	return sid == sessionID
+}
+
+func eventSessionID(props any) string {
+	switch v := props.(type) {
+	case map[string]any:
+		sid, _ := v["sessionID"].(string)
+		return sid
+	default:
+		// Structs with a SessionID field (e.g. permission.Request) — try JSON round-trip.
+		b, err := json.Marshal(props)
+		if err != nil {
+			return ""
+		}
+		var m map[string]any
+		if err := json.Unmarshal(b, &m); err != nil {
+			return ""
+		}
+		sid, _ := m["sessionID"].(string)
+		return sid
 	}
 }

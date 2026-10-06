@@ -266,8 +266,19 @@ func TestSessionPrompt(t *testing.T) {
 	w = httptest.NewRecorder()
 	srv.mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("expected 204, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload["ok"] != true {
+		t.Errorf("expected ok=true, got %v", payload["ok"])
+	}
+	if payload["sessionID"] != sessionID {
+		t.Errorf("expected sessionID %s, got %v", sessionID, payload["sessionID"])
 	}
 
 	// Verify prompt was started (status event published)
@@ -639,7 +650,9 @@ func TestSSESessionEventStream(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	b.Publish("ses_test", map[string]any{"text": "hello"})
+	// Session SSE filters by properties.sessionID, not event type.
+	b.Publish("message.updated", map[string]any{"sessionID": "ses_test", "text": "hello"})
+	b.Publish("message.updated", map[string]any{"sessionID": "ses_other", "text": "nope"})
 
 	time.Sleep(50 * time.Millisecond)
 	cancel()
@@ -648,6 +661,12 @@ func TestSSESessionEventStream(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, "server.connected") {
 		t.Error("expected server.connected event")
+	}
+	if !strings.Contains(body, "hello") {
+		t.Error("expected session-matched event with hello")
+	}
+	if strings.Contains(body, "nope") {
+		t.Error("event for other session should be filtered out")
 	}
 }
 
@@ -1113,6 +1132,18 @@ func TestPermissionReply_SDKFieldNames(t *testing.T) {
 			body:      `{"action":"always"}`,
 			wantValue: "always",
 		},
+		{
+			name:      "permission endpoint with SDK 'reply' field (once)",
+			path:      "/permission/perm_7/reply",
+			body:      `{"reply":"once"}`,
+			wantValue: "once",
+		},
+		{
+			name:      "permission endpoint with SDK 'reply' field (reject)",
+			path:      "/permission/perm_8/reply",
+			body:      `{"reply":"reject"}`,
+			wantValue: "reject",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1141,4 +1172,76 @@ func TestPermissionReply_SDKFieldNames(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPermissionStore_PopulatedFromAsked(t *testing.T) {
+	srv, b := testServer(t)
+
+	b.Publish("permission.asked", map[string]any{
+		"id":         "perm_ask_1",
+		"sessionID":  "ses_ask",
+		"permission": "bash",
+		"patterns":   []any{"rm -rf"},
+		"metadata":   map[string]any{"command": "rm -rf /tmp"},
+	})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(srv.permissionStore.List()) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	req := httptest.NewRequest("GET", "/permission", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var list []map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&list); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1 pending permission, got %d", len(list))
+	}
+	if list[0]["id"] != "perm_ask_1" {
+		t.Errorf("expected id perm_ask_1, got %v", list[0]["id"])
+	}
+	if list[0]["permission"] != "bash" {
+		t.Errorf("expected permission bash, got %v", list[0]["permission"])
+	}
+	if list[0]["sessionID"] != "ses_ask" {
+		t.Errorf("expected sessionID ses_ask, got %v", list[0]["sessionID"])
+	}
+}
+
+func TestServerListen_PortZeroEphemeral(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+
+	srv := New(Config{Port: 0, Hostname: "127.0.0.1"}, Dependencies{Bus: b, DB: db})
+	if srv.config.Port != 0 {
+		t.Fatalf("expected Port to remain 0 for ephemeral bind, got %d", srv.config.Port)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	listener, err := srv.Listen(ctx)
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	if listener.Port == 0 {
+		t.Fatal("expected OS-assigned non-zero port")
+	}
+	if listener.Port == 4096 {
+		// Extremely unlikely if Port 0 was honored; still valid but check config wasn't coerced.
+		t.Log("listener got 4096 (possible but unusual for :0)")
+	}
+	cancel()
 }

@@ -34,17 +34,14 @@ func (s *Server) handleSessionSummarize(w http.ResponseWriter, r *http.Request) 
 	id := r.PathValue("id")
 	store := s.sessionStore()
 
-	info, err := store.Get(id)
-	if err != nil {
+	if _, err := store.Get(id); err != nil {
 		respondError(w, http.StatusNotFound, "session not found")
 		return
 	}
 
-	s.deps.Bus.Publish("session.summarize", map[string]any{
-		"sessionID": id,
-	})
-
-	respondJSON(w, http.StatusAccepted, info)
+	// Manual summarize/compact over HTTP is not wired to Processor.compact yet.
+	// Do not publish a fake session.compacted success event.
+	respondError(w, http.StatusNotImplemented, "session summarize/compact is not implemented")
 }
 
 func (s *Server) handleSessionCommand(w http.ResponseWriter, r *http.Request) {

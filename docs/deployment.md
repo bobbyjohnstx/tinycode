@@ -58,7 +58,7 @@ User=tinycode
 ExecStart=/usr/local/bin/tinycode serve
 Restart=on-failure
 RestartSec=5
-Environment=TINYCODE_SERVER_PASSWORD=changeme
+Environment=TINYCODE_AUTH_TOKEN=changeme
 
 [Install]
 WantedBy=multi-user.target
@@ -72,7 +72,7 @@ sudo systemctl enable --now tinycode.service
 sudo systemctl status tinycode.service
 ```
 
-Set `TINYCODE_SERVER_PASSWORD` before starting -- without it the server is unsecured.
+Set `TINYCODE_AUTH_TOKEN` before starting -- without it the server auto-generates a token and logs it at startup. Use `TINYCODE_NO_AUTH=1` only for trusted local loopback.
 
 ## Container Deployment
 
@@ -84,12 +84,12 @@ podman pull quay.io/bjohns/tinycode-container:latest
 
 # Run with Ollama on the host network
 podman run -it --network host \
-  -e TINYCODE_SERVER_PASSWORD=changeme \
+  -e TINYCODE_AUTH_TOKEN=changeme \
   quay.io/bjohns/tinycode-container:latest
 
 # Run with a remote provider endpoint
 podman run -it -p 8080:8080 \
-  -e TINYCODE_SERVER_PASSWORD=changeme \
+  -e TINYCODE_AUTH_TOKEN=changeme \
   quay.io/bjohns/tinycode-container:latest
 ```
 

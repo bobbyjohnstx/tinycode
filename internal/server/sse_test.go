@@ -197,3 +197,48 @@ func TestStreamEvents_FiltersSubagentEvents(t *testing.T) {
 		t.Errorf("expected normal event with sess-def, got: %s", body)
 	}
 }
+
+func TestStreamEvents_SessionIDFiltersByProps(t *testing.T) {
+	eventBus := bus.New()
+	defer eventBus.Close()
+
+	w := httptest.NewRecorder()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		StreamEvents(ctx, w, eventBus, "ses_filter")
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	eventBus.Publish("message.updated", map[string]any{
+		"sessionID": "ses_filter",
+		"text":      "keep-me",
+	})
+	eventBus.Publish("message.updated", map[string]any{
+		"sessionID": "ses_other",
+		"text":      "drop-me",
+	})
+	// Event type equal to sessionID must NOT be treated as a match.
+	eventBus.Publish("ses_filter", map[string]any{
+		"text": "type-only",
+	})
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	<-done
+
+	body := w.Body.String()
+	if !strings.Contains(body, "keep-me") {
+		t.Errorf("expected props.sessionID match, got: %s", body)
+	}
+	if strings.Contains(body, "drop-me") {
+		t.Errorf("other session should be filtered, got: %s", body)
+	}
+	if strings.Contains(body, "type-only") {
+		t.Errorf("event type == sessionID must not match, got: %s", body)
+	}
+}

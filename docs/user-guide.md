@@ -967,7 +967,7 @@ tinycode serve
 
 ### Authentication
 
-By default, the web/serve mode generates an auth token printed to stderr on startup. Set a custom token:
+By default, `tinycode serve` / `tinycode web` generates an auth token and logs it at startup (with Bearer usage and the server URL). Set a custom token:
 
 ```bash
 TINYCODE_AUTH_TOKEN=my-secret tinycode web

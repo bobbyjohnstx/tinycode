@@ -9,11 +9,15 @@ const pendingTTL = 10 * time.Minute
 
 // PendingPermission represents a tool permission awaiting user approval.
 type PendingPermission struct {
-	ID          string    `json:"id"`
-	SessionID   string    `json:"sessionID"`
-	Tool        string    `json:"tool"`
-	Description string    `json:"description"`
-	Args        any       `json:"args,omitempty"`
+	ID          string         `json:"id"`
+	SessionID   string         `json:"sessionID"`
+	Permission  string         `json:"permission,omitempty"`
+	Patterns    []string       `json:"patterns,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+	Always      []string       `json:"always,omitempty"`
+	Tool        string         `json:"tool,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Args        any            `json:"args,omitempty"`
 	createdAt   time.Time
 }
 

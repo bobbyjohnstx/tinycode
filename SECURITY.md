@@ -28,6 +28,6 @@ If you discover a security vulnerability, please report it responsibly:
 
 ## Security Best Practices
 
-- Set `TINYCODE_SERVER_PASSWORD` when exposing the server on a network
+- Set `TINYCODE_AUTH_TOKEN` when exposing the server on a network (or rely on the auto-generated token logged at startup)
 - Never commit API keys or secrets to the repository
 - Review MCP server configurations — they execute with your user permissions

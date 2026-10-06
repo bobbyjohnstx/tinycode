@@ -95,7 +95,7 @@ export TINYCODE_VLLM_HOST=http://vllm-service:8000
 | `TINYCODE_VLLM_HOST` | vLLM service URL |
 | `TINYCODE_MAAS_HOST` | MaaS/LiteMaaS endpoint |
 | `TINYCODE_MAAS_API_KEY` | MaaS authentication key |
-| `TINYCODE_SERVER_PASSWORD` | Server authentication (required for remote access) |
+| `TINYCODE_AUTH_TOKEN` | Server authentication (required for remote access) |
 
 ### Capabilities
 

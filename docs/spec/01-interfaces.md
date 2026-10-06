@@ -308,13 +308,15 @@ Starts the HTTP API server without the TUI. The server binds to the configured h
 - Blocks until SIGINT or SIGTERM
 - Graceful shutdown: disposes all sessions, drains connections, stops listener
 - Optional web UI serving when `--web` flag is used or `cfg.ServeWebUI` is true
-- Password authentication when `TINYCODE_SERVER_PASSWORD` is set
+- Bearer token authentication when `TINYCODE_AUTH_TOKEN` is set (auto-generated and logged on startup if unset; disabled via `TINYCODE_NO_AUTH`)
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TINYCODE_PORT` | `4096` | Server port |
+| `TINYCODE_PORT` | `4096` | Server port (`0` = ephemeral OS-assigned port) |
 | `TINYCODE_HOST` | `127.0.0.1` | Bind address |
-| `TINYCODE_SERVER_PASSWORD` | (none) | Enable bearer token auth |
+| `TINYCODE_AUTH_TOKEN` | (auto-generated) | Bearer token for API auth |
+| `TINYCODE_NO_AUTH` | (unset) | Disable auth entirely |
+| `TINYCODE_SERVER_PASSWORD` | (none) | Deprecated alias for `TINYCODE_AUTH_TOKEN` |
 | `TINYCODE_WEB_DIR` | (none) | Serve web UI from directory (dev mode) |

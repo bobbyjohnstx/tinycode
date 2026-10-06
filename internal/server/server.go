@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -82,9 +83,8 @@ type Server struct {
 }
 
 func New(cfg Config, deps Dependencies) *Server {
-	if cfg.Port == 0 {
-		cfg.Port = defaultPort
-	}
+	// Port 0 means ephemeral (OS-assigned). Do not coerce to defaultPort —
+	// callers that want 4096 must set it explicitly (serverConfig does).
 	if cfg.Hostname == "" {
 		cfg.Hostname = "127.0.0.1"
 	}
@@ -105,6 +105,16 @@ func New(cfg Config, deps Dependencies) *Server {
 
 	s.sessionManager.appendSystemPrompt = cfg.AppendSystemPrompt
 	s.sessionManager.tokenBudget = cfg.TokenBudget
+	s.sessionManager.SetCredentialLookup(func(providerID string) string {
+		creds, ok := s.credentials.Get(providerID)
+		if !ok {
+			return ""
+		}
+		if k := creds["apiKey"]; k != "" {
+			return k
+		}
+		return creds["api_key"]
+	})
 	if deps.Discovery != nil {
 		disc := deps.Discovery
 		s.sessionManager.SetModelWarmup(func(ctx context.Context, m *provider.Model) {
@@ -112,6 +122,7 @@ func New(cfg Config, deps Dependencies) *Server {
 		})
 	}
 	s.wireSessionStartHook()
+	s.wirePendingStores()
 
 	s.registerRoutes()
 	s.wirePluginHooks()
@@ -243,13 +254,108 @@ func (s *Server) wireSessionStartHook() {
 	}
 }
 
+// wirePendingStores populates in-memory permission/question stores from bus
+// ask events so GET /permission and GET /question return pending requests.
+func (s *Server) wirePendingStores() {
+	if s.deps.Bus == nil {
+		return
+	}
+	if s.pluginDone == nil {
+		s.pluginDone = make(chan struct{})
+	}
+
+	s.wirePluginEventLoop("permission.asked", func(props map[string]any) {
+		id, _ := props["id"].(string)
+		if id == "" {
+			return
+		}
+		sid, _ := props["sessionID"].(string)
+		perm, _ := props["permission"].(string)
+		p := PendingPermission{
+			ID:         id,
+			SessionID:  sid,
+			Permission: perm,
+		}
+		if patterns, ok := props["patterns"].([]string); ok {
+			p.Patterns = patterns
+		} else if raw, ok := props["patterns"].([]any); ok {
+			for _, v := range raw {
+				if s, ok := v.(string); ok {
+					p.Patterns = append(p.Patterns, s)
+				}
+			}
+		}
+		if meta, ok := props["metadata"].(map[string]any); ok {
+			p.Metadata = meta
+		}
+		if always, ok := props["always"].([]string); ok {
+			p.Always = always
+		} else if raw, ok := props["always"].([]any); ok {
+			for _, v := range raw {
+				if s, ok := v.(string); ok {
+					p.Always = append(p.Always, s)
+				}
+			}
+		}
+		if tool, ok := props["tool"].(string); ok {
+			p.Tool = tool
+		}
+		s.permissionStore.Add(p)
+	})
+
+	s.wirePluginEventLoop("permission.replied", func(props map[string]any) {
+		id, _ := props["requestID"].(string)
+		if id != "" {
+			s.permissionStore.Remove(id)
+		}
+	})
+
+	s.wirePluginEventLoop("question.asked", func(props map[string]any) {
+		id, _ := props["id"].(string)
+		if id == "" {
+			return
+		}
+		sid, _ := props["sessionID"].(string)
+		q := PendingQuestion{ID: id, SessionID: sid}
+		if questions, ok := props["questions"].([]any); ok && len(questions) > 0 {
+			if first, ok := questions[0].(map[string]any); ok {
+				q.Question, _ = first["question"].(string)
+				if opts, ok := first["options"].([]any); ok {
+					for _, o := range opts {
+						switch v := o.(type) {
+						case string:
+							q.Options = append(q.Options, v)
+						case map[string]any:
+							if label, ok := v["label"].(string); ok {
+								q.Options = append(q.Options, label)
+							}
+						}
+					}
+				}
+			}
+		} else if question, ok := props["question"].(string); ok {
+			q.Question = question
+		}
+		s.questionStore.Add(q)
+	})
+
+	s.wirePluginEventLoop("question.replied", func(props map[string]any) {
+		id, _ := props["requestID"].(string)
+		if id != "" {
+			s.questionStore.Remove(id)
+		}
+	})
+}
+
 func (s *Server) wirePluginHooks() {
 	mgr := s.deps.PluginManager
 	if mgr == nil {
 		return
 	}
 
-	s.pluginDone = make(chan struct{})
+	if s.pluginDone == nil {
+		s.pluginDone = make(chan struct{})
+	}
 
 	shellRunner := s.deps.ShellHookRunner
 
@@ -289,6 +395,9 @@ func (s *Server) wirePluginHooks() {
 // wirePluginEventLoop subscribes to a bus topic and runs the handler in a
 // goroutine that exits when pluginDone is closed.
 func (s *Server) wirePluginEventLoop(topic string, handler func(map[string]any)) {
+	if s.pluginDone == nil {
+		s.pluginDone = make(chan struct{})
+	}
 	sub := s.deps.Bus.Subscribe(topic)
 	s.pluginSubs = append(s.pluginSubs, sub)
 	safego.Go(func() {
@@ -300,14 +409,33 @@ func (s *Server) wirePluginEventLoop(topic string, handler func(map[string]any))
 				if !ok {
 					return
 				}
-				props, ok := evt.Properties.(map[string]any)
-				if !ok {
+				props := eventPropsMap(evt.Properties)
+				if props == nil {
 					continue
 				}
 				handler(props)
 			}
 		}
 	})
+}
+
+// eventPropsMap converts bus event properties to a map for handlers.
+func eventPropsMap(props any) map[string]any {
+	if props == nil {
+		return nil
+	}
+	if m, ok := props.(map[string]any); ok {
+		return m
+	}
+	b, err := json.Marshal(props)
+	if err != nil {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil
+	}
+	return m
 }
 
 // WaitForShutdown blocks until the server's background shutdown goroutine

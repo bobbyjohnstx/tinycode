@@ -278,40 +278,25 @@ func TestMessageGet_AssistantIncludesProviderID(t *testing.T) {
 
 // --- Fix #206: session.compacted includes compactionNum ---
 
-func TestSubscribeSummarize_PublishesCompactionNum(t *testing.T) {
+func TestSubscribeSummarize_NoFakeCompacted(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	sm := newMinimalSM(t, b)
 
-	// Start the subscribeSummarize goroutine.
 	sm.subscribeSummarize()
 
 	sub := b.Subscribe("session.compacted")
 	defer sub.Unsubscribe()
 
-	// Publish a summarize event to trigger the subscriber.
 	b.Publish("session.summarize", map[string]any{
 		"sessionID": "ses_compact_test",
 	})
 
 	select {
 	case evt := <-sub.C:
-		props := evt.Properties.(map[string]any)
-		if props["sessionID"] != "ses_compact_test" {
-			t.Errorf("expected sessionID 'ses_compact_test', got %v", props["sessionID"])
-		}
-		compactionNum, ok := props["compactionNum"]
-		if !ok {
-			t.Fatal("expected compactionNum field in session.compacted event")
-		}
-		if num, ok := compactionNum.(int); !ok || num != 0 {
-			t.Errorf("expected compactionNum 0, got %v (type %T)", compactionNum, compactionNum)
-		}
-		if _, ok := props["message"]; !ok {
-			t.Error("expected message field in session.compacted event")
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for session.compacted event")
+		t.Fatalf("expected no session.compacted event, got %+v", evt.Properties)
+	case <-time.After(200 * time.Millisecond):
+		// success: no fake compacted event
 	}
 }
 

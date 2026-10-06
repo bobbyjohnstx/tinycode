@@ -23,6 +23,12 @@ func (sm *SessionManager) SetClientFactory(f func(*provider.Model) llm.Client) {
 	sm.clientFactory = f
 }
 
+// SetCredentialLookup registers a provider-ID → API key lookup used when
+// building LLM clients (e.g. keys stored via PUT /auth/{providerID}).
+func (sm *SessionManager) SetCredentialLookup(f func(providerID string) string) {
+	sm.credentialLookup = f
+}
+
 func (sm *SessionManager) subscribePermissionReplies() {
 	if sm.perms == nil {
 		return
@@ -118,37 +124,14 @@ func (sm *SessionManager) subscribeUnrevert() {
 	})
 }
 
-// subscribeSummarize listens for session.summarize events and publishes
-// status + compacted events. Full LLM-driven compaction is handled by the
-// Processor; this subscriber signals that a manual summarize was requested.
+// subscribeSummarize listens for session.summarize events. Manual HTTP summarize
+// returns 501; this subscriber no longer publishes a fake compacted success.
+// Proactive compaction still runs inside Processor.checkCompaction during prompts.
 func (sm *SessionManager) subscribeSummarize() {
 	sub := sm.bus.Subscribe("session.summarize")
 	safego.Go(func() {
-		for evt := range sub.C {
-			props, ok := evt.Properties.(map[string]any)
-			if !ok {
-				continue
-			}
-			sessionID, _ := props["sessionID"].(string)
-			if sessionID == "" {
-				continue
-			}
-
-			sm.bus.Publish("session.status", map[string]any{
-				"sessionID": sessionID,
-				"status":    map[string]any{"type": "busy"},
-			})
-
-			sm.bus.Publish("session.compacted", map[string]any{
-				"sessionID":     sessionID,
-				"compactionNum": 0,
-				"message":       "Manual summarize requested",
-			})
-
-			sm.bus.Publish("session.status", map[string]any{
-				"sessionID": sessionID,
-				"status":    map[string]any{"type": "idle"},
-			})
+		for range sub.C {
+			// Intentionally no-op: do not emit fake session.compacted events.
 		}
 	})
 }

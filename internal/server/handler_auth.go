@@ -49,11 +49,23 @@ func (s *Server) handleAuthPut(w http.ResponseWriter, r *http.Request) {
 
 	s.credentials.Set(providerID, body)
 
-	if strings.EqualFold(providerID, "openrouter") {
-		key := body["apiKey"]
-		if key == "" {
-			key = body["api_key"]
+	key := body["apiKey"]
+	if key == "" {
+		key = body["api_key"]
+	}
+
+	// Apply token to the provider registry so subsequent LLM client builds
+	// (OpenRouter and OpenAI-compatible) pick up the stored key.
+	if key != "" && s.deps.Registry != nil {
+		if info, err := s.deps.Registry.GetProvider(providerID); err == nil {
+			if info.Options == nil {
+				info.Options = make(map[string]any)
+			}
+			info.Options["apiKey"] = key
 		}
+	}
+
+	if strings.EqualFold(providerID, "openrouter") {
 		if key != "" {
 			_ = os.Setenv("OPENROUTER_API_KEY", key)
 			if s.deps.Discovery != nil {

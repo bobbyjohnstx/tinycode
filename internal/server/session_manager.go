@@ -107,6 +107,7 @@ type SessionManager struct {
 	cfg                *config.Info
 	revertState        *RevertState
 	clientFactory      func(*provider.Model) llm.Client
+	credentialLookup   func(providerID string) string
 	jobManager         *session.JobManager
 	appendSystemPrompt string
 	tokenBudget        int
@@ -145,6 +146,9 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 					apiKey = k
 				}
 			}
+		}
+		if apiKey == "" && sm.credentialLookup != nil {
+			apiKey = sm.credentialLookup(m.ProviderID)
 		}
 		if strings.Contains(m.API.URL, "api.anthropic.com") {
 			return llm.NewAnthropicClient(m.API.URL, apiKey)

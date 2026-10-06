@@ -169,7 +169,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - WebSocket connection with ticket-based auth
 - Used by the web UI for embedded terminal
 
-**Go status:** Not implemented. Go does not expose PTY management via the HTTP API.
+**Go status:** Not implemented. Go does not expose PTY management via the HTTP API. These OpenAPI paths (`/pty`, `/pty/{ptyID}`, `/pty/{ptyID}/connect`, …) exist only in the TypeScript contract.
 
 ---
 
@@ -182,7 +182,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - `POST /tui/select-session`, `/open-help`, `/open-sessions`, `/open-themes`, `/open-models`
 - `GET /tui/control/next`, `POST /tui/control/response`
 
-**Go status:** Not implemented.
+**Go status:** Not implemented. Documented in OpenAPI for the TS server only; not part of the Go HTTP surface. Session share/unshare routes (`/session/{id}/share`) are similarly OpenAPI-only.
 
 ---
 

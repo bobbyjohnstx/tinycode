@@ -1107,24 +1107,19 @@ func TestE2E_RevertUnrevertEvents(t *testing.T) {
 	}
 }
 
-func TestE2E_SummarizeEvent(t *testing.T) {
+func TestE2E_SummarizeReturns501(t *testing.T) {
 	h := newTestHarness(t, nil)
 
 	sessionID := h.createSession("Summarize Test", "build")
 
-	compactedSub := h.bus.Subscribe("session.compacted")
-	defer compactedSub.Unsubscribe()
+	resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/summarize", "application/json", nil)
+	if err != nil {
+		t.Fatalf("summarize: %v", err)
+	}
+	defer resp.Body.Close()
 
-	h.bus.Publish("session.summarize", map[string]any{"sessionID": sessionID})
-
-	select {
-	case evt := <-compactedSub.C:
-		props := evt.Properties.(map[string]any)
-		if props["sessionID"] != sessionID {
-			t.Errorf("expected sessionID %s, got %v", sessionID, props["sessionID"])
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("timeout waiting for session.compacted event")
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("expected 501, got %d", resp.StatusCode)
 	}
 }
 

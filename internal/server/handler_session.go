@@ -15,6 +15,8 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
+const promptIdlePollInterval = 50 * time.Millisecond
+
 func (s *Server) sessionStore() *session.Store {
 	return session.NewStore(s.deps.DB)
 }
@@ -132,7 +134,9 @@ func (s *Server) handleSessionUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	var body struct {
-		Title string `json:"title,omitempty"`
+		Title string            `json:"title,omitempty"`
+		Agent string            `json:"agent,omitempty"`
+		Model *session.ModelRef `json:"model,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -143,6 +147,18 @@ func (s *Server) handleSessionUpdate(w http.ResponseWriter, r *http.Request) {
 
 	if body.Title != "" {
 		if err := store.UpdateTitle(id, body.Title); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if body.Agent != "" {
+		if err := store.UpdateAgent(id, body.Agent); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if body.Model != nil {
+		if err := store.UpdateModel(id, body.Model); err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -264,7 +280,37 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 		MaxIterations:  body.MaxIterations,
 	})
 
-	w.WriteHeader(http.StatusNoContent)
+	if err := s.waitUntilSessionIdle(r.Context(), sessionID); err != nil {
+		respondError(w, http.StatusGatewayTimeout, "prompt timed out waiting for idle: "+err.Error())
+		return
+	}
+
+	payload := map[string]any{
+		"ok":        true,
+		"sessionID": sessionID,
+	}
+	if msgs, err := s.messageStore().List(sessionID); err == nil && len(msgs) > 0 {
+		last := msgs[len(msgs)-1]
+		payload["messageID"] = last.ID
+		payload["role"] = string(last.Role)
+	}
+	respondJSON(w, http.StatusOK, payload)
+}
+
+// waitUntilSessionIdle polls until the session is no longer busy or ctx is done.
+func (s *Server) waitUntilSessionIdle(ctx context.Context, sessionID string) error {
+	ticker := time.NewTicker(promptIdlePollInterval)
+	defer ticker.Stop()
+	for {
+		if !s.sessionManager.IsBusy(sessionID) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request) {

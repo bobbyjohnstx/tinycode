@@ -15,20 +15,27 @@ func (s *Server) handlePermissionReply(w http.ResponseWriter, r *http.Request) {
 
 	var body struct {
 		Action    string `json:"action"`
+		Reply     string `json:"reply"`
 		SessionID string `json:"sessionID,omitempty"`
+		Message   string `json:"message,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	if body.Action == "" {
-		respondError(w, http.StatusBadRequest, "action is required")
+	// SDK sends "reply"; older clients send "action".
+	action := body.Reply
+	if action == "" {
+		action = body.Action
+	}
+	if action == "" {
+		respondError(w, http.StatusBadRequest, "reply or action is required")
 		return
 	}
 
 	// Normalize to TS-contract Reply type
-	reply := body.Action
+	reply := action
 	switch reply {
 	case "allow":
 		reply = "once"
@@ -38,10 +45,17 @@ func (s *Server) handlePermissionReply(w http.ResponseWriter, r *http.Request) {
 
 	s.permissionStore.Remove(id)
 
-	s.deps.Bus.Publish("permission.replied", map[string]any{
+	evt := map[string]any{
 		"requestID": id,
 		"reply":     reply,
-	})
+	}
+	if body.SessionID != "" {
+		evt["sessionID"] = body.SessionID
+	}
+	if body.Message != "" {
+		evt["message"] = body.Message
+	}
+	s.deps.Bus.Publish("permission.replied", evt)
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"permissionID": id,

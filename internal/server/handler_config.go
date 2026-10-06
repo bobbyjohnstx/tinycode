@@ -43,6 +43,20 @@ func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Normalize camelCase aliases to snake_case config file keys.
+	if v, ok := body["topP"]; ok {
+		if _, exists := body["top_p"]; !exists {
+			body["top_p"] = v
+		}
+		delete(body, "topP")
+	}
+	if v, ok := body["maxTokens"]; ok {
+		if _, exists := body["max_tokens"]; !exists {
+			body["max_tokens"] = v
+		}
+		delete(body, "maxTokens")
+	}
+
 	configPath := config.GlobalConfigFile()
 
 	existing := make(map[string]any)
@@ -52,8 +66,8 @@ func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 
 	allowedFields := map[string]bool{
 		"model": true, "theme": true, "logLevel": true, "small_model": true,
-		"agents": true, "scopedModels": true, "temperature": true, "topP": true,
-		"maxTokens": true,
+		"agents": true, "scopedModels": true, "temperature": true,
+		"top_p": true, "max_tokens": true,
 	}
 	for k := range body {
 		if !allowedFields[k] {
@@ -64,6 +78,31 @@ func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 
 	for k, v := range body {
 		existing[k] = v
+	}
+
+	// Live-reload safe in-memory fields on the shared Config pointer.
+	if s.deps.Config != nil {
+		if v, ok := body["model"].(string); ok {
+			s.deps.Config.Model = v
+		}
+		if v, ok := body["theme"].(string); ok {
+			s.deps.Config.Theme = v
+		}
+		if v, ok := body["logLevel"].(string); ok {
+			s.deps.Config.LogLevel = v
+		}
+		if v, ok := body["small_model"].(string); ok {
+			s.deps.Config.SmallModel = v
+		}
+		if v, ok := asFloat64(body["temperature"]); ok {
+			s.deps.Config.Temperature = &v
+		}
+		if v, ok := asFloat64(body["top_p"]); ok {
+			s.deps.Config.TopP = &v
+		}
+		if v, ok := asInt(body["max_tokens"]); ok {
+			s.deps.Config.MaxTokens = &v
+		}
 	}
 
 	data, err := json.MarshalIndent(existing, "", "  ")
@@ -82,7 +121,44 @@ func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Writes the global config file (config.GlobalConfigFile), not project-local.
 	respondJSON(w, http.StatusOK, existing)
+}
+
+func asFloat64(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case json.Number:
+		f, err := n.Float64()
+		return f, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func asInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case float32:
+		return int(n), true
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case json.Number:
+		i, err := n.Int64()
+		return int(i), err == nil
+	default:
+		return 0, false
+	}
 }
 
 func (s *Server) handleConfigProviders(w http.ResponseWriter, r *http.Request) {

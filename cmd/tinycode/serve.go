@@ -64,15 +64,7 @@ func runServe() {
 
 	serveCfg := serverConfig(cfg, false)
 
-	serveToken := os.Getenv("TINYCODE_AUTH_TOKEN")
-	if os.Getenv("TINYCODE_NO_AUTH") != "" {
-		serveToken = ""
-		slog.Info("auth disabled via TINYCODE_NO_AUTH")
-		checkNoAuthSafety(serveCfg.Hostname)
-	} else if serveToken == "" {
-		serveToken = generateToken()
-	}
-	slog.Debug("auth token configured")
+	serveToken := resolveServeAuthToken(serveCfg.Hostname)
 	serveCfg.Token = serveToken
 	srv := server.New(serveCfg, server.Dependencies{
 		Bus:             b,
@@ -101,6 +93,7 @@ func runServe() {
 	}
 
 	slog.Info("server ready", "url", listener.URL.String())
+	logServeAuthToken(serveToken, listener.URL.String())
 
 	<-ctx.Done()
 	srv.WaitForShutdown()
@@ -156,15 +149,7 @@ func runWeb() {
 
 	webCfg := serverConfig(cfg, true)
 
-	webToken := os.Getenv("TINYCODE_AUTH_TOKEN")
-	if os.Getenv("TINYCODE_NO_AUTH") != "" {
-		webToken = ""
-		slog.Info("auth disabled via TINYCODE_NO_AUTH")
-		checkNoAuthSafety(webCfg.Hostname)
-	} else if webToken == "" {
-		webToken = loadOrCreateWebToken()
-	}
-	slog.Debug("auth token configured")
+	webToken := resolveWebAuthToken(webCfg.Hostname)
 	webCfg.Token = webToken
 	srv := server.New(webCfg, server.Dependencies{
 		Bus:             b,
@@ -196,6 +181,7 @@ func runWeb() {
 	authParam := base64.StdEncoding.EncodeToString([]byte("tinycode:" + webToken))
 	browserURL := baseURL + "?auth_token=" + authParam
 	slog.Info("web UI ready", "url", baseURL)
+	logServeAuthToken(webToken, baseURL)
 
 	openBrowser(browserURL)
 
@@ -217,4 +203,57 @@ func openBrowser(url string) {
 		return
 	}
 	_ = cmd.Start()
+}
+
+// resolveServeAuthToken returns the bearer token for headless serve mode.
+// TINYCODE_NO_AUTH disables auth. TINYCODE_AUTH_TOKEN is preferred;
+// TINYCODE_SERVER_PASSWORD is accepted as a deprecated alias.
+func resolveServeAuthToken(hostname string) string {
+	if os.Getenv("TINYCODE_NO_AUTH") != "" {
+		slog.Info("auth disabled via TINYCODE_NO_AUTH")
+		checkNoAuthSafety(hostname)
+		return ""
+	}
+	token := os.Getenv("TINYCODE_AUTH_TOKEN")
+	if token == "" {
+		if legacy := os.Getenv("TINYCODE_SERVER_PASSWORD"); legacy != "" {
+			slog.Warn("TINYCODE_SERVER_PASSWORD is deprecated; use TINYCODE_AUTH_TOKEN")
+			token = legacy
+		}
+	}
+	if token == "" {
+		token = generateToken()
+	}
+	return token
+}
+
+// resolveWebAuthToken returns the bearer token for web mode (persistent file fallback).
+func resolveWebAuthToken(hostname string) string {
+	if os.Getenv("TINYCODE_NO_AUTH") != "" {
+		slog.Info("auth disabled via TINYCODE_NO_AUTH")
+		checkNoAuthSafety(hostname)
+		return ""
+	}
+	token := os.Getenv("TINYCODE_AUTH_TOKEN")
+	if token == "" {
+		if legacy := os.Getenv("TINYCODE_SERVER_PASSWORD"); legacy != "" {
+			slog.Warn("TINYCODE_SERVER_PASSWORD is deprecated; use TINYCODE_AUTH_TOKEN")
+			token = legacy
+		}
+	}
+	if token == "" {
+		token = loadOrCreateWebToken()
+	}
+	return token
+}
+
+func logServeAuthToken(token, baseURL string) {
+	if token == "" {
+		return
+	}
+	slog.Info("authentication required",
+		"usage", "Authorization: Bearer <token>",
+		"url", baseURL,
+		"token", token,
+	)
 }

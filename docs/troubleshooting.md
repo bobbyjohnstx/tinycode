@@ -95,7 +95,7 @@ Solutions to common tinycode issues and configuration problems.
    ```
 3. Set password for remote access:
    ```bash
-   export TINYCODE_SERVER_PASSWORD=your-secure-password
+   export TINYCODE_AUTH_TOKEN=your-secure-token
    ```
 4. Open firewall port:
    ```bash
@@ -334,7 +334,7 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
    ```bash
    podman run -it \
      -e TINYCODE_VLLM_HOST=http://your-vllm:8000 \
-     -e TINYCODE_SERVER_PASSWORD=changeme \
+     -e TINYCODE_AUTH_TOKEN=changeme \
      quay.io/bjohns/tinycode-container:latest
    ```
 

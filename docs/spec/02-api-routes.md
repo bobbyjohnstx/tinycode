@@ -22,16 +22,16 @@ Source: `internal/server/middleware/`
 |--------|------|---------|-------------|
 | GET | `/global/health` | `handleHealth` | Returns `{"healthy": true, "version": "0.1.0"}` |
 | GET | `/global/version` | `handleVersion` | Returns `{"version": "0.1.0"}` |
-| GET | `/global/event` | `handleGlobalEventStream` | SSE stream for all bus events (wildcard subscription) |
+| GET | `/global/event` | `handleGlobalEventStream` | Envelope SSE stream for all bus events (see §2.22) |
 | GET | `/global/config` | `handleConfigGet` | Get merged config for a directory (`?directory=`) |
-| PATCH | `/global/config` | `handleConfigUpdate` | Update config fields |
+| PATCH | `/global/config` | `handleConfigUpdate` | Update config fields (writes global config file; accepts `top_p`/`max_tokens` and camelCase aliases) |
 | POST | `/global/dispose` | `handleGlobalDispose` | Trigger graceful shutdown |
 
 ## 2.3 Event Routes
 
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
-| GET | `/event` | `handleEventStream` | SSE stream (same as global event stream) |
+| GET | `/event` | `handleEventStream` | Flat SSE stream of all bus events (see §2.22) |
 
 ## 2.4 Session Routes
 
@@ -41,19 +41,19 @@ Source: `internal/server/middleware/`
 | GET | `/session` | `handleSessionList` | List sessions. Query: `?directory=&limit=&offset=` |
 | GET | `/session/status` | `handleSessionStatus` | Get status of all active sessions |
 | GET | `/session/{id}` | `handleSessionGet` | Get session by ID |
-| PATCH | `/session/{id}` | `handleSessionUpdate` | Update session fields (title, agent, model) |
+| PATCH | `/session/{id}` | `handleSessionUpdate` | Update session fields (`title`, `agent`, `model`) |
 | DELETE | `/session/{id}` | `handleSessionDelete` | Delete a session and its messages |
 
 ## 2.5 Session Action Routes
 
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
-| POST | `/session/{id}/message` | `handleSessionPrompt` | Synchronous prompt submission (blocks until complete) |
-| POST | `/session/{sessionID}/prompt_async` | `handleSessionPromptAsync` | Async prompt submission (returns immediately, stream via SSE) |
+| POST | `/session/{id}/message` | `handleSessionPrompt` | Synchronous prompt: waits until session idle, returns `200` JSON (`{ok, sessionID, ...}`) |
+| POST | `/session/{sessionID}/prompt_async` | `handleSessionPromptAsync` | Async prompt (returns `204` immediately; stream via SSE) |
 | POST | `/session/{id}/abort` | `handleSessionAbort` | Abort the active processor for a session |
 | POST | `/session/{id}/fork` | `handleSessionFork` | Fork a session (creates child with copied messages) |
 | POST | `/session/{id}/init` | `handleSessionInit` | Initialize a session (load agent, set system prompt) |
-| POST | `/session/{id}/summarize` | `handleSessionSummarize` | Trigger context compaction |
+| POST | `/session/{id}/summarize` | `handleSessionSummarize` | Manual summarize/compact — returns `501 Not Implemented` |
 | POST | `/session/{id}/command` | `handleSessionCommand` | Execute a client command (e.g., `connect`, `compact`) |
 | POST | `/session/{id}/revert` | `handleSessionRevert` | Revert the last assistant turn |
 | POST | `/session/{id}/unrevert` | `handleSessionUnrevert` | Undo a revert |
@@ -68,7 +68,7 @@ Source: `internal/server/middleware/`
 | GET | `/session/{id}/children` | `handleSessionChildren` | List child sessions |
 | GET | `/session/{id}/todo` | `handleSessionTodo` | Get todo items for a session |
 | GET | `/session/{id}/diff` | `handleSessionDiff` | Get file diffs for a session |
-| GET | `/session/{id}/event` | `handleSessionEventStream` | SSE stream filtered to a specific session |
+| GET | `/session/{id}/event` | `handleSessionEventStream` | Flat SSE filtered by `properties.sessionID` (not event type; see §2.22) |
 
 ## 2.7 Permission Routes
 
@@ -115,7 +115,7 @@ Source: `internal/server/middleware/`
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
 | GET | `/config` | `handleConfigGet` | Get merged config |
-| PATCH | `/config` | `handleConfigUpdate` | Update config fields |
+| PATCH | `/config` | `handleConfigUpdate` | Update config fields (same handler as `/global/config`; writes global file) |
 | GET | `/config/providers` | `handleConfigProviders` | Get config-defined provider settings |
 
 ## 2.12 File Routes
@@ -190,7 +190,7 @@ All JSON endpoints use `application/json` content type. Errors return:
 }
 ```
 
-HTTP status codes follow REST conventions: 200 (OK), 201 (Created), 204 (No Content), 400 (Bad Request), 404 (Not Found), 500 (Internal Server Error).
+HTTP status codes follow REST conventions: 200 (OK), 201 (Created), 204 (No Content), 400 (Bad Request), 404 (Not Found), 501 (Not Implemented), 500 (Internal Server Error).
 
 ## 2.21 Route Count Summary
 
@@ -214,3 +214,26 @@ HTTP status codes follow REST conventions: 200 (OK), 201 (Created), 204 (No Cont
 | MCP | 1 |
 | Plugin | 5 |
 | **Total** | **66** |
+
+## 2.22 SSE Stream Shapes
+
+The Go server exposes three SSE endpoints with two payload shapes:
+
+| Endpoint | Shape | Filtering |
+|----------|-------|-----------|
+| `GET /global/event` | **Envelope**: each `data:` line is `{"directory":"...","payload":{"id","type","properties"}}` | All events (subagent `sessionID`s containing `:` skipped) |
+| `GET /event` | **Flat**: SSE `event:` = bus type, `data:` = properties, `id:` = event id | Same as global (all events) |
+| `GET /session/{id}/event` | **Flat** (same as `/event`) | `SubscribeAll`, then keep only events where `properties.sessionID == {id}` (not by event type). Subagent IDs with `:` are skipped. |
+
+Clients must not assume `/global/event` and `/event` share the same JSON shape.
+
+## 2.23 OpenAPI vs Go Surface
+
+The TypeScript OpenAPI (`packages/sdk/openapi.json`) documents routes that are **not** implemented in the Go HTTP server, including:
+
+- Session share/unshare (`/session/{id}/share`, …)
+- PTY management (`/pty`, `/pty/{ptyID}`, `/pty/{ptyID}/connect`, …)
+- TUI control (`/tui/*`)
+- Instance dispose aliases beyond `POST /global/dispose`
+
+See [16-not-implemented.md](16-not-implemented.md) §16.11–16.12 for PTY/TUI detail. Treat OpenAPI as the historical TS contract; the Go route tables above are authoritative for `tinycode serve`.
