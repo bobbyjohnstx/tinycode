@@ -22,6 +22,40 @@ func (s *stubToolExecutor) ToolDefs(_ []string) []llm.Tool {
 	return nil
 }
 
+func TestEffectiveModelID(t *testing.T) {
+	if got := effectiveModelID(nil); got != "" {
+		t.Errorf("nil model = %q, want empty", got)
+	}
+	if got := effectiveModelID(&provider.Model{ID: "display"}); got != "display" {
+		t.Errorf("no API.ID = %q, want display", got)
+	}
+	if got := effectiveModelID(&provider.Model{ID: "display", API: provider.ModelAPI{ID: "api-id"}}); got != "api-id" {
+		t.Errorf("with API.ID = %q, want api-id", got)
+	}
+}
+
+func TestBuildRequest_UsesAPIID(t *testing.T) {
+	p := &Processor{
+		config: ProcessorConfig{
+			SessionID: "ses-test",
+			Model: &provider.Model{
+				ID:  "display-id",
+				API: provider.ModelAPI{ID: "profiled-api-id"},
+			},
+		},
+		tools: &stubToolExecutor{},
+		bus:   bus.New(),
+	}
+	p.messages = []Message{{
+		ID: "msg-1", SessionID: "ses-test", Role: RoleUser,
+		Parts: []Part{TextPart("hi")}, CreatedAt: time.Now(),
+	}}
+	req := p.buildRequest()
+	if req.Model != "profiled-api-id" {
+		t.Errorf("request model = %q, want profiled-api-id", req.Model)
+	}
+}
+
 func TestBuildRequest_ParallelToolResults(t *testing.T) {
 	p := &Processor{
 		config: ProcessorConfig{

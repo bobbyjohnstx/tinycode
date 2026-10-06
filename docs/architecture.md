@@ -76,7 +76,7 @@ Runtime orchestration (busy state, prompt dispatch, abort, revert stash) is `Ses
 
 ### `internal/llm/` -- LLM Client
 
-OpenAI-compatible HTTP client with streaming SSE support. Sends chat completion requests, parses streaming deltas, reassembles tool-call arguments across chunks, and handles JSON repair for malformed tool-call output from local models.
+Dual HTTP clients: OpenAI-compatible Chat Completions (`openai.go`) and Anthropic Messages (`anthropic.go`). Selection prefers `Model.API.NPM` / provider ID, with hostname fallback. Both stream SSE, reassemble tool-call arguments across chunks, and redirect unrepairable tool JSON to the `invalid` tool.
 
 ### `internal/provider/` -- Provider Discovery
 

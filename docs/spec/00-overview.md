@@ -59,7 +59,7 @@ cd tinycode && make build
 │  internal/tui/       Bubbletea TUI            │
 │  internal/server/    HTTP server (net/http)    │
 │  internal/session/   Session + processor loop  │
-│  internal/llm/       OpenAI-compatible client  │
+│  internal/llm/       OpenAI + Anthropic clients│
 │  internal/provider/  Provider discovery        │
 │  internal/agent/     Agent registry            │
 │  internal/tool/      Tool implementations      │

@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"strings"
 )
 
 type Request struct {
@@ -15,6 +16,27 @@ type Request struct {
 	TopP          *float64       `json:"top_p,omitempty"`
 	MaxTokens      *int           `json:"max_tokens,omitempty"`
 	ThinkingBudget *int           `json:"thinking_budget,omitempty"`
+}
+
+// UsesAnthropicProtocol reports whether requests should use the Anthropic
+// Messages API. Prefers an explicit npm/protocol hint (e.g. "@ai-sdk/anthropic")
+// or provider ID, then falls back to the api.anthropic.com hostname.
+func UsesAnthropicProtocol(npm, providerID, apiURL string) bool {
+	if strings.Contains(strings.ToLower(npm), "anthropic") {
+		return true
+	}
+	if strings.EqualFold(providerID, "anthropic") {
+		return true
+	}
+	return strings.Contains(apiURL, "api.anthropic.com")
+}
+
+// NewClient selects OpenAI or Anthropic based on protocol hints.
+func NewClient(baseURL, apiKey, npm, providerID string) Client {
+	if UsesAnthropicProtocol(npm, providerID, baseURL) {
+		return NewAnthropicClient(baseURL, apiKey)
+	}
+	return NewOpenAIClient(baseURL+"/v1", apiKey)
 }
 
 type StreamOptions struct {

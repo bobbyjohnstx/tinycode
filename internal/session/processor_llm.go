@@ -16,7 +16,12 @@ import (
 func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) {
 	req := p.buildRequest()
 
-	slog.Info("callLLM", "sessionID", p.config.SessionID, "model", p.config.Model.ID, "llmMessages", len(req.Messages), "tools", len(req.Tools))
+	slog.Info("callLLM", "sessionID", p.config.SessionID, "model", req.Model, "llmMessages", len(req.Messages), "tools", len(req.Tools))
+
+	var opts []llm.StreamOption
+	if p.config.Model != nil && len(p.config.Model.Headers) > 0 {
+		opts = append(opts, llm.WithHeaders(p.config.Model.Headers))
+	}
 
 	var lastErr error
 	for attempt := 0; attempt <= provider.MaxRetries; attempt++ {
@@ -30,7 +35,7 @@ func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) 
 			}
 		}
 
-		ch, err := p.client.Stream(ctx, req)
+		ch, err := p.client.Stream(ctx, req, opts...)
 		if err != nil {
 			if provider.IsRetryable(err.Error()) || provider.IsRetryableStatus(statusFromError(err)) {
 				lastErr = err
@@ -52,6 +57,17 @@ func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) 
 	}
 
 	return nil, nil, fmt.Errorf("max retries exceeded: %w", lastErr)
+}
+
+// effectiveModelID returns Model.API.ID when set, otherwise Model.ID.
+func effectiveModelID(m *provider.Model) string {
+	if m == nil {
+		return ""
+	}
+	if m.API.ID != "" {
+		return m.API.ID
+	}
+	return m.ID
 }
 
 func (p *Processor) buildRequest() llm.Request {
@@ -136,7 +152,7 @@ func (p *Processor) buildRequest() llm.Request {
 	tools := p.tools.ToolDefs(p.config.AgentPerms)
 
 	req := llm.Request{
-		Model:          p.config.Model.ID,
+		Model:          effectiveModelID(p.config.Model),
 		Messages:       llmMessages,
 		Tools:          tools,
 		Temperature:    p.config.Temperature,
@@ -279,7 +295,7 @@ func (p *Processor) compact(ctx context.Context) (bool, error) {
 	readFiles, modifiedFiles := trackFiles(messages)
 	prompt := buildCompactionPrompt(toCompact, p.priorSummary, readFiles, modifiedFiles)
 
-	compactionModel := p.config.Model.ID
+	compactionModel := effectiveModelID(p.config.Model)
 	if p.config.CompactionModel != "" {
 		compactionModel = p.config.CompactionModel
 	} else if p.config.SmallModel != "" {
@@ -293,7 +309,11 @@ func (p *Processor) compact(ctx context.Context) (bool, error) {
 		},
 	}
 
-	ch, err := p.client.Stream(ctx, summaryReq)
+	var opts []llm.StreamOption
+	if p.config.Model != nil && len(p.config.Model.Headers) > 0 {
+		opts = append(opts, llm.WithHeaders(p.config.Model.Headers))
+	}
+	ch, err := p.client.Stream(ctx, summaryReq, opts...)
 	if err != nil {
 		return false, fmt.Errorf("requesting compaction summary: %w", err)
 	}

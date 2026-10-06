@@ -485,3 +485,153 @@ func TestOpenAIStream_ContextCancellation(t *testing.T) {
 		t.Error("expected error event on context cancellation")
 	}
 }
+
+func TestOpenAIStream_FinalizeToolsWithoutFinishReason(t *testing.T) {
+	// Proxy ends with [DONE] only — no finish_reason.
+	lines := []string{
+		`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_done","type":"function","function":{"name":"read","arguments":""}}]}}]}`,
+		`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"path\":\"x.go\"}"}}]}}]}`,
+	}
+	server := httptest.NewServer(sseHandler(lines))
+	defer server.Close()
+
+	client := NewOpenAIClient(server.URL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:    "gpt-4",
+		Messages: []Message{{Role: "user", Content: "Read"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+	events := collectEvents(t, ch, 5*time.Second)
+
+	var endEvent *Event
+	for i := range events {
+		if events[i].Type == EventToolCallEnd {
+			endEvent = &events[i]
+			break
+		}
+	}
+	if endEvent == nil {
+		t.Fatal("expected tool call end when stream ends without finish_reason")
+	}
+	if endEvent.ToolName != "read" {
+		t.Errorf("tool name = %q, want read", endEvent.ToolName)
+	}
+	if endEvent.ToolCallArgs != `{"path":"x.go"}` {
+		t.Errorf("args = %q", endEvent.ToolCallArgs)
+	}
+}
+
+func TestOpenAIStream_MultiToolOrderAndIDUpdate(t *testing.T) {
+	lines := []string{
+		// Index 1 first, then 0 — finalize must emit in ascending index order.
+		`{"choices":[{"delta":{"tool_calls":[{"index":1,"id":"","type":"function","function":{"name":"","arguments":""}}]}}]}`,
+		`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":""}}]}}]}`,
+		// Later deltas supply id/name.
+		`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_a","function":{"name":"read","arguments":"{\"a\":1}"}}]}}]}`,
+		`{"choices":[{"delta":{"tool_calls":[{"index":1,"id":"tc_b","function":{"name":"write","arguments":"{\"b\":2}"}}]}}]}`,
+		finishChunk("tool_calls"),
+	}
+	server := httptest.NewServer(sseHandler(lines))
+	defer server.Close()
+
+	client := NewOpenAIClient(server.URL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:    "gpt-4",
+		Messages: []Message{{Role: "user", Content: "Do both"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+	events := collectEvents(t, ch, 5*time.Second)
+
+	var ends []Event
+	for _, ev := range events {
+		if ev.Type == EventToolCallEnd {
+			ends = append(ends, ev)
+		}
+	}
+	if len(ends) != 2 {
+		t.Fatalf("tool ends = %d, want 2", len(ends))
+	}
+	if ends[0].ToolCallID != "tc_a" || ends[0].ToolName != "read" {
+		t.Errorf("first end = id=%q name=%q, want tc_a/read", ends[0].ToolCallID, ends[0].ToolName)
+	}
+	if ends[1].ToolCallID != "tc_b" || ends[1].ToolName != "write" {
+		t.Errorf("second end = id=%q name=%q, want tc_b/write", ends[1].ToolCallID, ends[1].ToolName)
+	}
+}
+
+func TestOpenAIStream_OmitsThinkingBudget(t *testing.T) {
+	var raw map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&raw)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer server.Close()
+
+	budget := 8192
+	client := NewOpenAIClient(server.URL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:          "gpt-4",
+		Messages:       []Message{{Role: "user", Content: "Hi"}},
+		ThinkingBudget: &budget,
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+	collectEvents(t, ch, 5*time.Second)
+
+	if _, ok := raw["thinking_budget"]; ok {
+		t.Errorf("OpenAI wire body must omit thinking_budget, got %#v", raw["thinking_budget"])
+	}
+}
+
+func TestOpenAIClient_HeaderTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(200)
+	}))
+	defer server.Close()
+
+	client := NewOpenAIClient(server.URL, "key")
+	client.Client.Transport = &http.Transport{ResponseHeaderTimeout: 50 * time.Millisecond}
+
+	_, err := client.Stream(context.Background(), Request{
+		Model:    "gpt-4",
+		Messages: []Message{{Role: "user", Content: "Hi"}},
+	})
+	if err == nil {
+		t.Fatal("expected header timeout error")
+	}
+}
+
+func TestOpenAIStream_MalformedSSEContinues(t *testing.T) {
+	server := httptest.NewServer(sseHandler([]string{
+		`{not valid json`,
+		textChunk("ok"),
+		finishChunk("stop"),
+	}))
+	defer server.Close()
+
+	client := NewOpenAIClient(server.URL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:    "gpt-4",
+		Messages: []Message{{Role: "user", Content: "Hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+	events := collectEvents(t, ch, 5*time.Second)
+	var text string
+	for _, ev := range events {
+		if ev.Type == EventTextDelta {
+			text += ev.Text
+		}
+	}
+	if text != "ok" {
+		t.Errorf("text = %q, want ok (stream should continue after bad SSE line)", text)
+	}
+}

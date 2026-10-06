@@ -2,10 +2,14 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestAnthropicStream_TextDelta(t *testing.T) {
@@ -305,3 +309,285 @@ func TestAnthropicBuildRequest_ZeroThinkingBudget(t *testing.T) {
 }
 
 func intPtr(n int) *int { return &n }
+
+func TestAnthropicBuildRequest_ToolUseAndResultHistory(t *testing.T) {
+	client := NewAnthropicClient("https://api.anthropic.com", "key")
+	req := Request{
+		Model: "claude-3-opus-20240229",
+		Messages: []Message{
+			{Role: "user", Content: "Read the file"},
+			{
+				Role:    "assistant",
+				Content: "I'll read it.",
+				ToolCalls: []ToolCall{
+					{
+						ID:   "tc_01",
+						Type: "function",
+						Function: FunctionCall{
+							Name:      "read",
+							Arguments: `{"file_path":"test.go"}`,
+						},
+					},
+				},
+			},
+			{Role: "tool", Content: "package main", ToolCallID: "tc_01"},
+			{Role: "user", Content: "Summarize it"},
+		},
+		MaxTokens: intPtr(100),
+	}
+
+	ar := client.buildRequest(req)
+
+	if len(ar.Messages) != 4 {
+		t.Fatalf("messages count = %d, want 4 (user, assistant tool_use, user tool_result, user)", len(ar.Messages))
+	}
+
+	assistant := ar.Messages[1]
+	if assistant.Role != "assistant" {
+		t.Fatalf("message[1] role = %q, want assistant", assistant.Role)
+	}
+	blocks, ok := assistant.Content.([]map[string]any)
+	if !ok {
+		t.Fatalf("assistant content type = %T, want []map[string]any", assistant.Content)
+	}
+	if len(blocks) != 2 {
+		t.Fatalf("assistant blocks = %d, want 2 (text + tool_use)", len(blocks))
+	}
+	if blocks[0]["type"] != "text" || blocks[0]["text"] != "I'll read it." {
+		t.Errorf("unexpected text block: %#v", blocks[0])
+	}
+	if blocks[1]["type"] != "tool_use" || blocks[1]["id"] != "tc_01" || blocks[1]["name"] != "read" {
+		t.Errorf("unexpected tool_use block: %#v", blocks[1])
+	}
+	input, ok := blocks[1]["input"].(map[string]any)
+	if !ok || input["file_path"] != "test.go" {
+		t.Errorf("tool_use input = %#v, want file_path=test.go", blocks[1]["input"])
+	}
+
+	toolResultMsg := ar.Messages[2]
+	if toolResultMsg.Role != "user" {
+		t.Fatalf("message[2] role = %q, want user", toolResultMsg.Role)
+	}
+	results, ok := toolResultMsg.Content.([]map[string]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("tool result content = %#v", toolResultMsg.Content)
+	}
+	if results[0]["type"] != "tool_result" || results[0]["tool_use_id"] != "tc_01" || results[0]["content"] != "package main" {
+		t.Errorf("unexpected tool_result: %#v", results[0])
+	}
+}
+
+func TestAnthropicBuildRequest_MergesConsecutiveToolResults(t *testing.T) {
+	client := NewAnthropicClient("https://api.anthropic.com", "key")
+	ar := client.buildRequest(Request{
+		Model: "claude-3-opus-20240229",
+		Messages: []Message{
+			{Role: "user", Content: "do both"},
+			{
+				Role: "assistant",
+				ToolCalls: []ToolCall{
+					{ID: "a", Type: "function", Function: FunctionCall{Name: "read", Arguments: `{}`}},
+					{ID: "b", Type: "function", Function: FunctionCall{Name: "read", Arguments: `{}`}},
+				},
+			},
+			{Role: "tool", Content: "ra", ToolCallID: "a"},
+			{Role: "tool", Content: "rb", ToolCallID: "b"},
+		},
+	})
+
+	if len(ar.Messages) != 3 {
+		t.Fatalf("messages = %d, want 3 (user, assistant, merged tool results)", len(ar.Messages))
+	}
+	results, ok := ar.Messages[2].Content.([]map[string]any)
+	if !ok || len(results) != 2 {
+		t.Fatalf("merged tool results = %#v", ar.Messages[2].Content)
+	}
+}
+
+func TestAnthropicStream_InvalidToolCallJSON_Unrepairable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(200)
+		events := []string{
+			"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"tc_bad\",\"name\":\"write\"}}\n\n",
+			"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{not valid json at all\"}}\n\n",
+			"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+			"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"}}\n\n",
+		}
+		for _, e := range events {
+			fmt.Fprint(w, e)
+		}
+	}))
+	defer server.Close()
+
+	client := NewAnthropicClient(server.URL, "test-key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:     "claude-3-opus-20240229",
+		Messages:  []Message{{Role: "user", Content: "Write"}},
+		MaxTokens: intPtr(100),
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+
+	var endEvent *Event
+	for ev := range ch {
+		if ev.Type == EventToolCallEnd {
+			endEvent = &ev
+		}
+	}
+	if endEvent == nil {
+		t.Fatal("missing tool call end")
+	}
+	if endEvent.ToolName != "invalid" {
+		t.Errorf("tool name = %q, want invalid", endEvent.ToolName)
+	}
+	var parsed map[string]string
+	if err := json.Unmarshal([]byte(endEvent.ToolCallArgs), &parsed); err != nil {
+		t.Fatalf("invalid args not JSON: %v", err)
+	}
+	if parsed["original_name"] != "write" {
+		t.Errorf("original_name = %q, want write", parsed["original_name"])
+	}
+}
+
+func TestAnthropicStream_ToolHistoryRoundTrip(t *testing.T) {
+	var secondBody []byte
+	var requestNum int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestNum++
+		body, _ := io.ReadAll(r.Body)
+		if requestNum == 2 {
+			secondBody = body
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(200)
+		if requestNum == 1 {
+			events := []string{
+				"event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"tc_rt\",\"name\":\"read\"}}\n\n",
+				"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"path\\\":\\\"a.go\\\"}\"}}\n\n",
+				"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+				"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"}}\n\n",
+			}
+			for _, e := range events {
+				fmt.Fprint(w, e)
+			}
+			return
+		}
+		fmt.Fprint(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n")
+		fmt.Fprint(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"done\"}}\n\n")
+		fmt.Fprint(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
+		fmt.Fprint(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n")
+	}))
+	defer server.Close()
+
+	client := NewAnthropicClient(server.URL, "test-key")
+
+	ch1, err := client.Stream(context.Background(), Request{
+		Model:     "claude-3-opus-20240229",
+		Messages:  []Message{{Role: "user", Content: "Read a.go"}},
+		MaxTokens: intPtr(100),
+	})
+	if err != nil {
+		t.Fatalf("first Stream: %v", err)
+	}
+	var toolID, toolName, toolArgs string
+	for ev := range ch1 {
+		if ev.Type == EventToolCallEnd {
+			toolID, toolName, toolArgs = ev.ToolCallID, ev.ToolName, ev.ToolCallArgs
+		}
+	}
+	if toolID == "" {
+		t.Fatal("first stream missing tool call")
+	}
+
+	ch2, err := client.Stream(context.Background(), Request{
+		Model: "claude-3-opus-20240229",
+		Messages: []Message{
+			{Role: "user", Content: "Read a.go"},
+			{
+				Role: "assistant",
+				ToolCalls: []ToolCall{{
+					ID: toolID, Type: "function",
+					Function: FunctionCall{Name: toolName, Arguments: toolArgs},
+				}},
+			},
+			{Role: "tool", Content: "file contents", ToolCallID: toolID},
+		},
+		MaxTokens: intPtr(100),
+	})
+	if err != nil {
+		t.Fatalf("second Stream: %v", err)
+	}
+	for range ch2 {
+	}
+
+	if len(secondBody) == 0 {
+		t.Fatal("second request body not captured")
+	}
+	bodyStr := string(secondBody)
+	if !strings.Contains(bodyStr, `"type":"tool_use"`) && !strings.Contains(bodyStr, `"type": "tool_use"`) {
+		// json.Marshal omits spaces
+		if !strings.Contains(bodyStr, `"tool_use"`) {
+			t.Errorf("second body missing tool_use: %s", bodyStr)
+		}
+	}
+	if !strings.Contains(bodyStr, `"tool_result"`) {
+		t.Errorf("second body missing tool_result: %s", bodyStr)
+	}
+	if !strings.Contains(bodyStr, toolID) {
+		t.Errorf("second body missing tool id %q: %s", toolID, bodyStr)
+	}
+}
+
+func TestAnthropicClient_HeaderTimeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(200)
+	}))
+	defer server.Close()
+
+	client := NewAnthropicClient(server.URL, "key")
+	client.Client.Transport = &http.Transport{ResponseHeaderTimeout: 50 * time.Millisecond}
+
+	_, err := client.Stream(context.Background(), Request{
+		Model:     "claude-3-opus-20240229",
+		Messages:  []Message{{Role: "user", Content: "Hi"}},
+		MaxTokens: intPtr(10),
+	})
+	if err == nil {
+		t.Fatal("expected header timeout error")
+	}
+}
+
+func TestUsesAnthropicProtocol(t *testing.T) {
+	tests := []struct {
+		npm, providerID, url string
+		want                 bool
+	}{
+		{"@ai-sdk/anthropic", "", "https://proxy.example.com", true},
+		{"", "anthropic", "https://proxy.example.com", true},
+		{"", "", "https://api.anthropic.com", true},
+		{"@ai-sdk/openai-compatible", "ollama", "http://localhost:11434", false},
+	}
+	for _, tt := range tests {
+		got := UsesAnthropicProtocol(tt.npm, tt.providerID, tt.url)
+		if got != tt.want {
+			t.Errorf("UsesAnthropicProtocol(%q,%q,%q)=%v, want %v", tt.npm, tt.providerID, tt.url, got, tt.want)
+		}
+	}
+}
+
+func TestNewClient_SelectsAnthropicByNPM(t *testing.T) {
+	c := NewClient("https://proxy.example.com", "key", "@ai-sdk/anthropic", "custom")
+	if _, ok := c.(*AnthropicClient); !ok {
+		t.Fatalf("got %T, want *AnthropicClient", c)
+	}
+}
+
+func TestNewClient_SelectsOpenAIByDefault(t *testing.T) {
+	c := NewClient("http://localhost:11434", "", "", "ollama")
+	if _, ok := c.(*OpenAIClient); !ok {
+		t.Fatalf("got %T, want *OpenAIClient", c)
+	}
+}

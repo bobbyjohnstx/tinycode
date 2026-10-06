@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -27,11 +28,14 @@ type OpenAIClient struct {
 }
 
 func NewOpenAIClient(baseURL, apiKey string) *OpenAIClient {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = headerTimeout
 	return &OpenAIClient{
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		APIKey:  apiKey,
 		Client: &http.Client{
-			Timeout: 0, // no overall timeout; we manage per-phase timeouts
+			Timeout:   0, // no overall timeout; we manage per-phase timeouts
+			Transport: transport,
 		},
 	}
 }
@@ -42,10 +46,13 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 		o(cfg)
 	}
 
-	req.Stream = true
-	req.StreamOptions = &StreamOptions{IncludeUsage: true}
-	resolveContentPartsOpenAI(req.Messages)
-	body, err := json.Marshal(req)
+	// Marshal a copy so thinking_budget (Anthropic-only) never hits the OpenAI wire.
+	wire := req
+	wire.Stream = true
+	wire.StreamOptions = &StreamOptions{IncludeUsage: true}
+	wire.ThinkingBudget = nil
+	resolveContentPartsOpenAI(wire.Messages)
+	body, err := json.Marshal(wire)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling request: %w", err)
 	}
@@ -131,6 +138,10 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 				} else {
 					slog.Info("SSE stream ended normally")
 				}
+				// Finalize tools when stream ends without finish_reason (e.g. [DONE] only).
+				if len(toolCalls) > 0 {
+					c.finalizeOpenAIToolCalls(toolCalls, ch)
+				}
 				return
 			}
 			timer.Reset(chunkTimeout)
@@ -142,11 +153,19 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 		}
 		data := line[6:]
 		if data == "[DONE]" {
+			if len(toolCalls) > 0 {
+				c.finalizeOpenAIToolCalls(toolCalls, ch)
+			}
 			return
 		}
 
 		var chunk chatCompletionChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			snippet := data
+			if len(snippet) > 200 {
+				snippet = snippet[:200] + "..."
+			}
+			slog.Warn("SSE JSON parse error", "error", err, "snippet", snippet)
 			continue
 		}
 
@@ -191,6 +210,13 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 				ToolCallID: tc.ID,
 				ToolName:   tc.Function.Name,
 			}
+		} else {
+			if tc.ID != "" {
+				accum.id = tc.ID
+			}
+			if tc.Function.Name != "" {
+				accum.name = tc.Function.Name
+			}
 		}
 		if tc.Function.Arguments != "" {
 			accum.args += tc.Function.Arguments
@@ -212,9 +238,20 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 }
 
 // finalizeOpenAIToolCalls emits EventToolCallEnd for each accumulated tool call,
-// repairing or redirecting invalid JSON arguments.
+// repairing or redirecting invalid JSON arguments. Indices are finalized in
+// ascending order for stable multi-tool output.
 func (c *OpenAIClient) finalizeOpenAIToolCalls(toolCalls map[int]*toolCallAccum, ch chan<- Event) {
-	for idx, accum := range toolCalls {
+	if len(toolCalls) == 0 {
+		return
+	}
+	idxs := make([]int, 0, len(toolCalls))
+	for idx := range toolCalls {
+		idxs = append(idxs, idx)
+	}
+	sort.Ints(idxs)
+
+	for _, idx := range idxs {
+		accum := toolCalls[idx]
 		args := accum.args
 		if !json.Valid([]byte(args)) {
 			repaired := RepairToolCallJSON(args)
@@ -252,29 +289,29 @@ type toolCallAccum struct {
 }
 
 type chatCompletionChunk struct {
-	ID      string                   `json:"id"`
-	Choices []chatCompletionChoice   `json:"choices"`
-	Usage   *chatCompletionUsage     `json:"usage,omitempty"`
+	ID      string                 `json:"id"`
+	Choices []chatCompletionChoice `json:"choices"`
+	Usage   *chatCompletionUsage   `json:"usage,omitempty"`
 }
 
 type chatCompletionChoice struct {
-	Index        int                    `json:"index"`
-	Delta        chatCompletionDelta    `json:"delta"`
-	FinishReason string                 `json:"finish_reason,omitempty"`
+	Index        int                 `json:"index"`
+	Delta        chatCompletionDelta `json:"delta"`
+	FinishReason string              `json:"finish_reason,omitempty"`
 }
 
 type chatCompletionDelta struct {
-	Role             string                    `json:"role,omitempty"`
-	Content          string                    `json:"content,omitempty"`
-	ReasoningContent string                    `json:"reasoning_content,omitempty"`
-	ToolCalls        []chatCompletionToolCall  `json:"tool_calls,omitempty"`
+	Role             string                   `json:"role,omitempty"`
+	Content          string                   `json:"content,omitempty"`
+	ReasoningContent string                   `json:"reasoning_content,omitempty"`
+	ToolCalls        []chatCompletionToolCall `json:"tool_calls,omitempty"`
 }
 
 type chatCompletionToolCall struct {
-	Index    int                     `json:"index"`
-	ID       string                  `json:"id,omitempty"`
-	Type     string                  `json:"type,omitempty"`
-	Function chatCompletionFunction  `json:"function"`
+	Index    int                    `json:"index"`
+	ID       string                 `json:"id,omitempty"`
+	Type     string                 `json:"type,omitempty"`
+	Function chatCompletionFunction `json:"function"`
 }
 
 type chatCompletionFunction struct {

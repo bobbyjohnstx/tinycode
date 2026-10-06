@@ -41,19 +41,19 @@ Config fields (`SubagentDepth`, `MaxSubagents`) exist but the tool itself is abs
 
 ### 2. Only OpenAI-compatible LLM protocol
 
-The LLM client (`internal/llm/openai.go`) supports only the OpenAI Chat Completions wire format. The spec (Section 28) defines 7 protocol implementations:
+The LLM client supports OpenAI Chat Completions and Anthropic Messages. The spec (Section 28) defines 7 protocol implementations:
 
 - OpenAI Chat Completions — **implemented**
 - OpenAI Compatible Chat — **implemented** (same client)
-- Anthropic Messages API — **missing**
+- Anthropic Messages API — **implemented** (`internal/llm/anthropic.go`)
 - AWS Bedrock Converse — **missing**
 - AWS Bedrock Event Stream — **missing**
 - Google Gemini API — **missing**
 - OpenAI Responses API — **missing**
 
-Cannot use cloud providers that don't offer OpenAI-compatible endpoints. OpenRouter provides a workaround for some.
+Bedrock/Gemini/Responses still require OpenRouter or another OpenAI-compatible gateway.
 
-- **Location:** `internal/llm/anthropic.go` etc. (new files)
+- **Location:** `internal/llm/` (remaining protocols)
 - **Complexity:** Large
 
 ### 3. Edit tool has 1 of 9 fuzzy matching strategies
@@ -306,5 +306,5 @@ Based on both reviews' convergence:
 4. **`task` tool + background job system** (Large, unlocks multi-agent)
 5. **`tinycode run` with basic flags** (Medium, unlocks CI/scripting)
 6. **Missing tools:** skill, todowrite, websearch (Medium each)
-7. **Anthropic Messages API** (Large, opens direct cloud access)
+7. **Remaining LLM protocols** (Bedrock/Gemini/Responses — Anthropic Messages is implemented)
 8. **Remaining routes and CLI subcommands** (incremental)

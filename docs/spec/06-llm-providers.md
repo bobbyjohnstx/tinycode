@@ -2,11 +2,20 @@
 
 Packages: `internal/llm/`, `internal/provider/`
 
-tinycode uses an OpenAI-compatible API client to communicate with all LLM providers. Provider discovery runs in the background, polling local endpoints and registering models.
+tinycode uses dual LLM clients — OpenAI-compatible Chat Completions and Anthropic Messages — selected per model. Provider discovery runs in the background, polling local endpoints and registering models.
 
 ## 6.1 LLM Client
 
 Package: `internal/llm/`
+
+### Client Selection
+
+`llm.NewClient` / `UsesAnthropicProtocol` picks the wire protocol:
+
+1. `Model.API.NPM` containing `"anthropic"` (e.g. `@ai-sdk/anthropic`)
+2. Else `ProviderID == "anthropic"`
+3. Else hostname heuristic (`api.anthropic.com` in `Model.API.URL`)
+4. Otherwise OpenAI-compatible (`POST .../v1/chat/completions`)
 
 ### OpenAI Client
 
@@ -18,7 +27,7 @@ type OpenAIClient struct {
 }
 ```
 
-All providers are accessed through `OpenAIClient.Stream()`, which sends a `POST /chat/completions` request with `stream: true` and reads SSE responses.
+OpenAI-compatible providers use `OpenAIClient.Stream()` (`POST /chat/completions`, `stream: true`). Anthropic-native providers use `AnthropicClient.Stream()` (`POST /v1/messages`).
 
 ### Request Schema
 
@@ -66,13 +75,9 @@ type Tool struct {
 
 ### JSON Repair
 
-Small models frequently produce malformed JSON in tool call arguments. `RepairToolCallJSON()` attempts to fix common issues:
-- Missing closing braces/brackets
-- Trailing commas
-- Unquoted string values
-- Truncated strings
+Small models frequently produce malformed JSON in tool call arguments. `RepairToolCallJSON()` fixes a **limited** set of common issues (markdown fences, trailing commas in objects/arrays, and a few related truncations). It does not attempt full JSON recovery for arbitrary corruption.
 
-If repair fails, the tool call is redirected to the `invalid` tool, which returns the malformed arguments as an error message to the LLM so it can retry.
+If repair fails, the tool call is redirected to the `invalid` tool (both OpenAI and Anthropic clients), with structured error args (`error`, `original_name`, `original_args`) so the model can retry.
 
 ## 6.2 Provider Registry
 

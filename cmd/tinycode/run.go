@@ -168,7 +168,7 @@ func runRun() {
 			apiKey = key
 		}
 	}
-	client := llm.NewOpenAIClient(model.API.URL+"/v1", apiKey)
+	client := llm.NewClient(model.API.URL, apiKey, model.API.NPM, model.ProviderID)
 
 	autoContinueMax := 0
 	if cfg.Experimental != nil {

@@ -150,10 +150,7 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 		if apiKey == "" && sm.credentialLookup != nil {
 			apiKey = sm.credentialLookup(m.ProviderID)
 		}
-		if strings.Contains(m.API.URL, "api.anthropic.com") {
-			return llm.NewAnthropicClient(m.API.URL, apiKey)
-		}
-		return llm.NewOpenAIClient(m.API.URL+"/v1", apiKey)
+		return llm.NewClient(m.API.URL, apiKey, m.API.NPM, m.ProviderID)
 	}
 	sm.subscribeCommands()
 	sm.subscribePrompts()

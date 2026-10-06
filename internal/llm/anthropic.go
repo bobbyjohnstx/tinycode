@@ -26,10 +26,15 @@ type AnthropicClient struct {
 
 // NewAnthropicClient creates a client for the Anthropic Messages API.
 func NewAnthropicClient(baseURL, apiKey string) *AnthropicClient {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = headerTimeout
 	return &AnthropicClient{
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		APIKey:  apiKey,
-		Client:  &http.Client{Timeout: 0},
+		Client: &http.Client{
+			Timeout:   0,
+			Transport: transport,
+		},
 	}
 }
 
@@ -112,7 +117,20 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 		ar.Temperature = nil
 	}
 
-	// Extract system message and convert messages.
+	// Extract system message and convert messages. Consecutive tool results are
+	// merged into a single user message (Anthropic protocol).
+	var pendingToolResults []map[string]any
+	flushToolResults := func() {
+		if len(pendingToolResults) == 0 {
+			return
+		}
+		ar.Messages = append(ar.Messages, anthropicMessage{
+			Role:    "user",
+			Content: pendingToolResults,
+		})
+		pendingToolResults = nil
+	}
+
 	for _, msg := range req.Messages {
 		if msg.Role == "system" {
 			switch v := msg.Content.(type) {
@@ -121,6 +139,50 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 			}
 			continue
 		}
+
+		if msg.Role == "tool" {
+			pendingToolResults = append(pendingToolResults, map[string]any{
+				"type":        "tool_result",
+				"tool_use_id": msg.ToolCallID,
+				"content":     anthropicContentString(msg.Content),
+			})
+			continue
+		}
+
+		flushToolResults()
+
+		if len(msg.ToolCalls) > 0 {
+			var blocks []map[string]any
+			if len(msg.ContentParts) > 0 {
+				blocks = append(blocks, resolveContentPartsAnthropic(msg.ContentParts)...)
+			} else if text := anthropicContentString(msg.Content); text != "" {
+				blocks = append(blocks, map[string]any{
+					"type": "text",
+					"text": text,
+				})
+			}
+			for _, tc := range msg.ToolCalls {
+				var input any
+				args := tc.Function.Arguments
+				if args == "" {
+					input = map[string]any{}
+				} else if err := json.Unmarshal([]byte(args), &input); err != nil {
+					input = args
+				}
+				blocks = append(blocks, map[string]any{
+					"type":  "tool_use",
+					"id":    tc.ID,
+					"name":  tc.Function.Name,
+					"input": input,
+				})
+			}
+			ar.Messages = append(ar.Messages, anthropicMessage{
+				Role:    "assistant",
+				Content: blocks,
+			})
+			continue
+		}
+
 		content := msg.Content
 		if len(msg.ContentParts) > 0 {
 			content = resolveContentPartsAnthropic(msg.ContentParts)
@@ -130,6 +192,7 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 			Content: content,
 		})
 	}
+	flushToolResults()
 
 	// Convert tools: use input_schema instead of parameters.
 	for _, tool := range req.Tools {
@@ -141,6 +204,21 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 	}
 
 	return ar
+}
+
+func anthropicContentString(content any) string {
+	switch v := content.(type) {
+	case string:
+		return v
+	case nil:
+		return ""
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprint(v)
+		}
+		return string(b)
+	}
 }
 
 // anthropicBlockState tracks a content block's type and tool call accumulation
@@ -211,6 +289,11 @@ func (c *AnthropicClient) readSSE(ctx context.Context, body io.ReadCloser, ch ch
 
 		var raw json.RawMessage
 		if err := json.Unmarshal([]byte(data), &raw); err != nil {
+			snippet := data
+			if len(snippet) > 200 {
+				snippet = snippet[:200] + "..."
+			}
+			slog.Warn("Anthropic SSE JSON parse error", "error", err, "snippet", snippet)
 			continue
 		}
 
@@ -269,15 +352,24 @@ func (c *AnthropicClient) handleAnthropicSSEEvent(eventType string, raw json.Raw
 			break
 		}
 		args := bs.args
+		toolName := bs.toolName
 		if !json.Valid([]byte(args)) {
 			if repaired := RepairToolCallJSON(args); repaired != nil {
 				args = *repaired
+			} else {
+				invalidArgs, _ := json.Marshal(map[string]string{
+					"error":         "invalid JSON in tool call arguments",
+					"original_name": bs.toolName,
+					"original_args": args,
+				})
+				args = string(invalidArgs)
+				toolName = "invalid"
 			}
 		}
 		ch <- Event{
 			Type:         EventToolCallEnd,
 			ToolCallID:   bs.toolID,
-			ToolName:     bs.toolName,
+			ToolName:     toolName,
 			ToolCallArgs: args,
 		}
 		delete(blocks, evt.Index)
@@ -319,15 +411,15 @@ func (c *AnthropicClient) handleAnthropicSSEEvent(eventType string, raw json.Raw
 // --- Anthropic API types ---
 
 type anthropicRequest struct {
-	Model       string              `json:"model"`
-	Messages    []anthropicMessage  `json:"messages"`
-	System      string              `json:"system,omitempty"`
-	MaxTokens   int                 `json:"max_tokens"`
-	Stream      bool                `json:"stream"`
-	Temperature *float64            `json:"temperature,omitempty"`
-	TopP        *float64            `json:"top_p,omitempty"`
-	Tools       []anthropicTool     `json:"tools,omitempty"`
-	Thinking    *anthropicThinking  `json:"thinking,omitempty"`
+	Model       string             `json:"model"`
+	Messages    []anthropicMessage `json:"messages"`
+	System      string             `json:"system,omitempty"`
+	MaxTokens   int                `json:"max_tokens"`
+	Stream      bool               `json:"stream"`
+	Temperature *float64           `json:"temperature,omitempty"`
+	TopP        *float64           `json:"top_p,omitempty"`
+	Tools       []anthropicTool    `json:"tools,omitempty"`
+	Thinking    *anthropicThinking `json:"thinking,omitempty"`
 }
 
 type anthropicThinking struct {

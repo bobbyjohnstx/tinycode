@@ -521,6 +521,7 @@ func registerConfigProviders(reg *provider.Registry, cfg *config.Info) {
 				API: provider.ModelAPI{
 					ID:  modelID,
 					URL: baseURL,
+					NPM: pc.NPM,
 				},
 				Status:  "active",
 				Headers: make(map[string]string),
