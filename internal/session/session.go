@@ -202,11 +202,16 @@ func (s *Store) Get(sessionID string) (*Info, error) {
 	return info, nil
 }
 
-func (s *Store) List(projectID string, limit, offset int) ([]Info, error) {
-	rows, err := s.db.Query(
-		`SELECT `+sessionSelectCols+` FROM session WHERE project_id = ? ORDER BY time_updated DESC LIMIT ? OFFSET ?`,
-		projectID, limit, offset,
-	)
+// List returns sessions for a project, newest first. Archived sessions are
+// excluded unless includeArchived is true.
+func (s *Store) List(projectID string, limit, offset int, includeArchived bool) ([]Info, error) {
+	query := `SELECT ` + sessionSelectCols + ` FROM session WHERE project_id = ?`
+	if !includeArchived {
+		query += ` AND (time_archived IS NULL OR time_archived = 0)`
+	}
+	query += ` ORDER BY time_updated DESC LIMIT ? OFFSET ?`
+
+	rows, err := s.db.Query(query, projectID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("listing sessions: %w", err)
 	}
@@ -288,6 +293,25 @@ func (s *Store) UpdateCost(sessionID string, cost float64, tokens TokenUsage) er
 	return err
 }
 
+// AddUsage cumulatively adds token counts (and optional cost) to a session.
+// A costDelta of 0 leaves the existing cost unchanged.
+func (s *Store) AddUsage(sessionID string, costDelta float64, tokens TokenUsage) error {
+	_, err := s.db.Exec(
+		`UPDATE session SET
+			cost = cost + ?,
+			tokens_input = tokens_input + ?,
+			tokens_output = tokens_output + ?,
+			tokens_reasoning = tokens_reasoning + ?,
+			tokens_cache_read = tokens_cache_read + ?,
+			tokens_cache_write = tokens_cache_write + ?,
+			time_updated = ?
+		 WHERE id = ?`,
+		costDelta, tokens.Input, tokens.Output, tokens.Reasoning,
+		tokens.Cache.Read, tokens.Cache.Write, time.Now().UnixMilli(), sessionID,
+	)
+	return err
+}
+
 func (s *Store) UpdateSummary(sessionID string, summary Summary) error {
 	var diffsJSON string
 	if len(summary.Diffs) > 0 {
@@ -308,6 +332,15 @@ func (s *Store) Archive(sessionID string) error {
 	_, err := s.db.Exec(
 		"UPDATE session SET time_archived = ?, time_updated = ? WHERE id = ?",
 		now, now, sessionID,
+	)
+	return err
+}
+
+// Unarchive clears the archive timestamp so the session appears in default lists.
+func (s *Store) Unarchive(sessionID string) error {
+	_, err := s.db.Exec(
+		"UPDATE session SET time_archived = NULL, time_updated = ? WHERE id = ?",
+		time.Now().UnixMilli(), sessionID,
 	)
 	return err
 }

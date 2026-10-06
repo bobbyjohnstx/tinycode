@@ -19,27 +19,27 @@ const (
 )
 
 type ProcessorConfig struct {
-	SessionID        string
-	Agent            string
-	Model            *provider.Model
-	MaxSubagents     int
-	SystemPrompt     string
-	Compaction       CompactionConfig
-	AgentPerms       []string
-	DoomThreshold    int
-	AutoContinueMax  int
-	Directory        string
-	CompactionModel  string
-	SmallModel       string
-	Temperature      *float64
-	TopP             *float64
-	MaxTokens        *int
-	MaxIterations    int
-	TokenBudget      int
-	ThinkingBudget   *int
-	Perms            *permission.Service
-	Ruleset          permission.Ruleset
-	UserDisplayText  string
+	SessionID       string
+	Agent           string
+	Model           *provider.Model
+	MaxSubagents    int
+	SystemPrompt    string
+	Compaction      CompactionConfig
+	AgentPerms      []string
+	DoomThreshold   int
+	AutoContinueMax int
+	Directory       string
+	CompactionModel string
+	SmallModel      string
+	Temperature     *float64
+	TopP            *float64
+	MaxTokens       *int
+	MaxIterations   int
+	TokenBudget     int
+	ThinkingBudget  *int
+	Perms           *permission.Service
+	Ruleset         permission.Ruleset
+	UserDisplayText string
 }
 
 type Processor struct {
@@ -52,6 +52,7 @@ type Processor struct {
 	compactionCount   int
 	elisionDone       bool
 	aborted           bool
+	compacted         bool
 	recentToolCalls   []toolCallSignature
 	autoContinueCount int
 	userExtraParts    []Part
@@ -107,10 +108,11 @@ func (p *Processor) maxIter() int {
 }
 
 type ProcessResult struct {
-	Messages []Message
-	Usage    TokenUsage
-	Error    error
-	Aborted  bool
+	Messages  []Message
+	Usage     TokenUsage
+	Error     error
+	Aborted   bool
+	Compacted bool // true if history was compacted during this turn
 }
 
 // Process runs the main processor loop. Helper methods are in processor_loop.go.
@@ -118,11 +120,20 @@ func (p *Processor) Process(ctx context.Context, userMessage string) *ProcessRes
 	return p.ProcessWithID(ctx, userMessage, "")
 }
 
-func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID string) *ProcessResult {
+func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID string) (result *ProcessResult) {
+	defer func() {
+		if result != nil {
+			p.mu.Lock()
+			result.Compacted = p.compacted
+			p.mu.Unlock()
+		}
+	}()
+
 	p.mu.Lock()
 	p.aborted = false
 	p.elisionDone = false
 	p.autoContinueCount = 0
+	p.compacted = false
 	p.mu.Unlock()
 
 	p.addUserMessage(userMessage, messageID)

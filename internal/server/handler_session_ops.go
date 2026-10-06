@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -75,7 +76,13 @@ func (s *Server) handleSessionRevert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.deps.Bus.Publish("session.revert", map[string]any{
+	// Stash synchronously so the 200 ACK means revert completed (or failed).
+	if err := s.sessionManager.Revert(id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	s.deps.Bus.Publish("session.reverted", map[string]any{
 		"sessionID": id,
 	})
 
@@ -92,7 +99,12 @@ func (s *Server) handleSessionUnrevert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.deps.Bus.Publish("session.unrevert", map[string]any{
+	if err := s.sessionManager.Unrevert(id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	s.deps.Bus.Publish("session.unreverted", map[string]any{
 		"sessionID": id,
 	})
 
@@ -114,45 +126,19 @@ func (s *Server) handleSessionRewindMessages(w http.ResponseWriter, r *http.Requ
 	}
 
 	ms := s.messageStore()
-	messages, err := ms.List(sessionID)
+	deleted, err := ms.DeleteAfter(sessionID, body.MessageID)
 	if err != nil {
+		if errors.Is(err, session.ErrMessageNotFound) {
+			respondError(w, http.StatusNotFound, "message not found")
+			return
+		}
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
-	}
-
-	// Find the target message and get its timestamp.
-	var targetTime int64
-	found := false
-	for _, m := range messages {
-		if m.ID == body.MessageID {
-			targetTime = m.CreatedAt.UnixMilli()
-			found = true
-			break
-		}
-	}
-	if !found {
-		respondError(w, http.StatusNotFound, "message not found")
-		return
-	}
-
-	// Delete all messages created after the target message.
-	deleted, err := ms.DeleteAfterTime(sessionID, targetTime)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	// Clean up associated parts.
-	ps := s.partStore()
-	for _, m := range messages {
-		if m.CreatedAt.UnixMilli() > targetTime {
-			_ = ps.DeleteByMessage(m.ID)
-		}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
-		"sessionID":      sessionID,
-		"deletedCount":   deleted,
+		"sessionID":       sessionID,
+		"deletedCount":    deleted,
 		"rewindToMessage": body.MessageID,
 	})
 }

@@ -322,6 +322,7 @@ func (p *Processor) compact(ctx context.Context) (bool, error) {
 	p.mu.Lock()
 	p.messages = append([]Message{summaryMsg}, preserved...)
 	p.priorSummary = summary
+	p.compacted = true
 	p.mu.Unlock()
 
 	p.bus.Publish("session.compacted", map[string]any{

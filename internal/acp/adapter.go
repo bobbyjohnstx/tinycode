@@ -29,7 +29,7 @@ func (a *StoreAdapter) Get(_ context.Context, id string) (*session.Info, error) 
 }
 
 func (a *StoreAdapter) List(_ context.Context, projectID string) ([]*session.Info, error) {
-	infos, err := a.store.List(projectID, 100, 0)
+	infos, err := a.store.List(projectID, 100, 0, false)
 	if err != nil {
 		return nil, err
 	}
@@ -78,17 +78,22 @@ func (a *StoreAdapter) Fork(_ context.Context, parentID, title string) (*session
 
 	parentMsgs, err := a.msgs.List(parentID)
 	if err != nil {
-		return forked, nil
+		_ = a.store.Delete(forked.ID)
+		return nil, fmt.Errorf("list parent messages: %w", err)
 	}
 	for i := range parentMsgs {
 		msg := parentMsgs[i]
 		msg.SessionID = forked.ID
 		newID, idErr := id.Ascending("message")
 		if idErr != nil {
-			continue
+			_ = a.store.Delete(forked.ID)
+			return nil, fmt.Errorf("allocate message id: %w", idErr)
 		}
 		msg.ID = newID
-		_ = a.msgs.Append(&msg)
+		if err := a.msgs.Append(&msg); err != nil {
+			_ = a.store.Delete(forked.ID)
+			return nil, fmt.Errorf("copy message: %w", err)
+		}
 	}
 	return forked, nil
 }

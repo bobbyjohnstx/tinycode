@@ -98,7 +98,7 @@ func runSession() {
 
 	switch args[0] {
 	case "list":
-		sessions, err := store.List(projectID, 50, 0)
+		sessions, err := store.List(projectID, 50, 0, false)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
@@ -158,7 +158,7 @@ func runStatus() {
 	dir, _ := os.Getwd()
 	store := session.NewStore(db.DB)
 	projectID := project.IDFromDirectory(dir)
-	sessions, err := store.List(projectID, 1000, 0)
+	sessions, err := store.List(projectID, 1000, 0, false)
 	if err == nil {
 		fmt.Printf("Sessions:  %d (this project)\n", len(sessions))
 	}

@@ -3,8 +3,12 @@ package session
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 )
+
+// ErrMessageNotFound is returned when a message ID is not in the session.
+var ErrMessageNotFound = errors.New("message not found")
 
 type Role string
 
@@ -141,6 +145,47 @@ func (ms *MessageStore) Append(msg *Message) error {
 	return err
 }
 
+// ReplaceAll atomically replaces all messages for a session with msgs.
+// Used after compaction so the durable history matches the in-memory compacted list.
+func (ms *MessageStore) ReplaceAll(sessionID string, msgs []Message) error {
+	tx, err := ms.store.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec("DELETE FROM message WHERE session_id = ?", sessionID); err != nil {
+		return err
+	}
+
+	for i := range msgs {
+		msg := msgs[i]
+		msg.SessionID = sessionID
+		data := messageData{
+			Role:   msg.Role,
+			Parts:  msg.Parts,
+			Model:  msg.Model,
+			Tokens: msg.Tokens,
+		}
+		dataJSON, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		nowMs := msg.CreatedAt.UnixMilli()
+		if nowMs == 0 {
+			nowMs = time.Now().UnixMilli()
+		}
+		if _, err := tx.Exec(
+			`INSERT INTO message (id, session_id, time_created, time_updated, data)
+			 VALUES (?, ?, ?, ?, ?)`,
+			msg.ID, sessionID, nowMs, nowMs, string(dataJSON),
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (ms *MessageStore) List(sessionID string) ([]Message, error) {
 	rows, err := ms.store.db.Query(
 		`SELECT id, session_id, time_created, data
@@ -199,6 +244,36 @@ func (ms *MessageStore) DeleteAfterTime(sessionID string, afterMs int64) (int64,
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+// DeleteAfter deletes all messages in a session that appear after messageID
+// in creation order. The target message itself is kept. Returns the number
+// of deleted messages.
+func (ms *MessageStore) DeleteAfter(sessionID, messageID string) (int64, error) {
+	messages, err := ms.List(sessionID)
+	if err != nil {
+		return 0, err
+	}
+
+	idx := -1
+	for i, m := range messages {
+		if m.ID == messageID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return 0, ErrMessageNotFound
+	}
+
+	var deleted int64
+	for _, m := range messages[idx+1:] {
+		if err := ms.DeleteByID(m.ID); err != nil {
+			return deleted, err
+		}
+		deleted++
+	}
+	return deleted, nil
 }
 
 func (ms *MessageStore) Count(sessionID string) (int, error) {

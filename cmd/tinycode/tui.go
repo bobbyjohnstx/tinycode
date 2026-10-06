@@ -148,7 +148,7 @@ func resolveResumeSession(sqlDB *sql.DB, flags commonFlags, dir string) string {
 	projectID := project.IDFromDirectory(dir)
 
 	if flags.continueSession {
-		sessions, err := store.List(projectID, 1, 0)
+		sessions, err := store.List(projectID, 1, 0, false)
 		if err != nil || len(sessions) == 0 {
 			slog.Warn("no sessions to continue")
 			return ""
@@ -160,7 +160,7 @@ func resolveResumeSession(sqlDB *sql.DB, flags commonFlags, dir string) string {
 	if info, err := store.Get(flags.resumeSession); err == nil {
 		return info.ID
 	}
-	sessions, err := store.List(projectID, 50, 0)
+	sessions, err := store.List(projectID, 50, 0, false)
 	if err != nil {
 		return ""
 	}

@@ -116,8 +116,10 @@ func (s *Server) handleSessionList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	includeArchived := r.URL.Query().Get("includeArchived") == "true"
+
 	store := s.sessionStore()
-	sessions, err := store.List(projectID, limit, offset)
+	sessions, err := store.List(projectID, limit, offset, includeArchived)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -182,6 +184,15 @@ func (s *Server) handleSessionDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	store := s.sessionStore()
 
+	// Abort any in-flight prompt before deleting so tools/LLM stop cleanly.
+	if s.sessionManager != nil && s.sessionManager.IsBusy(id) {
+		s.sessionManager.Abort(id)
+		deadline := time.Now().Add(2 * time.Second)
+		for s.sessionManager.IsBusy(id) && time.Now().Before(deadline) {
+			time.Sleep(promptIdlePollInterval)
+		}
+	}
+
 	// Fetch session info before deletion so we can include it in the event.
 	info, _ := store.Get(id)
 
@@ -206,6 +217,26 @@ func (s *Server) handleSessionArchive(w http.ResponseWriter, r *http.Request) {
 	store := s.sessionStore()
 
 	if err := store.Archive(id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	info, _ := store.Get(id)
+	if info != nil {
+		s.deps.Bus.Publish("session.updated", map[string]any{
+			"sessionID": id,
+			"info":      info,
+		})
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleSessionUnarchive(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	store := s.sessionStore()
+
+	if err := store.Unarchive(id); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -580,20 +611,29 @@ func (s *Server) handleSessionFork(w http.ResponseWriter, r *http.Request) {
 	// If body.MessageID is set, copy only up to and including that message.
 	ms := s.messageStore()
 	parentMsgs, err := ms.List(id)
-	if err == nil {
-		for i := range parentMsgs {
-			msg := parentMsgs[i]
-			msg.SessionID = forked.ID
-			newID, idErr := id2.Ascending("message")
-			if idErr != nil {
-				continue
-			}
-			msg.ID = newID
-			_ = ms.Append(&msg)
+	if err != nil {
+		_ = store.Delete(forked.ID)
+		respondError(w, http.StatusInternalServerError, "list parent messages: "+err.Error())
+		return
+	}
+	for i := range parentMsgs {
+		msg := parentMsgs[i]
+		msg.SessionID = forked.ID
+		newID, idErr := id2.Ascending("message")
+		if idErr != nil {
+			_ = store.Delete(forked.ID)
+			respondError(w, http.StatusInternalServerError, "allocate message id: "+idErr.Error())
+			return
+		}
+		msg.ID = newID
+		if err := ms.Append(&msg); err != nil {
+			_ = store.Delete(forked.ID)
+			respondError(w, http.StatusInternalServerError, "copy message: "+err.Error())
+			return
+		}
 
-			if body.MessageID != "" && parentMsgs[i].ID == body.MessageID {
-				break
-			}
+		if body.MessageID != "" && parentMsgs[i].ID == body.MessageID {
+			break
 		}
 	}
 
@@ -610,7 +650,6 @@ func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.PathValue("id")
 	store := s.sessionStore()
 	ms := s.messageStore()
-	ps := s.partStore()
 
 	messages, err := ms.List(sessionID)
 	if err != nil {
@@ -623,15 +662,12 @@ func (s *Server) handleMessageList(w http.ResponseWriter, r *http.Request) {
 
 	result := make([]map[string]any, 0, len(messages))
 	for _, m := range messages {
-		storedParts, _ := ps.ListByMessage(m.ID)
-
+		// Parts live in the message blob (PartStore.Save is unused).
 		var parts any
-		if len(storedParts) > 0 {
-			parts = storedParts
-		} else if len(m.Parts) > 0 {
+		if len(m.Parts) > 0 {
 			parts = m.Parts
 		} else {
-			parts = []session.StoredPart{}
+			parts = []session.Part{}
 		}
 
 		createdMs := m.CreatedAt.UnixMilli()

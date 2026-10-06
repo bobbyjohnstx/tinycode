@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -175,7 +176,7 @@ func TestStore_List(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	sessions, err := store.List("proj-1", 3, 0)
+	sessions, err := store.List("proj-1", 3, 0, false)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -183,7 +184,7 @@ func TestStore_List(t *testing.T) {
 		t.Errorf("expected 3 sessions, got %d", len(sessions))
 	}
 
-	all, _ := store.List("proj-1", 100, 0)
+	all, _ := store.List("proj-1", 100, 0, false)
 	if len(all) != 5 {
 		t.Errorf("expected 5 total, got %d", len(all))
 	}
@@ -216,7 +217,7 @@ func TestStore_List_OrdersByTimeUpdated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sessions, err := store.List("proj-1", 1, 0)
+	sessions, err := store.List("proj-1", 1, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +230,7 @@ func TestStore_List_OrdersByTimeUpdated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sessions, err = store.List("proj-1", 1, 0)
+	sessions, err = store.List("proj-1", 1, 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,6 +366,74 @@ func TestStore_Archive(t *testing.T) {
 	got, _ := store.Get(info.ID)
 	if got.TimeArchived == 0 {
 		t.Error("expected session to be archived")
+	}
+}
+
+func TestStore_List_ExcludesArchived(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+
+	active, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp", Title: "active"})
+	archived, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp", Title: "archived"})
+	if err := store.Archive(archived.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := store.List("proj-1", 100, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].ID != active.ID {
+		t.Fatalf("expected only active session, got %+v", list)
+	}
+
+	all, err := store.List("proj-1", 100, 0, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected 2 with includeArchived, got %d", len(all))
+	}
+}
+
+func TestStore_Unarchive(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+
+	info, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp"})
+	if err := store.Archive(info.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Unarchive(info.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := store.Get(info.ID)
+	if got.TimeArchived != 0 {
+		t.Errorf("expected unarchived, got time_archived=%d", got.TimeArchived)
+	}
+	list, _ := store.List("proj-1", 100, 0, false)
+	if len(list) != 1 {
+		t.Fatalf("expected session visible after unarchive, got %d", len(list))
+	}
+}
+
+func TestStore_AddUsage(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+
+	info, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp"})
+	if err := store.UpdateCost(info.ID, 1.5, TokenUsage{Input: 10, Output: 5}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddUsage(info.ID, 0, TokenUsage{Input: 3, Output: 2, Reasoning: 1}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := store.Get(info.ID)
+	if got.Cost != 1.5 {
+		t.Errorf("cost should stay 1.5 when delta=0, got %v", got.Cost)
+	}
+	if got.Tokens.Input != 13 || got.Tokens.Output != 7 || got.Tokens.Reasoning != 1 {
+		t.Errorf("unexpected tokens: %+v", got.Tokens)
 	}
 }
 
@@ -560,6 +629,75 @@ func TestMessageStore_DeleteAfterTime_NoneDeleted(t *testing.T) {
 	count, _ := ms.Count(ses.ID)
 	if count != 1 {
 		t.Errorf("expected 1 message remaining, got %d", count)
+	}
+}
+
+func TestMessageStore_DeleteAfter(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+	ms := NewMessageStore(store)
+
+	ses, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp"})
+	base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	for i := 0; i < 4; i++ {
+		if err := ms.Append(&Message{
+			ID: fmt.Sprintf("msg_%d", i), SessionID: ses.ID, Role: RoleUser,
+			Parts: []Part{TextPart(fmt.Sprintf("m%d", i))}, CreatedAt: base.Add(time.Duration(i) * time.Minute),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	deleted, err := ms.DeleteAfter(ses.ID, "msg_1")
+	if err != nil {
+		t.Fatalf("DeleteAfter: %v", err)
+	}
+	if deleted != 2 {
+		t.Errorf("expected 2 deleted, got %d", deleted)
+	}
+	remaining, _ := ms.List(ses.ID)
+	if len(remaining) != 2 || remaining[0].ID != "msg_0" || remaining[1].ID != "msg_1" {
+		t.Fatalf("unexpected remaining: %+v", remaining)
+	}
+
+	if _, err := ms.DeleteAfter(ses.ID, "missing"); !errors.Is(err, ErrMessageNotFound) {
+		t.Fatalf("expected ErrMessageNotFound, got %v", err)
+	}
+}
+
+func TestMessageStore_ReplaceAll(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+	ms := NewMessageStore(store)
+
+	ses, _ := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp"})
+	now := time.Now()
+	for i := 0; i < 5; i++ {
+		_ = ms.Append(&Message{
+			ID: fmt.Sprintf("old_%d", i), SessionID: ses.ID, Role: RoleUser,
+			Parts: []Part{TextPart("old")}, CreatedAt: now.Add(time.Duration(i) * time.Second),
+		})
+	}
+
+	compacted := []Message{
+		{ID: "summary", SessionID: ses.ID, Role: RoleSystem, Parts: []Part{TextPart("summary")}, CreatedAt: now},
+		{ID: "keep", SessionID: ses.ID, Role: RoleUser, Parts: []Part{TextPart("keep")}, CreatedAt: now.Add(time.Second)},
+		{ID: "new", SessionID: ses.ID, Role: RoleAssistant, Parts: []Part{TextPart("new")}, CreatedAt: now.Add(2 * time.Second)},
+	}
+	if err := ms.ReplaceAll(ses.ID, compacted); err != nil {
+		t.Fatalf("ReplaceAll: %v", err)
+	}
+	got, err := ms.List(ses.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(got))
+	}
+	for i, want := range []string{"summary", "keep", "new"} {
+		if got[i].ID != want {
+			t.Errorf("got[%d].ID = %q, want %q", i, got[i].ID, want)
+		}
 	}
 }
 
@@ -840,8 +978,8 @@ func TestProcessor_BasicTextResponse(t *testing.T) {
 	defer b.Close()
 
 	p := NewProcessor(ProcessorConfig{
-		SessionID: "ses_test",
-		Model:     &provider.Model{ID: "test-model"},
+		SessionID:  "ses_test",
+		Model:      &provider.Model{ID: "test-model"},
 		Compaction: DefaultCompactionConfig(),
 	}, client, &mockToolExecutor{}, b)
 
@@ -937,8 +1075,8 @@ func TestProcessor_Abort(t *testing.T) {
 	defer b.Close()
 
 	p := NewProcessor(ProcessorConfig{
-		SessionID: "ses_test",
-		Model:     &provider.Model{ID: "test-model"},
+		SessionID:  "ses_test",
+		Model:      &provider.Model{ID: "test-model"},
 		Compaction: DefaultCompactionConfig(),
 	}, client, &mockToolExecutor{}, b)
 
@@ -969,8 +1107,8 @@ func TestProcessor_EventBusPublish(t *testing.T) {
 	defer sub.Unsubscribe()
 
 	p := NewProcessor(ProcessorConfig{
-		SessionID: "ses_test",
-		Model:     &provider.Model{ID: "test-model"},
+		SessionID:  "ses_test",
+		Model:      &provider.Model{ID: "test-model"},
 		Compaction: DefaultCompactionConfig(),
 	}, client, &mockToolExecutor{}, b)
 

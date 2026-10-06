@@ -45,8 +45,9 @@ func (sm *SessionManager) resolvePromptModel(sessionID string, input PromptInput
 }
 
 // buildPromptSystemPrompt resolves the agent, wires instructions, and builds
-// the system prompt for a prompt request.
-func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *provider.Model) (agentPerms []string, systemPrompt string) {
+// the system prompt for a prompt request. directory is the session working
+// directory; when empty, sm.dir is used.
+func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *provider.Model, directory string) (agentPerms []string, systemPrompt string) {
 	agentInfo := sm.agentRegistry.Get(input.Agent, model.SizeB())
 	var agentPrompt string
 	if agentInfo != nil {
@@ -62,10 +63,14 @@ func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *prov
 		instructions = strings.Join(sm.cfg.Instructions, "\n\n")
 	}
 
+	if directory == "" {
+		directory = sm.dir
+	}
+
 	systemPrompt = session.BuildSystemPrompt(session.SystemPromptInput{
 		AgentPrompt:        agentPrompt,
 		Instructions:       instructions,
-		Directory:          sm.dir,
+		Directory:          directory,
 		ToolDefs:           sm.tools.ToolDefs(agentPerms),
 		AppendSystemPrompt: sm.appendSystemPrompt,
 	})
@@ -75,8 +80,9 @@ func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *prov
 }
 
 // persistPromptResult saves new messages and token usage to the database.
+// When compaction occurred, the full compacted history replaces the prior rows.
 func (sm *SessionManager) persistPromptResult(result *session.ProcessResult, existingMsgs []session.Message, ms *session.MessageStore, sessionID string) {
-	if result == nil || len(result.Messages) <= len(existingMsgs) {
+	if result == nil {
 		return
 	}
 
@@ -95,23 +101,41 @@ func (sm *SessionManager) persistPromptResult(result *session.ProcessResult, exi
 	}
 	sm.mu.Unlock()
 
-	newMsgs := result.Messages[len(existingMsgs):]
-	for i := range newMsgs {
-		msg := newMsgs[i]
-		if idMap != nil {
-			if bridgeID, ok := idMap[msg.ID]; ok {
-				msg.ID = bridgeID
-			}
+	applyIDMap := func(msg *session.Message) {
+		if idMap == nil {
+			return
 		}
-		if err := ms.Append(&msg); err != nil {
-			slog.Error("failed to persist message", "error", err, "role", msg.Role, "sessionID", sessionID)
+		if bridgeID, ok := idMap[msg.ID]; ok {
+			msg.ID = bridgeID
+		}
+	}
+
+	if result.Compacted {
+		msgs := make([]session.Message, len(result.Messages))
+		copy(msgs, result.Messages)
+		for i := range msgs {
+			applyIDMap(&msgs[i])
+		}
+		if err := ms.ReplaceAll(sessionID, msgs); err != nil {
+			slog.Error("failed to persist compacted messages", "error", err, "sessionID", sessionID)
+		}
+	} else if len(result.Messages) > len(existingMsgs) {
+		newMsgs := result.Messages[len(existingMsgs):]
+		for i := range newMsgs {
+			msg := newMsgs[i]
+			applyIDMap(&msg)
+			if err := ms.Append(&msg); err != nil {
+				slog.Error("failed to persist message", "error", err, "role", msg.Role, "sessionID", sessionID)
+			}
 		}
 	}
 
 	store := session.NewStore(sm.db)
-	_ = store.UpdateCost(sessionID, 0, session.TokenUsage{
-		Input:  result.Usage.Input,
-		Output: result.Usage.Output,
+	_ = store.AddUsage(sessionID, 0, session.TokenUsage{
+		Input:     result.Usage.Input,
+		Output:    result.Usage.Output,
+		Reasoning: result.Usage.Reasoning,
+		Cache:     result.Usage.Cache,
 	})
 }
 

@@ -21,6 +21,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("DELETE /session/{id}", s.handleSessionDelete)
 
 	s.mux.HandleFunc("POST /session/{id}/archive", s.handleSessionArchive)
+	s.mux.HandleFunc("POST /session/{id}/unarchive", s.handleSessionUnarchive)
 
 	// Session actions
 	s.mux.HandleFunc("POST /session/{id}/message", s.handleSessionPrompt)

@@ -359,7 +359,7 @@ func resolveRunSession(db *storage.DB, sessionIDFlag, resumeFlag string, cont bo
 		}
 		existingMsgs, _ = ms.List(sessionID)
 	case cont:
-		sessions, err := store.List(projectID, 1, 0)
+		sessions, err := store.List(projectID, 1, 0, false)
 		if err != nil || len(sessions) == 0 {
 			fmt.Fprintf(os.Stderr, "error: no sessions to continue\n")
 			os.Exit(1)
@@ -394,7 +394,7 @@ func resolveResumeSessionID(store *session.Store, projectID, resume string) stri
 	if info, err := store.Get(resume); err == nil {
 		return info.ID
 	}
-	sessions, err := store.List(projectID, 50, 0)
+	sessions, err := store.List(projectID, 50, 0, false)
 	if err != nil {
 		return ""
 	}

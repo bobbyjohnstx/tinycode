@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -170,9 +171,9 @@ func TestBuildCompactionConfig_AppliesOverrides(t *testing.T) {
 	maxMsgs := 50
 	appCfg := &config.Info{
 		Compaction: &config.CompactionConfig{
-			MaskObservations:    &maskObs,
+			MaskObservations:     &maskObs,
 			PreserveRecentTokens: &preserve,
-			MaxMessages:         &maxMsgs,
+			MaxMessages:          &maxMsgs,
 		},
 	}
 	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, appCfg, nil)
@@ -245,7 +246,7 @@ func TestBuildPromptSystemPrompt_ReturnsPromptForKnownAgent(t *testing.T) {
 		Agent:     "build",
 	}
 
-	_, systemPrompt := sm.buildPromptSystemPrompt(input, model)
+	_, systemPrompt := sm.buildPromptSystemPrompt(input, model, sm.dir)
 
 	if systemPrompt == "" {
 		t.Error("expected non-empty system prompt for known agent 'build'")
@@ -280,7 +281,7 @@ func TestBuildPromptSystemPrompt_IncludesInstructionsFromConfig(t *testing.T) {
 		Agent:     "build",
 	}
 
-	_, systemPrompt := sm.buildPromptSystemPrompt(input, model)
+	_, systemPrompt := sm.buildPromptSystemPrompt(input, model, sm.dir)
 
 	if systemPrompt == "" {
 		t.Error("expected non-empty system prompt")
@@ -323,6 +324,63 @@ func TestPersistPromptResult_NoopWhenNoNewMessages(t *testing.T) {
 
 	// Should not persist anything (no new messages).
 	sm.persistPromptResult(result, existing, ms, "ses_persist_2")
+}
+
+func TestPersistPromptResult_CompactedReplacesHistory(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
+
+	store := session.NewStore(db)
+	info, err := store.Create(session.CreateInput{ProjectID: "proj-1", Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms := session.NewMessageStore(store)
+
+	now := time.Now()
+	existing := make([]session.Message, 0, 5)
+	for i := 0; i < 5; i++ {
+		msg := session.Message{
+			ID: fmt.Sprintf("old_%d", i), SessionID: info.ID, Role: session.RoleUser,
+			Parts: []session.Part{session.TextPart("old")}, CreatedAt: now.Add(time.Duration(i) * time.Second),
+		}
+		if err := ms.Append(&msg); err != nil {
+			t.Fatal(err)
+		}
+		existing = append(existing, msg)
+	}
+
+	compacted := []session.Message{
+		{ID: "summary", SessionID: info.ID, Role: session.RoleSystem, Parts: []session.Part{session.TextPart("summary")}, CreatedAt: now},
+		{ID: "keep", SessionID: info.ID, Role: session.RoleUser, Parts: []session.Part{session.TextPart("keep")}, CreatedAt: now.Add(time.Second)},
+		{ID: "reply", SessionID: info.ID, Role: session.RoleAssistant, Parts: []session.Part{session.TextPart("reply")}, CreatedAt: now.Add(2 * time.Second)},
+	}
+	// Shorter than existing — the old shrink early-return bug would skip persist.
+	result := &session.ProcessResult{
+		Messages:  compacted,
+		Compacted: true,
+		Usage:     session.TokenUsage{Input: 10, Output: 5},
+	}
+	sm.persistPromptResult(result, existing, ms, info.ID)
+
+	got, err := ms.List(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 compacted messages persisted, got %d", len(got))
+	}
+	if got[0].ID != "summary" || got[2].ID != "reply" {
+		t.Fatalf("unexpected persisted IDs: %v %v %v", got[0].ID, got[1].ID, got[2].ID)
+	}
+
+	updated, _ := store.Get(info.ID)
+	if updated.Tokens.Input != 10 || updated.Tokens.Output != 5 {
+		t.Errorf("expected cumulative usage 10/5, got %+v", updated.Tokens)
+	}
 }
 
 // assertStructuredError validates that a session.error event's "error" field

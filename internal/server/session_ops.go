@@ -266,7 +266,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		}
 	}
 
-	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model)
+	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model, sessionDir)
 
 	// Prepend effort-level system prefix if provided.
 	if input.SystemPrefix != "" {
@@ -316,6 +316,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		Compaction:      sm.buildCompactionConfig(),
 		AgentPerms:      agentPerms,
 		Perms:           sm.perms,
+		Directory:       sessionDir,
 		UserDisplayText: displayText,
 		MaxIterations:   maxIter,
 		MaxTokens:       input.MaxTokens,

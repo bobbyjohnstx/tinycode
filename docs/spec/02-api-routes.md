@@ -38,11 +38,13 @@ Source: `internal/server/middleware/`
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
 | POST | `/session` | `handleSessionCreate` | Create a new session. Query: `?directory=`. Body: `{title, agent, model}` |
-| GET | `/session` | `handleSessionList` | List sessions. Query: `?directory=&limit=&offset=` |
+| GET | `/session` | `handleSessionList` | List sessions. Query: `?directory=&limit=&offset=&includeArchived=` (archived excluded by default) |
 | GET | `/session/status` | `handleSessionStatus` | Get status of all active sessions |
 | GET | `/session/{id}` | `handleSessionGet` | Get session by ID |
 | PATCH | `/session/{id}` | `handleSessionUpdate` | Update session fields (`title`, `agent`, `model`) |
-| DELETE | `/session/{id}` | `handleSessionDelete` | Delete a session and its messages |
+| DELETE | `/session/{id}` | `handleSessionDelete` | Abort if busy, then delete session and its messages |
+| POST | `/session/{id}/archive` | `handleSessionArchive` | Archive a session |
+| POST | `/session/{id}/unarchive` | `handleSessionUnarchive` | Clear archive timestamp |
 
 ## 2.5 Session Action Routes
 
@@ -51,12 +53,13 @@ Source: `internal/server/middleware/`
 | POST | `/session/{id}/message` | `handleSessionPrompt` | Synchronous prompt: waits until session idle, returns `200` JSON (`{ok, sessionID, ...}`) |
 | POST | `/session/{sessionID}/prompt_async` | `handleSessionPromptAsync` | Async prompt (returns `204` immediately; stream via SSE) |
 | POST | `/session/{id}/abort` | `handleSessionAbort` | Abort the active processor for a session |
-| POST | `/session/{id}/fork` | `handleSessionFork` | Fork a session (creates child with copied messages) |
+| POST | `/session/{id}/fork` | `handleSessionFork` | Fork a session (creates child with copied messages; fails loud on copy errors) |
 | POST | `/session/{id}/init` | `handleSessionInit` | Initialize a session (load agent, set system prompt) |
 | POST | `/session/{id}/summarize` | `handleSessionSummarize` | Manual summarize/compact — returns `501 Not Implemented` |
 | POST | `/session/{id}/command` | `handleSessionCommand` | Execute a client command (e.g., `connect`, `compact`) |
-| POST | `/session/{id}/revert` | `handleSessionRevert` | Revert the last assistant turn |
-| POST | `/session/{id}/unrevert` | `handleSessionUnrevert` | Undo a revert |
+| POST | `/session/{id}/revert` | `handleSessionRevert` | Stash working-tree changes synchronously; `200` means stash completed |
+| POST | `/session/{id}/unrevert` | `handleSessionUnrevert` | Undo a revert (sync stash apply) |
+| POST | `/session/{id}/rewind` | `handleSessionRewindMessages` | Delete messages after `messageID` (keeps the target) |
 
 ## 2.6 Message Routes
 

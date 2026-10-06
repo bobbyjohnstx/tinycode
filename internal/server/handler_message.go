@@ -32,7 +32,6 @@ func (s *Server) handleMessageGet(w http.ResponseWriter, r *http.Request) {
 	messageID := r.PathValue("messageID")
 
 	ms := s.messageStore()
-	ps := s.partStore()
 
 	messages, err := ms.List(sessionID)
 	if err != nil {
@@ -45,14 +44,12 @@ func (s *Server) handleMessageGet(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		storedParts, _ := ps.ListByMessage(m.ID)
+		// Parts live in the message blob (PartStore.Save is unused).
 		var parts any
-		if len(storedParts) > 0 {
-			parts = storedParts
-		} else if len(m.Parts) > 0 {
+		if len(m.Parts) > 0 {
 			parts = m.Parts
 		} else {
-			parts = []session.StoredPart{}
+			parts = []session.Part{}
 		}
 
 		createdMs := m.CreatedAt.UnixMilli()

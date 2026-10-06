@@ -66,8 +66,18 @@ func (sm *SessionManager) subscribePermissionReplies() {
 	})
 }
 
+// Revert stashes the session working tree synchronously.
+func (sm *SessionManager) Revert(sessionID string) error {
+	return sm.revertState.Stash(sm.sessionDir(sessionID), sessionID)
+}
+
+// Unrevert restores a previously stashed revert for the session.
+func (sm *SessionManager) Unrevert(sessionID string) error {
+	return sm.revertState.Pop(sm.sessionDir(sessionID), sessionID)
+}
+
 // subscribeRevert listens for session.revert events and stashes the current
-// working tree changes.
+// working tree changes (bus-driven path; HTTP uses Revert synchronously).
 func (sm *SessionManager) subscribeRevert() {
 	sub := sm.bus.Subscribe("session.revert")
 	safego.Go(func() {
@@ -81,8 +91,7 @@ func (sm *SessionManager) subscribeRevert() {
 				continue
 			}
 
-			dir := sm.sessionDir(sessionID)
-			if err := sm.revertState.Stash(dir, sessionID); err != nil {
+			if err := sm.Revert(sessionID); err != nil {
 				slog.Error("revert failed", "sessionID", sessionID, "error", err)
 				sm.bus.Publish("session.error", map[string]any{
 					"sessionID": sessionID,
@@ -96,7 +105,7 @@ func (sm *SessionManager) subscribeRevert() {
 }
 
 // subscribeUnrevert listens for session.unrevert events and pops the stash
-// created by the corresponding revert.
+// created by the corresponding revert (bus-driven path; HTTP uses Unrevert).
 func (sm *SessionManager) subscribeUnrevert() {
 	sub := sm.bus.Subscribe("session.unrevert")
 	safego.Go(func() {
@@ -110,8 +119,7 @@ func (sm *SessionManager) subscribeUnrevert() {
 				continue
 			}
 
-			dir := sm.sessionDir(sessionID)
-			if err := sm.revertState.Pop(dir, sessionID); err != nil {
+			if err := sm.Unrevert(sessionID); err != nil {
 				slog.Error("unrevert failed", "sessionID", sessionID, "error", err)
 				sm.bus.Publish("session.error", map[string]any{
 					"sessionID": sessionID,
