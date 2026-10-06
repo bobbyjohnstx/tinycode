@@ -34,13 +34,19 @@ func (s *Server) handlePermissionReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Normalize to TS-contract Reply type
+	// Normalize to TS-contract Reply type (allow→once, deny→reject).
 	reply := action
 	switch reply {
 	case "allow":
 		reply = "once"
 	case "deny":
 		reply = "reject"
+	}
+	switch reply {
+	case "once", "always", "reject":
+	default:
+		respondError(w, http.StatusBadRequest, "unknown reply: must be once, always, reject, allow, or deny")
+		return
 	}
 
 	s.permissionStore.Remove(id)

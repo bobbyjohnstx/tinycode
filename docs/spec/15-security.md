@@ -184,22 +184,20 @@ See [12-permissions.md](12-permissions.md) for the full permission system specif
 
 ### Default Rules
 
-6 rules applied as the base layer for every session:
+4 rules applied as the base layer for every session:
 
 | Permission | Pattern | Action | Security Purpose |
 |------------|---------|--------|-----------------|
 | `read` | `*` | allow | Broad read access for tools |
 | `read` | `.env*` | ask | Protects secret files from silent reads |
 | `webfetch` | `*` | ask | Gates all external HTTP requests |
-| `doom_loop` | `*` | ask | User confirmation on loop detection |
-| `guardrail` | `*` | ask | Safety guardrail confirmation |
 | `external_directory` | `*` | ask | Protects paths outside project directory |
 
 ### Doom Loop Detection
 
-Source: `internal/session/processor_validation.go`
+Source: `internal/session/processor_validation.go`, `internal/session/processor_loop.go`
 
-`isDoomLoop()` detects when the last N tool calls have identical signatures (same tool name and arguments). Default threshold: 3 consecutive identical calls (`defaultDoomThreshold`). Triggers `permission.Ask()` with `"doom_loop"` permission.
+`isDoomLoop()` detects when the last N tool calls have identical signatures (same tool name and arguments). Default threshold: 3 consecutive identical calls (`defaultDoomThreshold`). This is a hard-stop in the processor (`checkDoomLoop` returns an error) — it does not go through `permission.Ask`.
 
 ### Consecutive Failure Tracking
 

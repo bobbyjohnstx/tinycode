@@ -639,9 +639,10 @@ func permissionFromConfigMap(m map[string]any) permission.Ruleset {
 	for key, val := range m {
 		switch v := val.(type) {
 		case string:
+			perm, pattern := splitPermissionKey(key)
 			rules = append(rules, permission.Rule{
-				Permission: key,
-				Pattern:    "*",
+				Permission: perm,
+				Pattern:    pattern,
 				Action:     permission.Action(v),
 			})
 		case map[string]any:
@@ -659,4 +660,14 @@ func permissionFromConfigMap(m map[string]any) permission.Ruleset {
 		}
 	}
 	return rules
+}
+
+// splitPermissionKey splits "permission pattern" on the first space.
+// When no space is present, the pattern defaults to "*".
+func splitPermissionKey(s string) (permission, pattern string) {
+	idx := strings.IndexByte(s, ' ')
+	if idx < 0 {
+		return s, "*"
+	}
+	return s[:idx], s[idx+1:]
 }

@@ -45,14 +45,15 @@ func (sm *SessionManager) subscribePermissionReplies() {
 			if reqID == "" || replyStr == "" {
 				continue
 			}
+			message, _ := props["message"].(string)
 
 			var reply permission.Reply
 			switch replyStr {
-			case "once":
+			case "once", "allow":
 				reply = permission.ReplyOnce
 			case "always":
 				reply = permission.ReplyAlways
-			case "reject":
+			case "reject", "deny":
 				reply = permission.ReplyReject
 			default:
 				continue
@@ -61,6 +62,7 @@ func (sm *SessionManager) subscribePermissionReplies() {
 			sm.perms.RespondToAsk(permission.ReplyInput{
 				RequestID: reqID,
 				Reply:     reply,
+				Message:   message,
 			})
 		}
 	})

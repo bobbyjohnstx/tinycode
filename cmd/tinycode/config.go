@@ -199,12 +199,7 @@ func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
 	}
 	var userPerms permission.Ruleset
 	if cfg.Permission != nil {
-		for _, a := range cfg.Permission.Allow {
-			userPerms = append(userPerms, permission.Rule{Permission: a, Pattern: "*", Action: permission.ActionAllow})
-		}
-		for _, d := range cfg.Permission.Deny {
-			userPerms = append(userPerms, permission.Rule{Permission: d, Pattern: "*", Action: permission.ActionDeny})
-		}
+		userPerms = permission.FromConfig(cfg.Permission.Allow, cfg.Permission.Deny)
 	}
 
 	reg := agent.NewRegistry()
@@ -252,6 +247,18 @@ func initTooling(b *bus.Bus, directory string, cfg ...*config.Info) (*tool.Regis
 		ProjectDir: directory,
 	})
 	return toolReg, permSvc, toolCtx
+}
+
+// applyConfigPermissions wires config allow/deny into the permission service
+// and disables tools that are globally denied. Shared by run, tui, serve, and acp.
+func applyConfigPermissions(permSvc *permission.Service, toolReg *tool.Registry, cfg *config.Info) {
+	if cfg == nil || cfg.Permission == nil {
+		return
+	}
+	configRules := permission.FromConfig(cfg.Permission.Allow, cfg.Permission.Deny)
+	permSvc.SetBaseRules(configRules)
+	disabled := permission.Disabled(toolReg.List(), configRules)
+	toolReg.SetDisabled(disabled)
 }
 
 func initLSP(dir string, cfg *config.Info, toolReg *tool.Registry) *lsp.Manager {

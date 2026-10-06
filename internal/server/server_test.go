@@ -1121,6 +1121,12 @@ func TestPermissionReply_SDKFieldNames(t *testing.T) {
 			wantValue: "once",
 		},
 		{
+			name:      "session endpoint with legacy 'action' field (deny→reject)",
+			path:      "/session/ses_test/permissions/perm_4b",
+			body:      `{"action":"deny"}`,
+			wantValue: "reject",
+		},
+		{
 			name:      "permission endpoint with 'action' field (once)",
 			path:      "/permission/perm_5/reply",
 			body:      `{"action":"once"}`,
@@ -1171,6 +1177,50 @@ func TestPermissionReply_SDKFieldNames(t *testing.T) {
 				t.Fatal("timed out waiting for permission.replied bus event")
 			}
 		})
+	}
+}
+
+func TestSessionPermissionReply_UnknownReturns400(t *testing.T) {
+	srv, _ := testServer(t)
+
+	req := httptest.NewRequest("POST", "/session/ses_test/permissions/perm_bad", strings.NewReader(`{"action":"maybe"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for unknown reply, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSessionPermissionReply_ForwardsMessage(t *testing.T) {
+	srv, b := testServer(t)
+	sub := b.Subscribe("permission.replied")
+
+	req := httptest.NewRequest("POST", "/session/ses_test/permissions/perm_msg",
+		strings.NewReader(`{"action":"deny","message":"use read instead"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	select {
+	case evt := <-sub.C:
+		props, ok := evt.Properties.(map[string]any)
+		if !ok {
+			t.Fatal("expected map properties")
+		}
+		if props["reply"] != "reject" {
+			t.Errorf("expected reply reject, got %v", props["reply"])
+		}
+		if props["message"] != "use read instead" {
+			t.Errorf("expected message forwarded, got %v", props["message"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for permission.replied")
 	}
 }
 

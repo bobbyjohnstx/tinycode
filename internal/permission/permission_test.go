@@ -648,8 +648,8 @@ func TestEvaluate_UnknownPermissionFallback(t *testing.T) {
 }
 
 func TestDefaultRules_Structure(t *testing.T) {
-	if len(DefaultRules) != 6 {
-		t.Fatalf("expected 6 default rules, got %d", len(DefaultRules))
+	if len(DefaultRules) != 4 {
+		t.Fatalf("expected 4 default rules, got %d", len(DefaultRules))
 	}
 
 	expected := []struct {
@@ -660,8 +660,6 @@ func TestDefaultRules_Structure(t *testing.T) {
 		{"read", "*", ActionAllow},
 		{"read", ".env*", ActionAsk},
 		{"webfetch", "*", ActionAsk},
-		{"doom_loop", "*", ActionAsk},
-		{"guardrail", "*", ActionAsk},
 		{"external_directory", "*", ActionAsk},
 	}
 
@@ -700,7 +698,7 @@ func TestMerge_PreservesOrder(t *testing.T) {
 
 func TestDisabled_EditAliases(t *testing.T) {
 	rules := Ruleset{{Permission: "edit", Pattern: "*", Action: ActionDeny}}
-	aliases := []string{"edit", "write", "apply_patch"}
+	aliases := []string{"edit", "write", "apply_patch", "todowrite"}
 	disabled := Disabled(aliases, rules)
 	for _, tool := range aliases {
 		if !disabled[tool] {
@@ -752,20 +750,6 @@ func TestDefaultRules_ReadEnvAsk(t *testing.T) {
 	result := Evaluate("read", ".env.local")
 	if result.Action != ActionAsk {
 		t.Errorf("expected read .env* to be ask, got %s", result.Action)
-	}
-}
-
-func TestDefaultRules_DoomLoopAsk(t *testing.T) {
-	result := Evaluate("doom_loop", "anything")
-	if result.Action != ActionAsk {
-		t.Errorf("expected doom_loop to be ask, got %s", result.Action)
-	}
-}
-
-func TestDefaultRules_GuardrailAsk(t *testing.T) {
-	result := Evaluate("guardrail", "anything")
-	if result.Action != ActionAsk {
-		t.Errorf("expected guardrail to be ask, got %s", result.Action)
 	}
 }
 
@@ -993,6 +977,100 @@ func TestService_BaseRulesOverriddenByAlwaysApproved(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("expected nil (always-approved overrides base deny), got %v", err)
+	}
+}
+
+func TestEvaluate_BashShellAlias_ExploreLike(t *testing.T) {
+	// Explore-like ruleset allows bash; tool Ask uses permission "shell".
+	rules := Ruleset{
+		{Permission: "*", Pattern: "*", Action: ActionDeny},
+		{Permission: "bash", Pattern: "*", Action: ActionAllow},
+	}
+	result := Evaluate("shell", "bash", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected shell ask to match allow bash *, got %s", result.Action)
+	}
+
+	// Reverse: rule says shell, ask uses bash.
+	rules = Ruleset{
+		{Permission: "*", Pattern: "*", Action: ActionDeny},
+		{Permission: "shell", Pattern: "*", Action: ActionAllow},
+	}
+	result = Evaluate("bash", "ls", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected bash ask to match allow shell *, got %s", result.Action)
+	}
+}
+
+func TestEvaluate_ListGlobAlias(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "*", Pattern: "*", Action: ActionDeny},
+		{Permission: "list", Pattern: "*", Action: ActionAllow},
+	}
+	result := Evaluate("glob", "*", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected glob to match allow list *, got %s", result.Action)
+	}
+}
+
+func TestService_Ask_EmptyPatterns_FailClosed(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "read",
+		Patterns:   nil,
+		Ruleset:    Ruleset{{Permission: "read", Pattern: "*", Action: ActionAllow}},
+	})
+	if !errors.Is(err, ErrDenied) {
+		t.Fatalf("expected ErrDenied for empty patterns, got %v", err)
+	}
+}
+
+func TestService_Ask_ShellAliasWithBashRule(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	err := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "shell",
+		Patterns:   []string{"bash"},
+		Ruleset: Ruleset{
+			{Permission: "*", Pattern: "*", Action: ActionDeny},
+			{Permission: "bash", Pattern: "*", Action: ActionAllow},
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected allow via bash↔shell alias, got %v", err)
+	}
+}
+
+func TestService_Ask_ReadEnvWithDefaultRules(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- svc.Ask(ctx, AskInput{
+			SessionID:  "ses_001",
+			Permission: "read",
+			Patterns:   []string{".env"},
+		})
+	}()
+
+	// DefaultRules mark read .env* as ask — should block, not allow.
+	select {
+	case err := <-done:
+		t.Fatalf("expected Ask to block for .env, got immediate result: %v", err)
+	case <-time.After(50 * time.Millisecond):
+		cancel()
 	}
 }
 

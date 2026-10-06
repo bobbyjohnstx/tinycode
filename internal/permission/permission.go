@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -169,6 +170,12 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 		return ErrClosed
 	}
 
+	// Fail closed: empty Patterns would otherwise skip evaluation and allow.
+	if len(input.Patterns) == 0 {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: empty patterns", ErrDenied)
+	}
+
 	needsAsk := false
 	for _, pattern := range input.Patterns {
 		rule := Evaluate(input.Permission, pattern, s.baseRules, input.Ruleset, s.approved)
@@ -308,7 +315,13 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 	}
 
 	if s.store != nil && s.projectID != "" {
-		_ = s.store.SaveRules(s.projectID, s.approved)
+		if err := s.store.SaveRules(s.projectID, s.approved); err != nil {
+			slog.Warn("failed to persist always-approved permission rules", "error", err, "projectID", s.projectID)
+		}
+	} else {
+		// No RuleStore wired: "always" is in-memory for this process only.
+		slog.Warn("permission always approval is session-only; no RuleStore configured",
+			"projectID", s.projectID)
 	}
 
 	for id, other := range s.pending {
@@ -414,7 +427,7 @@ func expandPath(pattern string) string {
 func filterMatching(permission string, ruleset Ruleset) Ruleset {
 	var result Ruleset
 	for _, rule := range ruleset {
-		if WildcardMatch(permission, rule.Permission) {
+		if permissionsMatch(permission, rule.Permission) {
 			result = append(result, rule)
 		}
 	}

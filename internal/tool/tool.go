@@ -273,7 +273,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		askErr := toolCtx.Perms.Ask(ctx, permission.AskInput{
 			SessionID:  sessionID,
 			Permission: def.Permission,
-			Patterns:   []string{name},
+			Patterns:   askPatterns(name, args),
 			Metadata:   map[string]any{"tool": name, "args": string(args)},
 			Ruleset:    toolCtx.Ruleset,
 		})
@@ -632,4 +632,28 @@ func (r *Registry) ResetBudget(value int32) {
 	if r.ctx != nil && r.ctx.SubagentBudget != nil {
 		r.ctx.SubagentBudget.Store(value)
 	}
+}
+
+// askPatterns extracts path or command strings from tool args for permission
+// evaluation. Falls back to the tool name when no usable pattern is present.
+func askPatterns(toolName string, args json.RawMessage) []string {
+	var m map[string]any
+	if err := json.Unmarshal(args, &m); err != nil || m == nil {
+		return []string{toolName}
+	}
+
+	switch toolName {
+	case "bash", "shell", "monitor":
+		if cmd, ok := m["command"].(string); ok && cmd != "" {
+			return []string{cmd}
+		}
+	}
+
+	for _, key := range []string{"file_path", "path", "file", "filepath"} {
+		if v, ok := m[key].(string); ok && v != "" {
+			return []string{v}
+		}
+	}
+
+	return []string{toolName}
 }

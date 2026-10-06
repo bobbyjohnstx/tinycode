@@ -490,4 +490,41 @@ func TestNativeAgentPermissions(t *testing.T) {
 	if rule.Action != permission.ActionDeny {
 		t.Errorf("explore should deny edit via * deny, got %s", rule.Action)
 	}
+
+	// Explore allow bash * should match shell Ask (alias).
+	rule = permission.Evaluate("shell", "ls", explore.Permission)
+	if rule.Action != permission.ActionAllow {
+		t.Errorf("explore should allow shell via bash alias, got %s", rule.Action)
+	}
+}
+
+func TestPermissionFromConfigMap_PathPatterns(t *testing.T) {
+	rules := permissionFromConfigMap(map[string]any{
+		"read .env*": "ask",
+		"edit":       "deny",
+		"bash": map[string]any{
+			"rm *": "deny",
+		},
+	})
+
+	var foundEnv, foundEdit, foundBash bool
+	for _, r := range rules {
+		switch {
+		case r.Permission == "read" && r.Pattern == ".env*" && r.Action == permission.ActionAsk:
+			foundEnv = true
+		case r.Permission == "edit" && r.Pattern == "*" && r.Action == permission.ActionDeny:
+			foundEdit = true
+		case r.Permission == "bash" && r.Pattern == "rm *" && r.Action == permission.ActionDeny:
+			foundBash = true
+		}
+	}
+	if !foundEnv {
+		t.Error("expected read .env* ask from space-separated key")
+	}
+	if !foundEdit {
+		t.Error("expected edit * deny")
+	}
+	if !foundBash {
+		t.Error("expected bash rm * deny from nested map")
+	}
 }

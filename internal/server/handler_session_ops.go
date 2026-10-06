@@ -259,6 +259,7 @@ func (s *Server) handleSessionPermissionReply(w http.ResponseWriter, r *http.Req
 		Action   string `json:"action"`
 		Reply    string `json:"reply"`
 		Response string `json:"response"`
+		Message  string `json:"message,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -273,23 +274,39 @@ func (s *Server) handleSessionPermissionReply(w http.ResponseWriter, r *http.Req
 	if action == "" {
 		action = body.Response
 	}
+	if action == "" {
+		respondError(w, http.StatusBadRequest, "reply, response, or action is required")
+		return
+	}
 
-	// Normalize to TS-contract Reply type
+	// Normalize to TS-contract Reply type (allow→once, deny→reject).
 	reply := action
 	switch reply {
 	case "allow":
 		reply = "once"
+	case "deny":
+		reply = "reject"
+	}
+	switch reply {
+	case "once", "always", "reject":
+	default:
+		respondError(w, http.StatusBadRequest, "unknown reply: must be once, always, reject, allow, or deny")
+		return
 	}
 
 	sessionID := r.PathValue("sessionID")
 
 	s.permissionStore.Remove(permissionID)
 
-	s.deps.Bus.Publish("permission.replied", map[string]any{
+	evt := map[string]any{
 		"sessionID": sessionID,
 		"requestID": permissionID,
 		"reply":     reply,
-	})
+	}
+	if body.Message != "" {
+		evt["message"] = body.Message
+	}
+	s.deps.Bus.Publish("permission.replied", evt)
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"permissionID": permissionID,

@@ -20,6 +20,7 @@ var editTools = map[string]bool{
 	"edit":        true,
 	"write":       true,
 	"apply_patch": true,
+	"todowrite":   true,
 }
 
 // Evaluate finds the last matching rule across all rulesets (last-wins semantics).
@@ -32,7 +33,7 @@ func Evaluate(permission, pattern string, rulesets ...Ruleset) Rule {
 	flat := Merge(all...)
 	for i := len(flat) - 1; i >= 0; i-- {
 		rule := flat[i]
-		if WildcardMatch(permission, rule.Permission) && WildcardMatch(pattern, rule.Pattern) {
+		if permissionsMatch(permission, rule.Permission) && WildcardMatch(pattern, rule.Pattern) {
 			return rule
 		}
 	}
@@ -52,19 +53,43 @@ func Merge(rulesets ...Ruleset) Ruleset {
 	return result
 }
 
+// permissionAliases returns equivalent permission names for matching.
+// bash↔shell and list↔glob are treated as aliases on both sides of Evaluate.
+func permissionAliases(perm string) []string {
+	switch perm {
+	case "bash", "shell":
+		return []string{"bash", "shell"}
+	case "list", "glob":
+		return []string{"list", "glob"}
+	default:
+		return []string{perm}
+	}
+}
+
+// permissionsMatch reports whether an ask permission matches a rule permission,
+// expanding aliases on both sides before WildcardMatch.
+func permissionsMatch(permission, rulePermission string) bool {
+	for _, p := range permissionAliases(permission) {
+		for _, rp := range permissionAliases(rulePermission) {
+			if WildcardMatch(p, rp) {
+				return true
+			}
+		}
+		// Also match against the raw rule pattern so wildcards like "bas*" still work.
+		if WildcardMatch(p, rulePermission) {
+			return true
+		}
+	}
+	return false
+}
+
 // permissionKeysForTool returns the permission names that should match a tool
 // when evaluating Disabled. Edit tools also match "edit"; bash↔shell and
 // list↔glob are treated as aliases.
 func permissionKeysForTool(tool string) []string {
-	keys := []string{tool}
+	keys := permissionAliases(tool)
 	if editTools[tool] {
 		keys = append(keys, "edit")
-	}
-	switch tool {
-	case "bash":
-		keys = append(keys, "shell")
-	case "glob":
-		keys = append(keys, "list")
 	}
 	return keys
 }
@@ -79,7 +104,7 @@ func Disabled(tools []string, ruleset Ruleset) map[string]bool {
 			rule := ruleset[i]
 			matched := false
 			for _, key := range keys {
-				if WildcardMatch(key, rule.Permission) {
+				if permissionsMatch(key, rule.Permission) {
 					matched = true
 					break
 				}

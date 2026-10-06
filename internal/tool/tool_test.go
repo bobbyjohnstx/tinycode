@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
@@ -766,5 +767,76 @@ func TestTruncPreview_ExactBoundary(t *testing.T) {
 	}
 	if result.Content != content {
 		t.Error("expected content unchanged at exact boundary")
+	}
+}
+
+func TestAskPatterns_PathAndCommand(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolName string
+		args     string
+		want     []string
+	}{
+		{"file_path", "read", `{"file_path":".env"}`, []string{".env"}},
+		{"path", "grep", `{"path":"/tmp","pattern":"x"}`, []string{"/tmp"}},
+		{"bash command", "bash", `{"command":"ls -la"}`, []string{"ls -la"}},
+		{"fallback tool name", "read", `{}`, []string{"read"}},
+		{"invalid json", "read", `{`, []string{"read"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := askPatterns(tt.toolName, json.RawMessage(tt.args))
+			if len(got) != len(tt.want) || got[0] != tt.want[0] {
+				t.Errorf("askPatterns() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExecute_ReadEnvHitsAsk(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	permSvc := permission.NewService(b)
+
+	asked := make(chan permission.Request, 1)
+	sub := b.Subscribe("permission.asked")
+	go func() {
+		for evt := range sub.C {
+			if req, ok := evt.Properties.(permission.Request); ok {
+				asked <- req
+				_ = permSvc.RespondToAsk(permission.ReplyInput{
+					RequestID: req.ID,
+					Reply:     permission.ReplyReject,
+				})
+			}
+		}
+	}()
+
+	dir := t.TempDir()
+	r := NewRegistry(&Context{
+		Directory: dir,
+		Perms:     permSvc,
+		Bus:       b,
+	})
+	RegisterBuiltins(r)
+
+	output, isErr, err := r.Execute(context.Background(), "read", json.RawMessage(`{"file_path":".env"}`), "ses_env")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !isErr {
+		t.Fatalf("expected permission rejection error, got success: %s", output)
+	}
+
+	select {
+	case req := <-asked:
+		if req.Permission != "read" {
+			t.Errorf("expected permission read, got %s", req.Permission)
+		}
+		if len(req.Patterns) != 1 || req.Patterns[0] != ".env" {
+			t.Errorf("expected pattern .env, got %v", req.Patterns)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for permission.asked")
 	}
 }

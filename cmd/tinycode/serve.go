@@ -44,6 +44,7 @@ func runServe() {
 	agentReg := initAgentRegistry(cfg, dir)
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
+	applyConfigPermissions(permSvc, toolReg, cfg)
 
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()
@@ -129,6 +130,7 @@ func runWeb() {
 	agentReg := initAgentRegistry(cfg, dir)
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
+	applyConfigPermissions(permSvc, toolReg, cfg)
 
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()

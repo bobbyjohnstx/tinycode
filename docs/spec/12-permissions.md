@@ -32,7 +32,11 @@ type Ruleset []Rule
 
 ### Edit Tool Normalization
 
-Tools `edit`, `write`, and `apply_patch` all map to the `"edit"` permission when checking disabled status via `Disabled()`. This ensures a single `deny edit *` rule blocks all file-writing tools.
+Tools `edit`, `write`, `apply_patch`, and `todowrite` all map to the `"edit"` permission when checking disabled status via `Disabled()`. This ensures a single `deny edit *` rule blocks all file-writing tools.
+
+### Permission Aliases
+
+`bash`↔`shell` and `list`↔`glob` are aliases. `Evaluate` and `Disabled` expand both sides so a rule written as `allow bash *` matches an Ask with permission `shell` (and vice versa).
 
 ## 12.2 Default Rules
 
@@ -41,13 +45,13 @@ var DefaultRules = Ruleset{
     {Permission: "read",               Pattern: "*",     Action: ActionAllow},
     {Permission: "read",               Pattern: ".env*", Action: ActionAsk},
     {Permission: "webfetch",           Pattern: "*",     Action: ActionAsk},
-    {Permission: "doom_loop",          Pattern: "*",     Action: ActionAsk},
-    {Permission: "guardrail",          Pattern: "*",     Action: ActionAsk},
     {Permission: "external_directory", Pattern: "*",     Action: ActionAsk},
 }
 ```
 
-DefaultRules are automatically prepended during evaluation. They establish the baseline: file reads are allowed, but `.env*` files, web fetches, doom loop overrides, guardrail bypasses, and external directory access all require user approval.
+DefaultRules are automatically prepended during evaluation. They establish the baseline: file reads are allowed, but `.env*` files, web fetches, and external directory access all require user approval.
+
+Doom-loop detection is a hard-stop in the session processor (`checkDoomLoop`), not a permission Ask. Destructive shell commands use the `destructive-shell` permission from the shell/monitor tools.
 
 ## 12.3 Evaluation
 
@@ -87,7 +91,7 @@ Concatenates multiple rulesets into a single flat slice. Order is preserved -- e
 func Disabled(tools []string, ruleset Ruleset) map[string]bool
 ```
 
-Returns the set of tool names that are globally denied (pattern `"*"`, action `"deny"`). For tools in the `editTools` map (`edit`, `write`, `apply_patch`), the permission is normalized to `"edit"` before checking.
+Returns the set of tool names that are globally denied (pattern `"*"`, action `"deny"`). For tools in the `editTools` map (`edit`, `write`, `apply_patch`, `todowrite`), the permission is normalized to `"edit"` before checking.
 
 ## 12.4 Wildcard Matching
 
@@ -199,22 +203,25 @@ type Service struct {
 ```
 1. Lock mutex
 2. If service is closed -> return ErrClosed
-3. For each pattern in input.Patterns:
+3. If Patterns is empty -> unlock, return ErrDenied (fail closed)
+4. For each pattern in input.Patterns:
    a. Evaluate(permission, pattern, baseRules, input.Ruleset, approved)
    b. If any rule -> deny: unlock, return DeniedError (with matching rules)
    c. If any rule -> ask: mark needsAsk = true
-4. If all rules -> allow: unlock, return nil
-5. Generate request ID (ascending sortable, "permission" prefix)
-6. Create pending entry with buffered reply channel (cap 1)
-7. Store in pending map
-8. Unlock mutex
-9. Publish "permission.asked" event on bus
-10. Select:
+5. If all rules -> allow: unlock, return nil
+6. Generate request ID (ascending sortable, "permission" prefix)
+7. Create pending entry with buffered reply channel (cap 1)
+8. Store in pending map
+9. Unlock mutex
+10. Publish "permission.asked" event on bus
+11. Select:
     - Reply received on channel -> return result.err
     - Context cancelled -> clean up pending entry, return ctx.Err()
 ```
 
 The ask is a blocking call -- the goroutine waits on a channel until either the user replies or the context is cancelled.
+
+Tool execution passes path or command strings as Patterns (via `askPatterns` in `internal/tool`), not just the tool name, so rules like `read .env*` match correctly.
 
 ## 12.7 Reply Flow
 
@@ -258,9 +265,13 @@ type RuleStore interface {
 ### Lifecycle
 
 - `SetStore(store, projectID)` configures persistence and loads any previously saved rules into the `approved` list
-- "Always" approvals are saved on each `ReplyAlways` response
+- "Always" approvals are saved on each `ReplyAlways` response when a store is configured
 - Rules are scoped to a project (identified by `projectID`)
 - Persisted rules survive process restarts
+
+### Session-only "always" (current default)
+
+No `RuleStore` is wired in TUI/serve/ACP/run by default. In that case, `"always"` approvals live in the in-memory `approved` list for the lifetime of the process only — they do not survive restarts. `RespondToAsk` logs a warning when persisting without a store so this is not silent.
 
 ## 12.9 Config Integration
 

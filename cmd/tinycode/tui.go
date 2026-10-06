@@ -58,6 +58,7 @@ func runTUI(args []string) {
 	}
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
+	applyConfigPermissions(permSvc, toolReg, cfg)
 
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()
