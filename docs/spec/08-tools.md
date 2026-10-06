@@ -24,17 +24,17 @@ Tools are registered in a thread-safe `Registry` (sync.RWMutex) that preserves i
 
 1. Look up tool by name; return error if not found or disabled
 2. Create fresh `Context` with session-specific fields
-3. If permission service exists and tool has a non-empty `Permission`, call `Perms.Ask()`
+3. If permission service exists and tool has a non-empty `Permission`, call `Perms.Ask()` (with agent `Ruleset` when set)
 4. Publish `tool.execute.before` bus event
 5. Call `def.Execute(ctx, toolCtx, args)`
 6. On error: publish `tool.execute.after` with `success: false`, return error string as output
 7. On success: apply `AfterHook` if set, publish `tool.execute.after`
-8. **Non-error output only:** truncate via `Truncate(output, TruncTail)`
+8. Truncate via `TruncPreview(output)` (head+tail preview)
 9. Return `(output, isError, nil)`
 
 ### Registration
 
-`RegisterBuiltins(r)` registers 11 always-available tools. `RegisterConditional(r, cfg)` adds conditional tools:
+`RegisterBuiltins(r)` registers 16 always-available tools. `RegisterConditional(r, cfg)` adds conditional tools:
 
 | Tool | Condition |
 |------|-----------|
@@ -58,7 +58,9 @@ Source: `truncate.go`
 - `TruncHead` — keep tail, prepend `"... [truncated N bytes, showing last M lines] ..."` 
 - `TruncTail` — keep head, append `"... [truncated N bytes, showing first M lines] ..."`
 
-The registry always truncates non-error output with `TruncTail`. Byte truncation respects UTF-8 rune boundaries.
+**Registry path:** non-error tool output is truncated via `TruncPreview` (head+tail preview), not `Truncate(..., TruncTail)`.
+
+Byte truncation respects UTF-8 rune boundaries.
 
 ---
 
@@ -140,9 +142,9 @@ Search-and-replace editing with 10-strategy fuzzy cascade. Source: `edit.go`, `e
 
 **Permission:** `edit`
 
-### shell
+### bash
 
-Shell command execution. Source: `shell.go`
+Shell command execution. Tool ID is `bash` (not `shell`). Source: `shell.go`
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
@@ -161,11 +163,11 @@ Shell command execution. Source: `shell.go`
 - `DROP TABLE/DATABASE`, `TRUNCATE TABLE`
 - `kill -9`, `mkfs`, `dd`, `> /dev/sd*`
 
-**Secret file detection** (warning only): `.env`, `.env.*`, `credentials`, `*.key`, `*.pem`
+**Secret file detection** (hard-block — returns error, does not ask): `.env`, `.env.*`, `credentials`, `*.key`, `*.pem`
 
 Executes via `sh -c <command>` in `tc.Directory`. Combines stdout/stderr (stderr prefixed with `"STDERR:\n"`).
 
-**Permission:** `shell`
+**Permission:** `shell` (agent allowlists may use `bash` or `shell` interchangeably)
 
 ### grep
 
@@ -319,10 +321,10 @@ Fallback for malformed tool calls. Source: `invalid.go`
 | Category | Tools |
 |----------|-------|
 | `read` | read, grep, glob, question, websearch, invalid, skill |
-| `edit` | write, edit, todowrite |
-| `shell` | shell, task |
+| `edit` | write, edit, apply_patch, todowrite |
+| `shell` | bash, task, monitor |
 | `webfetch` | webfetch |
-| `destructive-shell` | (secondary check within shell for destructive commands) |
+| `destructive-shell` | (secondary check within bash/monitor for destructive commands) |
 
 ---
 

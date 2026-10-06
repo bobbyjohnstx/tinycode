@@ -148,7 +148,10 @@ func runRun() {
 	providerID, modelID, model := resolveRunModel(reg, modelStr)
 	disc.Warmup(ctx, model)
 
-	agentName, agentPerms, systemPrompt := buildRunAgentPrompt(*agentFlag, cfg, agentReg, model, dir, toolReg, appendSP)
+	agentName, agentPerms, agentRuleset, systemPrompt := buildRunAgentPrompt(*agentFlag, cfg, agentReg, model, dir, toolReg, appendSP)
+	if agentRuleset != nil {
+		toolReg = toolReg.WithAgentRules(agentRuleset)
+	}
 
 	// Sync MCP tools — wait for async connections to settle first.
 	if mcpSvc != nil {
@@ -183,6 +186,7 @@ func runRun() {
 		SystemPrompt:    systemPrompt,
 		Compaction:      compactionCfg,
 		AgentPerms:      agentPerms,
+		Ruleset:         agentRuleset,
 		MaxIterations:   *maxIterFlag,
 		TokenBudget:     *maxTokensFlag,
 		Directory:       dir,

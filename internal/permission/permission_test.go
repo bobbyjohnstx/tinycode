@@ -709,6 +709,31 @@ func TestDisabled_EditAliases(t *testing.T) {
 	}
 }
 
+func TestDisabled_BashShellAlias(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "*", Pattern: "*", Action: ActionDeny},
+		{Permission: "bash", Pattern: "*", Action: ActionAllow},
+	}
+	disabled := Disabled([]string{"bash", "read"}, rules)
+	if disabled["bash"] {
+		t.Error("bash should be allowed when bash is allowed")
+	}
+	if !disabled["read"] {
+		t.Error("read should remain denied")
+	}
+}
+
+func TestDisabled_ListGlobAlias(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "*", Pattern: "*", Action: ActionDeny},
+		{Permission: "list", Pattern: "*", Action: ActionAllow},
+	}
+	disabled := Disabled([]string{"glob", "read"}, rules)
+	if disabled["glob"] {
+		t.Error("glob should be allowed when list is allowed")
+	}
+}
+
 func TestDisabled_EmptyRuleset(t *testing.T) {
 	disabled := Disabled([]string{"bash", "edit", "read"}, Ruleset{})
 	if len(disabled) != 0 {

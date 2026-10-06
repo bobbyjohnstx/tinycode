@@ -18,12 +18,12 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/lsp"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
-	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
-	"github.com/bobbyjohnstx/tinycode/internal/safego"
-	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/server"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/storage"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
@@ -247,6 +247,10 @@ func initTooling(b *bus.Bus, directory string, cfg ...*config.Info) (*tool.Regis
 	}
 	toolReg := tool.NewRegistry(toolCtx)
 	tool.RegisterBuiltins(toolReg)
+	tool.RegisterConditional(toolReg, tool.BuiltinConfig{
+		ConfigDir:  config.ConfigDir(),
+		ProjectDir: directory,
+	})
 	return toolReg, permSvc, toolCtx
 }
 

@@ -49,7 +49,7 @@ type Info struct {
 | `build` | Primary | Default agent, full tool access | `question:allow`, `plan_enter:allow` |
 | `plan` | Primary | Read-only plan mode | `plan_exit:allow`, `edit:deny` |
 | `general` | Subagent | Multi-step task execution | `todowrite:deny` |
-| `explore` | Subagent | Fast codebase search | Only: `grep`, `glob`, `list`, `bash`, `webfetch`, `websearch`, `read` |
+| `explore` | Subagent | Fast codebase search | Only: `grep`, `glob`, `bash`, `webfetch`, `websearch`, `read` |
 | `scout` | Subagent | External research | Only: `grep`, `glob`, `webfetch`, `websearch`, `read`, `repo_clone`, `repo_overview` |
 | `compaction` | Primary (hidden) | Context summarization | All denied |
 | `title` | Primary (hidden) | Session title generation | All denied, temp=0.5 |

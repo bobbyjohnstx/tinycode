@@ -25,39 +25,39 @@ const (
 )
 
 type Info struct {
-	Name        string               `json:"name"`
-	Description string               `json:"description,omitempty"`
-	Mode        Mode                 `json:"mode"`
-	Native      bool                 `json:"native,omitempty"`
-	Hidden      bool                 `json:"hidden,omitempty"`
-	Disabled    bool                 `json:"disabled,omitempty"`
-	TopP        *float64             `json:"topP,omitempty"`
-	Temperature *float64             `json:"temperature,omitempty"`
-	Color       string               `json:"color,omitempty"`
-	Permission  permission.Ruleset   `json:"permission"`
-	Prompt      string               `json:"prompt,omitempty"`
-	Compact     bool                 `json:"compact,omitempty"`
-	Steps       *int                 `json:"steps,omitempty"`
-	Options     map[string]any       `json:"options"`
-	Model       *session.ModelRef    `json:"model,omitempty"`
-	Variant     string               `json:"variant,omitempty"`
+	Name        string             `json:"name"`
+	Description string             `json:"description,omitempty"`
+	Mode        Mode               `json:"mode"`
+	Native      bool               `json:"native,omitempty"`
+	Hidden      bool               `json:"hidden,omitempty"`
+	Disabled    bool               `json:"disabled,omitempty"`
+	TopP        *float64           `json:"topP,omitempty"`
+	Temperature *float64           `json:"temperature,omitempty"`
+	Color       string             `json:"color,omitempty"`
+	Permission  permission.Ruleset `json:"permission"`
+	Prompt      string             `json:"prompt,omitempty"`
+	Compact     bool               `json:"compact,omitempty"`
+	Steps       *int               `json:"steps,omitempty"`
+	Options     map[string]any     `json:"options"`
+	Model       *session.ModelRef  `json:"model,omitempty"`
+	Variant     string             `json:"variant,omitempty"`
 }
 
 type ConfigOverride struct {
-	Model       string             `json:"model,omitempty"`
-	Variant     string             `json:"variant,omitempty"`
-	Prompt      string             `json:"prompt,omitempty"`
-	Description string             `json:"description,omitempty"`
-	Temperature *float64           `json:"temperature,omitempty"`
-	TopP        *float64           `json:"top_p,omitempty"`
-	Mode        Mode               `json:"mode,omitempty"`
-	Color       string             `json:"color,omitempty"`
-	Hidden      *bool              `json:"hidden,omitempty"`
-	Name        string             `json:"name,omitempty"`
-	Steps       *int               `json:"steps,omitempty"`
-	Disable     bool               `json:"disable,omitempty"`
-	Options     map[string]any     `json:"options,omitempty"`
-	Permission  map[string]any     `json:"permission,omitempty"`
+	Model       string         `json:"model,omitempty"`
+	Variant     string         `json:"variant,omitempty"`
+	Prompt      string         `json:"prompt,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Temperature *float64       `json:"temperature,omitempty"`
+	TopP        *float64       `json:"top_p,omitempty"`
+	Mode        Mode           `json:"mode,omitempty"`
+	Color       string         `json:"color,omitempty"`
+	Hidden      *bool          `json:"hidden,omitempty"`
+	Name        string         `json:"name,omitempty"`
+	Steps       *int           `json:"steps,omitempty"`
+	Disable     bool           `json:"disable,omitempty"`
+	Options     map[string]any `json:"options,omitempty"`
+	Permission  map[string]any `json:"permission,omitempty"`
 }
 
 type Registry struct {
@@ -422,7 +422,6 @@ func (r *Registry) registerSubagents(generalPrompt, explorePrompt, scoutPrompt s
 				{Permission: "*", Pattern: "*", Action: permission.ActionDeny},
 				{Permission: "grep", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "glob", Pattern: "*", Action: permission.ActionAllow},
-				{Permission: "list", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "bash", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "webfetch", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "websearch", Pattern: "*", Action: permission.ActionAllow},
@@ -448,8 +447,6 @@ func (r *Registry) registerSubagents(generalPrompt, explorePrompt, scoutPrompt s
 				{Permission: "webfetch", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "websearch", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "read", Pattern: "*", Action: permission.ActionAllow},
-				{Permission: "repo_clone", Pattern: "*", Action: permission.ActionAllow},
-				{Permission: "repo_overview", Pattern: "*", Action: permission.ActionAllow},
 			},
 			userPerms,
 		),

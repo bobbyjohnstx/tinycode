@@ -871,13 +871,17 @@ func TestMapToolKind(t *testing.T) {
 	}{
 		{"bash", "execute"},
 		{"shell", "execute"},
+		{"monitor", "execute"},
 		{"webfetch", "fetch"},
 		{"websearch", "fetch"},
 		{"edit", "edit"},
 		{"write", "edit"},
+		{"apply_patch", "edit"},
+		{"todowrite", "edit"},
 		{"read", "read"},
 		{"grep", "search"},
 		{"glob", "search"},
+		{"task", "other"},
 		{"something_else", "other"},
 	}
 

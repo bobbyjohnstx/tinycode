@@ -291,17 +291,25 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 | Tool | Permission | Description |
 |---|---|---|
 | `read` | `read` | Read file contents with line numbers |
-| `write` | `write` | Write content to a file |
-| `edit` | `write` | Replace text in a file |
-| `shell` | `shell` | Execute shell commands |
+| `write` | `edit` | Write content to a file |
+| `edit` | `edit` | Replace text in a file |
+| `apply_patch` | `edit` | Apply unified diff patches atomically |
+| `bash` | `shell` | Execute shell commands |
 | `grep` | `read` | Search file contents with regex |
 | `glob` | `read` | Find files by glob pattern |
-| `question` | (none) | Ask the user a question |
+| `question` | `question` | Ask the user a question |
 | `webfetch` | `webfetch` | Fetch content from a URL |
-| `task` | `task` | Create and manage subagent tasks |
-| `todowrite` | `write` | Write a structured TODO list |
-| `skill` | (none) | Execute a skill (conditional) |
-| `websearch` | `websearch` | Search the web via Exa API (conditional) |
+| `task` | `shell` | Create and manage subagent tasks |
+| `todowrite` | `edit` | Write a structured TODO list |
+| `diagnostics` | `read` | LSP diagnostics |
+| `report_findings` | `read` | Report code review findings |
+| `monitor` | `shell` | Background command watcher |
+| `notepad` | `read` | Session scratch notes |
+| `invalid` | `read` | Internal fallback (not exposed to LLM) |
+| `skill` | `read` | Execute a skill (conditional) |
+| `websearch` | `read` | Search the web via Exa API (conditional) |
+
+16 unconditional + 2 conditional (`skill`, `websearch`).
 
 ---
 

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
@@ -383,6 +384,34 @@ func executeMonitor(ctx context.Context, tc *Context, rawArgs json.RawMessage) (
 			return &ExecuteResult{Output: "command is required to start a monitor", IsError: true}, nil
 		}
 
+		if warning := checkSecretAccess(args.Command); warning != "" {
+			slog.Warn("secret file access blocked", "command", args.Command, "warning", warning)
+			return &ExecuteResult{
+				Output:  fmt.Sprintf("Access to secret file blocked: %s. Use the permission system to explicitly approve.", warning),
+				IsError: true,
+			}, nil
+		}
+
+		if IsDestructive(args.Command) {
+			if tc.Perms != nil {
+				askErr := tc.Perms.Ask(ctx, permission.AskInput{
+					SessionID:  tc.SessionID,
+					Permission: "destructive-shell",
+					Patterns:   []string{args.Command},
+					Metadata:   map[string]any{"command": args.Command},
+					Ruleset:    tc.Ruleset,
+				})
+				if askErr != nil {
+					return &ExecuteResult{Output: askErr.Error(), IsError: true}, nil
+				}
+			} else {
+				return &ExecuteResult{
+					Output:  fmt.Sprintf("Potentially destructive command detected: %s\nUse with caution.", args.Command),
+					IsError: true,
+				}, nil
+			}
+		}
+
 		timeout := defaultMonitorTimeout
 		if args.TimeoutMS != nil {
 			t := time.Duration(*args.TimeoutMS) * time.Millisecond
@@ -402,8 +431,10 @@ func executeMonitor(ctx context.Context, tc *Context, rawArgs json.RawMessage) (
 			}
 		}
 
-		// Use a background context so the monitor survives beyond the current tool call.
-		monID, err := tc.MonitorManager.Start(context.Background(), args.Command, desc, tc.Directory, timeout)
+		// Detach from the tool-call deadline so the monitor can outlive Execute,
+		// while still inheriting any context values from ctx.
+		monCtx := context.WithoutCancel(ctx)
+		monID, err := tc.MonitorManager.Start(monCtx, args.Command, desc, tc.Directory, timeout)
 		if err != nil {
 			return &ExecuteResult{Output: fmt.Sprintf("Failed to start monitor: %v", err), IsError: true}, nil
 		}

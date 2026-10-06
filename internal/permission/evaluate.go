@@ -52,18 +52,39 @@ func Merge(rulesets ...Ruleset) Ruleset {
 	return result
 }
 
+// permissionKeysForTool returns the permission names that should match a tool
+// when evaluating Disabled. Edit tools also match "edit"; bash↔shell and
+// list↔glob are treated as aliases.
+func permissionKeysForTool(tool string) []string {
+	keys := []string{tool}
+	if editTools[tool] {
+		keys = append(keys, "edit")
+	}
+	switch tool {
+	case "bash":
+		keys = append(keys, "shell")
+	case "glob":
+		keys = append(keys, "list")
+	}
+	return keys
+}
+
 // Disabled returns the set of tool names that are globally denied
 // (pattern "*" with action "deny").
 func Disabled(tools []string, ruleset Ruleset) map[string]bool {
 	result := make(map[string]bool)
 	for _, tool := range tools {
-		perm := tool
-		if editTools[tool] {
-			perm = "edit"
-		}
+		keys := permissionKeysForTool(tool)
 		for i := len(ruleset) - 1; i >= 0; i-- {
 			rule := ruleset[i]
-			if WildcardMatch(perm, rule.Permission) {
+			matched := false
+			for _, key := range keys {
+				if WildcardMatch(key, rule.Permission) {
+					matched = true
+					break
+				}
+			}
+			if matched {
 				if rule.Pattern == "*" && rule.Action == ActionDeny {
 					result[tool] = true
 				}

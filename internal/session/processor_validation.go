@@ -92,7 +92,7 @@ func extractPathsFromArgs(argsJSON string) []string {
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return nil
 	}
-	for _, key := range []string{"file_path", "path", "file", "directory", "dir", "folder", "target", "destination", "source", "src", "dest", "location", "root", "base_path", "working_directory", "cwd", "pattern"} {
+	for _, key := range []string{"file_path", "path", "file", "directory", "dir", "folder", "target", "destination", "source", "src", "dest", "location", "root", "base_path", "working_directory", "cwd"} {
 		raw, ok := args[key]
 		if !ok {
 			continue
@@ -100,6 +100,53 @@ func extractPathsFromArgs(argsJSON string) []string {
 		var val string
 		if json.Unmarshal(raw, &val) == nil && val != "" {
 			paths = append(paths, val)
+		}
+	}
+	if raw, ok := args["patch"]; ok {
+		var patch string
+		if json.Unmarshal(raw, &patch) == nil && patch != "" {
+			paths = append(paths, extractPathsFromPatch(patch)...)
+		}
+	}
+	return paths
+}
+
+// extractPathsFromPatch pulls file paths out of unified-diff / apply_patch text
+// (*** Update File:, ---, +++ lines).
+func extractPathsFromPatch(patch string) []string {
+	var paths []string
+	seen := make(map[string]bool)
+	add := func(p string) {
+		p = strings.TrimSpace(p)
+		if p == "" || p == "/dev/null" {
+			return
+		}
+		// Strip unified-diff a;/b; prefixes and optional timestamps.
+		if idx := strings.IndexByte(p, '\t'); idx >= 0 {
+			p = p[:idx]
+		}
+		if strings.HasPrefix(p, "a/") || strings.HasPrefix(p, "b/") {
+			p = p[2:]
+		}
+		if p == "" || seen[p] {
+			return
+		}
+		seen[p] = true
+		paths = append(paths, p)
+	}
+
+	for _, line := range strings.Split(patch, "\n") {
+		switch {
+		case strings.HasPrefix(line, "*** Update File:"):
+			add(strings.TrimPrefix(line, "*** Update File:"))
+		case strings.HasPrefix(line, "*** Add File:"):
+			add(strings.TrimPrefix(line, "*** Add File:"))
+		case strings.HasPrefix(line, "*** Delete File:"):
+			add(strings.TrimPrefix(line, "*** Delete File:"))
+		case strings.HasPrefix(line, "--- "):
+			add(strings.TrimPrefix(line, "--- "))
+		case strings.HasPrefix(line, "+++ "):
+			add(strings.TrimPrefix(line, "+++ "))
 		}
 	}
 	return paths

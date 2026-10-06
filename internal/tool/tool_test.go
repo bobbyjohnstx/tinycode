@@ -175,6 +175,52 @@ func TestRegistry_ToolDefs_PermissionFiltering(t *testing.T) {
 	}
 }
 
+func TestRegistry_ToolDefs_BashShellAlias(t *testing.T) {
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	r.Register(&Def{ID: "bash", Permission: "shell", Parameters: map[string]any{"type": "object"}})
+	r.Register(&Def{ID: "read", Permission: "read", Parameters: map[string]any{"type": "object"}})
+
+	defs := r.ToolDefs([]string{"bash", "read"})
+	if len(defs) != 2 {
+		t.Fatalf("expected bash+read when bash allowed, got %d tools", len(defs))
+	}
+}
+
+func TestRegistry_WithAgentRules_PlanHidesEditTools(t *testing.T) {
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	RegisterBuiltins(r)
+
+	planRules := permission.Ruleset{
+		{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
+		{Permission: "edit", Pattern: "*", Action: permission.ActionDeny},
+	}
+	filtered := r.WithAgentRules(planRules)
+	defs := filtered.ToolDefs([]string{"*"})
+
+	for _, d := range defs {
+		switch d.Function.Name {
+		case "write", "edit", "apply_patch":
+			t.Errorf("plan agent should not expose %s", d.Function.Name)
+		}
+	}
+}
+
+func TestRegistry_WithAgentRules_DenyTodoWriteByID(t *testing.T) {
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	RegisterBuiltins(r)
+
+	rules := permission.Ruleset{
+		{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
+		{Permission: "todowrite", Pattern: "*", Action: permission.ActionDeny},
+	}
+	filtered := r.WithAgentRules(rules)
+	for _, d := range filtered.ToolDefs([]string{"*"}) {
+		if d.Function.Name == "todowrite" {
+			t.Fatal("todowrite should be disabled by ID deny")
+		}
+	}
+}
+
 func TestRegistry_List(t *testing.T) {
 	r := NewRegistry(&Context{Directory: t.TempDir()})
 	r.Register(&Def{ID: "a", Permission: "read"})

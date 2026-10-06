@@ -286,8 +286,9 @@ func resolveRunModel(reg *provider.Registry, modelStr string) (string, string, *
 
 // buildRunAgentPrompt resolves the agent and builds the system prompt.
 // appendSystemPrompt is appended to the end of the system prompt if non-empty.
-func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Registry, model *provider.Model, dir string, toolReg *tool.Registry, appendSystemPrompt ...string) (string, []string, string) {
-	agentName := agentFlag
+// The caller should apply agentRuleset via toolReg.WithAgentRules before Execute.
+func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Registry, model *provider.Model, dir string, toolReg *tool.Registry, appendSystemPrompt ...string) (agentName string, agentPerms []string, agentRuleset permission.Ruleset, systemPrompt string) {
+	agentName = agentFlag
 	if agentName == "" {
 		agentName = cfg.DefaultAgent
 	}
@@ -297,18 +298,16 @@ func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Reg
 
 	agentInfo := agentReg.Get(agentName, model.SizeB())
 	var agentPrompt string
-	var agentPerms []string
+	tools := toolReg
 	if agentInfo != nil {
 		agentPrompt = agentInfo.Prompt
+		agentRuleset = agentInfo.Permission
 		for _, rule := range agentInfo.Permission {
 			if rule.Action == permission.ActionAllow {
 				agentPerms = append(agentPerms, rule.Permission)
 			}
 		}
-		// Exclude tools denied by the agent's permission rules so the LLM
-		// never attempts to call them (deny rules are evaluated last-wins).
-		disabled := permission.Disabled(toolReg.List(), agentInfo.Permission)
-		toolReg.SetDisabled(disabled)
+		tools = toolReg.WithAgentRules(agentInfo.Permission)
 	}
 
 	var instructions string
@@ -319,15 +318,15 @@ func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Reg
 	if len(appendSystemPrompt) > 0 {
 		appendSP = appendSystemPrompt[0]
 	}
-	systemPrompt := session.BuildSystemPrompt(session.SystemPromptInput{
+	systemPrompt = session.BuildSystemPrompt(session.SystemPromptInput{
 		AgentPrompt:        agentPrompt,
 		Instructions:       instructions,
 		Directory:          dir,
-		ToolDefs:           toolReg.ToolDefs(agentPerms),
+		ToolDefs:           tools.ToolDefs(agentPerms),
 		AppendSystemPrompt: appendSP,
 	})
 
-	return agentName, agentPerms, systemPrompt
+	return agentName, agentPerms, agentRuleset, systemPrompt
 }
 
 // resolveRunSession creates or continues a session. Returns session ID,

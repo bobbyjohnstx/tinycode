@@ -143,6 +143,7 @@ type Context struct {
 	SessionID      string
 	Directory      string
 	Perms          *permission.Service
+	Ruleset        permission.Ruleset // agent permission rules for Ask evaluation
 	Bus            *bus.Bus
 	JobManager     *session.JobManager
 	SubagentRunner SubagentRunnerFunc
@@ -151,13 +152,13 @@ type Context struct {
 	BeforeHook     BeforeHookFunc
 	AfterHook      AfterHookFunc
 	ShellEnvHook   ShellEnvHookFunc
-	SubagentCount  *atomic.Int32 // concurrent subagent counter (shared across copies)
-	SubagentBudget *atomic.Int32 // per-session spawn budget (shared across copies)
-	TaskRoundDone  *atomic.Bool  // set after first foreground task batch completes (shared across copies)
-	AutoApprove    bool          // skip permission checks when true
-	ReadFiles      *SafeReadFiles // tracks files the model has read or edited (shared across copies)
-	Findings       *SafeFindings  // accumulated code review findings (shared across copies)
-	Notepad        *SafeNotepad   // session scratch notes (shared across copies)
+	SubagentCount  *atomic.Int32   // concurrent subagent counter (shared across copies)
+	SubagentBudget *atomic.Int32   // per-session spawn budget (shared across copies)
+	TaskRoundDone  *atomic.Bool    // set after first foreground task batch completes (shared across copies)
+	AutoApprove    bool            // skip permission checks when true
+	ReadFiles      *SafeReadFiles  // tracks files the model has read or edited (shared across copies)
+	Findings       *SafeFindings   // accumulated code review findings (shared across copies)
+	Notepad        *SafeNotepad    // session scratch notes (shared across copies)
 	MonitorManager *MonitorManager // background process watcher (shared across copies)
 }
 
@@ -188,11 +189,11 @@ func (d *Def) ToLLMTool() llm.Tool {
 }
 
 type Registry struct {
-	mu         sync.RWMutex
-	tools      map[string]*Def
-	order      []string
-	disabled   map[string]bool
-	ctx        *Context
+	mu       sync.RWMutex
+	tools    map[string]*Def
+	order    []string
+	disabled map[string]bool
+	ctx      *Context
 }
 
 func NewRegistry(toolCtx *Context) *Registry {
@@ -274,6 +275,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 			Permission: def.Permission,
 			Patterns:   []string{name},
 			Metadata:   map[string]any{"tool": name, "args": string(args)},
+			Ruleset:    toolCtx.Ruleset,
 		})
 		if askErr != nil {
 			slog.Warn("tool permission denied", "tool", name, "sessionID", sessionID, "error", askErr)
@@ -357,10 +359,7 @@ func (r *Registry) ToolDefs(agentPerms []string) []llm.Tool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	permSet := make(map[string]bool)
-	for _, p := range agentPerms {
-		permSet[p] = true
-	}
+	permSet := expandPermAliases(agentPerms)
 
 	var tools []llm.Tool
 	for _, name := range r.order {
@@ -372,12 +371,30 @@ func (r *Registry) ToolDefs(agentPerms []string) []llm.Tool {
 		if name == "invalid" {
 			continue
 		}
-		if len(agentPerms) > 0 && !permSet[def.Permission] && !permSet["*"] {
+		if len(agentPerms) > 0 && !permSet[def.Permission] && !permSet[name] && !permSet["*"] {
 			continue
 		}
 		tools = append(tools, def.ToLLMTool())
 	}
 	return tools
+}
+
+// expandPermAliases builds a permission set that treats bash↔shell and
+// list↔glob as interchangeable allowlist entries.
+func expandPermAliases(agentPerms []string) map[string]bool {
+	permSet := make(map[string]bool, len(agentPerms)+4)
+	for _, p := range agentPerms {
+		permSet[p] = true
+		switch p {
+		case "bash", "shell":
+			permSet["bash"] = true
+			permSet["shell"] = true
+		case "list", "glob":
+			permSet["list"] = true
+			permSet["glob"] = true
+		}
+	}
+	return permSet
 }
 
 func (r *Registry) Get(name string) *Def {
@@ -478,6 +495,41 @@ func (r *Registry) WithAutoApprove() *Registry {
 	disabled := make(map[string]bool, len(r.disabled))
 	for k, v := range r.disabled {
 		disabled[k] = v
+	}
+
+	return &Registry{
+		tools:    tools,
+		order:    order,
+		disabled: disabled,
+		ctx:      newCtx,
+	}
+}
+
+// WithAgentRules returns a shallow copy of the Registry with the agent's
+// ruleset applied for Ask evaluation and tools denied by the ruleset marked
+// disabled (so ToolDefs/Execute hide them). Existing disabled entries are kept.
+func (r *Registry) WithAgentRules(ruleset permission.Ruleset) *Registry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	cp := r.ctx.clone()
+	cp.Ruleset = ruleset
+	newCtx := &cp
+
+	tools := make(map[string]*Def, len(r.tools))
+	for k, v := range r.tools {
+		tools[k] = v
+	}
+	order := make([]string, len(r.order))
+	copy(order, r.order)
+
+	allNames := make([]string, len(r.order))
+	copy(allNames, r.order)
+	disabled := permission.Disabled(allNames, ruleset)
+	for k, v := range r.disabled {
+		if v {
+			disabled[k] = true
+		}
 	}
 
 	return &Registry{

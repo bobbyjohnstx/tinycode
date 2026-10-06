@@ -109,6 +109,7 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 				Permission: "destructive-shell",
 				Patterns:   []string{args.Command},
 				Metadata:   map[string]any{"command": args.Command},
+				Ruleset:    tc.Ruleset,
 			})
 			if askErr != nil {
 				return &ExecuteResult{Output: askErr.Error(), IsError: true}, nil

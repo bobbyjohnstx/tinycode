@@ -266,11 +266,15 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		}
 	}
 
-	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model, sessionDir)
+	agentPerms, agentRuleset, systemPrompt := sm.buildPromptSystemPrompt(input, model, sessionDir)
 
 	// Prepend effort-level system prefix if provided.
 	if input.SystemPrefix != "" {
 		systemPrompt = input.SystemPrefix + "\n\n" + systemPrompt
+	}
+
+	if agentRuleset != nil && promptTools != nil {
+		promptTools = promptTools.WithAgentRules(agentRuleset)
 	}
 
 	if sm.mcpSvc != nil && promptTools != nil {
@@ -315,6 +319,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		SystemPrompt:    systemPrompt,
 		Compaction:      sm.buildCompactionConfig(),
 		AgentPerms:      agentPerms,
+		Ruleset:         agentRuleset,
 		Perms:           sm.perms,
 		Directory:       sessionDir,
 		UserDisplayText: displayText,

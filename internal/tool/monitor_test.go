@@ -330,3 +330,34 @@ func TestMonitorTool_EmptyCommand(t *testing.T) {
 		t.Errorf("expected 'command is required' error, got %q", output)
 	}
 }
+
+func TestMonitorTool_BlocksSecretAccess(t *testing.T) {
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	RegisterBuiltins(r)
+
+	args := json.RawMessage(`{"command":"cat .env","description":"secret"}`)
+	output, isErr, err := r.Execute(context.Background(), "monitor", args, "ses-secret")
+	if err != nil {
+		t.Fatalf("execute error: %v", err)
+	}
+	if !isErr {
+		t.Fatalf("expected error for secret access, got: %s", output)
+	}
+	if !strings.Contains(output, "Access to secret") {
+		t.Errorf("expected secret block message, got %q", output)
+	}
+}
+
+func TestMonitorTool_BlocksDestructiveWithoutPerms(t *testing.T) {
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	RegisterBuiltins(r)
+
+	args := json.RawMessage(`{"command":"rm -rf /tmp/x","description":"destructive"}`)
+	output, isErr, err := r.Execute(context.Background(), "monitor", args, "ses-dest")
+	if err != nil {
+		t.Fatalf("execute error: %v", err)
+	}
+	if !isErr {
+		t.Fatalf("expected error for destructive command without perms, got: %s", output)
+	}
+}

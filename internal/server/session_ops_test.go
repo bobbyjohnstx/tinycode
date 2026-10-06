@@ -246,7 +246,7 @@ func TestBuildPromptSystemPrompt_ReturnsPromptForKnownAgent(t *testing.T) {
 		Agent:     "build",
 	}
 
-	_, systemPrompt := sm.buildPromptSystemPrompt(input, model, sm.dir)
+	_, _, systemPrompt := sm.buildPromptSystemPrompt(input, model, sm.dir)
 
 	if systemPrompt == "" {
 		t.Error("expected non-empty system prompt for known agent 'build'")
@@ -281,7 +281,7 @@ func TestBuildPromptSystemPrompt_IncludesInstructionsFromConfig(t *testing.T) {
 		Agent:     "build",
 	}
 
-	_, systemPrompt := sm.buildPromptSystemPrompt(input, model, sm.dir)
+	_, _, systemPrompt := sm.buildPromptSystemPrompt(input, model, sm.dir)
 
 	if systemPrompt == "" {
 		t.Error("expected non-empty system prompt")

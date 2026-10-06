@@ -13,11 +13,11 @@ func ToolIcon(name string) string {
 	switch strings.ToLower(name) {
 	case "read":
 		return "▸" // small right triangle
-	case "write":
+	case "write", "apply_patch":
 		return "←" // left arrow
 	case "edit":
 		return "←" // left arrow
-	case "shell", "bash":
+	case "shell", "bash", "monitor":
 		return "$"
 	case "glob":
 		return "≡" // triple bar
@@ -25,7 +25,7 @@ func ToolIcon(name string) string {
 		return "⌕" // search
 	case "web_fetch", "webfetch":
 		return "☁" // cloud
-	case "task":
+	case "task", "todowrite":
 		return "■" // square
 	default:
 		return "•" // bullet
@@ -139,7 +139,7 @@ func blockDetail(toolName, toolArgs string, width int) string {
 	}
 
 	switch strings.ToLower(toolName) {
-	case "bash", "shell":
+	case "bash", "shell", "monitor":
 		if cmd, ok := args["command"].(string); ok {
 			return styleToolDim.Render("$ " + cmd)
 		}
@@ -154,6 +154,10 @@ func blockDetail(toolName, toolArgs string, width int) string {
 	case "edit":
 		if path, ok := args["file_path"].(string); ok {
 			return styleToolDim.Render(path)
+		}
+	case "apply_patch":
+		if patch, ok := args["patch"].(string); ok {
+			return styleToolDim.Render(truncate(firstLine(patch), 60))
 		}
 	case "glob":
 		if pattern, ok := args["pattern"].(string); ok {
@@ -173,6 +177,10 @@ func blockDetail(toolName, toolArgs string, width int) string {
 	case "task":
 		if desc, ok := args["description"].(string); ok {
 			return styleToolDim.Render(desc)
+		}
+	case "todowrite":
+		if todos, ok := args["todos"].([]any); ok {
+			return styleToolDim.Render(fmt.Sprintf("%d todos", len(todos)))
 		}
 	}
 	return ""

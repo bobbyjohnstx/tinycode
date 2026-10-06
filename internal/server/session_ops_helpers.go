@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
@@ -47,12 +48,15 @@ func (sm *SessionManager) resolvePromptModel(sessionID string, input PromptInput
 // buildPromptSystemPrompt resolves the agent, wires instructions, and builds
 // the system prompt for a prompt request. directory is the session working
 // directory; when empty, sm.dir is used.
-func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *provider.Model, directory string) (agentPerms []string, systemPrompt string) {
+func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *provider.Model, directory string) (agentPerms []string, ruleset permission.Ruleset, systemPrompt string) {
 	agentInfo := sm.agentRegistry.Get(input.Agent, model.SizeB())
 	var agentPrompt string
+	tools := sm.tools
 	if agentInfo != nil {
 		agentPrompt = agentInfo.Prompt
+		ruleset = agentInfo.Permission
 		agentPerms = extractAllowedPerms(agentInfo.Permission)
+		tools = tools.WithAgentRules(agentInfo.Permission)
 		slog.Info("agent loaded", "agent", input.Agent, "promptLen", len(agentPrompt), "compact", agentInfo.Compact)
 	} else {
 		slog.Warn("agent not found in registry", "agent", input.Agent)
@@ -71,12 +75,12 @@ func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *prov
 		AgentPrompt:        agentPrompt,
 		Instructions:       instructions,
 		Directory:          directory,
-		ToolDefs:           sm.tools.ToolDefs(agentPerms),
+		ToolDefs:           tools.ToolDefs(agentPerms),
 		AppendSystemPrompt: sm.appendSystemPrompt,
 	})
 
 	slog.Info("system prompt built", "sessionID", input.SessionID, "agent", input.Agent, "promptLen", len(systemPrompt))
-	return agentPerms, systemPrompt
+	return agentPerms, ruleset, systemPrompt
 }
 
 // persistPromptResult saves new messages and token usage to the database.

@@ -66,12 +66,15 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		SessionID: parentSessionID,
 		Agent:     agent,
 	}
-	agentPerms, systemPrompt := sm.buildPromptSystemPrompt(input, model, directory)
+	agentPerms, agentRuleset, systemPrompt := sm.buildPromptSystemPrompt(input, model, directory)
 
 	client := sm.clientFactory(model)
 	childTools := sm.tools
 	if sm.toolSnapshot != nil {
 		childTools = sm.toolSnapshot
+	}
+	if agentRuleset != nil {
+		childTools = childTools.WithAgentRules(agentRuleset)
 	}
 	childTools = childTools.WithDepth(parentDepth + 1)
 	if autoApprove {
@@ -105,6 +108,7 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		Model:         model,
 		SystemPrompt:  systemPrompt,
 		AgentPerms:    agentPerms,
+		Ruleset:       agentRuleset,
 		Perms:         sm.perms,
 		Directory:     directory,
 		MaxIterations: maxIter,

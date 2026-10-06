@@ -564,6 +564,27 @@ func TestExtractPathsFromArgs_ExpandedKeys(t *testing.T) {
 	}
 }
 
+func TestExtractPathsFromArgs_PatternNotTreatedAsPath(t *testing.T) {
+	paths := extractPathsFromArgs(`{"pattern": "*.go", "path": "/project/src"}`)
+	if len(paths) != 1 || paths[0] != "/project/src" {
+		t.Fatalf("expected only path key, got %v", paths)
+	}
+}
+
+func TestExtractPathsFromArgs_PatchPaths(t *testing.T) {
+	args := `{"patch": "*** Update File: /outside/a.go\n--- a/src/b.go\n+++ b/src/b.go\n@@ -1 +1 @@\n-old\n+new\n"}`
+	paths := extractPathsFromArgs(args)
+	want := map[string]bool{"/outside/a.go": true, "src/b.go": true}
+	if len(paths) != len(want) {
+		t.Fatalf("got %v, want keys %v", paths, want)
+	}
+	for _, p := range paths {
+		if !want[p] {
+			t.Errorf("unexpected path %q", p)
+		}
+	}
+}
+
 // --- Issue #128: Proactive overflow detection ---
 
 func TestProcessor_ProactiveCompaction(t *testing.T) {

@@ -300,11 +300,11 @@ func mapOutcomeString(s string) permission.Reply {
 
 func mapToolKind(toolName string) string {
 	switch toolName {
-	case "bash", "shell", "external_directory":
+	case "bash", "shell", "external_directory", "monitor":
 		return "execute"
 	case "webfetch", "websearch":
 		return "fetch"
-	case "edit", "write":
+	case "edit", "write", "apply_patch", "todowrite":
 		return "edit"
 	case "read":
 		return "read"
