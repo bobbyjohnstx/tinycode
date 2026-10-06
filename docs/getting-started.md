@@ -71,11 +71,14 @@ To run against a different directory:
 
 ## Step 4: Connect a provider
 
+If something looks wrong, run `tinycode doctor` (or `/doctor` in the TUI). There is no `tinycode setup` wizard — first-run model config is `/connect` in the TUI.
+
 If tinycode did not auto-discover your LLM provider, use `/connect` in the TUI prompt to add one interactively. Or set environment variables before launching:
 
 ```bash
-# Ollama on a non-default host
-export OLLAMA_HOST=http://your-host:11434
+# Ollama on a non-default host (prefer TINYCODE_OLLAMA_HOST)
+export TINYCODE_OLLAMA_HOST=http://your-host:11434
+# fallback if TINYCODE_OLLAMA_HOST unset: OLLAMA_HOST
 
 # vLLM
 export TINYCODE_VLLM_HOST=http://localhost:8000

@@ -83,13 +83,10 @@ MCP servers are configured in `config.json` under the `mcp` key:
     "array-command": {
       "command": ["node", "server.js", "--port", "3000"]
     },
-    "oauth-server": {
+    "bearer-server": {
       "url": "https://mcp.example.com/sse",
-      "oauth": {
-        "client_id": "my-app",
-        "auth_url": "https://auth.example.com/authorize",
-        "token_url": "https://auth.example.com/token",
-        "scopes": ["tools:read", "tools:execute"]
+      "headers": {
+        "Authorization": "Bearer {env:MCP_TOKEN}"
       }
     }
   }
@@ -108,7 +105,7 @@ Environment values in config use `{env:VAR}` substitution only (see `SubstituteE
 | `URL` | `string` | `url` | Endpoint URL for SSE or streamable-http transports |
 | `Transport` | `string` | `transport` | Explicit transport type: `"stdio"`, `"sse"`, or `"streamable-http"` |
 | `Headers` | `map[string]string` | `headers` | HTTP headers for remote transports |
-| `OAuth` | `*MCPOAuthConfig` | `oauth` | OAuth configuration for authenticated servers |
+| `OAuth` | `*MCPOAuthConfig` | `oauth` | Optional static token fields only in practice — prefer `headers.Authorization: Bearer …` / `{env:VAR}`. Interactive browser OAuth is **parked** (not productized) |
 
 Source: `internal/config/config.go`
 
@@ -403,40 +400,13 @@ Example: server `"websearch"` with tool `"search"` becomes `mcp__websearch__sear
 
 `Tools(ctx)` returns a `map[string]*tool.Def` of all tools from connected servers. Only servers with `StatusConnected` are included. The session manager calls this during prompt processing to register MCP tools alongside built-in tools.
 
-## 11.10 OAuth Support
+## 11.10 Auth (Bearer / parked OAuth)
 
-File: `oauth.go`
+**Supported product path:** static `Authorization: Bearer …` headers, including `{env:VAR}` substitution in config. Prefer configuring tokens via `headers` on SSE/streamable-http servers.
 
-PKCE-based OAuth 2.0 authorization code flow for MCP servers requiring authentication.
+**Parked:** Interactive browser OAuth (PKCE authorization-code flow, local callback server, OpenAPI `/mcp/{name}/auth` routes) is **not** a supported user-facing feature. Code may exist under `oauth.go` for experiments, but do not document or rely on interactive OAuth as working. See [16-not-implemented.md](16-not-implemented.md) §16.28.
 
-When creating SSE or streamable-http transports, `createTransport` injects `Authorization: Bearer <token>` from `oauth.access_token` or from persisted tokens in `mcp-auth.json` (keyed by `client_id`), unless `headers.Authorization` is already set. Interactive browser OAuth via HTTP API routes is not wired (see §16.28).
-
-### Flow Steps
-
-1. **`StartAuth(ctx, cfg)`** -- generates cryptographic state (32 bytes, hex) and PKCE code verifier (32 bytes, base64url). Computes S256 code challenge. Starts a local callback HTTP server if not already running. Saves OAuth state (verifier + state) to disk keyed by `client_id`. Returns the full authorization URL.
-
-2. **`WaitForCallback(ctx, state)`** -- registers a channel for the given state string and waits for the OAuth callback (or timeout at 5 minutes, or context cancellation). Returns the authorization code.
-
-3. **`ExchangeCode(ctx, cfg, code)`** -- POSTs to the token URL with `grant_type=authorization_code`, the code, redirect URI, client ID, and PKCE code verifier (loaded from saved state). Parses the token response and saves tokens to disk. Returns `OAuthTokens`.
-
-### Callback Server
-
-- Listens on `127.0.0.1:19876` by default (configurable via `callback_url`)
-- Serves `GET /mcp/oauth/callback`
-- Matches the `state` parameter against pending flows
-- Returns HTML success/error pages
-
-### Token Storage
-
-Tokens are persisted to `$XDG_DATA_HOME/tinycode/mcp-auth.json` (default: `~/.local/share/tinycode/mcp-auth.json`). File is written atomically via temp file + rename with `0600` permissions. Keyed by `client_id`.
-
-```go
-type OAuthTokens struct {
-    AccessToken  string `json:"accessToken"`
-    RefreshToken string `json:"refreshToken,omitempty"`
-    ExpiresAt    int64  `json:"expiresAt,omitempty"`
-}
-```
+When creating SSE or streamable-http transports, `createTransport` may inject `Authorization: Bearer <token>` from `oauth.access_token` or from persisted tokens in `mcp-auth.json` (keyed by `client_id`) if present — this is static credential injection, not an interactive login UX.
 
 ## 11.11 Bus Events
 

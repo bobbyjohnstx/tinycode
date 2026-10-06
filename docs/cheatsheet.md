@@ -67,7 +67,7 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `/deepinit` | Generate per-directory `AGENTS.md` files across the codebase |
 | `/mcp-setup` | Configure MCP servers via guided menu |
 | `/remember` | Triage findings to memory surfaces (project memory, CLAUDE.md, session notes) |
-| `/tc-doctor` | Full diagnostic — Ollama install, model health, tool-call probe, RAM fit, Mac checks, provider integration (14 checks, pure bash) |
+| `/doctor` | Full diagnostic skill — provider connectivity, model health, config audit (also: CLI `tinycode doctor`) |
 | `/trace` | Evidence-driven causal tracing with competing hypotheses |
 | `/verify` | Confirm changes work before claiming completion |
 
@@ -81,8 +81,10 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `tinycode run --max-iterations N` | Cap processor iterations per prompt |
 | `tinycode run --permissions json` | Programmatic permission handling via stdin/stdout |
 | `tinycode run --dangerously-skip-permissions` | Auto-approve all tool permissions |
-| `tinycode plugin-search [query]` | Search available plugins in the curated registry |
-| `tinycode plugin <name>` | Install a plugin (resolves registry names or raw npm specifiers) |
+| `tinycode doctor` | Headless health check (config, DB, providers, agents, plugins, skills) |
+| `tinycode plugin list` | List installed / available plugins |
+| `tinycode plugin install <name>` | Install a plugin binary (`--from` for a local path) |
+| `tinycode plugin uninstall <name>` | Remove an installed plugin |
 
 ## Common Workflows
 
@@ -179,7 +181,7 @@ After listing models (`<leader>m`):
 
 - Press `?` in diff viewer for more navigation shortcuts
 - Sessions form a tree — child sessions inherit context from parent
-- Use `<leader>c` to compact a session before exporting
+- Use `<leader>c` or `/compact` to compact a session (runs real summarization via `Processor.Compact`) before exporting
 - Export to HTML with `tinycode export --format html <session-id>`
 - Type `@filename` to reference a file in your prompt
 - Use `<leader>;` to collapse code blocks and focus on analysis

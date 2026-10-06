@@ -2158,7 +2158,7 @@ section:last-of-type { border-bottom: none; }
               <div class="pkg-card-detail-label">Key Types</div>
               <div class="pkg-card-detail-value"><code>Discovery</code>, <code>Registry</code>, <code>Provider</code>, <code>Model</code></div>
               <div class="pkg-card-detail-label">Pattern</div>
-              <div class="pkg-card-detail-value">Polls local LLM servers at intervals, probes for available models. Config-based providers from config.json.</div>
+              <div class="pkg-card-detail-value">Polls local LLM servers at intervals, probes for available models. Config-based providers from tinycode.json(c)/config.json.</div>
             </div>
           </div>
           <div class="pkg-card" data-pkg="plugin" data-search="plugin manager lifecycle json-rpc spawn hook tool">
@@ -2277,9 +2277,9 @@ section:last-of-type { border-bottom: none; }
             <div class="pkg-card-desc">Config file parsing (JSONC support)</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Config Path</div>
-              <div class="pkg-card-detail-value"><code>~/.config/tinycode/config.json</code></div>
+              <div class="pkg-card-detail-value"><code>~/.config/tinycode/tinycode.jsonc</code> (fallback: <code>tinycode.json</code>, <code>config.json</code>)</div>
               <div class="pkg-card-detail-label">Pattern</div>
-              <div class="pkg-card-detail-value">Merges global, project (.tinycode/tinycode.json), and environment variable sources</div>
+              <div class="pkg-card-detail-value">3-name fallback; walk-up project/<code>.tinycode/</code> configs; deep-merge nested objects (innermost wins)</div>
             </div>
           </div>
           <div class="pkg-card" data-pkg="vcs" data-search="vcs git operations worktree diff">
@@ -2793,7 +2793,7 @@ cd tinycode &amp;&amp; make build
         <div class="start-step-num">02</div>
         <div class="start-step-content">
           <div class="start-step-title">Start a local LLM</div>
-          <div class="start-step-desc">tinycode auto-discovers Ollama, vLLM, and LM Studio at their default addresses. If no model is found, use /connect in the TUI.</div>
+          <div class="start-step-desc">Run <code>tinycode doctor</code> to diagnose the environment. Auto-discovers Ollama, vLLM, and LM Studio at default addresses. If no model is found, use <code>/connect</code> in the TUI (no <code>tinycode setup</code> wizard).</div>
           <div class="code-block">
             <div class="code-header">
               <span class="code-lang">bash</span>
@@ -2853,7 +2853,7 @@ tinycode run --max-iterations 20 \
               <span class="code-lang">jsonc</span>
               <button class="code-copy" onclick="copyCode(this)" aria-label="Copy code to clipboard">copy</button>
             </div>
-            <div class="code-body"><span class="comment">// ~/.config/tinycode/config.json</span>
+            <div class="code-body"><span class="comment">// ~/.config/tinycode/tinycode.jsonc (or tinycode.json / config.json)</span>
 {
   <span class="string">"model"</span>: <span class="string">"ollama/qwen3:8b"</span>,
   <span class="string">"small_model"</span>: <span class="string">"ollama/qwen3:1.7b"</span>,
@@ -2930,13 +2930,13 @@ tinycode run --max-iterations 20 \
     },
     web: {
       title: 'Web UI (internal/static/)',
-      desc: 'SolidJS web application embedded into the binary via go:embed. Served by the embedded HTTP server with SPA fallback routing. Same API as the TUI uses.',
+      desc: 'SolidJS web application embedded into the binary via go:embed. Served by the embedded HTTP server with SPA fallback routing. Same API as the TUI uses. In-browser PTY terminal is unsupported; session share defaults to disabled (no Go share routes).',
       files: 'static/handler.go, packages/app/'
     },
     acp: {
       title: 'ACP (internal/acp/)',
       desc: 'Agent Client Protocol for IDE integration. Provides a stdio-based JSON-RPC transport so VS Code, Zed, and JetBrains IDEs can communicate with tinycode sessions.',
-      files: 'acp/server.go'
+      files: 'acp/service.go, acp/transport.go, acp/adapter.go, acp/event.go'
     },
     cli: {
       title: 'CLI Non-interactive (cmd/tinycode/)',
@@ -2980,7 +2980,7 @@ tinycode run --max-iterations 20 \
     },
     provider: {
       title: 'Provider Discovery (internal/provider/)',
-      desc: 'Polls local LLM servers (Ollama at :11434, vLLM, LM Studio at :1234) at regular intervals, probing for available models. OpenRouter discovery via API when key is set. Config-based providers from config.json.',
+      desc: 'Polls local LLM servers (Ollama at :11434, vLLM, LM Studio at :1234) at regular intervals, probing for available models. OpenRouter discovery via API when key is set. Config-based providers from tinycode.json(c)/config.json.',
       files: 'provider/discovery.go, provider/registry.go, provider/ollama.go'
     },
     plugin: {
@@ -2990,7 +2990,7 @@ tinycode run --max-iterations 20 \
     },
     mcp: {
       title: 'MCP Client (internal/mcp/)',
-      desc: 'Client for Model Context Protocol servers (stdio transport). Configured via config.json. Discovers and registers MCP-provided tools into the tool registry at startup.',
+      desc: 'Client for Model Context Protocol servers (stdio/SSE/streamable-http). Configured via tinycode.json(c). Static Bearer / {env:VAR} auth; interactive OAuth is parked.',
       files: 'mcp/client.go'
     },
     lsp: {
@@ -3001,7 +3001,7 @@ tinycode run --max-iterations 20 \
     skill: {
       title: 'Skills (internal/skill/)',
       desc: 'Discovers skill definitions from ~/.config/tinycode/skills/, project .tinycode/skills/, and built-in defaults. Each skill is a directory with SKILL.md containing YAML frontmatter. Skills surface as slash commands.',
-      files: 'skill/loader.go'
+      files: 'skill/discovery.go, skill/content.go, skill/embed.go'
     },
     bus: {
       title: 'Event Bus (internal/bus/)',
@@ -3015,8 +3015,8 @@ tinycode run --max-iterations 20 \
     },
     config: {
       title: 'Config (internal/config/)',
-      desc: 'Parses ~/.config/tinycode/config.json with JSONC support (comments allowed). Merges global, project (.tinycode/tinycode.json), and environment variable sources.',
-      files: 'config/config.go'
+      desc: '3-name fallback (tinycode.jsonc → tinycode.json → config.json) with JSONC support. Walks up for project/.tinycode configs; deep-merges nested objects (innermost wins). Runtime env (hosts, auth) applied by cmd/tinycode.',
+      files: 'config/config.go, config/paths.go'
     },
     vcs: {
       title: 'VCS / Git (internal/vcs/)',

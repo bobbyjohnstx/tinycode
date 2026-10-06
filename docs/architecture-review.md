@@ -1,4 +1,4 @@
-> **Historical document (September 2026).** This analysis predates v2.1 and later honesty/fix passes (#498–#614 and beyond). Many findings are now resolved. See README.md and CHANGELOG.md for current state.
+> **Historical document (September 2026).** This analysis predates v2.1, the module reviews (#498–#614), and the honesty-pass docs/behavior updates (#615–#618). Many findings below are **resolved or obsolete** — do not treat open checkboxes as current backlog without re-verifying against the Go tree. See README.md, CHANGELOG.md, and [spec/16-not-implemented.md](spec/16-not-implemented.md) for current state.
 
 # Architecture Review — tinycode
 
@@ -146,11 +146,12 @@ Every unique file path edited gets a permanent entry in the `fileMutexes` sync.M
 
 - `internal/tool/edit.go:12`
 
-### M16. subscribeSummarize is a stub
+### M16. subscribeSummarize is a stub — **[RESOLVED / DONE]**
 
-Publishes `session.status` and `session.compacted` events without performing actual LLM-driven compaction. The "Manual summarize requested" message is cosmetic — no summarization occurs.
+Manual summarize/compact is implemented: `POST /session/{id}/summarize` and TUI `/compact` call `Processor.Compact` and return `200` with `{"compacted": bool}` (not a stub / not `501`).
 
-- `internal/server/session_manager.go:940-970`
+- Was: `internal/server/session_manager.go` event-only stub
+- Now: `internal/server/handler_session_ops.go` → `SessionManager.Summarize` → `Processor.Compact`
 
 ### M17. WildcardMatch compiles a new regex every call
 
@@ -348,5 +349,5 @@ The codebase has two systemic patterns:
 | 6 | Wire DiffView, Workspace, Theme into the app — or remove (M8-M10) | MEDIUM | Medium | Medium | **DONE** (removed) |
 | 7 | Extract shared parseFrontmatter and JSON-RPC types (M14, L12) | MEDIUM | Low | Low | Open |
 | 8 | Add stash ref tracking to revert (M3) | MEDIUM | Medium | Medium | Open |
-| 9 | Implement actual summarization in subscribeSummarize or document as intentional (M16) | MEDIUM | High | Medium | Open |
+| 9 | Implement actual summarization in subscribeSummarize or document as intentional (M16) | MEDIUM | High | Medium | **DONE** |
 | 10 | Clean up dead code: Manager.sendHook, AppState unused fields, DB.mu (L2, L13, L23) | LOW | Low | Low | Open |

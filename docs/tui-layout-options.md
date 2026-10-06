@@ -25,7 +25,7 @@ Right sidebar (30 cols), chat in center, prompt + 2-line status bar at bottom.
 │                                                                                │ Model: claude-4-opus          │
 │                                                                                │                               │
 │                                                                                │ ~/projects/tinycode        │
-│                                                                                │ • tinycode 0.1.0              │
+│                                                                                │ • tinycode (git describe)     │
 ├────────────────────────────────────────────────────────────────────────────────┤                               │
 │                                                                                │                               │
 │  ┃ Ask anything... "Fix a TODO in the codebase"                                │                               │

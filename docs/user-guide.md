@@ -477,7 +477,7 @@ The agent cycles through: understand, plan, act, verify, assess. It continues wi
 
 | Provider | Type | Discovery |
 |----------|------|-----------|
-| **Ollama** | Local | Auto-discovered at `localhost:11434` (override with `OLLAMA_HOST`) |
+| **Ollama** | Local | Auto-discovered at `localhost:11434` (prefer `TINYCODE_OLLAMA_HOST`, then `OLLAMA_HOST`) |
 | **vLLM** | Local | Set `TINYCODE_VLLM_HOST` to enable (e.g., `http://localhost:8000`) |
 | **LM Studio** | Local | Auto-discovered at `localhost:1234` (override with `TINYCODE_LMSTUDIO_HOST`) |
 | **OpenRouter** | Cloud | Set `OPENROUTER_API_KEY` to enable |
@@ -673,11 +673,13 @@ Config files support JSONC (JSON with comments) and environment variable substit
 | `small_model` | *(none)* | Smaller model for lightweight tasks (titles, summaries) |
 | `default_agent` | `build` | Agent loaded on startup |
 | `shell` | *(system)* | Shell for tool execution |
-| `logLevel` | *(none)* | Log verbosity |
+| `logLevel` | *(none)* | Log verbosity (wired into the logger) |
 | `theme` | *(default)* | Color theme name |
-| `temperature` | *(none)* | Default LLM temperature |
-| `top_p` | *(none)* | Default nucleus sampling |
+| `temperature` | *(none)* | Default LLM temperature (applied when prompting/creating sessions) |
+| `top_p` | *(none)* | Default nucleus sampling (applied when prompting/creating sessions) |
 | `max_tokens` | *(none)* | Default max output tokens |
+| `tool_output` | *(defaults)* | Tool output truncation limits |
+| `share` | `"disabled"` | Session share/publish (`manual`/`auto`/`disabled`); Go web UI has no working share feature |
 | `subagent_depth` | *(none)* | Maximum nesting depth for subagents |
 | `autoApprove` | `false` | Auto-approve all tool permissions globally |
 | `scopedModels` | `[]` | List of model favorites |
@@ -689,7 +691,8 @@ Config files support JSONC (JSON with comments) and environment variable substit
 
 ```bash
 # Local providers
-OLLAMA_HOST=http://localhost:11434       # Ollama URL (default)
+TINYCODE_OLLAMA_HOST=http://localhost:11434  # preferred Ollama URL override
+OLLAMA_HOST=http://localhost:11434           # fallback if TINYCODE_OLLAMA_HOST unset
 TINYCODE_VLLM_HOST=http://localhost:8000 # vLLM URL
 TINYCODE_LMSTUDIO_HOST=http://localhost:1234  # LM Studio URL (default)
 
@@ -970,7 +973,7 @@ tinycode plugin uninstall safety-net
 tinycode web
 ```
 
-This starts the API server and opens the embedded web interface in your browser. The web UI is a single-page app built with TypeScript/React that communicates with the same backend as the TUI.
+This starts the API server and opens the embedded web interface in your browser. The web UI is a SolidJS SPA (embedded via `go:embed`) that communicates with the same backend as the TUI. The in-browser terminal (PTY) is not available in the Go product (`PTY_SUPPORTED=false`); session share/publish is disabled by default (`config.share` defaults to `"disabled"`).
 
 Alternatively, start the headless server and access the web UI manually:
 
@@ -1007,7 +1010,6 @@ The web UI has its own set of keyboard shortcuts:
 | Mod+Shift+1 | Focus file tree |
 | Mod+Shift+M | Select model |
 | Mod+Shift+E | Select agent |
-| Mod+` | Toggle terminal |
 | Enter | Send message |
 | Shift+Enter | Newline in prompt |
 | Escape | Cancel / close dialog |
@@ -1023,6 +1025,8 @@ The web UI provides:
 - **Agent system** -- same agent selection as the TUI
 - **VCS integration** -- view git status and diffs
 - **Settings** -- configure model, theme, and preferences visually
+
+Not available in the Go web UI: in-browser terminal/PTY, and session share/publish (`config.share` defaults to `"disabled"`).
 
 ### Help API endpoint
 

@@ -9,7 +9,7 @@ Solutions to common tinycode issues and configuration problems.
 **Problem:** tinycode doesn't see Ollama even though it's running.
 
 **Solution:**
-1. Run `/tc-doctor` — it checks Ollama install, process, API reachability, and provider integration in one pass
+1. Run `tinycode doctor` (CLI) or `/doctor` in the TUI — checks Ollama install, process, API reachability, and provider integration
 2. Verify Ollama is running: `curl http://localhost:11434/api/tags`
 3. Ensure it's listening on `localhost:11434` (default). If you changed the port:
    ```bash
@@ -30,7 +30,7 @@ Solutions to common tinycode issues and configuration problems.
 2. Set the env var: `export TINYCODE_RAMALAMA_HOST=http://localhost:8080`
 3. ramalama auto-selects ports in 8080-8180 — check `ramalama ps` for the actual port
 4. Verify the container is running: `podman ps | grep ramalama`
-5. Run `/tc-doctor` to check ramalama CLI, container runtime, and endpoint reachability
+5. Run `tinycode doctor` to check ramalama CLI, container runtime, and endpoint reachability
 
 ### vLLM not connecting
 
@@ -55,7 +55,7 @@ Solutions to common tinycode issues and configuration problems.
 **Solution:**
 1. Verify provider is actually running
 2. Check `~/.config/tinycode/config.json` for `enabled_providers` / `disabled_providers` filters
-3. Try `/tc-doctor` to diagnose configuration
+3. Try `tinycode doctor` or `/doctor` to diagnose configuration
 4. If using custom endpoint, verify it's OpenAI-compatible:
    ```bash
    curl http://your-endpoint/v1/models
@@ -163,7 +163,7 @@ Note: override the path with `TINYCODE_DB` or the data directory with `TINYCODE_
 
 ### Can't write to `.tinycode/` directory
 
-**Problem:** Error when trying to use notepad, wiki, or memory tools.
+**Problem:** Error creating project config, agents, or skills under `.tinycode/`.
 
 **Solution:**
 1. Verify directory exists and is writable:
@@ -175,6 +175,8 @@ Note: override the path with `TINYCODE_DB` or the data directory with `TINYCODE_
 3. If running in container, verify `/projects` PVC is mounted and writable
 4. Restart tinycode after fixing permissions
 
+Note: TypeScript wiki/notepad MCP tools are not in the Go product. Session `notepad` is a built-in tool; project agents live in `.tinycode/agent/*.md` and skills in `.tinycode/skills/`.
+
 ## Performance Issues
 
 ### Model responses are very slow
@@ -182,10 +184,10 @@ Note: override the path with `TINYCODE_DB` or the data directory with `TINYCODE_
 **Problem:** LLM takes 10+ seconds to respond or times out.
 
 **Solution:**
-1. Run `/tc-doctor` — it checks RAM vs model size, GPU acceleration, swap pressure, and cold-load time
+1. Run `tinycode doctor` or `/doctor` — checks RAM vs model size, GPU acceleration, swap pressure, and cold-load time
 2. Check what model is selected: `<leader>m`
 3. tinycode warms the model on startup — if you see "warming model..." followed by a long load time (>60s), the model may be too large for your hardware
-4. On Mac, verify Ollama is native arm64 (not Rosetta): `/tc-doctor` checks this automatically
+4. On Mac, verify Ollama is native arm64 (not Rosetta): `tinycode doctor` / `/doctor` checks this
 5. Check if the model is swapping: close Docker, Chrome, and other memory-heavy apps
 6. Dense models >12B are too slow on 32GB RAM — use qwen3.5:9b (9B, benchmark champion at 14/15)
 7. Check `ollama ps` to see if the model is loaded or re-loading between requests
@@ -264,7 +266,7 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
 3. The model still works for conversations — it just can't use tools
 4. Models with tool calling: qwen3.5:9b, north-mini-code-1.0, gemma4:12b
 5. Models WITHOUT: granite, codellama, deepseek-r1 (distilled) — these all score 5/15 with zero tool calls
-6. Run `/tc-doctor` to see your model's tool-call status
+6. Run `tinycode doctor` or `/doctor` to see your model's tool-call status
 7. To switch, select a model with tool-call support via `<leader>m`
 
 ## Plugin & Configuration Issues
@@ -274,16 +276,17 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
 **Problem:** Plugin appears in list but fails to initialize.
 
 **Solution:**
-1. Check plugin syntax:
+1. Plugins are Go binaries under `~/.config/tinycode/plugins/<name>` (not JSON under `~/.tinycode/`):
    ```bash
-   cat ~/.tinycode/plugins/your-plugin.json
+   ls -la ~/.config/tinycode/plugins/
+   tinycode plugin list
    ```
-2. Verify all required fields are present
-3. Check plugin logs:
+2. Verify the binary is executable and was installed with `tinycode plugin install`
+3. Check tinycode logs for plugin init errors:
    ```bash
-   tail -f ~/.config/tinycode/logs/plugin.log
+   tail -f ~/.local/share/tinycode/tinycode.log
    ```
-4. Try `/tc-doctor` for configuration validation
+4. Try `tinycode doctor` or `/doctor` for configuration validation
 
 ### Can't find agent or skill
 
@@ -299,7 +302,7 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
    ```bash
    /ask architect (test if the agent loads)
    ```
-4. Run `/tc-doctor` to list all available agents
+4. Run `tinycode doctor` or `/doctor` to list all available agents
 
 ### Permission prompts too frequent
 
@@ -367,9 +370,11 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
 
 ### Run the full diagnostic
 ```bash
-/tc-doctor
+tinycode doctor          # CLI (headless)
+# or in the TUI:
+/doctor                  # bundled skill
 ```
-tc-doctor runs 14 checks in order: directory structure, agents, skills, system tools, oc CLI, Ollama install/health, model availability (configured model, recommended models, RAM fit), model functionality (tool-call probe with warmup), Mac-specific checks (Metal, Rosetta, swap), tinycode↔Ollama integration, vLLM/custom provider health, tmux, and disk space. All checks use pure bash — no python3 required.
+`tinycode doctor` and the `/doctor` skill check config, database, providers, agents, plugins, and skills. Prefer the Go CLI/`/doctor` skill over the obsolete TypeScript `/tc-doctor` bash skill.
 
 ### List all active sessions
 ```bash
@@ -401,10 +406,10 @@ curl -v http://localhost:8000/v1/models          # vLLM
 
 ## Still Stuck?
 
-1. Run `/tc-doctor` — it diagnoses most common issues
+1. Run `tinycode doctor` or `/doctor` — diagnoses most common issues
 2. Check the [GitHub Discussions](https://github.com/bobbyjohnstx/tinycode/discussions)
 3. File an issue with:
-   - Output of `/tc-doctor`
+   - Output of `tinycode doctor` or `/doctor`
    - Exact steps to reproduce
    - Your config (`~/.config/tinycode/config.json`)
    - Relevant logs (if available)

@@ -87,7 +87,7 @@ Two-step model selection flow:
 
 ## 1.2 Web UI
 
-The Go binary can optionally serve a web UI. The TypeScript web app (`packages/app`) can be embedded into the binary via `make embed-webapp`. When `cfg.ServeWebUI` is true, the static file handler at `/` serves the SPA.
+The Go binary can optionally serve a web UI. The SolidJS web app (`packages/app`) can be embedded into the binary via `make embed-webapp`. When `cfg.ServeWebUI` is true, the static file handler at `/` serves the SPA.
 
 Package: `internal/static/`
 
@@ -96,7 +96,7 @@ The static server supports:
 - Dev directory override for development
 - SPA fallback (all non-file routes serve `index.html`)
 
-> **Note:** The web UI is the original TypeScript app, not a Go-native implementation. It connects to the Go HTTP server's REST and SSE endpoints.
+> **Note:** The web UI is a SolidJS SPA (not React), served from the Go binary. It connects to the Go HTTP server's REST and SSE endpoints. In-browser PTY terminal is unsupported (`PTY_SUPPORTED=false`); `config.share` defaults to `"disabled"` and there are no Go share routes.
 
 ---
 
@@ -116,10 +116,12 @@ The static server supports:
 | `tinycode session` | Session management (list, delete) |
 | `tinycode status` | Show server health and status |
 | `tinycode export [sessionID]` | Export session messages as JSON |
-| `tinycode plugin` | Plugin management (list, install, uninstall) |
+| `tinycode plugin` | Plugin management (list, install, uninstall) — no `plugin-search` |
+| `tinycode init` | Optional Red Hat plugin/role setup (not first-run model config) |
+| `tinycode doctor` | Headless diagnostics (config, DB, providers, agents, plugins, skills) |
 | `tinycode agent` | List available agents |
 | `tinycode debug` | Debug info (config, paths) |
-| `tinycode version` | Print version information |
+| `tinycode version` | Print version (`git describe` via ldflags; not hardcoded `0.1.0`) |
 | `tinycode help` | Show help |
 
 Source: `cmd/tinycode/main.go`

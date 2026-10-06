@@ -1,16 +1,18 @@
 # Deployment Verification Guide
 
-A companion to the `/tc-doctor` skill. While tc-doctor automates all checks, this guide explains what each check does, why it matters, and how to manually troubleshoot when things go wrong.
+A companion to `tinycode doctor` (CLI) and the `/doctor` skill. While doctor automates checks, this guide explains what each check does, why it matters, and how to manually troubleshoot when things go wrong.
 
 ---
 
 ## Quick Start: Run the Full Diagnostic
 
 ```bash
-/tc-doctor
+tinycode doctor          # CLI
+# or in the TUI:
+/doctor
 ```
 
-This runs 14 automated checks across your environment:
+This runs automated checks across your environment:
 1. Directory structure
 2. Agents (container only)
 3. Skills (container only)
@@ -187,7 +189,7 @@ ollama run qwen3.5:9b "Say you are ready"
 
 ### Does the Model Support Tool Calling?
 
-**Check:** Run the warmup probe (automatic in tc-doctor, 8th check).
+**Check:** Run the warmup probe (automatic in doctor, model-functionality check).
 
 ```bash
 curl -s --max-time 120 http://localhost:11434/api/chat \
@@ -818,7 +820,7 @@ podman logs -f <container-id>
 ### "Tool calls keep failing"
 
 1. **Does the model support tool calling?**
-   Run `/tc-doctor` (check 8).
+   Run `tinycode doctor` or `/doctor` (model-functionality check).
 
 2. **Is the model large enough?**
    Models < 7B don't reliably support tools. Use qwen3.5:9b or larger.
@@ -870,10 +872,10 @@ podman logs -f <container-id>
 
 ## Still Stuck?
 
-1. Run `/tc-doctor` and include the full output in any issue report
+1. Run `tinycode doctor` or `/doctor` and include the full output in any issue report
 2. Check the [GitHub Discussions](https://github.com/bobbyjohnstx/tinycode/discussions)
 3. File an issue with:
-   - Output of `/tc-doctor`
+   - Output of `tinycode doctor` or `/doctor`
    - Steps to reproduce
    - Your config: `cat ~/.config/tinycode/config.json` (redact API keys)
    - Relevant logs (Ollama, tinycode, vLLM)

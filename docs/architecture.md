@@ -52,7 +52,7 @@ packages/             Legacy TypeScript packages (app, desktop, etc.)
 
 ### `cmd/tinycode/` -- Entry Point
 
-`main.go` parses CLI commands (`tui`, `serve`, `web`, `acp`, `run`, `models`, `providers`, `session`, `status`, `export`, `agent`, `debug`) and bootstraps dependencies. Each command initializes the bus, database, config, providers, agents, tools, and plugins, then starts the appropriate mode.
+`main.go` parses CLI commands (`tui`, `serve`, `web`, `acp`, `run`, `models`, `providers`, `session`, `status`, `export`, `plugin`, `init`, `agent`, `doctor`, `debug`, `version`) and bootstraps dependencies. Each command initializes the bus, database, config, providers, agents, tools, and plugins, then starts the appropriate mode. First-run model setup is `tinycode doctor` + TUI `/connect` (no `tinycode setup`).
 
 ### `internal/tui/` -- Terminal UI
 
@@ -126,7 +126,7 @@ Stdio-based JSON-RPC transport for IDE integration. Enables IDEs (VS Code, etc.)
 
 ### `internal/skill/` -- Skills
 
-Discovers skill definitions from `~/.config/tinycode/skill/`, project `.tinycode/skill/`, and built-in defaults. Each skill is a directory with a `SKILL.md` file containing YAML frontmatter. Skills surface as slash commands in the TUI.
+Discovers skill definitions from `~/.config/tinycode/skills/`, project `.tinycode/skills/`, and built-in defaults. Each skill is a directory with a `SKILL.md` file containing YAML frontmatter. Skills surface as slash commands in the TUI.
 
 ### `internal/command/` -- Slash Commands
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+- Honesty-pass alignment with module reviews (#498–#614) and docs/behavior updates (#615–#618): first-run is `tinycode doctor` + `/connect` (no `setup`); manual summarize/compact documented as working; web share default `disabled` / PTY unsupported; skills paths plural; obsolete `/tc-doctor` and `plugin-search` references removed from user-facing docs.
+
 ## [2.1.2] - 2026-10-05
 
 Security, stability, and correctness fixes from two rounds of code review (61 issues resolved).

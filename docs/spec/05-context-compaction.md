@@ -131,3 +131,10 @@ type CompactionResult struct {
 ```
 
 After compaction, the processor replaces old messages with the summary, preserving only the "preserve boundary" tail of recent messages. The prior summary is passed to subsequent compactions for incremental refinement.
+
+## 5.7 Manual Summarize / Compact
+
+Manual compaction uses the same `Processor.Compact` path:
+
+- **TUI:** `/compact` (optional focus instructions)
+- **HTTP:** `POST /session/{id}/summarize` — returns `200` with `{"compacted": bool}` (implemented; not `501`)

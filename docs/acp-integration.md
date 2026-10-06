@@ -243,6 +243,10 @@ All ACP methods return promises that reject on error. Handle JSON-RPC error code
 - Client must implement `requestPermission` and always respond (deny on cancel)
 - Auto-deny kicks in after 120s
 
+## Go implementation
+
+ACP is implemented in Go under `internal/acp/` (`service.go`, `transport.go`, `adapter.go`, `event.go`) — not a stub. Entry point: `tinycode acp`.
+
 ## Reference Implementation
 
 See `packages/vscode-extension/` for a VS Code extension that:

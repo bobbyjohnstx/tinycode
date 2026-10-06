@@ -102,7 +102,7 @@ cd tinycode && make build
 
 | Constant | Value | Location |
 |----------|-------|----------|
-| Server version | `Config.Version` (build-time ldflags; default `"dev"`) | `handler_health.go` / `cmd/tinycode` `version` |
+| Server version | `Config.Version` from build ldflags (`git describe --tags --always --dirty`, default `"dev"`) — not a hardcoded `0.1.0` | `Makefile` `VERSION` / `handler_health.go` / `tinycode version` |
 | Default port | `4096` | `server.go` |
 | Shutdown timeout | `25s` | `server.go` |
 | Read header timeout | `10s` | `server.go` |

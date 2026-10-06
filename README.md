@@ -94,9 +94,9 @@ The primary interface is the **terminal UI (TUI)** --- a full-featured interacti
 
 tinycode also supports:
 
-- **Web UI** (`tinycode web`) --- serves the embedded SolidJS SPA plus API and opens a browser with an auth URL. This is the supported GUI path for the Go product.
+- **Web UI** (`tinycode web`) --- serves the embedded SolidJS SPA plus API and opens a browser with an auth URL. This is the supported GUI path for the Go product. In-browser PTY and session share/publish are not available (`config.share` defaults to `"disabled"`).
 - **Headless API server** (`tinycode serve`) --- REST + SSE endpoints only (no SPA); for programmatic access
-- **Agent Client Protocol** (`tinycode acp`) --- stdio transport for IDE integration (VS Code, Zed, JetBrains)
+- **Agent Client Protocol** (`tinycode acp`) --- real stdio ACP transport for IDE integration (`internal/acp/service.go`, …; VS Code, Zed, JetBrains)
 - **Non-interactive mode** (`tinycode run`) --- run a prompt and exit, for scripts and CI
 
 The Electron shell in `packages/desktop` is experimental and unsupported for the Go product. A Go-native desktop app is not planned.

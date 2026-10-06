@@ -20,8 +20,8 @@ Source: `internal/server/middleware/`
 
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
-| GET | `/global/health` | `handleHealth` | Returns `{"healthy": true, "version": "0.1.0"}` |
-| GET | `/global/version` | `handleVersion` | Returns `{"version": "0.1.0"}` |
+| GET | `/global/health` | `handleHealth` | Returns `{"healthy": true, "version": "<build>"}` where version is `Config.Version` (ldflags `git describe`, default `"dev"`) |
+| GET | `/global/version` | `handleVersion` | Returns `{"version": "<build>"}` (same build version as health) |
 | GET | `/global/event` | `handleGlobalEventStream` | Envelope SSE stream for all bus events (see §2.22) |
 | GET | `/global/config` | `handleConfigGet` | Get merged config for a directory (`?directory=`) |
 | PATCH | `/global/config` | `handleConfigUpdate` | Update config fields (writes global config file; accepts `top_p`/`max_tokens` and camelCase aliases) |
@@ -55,7 +55,7 @@ Source: `internal/server/middleware/`
 | POST | `/session/{id}/abort` | `handleSessionAbort` | Abort the active processor for a session |
 | POST | `/session/{id}/fork` | `handleSessionFork` | Fork a session (creates child with copied messages; fails loud on copy errors) |
 | POST | `/session/{id}/init` | `handleSessionInit` | Initialize a session (load agent, set system prompt) |
-| POST | `/session/{id}/summarize` | `handleSessionSummarize` | Manual summarize/compact — returns `501 Not Implemented` |
+| POST | `/session/{id}/summarize` | `handleSessionSummarize` | Manual summarize/compact via `Processor.Compact`; returns `200` with `{"compacted": bool}` |
 | POST | `/session/{id}/command` | `handleSessionCommand` | Execute a client command (e.g., `connect`, `compact`) |
 | POST | `/session/{id}/revert` | `handleSessionRevert` | Stash working-tree changes synchronously; `200` means stash completed |
 | POST | `/session/{id}/unrevert` | `handleSessionUnrevert` | Undo a revert (sync stash apply) |
@@ -248,4 +248,4 @@ The TypeScript OpenAPI (`packages/sdk/openapi.json`) documents routes that are *
 
 See [16-not-implemented.md](16-not-implemented.md) §16.11–16.12 for PTY/TUI detail. Treat OpenAPI as the historical TS contract; the Go route tables above are authoritative for `tinycode serve`.
 
-**Go TUI client (`internal/tui/api`)** is a further subset of the Go HTTP surface (~27 methods for the Bubbletea TUI). It does not implement every Go route or the full `@tinycode/sdk` OpenAPI client. Gaps relative to the TS SDK include share, PTY, TUI control, and OAuth; summarize/compact is called but the server returns `501`.
+**Go TUI client (`internal/tui/api`)** is a further subset of the Go HTTP surface (~27 methods for the Bubbletea TUI). It does not implement every Go route or the full `@tinycode/sdk` OpenAPI client. Gaps relative to the TS SDK include share, PTY, TUI control, and OAuth. Summarize/compact is implemented: the client calls `POST /session/{id}/summarize` and the server runs `Processor.Compact` (returns `200` + `{"compacted": bool}`, not `501`).

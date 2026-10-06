@@ -7,7 +7,7 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 | Command | What it does | When to use it |
 |---------|-------------|----------------|
 | `/branch [name]` | Copy the current conversation to a new session and switch to it. The original is preserved. | Before trying a risky approach — branch, experiment, `/resume` back if it fails. |
-| `/compact [focus]` | Summarize the conversation to free context window space. Optional focus instructions guide the summary. | When the model starts forgetting earlier context, or `/context` shows you're near the limit. |
+| `/compact [focus]` | Summarize the conversation via `Processor.Compact` to free context window space (works; not a stub). Optional focus instructions guide the summary. | When the model starts forgetting earlier context, or `/context` shows you're near the limit. |
 | `/rewind` | Open a picker of conversation turns and roll back to a selected point. Messages after that turn are removed. | When the conversation went in a wrong direction and you want to try again from an earlier point. |
 | `/rename [name]` | Set or auto-generate a session name. | To label sessions for easy identification in the session list. |
 | `/archive` | Archive the current session (hides from default list). | When you're done with a session but don't want to delete it. |
@@ -62,7 +62,7 @@ Skills inject specialized instructions into the conversation. They're prompts, n
 | `/verify` | Confirm a change works by building and running the app, not just passing tests. | Before claiming a fix is done — proves it works end-to-end. |
 | `/plan` | Create a structured implementation plan with acceptance criteria. | Before starting a complex multi-step task. |
 | `/test` | Generate comprehensive test cases for a function or module. | Adding test coverage — happy path, edge cases, error conditions. |
-| `/doctor` | Check the tinycode environment — provider connectivity, model health, config audit. | First session, or when something seems misconfigured. |
+| `/doctor` | Check the tinycode environment — provider connectivity, model health, config audit. Also available as CLI: `tinycode doctor`. | First session, or when something seems misconfigured. |
 | `/remember` | Save findings from this session to memory for future conversations. | When you learn something that should persist across sessions. |
 
 ## Tools Available to the Model

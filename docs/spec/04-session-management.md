@@ -213,7 +213,7 @@ The `SessionManager` coordinates session lifecycle within the HTTP server:
 - Publishes bus events for session creation/deletion
 - Manages shutdown: drains all active processors on `Shutdown()`
 
-Subagents are synthetic (`parentSessionID:label`) via `RunSubagent` / the task tool — not separate `Store` rows. `MaxSubagents` on `ProcessorConfig` is unused. Session share/unshare and PTY HTTP APIs remain deferred ([16-not-implemented.md](16-not-implemented.md) §16.11–16.12).
+Subagents are synthetic (`parentSessionID:label`) via `RunSubagent` / the task tool — not separate `Store` rows. `MaxSubagents` on `ProcessorConfig` is unused. Manual summarize (`POST /session/{id}/summarize`) runs `Processor.Compact` and returns `200` + `{"compacted": bool}`. Session share/unshare and PTY HTTP APIs remain deferred ([16-not-implemented.md](16-not-implemented.md) §16.11–16.12).
 
 ### Session Fork
 

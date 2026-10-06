@@ -16,7 +16,7 @@ Source: Competitive analysis of upstream AI coding assistant documentation
 | #344 | `/goal` — autonomous multi-turn execution | Medium | 7 |
 | #345 | Lifecycle hooks system | High | 8 |
 | #346 | `/batch` — parallel decomposition of large changes | High | 9 |
-| #347 | Enhanced `/tc-doctor` with config audit | Low | 10 |
+| #347 | Enhanced `/tc-doctor` with config audit | Low | 10 | *(superseded: Go `tinycode doctor` + TUI `/doctor`; legacy bash `/tc-doctor` obsolete)* |
 
 ## Features Skipped
 

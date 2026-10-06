@@ -1,4 +1,4 @@
-> **Historical document (September 2026).** This analysis predates v2.1 and the two-round code review (60+ fixes). Many findings are now resolved. See README.md and CHANGELOG.md for current state.
+> **Historical document (September 2026).** This analysis predates v2.1, the module reviews (#498–#614), and the honesty-pass docs/behavior updates (#615–#618). Coverage tables and gap lists below are a **snapshot**, not live inventory — many items (summarize, temperature wiring, `setup` CLI, OpenAPI-only routes) are resolved or superseded. Re-verify against the Go tree and [spec/02-api-routes.md](spec/02-api-routes.md) (authoritative for `tinycode serve`). See README.md and CHANGELOG.md for current state.
 
 # Spec Gap Analysis — tinycode vs. tc-spec.md
 
@@ -157,7 +157,7 @@ Tools execute directly without an ask/approve cycle in the session processor. Th
 - `PATCH /session/{id}` — only supports `title`; spec also requires `permissions` and `archiveTime`
 - `POST /session/{id}/fork` — copies ALL messages; ignores `messageID` parameter for fork-point truncation
 - `POST /session/{id}/message` (sync) — publishes bus event but does NOT stream response back via HTTP
-- `POST /session/{id}/summarize` — publishes events but does NOT run LLM compaction (`handler_stub.go`)
+- `POST /session/{id}/summarize` — **DONE:** runs `Processor.Compact`; returns `200` + `{"compacted": bool}` (was a stub in this September 2026 snapshot)
 
 ### 13. Session fork ignores messageID
 
@@ -237,11 +237,11 @@ Git stash workaround exists (`internal/server/revert.go`) but no proper per-mess
 | 24 | No OpenTelemetry | OTEL_EXPORTER_OTLP_ENDPOINT, span tracing |
 | 25 | Missing TUI keybindings (25+) | Only 5 of 30+ wired; sidebar selection broken |
 | 26 | No file watcher | experimental feature, platform-native backends |
-| 27 | Missing CLI subcommands (14) | export, models, agent, providers, session, setup, status, mcp, plugin, debug, generate, uninstall, db, import |
+| 27 | Missing CLI subcommands (14) | Historical list. `setup` is **superseded** by `tinycode doctor` + `/connect`. Many others now exist (`plugin`, `doctor`, `export`, `models`, …); OpenAPI inventory still overstates TS-only routes |
 | 28 | Retry-after header parsing | Currently only exponential backoff, no retry-after-ms or HTTP date |
 | 29 | No compression middleware | gzip/deflate for responses over 1024 bytes |
 | 30 | Shell tool AST parsing | Regex-based destructive detection should be AST-based with bash/PowerShell grammars |
-| 31 | Temperature/topP/maxTokens not wired | Request struct has fields but never populated from agent config or model defaults |
+| 31 | Temperature/topP/maxTokens not wired | **Partially DONE:** agent Model/Temperature/TopP applied when prompting/creating sessions; treat remaining maxTokens gaps as needing re-verify |
 | 32 | No step-start/step-finish events | Processor treats each LLM call as opaque; no per-step token usage tracking |
 | 33 | No delta batching (16ms) | Text/reasoning deltas published individually, not batched for SSE efficiency |
 | 34 | Default permission rules incomplete | Missing doom_loop, guardrail, external_directory, .env file rules from spec |
@@ -257,7 +257,7 @@ Git stash workaround exists (`internal/server/revert.go`) but no proper per-mess
 | 37 | Internationalization | N/A for TUI; web UI is TypeScript |
 | 38 | Workspaces (experimental) | Gated behind feature flag |
 | 39 | V2 event/schema system | Migration path; V1 routes work |
-| 40 | OpenAPI spec generation | `tinycode generate` |
+| 40 | OpenAPI spec generation | `tinycode generate` — OpenAPI (`packages/sdk/openapi.json`) is the **historical TS contract**, not a live inventory of Go routes; see [spec/02-api-routes.md](spec/02-api-routes.md) |
 | 41 | Named references/directories | `@alias` in conversations |
 | 42 | Custom tools discovery | Auto-load from `tool/*.{js,ts}` directories |
 | 43 | Image processing | Attachment resize/normalization |

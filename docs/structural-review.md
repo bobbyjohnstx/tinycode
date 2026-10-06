@@ -1,4 +1,4 @@
-> **Historical document (September 2026).** This analysis predates v2.1 and later honesty/fix passes (#498–#614 and beyond). Many findings are now resolved; treat open items as historical unless re-verified against current code.
+> **Historical document (September 2026).** This analysis predates v2.1, the module reviews (#498–#614), and the honesty-pass updates (#615–#618). Many findings below are **stale** — for example `internal/vcs/` and `internal/project/` now have tests (`git_test.go`, `project_test.go`). Treat coverage gaps and open items as historical unless re-verified against current code.
 
 # Structural Review: tinycode
 
@@ -242,8 +242,8 @@ Tests are organized alongside source files (`foo.go` / `foo_test.go`).
 - **`internal/static/`**: No tests — embedded web app file server
 - **`internal/frontmatter/`**: No tests — YAML-like frontmatter parser
 - **`internal/id/`**: No tests — ID generation with typed prefixes
-- **`internal/project/`**: No tests — Project metadata and VCS detection
-- **`internal/vcs/`**: No tests — Git operations
+- **`internal/project/`**: Had no tests in this September 2026 snapshot — **now has** `project_test.go` (re-verify before citing as a gap)
+- **`internal/vcs/`**: Had no tests in this September 2026 snapshot — **now has** `git_test.go` (re-verify before citing as a gap)
 - **`internal/redhat/`**: No tests — Large shared library (OcClient, APIClient, etc.)
 - **`internal/earlyinit/`**: No tests — Package-init side effects
 
@@ -351,7 +351,7 @@ Plugins can register hooks for:
 ## 10. Areas for Improvement
 
 ### 10.1 High Priority
-1. **Test coverage gaps**: `static/`, `frontmatter/`, `id/`, `project/`, `vcs/`, and `redhat/` have no tests
+1. **Test coverage gaps** (historical): `static/`, `frontmatter/`, `id/`, and `redhat/` may still lack tests; `project/` and `vcs/` now have tests — re-verify before planning work
 2. **`tool/` package coupling**: 6 internal dependencies make it hard to test in isolation
 3. **Error message quality**: Some error messages are too generic (e.g., `"TUI error: %w"`)
 

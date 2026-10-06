@@ -40,6 +40,9 @@ Things that break silently if you guess wrong.
 - **`packages/` is legacy TypeScript**: Not Go code. The web app in `packages/app` can be embedded via `make embed-webapp`, but the directory is from the original TypeScript repo.
 - **`safego.Go()` must wrap all goroutine launches**: Bare `go func()` skips panic recovery — a panic in the goroutine crashes the process with no log. `internal/safego` adds `recover()` + `slog.Error`.
 - **Plugin tool timeout is 30s, hook timeout is 5s**: `internal/plugin/manager.go` constants. Plugins that exceed these are killed. Changing them affects all plugins and shutdown timing.
+- **`config.share` defaults to `"disabled"`**: Not a working share/publish feature in Go — no `/session/{id}/share` routes; web PTY is unsupported (`PTY_SUPPORTED=false`).
+- **Manual summarize works**: `POST /session/{id}/summarize` and TUI `/compact` run `Processor.Compact` and return `200` + `{"compacted": bool}` — not `501`.
+- **First-run is doctor + `/connect`**: Use `tinycode doctor` (diagnose) and TUI `/connect` (configure models). There is no `tinycode setup`. Legacy `/tc-doctor` bash skill is obsolete.
 
 ## Agent Delegation
 

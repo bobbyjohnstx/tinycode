@@ -25,6 +25,8 @@ Use this table before older gap analyses or September 2026 review notes (those f
 
 **Repository layout:** The product is the Go tree (`cmd/`, `internal/`, `pkg/`). The `packages/` directory is legacy TypeScript used only to build the optional embedded web UI (`make embed-webapp`); it is not the runtime.
 
+**Authoritative HTTP surface:** Go route tables in [02-api-routes.md](02-api-routes.md) (and `internal/server/router.go`) are the source of truth for `tinycode serve`. `packages/sdk/openapi.json` is the historical TypeScript contract and overstates share/PTY/OAuth routes that are not implemented in Go.
+
 ## Sections
 
 | # | File | Section |

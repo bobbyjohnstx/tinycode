@@ -17,6 +17,8 @@ Self-diagnostic skill that checks the tinycode environment is correctly configur
 - When the user wants a config audit or optimization suggestions
 - When context usage seems high or instruction files may have redundant content
 
+Prefer the headless CLI when appropriate: `tinycode doctor` (same diagnostic goals; no interactive LLM). First-run model configuration is `/connect` in the TUI, not a setup wizard.
+
 ## When Not to Use
 
 - The user is asking about their own application code
@@ -49,16 +51,16 @@ Check if tinycode API is responding. Verify connected providers. Check for provi
 ### 8. Stale MCP servers
 Check configured MCP servers that fail to connect or have stopped responding.
 
-Run `tinycode mcp list` to get configured servers. For each server, check connection status (the list output shows status). If the server API is running, also check `curl -s localhost:<port>/mcp/status` for live status.
+There is no `tinycode mcp` CLI. Read MCP server entries from config (`mcp` map in `tinycode.jsonc` / `tinycode.json` / `config.json`). For each server, verify the process or URL is reachable (stdio command exists; remote URL responds). In the TUI, use `/mcp` to inspect connections.
 
 **Pass**: All configured MCP servers are connected or have no servers configured.
 **Fail**: One or more servers show disconnected, errored, or unreachable status.
 
 **Remediation**: Report each failing server name and its error. Suggest:
 - Verify the server process is running (`ps aux | grep <server-name>`)
-- Check if the command in the MCP config is valid and installed
-- Remove stale servers with `tinycode mcp remove <name>`
-- Re-add with `tinycode mcp add` if the server binary moved
+- Check if the command/URL in the MCP config is valid
+- Fix or remove the stale entry in config; re-add via `/mcp` or by editing config
+- Auth is static Bearer / `{env:VAR}` only — interactive OAuth is not available
 
 ### 9. Config consistency
 Check for conflicting settings across config layers (global `~/.config/tinycode/`, project `.tinycode/`, macOS `~/Library/Application Support/tinycode/`).
@@ -80,8 +82,8 @@ Estimate total context consumed by always-loaded files and warn if it approaches
 
 Measure the byte size of these always-loaded files (if they exist):
 - `.tinycode/TINYCODE.md` or `.tinycode/CLAUDE.md` (project instructions)
-- All agent `.md` files in `.tinycode/agents/`
-- All skill `.md` files in `.tinycode/skills/`
+- All agent `.md` files in `.tinycode/agent/` (project) and `~/.config/tinycode/agents/` or `~/.config/tinycode/agent/` (user)
+- All skill directories under `.tinycode/skills/*/SKILL.md` and `~/.config/tinycode/skills/*/SKILL.md`
 - Memory files in `~/.config/tinycode/memory/` or `~/.local/share/tinycode/memory/`
 - Global instructions in `~/.config/tinycode/TINYCODE.md` or `~/.config/tinycode/CLAUDE.md`
 

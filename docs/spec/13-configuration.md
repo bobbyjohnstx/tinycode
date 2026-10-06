@@ -123,7 +123,7 @@ type Info struct {
 | DefaultAgent | string | `default_agent` | Default primary agent name |
 | SubagentDepth | *int | `subagent_depth` | Maximum subagent nesting depth |
 | Username | string | `username` | Display username |
-| Share | string | `share` | Session sharing: `manual`, `auto`, `disabled` |
+| Share | string | `share` | Session sharing mode: `manual`, `auto`, or `disabled` (default). The Go web UI has **no working share/publish feature** — this field gates UI affordances only; there are no Go `/session/{id}/share` routes |
 | Snapshot | *bool | `snapshot` | Enable filesystem snapshot tracking |
 | DisabledProviders | []string | `disabled_providers` | Provider blacklist |
 | EnabledProviders | []string | `enabled_providers` | Provider whitelist |
