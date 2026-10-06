@@ -1,12 +1,14 @@
 package command
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestExpandSlashCommand_Swarm(t *testing.T) {
-	result := ExpandSlashCommand("/swarm run file on all go files")
+	result := ExpandSlashCommand("/swarm run file on all go files", "", "")
 	if !strings.Contains(result.Text, "SWARM mode") {
 		t.Error("expected SWARM mode prefix")
 	}
@@ -19,14 +21,14 @@ func TestExpandSlashCommand_Swarm(t *testing.T) {
 }
 
 func TestExpandSlashCommand_SwarmAutoApprove(t *testing.T) {
-	result := ExpandSlashCommand("/swarm run tests on all packages")
+	result := ExpandSlashCommand("/swarm run tests on all packages", "", "")
 	if !result.AutoApprove {
 		t.Error("expected AutoApprove=true for /swarm")
 	}
 }
 
 func TestExpandSlashCommand_WorkLoop(t *testing.T) {
-	result := ExpandSlashCommand("/work-loop fix all lint errors")
+	result := ExpandSlashCommand("/work-loop fix all lint errors", "", "")
 	if !strings.Contains(result.Text, "WORK-LOOP mode") {
 		t.Error("expected WORK-LOOP mode prefix")
 	}
@@ -36,7 +38,7 @@ func TestExpandSlashCommand_WorkLoop(t *testing.T) {
 }
 
 func TestExpandSlashCommand_WorkLoopNoAutoApprove(t *testing.T) {
-	result := ExpandSlashCommand("/work-loop fix lint errors")
+	result := ExpandSlashCommand("/work-loop fix lint errors", "", "")
 	if result.AutoApprove {
 		t.Error("expected AutoApprove=false for /work-loop")
 	}
@@ -44,7 +46,7 @@ func TestExpandSlashCommand_WorkLoopNoAutoApprove(t *testing.T) {
 
 func TestExpandSlashCommand_NoMatch(t *testing.T) {
 	input := "just a regular prompt"
-	result := ExpandSlashCommand(input)
+	result := ExpandSlashCommand(input, "", "")
 	if result.Text != input {
 		t.Errorf("expected passthrough, got %q", result.Text)
 	}
@@ -54,7 +56,7 @@ func TestExpandSlashCommand_NoMatch(t *testing.T) {
 }
 
 func TestExpandSlashCommand_SwarmPreservedAfterParse(t *testing.T) {
-	result := ExpandSlashCommand("/swarm run tests on all packages")
+	result := ExpandSlashCommand("/swarm run tests on all packages", "", "")
 	if !strings.Contains(result.Text, "SWARM mode") {
 		t.Error("expected SWARM mode prefix preserved")
 	}
@@ -67,7 +69,7 @@ func TestExpandSlashCommand_SwarmPreservedAfterParse(t *testing.T) {
 }
 
 func TestExpandSlashCommand_SwarmForegroundInstruction(t *testing.T) {
-	result := ExpandSlashCommand("/swarm test something")
+	result := ExpandSlashCommand("/swarm test something", "", "")
 	if !strings.Contains(result.Text, "foreground") {
 		t.Error("expected foreground instruction in swarm prefix")
 	}
@@ -80,7 +82,7 @@ func TestExpandSlashCommand_SwarmForegroundInstruction(t *testing.T) {
 }
 
 func TestExpandSlashCommand_SwarmPlanFlag(t *testing.T) {
-	result := ExpandSlashCommand("/swarm --plan refactor the auth module")
+	result := ExpandSlashCommand("/swarm --plan refactor the auth module", "", "")
 	if !strings.Contains(result.Text, "SWARM PLANNING mode") {
 		t.Error("expected SWARM PLANNING mode prefix")
 	}
@@ -99,7 +101,7 @@ func TestExpandSlashCommand_SwarmPlanFlag(t *testing.T) {
 }
 
 func TestExpandSlashCommand_SwarmPlanFlagAfterTask(t *testing.T) {
-	result := ExpandSlashCommand("/swarm refactor the auth module --plan")
+	result := ExpandSlashCommand("/swarm refactor the auth module --plan", "", "")
 	if !strings.Contains(result.Text, "SWARM PLANNING mode") {
 		t.Error("expected SWARM PLANNING mode prefix when --plan after task")
 	}
@@ -115,7 +117,7 @@ func TestExpandSlashCommand_SwarmPlanFlagAfterTask(t *testing.T) {
 }
 
 func TestExpandSlashCommand_SwarmWithoutPlanUnchanged(t *testing.T) {
-	result := ExpandSlashCommand("/swarm run tests on all packages")
+	result := ExpandSlashCommand("/swarm run tests on all packages", "", "")
 	if result.PlanOnly {
 		t.Error("expected PlanOnly=false for /swarm without --plan")
 	}
@@ -128,8 +130,42 @@ func TestExpandSlashCommand_SwarmWithoutPlanUnchanged(t *testing.T) {
 }
 
 func TestExpandSlashCommand_SwarmPlanDisplayText(t *testing.T) {
-	result := ExpandSlashCommand("/swarm --plan fix all lint errors")
+	result := ExpandSlashCommand("/swarm --plan fix all lint errors", "", "")
 	if result.DisplayText != "/swarm --plan fix all lint errors" {
 		t.Errorf("expected display text with --plan, got %q", result.DisplayText)
+	}
+}
+
+func TestExpandSlashCommand_BuiltinSkill(t *testing.T) {
+	result := ExpandSlashCommand("/debug investigate flaky test", "", "")
+	if result.Text == "/debug investigate flaky test" {
+		t.Fatal("expected skill body expansion, got original slash line")
+	}
+	if strings.HasPrefix(strings.TrimSpace(result.Text), "---") {
+		t.Error("expanded skill should not include frontmatter")
+	}
+	if result.DisplayText != "/debug investigate flaky test" {
+		t.Errorf("DisplayText = %q", result.DisplayText)
+	}
+	// Args should be substituted into $ARGUMENTS when present in skill body.
+	if strings.Contains(result.Text, "$ARGUMENTS") {
+		t.Error("$ARGUMENTS should be substituted")
+	}
+}
+
+func TestExpandSlashCommand_UserSkill(t *testing.T) {
+	configDir := t.TempDir()
+	skillDir := filepath.Join(configDir, "skills", "greet")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\nname: greet\n---\nHello $1! Args: $ARGUMENTS"
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := ExpandSlashCommand("/greet World extra", configDir, "")
+	if result.Text != "Hello World! Args: World extra" {
+		t.Errorf("got %q", result.Text)
 	}
 }

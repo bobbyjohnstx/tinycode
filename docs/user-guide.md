@@ -157,7 +157,8 @@ These execute immediately without sending anything to the model.
 | `/editor` | Open `$EDITOR` to compose a long prompt; contents are submitted on save+quit |
 | `/editor @file.md` | Open a file in `$EDITOR` for direct editing |
 | `/shell` | Drop into an interactive shell session; return to tinycode on exit |
-| `/debug` | Open a diagnostics dialog showing config, paths, providers, and system info |
+| `/diagnostics` | Open a diagnostics dialog showing config, paths, providers, and system info |
+| `/debug` | Expand the bundled debug skill (systematic root-cause analysis) into the prompt |
 | `/thinking <level>` | Set the reasoning level: `off`, `low` (1k tokens), `medium` (4k), `high` (16k), `max` (128k) |
 | `/thinking` | Show the current reasoning level |
 | `/scoped-models` | Toggle model scoping -- mark favorite models so the model list only shows those |
@@ -1306,15 +1307,17 @@ tinycode doctor
 
 It checks: version, Go runtime, config validity, data directory writability, database access, agent loading, provider connectivity, MCP servers, plugins, skills, and log file writability. Each check shows a green check, red X, or yellow warning. Non-zero exit code if any critical check fails.
 
-### /debug command
+### /diagnostics vs /debug
 
-Type `/debug` in the TUI to open a diagnostics dialog showing:
+Type `/diagnostics` in the TUI to open a diagnostics dialog showing:
 
 - Merged config
 - Provider status
 - Active agents and plugins
 - MCP server connections
 - System info (Go version, OS, architecture)
+
+`/debug` is a **bundled skill** (not the diagnostics UI). It expands systematic debugging instructions into the prompt for the model.
 
 From the CLI:
 

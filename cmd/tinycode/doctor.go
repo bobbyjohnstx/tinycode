@@ -114,7 +114,11 @@ func runDoctor() {
 	fmt.Printf("%s Plugins: %d configured\n", checkPass, pluginCount)
 
 	// Skills
-	skills := skill.Discover(configDir, dir)
+	var skillPaths []string
+	if cfg.Skills != nil {
+		skillPaths = cfg.Skills.Paths
+	}
+	skills := skill.DiscoverWithPaths(configDir, dir, skillPaths)
 	bundledSkills := 0
 	userSkills := 0
 	for _, s := range skills {

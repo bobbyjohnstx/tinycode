@@ -15,14 +15,23 @@ type Skill struct {
 	Description string   `json:"description,omitempty"`
 	Params      []string `json:"params,omitempty"`
 	Source      string   `json:"source"`
+	// Dir is the filesystem directory containing SKILL.md for user/project/path
+	// skills. Empty for bundled builtins (content comes from embed).
+	Dir string `json:"dir,omitempty"`
 }
 
-// Discover scans all skill locations and returns the merged list.
+// Discover scans default skill locations and returns the merged list.
 // Priority (first seen wins):
 //  1. User skills from configDir/skills/*/SKILL.md
 //  2. Project skills from projectDir/.tinycode/skills/*/SKILL.md
 //  3. Bundled default skills (lowest priority, overridden by user/project)
 func Discover(configDir, projectDir string) []Skill {
+	return DiscoverWithPaths(configDir, projectDir, nil)
+}
+
+// DiscoverWithPaths is like Discover but also scans each path in extraPaths
+// for */SKILL.md entries (source "path"), after user/project and before builtins.
+func DiscoverWithPaths(configDir, projectDir string, extraPaths []string) []Skill {
 	seen := make(map[string]struct{})
 	var skills []Skill
 
@@ -34,7 +43,14 @@ func Discover(configDir, projectDir string) []Skill {
 		skills = appendSkillsFromDir(skills, seen, projectSkillDir, "project")
 	}
 
-	// Append bundled defaults last — user/project skills override by name.
+	for _, p := range extraPaths {
+		if p == "" {
+			continue
+		}
+		skills = appendSkillsFromDir(skills, seen, p, "path")
+	}
+
+	// Append bundled defaults last — user/project/path skills override by name.
 	for _, ds := range DefaultSkills() {
 		if _, exists := seen[ds.Name]; exists {
 			continue
@@ -57,7 +73,8 @@ func appendSkillsFromDir(skills []Skill, seen map[string]struct{}, dir, source s
 			continue
 		}
 
-		skillFile := filepath.Join(dir, entry.Name(), "SKILL.md")
+		skillDir := filepath.Join(dir, entry.Name())
+		skillFile := filepath.Join(skillDir, "SKILL.md")
 		data, err := os.ReadFile(skillFile)
 		if err != nil {
 			continue
@@ -77,6 +94,7 @@ func appendSkillsFromDir(skills []Skill, seen map[string]struct{}, dir, source s
 		s := Skill{
 			ID:     name,
 			Name:   name,
+			Dir:    skillDir,
 			Source: source,
 		}
 		if desc, ok := fm["description"].(string); ok {

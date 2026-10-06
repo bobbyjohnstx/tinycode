@@ -77,7 +77,11 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	configDir := config.ConfigDir()
-	discovered := command.Discover(configDir, s.config.Directory, agentNames)
+	var skillPaths []string
+	if s.deps.Config != nil && s.deps.Config.Skills != nil {
+		skillPaths = s.deps.Config.Skills.Paths
+	}
+	discovered := command.DiscoverWithPaths(configDir, s.config.Directory, agentNames, skillPaths)
 
 	commands := make([]HelpCommand, 0, len(discovered))
 	for _, cmd := range discovered {

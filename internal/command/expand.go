@@ -1,6 +1,10 @@
 package command
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/bobbyjohnstx/tinycode/internal/skill"
+)
 
 // SwarmPrefix is the instruction preamble prepended to /swarm prompts.
 const SwarmPrefix = `You are in SWARM mode. You MUST delegate ALL work to subagents using the "task" tool. Do NOT use bash, read, write, edit, or any other tool directly — ONLY the task tool.
@@ -92,9 +96,12 @@ type ExpandResult struct {
 
 // ExpandSlashCommand detects /swarm and /work-loop prefixes and prepends
 // instruction text so the LLM knows how to execute the command.
+// When the slash name matches a discovered skill, the skill body is loaded
+// and arguments are substituted ($1..$N, $ARGUMENTS).
 // Text is the full expanded prompt for the LLM; DisplayText is the short
 // user-facing version shown in the chat.
-func ExpandSlashCommand(text string) ExpandResult {
+// skillPaths are optional extra directories from config skills.paths.
+func ExpandSlashCommand(text, configDir, projectDir string, skillPaths ...string) ExpandResult {
 	trimmed := strings.TrimSpace(text)
 
 	if strings.HasPrefix(trimmed, "/swarm ") {
@@ -126,5 +133,31 @@ func ExpandSlashCommand(text string) ExpandResult {
 			DisplayText: "/work-loop " + userTask,
 		}
 	}
+
+	if strings.HasPrefix(trimmed, "/") {
+		fields := strings.Fields(trimmed)
+		if len(fields) > 0 {
+			name := strings.TrimPrefix(fields[0], "/")
+			args := strings.TrimSpace(strings.TrimPrefix(trimmed, fields[0]))
+			var paths []string
+			if len(skillPaths) > 0 {
+				paths = skillPaths
+			}
+			for _, s := range skill.DiscoverWithPaths(configDir, projectDir, paths) {
+				if s.Name != name && s.ID != name {
+					continue
+				}
+				content, err := skill.LoadContent(s)
+				if err != nil {
+					break
+				}
+				return ExpandResult{
+					Text:        skill.SubstituteParams(content, args),
+					DisplayText: trimmed,
+				}
+			}
+		}
+	}
+
 	return ExpandResult{Text: text}
 }

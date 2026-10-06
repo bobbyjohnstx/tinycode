@@ -447,6 +447,16 @@ func (a *App) showPalette() {
 	a.focus = FocusPalette
 }
 
+// isSkillCommand reports whether name is a discovered skill (Source == "skill").
+func (a *App) isSkillCommand(name string) bool {
+	for _, cmd := range a.state.Commands {
+		if cmd.Name == name && cmd.Source == "skill" {
+			return true
+		}
+	}
+	return false
+}
+
 // handleClientCommand handles a client-side slash command by name.
 // Returns (cmd, true) if the command was handled, (nil, false) otherwise.
 func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {

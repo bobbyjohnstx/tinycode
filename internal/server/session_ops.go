@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/bobbyjohnstx/tinycode/internal/command"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
@@ -240,7 +241,11 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		userText = "[image attached]"
 	}
 
-	expandResult := command.ExpandSlashCommand(userText)
+	var skillPaths []string
+	if sm.cfg != nil && sm.cfg.Skills != nil {
+		skillPaths = sm.cfg.Skills.Paths
+	}
+	expandResult := command.ExpandSlashCommand(userText, config.ConfigDir(), sm.dir, skillPaths...)
 	llmText := expandResult.Text
 	if expandResult.DisplayText != "" {
 		userText = expandResult.DisplayText

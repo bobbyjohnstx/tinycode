@@ -26,6 +26,11 @@ type Command struct {
 //  4. Project skills from projectDir/.tinycode/skills/*/SKILL.md
 //  5. Bundled default skills (lowest priority, overridden by all above)
 func Discover(configDir, projectDir string, agentNames []string) []Command {
+	return DiscoverWithPaths(configDir, projectDir, agentNames, nil)
+}
+
+// DiscoverWithPaths is like Discover but also scans skills.paths directories.
+func DiscoverWithPaths(configDir, projectDir string, agentNames []string, skillPaths []string) []Command {
 	seen := make(map[string]struct{})
 	var commands []Command
 
@@ -56,7 +61,14 @@ func Discover(configDir, projectDir string, agentNames []string) []Command {
 		commands = appendSkillCommands(commands, seen, projectSkillDir, "skill")
 	}
 
-	// Append bundled default skills last — user/project skills override by name.
+	for _, p := range skillPaths {
+		if p == "" {
+			continue
+		}
+		commands = appendSkillCommands(commands, seen, p, "skill")
+	}
+
+	// Append bundled default skills last — user/project/path skills override by name.
 	for _, ds := range skill.DefaultSkills() {
 		if _, exists := seen[ds.Name]; exists {
 			continue

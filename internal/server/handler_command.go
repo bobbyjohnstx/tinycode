@@ -16,6 +16,10 @@ func (s *Server) handleCommandList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	configDir := config.ConfigDir()
-	commands := command.Discover(configDir, s.config.Directory, agentNames)
+	var skillPaths []string
+	if s.deps.Config != nil && s.deps.Config.Skills != nil {
+		skillPaths = s.deps.Config.Skills.Paths
+	}
+	commands := command.DiscoverWithPaths(configDir, s.config.Directory, agentNames, skillPaths)
 	respondJSON(w, http.StatusOK, commands)
 }

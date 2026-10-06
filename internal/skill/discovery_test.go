@@ -126,6 +126,59 @@ func TestDiscover_FrontmatterOverridesDirName(t *testing.T) {
 	if skills[0].Name != "custom-name" {
 		t.Errorf("Name = %q, want %q", skills[0].Name, "custom-name")
 	}
+	if skills[0].Dir != skillDir {
+		t.Errorf("Dir = %q, want %q", skills[0].Dir, skillDir)
+	}
+}
+
+func TestDiscover_DirSetForUserSkill(t *testing.T) {
+	configDir := t.TempDir()
+	skillDir := filepath.Join(configDir, "skills", "my-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: my-skill\n---\nBody"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills := Discover(configDir, "")
+	if skills[0].Dir != skillDir {
+		t.Errorf("Dir = %q, want %q", skills[0].Dir, skillDir)
+	}
+	for _, s := range skills {
+		if s.Source == "builtin" && s.Dir != "" {
+			t.Errorf("builtin skill %q should have empty Dir, got %q", s.Name, s.Dir)
+		}
+	}
+}
+
+func TestDiscoverWithPaths(t *testing.T) {
+	configDir := t.TempDir()
+	extra := t.TempDir()
+	skillDir := filepath.Join(extra, "extra-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: extra-skill\ndescription: From paths\n---\nExtra body"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills := DiscoverWithPaths(configDir, "", []string{extra})
+	found := false
+	for _, s := range skills {
+		if s.Name == "extra-skill" {
+			found = true
+			if s.Source != "path" {
+				t.Errorf("Source = %q, want path", s.Source)
+			}
+			if s.Dir != skillDir {
+				t.Errorf("Dir = %q, want %q", s.Dir, skillDir)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected extra-skill from skills.paths")
+	}
 }
 
 func TestDiscover_NonDirectoryEntriesSkipped(t *testing.T) {

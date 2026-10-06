@@ -26,13 +26,14 @@ func RegisterBuiltins(r *Registry) {
 type BuiltinConfig struct {
 	ConfigDir  string
 	ProjectDir string
+	SkillPaths []string
 }
 
 // RegisterConditional registers tools that depend on external configuration
 // or API keys. Call after RegisterBuiltins.
 func RegisterConditional(r *Registry, cfg BuiltinConfig) {
 	if cfg.ConfigDir != "" || cfg.ProjectDir != "" {
-		r.Register(SkillTool(cfg.ConfigDir, cfg.ProjectDir))
+		r.Register(SkillTool(cfg.ConfigDir, cfg.ProjectDir, cfg.SkillPaths...))
 	}
 	if os.Getenv("EXA_API_KEY") != "" {
 		r.Register(WebSearchTool())

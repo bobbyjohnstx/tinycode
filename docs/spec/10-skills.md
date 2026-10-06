@@ -2,42 +2,52 @@
 
 Package: `internal/skill/`
 
-Skills are reusable prompt templates that extend tinycode via slash commands. Each skill is a directory containing a `SKILL.md` file with frontmatter metadata and markdown body. Skills are discovered from user and project config directories, surfaced as slash commands in the TUI prompt, and executed via the `skill` tool.
+Skills are reusable prompt templates that extend tinycode via slash commands. Each skill is a directory containing a `SKILL.md` file with frontmatter metadata and markdown body (user/project/path skills), or an embedded markdown file (bundled builtins). Skills are discovered from config, project, and optional `skills.paths` directories, surfaced as slash commands in the TUI, expanded into the prompt on `/skill-name` (and palette select), and executed via the `skill` tool.
+
+Sources: `discovery.go` (filesystem discovery), `embed.go` (bundled defaults), `content.go` (load + param substitution). There is no `loader.go`.
 
 ## 10.1 Skill Schema
 
 ```go
 type Skill struct {
-    ID          string   // unique identifier (directory name, or frontmatter name override)
-    Name        string   // display name (same as ID)
+    ID          string   // match key (frontmatter name, or directory / embed basename)
+    Name        string   // display / match name (same as ID for discovered skills)
     Description string   // human-readable description for autocomplete
     Params      []string // positional parameter names
-    Source      string   // "user" or "project"
+    Source      string   // "user", "project", "path", or "builtin"
+    Dir         string   // absolute/relative skills/<dirname> for disk skills; empty for builtin
 }
 ```
 
+Matching is by `Name` or `ID`. Content is read from `Dir/SKILL.md` when `Dir` is set; builtins use `ReadDefaultSkill(ID)` from the embed FS.
+
 ## 10.2 Discovery
 
-`skill.Discover(configDir, projectDir)` scans two locations in priority order:
+`skill.Discover(configDir, projectDir)` and `skill.DiscoverWithPaths(configDir, projectDir, extraPaths)` scan locations in priority order (first seen wins):
 
 | Priority | Path | Source | Description |
 |----------|------|--------|-------------|
 | 1 (highest) | `<configDir>/skills/*/SKILL.md` | `"user"` | User-global skills |
 | 2 | `<projectDir>/.tinycode/skills/*/SKILL.md` | `"project"` | Project-local skills |
+| 3 | each entry in `skills.paths` → `*/SKILL.md` | `"path"` | Extra directories from config |
+| 4 (lowest) | embedded `defaults/*.md` | `"builtin"` | Bundled defaults |
+
+`skills.urls` is parsed in config but **not** fetched at runtime (not implemented).
 
 ### Deduplication
 
-Skills are deduplicated by name. User skills are discovered first, so a project skill with the same name is silently dropped. The `seen` map tracks names across both directories.
+Skills are deduplicated by name. Earlier sources win. The `seen` map tracks names across all directories and builtins.
 
 ### Discovery Algorithm
 
 1. Read entries in `<configDir>/skills/`, skip non-directories
 2. For each directory, read `SKILL.md`; skip if missing or unreadable
 3. Parse frontmatter via `frontmatter.Parse()`
-4. Resolve name: use frontmatter `name` field if present and non-empty, otherwise use directory name
-5. Skip if name already in `seen` map
-6. Build `Skill` struct from frontmatter fields
-7. Repeat steps 1-6 for `<projectDir>/.tinycode/skills/`
+4. Resolve name: use frontmatter `name` if present and non-empty, else directory name
+5. Skip if name already in `seen`
+6. Build `Skill` with `Dir` set to the skill directory path
+7. Repeat for project skills, then each `skills.paths` entry
+8. Append embedded defaults with empty `Dir`
 
 ## 10.3 SKILL.md Format
 
@@ -84,21 +94,23 @@ A simple key-value parser (not a full YAML parser):
 
 Example: `"[name, language]"` produces `["name", "language"]`.
 
-## 10.4 Parameter Substitution
+## 10.4 Content Load and Parameter Substitution
 
-`substituteSkillParams(content, arguments)` replaces placeholders in the skill body:
+`skill.LoadContent(s)` reads the skill file (or embed), strips frontmatter via `frontmatter.Parse`, and returns the markdown body.
+
+`skill.SubstituteParams(content, arguments)` replaces placeholders:
 
 | Placeholder | Replaced With | Example |
 |-------------|---------------|---------|
-| `$1`, `$2`, ... `$N` | Positional argument (space-split) | `"Alice"` for first arg |
+| `$1` … `$N` | Positional argument (space-split), **highest index first** | `"Alice"` for first arg |
 | `$ARGUMENTS` | Full argument string | `"Alice Wonderland"` |
 
 ### Behavior
 
 - Arguments are split on whitespace via `strings.Fields()`
+- Positional placeholders are replaced from highest `$N` down to `$1` so `$10` is not corrupted by `$1`
 - Positional placeholders beyond the provided argument count remain unreplaced
 - `$ARGUMENTS` is always replaced (with empty string if no arguments provided)
-- Substitution uses `strings.ReplaceAll` (all occurrences of each placeholder)
 
 ### Examples
 
@@ -107,13 +119,9 @@ Content: "Hello $1, welcome to $2!"
 Arguments: "Alice Wonderland"
 Result:  "Hello Alice, welcome to Wonderland!"
 
-Content: "Name: $1\nAll: $ARGUMENTS"
-Arguments: "alpha beta"
-Result:  "Name: alpha\nAll: alpha beta"
-
-Content: "$1 and $2 and $3"
-Arguments: "a b"
-Result:  "a and b and $3"      # $3 unreplaced
+Content: "got $10 and $1"
+Arguments: "A B C D E F G H I J"
+Result:  "got J and A"
 ```
 
 ## 10.5 Skill Tool
@@ -130,61 +138,47 @@ The `skill` tool is registered conditionally when a config or project directory 
 | Description | Execute a skill by name |
 | Permission | `read` |
 
-### Input Schema
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string",
-      "description": "The name of the skill to execute"
-    },
-    "arguments": {
-      "type": "string",
-      "description": "Space-separated arguments to pass to the skill ($1, $2, etc.)"
-    }
-  },
-  "required": ["name"]
-}
-```
-
 ### Execution Flow
 
 1. Parse `name` and optional `arguments` from JSON input
-2. Call `skill.Discover(configDir, projectDir)` to find all available skills
+2. Call `skill.DiscoverWithPaths(configDir, projectDir, skillPaths)`
 3. Match by `Name` or `ID`
 4. If not found: return error listing all available skills with descriptions
-5. Resolve file path based on `Source` (`"user"` or `"project"`)
-6. Read `SKILL.md` content from disk
-7. Apply `substituteSkillParams()` to replace `$1`, `$2`, `$ARGUMENTS`
-8. Return substituted content as tool output
+5. `LoadContent` (Dir/SKILL.md or embed; frontmatter stripped)
+6. `SubstituteParams` for `$1`…`$N` and `$ARGUMENTS`
+7. Return substituted body as tool output
 
-## 10.6 Command Integration
+## 10.6 Slash Expansion and Command Integration
 
-Package: `internal/command/`
+### Slash expansion
 
-Skills are surfaced as slash commands via `command.Discover()`, which merges four sources in priority order:
+`command.ExpandSlashCommand(text, configDir, projectDir, skillPaths...)` (source: `internal/command/expand.go`):
+
+1. Handles `/swarm` and `/work-loop` instruction prefixes
+2. Otherwise, if the text is `/name …` and `name` matches a discovered skill, loads the skill body via `LoadContent`, substitutes remaining args, and returns that text for the LLM (`DisplayText` stays the original slash line)
+3. Wired from `session_ops` so user messages expand before the model runs
+
+Palette skill selection (TUI `PaletteSelectedMsg`) uses the same expand path and inserts the expanded body into the prompt (not a frecency-only no-op).
+
+### Command discovery
+
+Skills are surfaced as slash commands via `command.Discover` / `DiscoverWithPaths`, which merges:
 
 | Priority | Source | `Source` field | Description |
 |----------|--------|----------------|-------------|
 | 1 | Built-in commands | `"builtin"` | Hardcoded commands |
 | 2 | Agent names | `"builtin"` | Each agent becomes a switchable command |
-| 3 | User skills | `"skill"` | From `<configDir>/skills/*/SKILL.md` |
-| 4 | Project skills | `"skill"` | From `<projectDir>/.tinycode/skills/*/SKILL.md` |
+| 3 | User / project / `skills.paths` skills | `"skill"` | Disk skills |
+| 4 | Bundled default skills | `"skill"` | From embed |
 
-### Built-in Commands
+Built-in commands and agent names are registered first, so a skill cannot shadow a built-in command or agent name.
 
-| Command | Description | Subtask |
-|---------|-------------|---------|
-| `/init` | Guided project setup | No |
-| `/review` | Review changes (`/review [commit\|branch\|pr]`) | Yes |
-| `/ask` | Ask an agent (`/ask <agent> <prompt>`) | Yes |
-| `/swarm` | Dispatch parallel subagents for multi-task work | Yes |
+### `/debug` vs `/diagnostics`
 
-### Deduplication
-
-The same `seen` map is used across all sources. Built-in commands and agent names are registered first, so a skill cannot shadow a built-in command or agent name.
+| Command | Kind | Behavior |
+|---------|------|----------|
+| `/diagnostics` | Client TUI command | Opens the diagnostics dialog (config, providers, system info) |
+| `/debug` | Bundled skill | Expands the systematic debugging skill body into the prompt |
 
 ### Command Schema
 
@@ -203,19 +197,20 @@ The merged command list is served via `GET /command` and powers autocomplete in 
 
 ## 10.7 Built-in Skills
 
-The following skills ship as user-installable templates (not compiled into the binary):
+Bundled as embedded markdown under `internal/skill/defaults/` (`embed.go`):
 
 | Skill | Description |
 |-------|-------------|
-| `ai-slop-cleaner` | Clean AI-generated code with regression-safe deletion workflow |
-| `configure-notifications` | Set up Telegram, Discord, or Slack notifications |
 | `debug` | Isolate single most-likely root cause |
-| `deepinit` | Generate per-directory AGENTS.md files |
-| `mcp-setup` | Configure MCP servers via guided menu |
-| `remember` | Triage findings to memory surfaces |
-| `tc-doctor` | 14+ diagnostic checks (pure bash) |
-| `trace` | Evidence-driven causal tracing |
 | `verify` | Confirm changes work before claiming completion |
+| `trace` | Evidence-driven causal tracing |
+| `remember` | Triage findings to memory surfaces |
+| `deepinit` | Generate per-directory AGENTS.md files |
+| `doctor` | Project / environment health checks |
+| `mcp-setup` | Configure MCP servers via guided menu |
+| `review` | Code review workflow |
+| `plan` | Multi-step implementation planning |
+| `test` | Test-driven development workflow |
 
 ## 10.8 Directory Layout
 
@@ -235,6 +230,25 @@ The following skills ship as user-installable templates (not compiled into the b
       lint-fix/
         SKILL.md
 ```
+
+Config:
+
+```json
+{
+  "skills": {
+    "paths": ["/shared/skills"],
+    "urls": []
+  }
+}
+```
+
+`paths` are scanned for `*/SKILL.md`. `urls` are accepted in config but not downloaded.
+
+## 10.9 HTTP `GET /skill`
+
+Go returns `[]Skill` JSON: `id`, `name`, `description`, `params`, `source`, and optional `dir`.
+
+The TypeScript OpenAPI (`packages/sdk/openapi.json`) historically required `name`, `location`, and `content` per item. That shape is **not** what the Go server returns. Treat the Go struct as authoritative; see [02-api-routes.md](02-api-routes.md) §2.23 and [16-not-implemented.md](16-not-implemented.md) §16.29.
 
 ---
 

@@ -388,4 +388,14 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 
 ---
 
+## 16.29 OpenAPI `GET /skill` Shape vs Go
+
+**TS / OpenAPI behavior:** Each skill object requires `name`, `location`, and `content` (full skill markdown inline).
+
+**Go status:** `GET /skill` is implemented (`handleSkillList`) but returns `[]Skill` with `id`, `name`, `description`, `params`, `source`, and optional `dir`. It does **not** embed `content` or use `location`. Authoritative docs: [10-skills.md](10-skills.md) §10.9 and [02-api-routes.md](02-api-routes.md) §2.23.
+
+Also: config `skills.urls` is parsed but remote skill fetch is not implemented; only `skills.paths` directory scanning is wired.
+
+---
+
 *Prev: [15-security.md](15-security.md) | [Back to overview](00-overview.md)*

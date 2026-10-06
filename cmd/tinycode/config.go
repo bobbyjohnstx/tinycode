@@ -244,10 +244,14 @@ func initTooling(b *bus.Bus, directory string, cfg ...*config.Info) (*tool.Regis
 	}
 	toolReg := tool.NewRegistry(toolCtx)
 	tool.RegisterBuiltins(toolReg)
-	tool.RegisterConditional(toolReg, tool.BuiltinConfig{
+	bc := tool.BuiltinConfig{
 		ConfigDir:  config.ConfigDir(),
 		ProjectDir: directory,
-	})
+	}
+	if len(cfg) > 0 && cfg[0] != nil && cfg[0].Skills != nil {
+		bc.SkillPaths = cfg[0].Skills.Paths
+	}
+	tool.RegisterConditional(toolReg, bc)
 	return toolReg, permSvc, toolCtx
 }
 

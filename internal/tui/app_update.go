@@ -8,6 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/bobbyjohnstx/tinycode/internal/command"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
@@ -304,6 +306,11 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		}
 		if cmd, handled := a.handleClientCommand(msg.Item.Value); handled {
 			return a, cmd, true
+		}
+		if msg.Item.Value != "" && a.isSkillCommand(msg.Item.Value) {
+			expanded := command.ExpandSlashCommand("/"+msg.Item.Value, config.ConfigDir(), a.status.Cwd())
+			a.prompt.SetValue(expanded.Text)
+			return a, nil, true
 		}
 		return a, nil, true
 	case AgentSelectedMsg:

@@ -1,6 +1,11 @@
 package tui
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
+)
 
 func TestHandleProvidersLoadedMsg_SetsCurrentModel(t *testing.T) {
 	app := NewApp("")
@@ -105,5 +110,51 @@ func TestHandleProvidersLoadedMsg_EmptyDefaultsLeavesModelUnset(t *testing.T) {
 	}
 	if result.state.CurrentModel.ProviderID != "" {
 		t.Errorf("expected empty provider when defaults are empty, got %q", result.state.CurrentModel.ProviderID)
+	}
+}
+
+func TestPaletteSelected_SkillExpandsIntoPrompt(t *testing.T) {
+	app := NewApp("")
+	app.state.Commands = []api.CommandInfo{
+		{Name: "debug", Description: "Debug skill", Source: "skill"},
+	}
+
+	result, _, handled := app.handleDialogMsg(PaletteSelectedMsg{
+		Item: PaletteItem{Label: "debug", Value: "debug"},
+	})
+	if !handled {
+		t.Fatal("expected palette selection handled")
+	}
+	val := result.prompt.Value()
+	if val == "" || val == "debug" || val == "/debug" {
+		t.Fatalf("expected expanded skill body in prompt, got %q", val)
+	}
+	if strings.HasPrefix(strings.TrimSpace(val), "---") {
+		t.Error("prompt should not contain skill frontmatter")
+	}
+	if !strings.Contains(val, "Debug") && !strings.Contains(val, "root cause") {
+		snippet := val
+		if len(snippet) > 120 {
+			snippet = snippet[:120]
+		}
+		t.Errorf("expected debug skill body content, got %q", snippet)
+	}
+}
+
+func TestPaletteSelected_NonSkillNoPromptInject(t *testing.T) {
+	app := NewApp("")
+	app.state.Commands = []api.CommandInfo{
+		{Name: "init", Description: "Init", Source: "builtin"},
+	}
+	app.prompt.SetValue("keep-me")
+
+	result, _, handled := app.handleDialogMsg(PaletteSelectedMsg{
+		Item: PaletteItem{Label: "init", Value: "init"},
+	})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if result.prompt.Value() != "keep-me" {
+		t.Errorf("non-skill palette select should not rewrite prompt, got %q", result.prompt.Value())
 	}
 }

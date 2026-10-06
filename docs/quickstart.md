@@ -206,11 +206,11 @@ tinycode help
 | `/editor` | Open `$EDITOR` to compose a long prompt |
 | `/editor @file` | Open a file in `$EDITOR` for direct editing |
 | `/auto-approve` | Toggle auto-approve for tool permissions this session |
-| `/debug` | Show diagnostics (config, providers, agents, system info) |
+| `/diagnostics` | Show diagnostics (config, providers, agents, system info) |
 
 ### Bundled skills
 
-tinycode includes 10 built-in skills available as slash commands:
+tinycode includes 10 built-in skills available as slash commands. Typing `/skill-name` (or selecting a skill in the command palette) expands the skill body into the prompt.
 
 | Skill | What it does |
 |-------|--------------|

@@ -58,6 +58,61 @@ func TestSubstituteSkillParams_ExtraPositional(t *testing.T) {
 	}
 }
 
+func TestSubstituteSkillParams_TenNotCorruptedByOne(t *testing.T) {
+	content := "args: $1 $10"
+	result := substituteSkillParams(content, "A B C D E F G H I J")
+	if result != "args: A J" {
+		t.Errorf("unexpected result: %s", result)
+	}
+}
+
+func TestSkillTool_StripsFrontmatter(t *testing.T) {
+	configDir := t.TempDir()
+	projectDir := t.TempDir()
+
+	skillDir := filepath.Join(configDir, "skills", "greet")
+	os.MkdirAll(skillDir, 0755)
+	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: greet\n---\nHello $1!"), 0644)
+
+	def := SkillTool(configDir, projectDir)
+	args, _ := json.Marshal(skillArgs{Name: "greet", Arguments: "World"})
+	result, err := def.Execute(context.Background(), &Context{}, args)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Errorf("unexpected error: %s", result.Output)
+	}
+	if strings.Contains(result.Output, "---") || strings.Contains(result.Output, "name: greet") {
+		t.Errorf("frontmatter leaked into output: %s", result.Output)
+	}
+	if result.Output != "Hello World!" {
+		t.Errorf("got %q, want Hello World!", result.Output)
+	}
+}
+
+func TestSkillTool_NameOverrideReadsDir(t *testing.T) {
+	configDir := t.TempDir()
+	projectDir := t.TempDir()
+
+	skillDir := filepath.Join(configDir, "skills", "dir-name")
+	os.MkdirAll(skillDir, 0755)
+	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: custom-name\n---\nLoaded OK $1"), 0644)
+
+	def := SkillTool(configDir, projectDir)
+	args, _ := json.Marshal(skillArgs{Name: "custom-name", Arguments: "x"})
+	result, err := def.Execute(context.Background(), &Context{}, args)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	if result.Output != "Loaded OK x" {
+		t.Errorf("got %q, want Loaded OK x", result.Output)
+	}
+}
+
 func TestSkillTool_NotFound(t *testing.T) {
 	configDir := t.TempDir()
 	projectDir := t.TempDir()

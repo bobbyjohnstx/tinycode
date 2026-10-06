@@ -238,7 +238,7 @@ type SkillsConfig struct {
 }
 ```
 
-Additional skill discovery locations beyond the defaults. See [10-skills.md](10-skills.md).
+Additional skill discovery locations beyond the defaults. `paths` directories are scanned for `*/SKILL.md` via `skill.DiscoverWithPaths`. `urls` are accepted in config but not fetched (not implemented). See [10-skills.md](10-skills.md).
 
 ### AttachmentConfig
 
