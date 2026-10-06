@@ -20,13 +20,15 @@ import (
 	pkgplugin "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
 
-var ErrPluginNotFound = errors.New("plugin not found")
-
-const (
-	hookTimeout     = 5 * time.Second
-	toolCallTimeout = 30 * time.Second
-	killTimeout     = 3 * time.Second
-	maxOutputSize   = 10 * 1024 * 1024 // 10MB — cap plugin stdout to prevent OOM
+var (
+	ErrPluginNotFound = errors.New("plugin not found")
+	ErrAlreadyLoaded  = errors.New("already loaded")
+	ErrPluginSkipped  = errors.New("plugin skipped")
+	hookTimeout       = 5 * time.Second
+	toolCallTimeout   = 30 * time.Second
+	killTimeout       = 3 * time.Second
+	maxOutputSize     = int64(10 * 1024 * 1024) // 10MB — cap plugin stdout to prevent OOM
+	maxRPCTimeouts    = 3                       // consecutive timeouts before treating process as wedged
 )
 
 // PluginInfo describes a loaded plugin.
@@ -40,21 +42,23 @@ type ToolManifest = pkgplugin.ToolManifest
 
 // pluginProcess tracks a running plugin subprocess.
 type pluginProcess struct {
-	info     *PluginInfo
-	cmd      *exec.Cmd
-	stdin    io.WriteCloser
-	stdout   io.ReadCloser
-	encoder  *json.Encoder
-	reader   *bufio.Reader   // line-oriented stdout reader (skips non-JSON pollution)
-	counter  *countingReader // per-response byte counter for stdout
-	mu       sync.Mutex      // protects writes/reads to stdin/stdout
-	hooks    []string        // hooks declared during initialize
-	tools    []ToolManifest
-	toolIDs  []string // tool registry IDs registered for this plugin
-	nextID   atomic.Int64
-	dead     atomic.Bool
-	done     chan struct{}       // closed when the process exits
-	onRemove func(reason string) // removes this plugin from the manager map + tools
+	info                *PluginInfo
+	cmd                 *exec.Cmd
+	stdin               io.WriteCloser
+	stdout              io.ReadCloser
+	encoder             *json.Encoder
+	reader              *bufio.Reader   // line-oriented stdout reader (skips non-JSON pollution)
+	counter             *countingReader // per-response byte counter for stdout
+	mu                  sync.Mutex      // protects writes/reads to stdin/stdout
+	hooks               []string        // hooks declared during initialize
+	tools               []ToolManifest
+	toolIDs             []string // tool registry IDs registered for this plugin
+	nextID              atomic.Int64
+	dead                atomic.Bool
+	done                chan struct{}       // closed when the process exits
+	onRemove            func(reason string) // removes this plugin from the manager map + tools
+	consecutiveTimeouts atomic.Int32        // RPC timeouts since last success
+	drainDone           chan struct{}       // closed when a timed-out read finishes
 }
 
 // countingReader wraps a reader and counts bytes read since the last reset.
@@ -190,6 +194,12 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 	}
 
 	m.mu.RLock()
+	for _, p := range m.plugins {
+		if p.info.Name == name {
+			m.mu.RUnlock()
+			return nil, fmt.Errorf("%w: %s", ErrAlreadyLoaded, name)
+		}
+	}
 	inRegistry := false
 	for _, entry := range m.registry {
 		if entry.Name == name {
@@ -208,7 +218,7 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 		if !inRegistry {
 			if _, ok := knownBuiltinIDs[name]; ok {
 				logger.Info("skipping load for builtin plugin listed in config", "name", name)
-				return nil, nil
+				return nil, fmt.Errorf("%w: %s", ErrPluginSkipped, name)
 			}
 			return nil, fmt.Errorf("%w: %s", ErrPluginNotFound, name)
 		}
@@ -408,6 +418,50 @@ func (m *Manager) pluginsWithHook(hookName string) []*pluginProcess {
 	return result
 }
 
+// killForTimeout marks the process dead and removes it from the manager.
+// Caller must hold p.mu.
+func (p *pluginProcess) killForTimeout() {
+	_ = p.stdout.Close()
+	if p.cmd != nil && p.cmd.Process != nil {
+		_ = p.cmd.Process.Kill()
+	}
+	p.dead.Store(true)
+	if p.onRemove != nil {
+		p.onRemove("rpc timeout")
+	}
+}
+
+// waitForDrainIfNeeded blocks until a previous timed-out read finishes so the
+// next RPC does not race two readers on stdout. Caller must hold p.mu; unlocks
+// while waiting and re-locks before return.
+func (p *pluginProcess) waitForDrainIfNeeded() error {
+	drain := p.drainDone
+	if drain == nil {
+		return nil
+	}
+	p.mu.Unlock()
+	select {
+	case <-drain:
+	case <-p.done:
+	case <-time.After(toolCallTimeout):
+		p.mu.Lock()
+		if p.drainDone == drain {
+			p.killForTimeout()
+			p.drainDone = nil
+		}
+		p.mu.Unlock()
+		return fmt.Errorf("plugin wedged after prior RPC timeout")
+	}
+	p.mu.Lock()
+	if p.drainDone == drain {
+		p.drainDone = nil
+	}
+	if p.dead.Load() {
+		return fmt.Errorf("process is dead")
+	}
+	return nil
+}
+
 // sendRPC sends a JSON-RPC request and reads the response with a timeout.
 func (p *pluginProcess) sendRPC(method string, params any, timeout time.Duration) (json.RawMessage, error) {
 	p.mu.Lock()
@@ -415,6 +469,9 @@ func (p *pluginProcess) sendRPC(method string, params any, timeout time.Duration
 
 	if p.dead.Load() {
 		return nil, fmt.Errorf("process is dead")
+	}
+	if err := p.waitForDrainIfNeeded(); err != nil {
+		return nil, err
 	}
 
 	var paramsRaw json.RawMessage
@@ -455,6 +512,7 @@ func (p *pluginProcess) sendRPC(method string, params any, timeout time.Duration
 
 	select {
 	case r := <-ch:
+		p.consecutiveTimeouts.Store(0)
 		if r.err != nil {
 			return nil, fmt.Errorf("decode response: %w", r.err)
 		}
@@ -463,18 +521,20 @@ func (p *pluginProcess) sendRPC(method string, params any, timeout time.Duration
 		}
 		return r.resp.Result, nil
 	case <-time.After(timeout):
-		// Close stdout to unblock the read goroutine, then kill the
-		// process to prevent a goroutine leak (#386).
-		_ = p.stdout.Close()
-		if p.cmd != nil && p.cmd.Process != nil {
-			_ = p.cmd.Process.Kill()
+		n := p.consecutiveTimeouts.Add(1)
+		if int(n) >= maxRPCTimeouts {
+			// Process appears wedged — kill so callers are not stuck forever.
+			p.killForTimeout()
+			return nil, fmt.Errorf("timeout waiting for response to %s", method)
 		}
-		p.dead.Store(true)
-		// Remove from manager immediately so tools are unregistered without
-		// waiting for Wait(); health monitor removeProcess is idempotent.
-		if p.onRemove != nil {
-			p.onRemove("rpc timeout")
-		}
+		// Fail this call but keep the process alive. Drain the late response
+		// in the background so the next CallTool can proceed if the plugin recovers.
+		drain := make(chan struct{})
+		p.drainDone = drain
+		safego.Go(func() {
+			<-ch
+			close(drain)
+		})
 		return nil, fmt.Errorf("timeout waiting for response to %s", method)
 	case <-p.done:
 		return nil, fmt.Errorf("process exited while waiting for response to %s", method)
@@ -571,10 +631,15 @@ func (m *Manager) registerPluginTools(proc *pluginProcess) {
 				"properties": map[string]any{},
 			}
 		}
+		perm := tm.Permission
+		if perm == "" {
+			perm = "plugin"
+		}
 		reg.Register(&tool.Def{
 			ID:          toolID,
 			Description: tm.Description,
 			Parameters:  params,
+			Permission:  perm,
 			Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
 				content, isErr, callErr := m.CallTool(pluginID, toolName, args, tc.SessionID)
 				if callErr != nil {

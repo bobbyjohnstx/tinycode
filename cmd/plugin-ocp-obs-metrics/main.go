@@ -368,21 +368,21 @@ func newPlugin(opts options) plugin.Plugin {
 		ID:    "ocp-obs-metrics",
 		Tools: tools,
 		Hooks: plugin.HookHandlers{
-			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) error {
+			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) (*plugin.SessionStartOutput, error) {
 				slog.Info("ocp-obs-metrics: fetching alert summary", "sessionId", event.SessionID)
 				active := true
 				silenced := false
 				alerts, err := client.Alerts(ctx, &active, &silenced)
 				if err != nil {
 					slog.Warn("ocp-obs-metrics: failed to fetch alerts", "error", err)
-					return nil
+					return nil, nil
 				}
 				if len(alerts) > 0 {
 					as.mu.Lock()
 					as.summary = formatAlertSummary(alerts)
 					as.mu.Unlock()
 				}
-				return nil
+				return nil, nil
 			},
 		},
 	}

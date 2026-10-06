@@ -4,6 +4,23 @@ import (
 	"testing"
 )
 
+func TestCheckPermission_AllowReturnsAllowedTrue(t *testing.T) {
+	out := checkPermission("ls -la")
+	if out == nil {
+		t.Fatal("expected non-nil PermissionOutput on allow")
+	}
+	if !out.Allowed {
+		t.Fatalf("expected Allowed=true, got %+v", out)
+	}
+}
+
+func TestCheckPermission_Deny(t *testing.T) {
+	out := checkPermission("rm -rf /")
+	if out == nil || out.Allowed {
+		t.Fatalf("expected deny, got %+v", out)
+	}
+}
+
 func TestDangerousPatternsNonEmpty(t *testing.T) {
 	if len(dangerousPatterns) == 0 {
 		t.Fatal("dangerousPatterns must not be empty")

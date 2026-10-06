@@ -5,13 +5,23 @@ import "context"
 // HookHandlers holds optional callback functions for plugin lifecycle hooks.
 // Each field is nil when the plugin does not handle that hook.
 type HookHandlers struct {
-	SessionStart  func(ctx context.Context, event SessionStartEvent) error
-	SessionEnd    func(ctx context.Context, event SessionEndEvent) error
-	PermissionAsk func(ctx context.Context, input PermissionInput) (*PermissionOutput, error)
-	ShellEnv      func(ctx context.Context, input ShellEnvInput) (*ShellEnvOutput, error)
-	ToolExecBefore func(ctx context.Context, input ToolExecBeforeInput) error
+	SessionStart   func(ctx context.Context, event SessionStartEvent) (*SessionStartOutput, error)
+	SessionEnd     func(ctx context.Context, event SessionEndEvent) error
+	PermissionAsk  func(ctx context.Context, input PermissionInput) (*PermissionOutput, error)
+	ShellEnv       func(ctx context.Context, input ShellEnvInput) (*ShellEnvOutput, error)
+	ToolExecBefore func(ctx context.Context, input ToolExecBeforeInput) (*ToolExecBeforeOutput, error)
 	ToolExecAfter  func(ctx context.Context, input ToolExecAfterInput) (*ToolExecAfterOutput, error)
-	Dispose       func(ctx context.Context) error
+	Dispose        func(ctx context.Context) error
+}
+
+// SessionStartOutput is the optional response from a session.start hook.
+type SessionStartOutput struct {
+	AdditionalContext []string `json:"additionalContext,omitempty"`
+}
+
+// ToolExecBeforeOutput is the optional response from a tool.execute.before hook.
+type ToolExecBeforeOutput struct {
+	AdditionalContext []string `json:"additionalContext,omitempty"`
 }
 
 // SessionStartEvent is emitted when a new session is created.
@@ -69,6 +79,7 @@ type ToolExecAfterInput struct {
 // ToolExecAfterOutput is the response from a tool.execute.after hook.
 // If non-nil, the Output field replaces the original tool output.
 type ToolExecAfterOutput struct {
-	Output  string `json:"output"`
-	IsError bool   `json:"isError"`
+	Output            string   `json:"output"`
+	IsError           bool     `json:"isError"`
+	AdditionalContext []string `json:"additionalContext,omitempty"`
 }

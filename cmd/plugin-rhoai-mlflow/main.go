@@ -910,7 +910,7 @@ func newPlugin(opts options) plugin.Plugin {
 		ID:    "rhoai-mlflow",
 		Tools: tools,
 		Hooks: plugin.HookHandlers{
-			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) error {
+			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) (*plugin.SessionStartOutput, error) {
 				expName := opts.ExperimentName
 				if expName == "" {
 					expName = filepath.Base(event.Directory)
@@ -936,7 +936,7 @@ func newPlugin(opts options) plugin.Plugin {
 					experimentID, err = mlflow.CreateExperiment(ctx, expName)
 					if err != nil {
 						slog.Warn("rhoai-mlflow: failed to create experiment", "error", err)
-						return nil
+						return nil, nil
 					}
 				}
 
@@ -945,7 +945,7 @@ func newPlugin(opts options) plugin.Plugin {
 				})
 				if err != nil {
 					slog.Warn("rhoai-mlflow: failed to create run", "error", err)
-					return nil
+					return nil, nil
 				}
 
 				st.mu.Lock()
@@ -954,7 +954,7 @@ func newPlugin(opts options) plugin.Plugin {
 				st.startTime = time.Now()
 				st.mu.Unlock()
 
-				return nil
+				return nil, nil
 			},
 			ToolExecAfter: func(ctx context.Context, input plugin.ToolExecAfterInput) (*plugin.ToolExecAfterOutput, error) {
 				st.mu.Lock()

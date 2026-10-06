@@ -67,14 +67,15 @@ type Manager struct {
 ### Loading (`Manager.Load`)
 
 1. Validate plugin name is non-empty
-2. Resolve binary path via `ResolveFunc` (see [9.8 Binary Resolution](#98-binary-resolution)). Name need not be in the curated registry when a binary resolves; known builtins without a binary are soft-skipped
-3. Generate ascending plugin ID with `plugin` prefix (e.g., `plugin_01J...`)
-4. Spawn process with `exec.CommandContext(context.Background(), binPath)` -- background context so process lives until explicitly stopped
-5. Pipe stdin/stdout, create JSON encoder/decoder
-6. Start health monitor goroutine: `cmd.Wait()` sets `dead` flag and closes `done` channel on exit
-7. Send `initialize` JSON-RPC request with `{version: "1.0", directory, options}`
-8. Receive `{id, tools, hooks}` response (tool manifests and supported hook names)
-9. Register plugin in the `plugins` map; when a tool registry is set, register each tool as `plugin__{pluginName}__{toolName}`
+2. Reject with `ErrAlreadyLoaded` if a plugin with the same name is already loaded
+3. Resolve binary path via `ResolveFunc` (see [9.8 Binary Resolution](#98-binary-resolution)). Name need not be in the curated registry when a binary resolves; known builtins without a binary are soft-skipped (`ErrPluginSkipped`; HTTP reports `status: skipped`, not `loaded`)
+4. Generate ascending plugin ID with `plugin` prefix (e.g., `plugin_01J...`)
+5. Spawn process with `exec.CommandContext(context.Background(), binPath)` -- background context so process lives until explicitly stopped
+6. Pipe stdin/stdout, create JSON encoder/decoder
+7. Start health monitor goroutine: `cmd.Wait()` sets `dead` flag and closes `done` channel on exit
+8. Send `initialize` JSON-RPC request with `{version: "1.0", directory, options}`
+9. Receive `{id, tools, hooks}` response (tool manifests and supported hook names)
+10. Register plugin in the `plugins` map; when a tool registry is set, register each tool as `plugin__{pluginName}__{toolName}` with `Permission: "plugin"` (or `ToolManifest.Permission` when set)
 
 ### Process Health Monitor
 
@@ -138,9 +139,11 @@ type JSONRPCError struct {
 
 `sendRPC()` uses a goroutine + channel pattern with `select` on three cases:
 
-1. **Response received** -- decode and return
-2. **`hookTimeout` (5s) elapsed** -- close stdout to unblock decoder goroutine, return timeout error
+1. **Response received** -- decode and return; resets consecutive timeout counter
+2. **Timeout elapsed** (`hookTimeout` 5s for hooks, `toolCallTimeout` 30s for tools) -- return timeout error to the caller without killing the process on the first failures. A background drain consumes the late response so a later `CallTool` can proceed if the plugin recovers. After `maxRPCTimeouts` (3) consecutive timeouts, the process is treated as wedged and killed.
 3. **`done` channel closed** -- process exited, return error
+
+`Shutdown` / `Unload` still stop the process (dispose hook + stdin close + kill timeout).
 
 ### Methods
 
@@ -234,13 +237,13 @@ Hooks are dispatched to all loaded plugins that declared support during initiali
 
 | Hook | Semantics | Input Type | Output Type | Behavior |
 |------|-----------|------------|-------------|----------|
-| `session.start` | Notify | `SessionStartEvent` | -- | Notify all; log and continue on error |
+| `session.start` | Notify | `SessionStartEvent` | `SessionStartOutput` (`additionalContext`) | Notify all on `session.created`; log and continue on error; context cached for first-prompt injection |
 | `session.end` | Notify | `SessionEndEvent` | -- | Notify all; log and continue on error |
-| `permission.ask` | Query | `PermissionInput` | `PermissionOutput` | If ANY plugin denies, tool is blocked |
+| `permission.ask` | Query | `PermissionInput` | `PermissionOutput` | If ANY plugin denies, tool is blocked; allow must return `Allowed: true` |
 | `shell.env` | Accumulate | `ShellEnvInput` | `ShellEnvOutput` | Each plugin adds/overrides env vars, chains through |
-| `tool.execute.before` | Notify | `ToolExecBeforeEvent` | -- | Notify all; log and continue on error |
-| `tool.execute.after` | Transform | `ToolExecAfterEvent` | `ToolExecAfterOutput` | Chain through: each plugin sees previous plugin's modifications |
-| `dispose` | Notify | -- | -- | Best-effort cleanup before process termination |
+| `tool.execute.before` | Gate | `ToolExecBeforeEvent` | `ToolExecBeforeOutput` (`additionalContext`) | Error aborts tool; context merged into hook context |
+| `tool.execute.after` | Transform | `ToolExecAfterEvent` | `ToolExecAfterOutput` | Chain through; may include `additionalContext` |
+| `dispose` | Notify | -- | -- | Host sends `hook/invoke dispose` then closes stdin; SDK runs Dispose exactly once |
 
 ### Hook Input/Output Types
 
@@ -284,6 +287,12 @@ type ToolExecBeforeEvent struct {
     ToolName  string `json:"toolName"`
     ToolArgs  string `json:"toolArgs"`
 }
+type ToolExecBeforeOutput struct {
+    AdditionalContext []string `json:"additionalContext,omitempty"`
+}
+type SessionStartOutput struct {
+    AdditionalContext []string `json:"additionalContext,omitempty"`
+}
 
 // tool.execute.after
 type ToolExecAfterEvent struct {
@@ -293,8 +302,9 @@ type ToolExecAfterEvent struct {
     IsError   bool   `json:"isError"`
 }
 type ToolExecAfterOutput struct {
-    Output  string `json:"output"`
-    IsError bool   `json:"isError"`
+    Output            string   `json:"output"`
+    IsError           bool     `json:"isError"`
+    AdditionalContext []string `json:"additionalContext,omitempty"`
 }
 ```
 
@@ -302,12 +312,13 @@ type ToolExecAfterOutput struct {
 
 | Function | Hook | Description |
 |----------|------|-------------|
-| `DispatchSessionStart(mgr, evt)` | `session.start` | Notify all; errors logged as warnings |
+| `DispatchSessionStart(mgr, evt)` | `session.start` | Notify all; collect `additionalContext`; errors logged as warnings |
 | `DispatchSessionEnd(mgr, evt)` | `session.end` | Notify all; errors logged as warnings |
 | `DispatchPermissionAsk(mgr, input)` | `permission.ask` | Query all; first deny short-circuits with reason |
 | `DispatchShellEnv(mgr, input)` | `shell.env` | Accumulate env vars; later plugins override earlier ones |
-| `DispatchToolExecBefore(mgr, evt)` | `tool.execute.before` | Notify all; errors logged as warnings |
-| `DispatchToolExecAfter(mgr, evt)` | `tool.execute.after` | Chain output; returns nil if no plugin modified output |
+| `DispatchToolExecBefore(mgr, evt)` | `tool.execute.before` | Abort on error; collect `additionalContext` |
+| `DispatchToolExecAfter(mgr, evt)` | `tool.execute.after` | Chain output; returns nil if no plugin modified output / context |
+| `DispatchCustomEvent(mgr, name, input)` | custom | Best-effort `hook/invoke` for plugins that declared the event name (`POST /plugin/event`) |
 
 All dispatch functions return nil/no-op when `mgr` is nil or no plugins handle the hook.
 
@@ -315,15 +326,14 @@ All dispatch functions return nil/no-op when `mgr` is nil or no plugins handle t
 
 Hooks are wired via bus events in `server.go:wirePluginHooks()`:
 
-| Bus Event | Dispatch Function |
-|-----------|-------------------|
-| `session.created` | `DispatchSessionStart` |
-| `session.deleted` | `DispatchSessionEnd` |
-| `permission.ask` | `DispatchPermissionAsk` |
-| `shell.env` | `DispatchShellEnv` |
-| `tool.execute.before` | `DispatchToolExecBefore` |
+| Bus Event | Dispatch |
+|-----------|----------|
+| `session.created` | Builtin `session.start` + `DispatchSessionStart` (external + shell); `additionalContext` cached for first-prompt injection |
+| `session.deleted` | `DispatchSessionEnd` + builtin `session.end` |
+| `permission.ask` | Synchronous via `permission.Service.AskInterceptor` → `DispatchPermissionAsk` |
+| `shell.env` / tool hooks | Synchronous via `tool.Context` hooks |
 
-`tool.execute.after` is dispatched synchronously via `tool.Context.AfterHook`, not through the bus.
+`tool.execute.before` / `tool.execute.after` are dispatched synchronously via `tool.Context.BeforeHook` / `AfterHook`, not through the bus.
 
 ---
 
@@ -587,17 +597,17 @@ Source: `pkg/plugin/hook.go`
 
 ```go
 type HookHandlers struct {
-    SessionStart   func(ctx context.Context, event SessionStartEvent) error
+    SessionStart   func(ctx context.Context, event SessionStartEvent) (*SessionStartOutput, error)
     SessionEnd     func(ctx context.Context, event SessionEndEvent) error
     PermissionAsk  func(ctx context.Context, input PermissionInput) (*PermissionOutput, error)
     ShellEnv       func(ctx context.Context, input ShellEnvInput) (*ShellEnvOutput, error)
-    ToolExecBefore func(ctx context.Context, input ToolExecBeforeInput) error
+    ToolExecBefore func(ctx context.Context, input ToolExecBeforeInput) (*ToolExecBeforeOutput, error)
     ToolExecAfter  func(ctx context.Context, input ToolExecAfterInput) (*ToolExecAfterOutput, error)
     Dispose        func(ctx context.Context) error
 }
 ```
 
-Only non-nil handlers are advertised to the server during initialization. The `registeredHooks()` function introspects the struct to build the hooks list.
+Only non-nil handlers are advertised to the server during initialization. The `registeredHooks()` function introspects the struct to build the hooks list. `SessionStart` / `ToolExecBefore` / `ToolExecAfter` may return `additionalContext` strings that the host merges into session/tool hook context.
 
 ### Minimal Plugin Example
 
@@ -630,13 +640,15 @@ func main() {
             },
         }},
         Hooks: plugin.HookHandlers{
-            SessionStart: func(ctx context.Context, evt plugin.SessionStartEvent) error {
-                return nil
+            SessionStart: func(ctx context.Context, evt plugin.SessionStartEvent) (*plugin.SessionStartOutput, error) {
+                return nil, nil
             },
         },
     })
 }
 ```
+
+Plugin and builtin tools registered with the tool registry use permission category `"plugin"` by default. `DefaultRules` has no allow for `"plugin"`, so Evaluate falls back to ask unless an agent/user rule allows `*` or `"plugin"`.
 
 ---
 
@@ -658,7 +670,7 @@ func main() {
 | `permission.ask` error | Log warning, skip plugin (does not deny) |
 | Tool call error | Return error with `isError: true` |
 | Process crash (mid-call) | `done` channel fires in `sendRPC` select, return error |
-| RPC timeout (5s) | Close stdout to unblock decoder, return timeout error |
+| RPC timeout | Return timeout error; keep process alive until consecutive timeouts hit wedge limit |
 | Unknown JSON-RPC method | Return error code `-32601` |
 
 ---

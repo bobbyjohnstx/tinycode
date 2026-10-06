@@ -712,13 +712,13 @@ func newPlugin() plugin.Plugin {
 		ID:    "ocp-virt",
 		Tools: tools,
 		Hooks: plugin.HookHandlers{
-			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) error {
+			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) (*plugin.SessionStartOutput, error) {
 				slog.Info("ocp-virt: gathering VM summary", "sessionId", event.SessionID)
 				summary := gatherVMSummary(ctx, oc)
 				s.mu.Lock()
 				s.summary = summary
 				s.mu.Unlock()
-				return nil
+				return nil, nil
 			},
 		},
 	}

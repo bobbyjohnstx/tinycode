@@ -357,7 +357,7 @@ func newPlugin(opts options) plugin.Plugin {
 				}
 				return &plugin.ShellEnvOutput{Env: env}, nil
 			},
-			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) error {
+			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) (*plugin.SessionStartOutput, error) {
 				slog.Info("ocp-context-injection: gathering cluster context", "sessionId", event.SessionID)
 
 				cc := queryClusterContext(ctx, oc)
@@ -386,7 +386,7 @@ func newPlugin(opts options) plugin.Plugin {
 						}
 					}
 				}
-				return nil
+				return nil, nil
 			},
 			Dispose: func(_ context.Context) error {
 				s.mu.Lock()

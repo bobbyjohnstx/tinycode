@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync/atomic"
 )
 
 // Plugin defines a tinycode plugin with its tools and hooks.
@@ -92,6 +93,9 @@ func runWithFactory(ctx context.Context, factory func(InitializeParams) (Plugin,
 		toolMap[p.Tools[i].Name] = &p.Tools[i]
 	}
 
+	// disposed ensures Dispose runs at most once (hook/invoke or EOF, not both).
+	var disposed atomic.Bool
+
 	for scanner.Scan() {
 		var req JSONRPCRequest
 		if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {
@@ -103,7 +107,7 @@ func runWithFactory(ctx context.Context, factory func(InitializeParams) (Plugin,
 			continue
 		}
 
-		resp := dispatch(ctx, req, toolMap, &p.Hooks)
+		resp := dispatch(ctx, req, toolMap, &p.Hooks, &disposed)
 		if err := enc.Encode(resp); err != nil {
 			return fmt.Errorf("writing response: %w", err)
 		}
@@ -113,8 +117,8 @@ func runWithFactory(ctx context.Context, factory func(InitializeParams) (Plugin,
 		return fmt.Errorf("reading stdin: %w", err)
 	}
 
-	// Call Dispose hook on clean shutdown.
-	if p.Hooks.Dispose != nil {
+	// Call Dispose on clean EOF only if hook/invoke dispose did not already run.
+	if p.Hooks.Dispose != nil && disposed.CompareAndSwap(false, true) {
 		_ = p.Hooks.Dispose(ctx)
 	}
 
@@ -166,12 +170,13 @@ func registeredHooks(h *HookHandlers) []string {
 }
 
 // dispatch routes a JSON-RPC request to the appropriate tool or hook handler.
-func dispatch(ctx context.Context, req JSONRPCRequest, tools map[string]*ToolDef, hooks *HookHandlers) JSONRPCResponse {
+// disposed tracks whether Dispose already ran so EOF does not run it twice.
+func dispatch(ctx context.Context, req JSONRPCRequest, tools map[string]*ToolDef, hooks *HookHandlers, disposed *atomic.Bool) JSONRPCResponse {
 	switch req.Method {
 	case "tool/call":
 		return dispatchToolCall(ctx, req, tools)
 	case "hook/invoke":
-		return dispatchHook(ctx, req, hooks)
+		return dispatchHook(ctx, req, hooks, disposed)
 	default:
 		errJSON, _ := json.Marshal(JSONRPCError{
 			Code:    -32601,
@@ -211,7 +216,7 @@ func dispatchToolCall(ctx context.Context, req JSONRPCRequest, tools map[string]
 	}
 }
 
-func dispatchHook(ctx context.Context, req JSONRPCRequest, hooks *HookHandlers) JSONRPCResponse {
+func dispatchHook(ctx context.Context, req JSONRPCRequest, hooks *HookHandlers, disposed *atomic.Bool) JSONRPCResponse {
 	var params HookParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		return errorResponse(req.ID, -32602, fmt.Sprintf("invalid hook params: %v", err))
@@ -227,7 +232,11 @@ func dispatchHook(ctx context.Context, req JSONRPCRequest, hooks *HookHandlers) 
 			if err := json.Unmarshal(params.Input, &event); err != nil {
 				return errorResponse(req.ID, -32602, fmt.Sprintf("invalid hook input: %v", err))
 			}
-			hookErr = hooks.SessionStart(ctx, event)
+			var out *SessionStartOutput
+			out, hookErr = hooks.SessionStart(ctx, event)
+			if out != nil && hookErr == nil {
+				hookResult.Output, _ = json.Marshal(out)
+			}
 		}
 	case "session.end":
 		if hooks.SessionEnd != nil {
@@ -267,7 +276,11 @@ func dispatchHook(ctx context.Context, req JSONRPCRequest, hooks *HookHandlers) 
 			if err := json.Unmarshal(params.Input, &input); err != nil {
 				return errorResponse(req.ID, -32602, fmt.Sprintf("invalid hook input: %v", err))
 			}
-			hookErr = hooks.ToolExecBefore(ctx, input)
+			var out *ToolExecBeforeOutput
+			out, hookErr = hooks.ToolExecBefore(ctx, input)
+			if out != nil && hookErr == nil {
+				hookResult.Output, _ = json.Marshal(out)
+			}
 		}
 	case "tool.execute.after":
 		if hooks.ToolExecAfter != nil {
@@ -282,7 +295,7 @@ func dispatchHook(ctx context.Context, req JSONRPCRequest, hooks *HookHandlers) 
 			}
 		}
 	case "dispose":
-		if hooks.Dispose != nil {
+		if hooks.Dispose != nil && (disposed == nil || disposed.CompareAndSwap(false, true)) {
 			hookErr = hooks.Dispose(ctx)
 		}
 	}

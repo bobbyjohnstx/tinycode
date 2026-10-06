@@ -132,6 +132,19 @@ func DispatchSessionStart(mgr *Manager, evt SessionStartEvent, shellRunner ...*S
 	return collected, nil
 }
 
+// DispatchCustomEvent invokes hook/invoke for plugins that declared hookName.
+// Used by POST /plugin/event for custom event names. Failures are logged.
+func DispatchCustomEvent(mgr *Manager, hookName string, input any) {
+	if mgr == nil || hookName == "" {
+		return
+	}
+	for _, proc := range mgr.pluginsWithHook(hookName) {
+		if _, err := proc.sendHook(hookName, input); err != nil {
+			mgr.logger.Warn("custom plugin event failed", "plugin", proc.info.Name, "event", hookName, "error", err)
+		}
+	}
+}
+
 // DispatchSessionEnd notifies all loaded plugins of a session end,
 // then fires any configured shell hooks for the same event.
 func DispatchSessionEnd(mgr *Manager, evt SessionEndEvent, shellRunner ...*ShellHookRunner) error {

@@ -251,7 +251,7 @@ func TestSessionLifecycle(t *testing.T) {
 	ctx := context.Background()
 
 	// Start session.
-	err := p.Hooks.SessionStart(ctx, plugin.SessionStartEvent{SessionID: "sess-lifecycle"})
+	_, err := p.Hooks.SessionStart(ctx, plugin.SessionStartEvent{SessionID: "sess-lifecycle"})
 	if err != nil {
 		t.Fatalf("SessionStart failed: %v", err)
 	}

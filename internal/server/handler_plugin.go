@@ -40,12 +40,22 @@ func (s *Server) handlePluginLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := mgr.Load(body.Name, body.Options); err != nil {
-		if errors.Is(err, plugin.ErrPluginNotFound) {
+	info, err := mgr.Load(body.Name, body.Options)
+	if err != nil {
+		switch {
+		case errors.Is(err, plugin.ErrPluginNotFound):
 			respondError(w, http.StatusNotFound, err.Error())
-		} else {
+		case errors.Is(err, plugin.ErrPluginSkipped):
+			respondJSON(w, http.StatusOK, map[string]string{"status": "skipped", "name": body.Name})
+		case errors.Is(err, plugin.ErrAlreadyLoaded):
+			respondError(w, http.StatusConflict, err.Error())
+		default:
 			respondError(w, http.StatusInternalServerError, err.Error())
 		}
+		return
+	}
+	if info == nil {
+		respondJSON(w, http.StatusOK, map[string]string{"status": "skipped", "name": body.Name})
 		return
 	}
 
@@ -89,12 +99,24 @@ func (s *Server) handlePluginEvent(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if body.Event == "" {
+		respondError(w, http.StatusBadRequest, "event is required")
+		return
+	}
 
 	s.deps.Bus.Publish("plugin.event", map[string]any{
 		"event":     body.Event,
 		"sessionID": body.SessionID,
 		"data":      body.Data,
 	})
+
+	mgr := s.pluginManager()
+	if mgr != nil {
+		plugin.DispatchCustomEvent(mgr, body.Event, map[string]any{
+			"sessionId": body.SessionID,
+			"data":      body.Data,
+		})
+	}
 
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

@@ -47,6 +47,7 @@ type ToolManifest struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
 	InputSchema map[string]any `json:"inputSchema,omitempty"`
+	Permission  string         `json:"permission,omitempty"`
 }
 
 // ToolCallParams is sent by the server to invoke a plugin tool.

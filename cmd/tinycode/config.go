@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -300,6 +301,7 @@ func initBuiltins(toolReg *tool.Registry) *plugin.BuiltinManager {
 			ID:          bt.Name,
 			Description: bt.Description,
 			Parameters:  bt.Parameters,
+			Permission:  "plugin",
 			Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
 				result, err := bm.CallTool(ctx, bt.Name, args)
 				if err != nil {
@@ -617,6 +619,9 @@ func loadConfigPlugins(mgr *plugin.Manager, toolReg *tool.Registry, cfg *config.
 	}
 	for _, spec := range specs {
 		if _, err := mgr.Load(spec.Name, spec.Options); err != nil {
+			if errors.Is(err, plugin.ErrPluginSkipped) {
+				continue
+			}
 			slog.Warn("failed to load plugin", "name", spec.Name, "error", err)
 		}
 	}

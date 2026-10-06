@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
@@ -68,18 +69,20 @@ type Dependencies struct {
 }
 
 type Server struct {
-	config          Config
-	httpServer      *http.Server
-	mux             *http.ServeMux
-	deps            Dependencies
-	logger          *slog.Logger
-	sessionManager  *SessionManager
-	permissionStore *PermissionStore
-	questionStore   *QuestionStore
-	credentials     *credentialStore
-	pluginSubs      []*bus.Subscription
-	pluginDone      chan struct{}
-	shutdownDone    chan struct{}
+	config           Config
+	httpServer       *http.Server
+	mux              *http.ServeMux
+	deps             Dependencies
+	logger           *slog.Logger
+	sessionManager   *SessionManager
+	permissionStore  *PermissionStore
+	questionStore    *QuestionStore
+	credentials      *credentialStore
+	pluginSubs       []*bus.Subscription
+	pluginDone       chan struct{}
+	shutdownDone     chan struct{}
+	sessionStartMu   sync.Mutex
+	sessionStartCtx  map[string][]string // additionalContext from session.created hooks
 }
 
 func New(cfg Config, deps Dependencies) *Server {
@@ -232,24 +235,17 @@ func (s *Server) Listen(ctx context.Context) (*Listener, error) {
 	return listener, nil
 }
 
-// wireSessionStartHook sets up the synchronous session.start hook on the
-// session manager so additionalContext from hooks is injected into the system
-// prompt on the first prompt.
+// wireSessionStartHook installs a first-prompt reader that returns
+// additionalContext collected when session.created fired external/builtin hooks.
 func (s *Server) wireSessionStartHook() {
-	mgr := s.deps.PluginManager
-	shellRunner := s.deps.ShellHookRunner
-	if mgr == nil && shellRunner == nil {
-		return
-	}
 	s.sessionManager.sessionStartHook = func(sessionID string) []string {
-		dir := s.config.Directory
-		ctx, err := plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{
-			SessionID: sessionID,
-			Directory: dir,
-		}, shellRunner)
-		if err != nil {
-			s.logger.Warn("session.start hook error", "sessionID", sessionID, "error", err)
+		s.sessionStartMu.Lock()
+		defer s.sessionStartMu.Unlock()
+		if s.sessionStartCtx == nil {
+			return nil
 		}
+		ctx := s.sessionStartCtx[sessionID]
+		delete(s.sessionStartCtx, sessionID)
 		return ctx
 	}
 }
@@ -349,7 +345,8 @@ func (s *Server) wirePendingStores() {
 
 func (s *Server) wirePluginHooks() {
 	mgr := s.deps.PluginManager
-	if mgr == nil {
+	shellRunner := s.deps.ShellHookRunner
+	if mgr == nil && s.deps.BuiltinManager == nil && shellRunner == nil {
 		return
 	}
 
@@ -357,20 +354,33 @@ func (s *Server) wirePluginHooks() {
 		s.pluginDone = make(chan struct{})
 	}
 
-	shellRunner := s.deps.ShellHookRunner
-
 	s.wirePluginEventLoop("session.created", func(props map[string]any) {
 		info, _ := props["info"].(map[string]any)
 		if info == nil {
 			return
 		}
 		sid, _ := info["id"].(string)
-		if sid != "" {
-			// DispatchSessionStart is now called synchronously in processPrompt
-			// to capture additionalContext. Builtin hooks still fire here.
-			if s.deps.BuiltinManager != nil {
-				s.deps.BuiltinManager.DispatchHook("session.start", sid)
+		if sid == "" {
+			return
+		}
+		// Fire builtins and external plugins together on session.created.
+		if s.deps.BuiltinManager != nil {
+			s.deps.BuiltinManager.DispatchHook("session.start", sid)
+		}
+		ctx, err := plugin.DispatchSessionStart(mgr, plugin.SessionStartEvent{
+			SessionID: sid,
+			Directory: s.config.Directory,
+		}, shellRunner)
+		if err != nil {
+			s.logger.Warn("session.start hook error", "sessionID", sid, "error", err)
+		}
+		if len(ctx) > 0 {
+			s.sessionStartMu.Lock()
+			if s.sessionStartCtx == nil {
+				s.sessionStartCtx = make(map[string][]string)
 			}
+			s.sessionStartCtx[sid] = ctx
+			s.sessionStartMu.Unlock()
 		}
 	})
 

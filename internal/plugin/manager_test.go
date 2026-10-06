@@ -8,12 +8,22 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 	pkgplugin "github.com/bobbyjohnstx/tinycode/pkg/plugin"
 )
+
+func busNewForTest(t *testing.T) *bus.Bus {
+	t.Helper()
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	return b
+}
 
 func TestNewManager_Empty(t *testing.T) {
 	m := NewManager(slog.Default())
@@ -104,7 +114,7 @@ func helperHandleInitialize(encoder *json.Encoder, req pkgplugin.JSONRPCRequest,
 		hooks = []string{"session.start", "session.end"}
 	}
 	tools := []pkgplugin.ToolManifest{}
-	if behavior == "with_tools" || behavior == "tool_error" || behavior == "stdout_pollution" {
+	if behavior == "with_tools" || behavior == "tool_error" || behavior == "stdout_pollution" || behavior == "slow_then_ok" {
 		tools = []pkgplugin.ToolManifest{
 			{Name: "greet", Description: "Greet someone", InputSchema: map[string]any{"type": "object"}},
 		}
@@ -125,6 +135,19 @@ func helperHandleInitialize(encoder *json.Encoder, req pkgplugin.JSONRPCRequest,
 func helperHandleToolCall(encoder *json.Encoder, req pkgplugin.JSONRPCRequest, behavior string) {
 	var params pkgplugin.ToolCallParams
 	_ = json.Unmarshal(req.Params, &params)
+
+	if behavior == "slow_then_ok" {
+		// First call is slow (exceeds short test timeout); later calls are fast.
+		flagPath := os.Getenv("GO_TEST_HELPER_SLOW_FLAG")
+		if flagPath != "" {
+			if _, err := os.Stat(flagPath); os.IsNotExist(err) {
+				_ = os.WriteFile(flagPath, []byte("1"), 0o600)
+				time.Sleep(500 * time.Millisecond)
+			}
+		} else {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
 
 	content := "ok"
 	isError := false
@@ -318,14 +341,134 @@ func TestLoadPlugin_BuiltinSoftSkip(t *testing.T) {
 	})
 
 	info, err := mgr.Load("notify", nil)
-	if err != nil {
-		t.Fatalf("expected soft-skip nil error, got %v", err)
+	if !errors.Is(err, ErrPluginSkipped) {
+		t.Fatalf("expected ErrPluginSkipped, got %v", err)
 	}
 	if info != nil {
 		t.Errorf("expected nil PluginInfo on soft-skip, got %+v", info)
 	}
 	if len(mgr.List()) != 0 {
 		t.Errorf("expected 0 loaded plugins, got %d", len(mgr.List()))
+	}
+}
+
+func TestLoadPlugin_AlreadyLoaded(t *testing.T) {
+	mgr := newTestManager("")
+	defer mgr.Shutdown()
+
+	if _, err := mgr.Load("test-plugin", nil); err != nil {
+		t.Fatalf("first Load: %v", err)
+	}
+	_, err := mgr.Load("test-plugin", nil)
+	if !errors.Is(err, ErrAlreadyLoaded) {
+		t.Fatalf("expected ErrAlreadyLoaded, got %v", err)
+	}
+}
+
+func TestLoad_PluginToolPermissionAsk(t *testing.T) {
+	mgr := newTestManager("with_tools")
+	b := busNewForTest(t)
+	permSvc := permission.NewService(b)
+
+	asked := make(chan permission.Request, 1)
+	sub := b.Subscribe("permission.asked")
+	go func() {
+		for evt := range sub.C {
+			if req, ok := evt.Properties.(permission.Request); ok {
+				asked <- req
+				_ = permSvc.RespondToAsk(permission.ReplyInput{
+					RequestID: req.ID,
+					Reply:     permission.ReplyOnce,
+				})
+			}
+		}
+	}()
+
+	reg := tool.NewRegistry(&tool.Context{
+		Directory: t.TempDir(),
+		Perms:     permSvc,
+		Bus:       b,
+	})
+	mgr.SetToolRegistry(reg)
+
+	if _, err := mgr.Load("test-plugin", nil); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	const toolID = "plugin__test-plugin__greet"
+	def := reg.Get(toolID)
+	if def == nil {
+		t.Fatal("expected tool registered")
+	}
+	if def.Permission != "plugin" {
+		t.Fatalf("expected Permission=plugin, got %q", def.Permission)
+	}
+
+	out, isErr, err := reg.Execute(context.Background(), toolID, json.RawMessage(`{"name":"world"}`), "sess1")
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if isErr {
+		t.Fatalf("Execute IsError=true, output=%q", out)
+	}
+
+	select {
+	case req := <-asked:
+		if req.Permission != "plugin" {
+			t.Errorf("expected permission plugin, got %s", req.Permission)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for permission.asked")
+	}
+}
+
+func TestCallTool_TimeoutDoesNotKillProcess(t *testing.T) {
+	oldTimeout := toolCallTimeout
+	toolCallTimeout = 100 * time.Millisecond
+	defer func() { toolCallTimeout = oldTimeout }()
+
+	flagPath := t.TempDir() + "/slow_flag"
+	mgr := NewManagerWithRegistry([]RegistryEntry{
+		{Name: "test-plugin", Description: "Test plugin", Binary: "test-plugin"},
+	})
+	mgr.SetCommandFactory(func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestHelperProcess")
+		cmd.Env = append(os.Environ(),
+			"GO_TEST_HELPER_PROCESS=1",
+			"GO_TEST_HELPER_BEHAVIOR=slow_then_ok",
+			"GO_TEST_HELPER_SLOW_FLAG="+flagPath,
+		)
+		return cmd
+	})
+	mgr.SetResolveFunc(func(name string) (string, error) {
+		return "test-plugin-binary", nil
+	})
+	mgr.SetDirectory("/tmp/test")
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	_, _, err = mgr.CallTool(info.ID, "greet", json.RawMessage(`{}`), "sess1")
+	if err == nil || !strings.Contains(err.Error(), "timeout") {
+		t.Fatalf("expected timeout error, got %v", err)
+	}
+
+	// Wait for the late response to drain so the next RPC can proceed.
+	time.Sleep(600 * time.Millisecond)
+
+	content, _, err := mgr.CallTool(info.ID, "greet", json.RawMessage(`{"name":"world"}`), "sess1")
+	if err != nil {
+		t.Fatalf("second CallTool after timeout: %v", err)
+	}
+	if content != "Hello, world" {
+		t.Errorf("expected Hello, world, got %q", content)
+	}
+	if len(mgr.List()) != 1 {
+		t.Fatalf("expected plugin still loaded, got %d", len(mgr.List()))
 	}
 }
 

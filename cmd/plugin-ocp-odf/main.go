@@ -431,13 +431,13 @@ func newPlugin() plugin.Plugin {
 		ID:    "ocp-odf",
 		Tools: tools,
 		Hooks: plugin.HookHandlers{
-			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) error {
+			SessionStart: func(ctx context.Context, event plugin.SessionStartEvent) (*plugin.SessionStartOutput, error) {
 				slog.Info("ocp-odf: gathering storage summary", "sessionId", event.SessionID)
 				summary := gatherODFSummary(ctx, oc)
 				s.mu.Lock()
 				s.summary = summary
 				s.mu.Unlock()
-				return nil
+				return nil, nil
 			},
 		},
 	}

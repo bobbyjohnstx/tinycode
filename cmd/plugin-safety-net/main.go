@@ -29,18 +29,22 @@ func matchDangerous(cmd string) *regexp.Regexp {
 	return nil
 }
 
+func checkPermission(toolArgs string) *plugin.PermissionOutput {
+	if p := matchDangerous(toolArgs); p != nil {
+		return &plugin.PermissionOutput{
+			Allowed: false,
+			Reason:  "blocked by safety-net: command matches dangerous pattern " + p.String(),
+		}
+	}
+	return &plugin.PermissionOutput{Allowed: true}
+}
+
 func main() {
 	plugin.Run(plugin.Plugin{
 		ID: "safety-net",
 		Hooks: plugin.HookHandlers{
 			PermissionAsk: func(_ context.Context, input plugin.PermissionInput) (*plugin.PermissionOutput, error) {
-				if p := matchDangerous(input.ToolArgs); p != nil {
-					return &plugin.PermissionOutput{
-						Allowed: false,
-						Reason:  "blocked by safety-net: command matches dangerous pattern " + p.String(),
-					}, nil
-				}
-				return nil, nil
+				return checkPermission(input.ToolArgs), nil
 			},
 		},
 	})

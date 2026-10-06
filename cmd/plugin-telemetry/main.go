@@ -341,18 +341,18 @@ func buildTools(s *state) []plugin.ToolDef {
 
 func buildHooks(s *state) plugin.HookHandlers {
 	return plugin.HookHandlers{
-		SessionStart: func(_ context.Context, event plugin.SessionStartEvent) error {
+		SessionStart: func(_ context.Context, event plugin.SessionStartEvent) (*plugin.SessionStartOutput, error) {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			s.currentSessionID = event.SessionID
 			s.buffer = s.buffer[:0]
 			db, err := s.ensureDB()
 			if err != nil {
-				return err
+				return nil, err
 			}
 			_, err = db.Exec("INSERT OR IGNORE INTO sessions (id, started_at) VALUES (?, ?)",
 				event.SessionID, time.Now().UnixMilli())
-			return err
+			return nil, err
 		},
 		ToolExecAfter: func(_ context.Context, input plugin.ToolExecAfterInput) (*plugin.ToolExecAfterOutput, error) {
 			s.mu.Lock()

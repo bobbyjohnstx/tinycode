@@ -29,7 +29,7 @@ func TestBuildManifest(t *testing.T) {
 			},
 		},
 		Hooks: HookHandlers{
-			SessionStart: func(_ context.Context, _ SessionStartEvent) error { return nil },
+			SessionStart: func(_ context.Context, _ SessionStartEvent) (*SessionStartOutput, error) { return nil, nil },
 		},
 	}
 
@@ -54,11 +54,11 @@ func TestBuildManifest(t *testing.T) {
 
 func TestRegisteredHooks_AllSet(t *testing.T) {
 	h := &HookHandlers{
-		SessionStart:   func(_ context.Context, _ SessionStartEvent) error { return nil },
+		SessionStart:   func(_ context.Context, _ SessionStartEvent) (*SessionStartOutput, error) { return nil, nil },
 		SessionEnd:     func(_ context.Context, _ SessionEndEvent) error { return nil },
 		PermissionAsk:  func(_ context.Context, _ PermissionInput) (*PermissionOutput, error) { return nil, nil },
 		ShellEnv:       func(_ context.Context, _ ShellEnvInput) (*ShellEnvOutput, error) { return nil, nil },
-		ToolExecBefore: func(_ context.Context, _ ToolExecBeforeInput) error { return nil },
+		ToolExecBefore: func(_ context.Context, _ ToolExecBeforeInput) (*ToolExecBeforeOutput, error) { return nil, nil },
 		ToolExecAfter:  func(_ context.Context, _ ToolExecAfterInput) (*ToolExecAfterOutput, error) { return nil, nil },
 		Dispose:        func(_ context.Context) error { return nil },
 	}
@@ -242,9 +242,9 @@ func TestRun_HookDispatch(t *testing.T) {
 	p := Plugin{
 		ID: "hooks",
 		Hooks: HookHandlers{
-			SessionStart: func(_ context.Context, event SessionStartEvent) error {
+			SessionStart: func(_ context.Context, event SessionStartEvent) (*SessionStartOutput, error) {
 				receivedSessionID = event.SessionID
-				return nil
+				return nil, nil
 			},
 		},
 	}
@@ -290,6 +290,101 @@ func TestRun_NotificationsIgnored(t *testing.T) {
 	// Only the initialize response.
 	if len(responses) != 1 {
 		t.Errorf("expected 1 response (initialize only), got %d", len(responses))
+	}
+}
+
+func TestRun_DisposeExactlyOnce(t *testing.T) {
+	var disposeCount int
+	p := Plugin{
+		ID: "dispose-once",
+		Hooks: HookHandlers{
+			Dispose: func(_ context.Context) error {
+				disposeCount++
+				return nil
+			},
+		},
+	}
+
+	disposeParams, _ := json.Marshal(HookParams{Name: "dispose"})
+	var input bytes.Buffer
+	initParams, _ := json.Marshal(InitializeParams{Version: "0.1.0"})
+	writeRequest(&input, JSONRPCRequest{JSONRPC: "2.0", ID: 1, Method: "initialize", Params: initParams})
+	writeRequest(&input, JSONRPCRequest{JSONRPC: "2.0", ID: 2, Method: "hook/invoke", Params: disposeParams})
+	// stdin EOF after dispose hook — must not call Dispose again.
+
+	var output bytes.Buffer
+	if err := run(context.Background(), p, &input, &output); err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+	if disposeCount != 1 {
+		t.Fatalf("expected Dispose called exactly once, got %d", disposeCount)
+	}
+}
+
+func TestRun_AdditionalContextRoundTrip(t *testing.T) {
+	p := Plugin{
+		ID: "ctx",
+		Hooks: HookHandlers{
+			SessionStart: func(_ context.Context, _ SessionStartEvent) (*SessionStartOutput, error) {
+				return &SessionStartOutput{AdditionalContext: []string{"from-start"}}, nil
+			},
+			ToolExecBefore: func(_ context.Context, _ ToolExecBeforeInput) (*ToolExecBeforeOutput, error) {
+				return &ToolExecBeforeOutput{AdditionalContext: []string{"from-before"}}, nil
+			},
+			ToolExecAfter: func(_ context.Context, _ ToolExecAfterInput) (*ToolExecAfterOutput, error) {
+				return &ToolExecAfterOutput{
+					Output:            "modified",
+					AdditionalContext: []string{"from-after"},
+				}, nil
+			},
+		},
+	}
+
+	startInput, _ := json.Marshal(SessionStartEvent{SessionID: "s1"})
+	startParams, _ := json.Marshal(HookParams{Name: "session.start", Input: startInput})
+	beforeInput, _ := json.Marshal(ToolExecBeforeInput{SessionID: "s1", ToolName: "t"})
+	beforeParams, _ := json.Marshal(HookParams{Name: "tool.execute.before", Input: beforeInput})
+	afterInput, _ := json.Marshal(ToolExecAfterInput{SessionID: "s1", ToolName: "t", Output: "orig"})
+	afterParams, _ := json.Marshal(HookParams{Name: "tool.execute.after", Input: afterInput})
+
+	var input bytes.Buffer
+	initParams, _ := json.Marshal(InitializeParams{Version: "0.1.0"})
+	writeRequest(&input, JSONRPCRequest{JSONRPC: "2.0", ID: 1, Method: "initialize", Params: initParams})
+	writeRequest(&input, JSONRPCRequest{JSONRPC: "2.0", ID: 2, Method: "hook/invoke", Params: startParams})
+	writeRequest(&input, JSONRPCRequest{JSONRPC: "2.0", ID: 3, Method: "hook/invoke", Params: beforeParams})
+	writeRequest(&input, JSONRPCRequest{JSONRPC: "2.0", ID: 4, Method: "hook/invoke", Params: afterParams})
+
+	var output bytes.Buffer
+	if err := run(context.Background(), p, &input, &output); err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+	responses := parseResponses(t, output.String())
+	if len(responses) != 4 {
+		t.Fatalf("expected 4 responses, got %d", len(responses))
+	}
+
+	assertHookAdditionalContext(t, responses[1], "from-start")
+	assertHookAdditionalContext(t, responses[2], "from-before")
+	assertHookAdditionalContext(t, responses[3], "from-after")
+}
+
+func assertHookAdditionalContext(t *testing.T, resp JSONRPCResponse, want string) {
+	t.Helper()
+	if resp.Error != nil {
+		t.Fatalf("hook error: %s", resp.Error.Message)
+	}
+	var hr HookResult
+	if err := json.Unmarshal(resp.Result, &hr); err != nil {
+		t.Fatalf("unmarshal HookResult: %v", err)
+	}
+	var parsed struct {
+		AdditionalContext []string `json:"additionalContext"`
+	}
+	if err := json.Unmarshal(hr.Output, &parsed); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if len(parsed.AdditionalContext) != 1 || parsed.AdditionalContext[0] != want {
+		t.Fatalf("expected additionalContext %q, got %v", want, parsed.AdditionalContext)
 	}
 }
 
