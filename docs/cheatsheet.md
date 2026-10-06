@@ -152,10 +152,11 @@ Edit `~/.config/tinycode/config.json`:
 
 ```json
 {
-  "model": "ollama/qwen2.5:latest",
-  "lsp": true
+  "model": "ollama/qwen2.5:latest"
 }
 ```
+
+LSP is enabled by default; set `"lsp": false` to disable.
 
 Set leader key to something else (e.g., space):
 

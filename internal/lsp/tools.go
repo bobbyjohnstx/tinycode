@@ -18,6 +18,20 @@ func RegisterTools(r *tool.Registry, mgr *Manager) {
 	r.Register(symbolsTool(mgr))
 }
 
+func disabledResult() *tool.ExecuteResult {
+	return &tool.ExecuteResult{Output: "LSP is disabled", IsError: true}
+}
+
+func validateLineColumn(line, column int) error {
+	if line < 1 {
+		return fmt.Errorf("line must be >= 1, got %d", line)
+	}
+	if column < 1 {
+		return fmt.Errorf("column must be >= 1, got %d", column)
+	}
+	return nil
+}
+
 func diagnosticsTool(mgr *Manager) *tool.Def {
 	return &tool.Def{
 		ID:          "lsp_diagnostics",
@@ -34,6 +48,9 @@ func diagnosticsTool(mgr *Manager) *tool.Def {
 			"required": []string{"file_path"},
 		},
 		Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+			if mgr.Disabled() {
+				return disabledResult(), nil
+			}
 			var input struct {
 				FilePath string `json:"file_path"`
 			}
@@ -83,6 +100,9 @@ func hoverTool(mgr *Manager) *tool.Def {
 			"required": []string{"file_path", "line", "column"},
 		},
 		Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+			if mgr.Disabled() {
+				return disabledResult(), nil
+			}
 			var input struct {
 				FilePath string `json:"file_path"`
 				Line     int    `json:"line"`
@@ -90,6 +110,9 @@ func hoverTool(mgr *Manager) *tool.Def {
 			}
 			if err := json.Unmarshal(args, &input); err != nil {
 				return &tool.ExecuteResult{Output: fmt.Sprintf("Invalid arguments: %v", err), IsError: true}, nil
+			}
+			if err := validateLineColumn(input.Line, input.Column); err != nil {
+				return &tool.ExecuteResult{Output: err.Error(), IsError: true}, nil
 			}
 
 			file := resolvePath(input.FilePath, tc.Directory)
@@ -134,6 +157,9 @@ func definitionTool(mgr *Manager) *tool.Def {
 			"required": []string{"file_path", "line", "column"},
 		},
 		Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+			if mgr.Disabled() {
+				return disabledResult(), nil
+			}
 			var input struct {
 				FilePath string `json:"file_path"`
 				Line     int    `json:"line"`
@@ -141,6 +167,9 @@ func definitionTool(mgr *Manager) *tool.Def {
 			}
 			if err := json.Unmarshal(args, &input); err != nil {
 				return &tool.ExecuteResult{Output: fmt.Sprintf("Invalid arguments: %v", err), IsError: true}, nil
+			}
+			if err := validateLineColumn(input.Line, input.Column); err != nil {
+				return &tool.ExecuteResult{Output: err.Error(), IsError: true}, nil
 			}
 
 			file := resolvePath(input.FilePath, tc.Directory)
@@ -189,6 +218,9 @@ func referencesTool(mgr *Manager) *tool.Def {
 			"required": []string{"file_path", "line", "column"},
 		},
 		Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+			if mgr.Disabled() {
+				return disabledResult(), nil
+			}
 			var input struct {
 				FilePath           string `json:"file_path"`
 				Line               int    `json:"line"`
@@ -197,6 +229,9 @@ func referencesTool(mgr *Manager) *tool.Def {
 			}
 			if err := json.Unmarshal(args, &input); err != nil {
 				return &tool.ExecuteResult{Output: fmt.Sprintf("Invalid arguments: %v", err), IsError: true}, nil
+			}
+			if err := validateLineColumn(input.Line, input.Column); err != nil {
+				return &tool.ExecuteResult{Output: err.Error(), IsError: true}, nil
 			}
 
 			includeDecl := true
@@ -242,6 +277,9 @@ func symbolsTool(mgr *Manager) *tool.Def {
 			"required": []string{"query"},
 		},
 		Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+			if mgr.Disabled() {
+				return disabledResult(), nil
+			}
 			var input struct {
 				Query    string `json:"query"`
 				Language string `json:"language,omitempty"`
@@ -252,10 +290,7 @@ func symbolsTool(mgr *Manager) *tool.Def {
 
 			lang := input.Language
 			if lang == "" {
-				langs := mgr.AvailableLanguages()
-				if len(langs) > 0 {
-					lang = langs[0]
-				}
+				lang = mgr.PreferredLanguage()
 			}
 			if lang == "" {
 				return &tool.ExecuteResult{Output: "No LSP server available. No supported language detected in this project."}, nil

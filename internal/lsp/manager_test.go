@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 )
@@ -16,11 +17,14 @@ func TestNewManager_NilConfig(t *testing.T) {
 	if m.clients == nil {
 		t.Error("clients map should be initialized")
 	}
-	if m.unavail == nil {
-		t.Error("unavail map should be initialized")
+	if m.connecting == nil {
+		t.Error("connecting map should be initialized")
 	}
 	if m.overrides == nil {
 		t.Error("overrides map should be initialized")
+	}
+	if m.Disabled() {
+		t.Error("nil config should enable LSP by default")
 	}
 }
 
@@ -36,15 +40,17 @@ func TestNewManager_Disabled(t *testing.T) {
 	}
 	defer m.Close()
 
-	// When disabled, the wildcard "*" should be in unavail.
-	if !m.unavail["*"] {
-		t.Error("expected wildcard unavail when disabled")
+	if !m.Disabled() {
+		t.Error("expected Disabled() when enabled=false")
 	}
 
 	// All languages should be unavailable.
 	langs := m.AvailableLanguages()
 	if len(langs) != 0 {
 		t.Errorf("AvailableLanguages() = %v, want empty", langs)
+	}
+	if c := m.ClientForLanguage(context.Background(), "go"); c != nil {
+		t.Error("ClientForLanguage should return nil when disabled")
 	}
 }
 
@@ -60,8 +66,73 @@ func TestNewManager_Enabled(t *testing.T) {
 	}
 	defer m.Close()
 
-	if m.unavail["*"] {
-		t.Error("wildcard should not be unavail when enabled")
+	if m.Disabled() {
+		t.Error("should not be disabled when enabled=true")
+	}
+}
+
+func TestGetOrConnect_LookPathFailAllowsRetry(t *testing.T) {
+	// Missing binary must not permanently block reconnects.
+	m := NewManager(t.TempDir(), &Config{
+		Servers: map[string]ServerConfig{
+			"go": {Command: "tinycode-nonexistent-gopls-binary"},
+		},
+	})
+	defer m.Close()
+
+	ctx := context.Background()
+	if c := m.ClientForLanguage(ctx, "go"); c != nil {
+		t.Fatal("expected nil client for missing binary")
+	}
+	if c := m.ClientForLanguage(ctx, "go"); c != nil {
+		t.Fatal("retry after LookPath failure should still return nil, not panic or block forever")
+	}
+}
+
+func TestPreferredLanguage_SortedDetected(t *testing.T) {
+	m := NewManager(t.TempDir(), nil)
+	defer m.Close()
+
+	m.mu.Lock()
+	m.detected = []ServerSpec{
+		{Language: "typescript"},
+		{Language: "go"},
+		{Language: "python"},
+	}
+	m.mu.Unlock()
+
+	got := m.PreferredLanguage()
+	if got != "go" {
+		t.Errorf("PreferredLanguage() = %q, want %q (first sorted detected)", got, "go")
+	}
+}
+
+func TestAvailableLanguages_Sorted(t *testing.T) {
+	m := NewManager(t.TempDir(), nil)
+	defer m.Close()
+
+	m.mu.Lock()
+	m.detected = []ServerSpec{
+		{Language: "rust"},
+		{Language: "go"},
+	}
+	m.mu.Unlock()
+
+	langs := m.AvailableLanguages()
+	if len(langs) != 2 || langs[0] != "go" || langs[1] != "rust" {
+		t.Errorf("AvailableLanguages() = %v, want [go rust]", langs)
+	}
+}
+
+func TestValidateLineColumn(t *testing.T) {
+	if err := validateLineColumn(1, 1); err != nil {
+		t.Errorf("valid line/col: %v", err)
+	}
+	if err := validateLineColumn(0, 1); err == nil {
+		t.Error("expected error for line < 1")
+	}
+	if err := validateLineColumn(1, 0); err == nil {
+		t.Error("expected error for column < 1")
 	}
 }
 

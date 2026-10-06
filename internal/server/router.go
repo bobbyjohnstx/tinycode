@@ -100,7 +100,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /vcs/diff", s.handleVCSDiff)
 	s.mux.HandleFunc("GET /vcs/diff/raw", s.handleVCSDiffRaw)
 
-	// LSP / Formatter (stubs)
+	// LSP / Formatter
 	s.mux.HandleFunc("GET /lsp", s.handleLSP)
 	s.mux.HandleFunc("GET /formatter", s.handleFormatter)
 

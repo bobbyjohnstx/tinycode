@@ -100,6 +100,7 @@ func runTUI(args []string) {
 		ToolRegistry:    toolReg,
 		PermService:     permSvc,
 		MCPService:      mcpSvc,
+		LSPManager:      lspMgr,
 		Config:          cfg,
 		JobManager:      toolCtx.JobManager,
 		Discovery:       disc,

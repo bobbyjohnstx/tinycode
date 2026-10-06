@@ -842,21 +842,21 @@ Language Server Protocol (LSP) integration provides code intelligence to the mod
 
 ### Configuration
 
-Enable globally:
+LSP is **enabled by default**. Set `"lsp": false` to disable it entirely:
 
 ```json
 {
-  "lsp": true
+  "lsp": false
 }
 ```
 
-Or with per-server overrides:
+Or configure per-server overrides (`timeout` is in seconds):
 
 ```json
 {
   "lsp": {
     "enabled": true,
-    "timeout": 10,
+    "timeout": 30,
     "servers": {
       "go": {
         "command": "gopls",
@@ -870,6 +870,8 @@ Or with per-server overrides:
   }
 }
 ```
+
+Server keys are language names (`go`, `typescript`, `python`, `rust`, …), not binary names.
 
 ### Auto-detection
 

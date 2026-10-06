@@ -32,9 +32,30 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLSP(w http.ResponseWriter, _ *http.Request) {
+	mgr := s.deps.LSPManager
+	if mgr == nil {
+		respondJSON(w, http.StatusOK, map[string]any{
+			"enabled":   false,
+			"languages": []string{},
+			"note":      "LSP manager not attached to this server instance",
+		})
+		return
+	}
+	if mgr.Disabled() {
+		respondJSON(w, http.StatusOK, map[string]any{
+			"enabled":   false,
+			"languages": []string{},
+		})
+		return
+	}
+	langs := mgr.AvailableLanguages()
+	if langs == nil {
+		langs = []string{}
+	}
 	respondJSON(w, http.StatusOK, map[string]any{
-		"status": "available",
-		"note":   "LSP tools are registered via the tool registry; servers are lazily connected on first use",
+		"enabled":   true,
+		"languages": langs,
+		"note":      "Language servers are lazily connected on first tool use",
 	})
 }
 

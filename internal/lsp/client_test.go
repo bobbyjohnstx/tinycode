@@ -5,9 +5,58 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestFileURI_EncodesSpacesAndHash(t *testing.T) {
+	dir := t.TempDir()
+	spaced := filepath.Join(dir, "my file.go")
+	hashed := filepath.Join(dir, "a#b.go")
+
+	uri := fileURI(spaced)
+	if !strings.HasPrefix(uri, "file://") {
+		t.Fatalf("fileURI(%q) = %q, want file:// prefix", spaced, uri)
+	}
+	if strings.Contains(uri, " ") {
+		t.Errorf("fileURI must percent-encode spaces, got %q", uri)
+	}
+	if !strings.Contains(uri, "%20") {
+		t.Errorf("fileURI(%q) = %q, want %%20 for space", spaced, uri)
+	}
+
+	uriHash := fileURI(hashed)
+	if strings.Contains(uriHash, "#") {
+		t.Errorf("fileURI must percent-encode #, got %q", uriHash)
+	}
+	if !strings.Contains(uriHash, "%23") {
+		t.Errorf("fileURI(%q) = %q, want %%23 for #", hashed, uriHash)
+	}
+
+	roundTrip := fileFromURI(uri)
+	if filepath.Clean(roundTrip) != filepath.Clean(spaced) {
+		t.Errorf("fileFromURI(fileURI(%q)) = %q, want %q", spaced, roundTrip, spaced)
+	}
+}
+
+func TestRemoveDiagWaiter_CleansOnAllPaths(t *testing.T) {
+	c := newClient(ServerSpec{Language: "go", Command: "true"}, t.TempDir(), nil, time.Second)
+	uri := "file:///tmp/test.go"
+	ch := make(chan struct{}, 1)
+
+	c.diagMu.Lock()
+	c.diagWaiters[uri] = append(c.diagWaiters[uri], ch)
+	c.diagMu.Unlock()
+
+	c.removeDiagWaiter(uri, ch)
+
+	c.diagMu.Lock()
+	defer c.diagMu.Unlock()
+	if _, ok := c.diagWaiters[uri]; ok {
+		t.Errorf("waiter should be removed, got %v", c.diagWaiters[uri])
+	}
+}
 
 func findGopls() string {
 	if path, err := exec.LookPath("gopls"); err == nil {

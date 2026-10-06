@@ -273,18 +273,19 @@ type LSPServerConfig struct {
 }
 ```
 
-`LSPConfig` has a custom `UnmarshalJSON` that accepts both a boolean and an object:
+`LSPConfig` has a custom `UnmarshalJSON` that accepts both a boolean and an object. LSP is **enabled by default**; use `"lsp": false` (or `"enabled": false`) to disable. `timeout` is in **seconds** (request timeout per LSP call). Server map keys are **language names** (`go`, `typescript`, `python`, `rust`, …), not binary names.
 
 ```jsonc
-// Boolean form -- enable/disable LSP entirely
-"lsp": true
+// Boolean form -- disable LSP entirely (default is enabled)
+"lsp": false
 
-// Object form -- configure per-server
+// Object form -- configure per-language server
 "lsp": {
   "enabled": true,
-  "timeout": 5000,
+  "timeout": 30,
   "servers": {
-    "gopls": { "command": "gopls", "args": ["serve"] }
+    "go": { "command": "gopls", "args": ["serve"] },
+    "typescript": { "disabled": true }
   }
 }
 ```
@@ -443,11 +444,12 @@ Variable names are validated to contain only letters, digits, and underscores.
     }
   },
 
-  // LSP configuration
+  // LSP configuration (enabled by default; timeout in seconds; keys are languages)
   "lsp": {
     "enabled": true,
+    "timeout": 30,
     "servers": {
-      "gopls": { "command": "gopls", "args": ["serve"] }
+      "go": { "command": "gopls", "args": ["serve"] }
     }
   },
 

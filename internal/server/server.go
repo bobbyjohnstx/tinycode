@@ -15,6 +15,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/lsp"
 	"github.com/bobbyjohnstx/tinycode/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
@@ -63,26 +64,27 @@ type Dependencies struct {
 	ToolRegistry    *tool.Registry
 	PermService     *permission.Service
 	MCPService      *mcp.Service
+	LSPManager      *lsp.Manager
 	Config          *config.Info
 	JobManager      *session.JobManager
 	Discovery       *provider.Discovery
 }
 
 type Server struct {
-	config           Config
-	httpServer       *http.Server
-	mux              *http.ServeMux
-	deps             Dependencies
-	logger           *slog.Logger
-	sessionManager   *SessionManager
-	permissionStore  *PermissionStore
-	questionStore    *QuestionStore
-	credentials      *credentialStore
-	pluginSubs       []*bus.Subscription
-	pluginDone       chan struct{}
-	shutdownDone     chan struct{}
-	sessionStartMu   sync.Mutex
-	sessionStartCtx  map[string][]string // additionalContext from session.created hooks
+	config          Config
+	httpServer      *http.Server
+	mux             *http.ServeMux
+	deps            Dependencies
+	logger          *slog.Logger
+	sessionManager  *SessionManager
+	permissionStore *PermissionStore
+	questionStore   *QuestionStore
+	credentials     *credentialStore
+	pluginSubs      []*bus.Subscription
+	pluginDone      chan struct{}
+	shutdownDone    chan struct{}
+	sessionStartMu  sync.Mutex
+	sessionStartCtx map[string][]string // additionalContext from session.created hooks
 }
 
 func New(cfg Config, deps Dependencies) *Server {

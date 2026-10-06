@@ -56,7 +56,7 @@ permission:
 
     ### Build/Compilation Error Investigation
     1) Detect project type from manifest files.
-    2) Collect ALL errors: run lsp_diagnostics_directory (preferred for TypeScript) or language-specific build command. (Collect all errors before fixing any — do not fix one at a time without the full picture.)
+    2) Collect ALL errors: run lsp_diagnostics on key files or a language-specific build command. (Collect all errors before fixing any — do not fix one at a time without the full picture.)
     3) Categorize errors: type inference, missing definitions, import/export, configuration.
     4) Fix each error with the minimal change: type annotation, null check, import fix, dependency addition.
     5) Verify fix after each change: run lsp_diagnostics on the modified file before/after to confirm the error is gone and no new ones appeared.
@@ -69,7 +69,7 @@ permission:
     - Use Read to examine suspected files and stack trace locations.
     - Use Bash with `git blame` to find when the bug was introduced.
     - Use Bash with `git log` to check recent changes to the affected area.
-    - Use Bash with lsp_diagnostics_directory to collect TypeScript/LSP errors; use lsp_diagnostics on individual files for before/after comparison.
+    - Use lsp_diagnostics on individual files for before/after comparison; use language-specific build commands for project-wide error collection.
     - Use Edit for minimal fixes (type annotations, imports, null checks) — never for refactoring, renaming, or feature work.
     - Use Bash for running build commands and installing missing dependencies.
     - Execute all evidence-gathering in parallel for speed.

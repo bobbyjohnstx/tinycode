@@ -56,7 +56,7 @@ Active work in this phase:
 
 Near-term work under consideration:
 
-- **LSP integration** -- Stub exists in the codebase; not yet functional
+- **LSP polish** -- Broader language coverage and tighter post-edit diagnostics wiring (`lsp_*` tools are already functional)
 
 ---
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -189,7 +190,7 @@ func (c *Client) close() error {
 	}
 	if c.cmd != nil && c.cmd.Process != nil {
 		done := make(chan error, 1)
-		go func() { done <- c.cmd.Wait() }()
+		safego.Go(func() { done <- c.cmd.Wait() })
 		select {
 		case <-done:
 		case <-time.After(5 * time.Second):
@@ -499,6 +500,7 @@ func (c *Client) Diagnostics(ctx context.Context, file string) ([]Diagnostic, er
 	c.diagMu.Lock()
 	c.diagWaiters[uri] = append(c.diagWaiters[uri], ch)
 	c.diagMu.Unlock()
+	defer c.removeDiagWaiter(uri, ch)
 
 	changed, err := c.syncFile(ctx, file)
 	if err != nil {
@@ -524,6 +526,29 @@ func (c *Client) Diagnostics(ctx context.Context, file string) ([]Diagnostic, er
 	result := make([]Diagnostic, len(diags))
 	copy(result, diags)
 	return result, nil
+}
+
+func (c *Client) removeDiagWaiter(uri string, ch chan struct{}) {
+	c.diagMu.Lock()
+	defer c.diagMu.Unlock()
+	waiters := c.diagWaiters[uri]
+	kept := waiters[:0]
+	found := false
+	for _, w := range waiters {
+		if !found && w == ch {
+			found = true
+			continue
+		}
+		kept = append(kept, w)
+	}
+	if !found {
+		return
+	}
+	if len(kept) == 0 {
+		delete(c.diagWaiters, uri)
+		return
+	}
+	c.diagWaiters[uri] = kept
 }
 
 // Symbols searches for workspace symbols matching query.
@@ -618,9 +643,15 @@ func fileURI(path string) string {
 	if err != nil {
 		abs = path
 	}
-	return "file://" + abs
+	// url.URL.String percent-encodes Path (spaces, #, etc.).
+	u := url.URL{Scheme: "file", Path: filepath.ToSlash(abs)}
+	return u.String()
 }
 
 func fileFromURI(uri string) string {
-	return strings.TrimPrefix(uri, "file://")
+	u, err := url.Parse(uri)
+	if err != nil || u.Scheme != "file" {
+		return strings.TrimPrefix(uri, "file://")
+	}
+	return filepath.FromSlash(u.Path)
 }

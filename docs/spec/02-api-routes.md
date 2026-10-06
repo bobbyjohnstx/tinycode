@@ -160,7 +160,7 @@ Source: `internal/server/middleware/`
 
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
-| GET | `/lsp` | `handleLSP` | LSP server status |
+| GET | `/lsp` | `handleLSP` | LSP status (`enabled`, `languages` from manager when attached) |
 | GET | `/formatter` | `handleFormatter` | Formatter availability |
 
 ## 2.17 MCP Routes
