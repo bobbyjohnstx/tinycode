@@ -274,6 +274,11 @@ func Load(directory string) (*Info, error) {
 		}
 	}
 
+	// Go does not implement session share; default hides web SPA share chrome.
+	if result.Share == "" {
+		result.Share = "disabled"
+	}
+
 	return result, nil
 }
 

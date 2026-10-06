@@ -101,7 +101,7 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		maxIter = *agentInfo.Steps
 	}
 
-	// #233: Inherit parent LLM params from config.
+	// Prefer agent Temperature/TopP when set; otherwise inherit from global config.
 	procCfg := session.ProcessorConfig{
 		SessionID:     subSessionID,
 		Agent:         agent,
@@ -113,9 +113,10 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		Directory:     directory,
 		MaxIterations: maxIter,
 	}
+	temp, topP := sm.resolveAgentLLMParams(agentInfo)
+	procCfg.Temperature = temp
+	procCfg.TopP = topP
 	if sm.cfg != nil {
-		procCfg.Temperature = sm.cfg.Temperature
-		procCfg.TopP = sm.cfg.TopP
 		procCfg.MaxTokens = sm.cfg.MaxTokens
 	}
 	proc := session.NewProcessor(procCfg, client, childTools, sm.bus)

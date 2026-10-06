@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
@@ -141,6 +142,24 @@ func (sm *SessionManager) persistPromptResult(result *session.ProcessResult, exi
 		Reasoning: result.Usage.Reasoning,
 		Cache:     result.Usage.Cache,
 	})
+}
+
+// resolveAgentLLMParams returns Temperature/TopP preferring agent frontmatter
+// when set, otherwise global config defaults.
+func (sm *SessionManager) resolveAgentLLMParams(agentInfo *agent.Info) (temp, topP *float64) {
+	if sm.cfg != nil {
+		temp = sm.cfg.Temperature
+		topP = sm.cfg.TopP
+	}
+	if agentInfo != nil {
+		if agentInfo.Temperature != nil {
+			temp = agentInfo.Temperature
+		}
+		if agentInfo.TopP != nil {
+			topP = agentInfo.TopP
+		}
+	}
+	return temp, topP
 }
 
 // buildCompactionConfig creates a compaction config, applying any overrides from the app config.

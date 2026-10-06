@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/session"
@@ -219,13 +218,8 @@ func (c *Client) GetProviderBalance(providerID string) (*BalanceResponse, error)
 }
 
 // SummarizeSession triggers manual context compaction via POST /session/{id}/summarize.
-// The Go server currently returns 501; this surfaces a clear error rather than claiming success.
 func (c *Client) SummarizeSession(id string) error {
-	err := c.doNoBody(http.MethodPost, "/session/"+id+"/summarize")
-	if err != nil && (strings.Contains(err.Error(), "status 501") || strings.Contains(err.Error(), "Not Implemented")) {
-		return fmt.Errorf("summarize not implemented")
-	}
-	return err
+	return c.doNoBody(http.MethodPost, "/session/"+id+"/summarize")
 }
 
 // ArchiveSession archives a session via POST /session/{id}/archive.

@@ -98,6 +98,42 @@ func TestRunSubagent_PublishesTokenUsageEvent(t *testing.T) {
 	}
 }
 
+func TestResolveAgentLLMParams_AgentOverridesConfig(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+	reg := provider.NewRegistry()
+
+	cfgTemp := 0.2
+	cfgTopP := 0.5
+	agentTemp := 0.9
+	agentTopP := 0.95
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, &config.Info{
+		Temperature: &cfgTemp,
+		TopP:        &cfgTopP,
+	}, nil)
+
+	temp, topP := sm.resolveAgentLLMParams(&agent.Info{
+		Temperature: &agentTemp,
+		TopP:        &agentTopP,
+	})
+	if temp == nil || *temp != 0.9 {
+		t.Errorf("Temperature = %v, want 0.9", temp)
+	}
+	if topP == nil || *topP != 0.95 {
+		t.Errorf("TopP = %v, want 0.95", topP)
+	}
+
+	// When agent leaves params unset, fall back to config.
+	temp, topP = sm.resolveAgentLLMParams(&agent.Info{})
+	if temp == nil || *temp != 0.2 {
+		t.Errorf("Temperature = %v, want config 0.2", temp)
+	}
+	if topP == nil || *topP != 0.5 {
+		t.Errorf("TopP = %v, want config 0.5", topP)
+	}
+}
+
 func TestRunSubagent_InheritsConfigLLMParams(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
@@ -134,6 +170,45 @@ func TestRunSubagent_InheritsConfigLLMParams(t *testing.T) {
 	}
 	if capturedReq.MaxTokens == nil || *capturedReq.MaxTokens != 4096 {
 		t.Errorf("MaxTokens = %v, want 4096", capturedReq.MaxTokens)
+	}
+}
+
+func TestRunSubagent_PrefersAgentLLMParamsOverConfig(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	cfgTemp := 0.1
+	cfgTopP := 0.2
+	agentTemp := 0.8
+	agentTopP := 0.85
+	cfg := &config.Info{
+		Temperature: &cfgTemp,
+		TopP:        &cfgTopP,
+	}
+
+	var capturedReq llm.Request
+	sm := newSubagentTestSM(t, b, cfg, nil)
+	_ = sm.agentRegistry.LoadDefaults(nil, nil)
+	sm.agentRegistry.ApplyConfigOverrides(map[string]agent.ConfigOverride{
+		"executor": {Temperature: &agentTemp, TopP: &agentTopP},
+	}, nil, nil)
+	sm.clientFactory = func(_ *provider.Model) llm.Client {
+		return &capturingLLMClient{captured: &capturedReq}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "", false)
+	if err != nil {
+		t.Fatalf("RunSubagent returned error: %v", err)
+	}
+
+	if capturedReq.Temperature == nil || *capturedReq.Temperature != 0.8 {
+		t.Errorf("Temperature = %v, want agent 0.8", capturedReq.Temperature)
+	}
+	if capturedReq.TopP == nil || *capturedReq.TopP != 0.85 {
+		t.Errorf("TopP = %v, want agent 0.85", capturedReq.TopP)
 	}
 }
 

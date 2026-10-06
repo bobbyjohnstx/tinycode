@@ -375,12 +375,11 @@ func patchScopedModels(client *api.Client, models []string) tea.Cmd {
 }
 
 // summarizeSession triggers manual context compaction via POST /session/{id}/summarize.
-// The Go server does not implement summarize yet; surface a clear non-success message.
 func summarizeSession(client *api.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.SummarizeSession(sessionID)
 		if err != nil {
-			return CompactDoneMsg{Err: fmt.Errorf("context compaction is not available: %w", err)}
+			return CompactDoneMsg{Err: fmt.Errorf("context compaction failed: %w", err)}
 		}
 		return CompactDoneMsg{Err: nil}
 	}

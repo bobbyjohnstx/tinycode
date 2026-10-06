@@ -431,20 +431,17 @@ func TestBearerAuthorization(t *testing.T) {
 	}
 }
 
-func TestSummarizeSession_501(t *testing.T) {
+func TestSummarizeSession_OK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotImplemented)
-		w.Write([]byte(`{"error":"Not Implemented"}`))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"compacted":false}`))
 	}))
 	defer srv.Close()
 
 	c := New(srv.URL, "/tmp", "")
-	err := c.SummarizeSession("ses_1")
-	if err == nil {
-		t.Fatal("expected error for 501")
-	}
-	if err.Error() != "summarize not implemented" {
-		t.Errorf("error = %q, want %q", err.Error(), "summarize not implemented")
+	if err := c.SummarizeSession("ses_1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

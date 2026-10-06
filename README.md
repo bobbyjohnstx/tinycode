@@ -27,9 +27,12 @@ See [docs/install.md](docs/install.md) for platform notes, PATH setup, and verif
 Have a local model running (for example `ollama serve` and `ollama pull qwen3.5:9b`), then:
 
 ```bash
+tinycode doctor                   # diagnose config/providers (not a setup wizard)
 tinycode                          # TUI in the current directory
 tinycode /path/to/project         # TUI against a project
 ```
+
+If no model was auto-discovered, type `/connect` in the TUI to pick a provider and model. There is no separate `tinycode setup` command — doctor + `/connect` is the first-run path.
 
 Type a prompt and press Enter:
 

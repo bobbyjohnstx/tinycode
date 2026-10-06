@@ -51,6 +51,13 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Prefer agent Model when the request did not specify one.
+	if body.Model == nil && s.deps.AgentRegistry != nil {
+		if ai := s.deps.AgentRegistry.Get(body.Agent, nil); ai != nil && ai.Model != nil {
+			body.Model = ai.Model
+		}
+	}
+
 	// Assign a default model if none was provided.
 	if body.Model == nil {
 		body.Model = s.resolveDefaultModel()

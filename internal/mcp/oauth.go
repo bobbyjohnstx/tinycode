@@ -40,6 +40,10 @@ type OAuthState struct {
 	State        string       `json:"oauthState,omitempty"`
 }
 
+// OAuthFlow runs a local PKCE OAuth callback flow.
+// Library-only: not exposed via tinycode serve, CLI, or TUI. Interactive MCP
+// OAuth is unsupported as a product surface — use static Bearer tokens or
+// {env:VAR} headers in MCP config instead.
 type OAuthFlow struct {
 	mu       sync.Mutex
 	pending  map[string]chan oauthCallback

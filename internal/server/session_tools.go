@@ -136,8 +136,9 @@ func (sm *SessionManager) subscribeUnrevert() {
 	})
 }
 
-// subscribeSummarize listens for session.summarize events. Manual HTTP summarize
-// returns 501; this subscriber no longer publishes a fake compacted success.
+// subscribeSummarize listens for session.summarize bus events.
+// Manual HTTP summarize calls SessionManager.Summarize directly; this subscriber
+// remains a no-op so bus publishes do not emit fake session.compacted events.
 // Proactive compaction still runs inside Processor.checkCompaction during prompts.
 func (sm *SessionManager) subscribeSummarize() {
 	sub := sm.trackSub(sm.bus.Subscribe("session.summarize"))

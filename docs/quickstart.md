@@ -2,7 +2,19 @@
 
 A hands-on walkthrough to get productive fast. You should have tinycode built already -- see [install.md](install.md) if not.
 
-## 1. Start tinycode
+## 1. First-run path (diagnose + connect)
+
+There is no `tinycode setup` wizard. First run is intentional and sufficient with two steps:
+
+1. **`tinycode doctor`** — diagnostic only (config, database, providers, agents, plugins). It does not configure models; it tells you what is missing.
+2. **`/connect` in the TUI** — interactively pick a provider and model (or set env vars / config before launch).
+
+```bash
+tinycode doctor          # diagnose; exit non-zero if critical checks fail
+tinycode                 # then /connect if no model was auto-discovered
+```
+
+## 2. Start tinycode
 
 ```bash
 # From your project directory
@@ -17,7 +29,7 @@ tinycode ~/projects/my-app
 
 You see an animated boot sequence that checks each subsystem. Green check marks mean everything is ready. If a provider check fails (red X), tinycode still launches -- you can connect a provider next.
 
-## 2. Connect to a provider
+## 3. Connect to a provider
 
 If no model was auto-discovered, type `/connect` and press Enter. This opens a two-step dialog:
 
@@ -40,7 +52,7 @@ For cloud models via OpenRouter, set your API key before launching:
 OPENROUTER_API_KEY=your-key tinycode
 ```
 
-## 3. Send your first prompt
+## 4. Send your first prompt
 
 Type a question at the bottom and press Enter:
 
@@ -52,7 +64,7 @@ The model reads your project files using built-in tools (read, grep, glob, bash)
 
 Press **Escape** to interrupt if the model is taking too long. Press **Ctrl+C** to clear the prompt (or quit if the prompt is already empty).
 
-## 4. Try @ file references
+## 5. Try @ file references
 
 Type `@` to trigger file autocomplete. A dropdown shows files in your project directory:
 
@@ -70,7 +82,7 @@ Reference multiple files in one prompt:
 compare @go.mod with @go.sum and check for issues
 ```
 
-## 5. Use an agent
+## 6. Use an agent
 
 Press **Tab** to cycle through agents. The current agent name appears in the status bar on the right. Each agent has a different specialty:
 
@@ -89,7 +101,7 @@ Or invoke an agent for a single question without switching:
 
 Press **Ctrl+X a** to open the full agent list.
 
-## 6. Run /swarm
+## 7. Run /swarm
 
 Swarm mode dispatches parallel subagents for independent tasks:
 
@@ -101,7 +113,7 @@ The build agent splits the task into subtasks and runs them simultaneously. Each
 
 Swarm auto-approves tool permissions so subagents can work unattended.
 
-## 7. Explore keybindings
+## 8. Explore keybindings
 
 Press **Ctrl+X** to see the which-key panel -- a floating overlay showing all leader key follow-ups:
 
@@ -117,7 +129,7 @@ Press any follow-up key within 2 seconds. For example, **Ctrl+X d** opens the di
 
 Press **Ctrl+P** to open the command palette showing all keybindings and slash commands.
 
-## 8. Search the chat
+## 9. Search the chat
 
 Press **Ctrl+F** to open the search bar at the top of the chat viewport. Type a query to find text in the conversation:
 
@@ -127,7 +139,7 @@ Press **Ctrl+F** to open the search bar at the top of the chat viewport. Type a 
 
 The search bar shows your position (e.g., "3/12") and auto-scrolls to the message containing the current match.
 
-## 9. Undo changes
+## 10. Undo changes
 
 If the model edited files and you want to revert:
 
@@ -145,7 +157,7 @@ Review what changed before committing:
 
 This opens an inline diff viewer showing all uncommitted changes in the working directory. Or use **Ctrl+X d**.
 
-## 10. Workflow commands
+## 11. Workflow commands
 
 A few commands that change how tinycode works during a session:
 
@@ -160,7 +172,7 @@ A few commands that change how tinycode works during a session:
 
 `/goal` is especially useful for iterative tasks like fixing lint errors or getting a build working — it maps conditions to shell commands and loops automatically (max 10 iterations).
 
-## 11. Export your session
+## 12. Export your session
 
 Save the conversation for reference:
 
@@ -178,7 +190,7 @@ For a formatted version with syntax highlighting:
 
 This creates a self-contained HTML file you can open in any browser or share.
 
-## 12. Get help
+## 13. Get help
 
 ```
 /help

@@ -1,4 +1,4 @@
-> **Historical document (September 2026).** This analysis predates v2.1 and the code review fixes. Many findings are now resolved.
+> **Historical document (September 2026).** This analysis predates v2.1 and later honesty/fix passes (#498–#614 and beyond). Many findings are now resolved; treat open items as historical unless re-verified against current code.
 
 # Structural Review: tinycode
 

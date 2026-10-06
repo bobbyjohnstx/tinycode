@@ -7,6 +7,8 @@ description: Configure MCP servers via a guided menu — curated bundles or cust
 
 Configure Model Context Protocol (MCP) servers to extend tinycode's capabilities with external tools like web search, file system access, and GitHub integration.
 
+**Interactive OAuth is not supported.** Do not walk users through a browser OAuth login for MCP. Use a static Bearer token in `headers`, or `{env:VAR}` substitution for secrets. The PKCE helpers in `internal/mcp/oauth.go` are library-only and are not wired into serve/CLI/TUI.
+
 ## When to Use
 
 Use this skill when:
@@ -77,7 +79,7 @@ Ask for:
 1. Server name (identifier)
 2. Transport type: `stdio` (default), `sse`, or `streamable-http`
 3. For stdio: `command` + `args` (and optional `env`)
-4. For remote: `url`, optional `headers` / `oauth`
+4. For remote: `url`, optional `headers` (Bearer / `{env:VAR}` — **not** interactive OAuth)
 5. Environment variables (optional)
 
 ## Step 4: Verify

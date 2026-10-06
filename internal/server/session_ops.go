@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/command"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
@@ -251,6 +253,13 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		userText = expandResult.DisplayText
 	}
 
+	// Prefer agent Model when the prompt/session did not specify one.
+	if input.Model == nil && sm.agentRegistry != nil {
+		if ai := sm.agentRegistry.Get(input.Agent, nil); ai != nil && ai.Model != nil {
+			input.Model = &promptModel{ProviderID: ai.Model.ProviderID, ModelID: ai.Model.ModelID}
+		}
+	}
+
 	model, err := sm.resolvePromptModel(sessionID, input)
 	if err != nil {
 		return
@@ -321,6 +330,11 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	if sm.cfg != nil {
 		smallModel = sm.cfg.SmallModel
 	}
+	var agentInfo *agent.Info
+	if sm.agentRegistry != nil {
+		agentInfo = sm.agentRegistry.Get(input.Agent, model.SizeB())
+	}
+	temp, topP := sm.resolveAgentLLMParams(agentInfo)
 	proc := session.NewProcessor(session.ProcessorConfig{
 		SessionID:       sessionID,
 		Agent:           input.Agent,
@@ -337,6 +351,8 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		ThinkingBudget:  input.ThinkingBudget,
 		TokenBudget:     sm.tokenBudget,
 		SmallModel:      smallModel,
+		Temperature:     temp,
+		TopP:            topP,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 	if len(imageParts) > 0 {
@@ -402,4 +418,84 @@ func swarmMaxIterations(autoApprove bool) int {
 		return 3
 	}
 	return 0 // use default (200)
+}
+
+// Summarize runs manual context compaction for an idle session: load stored
+// messages, Compact via Processor, and persist when history changed.
+// Returns compacted=false with nil error when there is nothing to compact.
+func (sm *SessionManager) Summarize(ctx context.Context, sessionID string) (bool, error) {
+	store := session.NewStore(sm.db)
+	info, err := store.Get(sessionID)
+	if err != nil {
+		return false, fmt.Errorf("get session: %w", err)
+	}
+
+	ms := session.NewMessageStore(store)
+	msgs, err := ms.List(sessionID)
+	if err != nil {
+		return false, fmt.Errorf("list messages: %w", err)
+	}
+
+	agentName := info.Agent
+	if agentName == "" {
+		agentName = "build"
+	}
+
+	modelRef := info.Model
+	if modelRef == nil && sm.agentRegistry != nil {
+		if ai := sm.agentRegistry.Get(agentName, nil); ai != nil && ai.Model != nil {
+			modelRef = ai.Model
+		}
+	}
+	if modelRef == nil && sm.cfg != nil && sm.cfg.Model != "" {
+		provID, modelID := provider.ParseModel(sm.cfg.Model)
+		if provID != "" && modelID != "" {
+			modelRef = &session.ModelRef{ProviderID: provID, ModelID: modelID}
+		}
+	}
+	if modelRef == nil {
+		modelRef = resolveDefaultModelRef(sm.registry, "")
+	}
+	if modelRef == nil {
+		return false, fmt.Errorf("no model available for summarize — configure a default model")
+	}
+
+	model, err := sm.registry.GetModel(modelRef.ProviderID, modelRef.ModelID)
+	if err != nil {
+		return false, fmt.Errorf("resolve model %s/%s: %w", modelRef.ProviderID, modelRef.ModelID, err)
+	}
+
+	sessionDir := sm.dir
+	if info.Directory != "" {
+		sessionDir = info.Directory
+	}
+
+	smallModel := ""
+	if sm.cfg != nil {
+		smallModel = sm.cfg.SmallModel
+	}
+
+	client := sm.clientFactory(model)
+	proc := session.NewProcessor(session.ProcessorConfig{
+		SessionID:  sessionID,
+		Agent:      agentName,
+		Model:      model,
+		Compaction: sm.buildCompactionConfig(),
+		Directory:  sessionDir,
+		SmallModel: smallModel,
+	}, client, nil, sm.bus)
+	proc.SetMessages(msgs)
+
+	compacted, err := proc.Compact(ctx)
+	if err != nil {
+		return false, err
+	}
+	if !compacted {
+		return false, nil
+	}
+
+	if err := ms.ReplaceAll(sessionID, proc.Messages()); err != nil {
+		return true, fmt.Errorf("persist compacted messages: %w", err)
+	}
+	return true, nil
 }

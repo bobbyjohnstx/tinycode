@@ -62,7 +62,9 @@ Bubbletea Elm-architecture UI. `app.go` defines the root `App` model with sub-co
 
 HTTP + SSE client used by the Go TUI (`connectedApp`) against `tinycode serve`. This is a **TUI subset** (~27 methods: sessions, prompts, abort, permissions, providers/agents/commands, MCP, plugins, fork/rewind/btw, config patch, SSE subscribe). It is not a full OpenAPI client.
 
-The TypeScript `@tinycode/sdk` / `packages/sdk/openapi.json` surface is larger. Routes and clients **not** covered by the Go TUI API package include session share/unshare, PTY, TUI control (`/tui/*`), OAuth/account flows, and other OpenAPI-only paths — see [spec/02-api-routes.md](spec/02-api-routes.md) §2.23 and [spec/16-not-implemented.md](spec/16-not-implemented.md) §16.11–16.12, §16.26. Manual summarize/compact (`POST /session/{id}/summarize`) returns `501` on the Go server; the TUI client reports that honestly rather than claiming success.
+The TypeScript `@tinycode/sdk` / `packages/sdk/openapi.json` surface is larger. Routes and clients **not** covered by the Go TUI API package include session share/unshare, PTY, TUI control (`/tui/*`), OAuth/account flows, and other OpenAPI-only paths — see [spec/02-api-routes.md](spec/02-api-routes.md) §2.23 and [spec/16-not-implemented.md](spec/16-not-implemented.md) §16.11–16.12, §16.26. Manual summarize/compact (`POST /session/{id}/summarize`) is implemented in Go and runs `Processor.Compact`.
+
+The embedded Go web UI does **not** support PTY terminals or session share/publish — `config.share` defaults to `"disabled"`, and PTY is gated off in the SPA. Those features exist only in the TypeScript OpenAPI contract.
 
 ### `internal/server/` -- HTTP Server
 

@@ -40,9 +40,13 @@ func (s *Server) handleSessionSummarize(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Manual summarize/compact over HTTP is not wired to Processor.compact yet.
-	// Do not publish a fake session.compacted success event.
-	respondError(w, http.StatusNotImplemented, "session summarize/compact is not implemented")
+	compacted, err := s.sessionManager.Summarize(r.Context(), id)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{"compacted": compacted})
 }
 
 func (s *Server) handleSessionCommand(w http.ResponseWriter, r *http.Request) {

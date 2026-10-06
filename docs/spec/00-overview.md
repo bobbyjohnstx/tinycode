@@ -102,7 +102,7 @@ cd tinycode && make build
 
 | Constant | Value | Location |
 |----------|-------|----------|
-| Server version | `"0.1.0"` | `handler_health.go` |
+| Server version | `Config.Version` (build-time ldflags; default `"dev"`) | `handler_health.go` / `cmd/tinycode` `version` |
 | Default port | `4096` | `server.go` |
 | Shutdown timeout | `25s` | `server.go` |
 | Read header timeout | `10s` | `server.go` |

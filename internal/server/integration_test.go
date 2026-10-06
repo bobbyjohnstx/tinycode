@@ -1107,7 +1107,7 @@ func TestE2E_RevertUnrevertEvents(t *testing.T) {
 	}
 }
 
-func TestE2E_SummarizeReturns501(t *testing.T) {
+func TestE2E_SummarizeReturnsOK(t *testing.T) {
 	h := newTestHarness(t, nil)
 
 	sessionID := h.createSession("Summarize Test", "build")
@@ -1118,8 +1118,15 @@ func TestE2E_SummarizeReturns501(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("expected 501, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if _, ok := body["compacted"].(bool); !ok {
+		t.Fatalf("expected compacted bool in response, got %#v", body)
 	}
 }
 

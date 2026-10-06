@@ -33,6 +33,11 @@ func (s *Server) handleConfigGet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Go has no share routes; empty share would show web SPA share UI. Default disabled.
+	if cfg.Share == "" {
+		cfg.Share = "disabled"
+	}
+
 	respondJSON(w, http.StatusOK, cfg)
 }
 

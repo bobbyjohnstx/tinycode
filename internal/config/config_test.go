@@ -400,6 +400,17 @@ func TestMCPConfig_MarshalJSON_IncludesCommandAndArgs(t *testing.T) {
 	}
 }
 
+func TestLoad_ShareDefaultsDisabled(t *testing.T) {
+	t.Setenv("TINYCODE_CONFIG_DIR", t.TempDir())
+	info, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Share != "disabled" {
+		t.Errorf("Share = %q, want %q", info.Share, "disabled")
+	}
+}
+
 func TestLoad_PreferredGlobalOnly_JsoncWins(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("TINYCODE_CONFIG_DIR", dir)

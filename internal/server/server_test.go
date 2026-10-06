@@ -502,6 +502,14 @@ func TestConfigGet(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
+
+	var cfg map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&cfg); err != nil {
+		t.Fatalf("decode config: %v", err)
+	}
+	if share, _ := cfg["share"].(string); share != "disabled" {
+		t.Errorf("share = %q, want %q (hides web SPA share UI when unset)", share, "disabled")
+	}
 }
 
 func TestFileList(t *testing.T) {

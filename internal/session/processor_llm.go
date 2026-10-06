@@ -264,6 +264,12 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 	return msg, usage, nil
 }
 
+// Compact runs a manual context compaction pass (same logic as proactive overflow compaction).
+// Returns (true, nil) when history was compacted, (false, nil) when there was nothing to compact.
+func (p *Processor) Compact(ctx context.Context) (bool, error) {
+	return p.compact(ctx)
+}
+
 func (p *Processor) compact(ctx context.Context) (bool, error) {
 	p.mu.Lock()
 	p.compactionCount++
