@@ -20,36 +20,34 @@ func NewRevertState() *RevertState {
 	return &RevertState{stashes: make(map[string]string)}
 }
 
-// Stash pushes the current working tree changes onto the git stash with a
-// tinycode-specific message, captures the stash commit SHA for reliable
-// retrieval, and records the sessionID association.
+// Stash captures tracked and untracked working-tree changes for the session,
+// then clears the worktree so revert leaves a clean tree.
+//
+// git stash create does not reliably include untracked-only files (even with -u
+// on some git versions / trees). We use git stash push -u, which stashes
+// untracked files and resets/cleans the worktree in one step. The stash commit
+// SHA is then recorded so Unrevert can apply by SHA.
 func (rs *RevertState) Stash(dir, sessionID string) error {
-	// Create a stash commit object and capture its SHA (does not modify
-	// the working tree or the stash reflog).
-	createCmd := exec.Command("git", "stash", "create")
-	createCmd.Dir = dir
-	createOut, err := createCmd.Output()
+	msg := "tinycode-revert-" + sessionID
+	pushCmd := exec.Command("git", "stash", "push", "-u", "-m", msg)
+	pushCmd.Dir = dir
+	out, err := pushCmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git stash create: %w", err)
+		return fmt.Errorf("git stash push: %s: %w", string(out), err)
 	}
-	sha := strings.TrimSpace(string(createOut))
-	if sha == "" {
+	if strings.Contains(string(out), "No local changes to save") {
 		return fmt.Errorf("no changes to stash for session %s", sessionID)
 	}
 
-	// Store the commit in the stash reflog for visibility in git stash list.
-	msg := "tinycode-revert-" + sessionID
-	storeCmd := exec.Command("git", "stash", "store", "-m", msg, sha)
-	storeCmd.Dir = dir
-	if storeOut, err := storeCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("git stash store: %s: %w", string(storeOut), err)
+	shaCmd := exec.Command("git", "rev-parse", "stash@{0}")
+	shaCmd.Dir = dir
+	shaOut, err := shaCmd.Output()
+	if err != nil {
+		return fmt.Errorf("git rev-parse stash@{0}: %w", err)
 	}
-
-	// Reset tracked files to HEAD (equivalent to what git stash push does).
-	resetCmd := exec.Command("git", "checkout", "--", ".")
-	resetCmd.Dir = dir
-	if _, resetErr := resetCmd.CombinedOutput(); resetErr != nil {
-		slog.Warn("failed to reset working tree after stash", "error", resetErr)
+	sha := strings.TrimSpace(string(shaOut))
+	if sha == "" {
+		return fmt.Errorf("no changes to stash for session %s", sessionID)
 	}
 
 	rs.mu.Lock()
@@ -61,13 +59,11 @@ func (rs *RevertState) Stash(dir, sessionID string) error {
 }
 
 // Pop restores the stash associated with the given session using the stored
-// SHA, which is immune to stash stack index shifts.
+// SHA, which is immune to stash stack index shifts. The session→SHA mapping
+// is retained until apply succeeds so a failed unrevert can be retried.
 func (rs *RevertState) Pop(dir, sessionID string) error {
 	rs.mu.Lock()
 	sha, ok := rs.stashes[sessionID]
-	if ok {
-		delete(rs.stashes, sessionID)
-	}
 	rs.mu.Unlock()
 
 	if !ok {
@@ -80,6 +76,10 @@ func (rs *RevertState) Pop(dir, sessionID string) error {
 	if err != nil {
 		return fmt.Errorf("git stash apply: %s: %w", string(out), err)
 	}
+
+	rs.mu.Lock()
+	delete(rs.stashes, sessionID)
+	rs.mu.Unlock()
 
 	// Drop the stash entry from the reflog by message lookup.
 	msg := "tinycode-revert-" + sessionID

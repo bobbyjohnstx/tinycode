@@ -332,6 +332,9 @@ func initBuiltins(toolReg *tool.Registry) *plugin.BuiltinManager {
 			Parameters:  bt.Parameters,
 			Permission:  "plugin",
 			Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+				if tc != nil && tc.Directory != "" {
+					ctx = plugin.WithDirectory(ctx, tc.Directory)
+				}
 				result, err := bm.CallTool(ctx, bt.Name, args)
 				if err != nil {
 					return &tool.ExecuteResult{Output: err.Error(), IsError: true}, nil

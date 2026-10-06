@@ -177,6 +177,66 @@ func TestGitDiff_ModifiedFile(t *testing.T) {
 	}
 }
 
+func TestGitDiff_StagedOnlyModify(t *testing.T) {
+	dir := setupGitRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("staged only\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, dir, "git", "add", "README.md")
+
+	diff, err := GitDiff(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if diff == "" {
+		t.Fatal("expected non-empty diff for staged-only modify")
+	}
+
+	files, additions, deletions, err := GitDiffNumstat(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("expected non-empty numstat files for staged-only modify")
+	}
+	if additions == 0 && deletions == 0 {
+		t.Fatal("expected non-zero numstat line counts for staged-only modify")
+	}
+}
+
+func TestParsePorcelainLine(t *testing.T) {
+	tests := []struct {
+		name   string
+		line   string
+		wantOK bool
+		status string
+		file   string
+	}{
+		{name: "modified", line: " M README.md", wantOK: true, status: "M", file: "README.md"},
+		{name: "staged", line: "M  README.md", wantOK: true, status: "M", file: "README.md"},
+		{name: "untracked", line: "?? new.txt", wantOK: true, status: "??", file: "new.txt"},
+		{name: "rename dest", line: "R  old.txt -> new.txt", wantOK: true, status: "R", file: "new.txt"},
+		{name: "copy dest", line: "C  src.go -> dest.go", wantOK: true, status: "C", file: "dest.go"},
+		{name: "quoted spaces", line: `?? "name with spaces.txt"`, wantOK: true, status: "??", file: "name with spaces.txt"},
+		{name: "rename quoted", line: `R  "old name.txt" -> "new name.txt"`, wantOK: true, status: "R", file: "new name.txt"},
+		{name: "too short", line: "M", wantOK: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := parsePorcelainLine(tt.line)
+			if ok != tt.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
+			}
+			if !tt.wantOK {
+				return
+			}
+			if got.Status != tt.status || got.File != tt.file {
+				t.Fatalf("got {%q, %q}, want {%q, %q}", got.Status, got.File, tt.status, tt.file)
+			}
+		})
+	}
+}
+
 func TestChangeStruct(t *testing.T) {
 	c := Change{Status: "M", File: "foo.go"}
 	if c.Status != "M" {

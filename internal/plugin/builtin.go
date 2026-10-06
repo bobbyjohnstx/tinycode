@@ -7,6 +7,20 @@ import (
 	"sync"
 )
 
+// directoryContextKey carries the project/session working directory for builtin tools.
+type directoryContextKey struct{}
+
+// WithDirectory returns a child context that carries dir for builtin tool execution.
+func WithDirectory(ctx context.Context, dir string) context.Context {
+	return context.WithValue(ctx, directoryContextKey{}, dir)
+}
+
+// DirectoryFromContext returns the working directory set by WithDirectory, or "".
+func DirectoryFromContext(ctx context.Context) string {
+	dir, _ := ctx.Value(directoryContextKey{}).(string)
+	return dir
+}
+
 // BuiltinPlugin is the interface for in-process plugins that provide tools
 // and lifecycle hooks without requiring an external process.
 type BuiltinPlugin interface {

@@ -211,17 +211,24 @@ func (s *Server) handleSessionDiff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	diff, err := vcs.GitDiff(dir)
-	if err != nil {
+	// Summary stats come from numstat (same source as session.diff events).
+	files, additions, deletions, numErr := vcs.GitDiffNumstat(dir)
+	diff, diffErr := vcs.GitDiff(dir)
+	if numErr != nil && diffErr != nil {
 		respondJSON(w, http.StatusOK, map[string]any{
 			"diff":    "",
 			"files":   []any{},
 			"summary": map[string]any{"additions": 0, "deletions": 0, "files": 0},
+			"error":   diffErr.Error(),
 		})
 		return
 	}
-
-	files, additions, deletions := parseDiffStats(diff)
+	if files == nil {
+		files = []string{}
+	}
+	if diffErr != nil {
+		diff = ""
+	}
 	respondJSON(w, http.StatusOK, map[string]any{
 		"diff":  diff,
 		"files": files,

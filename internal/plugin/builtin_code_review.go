@@ -62,6 +62,9 @@ func (p *codeReviewPlugin) Tools() []BuiltinTool {
 				}
 
 				cmd := exec.CommandContext(ctx, "git", diffArgs...)
+				if dir := DirectoryFromContext(ctx); dir != "" {
+					cmd.Dir = dir
+				}
 				output, err := cmd.Output()
 				if err != nil {
 					if exitErr, ok := err.(*exec.ExitError); ok {

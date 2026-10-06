@@ -63,8 +63,12 @@ func TestVCSStatus_EmptyReturnsEmptyArray(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
 		t.Fatalf("expected JSON object: %v", err)
 	}
-	if result["clean"] != true {
-		t.Errorf("expected clean=true, got %v", result["clean"])
+	// Non-git must not look like a clean repo: error present, clean=false.
+	if result["clean"] != false {
+		t.Errorf("expected clean=false for non-git dir, got %v", result["clean"])
+	}
+	if _, ok := result["error"]; !ok {
+		t.Fatal("expected 'error' field for non-git directory")
 	}
 	changes, _ := result["changes"].([]any)
 	if len(changes) != 0 {
@@ -131,8 +135,11 @@ func TestFileStatus_EmptyReturnsEmptyArray(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
 		t.Fatalf("expected JSON object: %v", err)
 	}
-	if result["clean"] != true {
-		t.Errorf("expected clean=true, got %v", result["clean"])
+	if result["clean"] != false {
+		t.Errorf("expected clean=false for non-git dir, got %v", result["clean"])
+	}
+	if _, ok := result["error"]; !ok {
+		t.Fatal("expected 'error' field for non-git directory")
 	}
 	changes, _ := result["changes"].([]any)
 	if len(changes) != 0 {

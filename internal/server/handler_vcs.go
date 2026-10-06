@@ -9,10 +9,12 @@ import (
 func (s *Server) handleVCSInfo(w http.ResponseWriter, r *http.Request) {
 	info, err := vcs.GitInfo(s.config.Directory)
 	if err != nil {
+		// Empty type distinguishes non-git / VCS errors from a real git repo.
 		respondJSON(w, http.StatusOK, map[string]any{
-			"type":   "git",
+			"type":   "",
 			"branch": "",
 			"remote": "",
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -23,8 +25,9 @@ func (s *Server) handleVCSStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := vcs.GitStatus(s.config.Directory)
 	if err != nil {
 		respondJSON(w, http.StatusOK, map[string]any{
-			"clean":   true,
+			"clean":   false,
 			"changes": []any{},
+			"error":   err.Error(),
 		})
 		return
 	}
@@ -35,7 +38,8 @@ func (s *Server) handleVCSDiff(w http.ResponseWriter, r *http.Request) {
 	diff, err := vcs.GitDiff(s.config.Directory)
 	if err != nil {
 		respondJSON(w, http.StatusOK, map[string]any{
-			"diff": "",
+			"diff":  "",
+			"error": err.Error(),
 		})
 		return
 	}
@@ -48,6 +52,7 @@ func (s *Server) handleVCSDiffRaw(w http.ResponseWriter, r *http.Request) {
 	diff, err := vcs.GitDiff(s.config.Directory)
 	if err != nil {
 		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("X-Tinycode-VCS-Error", err.Error())
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -60,8 +65,9 @@ func (s *Server) handleFileStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := vcs.GitStatus(s.config.Directory)
 	if err != nil {
 		respondJSON(w, http.StatusOK, map[string]any{
-			"clean":   true,
+			"clean":   false,
 			"changes": []any{},
+			"error":   err.Error(),
 		})
 		return
 	}

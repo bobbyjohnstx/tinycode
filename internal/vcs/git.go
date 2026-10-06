@@ -50,15 +50,9 @@ func GitStatus(dir string) (*Status, error) {
 
 	var changes []Change
 	for _, line := range strings.Split(out, "\n") {
-		if len(line) < 4 {
-			continue
+		if c, ok := parsePorcelainLine(line); ok {
+			changes = append(changes, c)
 		}
-		status := strings.TrimSpace(line[:2])
-		file := strings.TrimSpace(line[3:])
-		changes = append(changes, Change{
-			Status: status,
-			File:   file,
-		})
 	}
 
 	return &Status{
@@ -67,15 +61,70 @@ func GitStatus(dir string) (*Status, error) {
 	}, nil
 }
 
-// GitDiff returns the diff output for the git repo at dir.
-func GitDiff(dir string) (string, error) {
-	return gitCommand(dir, "diff")
+// parsePorcelainLine parses one git status --porcelain line into a Change.
+// Rename/copy lines (R/C) use the destination path. Quoted paths are unquoted.
+func parsePorcelainLine(line string) (Change, bool) {
+	if len(line) < 4 {
+		return Change{}, false
+	}
+	status := strings.TrimSpace(line[:2])
+	pathPart := line[3:]
+
+	// Rename/copy: "R  old -> new" or "R  \"old\" -> \"new\""
+	if len(status) > 0 && (status[0] == 'R' || status[0] == 'C') {
+		if dest, ok := renameDestination(pathPart); ok {
+			return Change{Status: status, File: dest}, true
+		}
+	}
+
+	file, ok := unquotePath(pathPart)
+	if !ok || file == "" {
+		return Change{}, false
+	}
+	return Change{Status: status, File: file}, true
 }
 
-// GitDiffNumstat returns the files touched by the working tree diff and the
+func renameDestination(pathPart string) (string, bool) {
+	// Split on " -> " outside of quotes when possible; porcelain always uses " -> ".
+	const sep = " -> "
+	idx := strings.LastIndex(pathPart, sep)
+	if idx < 0 {
+		return "", false
+	}
+	return unquotePath(pathPart[idx+len(sep):])
+}
+
+// unquotePath handles git's C-style quoted paths (spaces, special chars).
+func unquotePath(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", false
+	}
+	if !strings.HasPrefix(s, `"`) {
+		return s, true
+	}
+	// Use strconv.Unquote for C-style escapes git emits.
+	unquoted, err := strconv.Unquote(s)
+	if err != nil {
+		// Fallback: strip surrounding quotes only.
+		if len(s) >= 2 && strings.HasSuffix(s, `"`) {
+			return s[1 : len(s)-1], true
+		}
+		return s, true
+	}
+	return unquoted, true
+}
+
+// GitDiff returns the staged+unstaged diff for the git repo at dir
+// (equivalent to git diff HEAD, matching the TUI /diff command).
+func GitDiff(dir string) (string, error) {
+	return gitCommand(dir, "diff", "HEAD")
+}
+
+// GitDiffNumstat returns the files touched by the staged+unstaged diff and the
 // summed added and deleted line counts. It does not load the patch.
 func GitDiffNumstat(dir string) (files []string, additions, deletions int, err error) {
-	out, err := gitCommand(dir, "diff", "--numstat")
+	out, err := gitCommand(dir, "diff", "HEAD", "--numstat")
 	if err != nil {
 		return nil, 0, 0, err
 	}
