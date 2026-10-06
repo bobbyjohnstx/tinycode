@@ -103,10 +103,29 @@ func (m *MCPConfig) UnmarshalJSON(data []byte) error {
 	aux := &struct {
 		*Alias
 		Command json.RawMessage `json:"command,omitempty"`
+		Args    json.RawMessage `json:"args,omitempty"`
 	}{Alias: (*Alias)(m)}
 
 	if err := json.Unmarshal(data, aux); err != nil {
 		return err
+	}
+
+	explicitArgs := false
+	if len(aux.Args) > 0 {
+		var args []string
+		if err := json.Unmarshal(aux.Args, &args); err == nil {
+			m.Args = args
+			explicitArgs = true
+		} else {
+			var anyArgs []any
+			if err := json.Unmarshal(aux.Args, &anyArgs); err == nil {
+				m.Args = make([]string, 0, len(anyArgs))
+				for _, a := range anyArgs {
+					m.Args = append(m.Args, fmt.Sprint(a))
+				}
+				explicitArgs = true
+			}
+		}
 	}
 
 	if len(aux.Command) == 0 {
@@ -122,7 +141,9 @@ func (m *MCPConfig) UnmarshalJSON(data []byte) error {
 	var cmdArr []string
 	if err := json.Unmarshal(aux.Command, &cmdArr); err == nil && len(cmdArr) > 0 {
 		m.Command = cmdArr[0]
-		m.Args = cmdArr[1:]
+		if !explicitArgs {
+			m.Args = cmdArr[1:]
+		}
 		return nil
 	}
 
@@ -135,6 +156,7 @@ type MCPOAuthConfig struct {
 	TokenURL    string   `json:"token_url"`
 	Scopes      []string `json:"scopes,omitempty"`
 	CallbackURL string   `json:"callback_url,omitempty"`
+	AccessToken string   `json:"access_token,omitempty"`
 }
 
 type ServerConfig struct {

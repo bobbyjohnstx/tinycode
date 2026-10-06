@@ -78,7 +78,6 @@ func (t *SSETransport) Connect(ctx context.Context) error {
 
 	select {
 	case <-t.connected:
-		return nil
 	case <-time.After(sseConnectTimeout):
 		cancel()
 		resp.Body.Close()
@@ -88,6 +87,78 @@ func (t *SSETransport) Connect(ctx context.Context) error {
 		resp.Body.Close()
 		return ctx.Err()
 	}
+
+	initReq := jsonrpcRequest{
+		JSONRPC: "2.0",
+		ID:      t.nextID.Add(1),
+		Method:  "initialize",
+		Params: map[string]any{
+			"protocolVersion": "2024-11-05",
+			"capabilities":    map[string]any{},
+			"clientInfo": map[string]any{
+				"name":    "tinycode",
+				"version": "0.1.0",
+			},
+		},
+	}
+
+	initResp, err := t.sendRequest(connCtx, initReq)
+	if err != nil {
+		cancel()
+		return fmt.Errorf("SSE initialize: %w", err)
+	}
+	if initResp.Error != nil {
+		cancel()
+		return fmt.Errorf("SSE initialize error: %s", initResp.Error.Message)
+	}
+
+	notif := jsonrpcRequest{
+		JSONRPC: "2.0",
+		Method:  "notifications/initialized",
+	}
+	if err := t.postJSON(connCtx, notif); err != nil {
+		cancel()
+		return fmt.Errorf("sending initialized notification: %w", err)
+	}
+
+	return nil
+}
+
+// postJSON POSTs a JSON-RPC message without waiting for an SSE response.
+// Used for notifications that have no response ID.
+func (t *SSETransport) postJSON(ctx context.Context, msg any) error {
+	t.mu.Lock()
+	messagesURL := t.messagesURL
+	t.mu.Unlock()
+
+	if messagesURL == "" {
+		return fmt.Errorf("SSE not connected: no messages endpoint")
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", messagesURL, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	for k, v := range t.headers {
+		httpReq.Header.Set(k, v)
+	}
+
+	resp, err := t.client.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("sending request: %w", err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("request failed: status %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (t *SSETransport) readSSEStream(body io.ReadCloser) {

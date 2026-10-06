@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"sync"
 	"time"
 
@@ -66,20 +67,32 @@ func (s *Service) Configure(ctx context.Context, mcpConfigs map[string]config.MC
 	s.mu.Lock()
 
 	var toStop []*serverConn
-	for name := range s.servers {
+	var toConnect []string
+
+	for name, conn := range s.servers {
 		if _, exists := mcpConfigs[name]; !exists {
-			toStop = append(toStop, s.servers[name])
+			toStop = append(toStop, conn)
 			delete(s.servers, name)
 		}
 	}
 
 	for name, cfg := range mcpConfigs {
-		if _, exists := s.servers[name]; !exists {
+		existing, exists := s.servers[name]
+		if !exists {
 			s.servers[name] = &serverConn{
 				name:   name,
 				config: cfg,
 				status: StatusDisconnected,
 			}
+			toConnect = append(toConnect, name)
+			continue
+		}
+		if !reflect.DeepEqual(existing.config, cfg) {
+			toStop = append(toStop, existing)
+			existing.config = cfg
+			existing.status = StatusDisconnected
+			existing.err = ""
+			toConnect = append(toConnect, name)
 		}
 	}
 	s.mu.Unlock()
@@ -88,7 +101,18 @@ func (s *Service) Configure(ctx context.Context, mcpConfigs map[string]config.MC
 		s.stopServer(conn)
 	}
 
-	for name := range mcpConfigs {
+	s.mu.Lock()
+	for _, name := range toConnect {
+		if conn, ok := s.servers[name]; ok {
+			conn.transport = nil
+			conn.cancel = nil
+			conn.ctx = nil
+			conn.tools = nil
+		}
+	}
+	s.mu.Unlock()
+
+	for _, name := range toConnect {
 		safego.Go(func() { s.connectServer(ctx, name) })
 	}
 }
@@ -306,15 +330,51 @@ func (s *Service) createTransport(cfg config.MCPConfig) (Transport, error) {
 		if cfg.URL == "" {
 			return nil, fmt.Errorf("SSE transport requires url")
 		}
-		return NewSSETransport(cfg.URL, cfg.Headers), nil
+		return NewSSETransport(cfg.URL, remoteHeaders(cfg)), nil
 	case "streamable-http":
 		if cfg.URL == "" {
 			return nil, fmt.Errorf("streamable-http transport requires url")
 		}
-		return NewStreamableHTTPTransport(cfg.URL, cfg.Headers), nil
+		return NewStreamableHTTPTransport(cfg.URL, remoteHeaders(cfg)), nil
 	default:
 		return nil, fmt.Errorf("unknown transport: %s", transport)
 	}
+}
+
+// remoteHeaders copies cfg.Headers and injects Authorization Bearer when an
+// OAuth access token is available (config field or persisted mcp-auth store).
+// An explicit Authorization header in config always wins.
+func remoteHeaders(cfg config.MCPConfig) map[string]string {
+	headers := make(map[string]string, len(cfg.Headers)+1)
+	for k, v := range cfg.Headers {
+		headers[k] = v
+	}
+	if _, ok := headers["Authorization"]; ok {
+		return headers
+	}
+	token := oauthAccessToken(cfg)
+	if token == "" {
+		return headers
+	}
+	headers["Authorization"] = "Bearer " + token
+	return headers
+}
+
+func oauthAccessToken(cfg config.MCPConfig) string {
+	if cfg.OAuth == nil {
+		return ""
+	}
+	if cfg.OAuth.AccessToken != "" {
+		return cfg.OAuth.AccessToken
+	}
+	if cfg.OAuth.ClientID == "" {
+		return ""
+	}
+	state, err := loadOAuthState(cfg.OAuth.ClientID)
+	if err != nil || state == nil || state.Tokens == nil {
+		return ""
+	}
+	return state.Tokens.AccessToken
 }
 
 func resolveTransport(cfg config.MCPConfig) string {

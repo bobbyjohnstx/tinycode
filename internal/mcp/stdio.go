@@ -101,7 +101,7 @@ func (t *StdioTransport) Connect(ctx context.Context) error {
 		},
 	}
 
-	resp, err := t.roundTrip(initReq)
+	resp, err := t.roundTrip(ctx, initReq)
 	if err != nil {
 		_ = t.closeInternal()
 		return fmt.Errorf("MCP initialize: %w", err)
@@ -187,7 +187,7 @@ func (t *StdioTransport) ListTools(ctx context.Context) ([]MCPTool, error) {
 			Params:  params,
 		}
 
-		resp, err := t.roundTrip(req)
+		resp, err := t.roundTrip(ctx, req)
 		if err != nil {
 			return nil, fmt.Errorf("listing tools: %w", err)
 		}
@@ -235,7 +235,7 @@ func (t *StdioTransport) CallTool(ctx context.Context, name string, args json.Ra
 		},
 	}
 
-	resp, err := t.roundTrip(req)
+	resp, err := t.roundTrip(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("calling tool %s: %w", name, err)
 	}
@@ -299,7 +299,7 @@ func (t *StdioTransport) sendMessage(msg any) error {
 	return err
 }
 
-func (t *StdioTransport) roundTrip(req jsonrpcRequest) (*jsonrpcResponse, error) {
+func (t *StdioTransport) roundTrip(ctx context.Context, req jsonrpcRequest) (*jsonrpcResponse, error) {
 	if err := t.sendMessage(req); err != nil {
 		return nil, err
 	}
@@ -326,6 +326,8 @@ func (t *StdioTransport) roundTrip(req jsonrpcRequest) (*jsonrpcResponse, error)
 			return nil, fmt.Errorf("roundTrip timeout after %v", timeout)
 		case <-t.done:
 			return nil, fmt.Errorf("transport disconnected")
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
 }

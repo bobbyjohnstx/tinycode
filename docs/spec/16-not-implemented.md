@@ -371,4 +371,21 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 
 ---
 
+## 16.28 MCP Auth HTTP Routes & CLI
+
+**TS / OpenAPI behavior:**
+
+- `GET/POST /mcp/{name}/auth`, `/mcp/{name}/auth/callback`, `/mcp/{name}/auth/authenticate`
+- `POST /mcp/{name}/connect`, `POST /mcp/{name}/disconnect`
+- CLI: `tinycode mcp` (list, auth, add, debug, logout) — also listed in §16.7
+
+**Go status:** Not implemented as HTTP routes (requests 404). Implemented instead:
+
+- Config-driven MCP connections with optional `oauth.access_token` or tokens from `~/.local/share/tinycode/mcp-auth.json`
+- Bearer injection on SSE / streamable-http transports via `createTransport`
+- Local PKCE helpers in `internal/mcp/oauth.go` (not exposed on the serve API)
+- Status / reconnect: `GET /mcp`, `GET /mcp/status`, `POST /mcp/{name}/reconnect`
+
+---
+
 *Prev: [15-security.md](15-security.md) | [Back to overview](00-overview.md)*

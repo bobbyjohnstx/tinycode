@@ -1,10 +1,13 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStdioTransport_RoundTrip(t *testing.T) {
@@ -45,7 +48,7 @@ func TestStdioTransport_RoundTrip(t *testing.T) {
 		Method:  "test/method",
 	}
 
-	resp, err := transport.roundTrip(req)
+	resp, err := transport.roundTrip(context.Background(), req)
 	if err != nil {
 		t.Fatalf("roundTrip: %v", err)
 	}
@@ -92,12 +95,49 @@ func TestStdioTransport_RoundTrip_TransportClosed(t *testing.T) {
 		Method:  "test/method",
 	}
 
-	_, err := transport.roundTrip(req)
+	_, err := transport.roundTrip(context.Background(), req)
 	if err == nil {
 		t.Fatal("expected error for closed transport")
 	}
 	if !strings.Contains(err.Error(), "disconnected") {
 		t.Errorf("error = %q, want to contain 'disconnected'", err.Error())
+	}
+}
+
+func TestStdioTransport_RoundTrip_ContextCancel(t *testing.T) {
+	pr, pw := io.Pipe()
+	defer pr.Close()
+	defer pw.Close()
+
+	transport := &StdioTransport{
+		messages: make(chan *jsonrpcResponse, 1),
+		done:     make(chan struct{}),
+		stdin:    pw,
+		Timeout:  time.Minute,
+	}
+
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			if _, err := pr.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := transport.roundTrip(ctx, jsonrpcRequest{
+		JSONRPC: "2.0",
+		ID:      1,
+		Method:  "test/method",
+	})
+	if err == nil {
+		t.Fatal("expected error for cancelled context")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error = %v, want context.Canceled", err)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -215,6 +216,176 @@ func TestServiceConfigure_AddAndRemoveServers(t *testing.T) {
 	}
 	if _, ok := status["server-b"]; !ok {
 		t.Error("expected server-b to remain")
+	}
+}
+
+func TestServiceConfigure_OnlyConnectsNewServers(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+	defer s.Close()
+
+	cfg := map[string]config.MCPConfig{
+		"stable": {Transport: "stdio", Command: "nonexistent-cmd-stable"},
+	}
+	s.Configure(context.Background(), cfg)
+	s.WaitForConnections(context.Background(), time.Second)
+
+	s.mu.RLock()
+	stable := s.servers["stable"]
+	firstConn := stable
+	s.mu.RUnlock()
+	if firstConn == nil {
+		t.Fatal("expected stable server")
+	}
+
+	// Reconfigure with same stable server plus a new one — stable must not be replaced.
+	s.Configure(context.Background(), map[string]config.MCPConfig{
+		"stable": {Transport: "stdio", Command: "nonexistent-cmd-stable"},
+		"newbie": {Transport: "stdio", Command: "nonexistent-cmd-newbie"},
+	})
+	s.WaitForConnections(context.Background(), time.Second)
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.servers["stable"] != firstConn {
+		t.Error("unchanged server should keep the same serverConn pointer")
+	}
+	if _, ok := s.servers["newbie"]; !ok {
+		t.Error("expected newbie server to be added")
+	}
+}
+
+func TestCreateTransport_OAuthAccessTokenHeader(t *testing.T) {
+	s := NewService(bus.New())
+	defer s.bus.Close()
+
+	transport, err := s.createTransport(config.MCPConfig{
+		Transport: "streamable-http",
+		URL:       "http://example.com/mcp",
+		OAuth: &config.MCPOAuthConfig{
+			ClientID:    "client",
+			AccessToken: "cfg-token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("createTransport: %v", err)
+	}
+	st, ok := transport.(*StreamableHTTPTransport)
+	if !ok {
+		t.Fatalf("expected StreamableHTTPTransport, got %T", transport)
+	}
+	if got := st.headers["Authorization"]; got != "Bearer cfg-token" {
+		t.Errorf("Authorization = %q, want Bearer cfg-token", got)
+	}
+}
+
+func TestCreateTransport_OAuthDoesNotOverrideExplicitAuth(t *testing.T) {
+	s := NewService(bus.New())
+	defer s.bus.Close()
+
+	transport, err := s.createTransport(config.MCPConfig{
+		Transport: "sse",
+		URL:       "http://example.com/sse",
+		Headers:   map[string]string{"Authorization": "Bearer explicit"},
+		OAuth: &config.MCPOAuthConfig{
+			AccessToken: "cfg-token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("createTransport: %v", err)
+	}
+	st, ok := transport.(*SSETransport)
+	if !ok {
+		t.Fatalf("expected SSETransport, got %T", transport)
+	}
+	if got := st.headers["Authorization"]; got != "Bearer explicit" {
+		t.Errorf("Authorization = %q, want Bearer explicit", got)
+	}
+}
+
+func TestSSETransport_Connect_InitializeHandshake(t *testing.T) {
+	var mu sync.Mutex
+	var methods []string
+
+	type sseSink struct {
+		w       http.ResponseWriter
+		flusher http.Flusher
+	}
+	sseReady := make(chan sseSink, 1)
+	msgPosted := make(chan jsonrpcRequest, 8)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
+		f, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "no flush", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "event: endpoint\ndata: http://%s/messages\n\n", r.Host)
+		f.Flush()
+		sseReady <- sseSink{w: w, flusher: f}
+		<-r.Context().Done()
+	})
+	mux.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
+		var req jsonrpcRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		methods = append(methods, req.Method)
+		mu.Unlock()
+		w.WriteHeader(http.StatusAccepted)
+		if req.Method != "notifications/initialized" {
+			msgPosted <- req
+		}
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	go func() {
+		sink := <-sseReady
+		for req := range msgPosted {
+			result, _ := json.Marshal(map[string]any{
+				"protocolVersion": "2024-11-05",
+				"capabilities":    map[string]any{},
+			})
+			payload, _ := json.Marshal(jsonrpcResponse{
+				JSONRPC: "2.0",
+				ID:      req.ID,
+				Result:  result,
+			})
+			fmt.Fprintf(sink.w, "event: message\ndata: %s\n\n", payload)
+			sink.flusher.Flush()
+		}
+	}()
+
+	transport := NewSSETransport(srv.URL+"/sse", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := transport.Connect(ctx); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer transport.Close()
+	close(msgPosted)
+
+	mu.Lock()
+	got := append([]string(nil), methods...)
+	mu.Unlock()
+
+	if len(got) < 2 {
+		t.Fatalf("expected initialize + initialized, got %v", got)
+	}
+	if got[0] != "initialize" {
+		t.Errorf("first method = %q, want initialize", got[0])
+	}
+	if got[1] != "notifications/initialized" {
+		t.Errorf("second method = %q, want notifications/initialized", got[1])
 	}
 }
 

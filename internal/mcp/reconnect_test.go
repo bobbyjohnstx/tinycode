@@ -52,42 +52,58 @@ func TestSSETransport_NotificationHandling(t *testing.T) {
 	var notificationReceived atomic.Value
 	notificationReceived.Store("")
 
-	// Create an SSE server that sends a tools/list_changed notification
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
-			flusher, ok := w.(http.Flusher)
-			if !ok {
-				http.Error(w, "streaming not supported", http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			w.WriteHeader(http.StatusOK)
+	type sseSink struct {
+		w       http.ResponseWriter
+		flusher http.Flusher
+	}
+	sseReady := make(chan sseSink, 1)
+	msgPosted := make(chan jsonrpcRequest, 8)
 
-			// Send endpoint event
-			fmt.Fprintf(w, "event: endpoint\ndata: /messages\n\n")
-			flusher.Flush()
-
-			// Send a tools/list_changed notification
-			notifJSON := `{"jsonrpc":"2.0","method":"notifications/tools/list_changed"}`
-			fmt.Fprintf(w, "event: message\ndata: %s\n\n", notifJSON)
-			flusher.Flush()
-
-			// Keep connection open briefly
-			time.Sleep(200 * time.Millisecond)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
 			return
 		}
-
-		// Handle POST requests (messages endpoint)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "event: endpoint\ndata: http://%s/messages\n\n", r.Host)
+		flusher.Flush()
+		sseReady <- sseSink{w: w, flusher: flusher}
+		<-r.Context().Done()
+	})
+	mux.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
 		var req jsonrpcRequest
-		json.NewDecoder(r.Body).Decode(&req)
-		resp := jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: json.RawMessage(`{}`)}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
-	}))
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		w.WriteHeader(http.StatusAccepted)
+		if req.Method != "notifications/initialized" {
+			msgPosted <- req
+		}
+	})
+
+	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	transport := NewSSETransport(srv.URL, nil)
+	go func() {
+		sink := <-sseReady
+		// Complete initialize handshake via SSE message event.
+		req := <-msgPosted
+		payload, _ := json.Marshal(jsonrpcResponse{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  json.RawMessage(`{}`),
+		})
+		fmt.Fprintf(sink.w, "event: message\ndata: %s\n\n", payload)
+		sink.flusher.Flush()
+
+		notifJSON := `{"jsonrpc":"2.0","method":"notifications/tools/list_changed"}`
+		fmt.Fprintf(sink.w, "event: message\ndata: %s\n\n", notifJSON)
+		sink.flusher.Flush()
+	}()
+
+	transport := NewSSETransport(srv.URL+"/sse", nil)
 	transport.onNotification = func(method string) {
 		notificationReceived.Store(method)
 	}
@@ -119,33 +135,55 @@ func TestSSETransport_NotificationHandling(t *testing.T) {
 func TestSSETransport_DisconnectCallback(t *testing.T) {
 	disconnected := make(chan struct{}, 1)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
-			flusher, ok := w.(http.Flusher)
-			if !ok {
-				http.Error(w, "streaming not supported", http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.WriteHeader(http.StatusOK)
+	type sseSink struct {
+		w       http.ResponseWriter
+		flusher http.Flusher
+	}
+	sseReady := make(chan sseSink, 1)
+	msgPosted := make(chan jsonrpcRequest, 8)
+	closeSSE := make(chan struct{})
 
-			fmt.Fprintf(w, "event: endpoint\ndata: /messages\n\n")
-			flusher.Flush()
-
-			// Close stream immediately to simulate disconnect
-			time.Sleep(100 * time.Millisecond)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming not supported", http.StatusInternalServerError)
 			return
 		}
-
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "event: endpoint\ndata: http://%s/messages\n\n", r.Host)
+		flusher.Flush()
+		sseReady <- sseSink{w: w, flusher: flusher}
+		<-closeSSE
+	})
+	mux.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
 		var req jsonrpcRequest
-		json.NewDecoder(r.Body).Decode(&req)
-		resp := jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: json.RawMessage(`{}`)}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
-	}))
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		w.WriteHeader(http.StatusAccepted)
+		if req.Method != "notifications/initialized" {
+			msgPosted <- req
+		}
+	})
+
+	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	transport := NewSSETransport(srv.URL, nil)
+	go func() {
+		sink := <-sseReady
+		req := <-msgPosted
+		payload, _ := json.Marshal(jsonrpcResponse{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Result:  json.RawMessage(`{}`),
+		})
+		fmt.Fprintf(sink.w, "event: message\ndata: %s\n\n", payload)
+		sink.flusher.Flush()
+		// Close stream after handshake to simulate disconnect.
+		close(closeSSE)
+	}()
+
+	transport := NewSSETransport(srv.URL+"/sse", nil)
 	transport.onDisconnect = func() {
 		select {
 		case disconnected <- struct{}{}:

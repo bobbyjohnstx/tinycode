@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/mcp"
@@ -37,6 +38,7 @@ func runTUI(args []string) {
 		mcpSvc = mcp.NewService(b)
 		defer mcpSvc.Close()
 		mcpSvc.Configure(ctx, cfg.MCP)
+		mcpSvc.WaitForConnections(ctx, 10*time.Second)
 	}
 
 	reg := provider.NewRegistry()

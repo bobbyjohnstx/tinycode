@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/acp"
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
@@ -50,6 +51,7 @@ func runACP(args []string) {
 		mcpSvc = mcp.NewService(b)
 		defer mcpSvc.Close()
 		mcpSvc.Configure(ctx, cfg.MCP)
+		mcpSvc.WaitForConnections(ctx, 10*time.Second)
 	}
 
 	reg := provider.NewRegistry()

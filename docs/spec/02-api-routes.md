@@ -167,7 +167,11 @@ Source: `internal/server/middleware/`
 
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
-| GET | `/mcp/status` | `handleMCPStatus` | MCP server connection status |
+| GET | `/mcp` | `handleMCPStatus` | Alias of `/mcp/status` |
+| GET | `/mcp/status` | `handleMCPStatus` | Map of server name → `ServerStatus` (`name`, `status`, `error?`, `toolCount`) |
+| POST | `/mcp/{name}/reconnect` | `handleMCPReconnect` | Restart a named MCP server |
+
+OpenAPI MCP auth routes (`/mcp/{name}/auth`, `/mcp/{name}/auth/callback`, `/mcp/{name}/auth/authenticate`, `/mcp/{name}/connect`, `/mcp/{name}/disconnect`) are **not** implemented; see [16-not-implemented.md](16-not-implemented.md) §16.28.
 
 ## 2.18 Plugin Routes
 
@@ -214,9 +218,9 @@ HTTP status codes follow REST conventions: 200 (OK), 201 (Created), 204 (No Cont
 | Metadata | 4 |
 | VCS | 4 |
 | LSP/Formatter | 2 |
-| MCP | 1 |
+| MCP | 3 |
 | Plugin | 5 |
-| **Total** | **66** |
+| **Total** | **68** |
 
 ## 2.22 SSE Stream Shapes
 

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
@@ -34,6 +35,7 @@ func runServe() {
 		mcpSvc = mcp.NewService(b)
 		defer mcpSvc.Close()
 		mcpSvc.Configure(ctx, cfg.MCP)
+		mcpSvc.WaitForConnections(ctx, 10*time.Second)
 	}
 
 	reg := provider.NewRegistry()
@@ -119,6 +121,7 @@ func runWeb() {
 		mcpSvc = mcp.NewService(b)
 		defer mcpSvc.Close()
 		mcpSvc.Configure(ctx, cfg.MCP)
+		mcpSvc.WaitForConnections(ctx, 10*time.Second)
 	}
 
 	reg := provider.NewRegistry()

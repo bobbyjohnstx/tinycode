@@ -734,14 +734,14 @@ Add MCP servers in your config file:
       "command": "npx",
       "args": ["-y", "@my/mcp-server"],
       "env": {
-        "API_KEY": "${MCP_API_KEY}"
+        "API_KEY": "{env:MCP_API_KEY}"
       }
     }
   }
 }
 ```
 
-The `command` field accepts either a string or an array (`["npx", "-y", "@my/mcp-server"]`).
+The `command` field accepts either a string or an array (`["npx", "-y", "@my/mcp-server"]`). You can also use `"command": "npx"` with a separate `"args"` array. Config env substitution uses `{env:VAR}` only (not `$VAR` / `${VAR}`).
 
 ### Transport types
 
@@ -778,7 +778,7 @@ The `command` field accepts either a string or an array (`["npx", "-y", "@my/mcp
   "mcp": {
     "streamable-server": {
       "url": "https://mcp.example.com/mcp",
-      "transport": "streamable"
+      "transport": "streamable-http"
     }
   }
 }
@@ -812,6 +812,17 @@ Use `/mcp` or **Ctrl+X i** to open the MCP server management dialog. This shows 
 - View each server's status (connected, error, disconnected)
 - Trigger a reconnect for failed or disconnected servers
 - See the number of tools each server provides
+
+### HTTP status & reconnect
+
+When running `tinycode serve` / `tinycode web`:
+
+| Method | Path | Response |
+|--------|------|----------|
+| `GET` | `/mcp` or `/mcp/status` | Map of server name → `{name, status, error?, toolCount}` |
+| `POST` | `/mcp/{name}/reconnect` | `{"status":"reconnecting"}` |
+
+Status values: `disconnected`, `connecting`, `connected`, `reconnecting`, `error`.
 
 ### Status monitoring
 

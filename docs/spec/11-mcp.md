@@ -69,12 +69,12 @@ MCP servers are configured in `config.json` under the `mcp` key:
     "my-server": {
       "command": "npx",
       "args": ["-y", "@my/mcp-server"],
-      "env": { "API_KEY": "$MY_API_KEY" }
+      "env": { "API_KEY": "{env:MY_API_KEY}" }
     },
     "remote-sse": {
       "url": "https://mcp.example.com/sse",
       "transport": "sse",
-      "headers": { "Authorization": "Bearer $TOKEN" }
+      "headers": { "Authorization": "Bearer {env:TOKEN}" }
     },
     "remote-streamable": {
       "url": "https://mcp.example.com/mcp",
@@ -96,12 +96,14 @@ MCP servers are configured in `config.json` under the `mcp` key:
 }
 ```
 
+Environment values in config use `{env:VAR}` substitution only (see `SubstituteEnvVars`). Shell-style `$VAR` / `${VAR}` are not expanded.
+
 ### MCPConfig Fields
 
 | Field | Type | JSON | Description |
 |-------|------|------|-------------|
-| `Command` | `string` | `command` | Stdio transport: command to run. Accepts string or string array in JSON (custom `UnmarshalJSON`). When array, first element is command, rest become `Args`. |
-| `Args` | `[]string` | `-` | Command arguments. Populated automatically when `command` is a JSON array. |
+| `Command` | `string` | `command` | Stdio transport: command to run. Accepts string or string array in JSON (custom `UnmarshalJSON`). When array, first element is command, rest become `Args` unless an explicit `args` field is present. |
+| `Args` | `[]string` | `args` | Command arguments. Filled from JSON `args` when present, or from the remainder of a `command` array. |
 | `Env` | `map[string]string` | `env` | Environment variables passed to the subprocess |
 | `URL` | `string` | `url` | Endpoint URL for SSE or streamable-http transports |
 | `Transport` | `string` | `transport` | Explicit transport type: `"stdio"`, `"sse"`, or `"streamable-http"` |
@@ -119,6 +121,7 @@ Source: `internal/config/config.go`
 | `TokenURL` | `string` | `token_url` | Token exchange endpoint URL |
 | `Scopes` | `[]string` | `scopes` | Requested OAuth scopes |
 | `CallbackURL` | `string` | `callback_url` | Override for the local callback URL (default: `http://127.0.0.1:19876/mcp/oauth/callback`) |
+| `AccessToken` | `string` | `access_token` | Optional pre-stored access token; injected as `Authorization: Bearer` on remote transports when no explicit `headers.Authorization` is set. Otherwise tokens are loaded from `mcp-auth.json` by `client_id`. |
 
 ## 11.3 Transport Interface
 
@@ -134,7 +137,7 @@ type Transport interface {
 All three transport implementations share a common JSON-RPC 2.0 wire protocol. Each supports:
 - **`Connect`** -- establishes the connection, performs MCP `initialize` handshake (protocol version `2024-11-05`), sends `notifications/initialized`
 - **`ListTools`** -- paginates via `tools/list` with cursor-based iteration (`nextCursor`)
-- **`CallTool`** -- sends `tools/call`, extracts `text`-type content blocks from response, returns concatenated output
+- **`CallTool`** -- sends `tools/call`, extracts **`text`-type content blocks only** from the response, returns concatenated output (image/resource/other content types are ignored)
 - **`Close`** -- tears down the connection
 
 Source: `transport.go`
@@ -184,7 +187,7 @@ A goroutine (`readLoop`) continuously reads newline-delimited JSON from stdout:
 
 ### Request/Response
 
-`roundTrip(req)` sends a JSON-RPC request and waits for the matching response by `ID`. Timeout defaults to 60 seconds (`defaultStdioTimeout`), configurable via `Timeout` field.
+`roundTrip(ctx, req)` sends a JSON-RPC request and waits for the matching response by `ID`. Honors `ctx` cancellation. Timeout defaults to 60 seconds (`defaultStdioTimeout`), configurable via `Timeout` field.
 
 ### JSON-RPC Types
 
@@ -223,10 +226,11 @@ HTTP Server-Sent Events for server-to-client messages, HTTP POST for client-to-s
 ### Connection Flow
 
 1. HTTP GET to the configured URL with `Accept: text/event-stream` header
-2. Custom headers applied from config
+2. Custom headers applied from config (including OAuth Bearer when configured)
 3. SSE stream reader goroutine (`readSSEStream`) starts
 4. Waits for the `endpoint` event that provides the POST messages URL
-5. Connection timeout: 30 seconds (`sseConnectTimeout`)
+5. Sends MCP `initialize` and `notifications/initialized` over the messages endpoint (same handshake as stdio/streamable)
+6. Connection timeout waiting for endpoint: 30 seconds (`sseConnectTimeout`)
 
 ### SSE Event Types
 
@@ -251,6 +255,11 @@ When the SSE stream closes:
 File: `streamable.go`
 
 Stateless HTTP POST for all communication. Simpler than SSE -- no persistent connection.
+
+### Known limitations
+
+- Requests send `Accept: application/json, text/event-stream`, but response bodies are decoded as **JSON only**. Servers that reply with an SSE (`text/event-stream`) body are not fully supported.
+- Tool results only concatenate `content` entries with `type: "text"`; other content types are dropped.
 
 ### Session Management
 
@@ -284,11 +293,13 @@ Implements `error`. Used by callers (via `errors.As`) to detect auth failures an
 `Configure(ctx, mcpConfigs)` reconciles the running server set with the desired configuration:
 
 1. **Lock** -- acquires write lock
-2. **Remove** -- servers absent from the new config are collected for stopping
-3. **Add** -- servers present in the new config but not running are created as `serverConn` with `StatusDisconnected`
+2. **Remove** -- servers absent from the new config are collected for stopping and deleted from the map
+3. **Add / change** -- new names get a `serverConn` (`StatusDisconnected`); existing names with a changed config (deep-equal) are marked for stop + reconnect; unchanged names are left alone
 4. **Unlock**
-5. **Stop removed** -- calls `stopServer()` on each removed connection (cancel context, close transport)
-6. **Connect new** -- launches `connectServer()` in a goroutine per new server
+5. **Stop** -- `stopServer()` on removed and replaced connections
+6. **Connect** -- launches `connectServer()` only for new or changed names
+
+Entry points (`run`, TUI, serve, ACP) call `WaitForConnections(ctx, 10s)` after `Configure` so tools are available before the first prompt.
 
 ### Connect Server
 
@@ -398,6 +409,8 @@ File: `oauth.go`
 
 PKCE-based OAuth 2.0 authorization code flow for MCP servers requiring authentication.
 
+When creating SSE or streamable-http transports, `createTransport` injects `Authorization: Bearer <token>` from `oauth.access_token` or from persisted tokens in `mcp-auth.json` (keyed by `client_id`), unless `headers.Authorization` is already set. Interactive browser OAuth via HTTP API routes is not wired (see §16.28).
+
 ### Flow Steps
 
 1. **`StartAuth(ctx, cfg)`** -- generates cryptographic state (32 bytes, hex) and PKCE code verifier (32 bytes, base64url). Computes S256 code challenge. Starts a local callback HTTP server if not already running. Saves OAuth state (verifier + state) to disk keyed by `client_id`. Returns the full authorization URL.
@@ -437,16 +450,24 @@ Three bus events are published for MCP status changes:
 
 ## 11.12 Status API
 
-`Status(ctx)` returns `map[string]ServerStatus` with the current state of all configured servers:
+`Status(ctx)` returns `map[string]ServerStatus` keyed by server name:
 
 ```json
-[
-  {"name": "my-server", "status": "connected", "toolCount": 5},
-  {"name": "remote-server", "status": "error", "error": "connection refused", "toolCount": 0}
-]
+{
+  "my-server": {"name": "my-server", "status": "connected", "toolCount": 5},
+  "remote-server": {"name": "remote-server", "status": "error", "error": "connection refused", "toolCount": 0}
+}
 ```
 
-Exposed via `GET /mcp/status` on the HTTP server.
+### HTTP routes
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/mcp` | Same as `/mcp/status` — map of `ServerStatus` |
+| `GET` | `/mcp/status` | Map of `ServerStatus` (`name`, `status`, `error?`, `toolCount`) |
+| `POST` | `/mcp/{name}/reconnect` | Calls `Restart`; response `{"status":"reconnecting"}` |
+
+OpenAPI MCP auth routes (`/mcp/{name}/auth`, …) are **not** implemented in Go; see [16-not-implemented.md](16-not-implemented.md) §16.28.
 
 ---
 

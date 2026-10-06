@@ -1,8 +1,10 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -319,5 +321,58 @@ func TestMerge_PermissionsConcatenate(t *testing.T) {
 	result := Merge(dst, src)
 	if len(result.Permission.Allow) != 2 {
 		t.Errorf("expected 2 deduplicated allow rules, got %d: %v", len(result.Permission.Allow), result.Permission.Allow)
+	}
+}
+
+func TestMCPConfig_UnmarshalJSON_CommandAndArgs(t *testing.T) {
+	var m MCPConfig
+	err := json.Unmarshal([]byte(`{
+		"command": "npx",
+		"args": ["-y", "@my/mcp-server"]
+	}`), &m)
+	if err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if m.Command != "npx" {
+		t.Errorf("Command = %q, want npx", m.Command)
+	}
+	wantArgs := []string{"-y", "@my/mcp-server"}
+	if !reflect.DeepEqual(m.Args, wantArgs) {
+		t.Errorf("Args = %#v, want %#v", m.Args, wantArgs)
+	}
+}
+
+func TestMCPConfig_UnmarshalJSON_CommandArray(t *testing.T) {
+	var m MCPConfig
+	err := json.Unmarshal([]byte(`{
+		"command": ["npx", "-y", "@my/mcp-server"]
+	}`), &m)
+	if err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if m.Command != "npx" {
+		t.Errorf("Command = %q, want npx", m.Command)
+	}
+	wantArgs := []string{"-y", "@my/mcp-server"}
+	if !reflect.DeepEqual(m.Args, wantArgs) {
+		t.Errorf("Args = %#v, want %#v", m.Args, wantArgs)
+	}
+}
+
+func TestMCPConfig_UnmarshalJSON_ExplicitArgsWinsOverCommandArray(t *testing.T) {
+	var m MCPConfig
+	err := json.Unmarshal([]byte(`{
+		"command": ["npx", "ignored"],
+		"args": ["-y", "@explicit"]
+	}`), &m)
+	if err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if m.Command != "npx" {
+		t.Errorf("Command = %q, want npx", m.Command)
+	}
+	wantArgs := []string{"-y", "@explicit"}
+	if !reflect.DeepEqual(m.Args, wantArgs) {
+		t.Errorf("Args = %#v, want %#v", m.Args, wantArgs)
 	}
 }
