@@ -2,15 +2,20 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
+
+const defaultHTTPTimeout = 60 * time.Second
 
 // Client wraps net/http for all tinycode server API endpoints.
 type Client struct {
@@ -18,24 +23,30 @@ type Client struct {
 	directory  string
 	token      string
 	http       *http.Client
+	sseHTTP    *http.Client
 	sseBackoff time.Duration
 }
 
 // New creates an API client targeting the given server base URL and working directory.
 // An optional token enables Bearer authentication on all requests.
+// The REST client uses a 60s timeout; SSE uses a separate client with no timeout.
 func New(baseURL, directory, token string) *Client {
+	rest := &http.Client{Timeout: defaultHTTPTimeout}
 	return &Client{
 		baseURL:   baseURL,
 		directory: directory,
 		token:     token,
-		http:      &http.Client{},
+		http:      rest,
+		sseHTTP:   &http.Client{Transport: rest.Transport},
 	}
 }
 
 // CreateSession creates a new session via POST /session.
 func (c *Client) CreateSession(input SessionCreateInput) (*session.Info, error) {
 	var info session.Info
-	if err := c.postJSON("/session?directory="+c.directory, input, &info); err != nil {
+	q := url.Values{}
+	q.Set("directory", c.directory)
+	if err := c.postJSON("/session?"+q.Encode(), input, &info); err != nil {
 		return nil, err
 	}
 	return &info, nil
@@ -43,12 +54,13 @@ func (c *Client) CreateSession(input SessionCreateInput) (*session.Info, error) 
 
 // ListSessions lists sessions via GET /session.
 func (c *Client) ListSessions(limit, offset int) ([]session.Info, error) {
-	path := "/session?directory=" + c.directory +
-		"&limit=" + strconv.Itoa(limit) +
-		"&offset=" + strconv.Itoa(offset)
+	q := url.Values{}
+	q.Set("directory", c.directory)
+	q.Set("limit", strconv.Itoa(limit))
+	q.Set("offset", strconv.Itoa(offset))
 
 	var sessions []session.Info
-	if err := c.getJSON(path, &sessions); err != nil {
+	if err := c.getJSON("/session?"+q.Encode(), &sessions); err != nil {
 		return nil, err
 	}
 	return sessions, nil
@@ -92,11 +104,9 @@ func (c *Client) SendPrompt(sessionID string, input PromptInput) error {
 
 // AbortSession aborts a running session via POST /session/{id}/abort.
 func (c *Client) AbortSession(id string) error {
-	_, err := c.doRequest(http.MethodPost, "/session/"+id+"/abort", nil)
-	return err
+	return c.doNoBody(http.MethodPost, "/session/"+id+"/abort")
 }
 
-// ListProviders fetches all providers via GET /provider.
 // ListProviders fetches all providers via GET /provider.
 func (c *Client) ListProviders() (*ProviderListResponse, error) {
 	var resp ProviderListResponse
@@ -209,8 +219,13 @@ func (c *Client) GetProviderBalance(providerID string) (*BalanceResponse, error)
 }
 
 // SummarizeSession triggers manual context compaction via POST /session/{id}/summarize.
+// The Go server currently returns 501; this surfaces a clear error rather than claiming success.
 func (c *Client) SummarizeSession(id string) error {
-	return c.doNoBody(http.MethodPost, "/session/"+id+"/summarize")
+	err := c.doNoBody(http.MethodPost, "/session/"+id+"/summarize")
+	if err != nil && (strings.Contains(err.Error(), "status 501") || strings.Contains(err.Error(), "Not Implemented")) {
+		return fmt.Errorf("summarize not implemented")
+	}
+	return err
 }
 
 // ArchiveSession archives a session via POST /session/{id}/archive.
@@ -229,8 +244,9 @@ func (c *Client) UnrevertSession(id string) error {
 }
 
 // ReplyPermission replies to a permission prompt via POST /session/{sessionID}/permissions/{permissionID}.
-func (c *Client) ReplyPermission(sessionID, permissionID, action string) error {
-	body := PermissionReplyInput{Action: action}
+// reply should be once|always|reject (SDK contract). Action is also sent for older servers.
+func (c *Client) ReplyPermission(sessionID, permissionID, reply string) error {
+	body := PermissionReplyInput{Reply: reply, Action: reply}
 	return c.postNoResp("/session/"+sessionID+"/permissions/"+permissionID, body)
 }
 
@@ -337,9 +353,14 @@ func (c *Client) doNoBody(method, path string) error {
 // doRequest executes an HTTP request and returns the response body.
 // It returns an error for non-2xx status codes.
 func (c *Client) doRequest(method, path string, reqBody io.Reader) (io.ReadCloser, error) {
-	url := c.baseURL + path
+	return c.doRequestContext(context.Background(), method, path, reqBody)
+}
 
-	req, err := http.NewRequest(method, url, reqBody)
+// doRequestContext executes an HTTP request with the given context and returns the response body.
+func (c *Client) doRequestContext(ctx context.Context, method, path string, reqBody io.Reader) (io.ReadCloser, error) {
+	reqURL := c.baseURL + path
+
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}

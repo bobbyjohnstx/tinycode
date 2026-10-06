@@ -41,6 +41,7 @@ func (c *Client) sseLoop(ctx context.Context, events chan<- ServerEvent) {
 	defer close(events)
 
 	c.sseBackoff = initialBackoff
+	var lastID string
 
 	for {
 		select {
@@ -49,11 +50,12 @@ func (c *Client) sseLoop(ctx context.Context, events chan<- ServerEvent) {
 		default:
 		}
 
-		err := c.readSSEStream(ctx, events)
-		if err == nil || ctx.Err() != nil {
+		_ = c.readSSEStream(ctx, events, &lastID)
+		if ctx.Err() != nil {
 			return
 		}
 
+		// Stream ended (clean EOF or error) — reconnect with backoff.
 		select {
 		case <-ctx.Done():
 			return
@@ -71,10 +73,10 @@ func (c *Client) resetBackoff() {
 	c.sseBackoff = initialBackoff
 }
 
-func (c *Client) readSSEStream(ctx context.Context, events chan<- ServerEvent) error {
-	url := c.baseURL + "/global/event"
+func (c *Client) readSSEStream(ctx context.Context, events chan<- ServerEvent, lastID *string) error {
+	reqURL := c.baseURL + "/global/event"
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return fmt.Errorf("creating SSE request: %w", err)
 	}
@@ -82,8 +84,15 @@ func (c *Client) readSSEStream(ctx context.Context, events chan<- ServerEvent) e
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
+	if lastID != nil && *lastID != "" {
+		req.Header.Set("Last-Event-ID", *lastID)
+	}
 
-	resp, err := c.http.Do(req)
+	client := c.sseHTTP
+	if client == nil {
+		client = &http.Client{}
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("SSE connection failed: %w", err)
 	}
@@ -97,6 +106,8 @@ func (c *Client) readSSEStream(ctx context.Context, events chan<- ServerEvent) e
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
 	c.resetBackoff()
+
+	var wireID string
 
 	for scanner.Scan() {
 		select {
@@ -122,6 +133,12 @@ func (c *Client) readSSEStream(ctx context.Context, events chan<- ServerEvent) e
 			continue
 		}
 
+		// SSE id: field (Last-Event-ID resume)
+		if strings.HasPrefix(line, "id:") {
+			wireID = strings.TrimSpace(strings.TrimPrefix(line, "id:"))
+			continue
+		}
+
 		// Parse "data: {...}" lines
 		if !strings.HasPrefix(line, "data: ") {
 			continue
@@ -132,6 +149,13 @@ func (c *Client) readSSEStream(ctx context.Context, events chan<- ServerEvent) e
 		evt, err := parseSSEData(data)
 		if err != nil {
 			continue
+		}
+
+		if evt.ID == "" && wireID != "" {
+			evt.ID = wireID
+		}
+		if evt.ID != "" && lastID != nil {
+			*lastID = evt.ID
 		}
 
 		select {

@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"sync/atomic"
 	"testing"
 )
 
@@ -18,6 +20,15 @@ func TestNew(t *testing.T) {
 	}
 	if c.http == nil {
 		t.Error("http client should not be nil")
+	}
+	if c.http.Timeout != defaultHTTPTimeout {
+		t.Errorf("http Timeout = %v, want %v", c.http.Timeout, defaultHTTPTimeout)
+	}
+	if c.sseHTTP == nil {
+		t.Error("sseHTTP client should not be nil")
+	}
+	if c.sseHTTP.Timeout != 0 {
+		t.Errorf("sseHTTP Timeout = %v, want 0 (no timeout)", c.sseHTTP.Timeout)
 	}
 }
 
@@ -182,15 +193,31 @@ func TestSendPrompt_204(t *testing.T) {
 
 func TestAbortSession(t *testing.T) {
 	var gotMethod, gotPath string
+	var bodyClosed atomic.Bool
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"sessionID": "ses_abort",
+			"status":    "aborted",
+		})
 	}))
 	defer srv.Close()
 
 	c := New(srv.URL, "/tmp", "")
+	base := http.DefaultTransport
+	c.http.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		resp, err := base.RoundTrip(req)
+		if err != nil {
+			return nil, err
+		}
+		resp.Body = &closeTrackingBody{ReadCloser: resp.Body, closed: &bodyClosed}
+		return resp, nil
+	})
+
 	err := c.AbortSession("ses_abort")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -201,6 +228,25 @@ func TestAbortSession(t *testing.T) {
 	if gotPath != "/session/ses_abort/abort" {
 		t.Errorf("path = %q, want /session/ses_abort/abort", gotPath)
 	}
+	if !bodyClosed.Load() {
+		t.Error("expected response body to be closed")
+	}
+}
+
+type closeTrackingBody struct {
+	io.ReadCloser
+	closed *atomic.Bool
+}
+
+func (b *closeTrackingBody) Close() error {
+	b.closed.Store(true)
+	return b.ReadCloser.Close()
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestListProviders(t *testing.T) {
@@ -301,7 +347,7 @@ func TestReplyPermission(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "/tmp", "")
-	err := c.ReplyPermission("ses_1", "perm_42", "allow")
+	err := c.ReplyPermission("ses_1", "perm_42", "once")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -311,8 +357,94 @@ func TestReplyPermission(t *testing.T) {
 	if gotPath != "/session/ses_1/permissions/perm_42" {
 		t.Errorf("path = %q, want /session/ses_1/permissions/perm_42", gotPath)
 	}
-	if gotBody["action"] != "allow" {
-		t.Errorf("action = %q, want %q", gotBody["action"], "allow")
+	if gotBody["reply"] != "once" {
+		t.Errorf("reply = %q, want %q", gotBody["reply"], "once")
+	}
+	if gotBody["action"] != "once" {
+		t.Errorf("action = %q, want %q (backward compat)", gotBody["action"], "once")
+	}
+}
+
+func TestCreateSession_EncodesDirectory(t *testing.T) {
+	var gotQuery url.Values
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"id": "ses_enc", "title": "T", "projectID": "prj",
+			"directory": "/tmp/my dir", "version": "1.0",
+			"tokens": map[string]any{}, "time": map[string]any{"created": 0, "updated": 0},
+		})
+	}))
+	defer srv.Close()
+
+	dir := "/tmp/my dir & stuff"
+	c := New(srv.URL, dir, "")
+	if _, err := c.CreateSession(SessionCreateInput{Title: "T"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := gotQuery.Get("directory"); got != dir {
+		t.Errorf("directory query = %q, want %q", got, dir)
+	}
+}
+
+func TestListSessions_EncodesDirectory(t *testing.T) {
+	var gotQuery url.Values
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]any{})
+	}))
+	defer srv.Close()
+
+	dir := "/tmp/proj & a/b"
+	c := New(srv.URL, dir, "")
+	if _, err := c.ListSessions(5, 1); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := gotQuery.Get("directory"); got != dir {
+		t.Errorf("directory query = %q, want %q", got, dir)
+	}
+	if gotQuery.Get("limit") != "5" || gotQuery.Get("offset") != "1" {
+		t.Errorf("limit/offset = %q/%q, want 5/1", gotQuery.Get("limit"), gotQuery.Get("offset"))
+	}
+}
+
+func TestBearerAuthorization(t *testing.T) {
+	var gotAuth string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]AgentInfo{})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "secret-token")
+	if _, err := c.ListAgents(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotAuth != "Bearer secret-token" {
+		t.Errorf("Authorization = %q, want %q", gotAuth, "Bearer secret-token")
+	}
+}
+
+func TestSummarizeSession_501(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotImplemented)
+		w.Write([]byte(`{"error":"Not Implemented"}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.SummarizeSession("ses_1")
+	if err == nil {
+		t.Fatal("expected error for 501")
+	}
+	if err.Error() != "summarize not implemented" {
+		t.Errorf("error = %q, want %q", err.Error(), "summarize not implemented")
 	}
 }
 

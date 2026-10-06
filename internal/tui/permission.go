@@ -18,10 +18,11 @@ const (
 	PermissionReject
 )
 
+// String returns the SDK/docs permission reply: once|always|reject.
 func (a PermissionAction) String() string {
 	switch a {
 	case PermissionAllow:
-		return "allow"
+		return "once"
 	case PermissionAlways:
 		return "always"
 	case PermissionReject:

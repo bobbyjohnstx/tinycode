@@ -75,6 +75,8 @@ type CommandInfo struct {
 }
 
 // PermissionReplyInput is the request body for POST /session/{sessionID}/permissions/{permissionID}.
+// Reply is the SDK contract (once|always|reject). Action is kept for older servers.
 type PermissionReplyInput struct {
-	Action string `json:"action"`
+	Reply  string `json:"reply"`
+	Action string `json:"action,omitempty"`
 }

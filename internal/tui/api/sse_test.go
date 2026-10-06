@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -151,6 +152,90 @@ func TestSubscribe_SkipsHeartbeatsAndComments(t *testing.T) {
 	}
 	if received[0].ID != "real" {
 		t.Errorf("event ID = %q, want %q", received[0].ID, "real")
+	}
+}
+
+func TestSubscribe_ReconnectSendsLastEventID(t *testing.T) {
+	var mu sync.Mutex
+	var requests int
+	var secondLastEventID string
+	ready := make(chan struct{}, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests++
+		n := requests
+		if n == 2 {
+			secondLastEventID = r.Header.Get("Last-Event-ID")
+			select {
+			case ready <- struct{}{}:
+			default:
+			}
+		}
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			return
+		}
+
+		if n == 1 {
+			fmt.Fprintln(w, "id: evt_resume")
+			fmt.Fprintln(w, `data: {"directory":"/tmp","payload":{"id":"evt_resume","type":"msg","properties":{}}}`)
+			flusher.Flush()
+			return // disconnect to force reconnect
+		}
+
+		// Stay open until client context cancels
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(50 * time.Millisecond):
+				fmt.Fprintln(w, ": heartbeat")
+				flusher.Flush()
+			}
+		}
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ch, err := c.Subscribe(ctx)
+	if err != nil {
+		t.Fatalf("Subscribe error: %v", err)
+	}
+
+	// Drain first event so lastID is set before reconnect.
+	select {
+	case evt := <-ch:
+		if evt.ID != "evt_resume" {
+			t.Fatalf("first event ID = %q, want evt_resume", evt.ID)
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for first event")
+	}
+
+	select {
+	case <-ready:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for reconnect")
+	}
+
+	cancel()
+	for range ch {
+	}
+
+	mu.Lock()
+	got := secondLastEventID
+	mu.Unlock()
+	if got != "evt_resume" {
+		t.Errorf("Last-Event-ID on reconnect = %q, want %q", got, "evt_resume")
 	}
 }
 

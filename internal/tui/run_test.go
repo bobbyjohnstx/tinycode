@@ -529,8 +529,8 @@ func TestPermissionDismissed_RestoresFocusAndEmitsReply(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected PermissionReplyMsg, got %T", msg)
 	}
-	if reply.Action != "allow" {
-		t.Errorf("expected action 'allow', got %q", reply.Action)
+	if reply.Action != "once" {
+		t.Errorf("expected action 'once', got %q", reply.Action)
 	}
 }
 

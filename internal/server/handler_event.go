@@ -96,6 +96,7 @@ func StreamGlobalEvents(ctx context.Context, w http.ResponseWriter, eventBus *bu
 				}
 			}
 			if err := sse.Send(SSEEvent{
+				ID: evt.ID,
 				Data: map[string]any{
 					"directory": dir,
 					"payload": map[string]any{

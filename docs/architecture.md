@@ -60,7 +60,9 @@ Bubbletea Elm-architecture UI. `app.go` defines the root `App` model with sub-co
 
 ### `internal/tui/api/` -- API Client
 
-HTTP client for the embedded tinycode server. Types in `types.go` define the wire format for sessions, messages, prompts, and events. Used by `connectedApp` to communicate with the server over HTTP.
+HTTP + SSE client used by the Go TUI (`connectedApp`) against `tinycode serve`. This is a **TUI subset** (~27 methods: sessions, prompts, abort, permissions, providers/agents/commands, MCP, plugins, fork/rewind/btw, config patch, SSE subscribe). It is not a full OpenAPI client.
+
+The TypeScript `@tinycode/sdk` / `packages/sdk/openapi.json` surface is larger. Routes and clients **not** covered by the Go TUI API package include session share/unshare, PTY, TUI control (`/tui/*`), OAuth/account flows, and other OpenAPI-only paths — see [spec/02-api-routes.md](spec/02-api-routes.md) §2.23 and [spec/16-not-implemented.md](spec/16-not-implemented.md) §16.11–16.12, §16.26. Manual summarize/compact (`POST /session/{id}/summarize`) returns `501` on the Go server; the TUI client reports that honestly rather than claiming success.
 
 ### `internal/server/` -- HTTP Server
 

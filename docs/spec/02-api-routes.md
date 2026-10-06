@@ -235,5 +235,8 @@ The TypeScript OpenAPI (`packages/sdk/openapi.json`) documents routes that are *
 - PTY management (`/pty`, `/pty/{ptyID}`, `/pty/{ptyID}/connect`, …)
 - TUI control (`/tui/*`)
 - Instance dispose aliases beyond `POST /global/dispose`
+- OAuth/account flows (see [16-not-implemented.md](16-not-implemented.md) §16.26)
 
 See [16-not-implemented.md](16-not-implemented.md) §16.11–16.12 for PTY/TUI detail. Treat OpenAPI as the historical TS contract; the Go route tables above are authoritative for `tinycode serve`.
+
+**Go TUI client (`internal/tui/api`)** is a further subset of the Go HTTP surface (~27 methods for the Bubbletea TUI). It does not implement every Go route or the full `@tinycode/sdk` OpenAPI client. Gaps relative to the TS SDK include share, PTY, TUI control, and OAuth; summarize/compact is called but the server returns `501`.

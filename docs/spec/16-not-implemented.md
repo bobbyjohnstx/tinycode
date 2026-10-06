@@ -184,6 +184,8 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 
 **Go status:** Not implemented. Documented in OpenAPI for the TS server only; not part of the Go HTTP surface. Session share/unshare routes (`/session/{id}/share`) are similarly OpenAPI-only.
 
+**Go TUI API client:** `internal/tui/api` covers only the Bubbletea TUI subset (~27 methods). Prefer `@tinycode/sdk` / OpenAPI for the full historical client surface; see [02-api-routes.md](02-api-routes.md) §2.23 and [architecture.md](../architecture.md) (API Client).
+
 ---
 
 ## 16.13 IDE Extension Auto-Installation
