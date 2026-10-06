@@ -376,3 +376,105 @@ func TestMCPConfig_UnmarshalJSON_ExplicitArgsWinsOverCommandArray(t *testing.T) 
 		t.Errorf("Args = %#v, want %#v", m.Args, wantArgs)
 	}
 }
+
+func TestMCPConfig_MarshalJSON_IncludesCommandAndArgs(t *testing.T) {
+	m := MCPConfig{
+		Command: "npx",
+		Args:    []string{"-y", "@my/mcp-server"},
+		URL:     "http://example.com",
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("re-unmarshal: %v", err)
+	}
+	if got["command"] != "npx" {
+		t.Errorf("command = %v, want npx", got["command"])
+	}
+	args, ok := got["args"].([]any)
+	if !ok || len(args) != 2 {
+		t.Fatalf("args = %#v, want 2 elements", got["args"])
+	}
+}
+
+func TestLoad_PreferredGlobalOnly_JsoncWins(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TINYCODE_CONFIG_DIR", dir)
+
+	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"model":"from-config-json"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tinycode.json"), []byte(`{"model":"from-tinycode-json"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tinycode.jsonc"), []byte(`{"model":"from-jsonc"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := Load(t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if info.Model != "from-jsonc" {
+		t.Errorf("model = %q, want from-jsonc (jsonc exclusively)", info.Model)
+	}
+}
+
+func TestLoad_ProjectDotTinycode(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("TINYCODE_CONFIG_DIR", t.TempDir()) // isolate global
+
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(filepath.Join(sub, ".tinycode"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "tinycode.json"), []byte(`{"model":"root","shell":"/bin/root"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, ".tinycode", "tinycode.json"), []byte(`{"model":"dot-inner"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := Load(sub)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if info.Model != "dot-inner" {
+		t.Errorf("model = %q, want dot-inner", info.Model)
+	}
+	if info.Shell != "/bin/root" {
+		t.Errorf("shell = %q, want /bin/root preserved from outer", info.Shell)
+	}
+}
+
+func TestLoad_GlobalParseError(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TINYCODE_CONFIG_DIR", dir)
+	if err := os.WriteFile(filepath.Join(dir, "tinycode.json"), []byte(`{not json`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(t.TempDir())
+	if err == nil {
+		t.Fatal("expected parse error for preferred global file")
+	}
+}
+
+func TestMerge_ServerPortKeepsHost(t *testing.T) {
+	port := 4096
+	port2 := 8080
+	dst := &Info{Server: &ServerConfig{Host: "127.0.0.1", Port: &port}}
+	src := &Info{Server: &ServerConfig{Port: &port2}}
+	result := Merge(dst, src)
+	if result.Server == nil {
+		t.Fatal("expected server config")
+	}
+	if result.Server.Host != "127.0.0.1" {
+		t.Errorf("host = %q, want 127.0.0.1", result.Server.Host)
+	}
+	if result.Server.Port == nil || *result.Server.Port != 8080 {
+		t.Errorf("port = %v, want 8080", result.Server.Port)
+	}
+}

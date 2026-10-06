@@ -187,6 +187,7 @@ func runRun() {
 		Directory:       dir,
 		Perms:           permSvc,
 		AutoContinueMax: autoContinueMax,
+		SmallModel:      cfg.SmallModel,
 	}, client, toolReg, b)
 	proc.SetMessages(existingMsgs)
 

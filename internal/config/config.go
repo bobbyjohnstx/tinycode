@@ -3,9 +3,9 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 )
 
 // Info holds the merged tinycode configuration. Fields use pointer types or
@@ -96,6 +96,20 @@ type MCPConfig struct {
 	Transport string            `json:"transport,omitempty"`
 	Headers   map[string]string `json:"headers,omitempty"`
 	OAuth     *MCPOAuthConfig   `json:"oauth,omitempty"`
+}
+
+// MarshalJSON includes command/args so GET /config exposes stdio MCP servers.
+func (m MCPConfig) MarshalJSON() ([]byte, error) {
+	type Alias MCPConfig
+	return json.Marshal(&struct {
+		Command string   `json:"command,omitempty"`
+		Args    []string `json:"args,omitempty"`
+		*Alias
+	}{
+		Command: m.Command,
+		Args:    m.Args,
+		Alias:   (*Alias)(&m),
+	})
 }
 
 func (m *MCPConfig) UnmarshalJSON(data []byte) error {
@@ -227,36 +241,27 @@ type ImageConfig struct {
 	Format    string `json:"format,omitempty"`
 }
 
-// Load reads and merges config from all sources: global config dir, project
-// config files walking up from directory, and environment overrides. Unknown
-// JSON fields are silently ignored (forward compatibility).
+// Load reads and merges config from the preferred global file and project
+// config files walking up from directory. Unknown JSON fields are silently
+// ignored (forward compatibility). Environment variables that affect runtime
+// (hosts, ports, log level) are applied by the cmd layer, not by Load.
+//
+// If the preferred global config file exists but fails to parse, Load returns
+// that error. Missing files are soft-skipped.
 func Load(directory string) (*Info, error) {
 	result := &Info{}
 
 	globalFile := GlobalConfigFile()
-	if err := loadAndMerge(result, globalFile, nil); err != nil {
-		slog.Warn("failed to load global config", "path", globalFile, "error", err)
-	}
-
-	loaded := map[string]bool{globalFile: true}
-	for _, configDir := range configDirs() {
-		for _, name := range []string{"config.json", "tinycode.json", "tinycode.jsonc"} {
-			f := filepath.Join(configDir, name)
-			if loaded[f] {
-				continue
-			}
-			loaded[f] = true
-			if err := loadAndMerge(result, f, nil); err != nil {
-				slog.Warn("failed to load config file", "path", f, "error", err)
-			}
+	if _, err := os.Stat(globalFile); err == nil {
+		if err := loadAndMerge(result, globalFile, nil); err != nil {
+			return nil, fmt.Errorf("loading global config %s: %w", globalFile, err)
 		}
 	}
 
 	if directory != "" {
-		projectFiles := ProjectConfigFiles("tinycode", directory)
-		for _, f := range projectFiles {
+		for _, f := range projectConfigPaths(directory) {
 			if err := loadAndMerge(result, f, nil); err != nil {
-				slog.Warn("failed to load project config", "path", f, "error", err)
+				return nil, fmt.Errorf("loading project config %s: %w", f, err)
 			}
 		}
 	}
@@ -270,6 +275,39 @@ func Load(directory string) (*Info, error) {
 	}
 
 	return result, nil
+}
+
+// projectConfigPaths returns project config files outermost-first, including
+// tinycode.json(c) at each directory and under .tinycode/.
+func projectConfigPaths(directory string) []string {
+	var files []string
+	dir := directory
+	for {
+		for _, ext := range []string{".jsonc", ".json"} {
+			candidate := filepath.Join(dir, "tinycode"+ext)
+			if _, err := os.Stat(candidate); err == nil {
+				files = append(files, candidate)
+			}
+		}
+		dotDir := filepath.Join(dir, ".tinycode")
+		if info, err := os.Stat(dotDir); err == nil && info.IsDir() {
+			for _, ext := range []string{".jsonc", ".json"} {
+				candidate := filepath.Join(dotDir, "tinycode"+ext)
+				if _, err := os.Stat(candidate); err == nil {
+					files = append(files, candidate)
+				}
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	for i, j := 0, len(files)-1; i < j; i, j = i+1, j-1 {
+		files[i], files[j] = files[j], files[i]
+	}
+	return files
 }
 
 // LoadFile loads and parses a single config file with JSONC support and env
@@ -351,16 +389,16 @@ func mergeScalarFields(result, src *Info) {
 		result.Snapshot = src.Snapshot
 	}
 	if src.Server != nil {
-		result.Server = src.Server
+		result.Server = deepMergePtr(result.Server, src.Server)
 	}
 	if src.ToolOutput != nil {
-		result.ToolOutput = src.ToolOutput
+		result.ToolOutput = deepMergePtr(result.ToolOutput, src.ToolOutput)
 	}
 	if src.Compaction != nil {
-		result.Compaction = src.Compaction
+		result.Compaction = deepMergePtr(result.Compaction, src.Compaction)
 	}
 	if src.Experimental != nil {
-		result.Experimental = src.Experimental
+		result.Experimental = deepMergePtr(result.Experimental, src.Experimental)
 	}
 	if src.Temperature != nil {
 		result.Temperature = src.Temperature
@@ -372,13 +410,13 @@ func mergeScalarFields(result, src *Info) {
 		result.MaxTokens = src.MaxTokens
 	}
 	if src.Skills != nil {
-		result.Skills = src.Skills
+		result.Skills = deepMergePtr(result.Skills, src.Skills)
 	}
 	if src.Attachment != nil {
-		result.Attachment = src.Attachment
+		result.Attachment = deepMergePtr(result.Attachment, src.Attachment)
 	}
 	if src.LSP != nil {
-		result.LSP = src.LSP
+		result.LSP = deepMergePtr(result.LSP, src.LSP)
 	}
 	if src.Effort != "" {
 		result.Effort = src.Effort
@@ -477,6 +515,90 @@ func loadAndMerge(dst *Info, path string, env map[string]string) error {
 	}
 	*dst = *Merge(dst, loaded)
 	return nil
+}
+
+// deepMergePtr merges non-zero fields from src into a copy of dst.
+// Nested pointer structs and maps are merged recursively; slices are replaced
+// when src is non-empty. Nil src returns dst; nil dst returns a copy of src.
+func deepMergePtr[T any](dst, src *T) *T {
+	if src == nil {
+		return dst
+	}
+	if dst == nil {
+		copied := *src
+		return &copied
+	}
+	result := *dst
+	mergeNonZero(reflect.ValueOf(&result).Elem(), reflect.ValueOf(src).Elem())
+	return &result
+}
+
+func mergeNonZero(dst, src reflect.Value) {
+	if !dst.IsValid() || !src.IsValid() || dst.Type() != src.Type() {
+		return
+	}
+	switch src.Kind() {
+	case reflect.Struct:
+		for i := 0; i < src.NumField(); i++ {
+			df := dst.Field(i)
+			sf := src.Field(i)
+			if !df.CanSet() {
+				continue
+			}
+			mergeNonZero(df, sf)
+		}
+	case reflect.Ptr:
+		if src.IsNil() {
+			return
+		}
+		if dst.IsNil() {
+			dst.Set(src)
+			return
+		}
+		if src.Elem().Kind() == reflect.Struct {
+			mergeNonZero(dst.Elem(), src.Elem())
+			return
+		}
+		dst.Set(src)
+	case reflect.String:
+		if src.String() != "" {
+			dst.Set(src)
+		}
+	case reflect.Slice:
+		if !src.IsNil() && src.Len() > 0 {
+			dst.Set(src)
+		}
+	case reflect.Map:
+		if src.IsNil() || src.Len() == 0 {
+			return
+		}
+		if dst.IsNil() {
+			dst.Set(reflect.MakeMap(dst.Type()))
+		}
+		iter := src.MapRange()
+		for iter.Next() {
+			k, sv := iter.Key(), iter.Value()
+			existing := dst.MapIndex(k)
+			if existing.IsValid() && existing.Kind() == reflect.Struct && sv.Kind() == reflect.Struct {
+				merged := reflect.New(sv.Type()).Elem()
+				merged.Set(existing)
+				mergeNonZero(merged, sv)
+				dst.SetMapIndex(k, merged)
+				continue
+			}
+			dst.SetMapIndex(k, sv)
+		}
+	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		if !src.IsZero() {
+			dst.Set(src)
+		}
+	default:
+		if !src.IsZero() {
+			dst.Set(src)
+		}
+	}
 }
 
 func dedup(items []string) []string {

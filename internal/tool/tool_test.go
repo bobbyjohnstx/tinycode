@@ -13,6 +13,29 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
+func TestConfigureOutputLimits(t *testing.T) {
+	origLines, origBytes, origPreview := MaxLines, MaxBytes, PreviewMaxBytes
+	t.Cleanup(func() {
+		MaxLines, MaxBytes, PreviewMaxBytes = origLines, origBytes, origPreview
+	})
+
+	ConfigureOutputLimits(100, 2048)
+	if MaxLines != 100 {
+		t.Errorf("MaxLines = %d, want 100", MaxLines)
+	}
+	if MaxBytes != 2048 {
+		t.Errorf("MaxBytes = %d, want 2048", MaxBytes)
+	}
+	if PreviewMaxBytes != 2048 {
+		t.Errorf("PreviewMaxBytes = %d, want 2048", PreviewMaxBytes)
+	}
+
+	ConfigureOutputLimits(0, -1) // ignored
+	if MaxLines != 100 || MaxBytes != 2048 {
+		t.Error("zero/negative limits should be ignored")
+	}
+}
+
 func TestTruncate_NoOp(t *testing.T) {
 	content := "short content"
 	result := Truncate(content, TruncTail)

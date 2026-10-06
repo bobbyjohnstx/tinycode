@@ -33,11 +33,19 @@ import (
 var logFile *os.File
 
 func setupLogger() {
+	levelStr := os.Getenv("TINYCODE_LOG_LEVEL")
+	if levelStr == "" {
+		dir, _ := os.Getwd()
+		if cfg, err := config.Load(dir); err == nil && cfg.LogLevel != "" {
+			levelStr = cfg.LogLevel
+		}
+	}
+
 	level := slog.LevelInfo
-	switch os.Getenv("TINYCODE_LOG_LEVEL") {
+	switch strings.ToLower(levelStr) {
 	case "debug":
 		level = slog.LevelDebug
-	case "warn":
+	case "warn", "warning":
 		level = slog.LevelWarn
 	case "error":
 		level = slog.LevelError
@@ -243,6 +251,17 @@ func initTooling(b *bus.Bus, directory string, db *sql.DB, cfg ...*config.Info) 
 	if len(cfg) > 0 && cfg[0] != nil && cfg[0].AutoApprove != nil && *cfg[0].AutoApprove {
 		toolCtx.AutoApprove = true
 	}
+	if len(cfg) > 0 && cfg[0] != nil && cfg[0].ToolOutput != nil {
+		to := cfg[0].ToolOutput
+		maxLines, maxBytes := 0, 0
+		if to.MaxLines != nil {
+			maxLines = *to.MaxLines
+		}
+		if to.MaxBytes != nil {
+			maxBytes = *to.MaxBytes
+		}
+		tool.ConfigureOutputLimits(maxLines, maxBytes)
+	}
 	if db != nil {
 		ensureProject(db, directory)
 		proj := project.FromDirectory(directory)
@@ -443,7 +462,9 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 	lmStudioURL := "http://127.0.0.1:1234"
 	vllmURL := ""
 
-	if v := os.Getenv("OLLAMA_HOST"); v != "" {
+	if v := os.Getenv("TINYCODE_OLLAMA_HOST"); v != "" {
+		ollamaURL = v
+	} else if v := os.Getenv("OLLAMA_HOST"); v != "" {
 		ollamaURL = v
 	}
 	if v := os.Getenv("TINYCODE_LMSTUDIO_HOST"); v != "" {

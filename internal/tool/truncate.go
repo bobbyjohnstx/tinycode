@@ -8,17 +8,33 @@ import (
 )
 
 const (
-	MaxLines = 2000
-	MaxBytes = 50 * 1024 // 50KB
-
 	PreviewHeadLines = 30
 	PreviewTailLines = 20
-	PreviewMaxBytes  = 50 * 1024 // 50KB
 
 	// MaxOutputSize caps the bytes buffered from shell commands and file
 	// reads to prevent OOM when a process produces unbounded output.
 	MaxOutputSize = 10 * 1024 * 1024 // 10MB
 )
+
+// Truncation limits. Defaults match historical constants; ConfigureOutputLimits
+// may override them from config.tool_output.
+var (
+	MaxLines        = 2000
+	MaxBytes        = 50 * 1024 // 50KB
+	PreviewMaxBytes = 50 * 1024 // 50KB
+)
+
+// ConfigureOutputLimits applies tool_output max_lines / max_bytes from config.
+// Zero or negative values are ignored.
+func ConfigureOutputLimits(maxLines, maxBytes int) {
+	if maxLines > 0 {
+		MaxLines = maxLines
+	}
+	if maxBytes > 0 {
+		MaxBytes = maxBytes
+		PreviewMaxBytes = maxBytes
+	}
+}
 
 // LimitedWriter wraps a bytes.Buffer and silently discards writes after max
 // bytes. It always returns len(p), nil so exec.Cmd does not abort on write

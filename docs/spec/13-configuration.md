@@ -10,10 +10,11 @@ Source: `config.go`
 
 `Load(directory)` reads and merges configuration from all sources in order:
 
-1. **Global config file** -- `GlobalConfigFile()` returns the first existing file from: `<configDir>/tinycode.jsonc`, `<configDir>/tinycode.json`, `<configDir>/config.json`
-2. **Config directory files** -- for each directory in `configDirs()`, try `config.json`, `tinycode.json`, `tinycode.jsonc` (skipping already-loaded paths)
-3. **Project config files** -- `ProjectConfigFiles("tinycode", directory)` walks up from `directory`, looking for `tinycode.jsonc` and `tinycode.json` at each level; results are reversed so outermost files load first (innermost wins in merge)
-4. **Username fallback** -- if `Username` is still empty after merging, set from `$USER` env var (fallback: `"user"`)
+1. **Preferred global config file** -- exactly one file from `GlobalConfigFile()`: first existing of `<configDir>/tinycode.jsonc`, `<configDir>/tinycode.json`, `<configDir>/config.json`. Other global names are not re-merged (jsonc priority is preserved). If that file exists but fails to parse, `Load` returns an error.
+2. **Project config files** -- walks up from `directory`, collecting at each level `tinycode.jsonc` / `tinycode.json` and `.tinycode/tinycode.jsonc` / `.tinycode/tinycode.json`; results are reversed so outermost files load first (innermost wins in merge)
+3. **Username fallback** -- if `Username` is still empty after merging, set from `$USER` env var (fallback: `"user"`)
+
+`Load` does **not** merge process environment variables into `Info`. Runtime env vars (hosts, ports, log level, auth) are read by the `cmd/tinycode` layer after config load.
 
 ### File Parsing Pipeline
 
@@ -71,7 +72,7 @@ If none exist, returns the `.jsonc` path (for creation).
 
 ### Project Dot Directories
 
-`ProjectDotDirs(directory)` walks up from `directory` collecting `.tinycode/` directories. Results are returned outermost first.
+`ProjectDotDirs(directory)` walks up from `directory` collecting `.tinycode/` directories. Results are returned outermost first. `Load` also merges `tinycode.jsonc` / `tinycode.json` inside each `.tinycode/` directory (same outer→inner order as project root configs).
 
 ## 13.3 Config Schema
 
@@ -312,7 +313,7 @@ type MCPOAuthConfig struct {
 }
 ```
 
-`MCPConfig` has a custom `UnmarshalJSON` that accepts `command` as either a string or an array. When an array, the first element becomes `Command` and the rest become `Args`:
+`MCPConfig` stores `Command`/`Args` with `json:"-"` and uses custom `MarshalJSON` / `UnmarshalJSON` so GET `/config` includes them. Unmarshal accepts `command` as either a string or an array. When an array, the first element becomes `Command` and the rest become `Args`:
 
 ```jsonc
 // String form
@@ -335,7 +336,8 @@ Source: `config.go:Merge()`
 Non-zero values in `src` override `dst`:
 
 - String fields: `Shell`, `LogLevel`, `Model`, `SmallModel`, `DefaultAgent`, `Username`, `Share`, `Theme`
-- Pointer fields: `SubagentDepth`, `Snapshot`, `Server`, `ToolOutput`, `Compaction`, `Experimental`, `Temperature`, `TopP`, `MaxTokens`, `Skills`, `Attachment`, `LSP`
+- Scalar pointer fields: `SubagentDepth`, `Snapshot`, `Temperature`, `TopP`, `MaxTokens`
+- Nested pointer structs (`Server`, `ToolOutput`, `Compaction`, `Experimental`, `Skills`, `Attachment`, `LSP`) are **deep-merged** field-by-field so a project override of `server.port` keeps a global `server.host`
 
 ### Collection Fields
 
@@ -388,24 +390,27 @@ Variable names are validated to contain only letters, digits, and underscores.
 
 ## 13.8 Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `TINYCODE_PORT` | Override server port |
-| `TINYCODE_HOST` | Override bind address |
-| `TINYCODE_DB` | Override database path |
-| `TINYCODE_LOG_LEVEL` | Set log level |
-| `TINYCODE_WEB_DIR` | Serve web UI from directory (dev mode) |
-| `TINYCODE_DATA_DIR` | Override data directory |
-| `TINYCODE_CONFIG_DIR` | Override config directory |
-| `TINYCODE_OLLAMA_HOST` | Override Ollama URL |
-| `TINYCODE_VLLM_HOST` | Override vLLM URL |
-| `TINYCODE_LMSTUDIO_HOST` | Override LM Studio URL |
-| `TINYCODE_MAAS_HOST` | MaaS endpoint |
-| `TINYCODE_MAAS_API_KEY` | MaaS auth key |
-| `OPENROUTER_API_KEY` | OpenRouter auth key |
-| `TINYCODE_AUTH_TOKEN` | Server bearer auth token (serve/web) |
-| `TINYCODE_NO_AUTH` | Disable auth entirely (serve/web) |
-| `TINYCODE_SERVER_PASSWORD` | Deprecated alias for `TINYCODE_AUTH_TOKEN` |
+These are applied by `cmd/tinycode` (discovery, serve bind, logger, auth), **not** by `config.Load` into `Info`. Config file fields such as `logLevel` / `model` are separate; when both apply, env typically wins for the specific cmd concern (e.g. `TINYCODE_LOG_LEVEL` overrides `logLevel` from file).
+
+| Variable | Applied by | Description |
+|----------|------------|-------------|
+| `TINYCODE_PORT` | cmd (serve/web) | Override server port |
+| `TINYCODE_HOST` | cmd (serve/web) | Override bind address |
+| `TINYCODE_DB` | storage | Override database path |
+| `TINYCODE_LOG_LEVEL` | cmd `setupLogger` | Set log level (overrides config `logLevel`) |
+| `TINYCODE_WEB_DIR` | cmd (web) | Serve web UI from directory (dev mode) |
+| `TINYCODE_DATA_DIR` | `config.DataDir` | Override data directory |
+| `TINYCODE_CONFIG_DIR` | `config.configDirs` | Override config directory |
+| `TINYCODE_OLLAMA_HOST` | cmd `startDiscovery` | Override Ollama URL (preferred over `OLLAMA_HOST`) |
+| `OLLAMA_HOST` | cmd `startDiscovery` | Ollama URL fallback when `TINYCODE_OLLAMA_HOST` unset |
+| `TINYCODE_VLLM_HOST` | cmd `startDiscovery` | Override vLLM URL |
+| `TINYCODE_LMSTUDIO_HOST` | cmd `startDiscovery` | Override LM Studio URL |
+| `TINYCODE_MAAS_HOST` | provider | MaaS endpoint |
+| `TINYCODE_MAAS_API_KEY` | provider | MaaS auth key |
+| `OPENROUTER_API_KEY` | cmd `startDiscovery` | OpenRouter auth key |
+| `TINYCODE_AUTH_TOKEN` | cmd (serve/web) | Server bearer auth token |
+| `TINYCODE_NO_AUTH` | cmd (serve/web) | Disable auth entirely |
+| `TINYCODE_SERVER_PASSWORD` | cmd (serve/web) | Deprecated alias for `TINYCODE_AUTH_TOKEN` |
 
 ## 13.9 Example Config
 

@@ -317,6 +317,10 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	if input.MaxIterations != nil && *input.MaxIterations > 0 && maxIter == 0 {
 		maxIter = *input.MaxIterations
 	}
+	smallModel := ""
+	if sm.cfg != nil {
+		smallModel = sm.cfg.SmallModel
+	}
 	proc := session.NewProcessor(session.ProcessorConfig{
 		SessionID:       sessionID,
 		Agent:           input.Agent,
@@ -332,6 +336,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		MaxTokens:       input.MaxTokens,
 		ThinkingBudget:  input.ThinkingBudget,
 		TokenBudget:     sm.tokenBudget,
+		SmallModel:      smallModel,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 	if len(imageParts) > 0 {

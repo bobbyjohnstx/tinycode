@@ -455,7 +455,10 @@ func runInit() {
 
 	configFile := config.GlobalConfigFile()
 	if data, err := os.ReadFile(configFile); err == nil {
-		_ = json.Unmarshal(data, &result)
+		cleaned, err := config.ParseJSONC(string(data))
+		if err == nil {
+			_ = json.Unmarshal([]byte(cleaned), &result)
+		}
 	}
 
 	fmt.Println("tinycode init — Red Hat plugin/role setup")

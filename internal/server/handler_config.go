@@ -61,7 +61,10 @@ func (s *Server) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 
 	existing := make(map[string]any)
 	if data, err := os.ReadFile(configPath); err == nil {
-		_ = json.Unmarshal(data, &existing)
+		cleaned, err := config.ParseJSONC(string(data))
+		if err == nil {
+			_ = json.Unmarshal([]byte(cleaned), &existing)
+		}
 	}
 
 	allowedFields := map[string]bool{
