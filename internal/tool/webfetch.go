@@ -63,6 +63,9 @@ func checkSSRF(ctx context.Context, rawURL string) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
+	if scheme := strings.ToLower(parsed.Scheme); scheme != "http" && scheme != "https" {
+		return fmt.Errorf("only http and https URLs are allowed")
+	}
 	host := parsed.Hostname()
 	if host == "" {
 		return fmt.Errorf("invalid URL: missing hostname")

@@ -82,6 +82,17 @@ func TestCheckSSRF_MissingHostname(t *testing.T) {
 	}
 }
 
+func TestCheckSSRF_BlocksNonHTTPSchemes(t *testing.T) {
+	for _, raw := range []string{"file:///etc/passwd", "gopher://example.com/1", "ftp://example.com/"} {
+		err := checkSSRF(context.Background(), raw)
+		if err == nil {
+			t.Errorf("expected scheme rejection for %q", raw)
+		} else if !strings.Contains(err.Error(), "only http and https") {
+			t.Errorf("%q: got %v", raw, err)
+		}
+	}
+}
+
 func TestWebFetch_BlocksLocalhost(t *testing.T) {
 	def := WebFetchTool()
 	args, _ := json.Marshal(webfetchArgs{URL: "http://127.0.0.1/admin"})
