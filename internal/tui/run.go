@@ -690,6 +690,9 @@ func (c *connectedApp) buildPromptInput(text string) api.PromptInput {
 	c.app.prompt.ClearImages()
 
 	input := api.PromptInput{Parts: parts}
+	if c.app.state.CurrentAgent != "" {
+		input.Agent = c.app.state.CurrentAgent
+	}
 	if c.app.state.CurrentModel.ModelID != "" {
 		input.Model = &api.PromptModel{
 			ProviderID: c.app.state.CurrentModel.ProviderID,

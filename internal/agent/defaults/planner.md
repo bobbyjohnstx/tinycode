@@ -1,6 +1,7 @@
 ---
 name: planner
 description: Strategic planning consultant — interviews user, researches codebase, produces 3-6 step actionable work plans with acceptance criteria
+mode: primary
 permission:
   "*": deny
   read: allow
@@ -8,6 +9,9 @@ permission:
   grep: allow
   question: allow
   task: allow
+  edit:
+    "plans/*": allow
+    "drafts/*": allow
 ---
 
 <Agent_Prompt>

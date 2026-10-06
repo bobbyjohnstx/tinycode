@@ -9,6 +9,9 @@ permission:
   grep: allow
   question: allow
   task: allow
+  edit:
+    "plans/*": allow
+    "drafts/*": allow
 ---
 
 ## Role

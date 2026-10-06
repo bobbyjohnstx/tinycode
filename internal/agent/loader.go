@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,8 @@ import (
 // LoadFromDirectory loads agent definitions from .md files in dir.
 // Files are parsed for YAML frontmatter (name, description, permission, etc).
 // Compact variants (*.compact.md) are loaded alongside their full counterparts.
-// Agents already in the registry are not overwritten.
+// Native agents are never overwritten. Non-native (bundled) agents may be replaced
+// by user/project definitions.
 func (r *Registry) LoadFromDirectory(dir string, defaultPerms, userPerms permission.Ruleset) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -30,39 +32,25 @@ func (r *Registry) LoadFromDirectory(dir string, defaultPerms, userPerms permiss
 		}
 
 		agentName := strings.TrimSuffix(entry.Name(), ".md")
-		if r.agents[agentName] != nil {
+		if existing := r.agents[agentName]; existing != nil && existing.Native {
 			continue
 		}
 
 		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
 		if err != nil {
+			slog.Error("reading agent file", "path", filepath.Join(dir, entry.Name()), "err", err)
 			continue
 		}
 
 		frontmatter, body := parseFrontmatter(string(data))
 		info := &Info{
 			Name:    agentName,
-			Mode:    ModeAll,
+			Mode:    ModeSubagent,
 			Options: make(map[string]any),
 			Native:  false,
 			Prompt:  strings.TrimSpace(body),
 		}
-
-		if desc, ok := frontmatter["description"].(string); ok {
-			info.Description = desc
-		}
-		if mode, ok := frontmatter["mode"].(string); ok {
-			info.Mode = Mode(mode)
-		}
-		if hidden, ok := frontmatter["hidden"].(bool); ok {
-			info.Hidden = hidden
-		}
-		if color, ok := frontmatter["color"].(string); ok {
-			info.Color = color
-		}
-		if steps, ok := frontmatter["steps"].(int); ok {
-			info.Steps = &steps
-		}
+		applyFrontmatter(info, frontmatter)
 
 		agentPerm := extractPermissionRules(frontmatter)
 		info.Permission = permission.Merge(defaultPerms, agentPerm, userPerms)
@@ -74,13 +62,22 @@ func (r *Registry) LoadFromDirectory(dir string, defaultPerms, userPerms permiss
 }
 
 // LoadUserAgents loads agents from user config and project directories.
-// It scans ~/.config/tinycode/agents/ and .tinycode/agent/ directories.
+// Order: user (~/.config/tinycode/agents and .../agent for compat), then project
+// (.tinycode/agent). Later loads overwrite earlier non-native agents, so project wins.
 func (r *Registry) LoadUserAgents(configDir, projectDir string, defaultPerms, userPerms permission.Ruleset) {
-	userAgentDir := filepath.Join(configDir, "agents")
-	r.LoadFromDirectory(userAgentDir, defaultPerms, userPerms)
+	for _, dir := range []string{
+		filepath.Join(configDir, "agents"),
+		filepath.Join(configDir, "agent"),
+	} {
+		if err := r.LoadFromDirectory(dir, defaultPerms, userPerms); err != nil {
+			slog.Error("loading user agents", "dir", dir, "err", err)
+		}
+	}
 
 	if projectDir != "" {
 		projectAgentDir := filepath.Join(projectDir, ".tinycode", "agent")
-		r.LoadFromDirectory(projectAgentDir, defaultPerms, userPerms)
+		if err := r.LoadFromDirectory(projectAgentDir, defaultPerms, userPerms); err != nil {
+			slog.Error("loading project agents", "dir", projectAgentDir, "err", err)
+		}
 	}
 }

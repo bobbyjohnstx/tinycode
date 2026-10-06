@@ -4,10 +4,12 @@ mode: subagent
 steps: 30
 permission:
   "*": deny
-  read: allow
-  glob: allow
   grep: allow
+  glob: allow
   bash: allow
+  webfetch: allow
+  websearch: allow
+  read: allow
 ---
 
 ## Role

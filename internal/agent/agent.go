@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -107,27 +108,12 @@ func (r *Registry) LoadDefaults(defaultPerms, userPerms permission.Ruleset) erro
 		frontmatter, body := parseFrontmatter(string(data))
 		info := &Info{
 			Name:    agentName,
-			Mode:    ModeAll,
+			Mode:    ModeSubagent,
 			Options: make(map[string]any),
 			Native:  false,
 			Prompt:  strings.TrimSpace(body),
 		}
-
-		if desc, ok := frontmatter["description"].(string); ok {
-			info.Description = desc
-		}
-		if mode, ok := frontmatter["mode"].(string); ok {
-			info.Mode = Mode(mode)
-		}
-		if hidden, ok := frontmatter["hidden"].(bool); ok {
-			info.Hidden = hidden
-		}
-		if color, ok := frontmatter["color"].(string); ok {
-			info.Color = color
-		}
-		if steps, ok := frontmatter["steps"].(int); ok {
-			info.Steps = &steps
-		}
+		applyFrontmatter(info, frontmatter)
 
 		agentPerm := extractPermissionRules(frontmatter)
 		info.Permission = permission.Merge(defaultPerms, agentPerm, userPerms)
@@ -135,9 +121,12 @@ func (r *Registry) LoadDefaults(defaultPerms, userPerms permission.Ruleset) erro
 		r.agents[agentName] = info
 	}
 
-	// Default-disable archived agents.
+	// Default-disable archived agents (and their compact peers).
 	for _, name := range []string{"code-simplifier", "qa-tester", "scientist"} {
 		if agent := r.agents[name]; agent != nil {
+			agent.Disabled = true
+		}
+		if agent := r.agents[name+".compact"]; agent != nil {
 			agent.Disabled = true
 		}
 	}
@@ -222,22 +211,23 @@ func (r *Registry) ApplyConfigOverrides(overrides map[string]ConfigOverride, def
 }
 
 // Get retrieves an agent by name. If modelSizeB is provided and <= 8,
-// the compact variant is returned if available.
+// the compact variant is returned if available. Disabled agents are never served.
 func (r *Registry) Get(name string, modelSizeB *float64) *Info {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if modelSizeB != nil && *modelSizeB <= 8 {
 		compact := r.agents[name+".compact"]
-		if compact != nil {
+		if compact != nil && !compact.Disabled {
 			result := *compact
+			result.Name = name
 			result.Compact = true
 			return &result
 		}
 	}
 
 	agent := r.agents[name]
-	if agent == nil {
+	if agent == nil || agent.Disabled {
 		return nil
 	}
 	result := *agent
@@ -346,7 +336,7 @@ func (r *Registry) DefaultAgent(configDefault string) (string, error) {
 func (r *Registry) registerNativeAgents(defaultPerms, userPerms permission.Ruleset) {
 	buildPrompt := readEmbeddedTxt("build.txt")
 	generalPrompt := readEmbeddedTxt("general.txt")
-	explorePrompt := readEmbeddedTxt("explore.txt")
+	explorePrompt := readEmbeddedExplorePrompt()
 	scoutPrompt := readEmbeddedTxt("scout.txt")
 	compactionPrompt := readEmbeddedTxt("compaction.txt")
 	titlePrompt := readEmbeddedTxt("title.txt")
@@ -500,6 +490,73 @@ func readEmbeddedTxt(name string) string {
 	return strings.TrimSpace(string(data))
 }
 
+// readEmbeddedExplorePrompt prefers explore.md body (richer prompt) and falls
+// back to explore.txt when the markdown file is missing or empty.
+func readEmbeddedExplorePrompt() string {
+	data, err := defaultsFS.ReadFile(filepath.Join("defaults", "explore.md"))
+	if err == nil {
+		_, body := parseFrontmatter(string(data))
+		if prompt := strings.TrimSpace(body); prompt != "" {
+			return prompt
+		}
+	}
+	return readEmbeddedTxt("explore.txt")
+}
+
+// applyFrontmatter copies recognized frontmatter fields onto info.
+// Registry map keys stay as the filename stem; Info.Name may be overridden.
+func applyFrontmatter(info *Info, frontmatter map[string]any) {
+	if info == nil || frontmatter == nil {
+		return
+	}
+	if name, ok := frontmatter["name"].(string); ok && name != "" {
+		info.Name = name
+	}
+	if desc, ok := frontmatter["description"].(string); ok {
+		info.Description = desc
+	}
+	if mode, ok := frontmatter["mode"].(string); ok {
+		info.Mode = Mode(mode)
+	}
+	if hidden, ok := frontmatter["hidden"].(bool); ok {
+		info.Hidden = hidden
+	}
+	if color, ok := frontmatter["color"].(string); ok {
+		info.Color = color
+	}
+	if steps, ok := frontmatter["steps"].(int); ok {
+		info.Steps = &steps
+	}
+	if temp, ok := asFloat64(frontmatter["temperature"]); ok {
+		info.Temperature = &temp
+	}
+	if topP, ok := asFloat64(frontmatter["top_p"]); ok {
+		info.TopP = &topP
+	} else if topP, ok := asFloat64(frontmatter["topP"]); ok {
+		info.TopP = &topP
+	}
+	if model, ok := frontmatter["model"].(string); ok && model != "" {
+		info.Model = ParseModel(model)
+	}
+}
+
+func asFloat64(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case string:
+		f, err := strconv.ParseFloat(n, 64)
+		if err != nil {
+			return 0, false
+		}
+		return f, true
+	default:
+		return 0, false
+	}
+}
+
 // ParseModel splits "provider/model" into a ModelRef.
 func ParseModel(s string) *session.ModelRef {
 	idx := strings.IndexByte(s, '/')
@@ -529,7 +586,7 @@ func parseFrontmatter(content string) (map[string]any, string) {
 
 	result := make(map[string]any)
 	var currentMap map[string]any
-	var currentKey string
+	var nestedMap map[string]any
 
 	for _, line := range strings.Split(fm, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -539,11 +596,29 @@ func parseFrontmatter(content string) (map[string]any, string) {
 
 		indent := len(line) - len(strings.TrimLeft(line, " "))
 
-		if indent > 0 && currentMap != nil {
+		// Nested under a pattern map (e.g. bash: / "*": allow).
+		if indent >= 4 && nestedMap != nil {
 			k, v, ok := splitFMLine(trimmed)
 			if ok {
-				currentMap[stripQuotes(k)] = v
+				nestedMap[stripQuotes(k)] = parseFMValue(v)
 			}
+			continue
+		}
+
+		// Nested under a top-level map (e.g. permission: / bash:).
+		if indent > 0 && currentMap != nil {
+			k, v, ok := splitFMLine(trimmed)
+			if !ok {
+				continue
+			}
+			key := stripQuotes(k)
+			if v == "" {
+				nestedMap = make(map[string]any)
+				currentMap[key] = nestedMap
+				continue
+			}
+			nestedMap = nil
+			currentMap[key] = parseFMValue(v)
 			continue
 		}
 
@@ -553,33 +628,36 @@ func parseFrontmatter(content string) (map[string]any, string) {
 		}
 
 		key := stripQuotes(k)
-		value := v
-
-		if value == "" {
+		if v == "" {
 			currentMap = make(map[string]any)
-			currentKey = key
-			result[currentKey] = currentMap
+			nestedMap = nil
+			result[key] = currentMap
 			continue
 		}
 
 		currentMap = nil
-		currentKey = ""
-
-		switch value {
-		case "true":
-			result[key] = true
-		case "false":
-			result[key] = false
-		default:
-			if n, ok := parseInt(value); ok {
-				result[key] = n
-			} else {
-				result[key] = value
-			}
-		}
+		nestedMap = nil
+		result[key] = parseFMValue(v)
 	}
 
 	return result, body
+}
+
+func parseFMValue(value string) any {
+	switch value {
+	case "true":
+		return true
+	case "false":
+		return false
+	default:
+		if n, ok := parseInt(value); ok {
+			return n
+		}
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			return f
+		}
+		return value
+	}
 }
 
 func splitFMLine(s string) (key, value string, ok bool) {
@@ -635,31 +713,46 @@ func extractPermissionRules(fm map[string]any) permission.Ruleset {
 }
 
 func permissionFromConfigMap(m map[string]any) permission.Ruleset {
-	var rules permission.Ruleset
+	// Emit catch-all ("*") rules first so specific allows win under Evaluate's
+	// last-wins semantics. Map iteration order is otherwise non-deterministic.
+	var wildcards, specific permission.Ruleset
 	for key, val := range m {
 		switch v := val.(type) {
 		case string:
 			perm, pattern := splitPermissionKey(key)
-			rules = append(rules, permission.Rule{
+			rule := permission.Rule{
 				Permission: perm,
 				Pattern:    pattern,
 				Action:     permission.Action(v),
-			})
+			}
+			if perm == "*" {
+				wildcards = append(wildcards, rule)
+			} else {
+				specific = append(specific, rule)
+			}
 		case map[string]any:
+			var nestedWild, nestedSpecific permission.Ruleset
 			for pattern, action := range v {
 				actionStr, ok := action.(string)
 				if !ok {
 					continue
 				}
-				rules = append(rules, permission.Rule{
+				rule := permission.Rule{
 					Permission: key,
 					Pattern:    pattern,
 					Action:     permission.Action(actionStr),
-				})
+				}
+				if pattern == "*" {
+					nestedWild = append(nestedWild, rule)
+				} else {
+					nestedSpecific = append(nestedSpecific, rule)
+				}
 			}
+			specific = append(specific, nestedWild...)
+			specific = append(specific, nestedSpecific...)
 		}
 	}
-	return rules
+	return append(wildcards, specific...)
 }
 
 // splitPermissionKey splits "permission pattern" on the first space.

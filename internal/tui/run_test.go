@@ -45,6 +45,29 @@ func TestBuildPromptInput_NoModelWhenUnset(t *testing.T) {
 	}
 }
 
+func TestBuildPromptInput_IncludesCurrentAgent(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.CurrentAgent = "plan"
+	ca := &connectedApp{app: app}
+
+	input := ca.buildPromptInput("Hello")
+
+	if input.Agent != "plan" {
+		t.Errorf("expected Agent %q, got %q", "plan", input.Agent)
+	}
+}
+
+func TestBuildPromptInput_NoAgentWhenUnset(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	input := ca.buildPromptInput("Hello")
+
+	if input.Agent != "" {
+		t.Errorf("expected empty Agent when CurrentAgent unset, got %q", input.Agent)
+	}
+}
+
 func TestMapSSEToMsg_SessionError(t *testing.T) {
 	evt := api.ServerEvent{
 		Type: "session.error",
