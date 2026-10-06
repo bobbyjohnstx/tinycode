@@ -25,15 +25,24 @@ type Event struct {
 | Typed | `bus.Subscribe("topic")` | Events matching the exact topic |
 | Wildcard | `bus.SubscribeAll()` | All events |
 
+`Subscribe("*")` is a **typed** subscription for the literal topic `"*"` — it is **not** a wildcard. Use `SubscribeAll()` for all events.
+
+After `Bus.Close()`, `Subscribe` / `SubscribeAll` return an already-closed subscription (no panic).
+
 ### Constants
 
 | Constant | Value | Description |
 |----------|-------|-------------|
 | `defaultCapacity` | 4096 | Channel buffer size per subscription |
+| `historySize` | 256 | Recent-event ring for SSE `Last-Event-ID` replay |
 
 ### Backpressure
 
-When a subscription channel is full, the bus uses a **sliding buffer** strategy: it drops the oldest unread event, then enqueues the new one. This prevents slow consumers from blocking publishers.
+When a subscription channel is full, the bus uses a **sliding buffer** strategy: it drops the oldest unread event(s) until the newest event can be enqueued. Slow consumers never block publishers. Drops are observable via `Bus.Drops()` and `slog.Debug`.
+
+### Lock Order
+
+Never hold `Subscription.mu` while taking `Bus.mu`. Publish copies the subscriber list under `RLock`, then delivers without the bus lock. Close collects subscribers under `Bus.mu`, unlocks, then closes channels.
 
 ### Bus Events
 
@@ -45,10 +54,8 @@ Events published by the server and session system:
 | `session.created` | SessionManager | `{info: {id, ...}}` |
 | `session.deleted` | SessionManager | `{sessionID}` |
 | `session.message` | Processor | `{sessionID, message}` |
-| `permission.ask` | Server | `{sessionID, toolName, toolArgs, permission}` |
 | `permission.asked` | PermService | `Request` struct |
 | `permission.replied` | PermService | `{sessionID, requestID, reply}` |
-| `shell.env` | Server | `{sessionID, directory, env}` |
 | `session.status` | SessionManager | `{sessionID, status}` |
 | `session.prompt` | SessionManager | `{sessionID, prompt}` |
 | `session.error` | Processor | `{sessionID, error}` |
@@ -73,6 +80,17 @@ Events published by the server and session system:
 | `provider.reconnected` | Discovery | `{providerID, previous_failures}` |
 | `provider.warmup.complete` | Discovery | `{modelID, toolCapable}` |
 | `global.disposed` | Server | `{timestamp}` |
+| `stream.gap` | SSE (reconnect) | `{lastSeen}` — emitted when `Last-Event-ID` is outside the history ring |
+
+### Sync Hooks (Not Bus Events)
+
+These are **synchronous callbacks**, not bus topics:
+
+| Hook | Path | Purpose |
+|------|------|---------|
+| Permission ask interceptor | `permission.Service.SetAskInterceptor` | Plugins (e.g. safety-net) deny before UI ask |
+| Shell env | `tool.Context.ShellEnvHook` | Mutate env before shell execution |
+| Tool before/after | `tool.Context.BeforeHook` / `AfterHook` | Abort or transform tool execution |
 
 ## 3.2 Server-Sent Events (SSE)
 
@@ -80,20 +98,37 @@ SSE endpoints stream bus events to clients in real-time.
 
 ### SSE Endpoints
 
-| Endpoint | Scope |
-|----------|-------|
-| `GET /global/event` | All bus events (wildcard subscription) |
-| `GET /event` | All bus events (alias) |
-| `GET /session/{id}/event` | Events filtered to a specific session |
+| Endpoint | Scope | Payload shape |
+|----------|-------|---------------|
+| `GET /global/event` | All bus events (`SubscribeAll`) | `{directory, payload: {id, type, properties}}` |
+| `GET /event` | All bus events (alias) | `event:` type + `data:` properties |
+| `GET /session/{id}/event` | Events with matching `properties.sessionID` | Same as `/event` |
 
 ### SSE Message Format
 
+`/event` and `/session/{id}/event`:
+
 ```
 event: <event-type>
-data: <json-payload>
+data: <json-properties>
 id: <event-id>
 
 ```
+
+`/global/event` wraps each bus event:
+
+```
+id: <event-id>
+data: {"directory":"...","payload":{"id":"...","type":"...","properties":...}}
+
+```
+
+### Reconnect / Last-Event-ID
+
+Clients may send `Last-Event-ID` on reconnect. The bus keeps a ring of the last 256 events:
+
+- If the ID is found → replay events after it, then live-subscribe
+- If missing / too old → emit `stream.gap` with `{lastSeen}` then live-subscribe
 
 ### SSE Heartbeat
 
@@ -115,7 +150,7 @@ X-Accel-Buffering: no
 
 ### TUI SSE Integration
 
-The TUI (`internal/tui/run.go`) subscribes to SSE via `api.Client.Subscribe()`, which returns a `<-chan ServerEvent`. The `waitForSSE()` function converts channel reads into `tea.Cmd` chains. Events are mapped to TUI messages via `mapSSEToMsg()`.
+The TUI (`internal/tui/run.go`) subscribes to SSE via `api.Client.Subscribe()`, which returns a `<-chan ServerEvent`. The `waitForSSE()` function converts channel reads into `tea.Cmd` chains. Events are mapped to TUI messages via `mapSSEToMsg()`. The client sends `Last-Event-ID` on reconnect.
 
 ## 3.3 LLM Streaming Events
 

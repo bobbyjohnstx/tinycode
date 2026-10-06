@@ -28,10 +28,10 @@ func sessionRoot(sid string) string {
 }
 
 var (
-	ErrClosed    = errors.New("permission service closed")
-	ErrDenied    = errors.New("permission denied by rule")
-	ErrRejected  = errors.New("user rejected permission")
-	ErrNotFound  = errors.New("permission request not found")
+	ErrClosed   = errors.New("permission service closed")
+	ErrDenied   = errors.New("permission denied by rule")
+	ErrRejected = errors.New("user rejected permission")
+	ErrNotFound = errors.New("permission request not found")
 )
 
 type Reply string
@@ -59,13 +59,13 @@ func (e *DeniedError) Error() string {
 }
 
 type Request struct {
-	ID         string            `json:"id"`
-	SessionID  string            `json:"sessionID"`
-	Permission string            `json:"permission"`
-	Patterns   []string          `json:"patterns"`
-	Metadata   map[string]any    `json:"metadata"`
-	Always     []string          `json:"always"`
-	Tool       *ToolRef          `json:"tool,omitempty"`
+	ID         string         `json:"id"`
+	SessionID  string         `json:"sessionID"`
+	Permission string         `json:"permission"`
+	Patterns   []string       `json:"patterns"`
+	Metadata   map[string]any `json:"metadata"`
+	Always     []string       `json:"always"`
+	Tool       *ToolRef       `json:"tool,omitempty"`
 }
 
 type ToolRef struct {
@@ -257,21 +257,31 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 }
 
 // RespondToAsk handles a user's reply to a permission request.
+// Bus publishes happen after Service.mu is released to avoid holding the
+// mutex across potentially blocking subscriber delivery.
 func (s *Service) RespondToAsk(input ReplyInput) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	entry, ok := s.pending[input.RequestID]
-	if !ok {
-		return fmt.Errorf("%w: %s", ErrNotFound, input.RequestID)
+	type replyPublish struct {
+		sessionID string
+		requestID string
+		reply     string
+		entry     *pendingEntry
+		err       error
 	}
 
+	s.mu.Lock()
+	entry, ok := s.pending[input.RequestID]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: %s", ErrNotFound, input.RequestID)
+	}
 	delete(s.pending, input.RequestID)
 
-	s.bus.Publish("permission.replied", map[string]any{
-		"sessionID": entry.info.SessionID,
-		"requestID": entry.info.ID,
-		"reply":     string(input.Reply),
+	var publishes []replyPublish
+	publishes = append(publishes, replyPublish{
+		sessionID: entry.info.SessionID,
+		requestID: entry.info.ID,
+		reply:     string(input.Reply),
+		entry:     entry,
 	})
 
 	if input.Reply == ReplyReject {
@@ -281,7 +291,7 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 		} else {
 			err = ErrRejected
 		}
-		entry.replyCh <- replyResult{err: err}
+		publishes[0].err = err
 
 		// Cascade: reject all other pending asks for the same session family
 		for id, other := range s.pending {
@@ -289,19 +299,38 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 				continue
 			}
 			delete(s.pending, id)
-			s.bus.Publish("permission.replied", map[string]any{
-				"sessionID": other.info.SessionID,
-				"requestID": other.info.ID,
-				"reply":     string(ReplyReject),
+			publishes = append(publishes, replyPublish{
+				sessionID: other.info.SessionID,
+				requestID: other.info.ID,
+				reply:     string(ReplyReject),
+				entry:     other,
+				err:       ErrRejected,
 			})
-			other.replyCh <- replyResult{err: ErrRejected}
+		}
+		s.mu.Unlock()
+
+		for _, p := range publishes {
+			s.bus.Publish("permission.replied", map[string]any{
+				"sessionID": p.sessionID,
+				"requestID": p.requestID,
+				"reply":     p.reply,
+			})
+			p.entry.replyCh <- replyResult{err: p.err}
 		}
 		return nil
 	}
 
-	entry.replyCh <- replyResult{err: nil}
+	publishes[0].err = nil
 
 	if input.Reply == ReplyOnce {
+		s.mu.Unlock()
+		p := publishes[0]
+		s.bus.Publish("permission.replied", map[string]any{
+			"sessionID": p.sessionID,
+			"requestID": p.requestID,
+			"reply":     p.reply,
+		})
+		p.entry.replyCh <- replyResult{err: nil}
 		return nil
 	}
 
@@ -314,15 +343,9 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 		})
 	}
 
-	if s.store != nil && s.projectID != "" {
-		if err := s.store.SaveRules(s.projectID, s.approved); err != nil {
-			slog.Warn("failed to persist always-approved permission rules", "error", err, "projectID", s.projectID)
-		}
-	} else {
-		// No RuleStore wired: "always" is in-memory for this process only.
-		slog.Warn("permission always approval is session-only; no RuleStore configured",
-			"projectID", s.projectID)
-	}
+	store := s.store
+	projectID := s.projectID
+	approved := s.approved
 
 	for id, other := range s.pending {
 		if !sameSessionFamily(other.info.SessionID, entry.info.SessionID) {
@@ -339,12 +362,33 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 			continue
 		}
 		delete(s.pending, id)
-		s.bus.Publish("permission.replied", map[string]any{
-			"sessionID": other.info.SessionID,
-			"requestID": other.info.ID,
-			"reply":     string(ReplyAlways),
+		publishes = append(publishes, replyPublish{
+			sessionID: other.info.SessionID,
+			requestID: other.info.ID,
+			reply:     string(ReplyAlways),
+			entry:     other,
+			err:       nil,
 		})
-		other.replyCh <- replyResult{err: nil}
+	}
+	s.mu.Unlock()
+
+	if store != nil && projectID != "" {
+		if err := store.SaveRules(projectID, approved); err != nil {
+			slog.Warn("failed to persist always-approved permission rules", "error", err, "projectID", projectID)
+		}
+	} else {
+		// No RuleStore wired: "always" is in-memory for this process only.
+		slog.Warn("permission always approval is session-only; no RuleStore configured",
+			"projectID", projectID)
+	}
+
+	for _, p := range publishes {
+		s.bus.Publish("permission.replied", map[string]any{
+			"sessionID": p.sessionID,
+			"requestID": p.requestID,
+			"reply":     p.reply,
+		})
+		p.entry.replyCh <- replyResult{err: p.err}
 	}
 
 	return nil

@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Server) handleGlobalEventStream(w http.ResponseWriter, r *http.Request) {
-	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory, s.sessionManager.sessionDir)
+	StreamGlobalEvents(r.Context(), w, s.deps.Bus, s.config.Directory, s.sessionManager.sessionDir, r.Header.Get("Last-Event-ID"))
 }
 
 func (s *Server) handleGlobalDispose(w http.ResponseWriter, r *http.Request) {
@@ -21,7 +21,7 @@ func (s *Server) handleGlobalDispose(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleEventStream(w http.ResponseWriter, r *http.Request) {
-	StreamEvents(r.Context(), w, s.deps.Bus, "")
+	StreamEvents(r.Context(), w, s.deps.Bus, "", r.Header.Get("Last-Event-ID"))
 }
 
 func (s *Server) handleSessionEventStream(w http.ResponseWriter, r *http.Request) {
@@ -30,13 +30,13 @@ func (s *Server) handleSessionEventStream(w http.ResponseWriter, r *http.Request
 		respondError(w, http.StatusBadRequest, "session ID required")
 		return
 	}
-	StreamEvents(r.Context(), w, s.deps.Bus, sessionID)
+	StreamEvents(r.Context(), w, s.deps.Bus, sessionID, r.Header.Get("Last-Event-ID"))
 }
 
 // DirectoryResolver maps a session ID to its project directory.
 type DirectoryResolver func(sessionID string) string
 
-func StreamGlobalEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus, defaultDir string, resolve DirectoryResolver) {
+func StreamGlobalEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus, defaultDir string, resolve DirectoryResolver, lastEventID string) {
 	sse, ok := NewSSEWriter(w)
 	if !ok {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
@@ -52,6 +52,22 @@ func StreamGlobalEvents(ctx context.Context, w http.ResponseWriter, eventBus *bu
 			},
 		},
 	})
+
+	if lastEventID != "" {
+		replay, found := eventBus.EventsSince(lastEventID)
+		if !found {
+			_ = sse.Send(SSEEvent{
+				Event: "stream.gap",
+				Data:  map[string]any{"lastSeen": lastEventID},
+			})
+		} else {
+			for _, evt := range replay {
+				if err := sendGlobalSSEEvent(sse, evt, defaultDir, resolve); err != nil {
+					return
+				}
+			}
+		}
+	}
 
 	sub := eventBus.SubscribeAll()
 	defer sub.Unsubscribe()
@@ -77,35 +93,7 @@ func StreamGlobalEvents(ctx context.Context, w http.ResponseWriter, eventBus *bu
 				})
 				return
 			}
-			// Skip subagent events — they're forwarded to parent by the event bridge
-			if props, ok := evt.Properties.(map[string]any); ok {
-				if sid, ok := props["sessionID"].(string); ok && strings.Contains(sid, ":") {
-					continue
-				}
-			}
-			dir := defaultDir
-			if evt.Type == "project.updated" {
-				dir = "global"
-			} else if resolve != nil {
-				if props, ok := evt.Properties.(map[string]any); ok {
-					if sid, ok := props["sessionID"].(string); ok && sid != "" {
-						if d := resolve(sid); d != "" {
-							dir = d
-						}
-					}
-				}
-			}
-			if err := sse.Send(SSEEvent{
-				ID: evt.ID,
-				Data: map[string]any{
-					"directory": dir,
-					"payload": map[string]any{
-						"id":         evt.ID,
-						"type":       evt.Type,
-						"properties": evt.Properties,
-					},
-				},
-			}); err != nil {
+			if err := sendGlobalSSEEvent(sse, evt, defaultDir, resolve); err != nil {
 				return
 			}
 		case <-heartbeat.C:
@@ -114,4 +102,36 @@ func StreamGlobalEvents(ctx context.Context, w http.ResponseWriter, eventBus *bu
 			}
 		}
 	}
+}
+
+func sendGlobalSSEEvent(sse *SSEWriter, evt bus.Event, defaultDir string, resolve DirectoryResolver) error {
+	// Skip subagent events — they're forwarded to parent by the event bridge
+	if props, ok := evt.Properties.(map[string]any); ok {
+		if sid, ok := props["sessionID"].(string); ok && strings.Contains(sid, ":") {
+			return nil
+		}
+	}
+	dir := defaultDir
+	if evt.Type == "project.updated" {
+		dir = "global"
+	} else if resolve != nil {
+		if props, ok := evt.Properties.(map[string]any); ok {
+			if sid, ok := props["sessionID"].(string); ok && sid != "" {
+				if d := resolve(sid); d != "" {
+					dir = d
+				}
+			}
+		}
+	}
+	return sse.Send(SSEEvent{
+		ID: evt.ID,
+		Data: map[string]any{
+			"directory": dir,
+			"payload": map[string]any{
+				"id":         evt.ID,
+				"type":       evt.Type,
+				"properties": evt.Properties,
+			},
+		},
+	})
 }

@@ -155,7 +155,7 @@ func TestStreamEvents_FiltersSubagentEvents(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		StreamEvents(ctx, w, eventBus, "")
+		StreamEvents(ctx, w, eventBus, "", "")
 		close(done)
 	}()
 
@@ -208,7 +208,7 @@ func TestStreamEvents_SessionIDFiltersByProps(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		StreamEvents(ctx, w, eventBus, "ses_filter")
+		StreamEvents(ctx, w, eventBus, "ses_filter", "")
 		close(done)
 	}()
 
@@ -240,5 +240,62 @@ func TestStreamEvents_SessionIDFiltersByProps(t *testing.T) {
 	}
 	if strings.Contains(body, "type-only") {
 		t.Errorf("event type == sessionID must not match, got: %s", body)
+	}
+}
+
+func TestStreamEvents_LastEventIDReplay(t *testing.T) {
+	eventBus := bus.New()
+	defer eventBus.Close()
+
+	id1 := eventBus.Publish("session.update", map[string]any{"sessionID": "ses_a", "n": 1})
+	eventBus.Publish("session.update", map[string]any{"sessionID": "ses_a", "n": 2})
+
+	w := httptest.NewRecorder()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		StreamEvents(ctx, w, eventBus, "", id1)
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	<-done
+
+	body := w.Body.String()
+	if !strings.Contains(body, `"n":2`) {
+		t.Errorf("expected replayed event n=2, got: %s", body)
+	}
+	if strings.Contains(body, "stream.gap") {
+		t.Errorf("should not emit gap when Last-Event-ID is in history, got: %s", body)
+	}
+}
+
+func TestStreamEvents_LastEventIDGap(t *testing.T) {
+	eventBus := bus.New()
+	defer eventBus.Close()
+
+	w := httptest.NewRecorder()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		StreamEvents(ctx, w, eventBus, "", "evt_missing")
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	<-done
+
+	body := w.Body.String()
+	if !strings.Contains(body, "stream.gap") {
+		t.Errorf("expected stream.gap event, got: %s", body)
+	}
+	if !strings.Contains(body, "evt_missing") {
+		t.Errorf("expected lastSeen in gap payload, got: %s", body)
 	}
 }

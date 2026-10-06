@@ -33,7 +33,7 @@ func (sm *SessionManager) subscribePermissionReplies() {
 	if sm.perms == nil {
 		return
 	}
-	sub := sm.bus.Subscribe("permission.replied")
+	sub := sm.trackSub(sm.bus.Subscribe("permission.replied"))
 	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
@@ -59,7 +59,9 @@ func (sm *SessionManager) subscribePermissionReplies() {
 				continue
 			}
 
-			sm.perms.RespondToAsk(permission.ReplyInput{
+			// ErrNotFound is expected when the HTTP handler already resolved
+			// the ask via RespondToAsk (single publish path).
+			_ = sm.perms.RespondToAsk(permission.ReplyInput{
 				RequestID: reqID,
 				Reply:     reply,
 				Message:   message,
@@ -81,7 +83,7 @@ func (sm *SessionManager) Unrevert(sessionID string) error {
 // subscribeRevert listens for session.revert events and stashes the current
 // working tree changes (bus-driven path; HTTP uses Revert synchronously).
 func (sm *SessionManager) subscribeRevert() {
-	sub := sm.bus.Subscribe("session.revert")
+	sub := sm.trackSub(sm.bus.Subscribe("session.revert"))
 	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
@@ -109,7 +111,7 @@ func (sm *SessionManager) subscribeRevert() {
 // subscribeUnrevert listens for session.unrevert events and pops the stash
 // created by the corresponding revert (bus-driven path; HTTP uses Unrevert).
 func (sm *SessionManager) subscribeUnrevert() {
-	sub := sm.bus.Subscribe("session.unrevert")
+	sub := sm.trackSub(sm.bus.Subscribe("session.unrevert"))
 	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
@@ -138,7 +140,7 @@ func (sm *SessionManager) subscribeUnrevert() {
 // returns 501; this subscriber no longer publishes a fake compacted success.
 // Proactive compaction still runs inside Processor.checkCompaction during prompts.
 func (sm *SessionManager) subscribeSummarize() {
-	sub := sm.bus.Subscribe("session.summarize")
+	sub := sm.trackSub(sm.bus.Subscribe("session.summarize"))
 	safego.Go(func() {
 		for range sub.C {
 			// Intentionally no-op: do not emit fake session.compacted events.

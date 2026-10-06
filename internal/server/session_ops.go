@@ -39,7 +39,7 @@ type promptPart struct {
 }
 
 func (sm *SessionManager) subscribeCommands() {
-	sub := sm.bus.Subscribe("session.command")
+	sub := sm.trackSub(sm.bus.Subscribe("session.command"))
 	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)
@@ -71,7 +71,7 @@ func (sm *SessionManager) handleCommand(sessionID, command, args string) {
 }
 
 func (sm *SessionManager) subscribePrompts() {
-	sub := sm.bus.Subscribe("session.prompt")
+	sub := sm.trackSub(sm.bus.Subscribe("session.prompt"))
 	safego.Go(func() {
 		for evt := range sub.C {
 			props, ok := evt.Properties.(map[string]any)

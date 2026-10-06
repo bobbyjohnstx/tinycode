@@ -295,18 +295,7 @@ func (s *Server) handleSessionPermissionReply(w http.ResponseWriter, r *http.Req
 	}
 
 	sessionID := r.PathValue("sessionID")
-
-	s.permissionStore.Remove(permissionID)
-
-	evt := map[string]any{
-		"sessionID": sessionID,
-		"requestID": permissionID,
-		"reply":     reply,
-	}
-	if body.Message != "" {
-		evt["message"] = body.Message
-	}
-	s.deps.Bus.Publish("permission.replied", evt)
+	s.publishPermissionReply(permissionID, sessionID, reply, body.Message)
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"permissionID": permissionID,

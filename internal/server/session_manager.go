@@ -96,6 +96,7 @@ type SessionManager struct {
 	mu                 sync.Mutex
 	sessions           map[string]*activeSession
 	bus                *bus.Bus
+	busSubs            []*bus.Subscription
 	registry           *provider.Registry
 	db                 *sql.DB
 	dir                string
@@ -192,14 +193,19 @@ func (sm *SessionManager) warmupModel(m *provider.Model) {
 	fn(sm.ctx, m)
 }
 
+func (sm *SessionManager) trackSub(sub *bus.Subscription) *bus.Subscription {
+	sm.busSubs = append(sm.busSubs, sub)
+	return sub
+}
+
 // subscribeProcessorEvents subscribes to Processor bus events and re-publishes
 // them as UI events that the TUI and web clients expect.
 func (sm *SessionManager) subscribeProcessorEvents() {
-	msgSub := sm.bus.Subscribe("session.message")
-	deltaSub := sm.bus.Subscribe("session.text.delta")
-	toolBeginSub := sm.bus.Subscribe("session.tool.begin")
-	toolEndSub := sm.bus.Subscribe("session.tool.end")
-	warnSub := sm.bus.Subscribe("session.warning")
+	msgSub := sm.trackSub(sm.bus.Subscribe("session.message"))
+	deltaSub := sm.trackSub(sm.bus.Subscribe("session.text.delta"))
+	toolBeginSub := sm.trackSub(sm.bus.Subscribe("session.tool.begin"))
+	toolEndSub := sm.trackSub(sm.bus.Subscribe("session.tool.end"))
+	warnSub := sm.trackSub(sm.bus.Subscribe("session.warning"))
 
 	safego.Go(func() {
 		for evt := range msgSub.C {
@@ -230,7 +236,7 @@ func (sm *SessionManager) subscribeProcessorEvents() {
 
 // Shutdown cancels all active session processors and waits for them
 // to finish persisting before returning. It also cancels all running
-// background jobs via the JobManager.
+// background jobs via the JobManager and unsubscribes bus bridge loops.
 func (sm *SessionManager) Shutdown() {
 	sm.ctxCancel()
 	sm.mu.Lock()
@@ -257,6 +263,11 @@ func (sm *SessionManager) Shutdown() {
 	for _, done := range doneChans {
 		<-done
 	}
+
+	for _, sub := range sm.busSubs {
+		sub.Unsubscribe()
+	}
+	sm.busSubs = nil
 
 	tool.ClearFileMutexes()
 }

@@ -220,6 +220,11 @@ func (s *Server) Listen(ctx context.Context) (*Listener, error) {
 			close(s.pluginDone)
 		}
 
+		for _, sub := range s.pluginSubs {
+			sub.Unsubscribe()
+		}
+		s.pluginSubs = nil
+
 		s.sessionManager.Shutdown()
 
 		s.deps.Bus.Publish("global.disposed", map[string]any{
@@ -295,9 +300,7 @@ func (s *Server) wirePendingStores() {
 				}
 			}
 		}
-		if tool, ok := props["tool"].(string); ok {
-			p.Tool = tool
-		}
+		p.Tool = extractPendingTool(props)
 		s.permissionStore.Add(p)
 	})
 
@@ -448,6 +451,31 @@ func eventPropsMap(props any) map[string]any {
 		return nil
 	}
 	return m
+}
+
+// extractPendingTool resolves a tool name from permission.asked properties.
+// Ask publishes Tool as *permission.ToolRef (JSON object) and also puts the
+// tool name in metadata["tool"].
+func extractPendingTool(props map[string]any) string {
+	switch tool := props["tool"].(type) {
+	case string:
+		if tool != "" {
+			return tool
+		}
+	case map[string]any:
+		if name, ok := tool["name"].(string); ok && name != "" {
+			return name
+		}
+		if callID, ok := tool["callID"].(string); ok && callID != "" {
+			return callID
+		}
+	}
+	if meta, ok := props["metadata"].(map[string]any); ok {
+		if name, ok := meta["tool"].(string); ok && name != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 // WaitForShutdown blocks until the server's background shutdown goroutine

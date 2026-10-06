@@ -220,3 +220,138 @@ func TestEventHasID(t *testing.T) {
 		t.Fatal("timed out")
 	}
 }
+
+func TestSubscribeAfterClose(t *testing.T) {
+	b := New()
+	b.Close()
+
+	sub := b.Subscribe("after.close")
+	if sub == nil {
+		t.Fatal("Subscribe after Close should return a non-nil subscription")
+	}
+	_, ok := <-sub.C
+	if ok {
+		t.Error("expected closed channel from Subscribe after Close")
+	}
+	sub.Unsubscribe() // must not panic
+
+	subAll := b.SubscribeAll()
+	if subAll == nil {
+		t.Fatal("SubscribeAll after Close should return a non-nil subscription")
+	}
+	_, ok = <-subAll.C
+	if ok {
+		t.Error("expected closed channel from SubscribeAll after Close")
+	}
+	subAll.Unsubscribe()
+}
+
+func TestSlidingBufferKeepsNewest(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	sub := b.Subscribe("flood")
+	defer sub.Unsubscribe()
+
+	const extra = 50
+	for i := 0; i < defaultCapacity+extra; i++ {
+		b.Publish("flood", i)
+	}
+
+	var last any
+	count := 0
+	for {
+		select {
+		case evt := <-sub.C:
+			last = evt.Properties
+			count++
+		default:
+			goto done
+		}
+	}
+done:
+	if count == 0 {
+		t.Fatal("expected to receive some events")
+	}
+	if count > defaultCapacity {
+		t.Errorf("received more events (%d) than capacity (%d)", count, defaultCapacity)
+	}
+	want := defaultCapacity + extra - 1
+	if last != want {
+		t.Errorf("expected newest event properties %v, got %v", want, last)
+	}
+	if b.Drops() == 0 {
+		t.Error("expected Drops() > 0 after buffer overflow")
+	}
+}
+
+func TestEventsSinceReplay(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	id1 := b.Publish("a", 1)
+	id2 := b.Publish("b", 2)
+	id3 := b.Publish("c", 3)
+
+	events, found := b.EventsSince(id1)
+	if !found {
+		t.Fatal("expected to find id1 in history")
+	}
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events after id1, got %d", len(events))
+	}
+	if events[0].ID != id2 || events[1].ID != id3 {
+		t.Errorf("unexpected replay: %+v", events)
+	}
+
+	_, found = b.EventsSince("evt_missing")
+	if found {
+		t.Error("expected found=false for unknown id")
+	}
+}
+
+func TestDeadlockStressCloseUnsubscribe(t *testing.T) {
+	const iterations = 200
+	for i := 0; i < iterations; i++ {
+		b := New()
+		sub := b.SubscribeAll()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			b.Close()
+		}()
+		go func() {
+			defer wg.Done()
+			sub.Unsubscribe()
+		}()
+		wg.Wait()
+	}
+}
+
+func TestDeadlockStressPublishUnsubscribe(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	const goroutines = 8
+	const iterations = 100
+	var wg sync.WaitGroup
+	wg.Add(goroutines * 2)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				b.Publish("stress", j)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				sub := b.Subscribe("stress")
+				sub.Unsubscribe()
+			}
+		}()
+	}
+	wg.Wait()
+}

@@ -85,7 +85,7 @@ func (s *SSEWriter) Heartbeat() error {
 	return nil
 }
 
-func StreamEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus, sessionID string) {
+func StreamEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus, sessionID, lastEventID string) {
 	sse, ok := NewSSEWriter(w)
 	if !ok {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
@@ -96,6 +96,29 @@ func StreamEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus,
 		Event: "server.connected",
 		Data:  map[string]any{"timestamp": time.Now().UnixMilli()},
 	})
+
+	if lastEventID != "" {
+		replay, found := eventBus.EventsSince(lastEventID)
+		if !found {
+			_ = sse.Send(SSEEvent{
+				Event: "stream.gap",
+				Data:  map[string]any{"lastSeen": lastEventID},
+			})
+		} else {
+			for _, evt := range replay {
+				if !sseEventMatchesSession(evt, sessionID) {
+					continue
+				}
+				if err := sse.Send(SSEEvent{
+					Event: evt.Type,
+					Data:  evt.Properties,
+					ID:    evt.ID,
+				}); err != nil {
+					return
+				}
+			}
+		}
+	}
 
 	// Always SubscribeAll — session filtering is by props["sessionID"], not event type.
 	sub := eventBus.SubscribeAll()

@@ -1,6 +1,10 @@
 package server
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
+)
 
 func (s *Server) handlePermissionList(w http.ResponseWriter, r *http.Request) {
 	permissions := s.permissionStore.List()
@@ -49,22 +53,41 @@ func (s *Server) handlePermissionReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.permissionStore.Remove(id)
-
-	evt := map[string]any{
-		"requestID": id,
-		"reply":     reply,
-	}
-	if body.SessionID != "" {
-		evt["sessionID"] = body.SessionID
-	}
-	if body.Message != "" {
-		evt["message"] = body.Message
-	}
-	s.deps.Bus.Publish("permission.replied", evt)
+	s.publishPermissionReply(id, body.SessionID, reply, body.Message)
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"permissionID": id,
 		"status":       "replied",
 	})
+}
+
+// publishPermissionReply resolves a pending ask via PermService when possible
+// (single permission.replied publish from RespondToAsk). Falls back to a direct
+// bus publish for store-only replies with no matching pending ask.
+func (s *Server) publishPermissionReply(requestID, sessionID, reply, message string) {
+	if s.deps.PermService != nil {
+		err := s.deps.PermService.RespondToAsk(permission.ReplyInput{
+			RequestID: requestID,
+			Reply:     permission.Reply(reply),
+			Message:   message,
+		})
+		if err == nil {
+			s.permissionStore.Remove(requestID)
+			return
+		}
+	}
+
+	s.permissionStore.Remove(requestID)
+
+	evt := map[string]any{
+		"requestID": requestID,
+		"reply":     reply,
+	}
+	if sessionID != "" {
+		evt["sessionID"] = sessionID
+	}
+	if message != "" {
+		evt["message"] = message
+	}
+	s.deps.Bus.Publish("permission.replied", evt)
 }
