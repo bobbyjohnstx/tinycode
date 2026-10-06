@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -248,7 +249,7 @@ func (ms *MessageStore) DeleteAfterTime(sessionID string, afterMs int64) (int64,
 
 // DeleteAfter deletes all messages in a session that appear after messageID
 // in creation order. The target message itself is kept. Returns the number
-// of deleted messages.
+// of deleted messages. Deletes run in a single transaction.
 func (ms *MessageStore) DeleteAfter(sessionID, messageID string) (int64, error) {
 	messages, err := ms.List(sessionID)
 	if err != nil {
@@ -266,12 +267,26 @@ func (ms *MessageStore) DeleteAfter(sessionID, messageID string) (int64, error) 
 		return 0, ErrMessageNotFound
 	}
 
+	toDelete := messages[idx+1:]
+	if len(toDelete) == 0 {
+		return 0, nil
+	}
+
+	tx, err := ms.store.db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("beginning delete transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	var deleted int64
-	for _, m := range messages[idx+1:] {
-		if err := ms.DeleteByID(m.ID); err != nil {
-			return deleted, err
+	for _, m := range toDelete {
+		if _, err := tx.Exec("DELETE FROM message WHERE id = ?", m.ID); err != nil {
+			return 0, fmt.Errorf("deleting message %s: %w", m.ID, err)
 		}
 		deleted++
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("committing delete transaction: %w", err)
 	}
 	return deleted, nil
 }

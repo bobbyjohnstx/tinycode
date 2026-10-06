@@ -103,6 +103,14 @@ func TestStore_CreateAndGet(t *testing.T) {
 		t.Errorf("expected title 'Test Session', got %q", info.Title)
 	}
 
+	var worktree string
+	if err := db.QueryRow(`SELECT worktree FROM project WHERE id = ?`, "proj-1").Scan(&worktree); err != nil {
+		t.Fatalf("ensureProject should insert project row: %v", err)
+	}
+	if worktree != "/tmp/test" {
+		t.Errorf("expected project worktree /tmp/test, got %q", worktree)
+	}
+
 	got, err := store.Get(info.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
@@ -112,6 +120,21 @@ func TestStore_CreateAndGet(t *testing.T) {
 	}
 	if got.Agent != "build" {
 		t.Errorf("expected agent 'build', got %q", got.Agent)
+	}
+}
+
+func TestStore_Create_EnsureProjectError(t *testing.T) {
+	db := testDB(t)
+	store := NewStore(db)
+	if _, err := db.Exec(`DROP TABLE project`); err != nil {
+		t.Fatalf("drop project: %v", err)
+	}
+	_, err := store.Create(CreateInput{ProjectID: "proj-1", Directory: "/tmp"})
+	if err == nil {
+		t.Fatal("expected ensureProject error to propagate from Create")
+	}
+	if !strings.Contains(err.Error(), "ensuring project") {
+		t.Fatalf("expected ensuring project context, got %v", err)
 	}
 }
 

@@ -299,9 +299,9 @@ SQLite pragmas applied on every connection:
 | `cache_size` | -64000 (64 MB) | In-memory page cache |
 | `foreign_keys` | ON | Referential integrity enforcement |
 
-Connection pool: `MaxOpenConns = 1` serializes all writes through a single connection, preventing concurrent write conflicts.
+Connection pool: `MaxOpenConns = 1` serializes all database access through a single Go connection, preventing concurrent write conflicts at the pool layer.
 
-Pragmas are set both via DSN query parameters and explicit `PRAGMA` statements to ensure they take effect regardless of driver behavior.
+File-backed opens set journal/sync/busy/FK via modernc DSN shorthand and apply `PRAGMA cache_size = -64000` after open. `:memory:` applies all pragmas via explicit `PRAGMA` statements. `Open` fails if `PRAGMA quick_check` does not return `ok`.
 
 ## 15.14 Plugin Security
 

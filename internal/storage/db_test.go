@@ -79,6 +79,40 @@ func TestPragmas(t *testing.T) {
 	if foreignKeys != 1 {
 		t.Errorf("expected foreign_keys=1, got %d", foreignKeys)
 	}
+
+	var cacheSize int
+	if err := db.QueryRow("PRAGMA cache_size").Scan(&cacheSize); err != nil {
+		t.Fatalf("failed to query cache_size: %v", err)
+	}
+	if cacheSize != -64000 {
+		t.Errorf("expected cache_size=-64000, got %d", cacheSize)
+	}
+}
+
+func TestPragmas_FileDB(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open file database: %v", err)
+	}
+	defer db.Close()
+
+	var cacheSize int
+	if err := db.QueryRow("PRAGMA cache_size").Scan(&cacheSize); err != nil {
+		t.Fatalf("failed to query cache_size: %v", err)
+	}
+	if cacheSize != -64000 {
+		t.Errorf("expected cache_size=-64000 on file DB, got %d", cacheSize)
+	}
+
+	var foreignKeys int
+	if err := db.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+		t.Fatalf("failed to query foreign_keys: %v", err)
+	}
+	if foreignKeys != 1 {
+		t.Errorf("expected foreign_keys=1, got %d", foreignKeys)
+	}
 }
 
 func TestProjectCRUD(t *testing.T) {
@@ -294,7 +328,7 @@ func TestArchiveLegacyDB_DetectsTSDB(t *testing.T) {
 	}
 }
 
-func TestArchiveLegacyDB_SkipsIfBackupExists(t *testing.T) {
+func TestArchiveLegacyDB_ReArchivesWhenBackupExists(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "tinycode.db")
 	backupPath := dbPath + ".ts-backup"
@@ -307,7 +341,7 @@ func TestArchiveLegacyDB_SkipsIfBackupExists(t *testing.T) {
 	sqlDB.Exec("CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY)")
 	sqlDB.Close()
 
-	// Create pre-existing backup.
+	// Create pre-existing backup — live file is still a TS DB.
 	os.WriteFile(backupPath, []byte("previous backup"), 0o600)
 
 	err = archiveLegacyDB(dbPath)
@@ -315,9 +349,18 @@ func TestArchiveLegacyDB_SkipsIfBackupExists(t *testing.T) {
 		t.Fatalf("archiveLegacyDB failed: %v", err)
 	}
 
-	// Original should still be there because backup already existed.
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		t.Error("original DB should not have been moved when backup already exists")
+	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
+		t.Error("live TS DB should have been archived even when .ts-backup exists")
+	}
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		t.Error("original .ts-backup should still exist")
+	}
+	matches, err := filepath.Glob(dbPath + ".ts-backup.*")
+	if err != nil {
+		t.Fatalf("glob timestamped backups: %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("expected one timestamped backup, got %v", matches)
 	}
 }
 

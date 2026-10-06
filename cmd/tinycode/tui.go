@@ -59,7 +59,7 @@ func runTUI(args []string) {
 		agentReg = initAgentRegistry(cfg, dir)
 	}
 
-	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
+	toolReg, permSvc, toolCtx := initTooling(b, dir, db.DB, cfg)
 	applyConfigPermissions(permSvc, toolReg, cfg)
 
 	lspMgr := initLSP(dir, cfg, toolReg)

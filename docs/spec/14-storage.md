@@ -21,21 +21,17 @@ type DB struct {
 
 | Pragma | Value | Purpose |
 |--------|-------|---------|
-| `journal_mode` | WAL | Write-ahead logging for concurrent reads |
+| `journal_mode` | WAL | Write-ahead logging |
 | `synchronous` | NORMAL | Reduced fsync frequency (safe with WAL) |
 | `busy_timeout` | 5000 | Wait up to 5 seconds on lock contention |
 | `cache_size` | -64000 | 64 MB page cache (negative = KB) |
 | `foreign_keys` | ON | Enforce foreign key constraints |
 
-For file-backed databases, pragmas are passed as DSN query parameters. For `:memory:` databases, pragmas are applied via individual `PRAGMA` statements after open (DSN parameters are not preserved across in-memory connections).
+For file-backed databases, journal/sync/busy/FK pragmas are passed as modernc DSN shorthand (`_journal_mode`, `_synchronous`, `_busy_timeout`, `_foreign_keys`). `cache_size` is applied via `PRAGMA cache_size = -64000` after open (modernc ignores an unrecognized `_cache_size` DSN key). For `:memory:` databases, all pragmas are applied via individual `PRAGMA` statements after open.
 
-**MaxOpenConns = 1** -- serializes all writes through a single connection. Combined with WAL, this avoids `SQLITE_BUSY` errors while still allowing concurrent reads.
+After open, `PRAGMA quick_check` must return `ok` or `Open` fails closed with an error.
 
-### Exported Errors
-
-```go
-var ErrNotFound = errors.New("not found")
-```
+**MaxOpenConns = 1** — the Go `database/sql` pool uses a single connection, serializing all queries through that connection and avoiding `SQLITE_BUSY` from concurrent writers. This is not multi-reader concurrency at the Go pool layer.
 
 ## 14.2 Database Path Resolution
 
@@ -43,14 +39,16 @@ Source: `db.go:DefaultPath()`
 
 Resolution order:
 
-1. `TINYCODE_DB` environment variable -- supports `:memory:` and absolute paths; relative paths are joined with `dataDir()`
-2. Fallback: `{dataDir}/tinycode.db`
+1. `TINYCODE_DB` environment variable — supports `:memory:` and absolute paths; relative paths are joined with `config.DataDir()`
+2. Fallback: `{DataDir}/tinycode.db`
 
-`dataDir()` resolution:
+`config.DataDir()` resolution:
 
 1. `TINYCODE_DATA_DIR` environment variable
 2. `XDG_DATA_HOME/tinycode` (if `XDG_DATA_HOME` is set)
 3. `~/.local/share/tinycode`
+
+Default path on a typical Linux install: `~/.local/share/tinycode/tinycode.db`.
 
 ## 14.3 Migration System
 
@@ -71,10 +69,10 @@ CREATE TABLE IF NOT EXISTS _migrations (
 2. Read all `.sql` files from the embedded filesystem
 3. Sort filenames lexicographically (so `001_` runs before `002_`)
 4. For each file, check `SELECT COUNT(*) FROM _migrations WHERE name = ?`
-5. If not yet applied: execute the full SQL content, then `INSERT INTO _migrations`
+5. If not yet applied: begin a transaction, execute the full SQL content, `INSERT INTO _migrations`, then commit
 6. All migrations use `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` for idempotency
 
-Migrations are **not** wrapped in an explicit transaction -- each migration file executes as a batch. The `IF NOT EXISTS` guards provide crash-recovery safety.
+Each pending migration runs inside an explicit transaction so a mid-file failure rolls back both schema changes and the migration record.
 
 ## 14.4 Schema: Migration 001 (Initial)
 
@@ -194,11 +192,13 @@ Persisted permission rulesets, one per project.
 | `time_updated` | INTEGER | NOT NULL | Unix timestamp |
 | `data` | TEXT | NOT NULL | JSON permission ruleset |
 
-## 14.5 Schema: Migration 002 (Additional Tables)
+## 14.5 Schema: Migration 002 (Reserved / Unused)
 
 Source: `migrations/002_missing_tables.sql`
 
-### session_message
+Migration 002 creates tables reserved for future TypeScript parity. **Go runtime code does not read or write these tables today.** They exist so a fresh Go database has the same table set as the historical schema without implying active feature support. Treat them as unused/reserved until a feature lands that uses them.
+
+### session_message (unused / reserved)
 
 Structured message representation with explicit role and token tracking.
 
@@ -216,7 +216,7 @@ Structured message representation with explicit role and token tracking.
 
 **Indexes:** `session_id`, `(session_id, time_created)` composite
 
-### workspace
+### workspace (unused / reserved)
 
 Grouping of sessions within a project.
 
@@ -232,7 +232,7 @@ Grouping of sessions within a project.
 
 **Indexes:** `project_id`
 
-### account
+### account (unused / reserved)
 
 User account information for authenticated providers.
 
@@ -249,7 +249,7 @@ User account information for authenticated providers.
 | `time_created` | INTEGER | NOT NULL | Unix timestamp |
 | `time_updated` | INTEGER | NOT NULL | Unix timestamp |
 
-### account_state
+### account_state (unused / reserved)
 
 Tracks account lifecycle state.
 
@@ -261,7 +261,7 @@ Tracks account lifecycle state.
 | `time_created` | INTEGER | NOT NULL | Unix timestamp |
 | `time_updated` | INTEGER | NOT NULL | Unix timestamp |
 
-### event_sequence
+### event_sequence (unused / reserved)
 
 Groups events into ordered sequences per session.
 
@@ -275,7 +275,7 @@ Groups events into ordered sequences per session.
 
 **Indexes:** `session_id`
 
-### event
+### event (unused / reserved)
 
 Individual events within a sequence.
 
@@ -291,7 +291,7 @@ Individual events within a sequence.
 
 **Indexes:** `(sequence_id, seq)` composite, `session_id`
 
-### data_migration
+### data_migration (unused / reserved)
 
 Tracks data-level migrations (distinct from schema migrations).
 

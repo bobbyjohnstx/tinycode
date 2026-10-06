@@ -226,7 +226,7 @@ func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
 	return reg
 }
 
-func initTooling(b *bus.Bus, directory string, cfg ...*config.Info) (*tool.Registry, *permission.Service, *tool.Context) {
+func initTooling(b *bus.Bus, directory string, db *sql.DB, cfg ...*config.Info) (*tool.Registry, *permission.Service, *tool.Context) {
 	permSvc := permission.NewService(b)
 	subagentBudget := &atomic.Int32{}
 	subagentBudget.Store(20)
@@ -234,6 +234,7 @@ func initTooling(b *bus.Bus, directory string, cfg ...*config.Info) (*tool.Regis
 		Directory:      directory,
 		Perms:          permSvc,
 		Bus:            b,
+		DB:             db,
 		JobManager:     session.NewJobManager(b),
 		SubagentCount:  &atomic.Int32{},
 		SubagentBudget: subagentBudget,
@@ -241,6 +242,11 @@ func initTooling(b *bus.Bus, directory string, cfg ...*config.Info) (*tool.Regis
 	}
 	if len(cfg) > 0 && cfg[0] != nil && cfg[0].AutoApprove != nil && *cfg[0].AutoApprove {
 		toolCtx.AutoApprove = true
+	}
+	if db != nil {
+		ensureProject(db, directory)
+		proj := project.FromDirectory(directory)
+		permSvc.SetStore(permission.NewSQLiteRuleStore(db), proj.ID)
 	}
 	toolReg := tool.NewRegistry(toolCtx)
 	tool.RegisterBuiltins(toolReg)

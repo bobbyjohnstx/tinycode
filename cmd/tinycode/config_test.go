@@ -11,7 +11,9 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
+	"github.com/bobbyjohnstx/tinycode/internal/storage"
 )
 
 func TestGenerateToken_Length(t *testing.T) {
@@ -136,7 +138,7 @@ func TestInitTooling_SetsJobManager(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	_, _, toolCtx := initTooling(b, t.TempDir())
+	_, _, toolCtx := initTooling(b, t.TempDir(), nil)
 
 	if toolCtx.JobManager == nil {
 		t.Error("expected JobManager to be set")
@@ -147,13 +149,58 @@ func TestInitTooling_SetsBus(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	_, _, toolCtx := initTooling(b, t.TempDir())
+	_, _, toolCtx := initTooling(b, t.TempDir(), nil)
 
 	if toolCtx.Bus == nil {
 		t.Error("expected Bus to be set")
 	}
 	if toolCtx.Bus != b {
 		t.Error("expected Bus to be the same instance passed to initTooling")
+	}
+}
+
+func TestInitTooling_WiresDBAndRuleStore(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	db, err := storage.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	dir := t.TempDir()
+	_, permSvc, toolCtx := initTooling(b, dir, db.DB)
+	if toolCtx.DB == nil {
+		t.Fatal("expected tool Context.DB to be set")
+	}
+	if toolCtx.DB != db.DB {
+		t.Fatal("expected tool Context.DB to be the opened database")
+	}
+
+	// ensureProject + SetStore should leave a project row for the working dir.
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM project`).Scan(&count); err != nil {
+		t.Fatalf("count projects: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 project row after initTooling, got %d", count)
+	}
+
+	// Persist via RuleStore and reload into a fresh service.
+	store := permission.NewSQLiteRuleStore(db.DB)
+	proj := project.FromDirectory(dir)
+	rules := permission.Ruleset{{Permission: "bash", Pattern: "*", Action: permission.ActionAllow}}
+	if err := store.SaveRules(proj.ID, rules); err != nil {
+		t.Fatalf("SaveRules: %v", err)
+	}
+	_ = permSvc // wired; load path covered by SetStore on a new service
+	svc2 := permission.NewService(b)
+	svc2.SetStore(store, proj.ID)
+	if err := svc2.Ask(t.Context(), permission.AskInput{
+		SessionID: "s", Permission: "bash", Patterns: []string{"true"},
+	}); err != nil {
+		t.Fatalf("Ask after SetStore reload: %v", err)
 	}
 }
 

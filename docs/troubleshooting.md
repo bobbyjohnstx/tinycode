@@ -126,21 +126,23 @@ Solutions to common tinycode issues and configuration problems.
 **Solution:**
 1. Check database file exists:
    ```bash
-   ls -la ~/.config/tinycode/db.sqlite
+   ls -la ~/.local/share/tinycode/tinycode.db
    ```
 2. Verify database isn't corrupted:
    ```bash
-   sqlite3 ~/.config/tinycode/db.sqlite ".tables"
+   sqlite3 ~/.local/share/tinycode/tinycode.db ".tables"
    ```
 3. If corrupted, back up and delete:
    ```bash
-   mv ~/.config/tinycode/db.sqlite ~/.config/tinycode/db.sqlite.bak
+   mv ~/.local/share/tinycode/tinycode.db ~/.local/share/tinycode/tinycode.db.bak
    # Restart tinycode — it will recreate the database
    ```
 4. Check disk space isn't full:
    ```bash
-   df -h ~/.config
+   df -h ~/.local/share/tinycode
    ```
+
+Note: override the path with `TINYCODE_DB` or the data directory with `TINYCODE_DATA_DIR` / `XDG_DATA_HOME`.
 
 ### Sessions take too long to load
 
@@ -387,8 +389,8 @@ tinycode export --format json <session-id> > session.json
 
 ### Check database health
 ```bash
-sqlite3 ~/.config/tinycode/db.sqlite ".tables"
-sqlite3 ~/.config/tinycode/db.sqlite ".schema sessions"
+sqlite3 ~/.local/share/tinycode/tinycode.db ".tables"
+sqlite3 ~/.local/share/tinycode/tinycode.db ".schema session"
 ```
 
 ### Verify provider connectivity

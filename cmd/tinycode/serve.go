@@ -45,7 +45,7 @@ func runServe() {
 	dir, _ := os.Getwd()
 	agentReg := initAgentRegistry(cfg, dir)
 
-	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
+	toolReg, permSvc, toolCtx := initTooling(b, dir, db.DB, cfg)
 	applyConfigPermissions(permSvc, toolReg, cfg)
 
 	lspMgr := initLSP(dir, cfg, toolReg)
@@ -130,10 +130,9 @@ func runWeb() {
 	defer disc.Stop()
 
 	dir, _ := os.Getwd()
-	ensureProject(db.DB, dir)
 	agentReg := initAgentRegistry(cfg, dir)
 
-	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
+	toolReg, permSvc, toolCtx := initTooling(b, dir, db.DB, cfg)
 	applyConfigPermissions(permSvc, toolReg, cfg)
 
 	lspMgr := initLSP(dir, cfg, toolReg)

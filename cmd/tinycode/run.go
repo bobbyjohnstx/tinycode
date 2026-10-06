@@ -106,7 +106,7 @@ func runRun() {
 	} else {
 		agentReg = initAgentRegistry(cfg, dir)
 	}
-	toolReg, permSvc, toolCtx := initTooling(b, dir, cfg)
+	toolReg, permSvc, toolCtx := initTooling(b, dir, db.DB, cfg)
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Valid statuses and priorities for todo items.
@@ -91,18 +92,12 @@ func executeTodoWrite(_ context.Context, tc *Context, rawArgs json.RawMessage) (
 	}
 
 	if tc.DB == nil {
-		// No DB: return the todo list as formatted output
 		return &ExecuteResult{
 			Output: fmt.Sprintf("Updated %d todos for session %s (no database configured)", len(args.Todos), tc.SessionID),
 		}, nil
 	}
 
-	// Persist todos: delete existing and insert new within a transaction
-	todosJSON, err := json.Marshal(args.Todos)
-	if err != nil {
-		return &ExecuteResult{Output: fmt.Sprintf("Failed to serialize todos: %v", err), IsError: true}, nil
-	}
-
+	now := time.Now().UnixMilli()
 	tx, err := tc.DB.Begin()
 	if err != nil {
 		return &ExecuteResult{
@@ -111,9 +106,7 @@ func executeTodoWrite(_ context.Context, tc *Context, rawArgs json.RawMessage) (
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec("DELETE FROM todo WHERE session_id = ?", tc.SessionID)
-	if err != nil {
-		// Table may not exist; treat as non-fatal
+	if _, err = tx.Exec("DELETE FROM todo WHERE session_id = ?", tc.SessionID); err != nil {
 		return &ExecuteResult{
 			Output: fmt.Sprintf("Updated %d todos for session %s (persistence skipped: %v)", len(args.Todos), tc.SessionID, err),
 		}, nil
@@ -121,8 +114,9 @@ func executeTodoWrite(_ context.Context, tc *Context, rawArgs json.RawMessage) (
 
 	for i, item := range args.Todos {
 		_, err = tx.Exec(
-			"INSERT INTO todo (session_id, idx, content, status, priority, data) VALUES (?, ?, ?, ?, ?, ?)",
-			tc.SessionID, i, item.Content, item.Status, item.Priority, string(todosJSON),
+			`INSERT INTO todo (session_id, content, status, priority, position, time_created, time_updated)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			tc.SessionID, item.Content, item.Status, item.Priority, i, now, now,
 		)
 		if err != nil {
 			return &ExecuteResult{

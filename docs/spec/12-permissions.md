@@ -269,9 +269,11 @@ type RuleStore interface {
 - Rules are scoped to a project (identified by `projectID`)
 - Persisted rules survive process restarts
 
-### Session-only "always" (current default)
+### SQLite persistence
 
-No `RuleStore` is wired in TUI/serve/ACP/run by default. In that case, `"always"` approvals live in the in-memory `approved` list for the lifetime of the process only — they do not survive restarts. `RespondToAsk` logs a warning when persisting without a store so this is not silent.
+`permission.SQLiteRuleStore` persists the `approved` ruleset in the `permission` table (`project_id`, `data` JSON). `initTooling` wires `SetStore` when a database is open (TUI / serve / web / ACP / run), after ensuring the project row exists. `"always"` approvals then survive restarts for that project.
+
+If no store is configured (tests or callers that omit a DB), `"always"` approvals stay in-memory for the process lifetime only. `RespondToAsk` logs a warning when persisting without a store so this is not silent.
 
 ## 12.9 Config Integration
 

@@ -3,13 +3,13 @@ package storage
 import (
 	"database/sql"
 	"embed"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	_ "modernc.org/sqlite"
@@ -17,10 +17,6 @@ import (
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
-
-var (
-	ErrNotFound = errors.New("not found")
-)
 
 type DB struct {
 	*sql.DB
@@ -48,14 +44,11 @@ func Open(dbPath string) (*DB, error) {
 // and renames it so Go can start with a fresh schema. The TS and Go versions share
 // the same DB path but use incompatible migration tracking and may have schema
 // differences that cause silent query failures.
+//
+// If a prior .ts-backup already exists but the live file is still a TS DB,
+// a timestamped backup name is used so the live file is still archived.
 func archiveLegacyDB(dbPath string) error {
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		return nil
-	}
-
-	backupPath := dbPath + ".ts-backup"
-	if _, err := os.Stat(backupPath); err == nil {
-		slog.Info("legacy DB backup already exists, skipping", "backup", backupPath)
 		return nil
 	}
 
@@ -65,6 +58,11 @@ func archiveLegacyDB(dbPath string) error {
 	}
 	if !isLegacy {
 		return nil
+	}
+
+	backupPath := dbPath + ".ts-backup"
+	if _, err := os.Stat(backupPath); err == nil {
+		backupPath = fmt.Sprintf("%s.ts-backup.%d", dbPath, time.Now().UnixMilli())
 	}
 
 	slog.Warn("detected TypeScript tinycode database, archiving",
@@ -77,7 +75,10 @@ func archiveLegacyDB(dbPath string) error {
 	for _, suffix := range []string{"-wal", "-shm"} {
 		src := dbPath + suffix
 		if _, err := os.Stat(src); err == nil {
-			os.Rename(src, backupPath+suffix)
+			if err := os.Rename(src, backupPath+suffix); err != nil {
+				slog.Warn("failed to archive WAL/SHM sidecar", "src", src, "error", err)
+				return fmt.Errorf("archiving %s: %w", src, err)
+			}
 		}
 	}
 
@@ -113,8 +114,12 @@ func isLegacyTSDB(dbPath string) (bool, error) {
 }
 
 func openDB(dsn string) (*DB, error) {
-	if dsn != ":memory:" {
-		dsn = dsn + "?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_cache_size=-64000&_foreign_keys=ON"
+	isMemory := dsn == ":memory:"
+	path := dsn
+	if !isMemory {
+		// modernc.org/sqlite ignores unknown shorthand keys like _cache_size;
+		// cache_size is applied via PRAGMA after open below.
+		dsn = dsn + "?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_foreign_keys=ON"
 	}
 
 	sqlDB, err := sql.Open("sqlite", dsn)
@@ -124,7 +129,7 @@ func openDB(dsn string) (*DB, error) {
 
 	sqlDB.SetMaxOpenConns(1)
 
-	if dsn == ":memory:" {
+	if isMemory {
 		for _, pragma := range []string{
 			"PRAGMA journal_mode = WAL",
 			"PRAGMA synchronous = NORMAL",
@@ -137,18 +142,26 @@ func openDB(dsn string) (*DB, error) {
 				return nil, fmt.Errorf("setting pragma %q: %w", pragma, err)
 			}
 		}
+	} else {
+		if _, err := sqlDB.Exec("PRAGMA cache_size = -64000"); err != nil {
+			sqlDB.Close()
+			return nil, fmt.Errorf("setting pragma cache_size: %w", err)
+		}
 	}
 
 	var quickCheckResult string
 	if err := sqlDB.QueryRow("PRAGMA quick_check").Scan(&quickCheckResult); err != nil {
-		slog.Warn("SQLite integrity check error", "error", err)
-	} else if quickCheckResult != "ok" {
-		slog.Warn("SQLite integrity check failed", "result", quickCheckResult)
+		sqlDB.Close()
+		return nil, fmt.Errorf("SQLite integrity check error: %w", err)
+	}
+	if quickCheckResult != "ok" {
+		sqlDB.Close()
+		return nil, fmt.Errorf("SQLite integrity check failed: %s", quickCheckResult)
 	}
 
 	db := &DB{
 		DB:   sqlDB,
-		path: dsn,
+		path: path,
 	}
 
 	if err := db.migrate(); err != nil {
@@ -156,7 +169,7 @@ func openDB(dsn string) (*DB, error) {
 		return nil, fmt.Errorf("running migrations: %w", err)
 	}
 
-	slog.Info("database opened", "path", dsn)
+	slog.Info("database opened", "path", path)
 	return db, nil
 }
 
@@ -230,4 +243,3 @@ func DefaultPath() string {
 	}
 	return filepath.Join(config.DataDir(), "tinycode.db")
 }
-

@@ -148,7 +148,9 @@ func (s *Store) Create(input CreateInput) (*Info, error) {
 		parentID = &input.ParentID
 	}
 
-	s.ensureProject(input.ProjectID, input.Directory)
+	if err := s.ensureProject(input.ProjectID, input.Directory); err != nil {
+		return nil, err
+	}
 
 	_, err = s.db.Exec(
 		`INSERT INTO session (id, project_id, slug, directory, parent_id, title, agent, model, version, cost, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, time_created, time_updated)
@@ -177,13 +179,17 @@ func (s *Store) Create(input CreateInput) (*Info, error) {
 	return info, nil
 }
 
-func (s *Store) ensureProject(projectID, directory string) {
+func (s *Store) ensureProject(projectID, directory string) error {
 	now := time.Now().UnixMilli()
-	_, _ = s.db.Exec(
+	_, err := s.db.Exec(
 		`INSERT OR IGNORE INTO project (id, worktree, time_created, time_updated)
 		 VALUES (?, ?, ?, ?)`,
 		projectID, directory, now, now,
 	)
+	if err != nil {
+		return fmt.Errorf("ensuring project: %w", err)
+	}
+	return nil
 }
 
 const sessionSelectCols = `id, project_id, slug, directory, parent_id, title, agent, model, version,
