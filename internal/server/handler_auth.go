@@ -88,5 +88,18 @@ func (s *Server) handleAuthDelete(w http.ResponseWriter, r *http.Request) {
 
 	s.credentials.Delete(providerID)
 
+	if s.deps.Registry != nil {
+		if info, err := s.deps.Registry.GetProvider(providerID); err == nil && info.Options != nil {
+			delete(info.Options, "apiKey")
+			delete(info.Options, "api_key")
+			delete(info.Options, "Authorization")
+			delete(info.Options, "authorization")
+		}
+	}
+
+	if strings.EqualFold(providerID, "openrouter") {
+		_ = os.Unsetenv("OPENROUTER_API_KEY")
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }

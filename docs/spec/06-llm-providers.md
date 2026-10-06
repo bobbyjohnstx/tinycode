@@ -193,9 +193,12 @@ Start(ctx, ollamaURL, vllmURL, lmStudioURL)
 1. Each failed poll increments the provider's failure counter
 2. After 3 consecutive failures:
    - Provider removed from registry
-   - Marked as dormant (polling stops)
+   - Marked as dormant
    - `provider.removed` event published
+   - Polling **continues** so a late-start daemon can reconnect
 3. On next successful poll:
+   - Dormant flag cleared
+   - Provider re-registered
    - Failure counter reset
    - `provider.reconnected` event published
 
@@ -223,7 +226,9 @@ Ollama auto-profiling creates custom Modelfiles with optimized `num_ctx` based o
 2. Query model info via `ShowModel()` (Ollama `/api/show`)
 3. Calculate optimal `num_ctx` via `CalculateNumCtx(gpuMemory, modelInfo, advertisedCtx)`
 4. Create profile via `CreateProfile()` — sends Modelfile to Ollama
-5. Profile name format: `<model>-tc-<numctx>` (e.g., `qwen3:8b-tc-16384`)
+5. Profile name format: `{model}-tc{N}k` where N = round(numCtx/1024) (e.g., `qwen3:8b-tc32k`)
+6. When tags omit `context_length`, `ShowModel` (`/api/show`) supplies `ContextLength` as `advertisedCtx` before clamping
+7. Superseded profiles (same base model, different `-tc{N}k` name) are deleted before creating the new profile
 
 Stale profiles (base model deleted) are automatically cleaned up.
 
@@ -252,15 +257,15 @@ Configuration via `config.Info`:
 
 ### LM Studio
 
-- **Discovery URL:** `localhost:1234` (from `TINYCODE_LM_STUDIO_URL` env)
+- **Discovery URL:** `localhost:1234` (from `TINYCODE_LMSTUDIO_HOST` env)
 - **API:** OpenAI-compatible `GET /v1/models`
-- **Context:** Fixed 8192
-- **Output limit:** Fixed 4096
+- **Context:** From `max_model_len`, fallback 8192
+- **Output limit:** 4096 (or `context / 2` when context is smaller)
 - **Capabilities:** Temperature + tool call enabled by default
 
 ### OpenRouter
 
-- **Discovery:** `DiscoverOpenRouter()` called with `OPENROUTER_API_KEY`
+- **Discovery:** `DiscoverOpenRouter()` called with `OPENROUTER_API_KEY` at startup (up to 3 attempts with backoff on transient failure)
 - **API:** `GET https://openrouter.ai/api/v1/models`
 - **Rich metadata:** Cost, architecture, supported parameters, reasoning, modalities
 - **Output limit:** `top_provider.max_completion_tokens`, fallback `min(16384, context/5)`
@@ -269,13 +274,14 @@ Configuration via `config.Info`:
 
 ## 6.6 Warmup Probes
 
-After Ollama model registration, a background warmup probe is triggered:
+After Ollama model selection, a background warmup probe is triggered:
 
 1. `WarmupProbe()` sends a minimal tool-call request to the model
-2. If the model doesn't support tool calls, `ToolCall` capability is set to `false`
-3. `provider.warmup.complete` event published with `{modelID, toolCapable}`
+2. On success, the model is marked warmed; if the response has no tool call, `ToolCall` is set to `false`
+3. On transient probe error, the model stays unmarked so a later `Warmup` retries (up to 3 consecutive errors before disabling tools)
+4. `provider.warmup.complete` event published with `{modelID, toolCapable}` after a definitive result
 
-Each model is only probed once (tracked by `warmedModels` map).
+Each model is probed until success or max failures (tracked by `warmedModels`).
 
 ## 6.7 Retry Logic
 

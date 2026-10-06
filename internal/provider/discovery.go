@@ -18,12 +18,14 @@ const (
 	probeTimeout           = 2 * time.Second
 	pollInterval           = 30 * time.Second
 	maxConsecutiveFailures = 3
+	maxWarmupFailures      = 3
 )
 
 type Discovery struct {
 	registry     *Registry
 	bus          *bus.Bus
-	client       *http.Client
+	client       *http.Client // short timeout for discovery probes
+	ollamaClient *http.Client // longer timeout for Show/Create/Delete
 	cancel       context.CancelFunc
 	autoProfile  *AutoProfileConfig
 	detectGPU    func() (int64, error)
@@ -31,19 +33,26 @@ type Discovery struct {
 	gpuOnce      sync.Once
 	warmedMu     sync.Mutex
 	warmedModels map[string]bool
+	warmingModels map[string]bool
+	warmupFails  map[string]int
 	dormantMu    sync.Mutex
 	dormant      map[string]bool // providers removed after consecutive failures
 }
 
 func NewDiscovery(registry *Registry, b *bus.Bus) *Discovery {
 	return &Discovery{
-		registry:     registry,
-		bus:          b,
-		detectGPU:    DetectGPUMemory,
-		warmedModels: make(map[string]bool),
-		dormant:      make(map[string]bool),
+		registry:      registry,
+		bus:           b,
+		detectGPU:     DetectGPUMemory,
+		warmedModels:  make(map[string]bool),
+		warmingModels: make(map[string]bool),
+		warmupFails:   make(map[string]int),
+		dormant:       make(map[string]bool),
 		client: &http.Client{
 			Timeout: probeTimeout,
+		},
+		ollamaClient: &http.Client{
+			Timeout: ollamaCreateTimeout,
 		},
 	}
 }
@@ -95,10 +104,18 @@ func (d *Discovery) poll(ctx context.Context, ollamaURL, vllmURL, lmStudioURL st
 	}
 }
 
+// shouldPoll reports whether a provider should be probed this tick.
+// Dormant providers stay eligible so a late-start daemon can reconnect.
 func (d *Discovery) shouldPoll(providerID string) bool {
+	_ = providerID
+	return true
+}
+
+// isDormant reports whether a provider was removed after consecutive failures.
+func (d *Discovery) isDormant(providerID string) bool {
 	d.dormantMu.Lock()
 	defer d.dormantMu.Unlock()
-	return !d.dormant[providerID]
+	return d.dormant[providerID]
 }
 
 type ollamaTagsResponse struct {
@@ -137,7 +154,7 @@ func (d *Discovery) handleDiscoveryFailure(providerID, providerName string, err 
 			"reason":       "consecutive_failures",
 			"failures":     count,
 		})
-		slog.Warn("provider removed after consecutive failures, polling suspended",
+		slog.Warn("provider removed after consecutive failures, continuing to poll for reconnect",
 			"provider", providerID,
 			"failures", count,
 		)
@@ -257,7 +274,7 @@ func (d *Discovery) buildOllamaModels(ctx context.Context, baseURL string, tags 
 			if _, exists := models[baseName]; exists {
 				continue
 			}
-			if err := DeleteModel(ctx, d.client, baseURL, profName); err != nil {
+			if err := DeleteModel(ctx, d.ollamaClient, baseURL, profName); err != nil {
 				slog.Warn("failed to delete stale profile",
 					"profile", profName, "error", err)
 			} else {
@@ -272,11 +289,13 @@ func (d *Discovery) buildOllamaModels(ctx context.Context, baseURL string, tags 
 // buildSingleOllamaModel resolves capabilities, context length, and auto-profiling
 // for a single Ollama model. It may mutate existingProfiles to track consumed profiles.
 func (d *Discovery) buildSingleOllamaModel(ctx context.Context, baseURL string, m ollamaModel, existingProfiles map[string]string) (apiID string, profileCtx int, caps ModelCaps, family string) {
-	contextLen := 0
+	// Raw tags context (0 when omitted); used so ShowModel can supply advertisedCtx.
+	tagsCtx := 0
 	if m.Details != nil {
-		contextLen = m.Details.ContextLength
+		tagsCtx = m.Details.ContextLength
 		family = m.Details.Family
 	}
+	contextLen := tagsCtx
 	if contextLen == 0 {
 		contextLen = 8192
 	}
@@ -300,7 +319,7 @@ func (d *Discovery) buildSingleOllamaModel(ctx context.Context, baseURL string, 
 	if !d.autoProfileEnabled() || d.isModelSkipped(m.Name) {
 		return
 	}
-	numCtx := d.resolveNumCtx(ctx, baseURL, m.Name, contextLen)
+	numCtx := d.resolveNumCtx(ctx, baseURL, m.Name, tagsCtx)
 	if numCtx < minNumCtx {
 		return
 	}
@@ -311,7 +330,18 @@ func (d *Discovery) buildSingleOllamaModel(ctx context.Context, baseURL string, 
 		delete(existingProfiles, m.Name)
 		return
 	}
-	if err := CreateProfile(ctx, d.client, baseURL, m.Name, profName, numCtx); err != nil {
+	// Delete superseded profile when num_ctx (and thus profile name) changed.
+	if existing, ok := existingProfiles[m.Name]; ok && existing != profName {
+		if err := DeleteModel(ctx, d.ollamaClient, baseURL, existing); err != nil {
+			slog.Warn("failed to delete superseded ollama profile",
+				"old_profile", existing, "new_profile", profName, "error", err)
+		} else {
+			slog.Info("deleted superseded ollama profile",
+				"old_profile", existing, "new_profile", profName)
+		}
+		delete(existingProfiles, m.Name)
+	}
+	if err := CreateProfile(ctx, d.ollamaClient, baseURL, m.Name, profName, numCtx); err != nil {
 		slog.Warn("failed to create ollama profile",
 			"model", m.Name, "profile", profName, "error", err)
 		return
@@ -374,6 +404,7 @@ func (d *Discovery) isModelSkipped(modelName string) bool {
 
 // resolveNumCtx determines the optimal num_ctx for a model, using config
 // overrides, GPU detection, and the CalculateNumCtx algorithm.
+// advertisedCtx is the tags context_length (0 when omitted).
 func (d *Discovery) resolveNumCtx(ctx context.Context, baseURL, modelName string, advertisedCtx int) int {
 	// Check per-model override
 	if d.autoProfile != nil && d.autoProfile.Models != nil {
@@ -398,15 +429,25 @@ func (d *Discovery) resolveNumCtx(ctx context.Context, baseURL, modelName string
 		slog.Info("detected GPU memory", "bytes", mem, "gb", fmt.Sprintf("%.1f", float64(mem)/(1024*1024*1024)))
 	})
 
-	if d.gpuMemory <= 0 {
-		return advertisedCtx
-	}
-
-	// Query model details
-	info, err := ShowModel(ctx, d.client, baseURL, modelName)
+	// Query model details — also supplies ContextLength when tags omit it.
+	info, err := ShowModel(ctx, d.ollamaClient, baseURL, modelName)
 	if err != nil {
 		slog.Warn("failed to query model info for auto-profiling",
 			"model", modelName, "error", err)
+		if advertisedCtx <= 0 {
+			return 8192
+		}
+		return advertisedCtx
+	}
+	if advertisedCtx <= 0 {
+		if info.ContextLength > 0 {
+			advertisedCtx = info.ContextLength
+		} else {
+			advertisedCtx = 8192
+		}
+	}
+
+	if d.gpuMemory <= 0 {
 		return advertisedCtx
 	}
 
@@ -436,22 +477,43 @@ func (d *Discovery) warmupClient() *http.Client {
 }
 
 // maybeWarmup triggers a background warmup probe for a model if it hasn't
-// been warmed up yet. On probe failure, sets ToolCall capability to false.
+// been warmed up yet. Transient probe failures leave the model unmarked so
+// the next Warmup call retries. ToolCall is only set false after a definitive
+// non-capable response or after maxWarmupFailures consecutive errors.
 func (d *Discovery) maybeWarmup(ctx context.Context, m *Model) {
 	d.warmedMu.Lock()
-	if d.warmedModels[m.ID] {
+	if d.warmedModels[m.ID] || d.warmingModels[m.ID] {
 		d.warmedMu.Unlock()
 		return
 	}
-	d.warmedModels[m.ID] = true
+	d.warmingModels[m.ID] = true
 	d.warmedMu.Unlock()
 
 	safego.Go(func() {
+		defer func() {
+			d.warmedMu.Lock()
+			delete(d.warmingModels, m.ID)
+			d.warmedMu.Unlock()
+		}()
+
 		capable, err := WarmupProbe(ctx, d.warmupClient(), m.API.URL, m.API.ID)
 		if err != nil {
 			slog.Warn("warmup probe failed", "model", m.ID, "error", err)
+			d.warmedMu.Lock()
+			d.warmupFails[m.ID]++
+			fails := d.warmupFails[m.ID]
+			d.warmedMu.Unlock()
+			if fails < maxWarmupFailures {
+				// Leave unmarked so the next Warmup retries.
+				return
+			}
 			capable = false
 		}
+
+		d.warmedMu.Lock()
+		d.warmedModels[m.ID] = true
+		delete(d.warmupFails, m.ID)
+		d.warmedMu.Unlock()
 
 		if !capable {
 			d.registry.UpdateCapability(m.ProviderID, m.ID, "ToolCall", false)

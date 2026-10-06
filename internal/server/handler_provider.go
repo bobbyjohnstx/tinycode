@@ -4,11 +4,18 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
 
 func (s *Server) handleProviderList(w http.ResponseWriter, r *http.Request) {
 	reg := s.deps.Registry
 	providers := reg.ListProviders()
+
+	safe := make([]*provider.Info, len(providers))
+	for i, p := range providers {
+		safe[i] = redactProviderInfo(p)
+	}
 
 	connected := make([]string, 0, len(providers))
 	for _, p := range providers {
@@ -24,7 +31,7 @@ func (s *Server) handleProviderList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
-		"all":       providers,
+		"all":       safe,
 		"connected": connected,
 		"default":   defaults,
 	})
@@ -71,7 +78,27 @@ func (s *Server) handleProviderGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondJSON(w, http.StatusOK, info)
+	respondJSON(w, http.StatusOK, redactProviderInfo(info))
+}
+
+// redactProviderInfo returns a shallow copy of Info with secret Options keys removed.
+func redactProviderInfo(info *provider.Info) *provider.Info {
+	if info == nil {
+		return nil
+	}
+	cp := *info
+	if info.Options != nil {
+		cp.Options = make(map[string]any, len(info.Options))
+		for k, v := range info.Options {
+			switch strings.ToLower(k) {
+			case "apikey", "api_key", "authorization":
+				continue
+			default:
+				cp.Options[k] = v
+			}
+		}
+	}
+	return &cp
 }
 
 func (s *Server) handleModelList(w http.ResponseWriter, r *http.Request) {

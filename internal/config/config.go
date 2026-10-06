@@ -143,9 +143,10 @@ type ServerConfig struct {
 }
 
 type ProviderConfig struct {
-	NPM     string                        `json:"npm,omitempty"`
-	Env     []string                      `json:"env,omitempty"`
-	Options map[string]interface{}        `json:"options,omitempty"`
+	NPM     string                         `json:"npm,omitempty"`
+	Env     []string                       `json:"env,omitempty"`
+	Headers map[string]string              `json:"headers,omitempty"`
+	Options map[string]interface{}         `json:"options,omitempty"`
 	Models  map[string]ProviderModelConfig `json:"models,omitempty"`
 }
 

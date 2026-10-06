@@ -11,6 +11,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
 
 func TestGenerateToken_Length(t *testing.T) {
@@ -210,5 +211,37 @@ func TestWirePermissionAskHook_DeniesDangerousCommand(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "safety-net") {
 		t.Fatalf("expected safety-net reason, got %v", err)
+	}
+}
+
+func TestRegisterConfigProviders_CopiesHeaders(t *testing.T) {
+	reg := provider.NewRegistry()
+	cfg := &config.Info{
+		Provider: map[string]config.ProviderConfig{
+			"custom-llm": {
+				Headers: map[string]string{"X-From-Config": "a"},
+				Options: map[string]any{
+					"baseURL": "http://127.0.0.1:8080/v1",
+					"apiKey":  "k",
+					"headers": map[string]any{"X-From-Options": "b"},
+				},
+				Models: map[string]config.ProviderModelConfig{
+					"m1": {},
+				},
+			},
+		},
+	}
+
+	registerConfigProviders(reg, cfg)
+
+	m, err := reg.GetModel("custom-llm", "m1")
+	if err != nil {
+		t.Fatalf("GetModel: %v", err)
+	}
+	if m.Headers["X-From-Config"] != "a" {
+		t.Errorf("X-From-Config = %q", m.Headers["X-From-Config"])
+	}
+	if m.Headers["X-From-Options"] != "b" {
+		t.Errorf("X-From-Options = %q", m.Headers["X-From-Options"])
 	}
 }

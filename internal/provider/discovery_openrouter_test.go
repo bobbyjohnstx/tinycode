@@ -284,8 +284,11 @@ func TestHandleDiscoveryFailure_RemovesProviderAfterMaxFailures(t *testing.T) {
 	if reg.Has("test-prov") {
 		t.Error("expected provider to be removed after max failures")
 	}
-	if d.shouldPoll("test-prov") {
+	if !d.isDormant("test-prov") {
 		t.Error("expected provider to be dormant after max failures")
+	}
+	if !d.shouldPoll("test-prov") {
+		t.Error("dormant providers must still be polled for reconnect")
 	}
 
 	// Should have published provider.removed.

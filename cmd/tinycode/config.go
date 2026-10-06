@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
@@ -461,8 +462,22 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 
 	if apiKey := os.Getenv("OPENROUTER_API_KEY"); apiKey != "" {
 		safego.Go(func() {
-			if err := disc.DiscoverOpenRouter(ctx, apiKey); err != nil {
-				slog.Warn("openrouter discovery failed", "error", err)
+			var lastErr error
+			for attempt := 1; attempt <= 3; attempt++ {
+				if err := disc.DiscoverOpenRouter(ctx, apiKey); err != nil {
+					lastErr = err
+					slog.Warn("openrouter discovery failed", "attempt", attempt, "error", err)
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(time.Duration(attempt) * time.Second):
+					}
+					continue
+				}
+				return
+			}
+			if lastErr != nil {
+				slog.Warn("openrouter discovery exhausted retries", "error", lastErr)
 			}
 		})
 	}
@@ -512,6 +527,11 @@ func registerConfigProviders(reg *provider.Registry, cfg *config.Info) {
 		// Strip trailing /v1 — the LLM client factory adds it.
 		baseURL = strings.TrimSuffix(strings.TrimSuffix(baseURL, "/"), "/v1")
 
+		headers := copyStringMap(pc.Headers)
+		if pc.Options != nil {
+			mergeHeadersFromOptions(headers, pc.Options["headers"])
+		}
+
 		models := make(map[string]*provider.Model, len(pc.Models))
 		for modelID, mc := range pc.Models {
 			contextLen := 8192
@@ -525,6 +545,7 @@ func registerConfigProviders(reg *provider.Registry, cfg *config.Info) {
 				}
 			}
 
+			modelHeaders := copyStringMap(headers)
 			models[modelID] = &provider.Model{
 				ID:         modelID,
 				ProviderID: id,
@@ -535,7 +556,7 @@ func registerConfigProviders(reg *provider.Registry, cfg *config.Info) {
 					NPM: pc.NPM,
 				},
 				Status:  "active",
-				Headers: make(map[string]string),
+				Headers: modelHeaders,
 				Options: map[string]any{"api_key": apiKey},
 				Limit:   provider.ModelLimit{Context: contextLen, Output: outputLen},
 				Capabilities: provider.ModelCaps{
@@ -557,6 +578,29 @@ func registerConfigProviders(reg *provider.Registry, cfg *config.Info) {
 		})
 
 		slog.Info("registered config provider", "provider", id, "models", len(models))
+	}
+}
+
+func copyStringMap(src map[string]string) map[string]string {
+	dst := make(map[string]string, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+func mergeHeadersFromOptions(dst map[string]string, raw any) {
+	switch h := raw.(type) {
+	case map[string]string:
+		for k, v := range h {
+			dst[k] = v
+		}
+	case map[string]any:
+		for k, v := range h {
+			if s, ok := v.(string); ok {
+				dst[k] = s
+			}
+		}
 	}
 }
 

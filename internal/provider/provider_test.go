@@ -405,13 +405,16 @@ func TestDiscovery_ShouldPollAllowsRepolling(t *testing.T) {
 		t.Error("expected shouldPoll to return true for already-registered provider (re-polling)")
 	}
 
-	// Mark dormant — shouldPoll should return false
+	// Mark dormant — shouldPoll must still return true so late-start reconnects work
 	d.dormantMu.Lock()
 	d.dormant["ollama"] = true
 	d.dormantMu.Unlock()
 
-	if d.shouldPoll("ollama") {
-		t.Error("expected shouldPoll to return false for dormant provider")
+	if !d.shouldPoll("ollama") {
+		t.Error("expected shouldPoll to return true for dormant provider (reconnect polling)")
+	}
+	if !d.isDormant("ollama") {
+		t.Error("expected isDormant true while still polling")
 	}
 }
 
