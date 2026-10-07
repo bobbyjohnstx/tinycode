@@ -627,6 +627,9 @@ Config files support JSONC (JSON with comments) and environment variable substit
   // Default agent on startup
   "default_agent": "build",
 
+  // Tab/Shift-Tab persona cycle (agent picker still lists all)
+  "cycle_agents": ["build", "plan", "architect", "code-reviewer"],
+
   // Shell for tool execution
   "shell": "/bin/zsh",
 
@@ -672,6 +675,7 @@ Config files support JSONC (JSON with comments) and environment variable substit
 | `model` | *(auto)* | Default model in `provider/model` format |
 | `small_model` | *(none)* | Smaller model for lightweight tasks (titles, summaries) |
 | `default_agent` | `build` | Agent loaded on startup |
+| `cycle_agents` | `build`, `plan`, `architect`, `code-reviewer` | Ordered Tab/Shift-Tab persona list |
 | `shell` | *(system)* | Shell for tool execution |
 | `logLevel` | *(none)* | Log verbosity (wired into the logger) |
 | `theme` | *(default)* | Color theme name |

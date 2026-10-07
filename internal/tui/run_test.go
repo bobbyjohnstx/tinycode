@@ -683,6 +683,101 @@ func TestAgentSelectedMsg_UpdatesAgentAndRestoresFocus(t *testing.T) {
 	}
 }
 
+func TestAgentSelectedMsg_UpdatesPromptSubmissionAgent(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "ses_1"
+	app.state.Sessions = []SessionInfo{{ID: "ses_1", Agent: "build"}}
+	app.state.CurrentAgent = "build"
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.app.Update(AgentSelectedMsg{Agent: "architect"})
+	ca.app = result.(App)
+
+	input := ca.buildPromptInput("review this")
+	if input.Agent != "architect" {
+		t.Errorf("expected submission agent %q after Tab selection, got %q", "architect", input.Agent)
+	}
+	if ca.app.state.Sessions[0].Agent != "architect" {
+		t.Errorf("expected local session agent updated to %q, got %q", "architect", ca.app.state.Sessions[0].Agent)
+	}
+
+	// syncPromptMetadata must not wipe Tab selection back to a stale session agent.
+	ca.app.syncPromptMetadata()
+	input = ca.buildPromptInput("still architect")
+	if input.Agent != "architect" {
+		t.Errorf("expected agent %q after syncPromptMetadata, got %q", "architect", input.Agent)
+	}
+}
+
+func TestSyncPromptMetadata_SetsCurrentAgent(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses_1"
+	app.state.Sessions = []SessionInfo{{ID: "ses_1", Agent: "plan", ModelID: "m", ProviderID: "p"}}
+	app.state.CurrentAgent = ""
+
+	app.syncPromptMetadata()
+
+	if app.state.CurrentAgent != "plan" {
+		t.Errorf("expected CurrentAgent %q after sync, got %q", "plan", app.state.CurrentAgent)
+	}
+	ca := &connectedApp{app: app}
+	input := ca.buildPromptInput("hello")
+	if input.Agent != "plan" {
+		t.Errorf("expected buildPromptInput agent %q, got %q", "plan", input.Agent)
+	}
+}
+
+func TestHandleAgentListMsg_DefaultPrimaryCycle(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	result, _ := app.handleAgentListMsg(AgentListMsg{
+		Agents: []api.AgentInfo{
+			{Name: "build", Mode: "primary"},
+			{Name: "plan", Mode: "primary"},
+			{Name: "architect", Mode: "subagent"},
+			{Name: "code-reviewer", Mode: "subagent"},
+			{Name: "debugger", Mode: "subagent"},
+			{Name: "executor", Mode: "primary"},
+		},
+	})
+
+	got := result.prompt.cycleAgents
+	want := []string{"build", "plan", "architect", "code-reviewer"}
+	if len(got) != len(want) {
+		t.Fatalf("cycle agents = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("cycle agents = %v, want %v", got, want)
+		}
+	}
+	// Autocomplete / picker still has all enabled agents in state.
+	if len(result.state.Agents) != 6 {
+		t.Errorf("expected all 6 enabled agents in state, got %d", len(result.state.Agents))
+	}
+}
+
+func TestResolveCycleAgents_ConfigOverride(t *testing.T) {
+	enabled := []api.AgentInfo{
+		{Name: "build"},
+		{Name: "plan"},
+		{Name: "debugger"},
+		{Name: "architect"},
+	}
+	got := resolveCycleAgents([]string{"build", "debugger", "missing"}, enabled)
+	want := []string{"build", "debugger"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
 func TestThinkingLevelBudget(t *testing.T) {
 	tests := []struct {
 		level     string

@@ -154,6 +154,7 @@ type AppState struct {
 	ThinkingLevel      string
 	EffortLevel        string
 	ScopedModels       []string
+	CycleAgents        []string // preferred Tab cycle order from config (empty = defaults)
 	SidebarOpen        bool
 	Connected          bool
 	AutoApprove        bool

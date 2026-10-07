@@ -90,6 +90,22 @@ func (c *Client) UpdateSessionTitle(id, title string) error {
 	return nil
 }
 
+// UpdateSessionAgent sets the session's agent via PATCH /session/{id}.
+func (c *Client) UpdateSessionAgent(id, agent string) error {
+	data, err := json.Marshal(map[string]string{"agent": agent})
+	if err != nil {
+		return err
+	}
+	body, err := c.doRequest(http.MethodPatch, "/session/"+id, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if body != nil {
+		body.Close()
+	}
+	return nil
+}
+
 // DeleteSession deletes a session via DELETE /session/{id}.
 func (c *Client) DeleteSession(id string) error {
 	return c.doNoBody(http.MethodDelete, "/session/"+id)

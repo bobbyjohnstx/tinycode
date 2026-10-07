@@ -128,6 +128,7 @@ func runTUI(args []string) {
 		Token:           token,
 		Version:         version,
 		ScopedModels:    cfg.ScopedModels,
+		CycleAgents:     cfg.CycleAgents,
 		ShellHooks:      cfg.Hooks,
 		InitialTitle:    flags.title,
 		SafeMode:        flags.safeMode,

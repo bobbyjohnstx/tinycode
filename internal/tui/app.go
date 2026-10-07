@@ -330,11 +330,12 @@ func (a *App) removeSession(id string) {
 	delete(a.state.SessionStatus, id)
 }
 
-// syncPromptMetadata updates the prompt's agent/model/provider display
-// and the status bar from the active session info.
+// syncPromptMetadata updates the prompt's agent/model/provider display,
+// status bar, and CurrentAgent from the active session info.
 func (a *App) syncPromptMetadata() {
 	sid := a.state.ActiveSession
 	if sid == "" {
+		a.state.CurrentAgent = "build"
 		a.prompt.SetMetadata("build", "", "")
 		a.status.SetModel("", "")
 		a.status.SetAgent("build")
@@ -346,12 +347,14 @@ func (a *App) syncPromptMetadata() {
 			if agent == "" {
 				agent = "build"
 			}
+			a.state.CurrentAgent = agent
 			a.prompt.SetMetadata(agent, s.ModelID, s.ProviderID)
 			a.status.SetModel(s.ModelID, s.ProviderID)
 			a.status.SetAgent(agent)
 			return
 		}
 	}
+	a.state.CurrentAgent = "build"
 	a.prompt.SetMetadata("build", "", "")
 	a.status.SetModel("", "")
 	a.status.SetAgent("build")

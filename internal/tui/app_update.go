@@ -352,6 +352,14 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		a.state.CurrentAgent = msg.Agent
 		a.prompt.SetMetadata(msg.Agent, a.state.CurrentModel.ModelID, a.state.CurrentModel.ProviderID)
 		a.status.SetAgent(msg.Agent)
+		if sid := a.state.ActiveSession; sid != "" {
+			for i := range a.state.Sessions {
+				if a.state.Sessions[i].ID == sid {
+					a.state.Sessions[i].Agent = msg.Agent
+					break
+				}
+			}
+		}
 		a.setFocus(FocusPrompt)
 		return a, nil, true
 	case ThemePreviewMsg:
@@ -411,7 +419,7 @@ func (a App) handleAgentListMsg(msg AgentListMsg) (App, tea.Cmd) {
 		// Store the full list (may include disabled agents from ListAll).
 		a.state.AllAgents = msg.Agents
 
-		// Filter enabled agents for autocomplete and cycle.
+		// Filter enabled agents for autocomplete; Tab cycles a narrower primary list.
 		var enabled []api.AgentInfo
 		for _, ag := range msg.Agents {
 			if !ag.Disabled {
@@ -420,10 +428,8 @@ func (a App) handleAgentListMsg(msg AgentListMsg) (App, tea.Cmd) {
 		}
 		a.state.Agents = enabled
 
-		names := make([]string, len(enabled))
 		agentItems := make([]AutocompleteItem, 0, len(enabled))
-		for i, ag := range enabled {
-			names[i] = ag.Name
+		for _, ag := range enabled {
 			if ag.Mode != "primary" {
 				agentItems = append(agentItems, AutocompleteItem{
 					Name:        ag.Name,
@@ -432,8 +438,9 @@ func (a App) handleAgentListMsg(msg AgentListMsg) (App, tea.Cmd) {
 			}
 		}
 		a.prompt.SetAgents(agentItems)
-		a.prompt.SetCycleAgents(names)
-		slog.Info("agents loaded", "count", len(enabled), "names", names)
+		cycle := resolveCycleAgents(a.state.CycleAgents, enabled)
+		a.prompt.SetCycleAgents(cycle)
+		slog.Info("agents loaded", "count", len(enabled), "cycle", cycle)
 
 		// Re-populate the agent dialog if it's open (e.g., after a toggle).
 		if a.agentDlg.IsVisible() {

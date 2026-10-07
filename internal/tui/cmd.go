@@ -374,6 +374,14 @@ func patchScopedModels(client *api.Client, models []string) tea.Cmd {
 	}
 }
 
+// patchSessionAgent persists the Tab-selected agent on the server session.
+func patchSessionAgent(client *api.Client, sessionID, agent string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.UpdateSessionAgent(sessionID, agent)
+		return SessionAgentPatchedMsg{Err: err}
+	}
+}
+
 // summarizeSession triggers manual context compaction via POST /session/{id}/summarize.
 func summarizeSession(client *api.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {

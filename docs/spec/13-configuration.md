@@ -83,6 +83,7 @@ type Info struct {
     Model             string                    `json:"model,omitempty"`
     SmallModel        string                    `json:"small_model,omitempty"`
     DefaultAgent      string                    `json:"default_agent,omitempty"`
+    CycleAgents       []string                  `json:"cycle_agents,omitempty"`
     SubagentDepth     *int                      `json:"subagent_depth,omitempty"`
     Username          string                    `json:"username,omitempty"`
     Share             string                    `json:"share,omitempty"`
@@ -121,6 +122,7 @@ type Info struct {
 | Model | string | `model` | Default model in `provider/model` format |
 | SmallModel | string | `small_model` | Small model used for titles and compaction |
 | DefaultAgent | string | `default_agent` | Default primary agent name |
+| CycleAgents | []string | `cycle_agents` | Ordered Tab/Shift-Tab persona list (default: `build`, `plan`, `architect`, `code-reviewer`). Agent picker still lists all enabled agents |
 | SubagentDepth | *int | `subagent_depth` | Maximum subagent nesting depth |
 | Username | string | `username` | Display username |
 | Share | string | `share` | Session sharing mode: `manual`, `auto`, or `disabled` (default). The Go web UI has **no working share/publish feature** — this field gates UI affordances only; there are no Go `/session/{id}/share` routes |

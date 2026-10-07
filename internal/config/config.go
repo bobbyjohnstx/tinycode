@@ -17,6 +17,7 @@ type Info struct {
 	Model             string                    `json:"model,omitempty"`
 	SmallModel        string                    `json:"small_model,omitempty"`
 	DefaultAgent      string                    `json:"default_agent,omitempty"`
+	CycleAgents       []string                  `json:"cycle_agents,omitempty"`
 	SubagentDepth     *int                      `json:"subagent_depth,omitempty"`
 	Username          string                    `json:"username,omitempty"`
 	Share             string                    `json:"share,omitempty"`
@@ -380,6 +381,9 @@ func mergeScalarFields(result, src *Info) {
 	}
 	if src.DefaultAgent != "" {
 		result.DefaultAgent = src.DefaultAgent
+	}
+	if len(src.CycleAgents) > 0 {
+		result.CycleAgents = src.CycleAgents
 	}
 	if src.SubagentDepth != nil {
 		result.SubagentDepth = src.SubagentDepth

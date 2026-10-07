@@ -26,6 +26,7 @@ type RunConfig struct {
 	Token           string
 	Version         string
 	ScopedModels    []string
+	CycleAgents     []string
 	ShellHooks      map[string][]config.HookConfig
 	InitialTitle    string
 	SafeMode        bool
@@ -38,6 +39,7 @@ func Run(ctx context.Context, cfg RunConfig) error {
 
 	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme, cfg.Version, cfg.ScopedModels)
 	app.app.state.ShellHooks = cfg.ShellHooks
+	app.app.state.CycleAgents = cfg.CycleAgents
 	app.initialTitle = cfg.InitialTitle
 	app.resumeSessionID = cfg.ResumeSessionID
 	if cfg.SafeMode {
@@ -222,6 +224,23 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, fetchMessages(c.client, msg.SessionID))
 		}
 		return c, tea.Batch(cmds...)
+
+	case AgentSelectedMsg:
+		model, cmd := c.app.Update(msg)
+		c.updateApp(model)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if sid := c.app.state.ActiveSession; sid != "" && msg.Agent != "" {
+			cmds = append(cmds, patchSessionAgent(c.client, sid, msg.Agent))
+		}
+		return c, tea.Batch(cmds...)
+
+	case SessionAgentPatchedMsg:
+		if msg.Err != nil {
+			slog.Warn("session agent patch failed", "error", msg.Err)
+		}
+		return c, nil
 
 	case PromptSentMsg:
 		if msg.Err != nil {

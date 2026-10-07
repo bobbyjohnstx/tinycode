@@ -172,6 +172,19 @@ func TestMerge_NilInputs(t *testing.T) {
 	}
 }
 
+func TestMerge_CycleAgents(t *testing.T) {
+	dst := &Info{DefaultAgent: "build"}
+	src := &Info{CycleAgents: []string{"build", "plan", "debugger"}}
+
+	result := Merge(dst, src)
+	if len(result.CycleAgents) != 3 {
+		t.Fatalf("expected 3 cycle agents, got %v", result.CycleAgents)
+	}
+	if result.CycleAgents[2] != "debugger" {
+		t.Errorf("expected debugger last, got %v", result.CycleAgents)
+	}
+}
+
 func TestMerge_ExperimentalConfig(t *testing.T) {
 	dst := &Info{}
 	src := &Info{
