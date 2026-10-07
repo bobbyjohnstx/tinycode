@@ -249,6 +249,24 @@ func TestShellDirect_EmptyCommandReturns400(t *testing.T) {
 	}
 }
 
+func TestShellDirect_SecretAccessReturns403(t *testing.T) {
+	h := newTestHarness(t, nil)
+	sessionID := h.createSession("Shell Secret", "build")
+
+	for _, cmd := range []string{"cat .env", "less credentials.json", "cat server.key"} {
+		body := fmt.Sprintf(`{"command":%q}`, cmd)
+		resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/shell", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("shell request for %q: %v", cmd, err)
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("expected 403 for %q, got %d", cmd, resp.StatusCode)
+		}
+	}
+}
+
 // --- Session Status Format Tests ---
 
 func TestSessionStatus_SerializesToTypeField(t *testing.T) {

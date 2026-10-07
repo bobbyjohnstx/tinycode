@@ -425,6 +425,11 @@ func (s *Server) handleSessionShell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if warning := tool.CheckSecretAccess(command); warning != "" {
+		respondError(w, http.StatusForbidden, "access to secret file blocked: "+warning)
+		return
+	}
+
 	dir := s.config.Directory
 	store := s.sessionStore()
 	if info, err := store.Get(sessionID); err == nil && info != nil && info.Directory != "" {

@@ -94,7 +94,7 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		}
 	}
 
-	if warning := checkSecretAccess(args.Command); warning != "" {
+	if warning := CheckSecretAccess(args.Command); warning != "" {
 		slog.Warn("secret file access blocked", "command", args.Command, "warning", warning)
 		return &ExecuteResult{
 			Output:  fmt.Sprintf("Access to secret file blocked: %s. Use the permission system to explicitly approve.", warning),
@@ -192,9 +192,9 @@ func IsDestructive(command string) bool {
 	return false
 }
 
-// checkSecretAccess returns a warning message if the command references
+// CheckSecretAccess returns a warning message if the command references
 // files that commonly contain secrets.
-func checkSecretAccess(command string) string {
+func CheckSecretAccess(command string) string {
 	for _, p := range secretFilePatterns {
 		if p.MatchString(command) {
 			return fmt.Sprintf("Command may access sensitive file matching pattern %q", p.String())
