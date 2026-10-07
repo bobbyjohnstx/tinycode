@@ -214,8 +214,8 @@ func TestRenderAssistantMessage_ShowsCopyAffordance(t *testing.T) {
 	var hits []copyHit
 	opts := &renderOpts{copyHits: &hits}
 	got := stripAnsi(renderMessageWithOpts(msg, 80, md, opts))
-	if !strings.Contains(got, "⎘") {
-		t.Fatalf("expected copy affordance, got %q", got)
+	if !strings.Contains(got, copyAffordanceLabel) {
+		t.Fatalf("expected copy affordance %q, got %q", copyAffordanceLabel, got)
 	}
 	if len(hits) != 1 || hits[0].text != "hello from agent" {
 		t.Fatalf("expected one copy hit with text, got %+v", hits)
@@ -231,7 +231,7 @@ func TestRenderAssistantMessage_NoCopyWhileStreaming(t *testing.T) {
 	var hits []copyHit
 	opts := &renderOpts{copyHits: &hits}
 	got := stripAnsi(renderMessageWithOpts(msg, 80, md, opts))
-	if strings.Contains(got, "⎘") {
+	if strings.Contains(got, copyAffordanceLabel) || strings.Contains(got, "⎘") {
 		t.Fatalf("streaming message should not show copy, got %q", got)
 	}
 	if len(hits) != 0 {

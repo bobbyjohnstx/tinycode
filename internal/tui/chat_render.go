@@ -25,7 +25,11 @@ var (
 	styleAgentFooter = lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
 	styleCopyAffordance = lipgloss.NewStyle().
-				Foreground(lipgloss.AdaptiveColor{Light: "#AAAAAA", Dark: "#666666"})
+				Bold(true).
+				Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#AAAAAA"})
+	// copyAffordanceLabel is a wide, labeled control so mouse targeting is
+	// usable; a bare ⎘ glyph is too small to click reliably.
+	copyAffordanceLabel = "[ copy ]"
 	styleReasoningLabel = lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"})
 	styleReasoningText = lipgloss.NewStyle().
@@ -203,7 +207,7 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 		if opts != nil && opts.copyHits != nil {
 			*opts.copyHits = append(*opts.copyHits, copyHit{lineOffset: lineNum, text: copyText})
 		}
-		sb.WriteString(styleCopyAffordance.Render("⎘"))
+		sb.WriteString(styleCopyAffordance.Render(copyAffordanceLabel))
 		sb.WriteString("\n")
 		lineNum++
 	}
