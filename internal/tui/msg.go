@@ -190,6 +190,12 @@ type MCPReconnectResultMsg struct {
 	Err  error
 }
 
+// LSPStatusLoadedMsg carries LSP diagnostics status from GET /lsp.
+type LSPStatusLoadedMsg struct {
+	Status LSPStatus
+	Err    error
+}
+
 // PluginListMsg carries the loaded plugin list from the server.
 type PluginListMsg struct {
 	Plugins []api.PluginInfo

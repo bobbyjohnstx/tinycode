@@ -243,6 +243,11 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 			a.welcome.MarkFailed("mcp")
 		}
 		return a, nil, true
+	case LSPStatusLoadedMsg:
+		if msg.Err == nil {
+			a.sidebar.SetLSPStatus(msg.Status)
+		}
+		return a, nil, true
 	case SSEConnectedMsg:
 		a.state.Connected = true
 		a.welcome.MarkDone("sse")

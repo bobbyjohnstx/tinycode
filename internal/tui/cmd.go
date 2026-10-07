@@ -344,6 +344,21 @@ func fetchMCPStatus(client *api.Client) tea.Cmd {
 	}
 }
 
+// fetchLSPStatus fetches LSP diagnostics counts from the server.
+func fetchLSPStatus(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.GetLSPStatus()
+		if err != nil {
+			return LSPStatusLoadedMsg{Err: err}
+		}
+		return LSPStatusLoadedMsg{Status: LSPStatus{
+			Disabled: !resp.Enabled,
+			Errors:   resp.Errors,
+			Warnings: resp.Warnings,
+		}}
+	}
+}
+
 // reconnectMCP requests reconnection of a named MCP server.
 func reconnectMCP(client *api.Client, name string) tea.Cmd {
 	return func() tea.Msg {

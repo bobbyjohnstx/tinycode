@@ -331,6 +331,75 @@ func TestSidebar_ViewOmitsMCPWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestFormatLSPStatus(t *testing.T) {
+	tests := []struct {
+		name   string
+		status LSPStatus
+		want   string
+	}{
+		{name: "disabled", status: LSPStatus{Disabled: true}, want: "LSP: disabled"},
+		{name: "clean", status: LSPStatus{}, want: "LSP: clean"},
+		{name: "errors and warnings", status: LSPStatus{Errors: 3, Warnings: 2}, want: "LSP: 3 errors, 2 warnings"},
+		{name: "errors only", status: LSPStatus{Errors: 1, Warnings: 0}, want: "LSP: 1 errors, 0 warnings"},
+		{name: "warnings only", status: LSPStatus{Errors: 0, Warnings: 4}, want: "LSP: 0 errors, 4 warnings"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatLSPStatus(tt.status)
+			if got != tt.want {
+				t.Errorf("formatLSPStatus() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSidebar_ViewShowsLSPStatus(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetLSPStatus(LSPStatus{Errors: 3, Warnings: 2})
+
+	view := s.View()
+	if !strings.Contains(view, "LSP: 3 errors, 2 warnings") {
+		t.Errorf("sidebar should show LSP diagnostics count, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewShowsLSPClean(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetLSPStatus(LSPStatus{})
+
+	view := s.View()
+	if !strings.Contains(view, "LSP: clean") {
+		t.Errorf("sidebar should show LSP clean, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewShowsLSPDisabled(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+	s.SetLSPStatus(LSPStatus{Disabled: true})
+
+	view := s.View()
+	if !strings.Contains(view, "LSP: disabled") {
+		t.Errorf("sidebar should show LSP disabled, got:\n%s", view)
+	}
+}
+
+func TestSidebar_ViewOmitsLSPWhenUnset(t *testing.T) {
+	s := NewSidebar()
+	s.Toggle()
+	s.SetSize(42, 20)
+
+	view := s.View()
+	if strings.Contains(view, "LSP:") {
+		t.Errorf("sidebar should not show LSP line when unset, got:\n%s", view)
+	}
+}
+
 func TestSidebar_UpdateMCPServer(t *testing.T) {
 	s := NewSidebar()
 

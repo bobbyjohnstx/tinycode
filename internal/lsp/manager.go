@@ -65,6 +65,28 @@ func (m *Manager) Disabled() bool {
 	return m.disabled
 }
 
+// DiagnosticCounts returns aggregate error and warning counts across all
+// connected language servers. Returns zeros when disabled or no clients.
+func (m *Manager) DiagnosticCounts() (errors, warnings int) {
+	if m.disabled {
+		return 0, 0
+	}
+
+	m.mu.Lock()
+	clients := make([]*Client, 0, len(m.clients))
+	for _, c := range m.clients {
+		clients = append(clients, c)
+	}
+	m.mu.Unlock()
+
+	for _, c := range clients {
+		e, w := c.diagnosticCounts()
+		errors += e
+		warnings += w
+	}
+	return errors, warnings
+}
+
 // ClientForFile returns an LSP client for the given file path.
 // Returns (nil, lang, nil) if no server is available for the file's language.
 func (m *Manager) ClientForFile(ctx context.Context, file string) (*Client, string, error) {

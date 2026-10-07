@@ -142,6 +142,7 @@ func (c *connectedApp) Init() tea.Cmd {
 		fetchCommands(c.client),
 		fetchPlugins(c.client),
 		fetchMCPStatus(c.client),
+		fetchLSPStatus(c.client),
 	}
 	if c.resumeSessionID != "" {
 		resumeID := c.resumeSessionID
@@ -494,11 +495,16 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, tea.Batch(cmds...)
 
 	case SessionStatusMsg:
+		wasWorking := c.app.status.working
 		// Forward to App first for working state / spinner.
 		model, cmd := c.app.Update(msg)
 		c.updateApp(model)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
+		}
+		// Refresh LSP diagnostics after a turn ends (tools may have opened files).
+		if msg.SessionID == c.app.state.ActiveSession && wasWorking && !msg.Status.Working {
+			cmds = append(cmds, fetchLSPStatus(c.client))
 		}
 		// When the active session transitions from working to idle and a goal is active,
 		// trigger goal evaluation.

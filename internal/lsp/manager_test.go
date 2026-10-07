@@ -242,6 +242,42 @@ func TestNewManager_WithServerOverrides(t *testing.T) {
 	}
 }
 
+func TestManager_DiagnosticCounts(t *testing.T) {
+	m := NewManager(t.TempDir(), nil)
+	t.Cleanup(func() {
+		delete(m.clients, "go") // fake client was never connected
+		m.Close()
+	})
+
+	client := newClient(ServerSpec{Language: "go", Command: "gopls"}, t.TempDir(), nil, 0)
+	client.diagStore["file:///tmp/a.go"] = []Diagnostic{
+		{Severity: 1, Message: "err1"},
+		{Severity: 2, Message: "warn1"},
+		{Severity: 2, Message: "warn2"},
+		{Severity: 3, Message: "info ignored"},
+	}
+	m.clients["go"] = client
+
+	errors, warnings := m.DiagnosticCounts()
+	if errors != 1 {
+		t.Errorf("errors = %d, want 1", errors)
+	}
+	if warnings != 2 {
+		t.Errorf("warnings = %d, want 2", warnings)
+	}
+}
+
+func TestManager_DiagnosticCounts_Disabled(t *testing.T) {
+	enabled := false
+	m := NewManager(t.TempDir(), &Config{Enabled: &enabled})
+	defer m.Close()
+
+	errors, warnings := m.DiagnosticCounts()
+	if errors != 0 || warnings != 0 {
+		t.Errorf("DiagnosticCounts() = (%d, %d), want (0, 0) when disabled", errors, warnings)
+	}
+}
+
 func containsStr(s, sub string) bool {
 	return len(s) >= len(sub) && findStr(s, sub)
 }

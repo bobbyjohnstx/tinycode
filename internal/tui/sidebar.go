@@ -46,6 +46,13 @@ type MCPServer struct {
 	ToolCount int
 }
 
+// LSPStatus holds aggregated LSP diagnostics for sidebar display.
+type LSPStatus struct {
+	Disabled bool
+	Errors   int
+	Warnings int
+}
+
 // Sidebar is a toggleable right panel showing the session tree and metadata.
 type Sidebar struct {
 	sessions   []SessionInfo
@@ -57,6 +64,7 @@ type Sidebar struct {
 	context    ContextStats
 	balance    *ProviderBalance
 	mcpServers []MCPServer
+	lspStatus  *LSPStatus
 	open       bool
 	width      int
 	height     int
@@ -98,6 +106,11 @@ func (s *Sidebar) SetContext(stats ContextStats) {
 // SetMCPServers replaces the full MCP server list.
 func (s *Sidebar) SetMCPServers(servers []MCPServer) {
 	s.mcpServers = servers
+}
+
+// SetLSPStatus updates the LSP diagnostics one-liner shown after the MCP section.
+func (s *Sidebar) SetLSPStatus(status LSPStatus) {
+	s.lspStatus = &status
 }
 
 // SetVersion updates the version display.
@@ -235,6 +248,23 @@ func (s Sidebar) View() string {
 		}
 	}
 
+	// LSP diagnostics one-liner
+	if s.lspStatus != nil {
+		sb.WriteString("\n")
+		line := formatLSPStatus(*s.lspStatus)
+		switch {
+		case s.lspStatus.Disabled:
+			sb.WriteString(styleSidebarMuted.Render(line))
+		case s.lspStatus.Errors > 0:
+			sb.WriteString(styleSidebarError.Render(line))
+		case s.lspStatus.Warnings > 0:
+			sb.WriteString(styleSidebarMuted.Render(line))
+		default:
+			sb.WriteString(styleSidebarSuccess.Render(line))
+		}
+		sb.WriteString("\n")
+	}
+
 	// Session tree — skip sessions with empty titles.
 	titled := filterTitledSessions(s.sessions)
 	if len(titled) > 0 {
@@ -328,6 +358,17 @@ func formatTokens(n int) string {
 		return fmt.Sprintf("%dk", n/1000)
 	}
 	return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+}
+
+// formatLSPStatus renders the sidebar LSP diagnostics line.
+func formatLSPStatus(status LSPStatus) string {
+	if status.Disabled {
+		return "LSP: disabled"
+	}
+	if status.Errors == 0 && status.Warnings == 0 {
+		return "LSP: clean"
+	}
+	return fmt.Sprintf("LSP: %d errors, %d warnings", status.Errors, status.Warnings)
 }
 
 // treeNode is a session with its children for tree rendering.

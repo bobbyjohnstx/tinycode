@@ -37,6 +37,8 @@ func (s *Server) handleLSP(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, map[string]any{
 			"enabled":   false,
 			"languages": []string{},
+			"errors":    0,
+			"warnings":  0,
 			"note":      "LSP manager not attached to this server instance",
 		})
 		return
@@ -45,6 +47,8 @@ func (s *Server) handleLSP(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, map[string]any{
 			"enabled":   false,
 			"languages": []string{},
+			"errors":    0,
+			"warnings":  0,
 		})
 		return
 	}
@@ -52,9 +56,12 @@ func (s *Server) handleLSP(w http.ResponseWriter, _ *http.Request) {
 	if langs == nil {
 		langs = []string{}
 	}
+	errors, warnings := mgr.DiagnosticCounts()
 	respondJSON(w, http.StatusOK, map[string]any{
 		"enabled":   true,
 		"languages": langs,
+		"errors":    errors,
+		"warnings":  warnings,
 		"note":      "Language servers are lazily connected on first tool use",
 	})
 }

@@ -262,6 +262,24 @@ func (c *Client) readLoop() {
 	}
 }
 
+// diagnosticCounts returns aggregate error and warning counts from the store.
+// Severity 1 = error, 2 = warning (LSP DiagnosticSeverity).
+func (c *Client) diagnosticCounts() (errors, warnings int) {
+	c.diagMu.Lock()
+	defer c.diagMu.Unlock()
+	for _, diags := range c.diagStore {
+		for _, d := range diags {
+			switch d.Severity {
+			case 1:
+				errors++
+			case 2:
+				warnings++
+			}
+		}
+	}
+	return errors, warnings
+}
+
 func (c *Client) handlePublishDiagnostics(params json.RawMessage) {
 	var p struct {
 		URI         string       `json:"uri"`

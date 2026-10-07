@@ -197,6 +197,22 @@ func (c *Client) GetMCPStatus() (map[string]map[string]any, error) {
 	return status, nil
 }
 
+// LSPStatusResponse is the response from GET /lsp.
+type LSPStatusResponse struct {
+	Enabled  bool `json:"enabled"`
+	Errors   int  `json:"errors"`
+	Warnings int  `json:"warnings"`
+}
+
+// GetLSPStatus fetches LSP status via GET /lsp.
+func (c *Client) GetLSPStatus() (*LSPStatusResponse, error) {
+	var status LSPStatusResponse
+	if err := c.getJSON("/lsp", &status); err != nil {
+		return nil, err
+	}
+	return &status, nil
+}
+
 // ReconnectMCP requests reconnection of a named MCP server via POST /mcp/{name}/reconnect.
 func (c *Client) ReconnectMCP(name string) error {
 	return c.postNoResp("/mcp/"+name+"/reconnect", nil)
