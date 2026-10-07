@@ -731,9 +731,38 @@ Override data directory with `TINYCODE_DATA_DIR` or `XDG_DATA_HOME`.
 
 [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) servers provide additional tools to the model. For example, an MCP server could provide database queries, API access, or custom integrations.
 
+### CLI (`tinycode mcp`)
+
+Manage MCP servers without hand-editing JSON:
+
+| Command | Purpose |
+|---------|---------|
+| `tinycode mcp list` | List configured servers and best-effort connection status |
+| `tinycode mcp add NAME -- CMD [args...]` | Add a stdio server to user config |
+| `tinycode mcp add --transport sse\|http NAME URL` | Add a remote SSE or streamable-http server |
+| `tinycode mcp auth NAME --token TOKEN` | Set `Authorization: Bearer <token>` |
+| `tinycode mcp auth NAME --env VAR` | Set `Authorization: Bearer {env:VAR}` |
+| `tinycode mcp logout NAME` | Clear the Authorization header |
+| `tinycode mcp debug NAME` | Connect once and print handshake / tools diagnostics |
+
+Flags: `--project` writes to the innermost project config (creates `.tinycode/tinycode.json` if needed). Without `--project`, writes go to the user config under `ConfigDir` (creates `tinycode.json` when none exists). `-e KEY=VALUE` sets stdio env; `--header "Key: Value"` sets remote headers. `http` is an alias for `streamable-http`.
+
+`mcp list` and `mcp debug` start a short-lived MCP client in-process (they do not require `tinycode serve`). Interactive browser OAuth is **not** supported — use Bearer tokens or `{env:VAR}` refs (see below).
+
+Examples:
+
+```bash
+tinycode mcp add context7 -- npx -y @upstash/context7-mcp
+tinycode mcp add -e EXA_API_KEY exa -- npx -y exa-mcp-server
+tinycode mcp add --transport http github https://api.githubcopilot.com/mcp/
+tinycode mcp auth github --env GITHUB_PERSONAL_ACCESS_TOKEN
+tinycode mcp list
+tinycode mcp debug context7
+```
+
 ### Configuration
 
-Add MCP servers in your config file:
+You can also add MCP servers directly in your config file:
 
 ```jsonc
 {
@@ -750,7 +779,6 @@ Add MCP servers in your config file:
 ```
 
 The `command` field accepts either a string or an array (`["npx", "-y", "@my/mcp-server"]`). You can also use `"command": "npx"` with a separate `"args"` array. Config env substitution uses `{env:VAR}` only (not `$VAR` / `${VAR}`).
-
 ### Transport types
 
 **Stdio (default)** -- tinycode spawns the MCP server as a child process and communicates over stdin/stdout:
@@ -792,35 +820,21 @@ The `command` field accepts either a string or an array (`["npx", "-y", "@my/mcp
 }
 ```
 
-### OAuth support
+### Authentication
 
-MCP servers that require OAuth authentication:
+Interactive MCP OAuth (browser login) is **parked / unsupported**. Prefer:
 
-```json
-{
-  "mcp": {
-    "oauth-server": {
-      "url": "https://mcp.example.com/sse",
-      "transport": "sse",
-      "oauth": {
-        "client_id": "my-client-id",
-        "auth_url": "https://auth.example.com/authorize",
-        "token_url": "https://auth.example.com/token",
-        "scopes": ["read", "write"]
-      }
-    }
-  }
-}
-```
+- `tinycode mcp auth NAME --token …` or `--env VAR` (writes an `Authorization` header)
+- Static headers in config, e.g. `"Authorization": "Bearer {env:TOKEN}"`
+- Optional `oauth.access_token` in config (library helpers only; no product OAuth flow)
 
 ### Managing MCP servers
 
-Use `/mcp` or **Ctrl+X i** to open the MCP server management dialog. This shows all configured servers with their connection status and tool counts. From the dialog you can:
+Use `tinycode mcp list` / `debug` from the CLI, or `/mcp` / **Ctrl+X i** in the TUI. The dialog shows connection status and tool counts. From the dialog you can:
 
 - View each server's status (connected, error, disconnected)
 - Trigger a reconnect for failed or disconnected servers
 - See the number of tools each server provides
-
 ### HTTP status & reconnect
 
 When running `tinycode serve` / `tinycode web`:

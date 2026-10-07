@@ -106,7 +106,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 | Command | Description | Go status |
 |---------|-------------|-----------|
 | `tinycode setup` | Interactive setup wizard | **Superseded.** Use `tinycode doctor` (diagnose) + `/connect` in the TUI (configure models). No separate setup wizard is planned. |
-| `tinycode mcp` | MCP server management (list, auth, add, debug, logout) | Not implemented as CLI; config-driven MCP + Bearer/`{env:VAR}` only (see §16.28) |
+| `tinycode mcp` | MCP server management (list, auth, add, debug, logout) | **Implemented** as CLI (`list`/`add`/`auth`/`logout`/`debug`). Interactive OAuth still parked (see §16.28) |
 | `tinycode db` | Database management (query, path, migrate) | Not implemented |
 | `tinycode import` | Import session data | Not implemented |
 | `tinycode uninstall` | Remove tinycode | Not implemented |
@@ -114,7 +114,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 | `tinycode plugin-init` | Scaffold a new plugin project | Not implemented |
 | `tinycode plugin-search` | Search plugin marketplace | Not implemented |
 
-**Go status:** Go has `models`, `providers`, `session`, `status`, `export`, `plugin`, `agent`, `doctor`, `debug` but not the above subcommands (except `setup`, which is intentionally replaced by doctor + `/connect`).
+**Go status:** Go has `models`, `providers`, `session`, `status`, `export`, `plugin`, `agent`, `doctor`, `mcp`, `debug`. Remaining rows above are still missing (`setup` is intentionally replaced by doctor + `/connect`).
 
 ---
 
@@ -379,10 +379,11 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - `POST /mcp/{name}/connect`, `POST /mcp/{name}/disconnect`
 - CLI: `tinycode mcp` (list, auth, add, debug, logout) — also listed in §16.7
 
-**Go status:** Not implemented as HTTP routes (requests 404). Interactive MCP OAuth is **parked / unsupported** as a product surface.
+**Go status:** HTTP auth/connect/disconnect routes are **not** implemented (404). The `tinycode mcp` CLI **is** implemented (`list`, `add`, `auth`, `logout`, `debug`) and writes Bearer / `{env:VAR}` headers into config. Interactive MCP OAuth is **parked / unsupported** as a product surface.
 
 Supported auth for MCP:
 
+- `tinycode mcp auth` / `logout` (Bearer token or `{env:VAR}`)
 - Static Bearer tokens in config `headers` (e.g. `"Authorization": "Bearer {env:TOKEN}"`)
 - `{env:VAR}` substitution for secrets
 - Optional `oauth.access_token` in config or tokens from `~/.local/share/tinycode/mcp-auth.json`
@@ -394,6 +395,7 @@ Also implemented:
 - Config-driven MCP connections
 - Bearer injection on SSE / streamable-http transports via `createTransport`
 - Status / reconnect: `GET /mcp`, `GET /mcp/status`, `POST /mcp/{name}/reconnect`
+- CLI: `tinycode mcp list|add|auth|logout|debug`
 
 ---
 

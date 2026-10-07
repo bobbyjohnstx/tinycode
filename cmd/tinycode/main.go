@@ -81,6 +81,8 @@ func main() {
 		runAgent()
 	case "doctor":
 		runDoctor()
+	case "mcp":
+		runMCP()
 	case "debug":
 		runDebug()
 	case "version", "--version", "-v":
@@ -121,6 +123,7 @@ func printUsage() {
 	fmt.Println("  init       Red Hat plugin/role setup (optional; not first-run)")
 	fmt.Println("  agent      List available agents")
 	fmt.Println("  doctor     Run diagnostics and check system health")
+	fmt.Println("  mcp        Manage MCP servers (list, add, auth, logout, debug)")
 	fmt.Println("  debug      Debug info (config, paths)")
 	fmt.Println("  version    Print version information")
 	fmt.Println("  help       Show this help message")

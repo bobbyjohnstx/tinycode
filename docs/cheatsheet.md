@@ -82,6 +82,12 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `tinycode run --permissions json` | Programmatic permission handling via stdin/stdout |
 | `tinycode run --dangerously-skip-permissions` | Auto-approve all tool permissions |
 | `tinycode doctor` | Headless health check (config, DB, providers, agents, plugins, skills) |
+| `tinycode mcp list` | List configured MCP servers + connection status |
+| `tinycode mcp add NAME -- CMD…` | Add stdio MCP server (use `--project` for project config) |
+| `tinycode mcp add --transport http NAME URL` | Add remote streamable-http MCP server |
+| `tinycode mcp auth NAME --env VAR` | Set Bearer `{env:VAR}` (or `--token`) |
+| `tinycode mcp logout NAME` | Clear Authorization header |
+| `tinycode mcp debug NAME` | Handshake / tools diagnostics |
 | `tinycode plugin list` | List installed / available plugins |
 | `tinycode plugin install <name>` | Install a plugin binary (`--from` for a local path) |
 | `tinycode plugin uninstall <name>` | Remove an installed plugin |

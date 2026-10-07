@@ -37,61 +37,37 @@ Present options one question at a time:
 - **Filesystem**: Ask for allowed directories (default: current working directory)
 - **GitHub**: Requires Personal Access Token from https://github.com/settings/tokens (scopes: repo, read:org)
 
-## Step 3: Add MCP Servers via Config
+## Step 3: Add MCP Servers via CLI
 
-There is no `tinycode mcp add` CLI yet. Edit the user or project config file and add an `mcp` entry. Prefer project scope (`.tinycode/tinycode.jsonc` / `tinycode.json`) when the user asks for project-scoped setup; otherwise use `~/.config/tinycode/tinycode.jsonc`.
-
-Use `{env:VAR}` for secrets (not `$VAR` / `${VAR}`).
+Use `tinycode mcp add`. Default scope is user config; add `--project` for project scope (`.tinycode/tinycode.json`). Use `{env:VAR}` for secrets (not `$VAR` / `${VAR}`).
 
 ### Examples
 
-```jsonc
-{
-  "mcp": {
-    "context7": {
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
-    },
-    "exa": {
-      "command": "npx",
-      "args": ["-y", "exa-mcp-server"],
-      "env": { "EXA_API_KEY": "{env:EXA_API_KEY}" }
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allow"]
-    },
-    "github": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"],
-      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_PERSONAL_ACCESS_TOKEN}" }
-    },
-    "github-http": {
-      "url": "https://api.githubcopilot.com/mcp/",
-      "transport": "streamable-http",
-      "headers": { "Authorization": "Bearer {env:GITHUB_PERSONAL_ACCESS_TOKEN}" }
-    }
-  }
-}
+```bash
+tinycode mcp add context7 -- npx -y @upstash/context7-mcp
+tinycode mcp add -e EXA_API_KEY exa -- npx -y exa-mcp-server
+tinycode mcp add filesystem -- npx -y @modelcontextprotocol/server-filesystem /path/to/allow
+tinycode mcp add --transport http github https://api.githubcopilot.com/mcp/
+tinycode mcp auth github --env GITHUB_PERSONAL_ACCESS_TOKEN
 ```
 
 Ask for:
 1. Server name (identifier)
-2. Transport type: `stdio` (default), `sse`, or `streamable-http`
-3. For stdio: `command` + `args` (and optional `env`)
-4. For remote: `url`, optional `headers` (Bearer / `{env:VAR}` — **not** interactive OAuth)
-5. Environment variables (optional)
+2. Transport type: `stdio` (default), `sse`, or `streamable-http` (`http` alias)
+3. For stdio: command + args (and optional `-e`)
+4. For remote: URL, then `tinycode mcp auth` for Bearer / `{env:VAR}` — **not** interactive OAuth
+5. Scope: user vs `--project`
 
 ## Step 4: Verify
 
-1. Restart tinycode (or reload config if the session supports it)
-2. In the TUI, open `/mcp` (or **Ctrl+X i**) and confirm status `connected` and tool counts
-3. Or with `tinycode serve`: `GET /mcp/status`
-
+1. `tinycode mcp list` (and optionally `tinycode mcp debug <name>`)
+2. Restart tinycode (or reload config if the session supports it)
+3. In the TUI, open `/mcp` (or **Ctrl+X i**) and confirm status `connected` and tool counts
+4. Or with `tinycode serve`: `GET /mcp/status`
 ## Output Contract
 
 Report on completion:
-- Which servers were written into which config file
+- Which servers were written into which config file (from `tinycode mcp list`)
 - Which were deferred (missing API key)
-- How to verify (`/mcp` or `GET /mcp/status`)
+- How to verify (`tinycode mcp list` / `debug`, `/mcp`, or `GET /mcp/status`)
 - Restart reminder
