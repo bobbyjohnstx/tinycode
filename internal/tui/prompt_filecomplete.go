@@ -186,8 +186,26 @@ func (fc FileCompleter) View() string {
 		descCol = 6
 	}
 
+	const maxVisible = 8
+	start, end := 0, len(fc.items)
+	if end > maxVisible {
+		start = fc.cursor - maxVisible/2
+		if start < 0 {
+			start = 0
+		}
+		end = start + maxVisible
+		if end > len(fc.items) {
+			end = len(fc.items)
+			start = end - maxVisible
+			if start < 0 {
+				start = 0
+			}
+		}
+	}
+
 	var lines []string
-	for i, item := range fc.items {
+	for i := start; i < end; i++ {
+		item := fc.items[i]
 		display := item.Path
 		kind := "file"
 		if item.IsDir {

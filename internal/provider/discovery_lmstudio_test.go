@@ -46,6 +46,10 @@ func TestDiscoverLMStudio_RegistersModelsFromAPI(t *testing.T) {
 
 func TestDiscoverLMStudio_SetsDefaultContextLimit(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
 		resp := vllmModelsResponse{
 			Data: []vllmModel{{ID: "test-model"}},
 		}
@@ -74,6 +78,10 @@ func TestDiscoverLMStudio_SetsDefaultContextLimit(t *testing.T) {
 
 func TestDiscoverLMStudio_UsesMaxModelLen(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
 		resp := vllmModelsResponse{
 			Data: []vllmModel{{ID: "loaded-model", MaxModelLen: 32768}},
 		}
@@ -100,8 +108,78 @@ func TestDiscoverLMStudio_UsesMaxModelLen(t *testing.T) {
 	}
 }
 
+func TestDiscoverLMStudio_PrefersLoadedContextLength(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v0/models" {
+			http.NotFound(w, r)
+			return
+		}
+		resp := lmStudioNativeModelsResponse{
+			Data: []lmStudioNativeModel{
+				{
+					ID:                  "ornith-1.0-9b-mlx",
+					Type:                "vlm",
+					State:               "loaded",
+					MaxContextLength:    262144,
+					LoadedContextLength: 144128,
+					Capabilities:        []string{"tool_use"},
+				},
+				{
+					ID:               "unloaded-model",
+					Type:             "llm",
+					State:            "not-loaded",
+					MaxContextLength: 65536,
+					Capabilities:     []string{"tool_use"},
+				},
+				{
+					ID:               "text-embedding-nomic-embed-text-v1.5",
+					Type:             "embeddings",
+					State:            "not-loaded",
+					MaxContextLength: 2048,
+				},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	reg := NewRegistry()
+	b := bus.New()
+	defer b.Close()
+
+	d := NewDiscovery(reg, b)
+	d.discoverLMStudio(t.Context(), srv.URL)
+
+	loaded, err := reg.GetModel("lm-studio", "ornith-1.0-9b-mlx")
+	if err != nil {
+		t.Fatalf("loaded model not found: %v", err)
+	}
+	if loaded.Limit.Context != 144128 {
+		t.Errorf("loaded context = %d, want 144128 (loaded_context_length)", loaded.Limit.Context)
+	}
+	if !loaded.Capabilities.ToolCall {
+		t.Error("expected ToolCall from capabilities")
+	}
+
+	unloaded, err := reg.GetModel("lm-studio", "unloaded-model")
+	if err != nil {
+		t.Fatalf("unloaded model not found: %v", err)
+	}
+	if unloaded.Limit.Context != 65536 {
+		t.Errorf("unloaded context = %d, want 65536 (max_context_length)", unloaded.Limit.Context)
+	}
+
+	if _, err := reg.GetModel("lm-studio", "text-embedding-nomic-embed-text-v1.5"); err == nil {
+		t.Error("embedding models should be skipped")
+	}
+}
+
 func TestDiscoverLMStudio_SetsCapabilities(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
 		resp := vllmModelsResponse{
 			Data: []vllmModel{{ID: "test-model"}},
 		}
@@ -133,6 +211,10 @@ func TestDiscoverLMStudio_SetsCapabilities(t *testing.T) {
 
 func TestDiscoverLMStudio_PublishesDiscoveredEvent(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
 		resp := vllmModelsResponse{
 			Data: []vllmModel{{ID: "model-a"}, {ID: "model-b"}},
 		}
@@ -206,5 +288,17 @@ func TestDiscoverLMStudio_HandlesInvalidJSON(t *testing.T) {
 	}
 	if reg.Failures("lm-studio") != 1 {
 		t.Errorf("expected 1 failure recorded, got %d", reg.Failures("lm-studio"))
+	}
+}
+
+func TestLMStudioContextLen(t *testing.T) {
+	if got := lmStudioContextLen(lmStudioNativeModel{LoadedContextLength: 144128, MaxContextLength: 262144}); got != 144128 {
+		t.Errorf("prefer loaded = %d, want 144128", got)
+	}
+	if got := lmStudioContextLen(lmStudioNativeModel{MaxContextLength: 65536}); got != 65536 {
+		t.Errorf("max fallback = %d, want 65536", got)
+	}
+	if got := lmStudioContextLen(lmStudioNativeModel{}); got != 8192 {
+		t.Errorf("default = %d, want 8192", got)
 	}
 }

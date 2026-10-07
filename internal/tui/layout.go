@@ -108,6 +108,72 @@ func clampBlock(content string, width, height int) string {
 		Render(content)
 }
 
+// placePromptPopover overlays a slash/file popover just above the prompt chrome,
+// covering the bottom of the chat area (does not resize prompt Height()).
+// leftInset shifts the panel right when a sidebar occupies the left columns.
+func placePromptPopover(base, panel string, width, height, statusH, promptH, leftInset int) string {
+	if panel == "" {
+		return base
+	}
+	base = fitTerminal(base, width, height)
+	panelLines := strings.Split(panel, "\n")
+	panelH := len(panelLines)
+	if panelH < 1 {
+		return base
+	}
+	availW := width - leftInset
+	if availW < 1 {
+		return base
+	}
+	panelW := 0
+	for _, ln := range panelLines {
+		if w := lipgloss.Width(ln); w > panelW {
+			panelW = w
+		}
+	}
+	if panelW > availW {
+		panelW = availW
+	}
+	if panelW < 1 {
+		return base
+	}
+	// Keep at least one chat row when possible; never cover the prompt/status chrome.
+	maxPanelH := height - statusH - promptH
+	if maxPanelH < 1 {
+		return base
+	}
+	if panelH > maxPanelH {
+		// Keep the top of the popover (selection starts at cursor 0).
+		panelLines = panelLines[:maxPanelH]
+		panelH = len(panelLines)
+	}
+	startY := height - statusH - promptH - panelH
+	if startY < 0 {
+		startY = 0
+	}
+	startX := leftInset
+	baseLines := strings.Split(base, "\n")
+	for i, pl := range panelLines {
+		y := startY + i
+		if y < 0 || y >= len(baseLines) {
+			continue
+		}
+		row := lipgloss.NewStyle().Width(width).MaxHeight(1).Render(baseLines[y])
+		left := ""
+		if startX > 0 {
+			left = lipgloss.NewStyle().MaxWidth(startX).Width(startX).MaxHeight(1).Render(row)
+		}
+		mid := lipgloss.NewStyle().Width(panelW).MaxWidth(panelW).MaxHeight(1).Render(pl)
+		rightW := width - startX - panelW
+		right := ""
+		if rightW > 0 {
+			right = lipgloss.NewStyle().Width(rightW).MaxHeight(1).Render("")
+		}
+		baseLines[y] = left + mid + right
+	}
+	return strings.Join(baseLines, "\n")
+}
+
 // fitTerminal pads or truncates a full frame to the terminal size.
 // Prevents alt-screen ghost rows when chrome height changes or lines wrap.
 func fitTerminal(view string, width, height int) string {

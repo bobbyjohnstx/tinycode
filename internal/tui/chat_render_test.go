@@ -231,7 +231,7 @@ func TestRenderAssistantMessage_NoCopyWhileStreaming(t *testing.T) {
 	var hits []copyHit
 	opts := &renderOpts{copyHits: &hits}
 	got := stripAnsi(renderMessageWithOpts(msg, 80, md, opts))
-	if strings.Contains(got, copyAffordanceLabel) || strings.Contains(got, "⎘") {
+	if strings.Contains(got, copyAffordanceLabel) || strings.Contains(got, "⎘") || strings.Contains(got, "[ copy ]") {
 		t.Fatalf("streaming message should not show copy, got %q", got)
 	}
 	if len(hits) != 0 {

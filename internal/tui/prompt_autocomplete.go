@@ -226,8 +226,26 @@ func (ac Autocomplete) View() string {
 		Background(lipgloss.AdaptiveColor{Light: "#E8E8E8", Dark: "#2A2A2A"}).
 		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#999999"})
 
+	const maxVisible = 8
+	start, end := 0, len(ac.filtered)
+	if end > maxVisible {
+		start = ac.cursor - maxVisible/2
+		if start < 0 {
+			start = 0
+		}
+		end = start + maxVisible
+		if end > len(ac.filtered) {
+			end = len(ac.filtered)
+			start = end - maxVisible
+			if start < 0 {
+				start = 0
+			}
+		}
+	}
+
 	var lines []string
-	for i, cmd := range ac.filtered {
+	for i := start; i < end; i++ {
+		cmd := ac.filtered[i]
 		name := prefix + cmd.Name
 		desc := cmd.Description
 		if len(desc) > descCol {

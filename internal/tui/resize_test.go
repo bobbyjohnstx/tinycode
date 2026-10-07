@@ -52,6 +52,46 @@ func TestPromptHeight_MatchesChrome(t *testing.T) {
 	}
 }
 
+func TestPromptView_SlashPopoverNotJoinedIntoChrome(t *testing.T) {
+	p := NewPromptInput(80)
+	p.SetCommands(testCommands())
+	p.SetValue("/")
+	p.autocomplete.UpdateInput("/")
+	if !p.autocomplete.IsVisible() {
+		t.Fatal("expected autocomplete visible")
+	}
+	viewLines := strings.Count(p.View(), "\n") + 1
+	if viewLines != p.Height() {
+		t.Fatalf("View lines=%d Height=%d; popover must not inflate prompt chrome", viewLines, p.Height())
+	}
+	if p.PopoverView() == "" {
+		t.Fatal("expected PopoverView when slash autocomplete is visible")
+	}
+}
+
+func TestPlacePromptPopover_SitsAbovePromptChrome(t *testing.T) {
+	width, height := 40, 20
+	statusH, promptH := 2, 5
+	base := strings.Repeat(strings.Repeat(".", width)+"\n", height)
+	base = strings.TrimSuffix(base, "\n")
+	panel := "POPOVER-LINE"
+	out := placePromptPopover(base, panel, width, height, statusH, promptH, 0)
+	lines := strings.Split(out, "\n")
+	if len(lines) != height {
+		t.Fatalf("lines=%d, want %d", len(lines), height)
+	}
+	wantY := height - statusH - promptH - 1
+	if !strings.Contains(lines[wantY], "POPOVER-LINE") {
+		t.Fatalf("popover not at y=%d: %q", wantY, lines[wantY])
+	}
+	// Prompt/status rows below must be untouched.
+	for y := wantY + 1; y < height; y++ {
+		if strings.Contains(lines[y], "POPOVER") {
+			t.Fatalf("popover leaked into chrome row %d: %q", y, lines[y])
+		}
+	}
+}
+
 func TestComposeView_DoesNotInflateChromeHeight(t *testing.T) {
 	for _, w := range []int{60, 80, 100, 120, 200} {
 		sb := NewStatusBar(w)

@@ -27,9 +27,9 @@ var (
 	styleCopyAffordance = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#AAAAAA"})
-	// copyAffordanceLabel is a wide, labeled control so mouse targeting is
-	// usable; a bare ⎘ glyph is too small to click reliably.
-	copyAffordanceLabel = "[ copy ]"
+	// copyAffordanceLabel: clipboard emoji tends to render larger than a bare
+	// ⎘ glyph in terminals that support emoji.
+	copyAffordanceLabel = "📋"
 	styleReasoningLabel = lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"})
 	styleReasoningText = lipgloss.NewStyle().

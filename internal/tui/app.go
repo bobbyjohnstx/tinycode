@@ -210,6 +210,15 @@ func (a App) View() string {
 
 	base := composeView(chatView, promptView, statusView, sidebarView, l)
 
+	// Slash/file popovers overlay the chat above the prompt (not inside prompt.View).
+	if pop := a.prompt.PopoverView(); pop != "" {
+		leftInset := 0
+		if l.hasSidebar {
+			leftInset = l.sidebarWidth
+		}
+		base = placePromptPopover(base, pop, a.width, a.height, l.statusHeight, l.promptHeight, leftInset)
+	}
+
 	// Overlay which-key panel when leader is pending.
 	if a.whichKey.IsVisible() {
 		panel := a.whichKey.View()
