@@ -10,10 +10,12 @@ type KeyMap struct {
 	ClearOrQuit    key.Binding
 
 	// Prompt
-	Submit     key.Binding
-	Newline    key.Binding
-	AltNewline key.Binding
-	Interrupt  key.Binding
+	Submit         key.Binding
+	Newline        key.Binding
+	AltNewline     key.Binding
+	Interrupt      key.Binding
+	StashToggle    key.Binding // save/restore a parked draft
+	HistoryBrowser key.Binding // open the prompt history browser
 
 	// Navigation
 	CycleAgentNext key.Binding
@@ -71,6 +73,14 @@ func DefaultKeyMap() KeyMap {
 		Interrupt: key.NewBinding(
 			key.WithKeys("escape"),
 			key.WithHelp("esc", "interrupt"),
+		),
+		StashToggle: key.NewBinding(
+			key.WithKeys("ctrl+s"),
+			key.WithHelp("ctrl+s", "stash/restore draft"),
+		),
+		HistoryBrowser: key.NewBinding(
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "browse history"),
 		),
 
 		CycleAgentNext: key.NewBinding(

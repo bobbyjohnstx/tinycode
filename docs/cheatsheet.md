@@ -17,6 +17,9 @@ Quick reference for the most common keyboard shortcuts, agents, and commands.
 | `Tab` / `Shift+Tab` | Cycle to next/previous agent |
 | `F2` / `Shift+F2` | Cycle to next/previous recent model |
 | `PgUp` / `PgDown` | Scroll chat history |
+| `↑` / `↓` | Navigate prompt history (in composer) |
+| `Ctrl+R` | Open prompt history browser (pick a past prompt) |
+| `Ctrl+S` | Stash current draft (save) / restore it (press again when empty) |
 | `<leader>b` | Toggle session tree sidebar |
 | `<leader>o` | List all sessions |
 | `<leader>n` | Create a new session |
@@ -192,5 +195,7 @@ After listing models (`<leader>m`):
 - Type `@filename` to reference a file in your prompt
 - Use `<leader>;` to collapse code blocks and focus on analysis
 - Session tree shows hierarchy with `<leader>b`
+- **Prompt stash:** `Ctrl+S` parks your current draft (clearing the composer) so you can run a side command or wait on a permission prompt; press `Ctrl+S` again (with an empty composer) to restore it. The stash is in-memory only — session-local, not persisted to disk, and lost on restart — but it does survive the composer being cleared after a submit
+- **Prompt history browser:** `Ctrl+R` opens a scrollable list of past prompts (newest first) instead of relying on bare `↑`/`↓`; a status hint below the composer also shows the entry count once you have history
 - **Model warmup:** On startup, tinycode probes the Ollama model to verify tool-call support and pre-load it into GPU memory. Look for "qwen3.5:9b ready — tool calling supported" in the toast/footer
 - **Tool-call warnings:** If you see "Multiple tool call failures detected," switch to a larger model via `<leader>m` — tinycode auto-repairs common JSON issues, but very small models may not support tool calling at all

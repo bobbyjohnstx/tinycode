@@ -21,6 +21,9 @@ func keybindingPaletteItems(keys KeyMap) []PaletteItem {
 		entry(keys.CycleAgentNext),
 		{Label: "@", Description: "file completion", Value: ""},
 		{Label: "/", Description: "commands", Value: ""},
+		{Label: "↑ / ↓", Description: "navigate prompt history", Value: ""},
+		entry(keys.HistoryBrowser),
+		entry(keys.StashToggle),
 
 		separator("Leader (ctrl+x)"),
 		entry(keys.ToggleSidebar),

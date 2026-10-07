@@ -44,6 +44,14 @@ func (h *PromptHistory) Len() int {
 	return len(h.entries)
 }
 
+// Entries returns a copy of the history entries in chronological order
+// (oldest first). Used by the history browser popover.
+func (h *PromptHistory) Entries() []string {
+	out := make([]string, len(h.entries))
+	copy(out, h.entries)
+	return out
+}
+
 // Stash saves the current input text and resets the cursor for navigation.
 func (h *PromptHistory) Stash(current string) {
 	h.stash = current

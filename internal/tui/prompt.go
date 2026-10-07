@@ -15,7 +15,7 @@ import (
 var (
 	oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,2}\\?$`)
 	// Core CPR payload after optional mangled CSI/OSC prefixes are stripped.
-	cprCore = regexp.MustCompile(`^\d{0,4};\d{1,4}R$`)
+	cprCore        = regexp.MustCompile(`^\d{0,4};\d{1,4}R$`)
 	cprCorePartial = regexp.MustCompile(`^\d{0,4};?\d{0,4}$`)
 )
 
@@ -47,9 +47,20 @@ type PromptInput struct {
 	noiseUntil    time.Time // discard CPR/OSC fragments until this time
 	cprBuf        string    // accumulates split CPR/CSI crumbs
 	imageCount    int
-	imageSize     int // total bytes of attached images
+	imageSize     int  // total bytes of attached images
 	waveOn        bool // braille wave above composer until first submit
 	wavePhase     int
+
+	// draftStash holds an explicitly parked draft (ctrl+s), independent of
+	// history navigation. It is session-local (in-memory only) and survives
+	// Reset() because Reset only clears the textarea.
+	draftStash    string
+	hasDraftStash bool
+
+	// historyBrowser* back the ctrl+r popover for discoverable history
+	// navigation (an alternative to bare up-arrow).
+	historyBrowserOn     bool
+	historyBrowserCursor int
 }
 
 // NewPromptInput creates a PromptInput with the given width.
@@ -212,6 +223,57 @@ func (p *PromptInput) Reset() {
 	p.textarea.Reset()
 }
 
+// StashDraft parks the current textarea content as a draft and clears the
+// input. Returns false when there is nothing to stash (empty textarea).
+// The stash is session-local (in-memory only) and is not affected by
+// Reset(), which only clears the textarea.
+func (p *PromptInput) StashDraft() bool {
+	val := p.textarea.Value()
+	if val == "" {
+		return false
+	}
+	p.draftStash = val
+	p.hasDraftStash = true
+	p.textarea.Reset()
+	return true
+}
+
+// RestoreDraft restores a previously stashed draft into the textarea and
+// clears the stash. Returns false when there is no stashed draft.
+func (p *PromptInput) RestoreDraft() bool {
+	if !p.hasDraftStash {
+		return false
+	}
+	p.textarea.SetValue(p.draftStash)
+	p.draftStash = ""
+	p.hasDraftStash = false
+	return true
+}
+
+// HasDraft reports whether a draft is currently stashed.
+func (p PromptInput) HasDraft() bool {
+	return p.hasDraftStash
+}
+
+// DraftValue returns the currently stashed draft text ("" if none).
+func (p PromptInput) DraftValue() string {
+	return p.draftStash
+}
+
+// toggleHistoryBrowser opens the history browser popover (cursor on the
+// most recent entry) or closes it if already open.
+func (p *PromptInput) toggleHistoryBrowser() {
+	if p.historyBrowserOn {
+		p.historyBrowserOn = false
+		return
+	}
+	if p.history.Len() == 0 {
+		return
+	}
+	p.historyBrowserOn = true
+	p.historyBrowserCursor = p.history.Len() - 1
+}
+
 // Focus gives keyboard focus to the textarea.
 func (p *PromptInput) Focus() {
 	p.textarea.Focus()
@@ -262,6 +324,11 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 	// characters indistinguishable from typing.
 	if keyMsg.Type == tea.KeyRunes && p.guardEnabled && time.Since(p.startTime) < 2*time.Second {
 		return p, nil
+	}
+	if p.historyBrowserOn {
+		if result, cmd, handled := p.handleHistoryBrowserKey(keyMsg); handled {
+			return result, cmd
+		}
 	}
 	if p.fileComplete.IsVisible() {
 		if result, cmd, handled := p.handleFileCompleteKey(keyMsg); handled {
@@ -326,6 +393,21 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 		} else {
 			p.textarea.SetValue(p.history.StashValue())
 		}
+		return p, nil
+
+	case "ctrl+s":
+		// Stash the current draft when there's text to park, otherwise
+		// restore a previously stashed draft (save/restore toggle).
+		if p.textarea.Value() != "" {
+			p.StashDraft()
+		} else {
+			p.RestoreDraft()
+		}
+		return p, nil
+
+	case "ctrl+r":
+		// Open a discoverable history browser (alternative to bare up-arrow).
+		p.toggleHistoryBrowser()
 		return p, nil
 	}
 
@@ -428,19 +510,23 @@ func (p PromptInput) View() string {
 	fillChar := lipgloss.NewStyle().Foreground(surfaceColor).Render(strings.Repeat("▀", fillWidth))
 	bordered = append(bordered, indent+bottomLeft+fillChar)
 
-	result := strings.Join(bordered, "\n")
+	return strings.Join(bordered, "\n")
+}
 
+// PopoverView returns the slash/file completion popover, or "" when hidden.
+// Popovers are overlaid by App above the prompt chrome — not joined into View —
+// so clampBlock(promptHeight) cannot squash the composer border.
+func (p PromptInput) PopoverView() string {
+	if p.historyBrowserOn {
+		return p.historyBrowserView()
+	}
 	if p.fileComplete.IsVisible() {
-		fcView := p.fileComplete.View()
-		return lipgloss.JoinVertical(lipgloss.Left, fcView, result)
+		return p.fileComplete.View()
 	}
-
 	if p.autocomplete.IsVisible() {
-		acView := p.autocomplete.View()
-		return lipgloss.JoinVertical(lipgloss.Left, acView, result)
+		return p.autocomplete.View()
 	}
-
-	return result
+	return ""
 }
 
 // renderWaveLine draws a full-width braille sine wave with alternating colors.
@@ -459,7 +545,7 @@ func (p PromptInput) renderWaveLine() string {
 		val := (math.Sin(x+phase) + 1) / 2
 		idx := int(val * float64(len(heights)-1))
 		ch := string(heights[idx])
-		if ((i / 2) + p.wavePhase) % 2 == 0 {
+		if ((i/2)+p.wavePhase)%2 == 0 {
 			b.WriteString(cA.Render(ch))
 		} else {
 			b.WriteString(cB.Render(ch))
@@ -487,10 +573,82 @@ func (p PromptInput) renderMetadata() string {
 			parts = append(parts, dimStyle.Render(fmt.Sprintf("[%d images: %s]", p.imageCount, label)))
 		}
 	}
+	if p.hasDraftStash {
+		parts = append(parts, dimStyle.Render("draft stashed (ctrl+s to restore)"))
+	} else if n := p.history.Len(); n > 0 {
+		parts = append(parts, dimStyle.Render(fmt.Sprintf("history: %d (\u2191\u2193 or ctrl+r)", n)))
+	}
 	if len(parts) == 0 {
 		return ""
 	}
 	return "  " + strings.Join(parts, "  ")
+}
+
+// handleHistoryBrowserKey handles key events when the history browser
+// popover is open. Returns (model, cmd, true) if the key was consumed.
+func (p PromptInput) handleHistoryBrowserKey(keyMsg tea.KeyMsg) (PromptInput, tea.Cmd, bool) {
+	entries := p.history.Entries()
+	switch keyMsg.String() {
+	case "esc", "ctrl+r":
+		p.historyBrowserOn = false
+		return p, nil, true
+	case "up":
+		if p.historyBrowserCursor > 0 {
+			p.historyBrowserCursor--
+		}
+		return p, nil, true
+	case "down":
+		if p.historyBrowserCursor < len(entries)-1 {
+			p.historyBrowserCursor++
+		}
+		return p, nil, true
+	case "enter", "tab":
+		if p.historyBrowserCursor >= 0 && p.historyBrowserCursor < len(entries) {
+			p.textarea.SetValue(entries[p.historyBrowserCursor])
+		}
+		p.historyBrowserOn = false
+		return p, nil, true
+	}
+	return p, nil, false
+}
+
+// historyBrowserView renders the ctrl+r history browser popover: a scrollable
+// list of past prompts, most recent first, with the selected entry highlighted.
+func (p PromptInput) historyBrowserView() string {
+	entries := p.history.Entries()
+	if len(entries) == 0 {
+		return ""
+	}
+	dimStyle := lipgloss.NewStyle().Foreground(colorPromptDim)
+	selectedStyle := lipgloss.NewStyle().Foreground(colorPromptPrimary).Bold(true)
+
+	const maxVisible = 8
+	start := 0
+	if len(entries) > maxVisible {
+		start = len(entries) - maxVisible
+	}
+
+	maxLineWidth := p.width - 6
+	if maxLineWidth < 10 {
+		maxLineWidth = 10
+	}
+
+	var b strings.Builder
+	b.WriteString(dimStyle.Render(fmt.Sprintf("History (%d) — \u2191\u2193 select \u00b7 enter use \u00b7 esc close", len(entries))))
+	for i := len(entries) - 1; i >= start; i-- {
+		line := strings.ReplaceAll(entries[i], "\n", " \u21b5 ")
+		if len([]rune(line)) > maxLineWidth {
+			line = string([]rune(line)[:maxLineWidth-1]) + "\u2026"
+		}
+		prefix := "  "
+		style := dimStyle
+		if i == p.historyBrowserCursor {
+			prefix = "\u25b8 "
+			style = selectedStyle
+		}
+		b.WriteString("\n" + style.Render(prefix+line))
+	}
+	return b.String()
 }
 
 // handleAutocompleteKey handles key events when the autocomplete popover is
