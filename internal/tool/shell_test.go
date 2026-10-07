@@ -11,14 +11,14 @@ func TestCheckSecretAccess_DetectsStandaloneDotEnv(t *testing.T) {
 	// Standalone .env preceded by space — the original \b\.env\b regex missed this
 	// because \b doesn't fire before a dot when preceded by whitespace.
 	for _, cmd := range []string{"cat .env", "source .env", "less .env", "vim .env"} {
-		if w := checkSecretAccess(cmd); w == "" {
+		if w := CheckSecretAccess(cmd); w == "" {
 			t.Errorf("expected warning for %q, got empty string", cmd)
 		}
 	}
 }
 
 func TestCheckSecretAccess_DetectsDotEnvInFilename(t *testing.T) {
-	result := checkSecretAccess("cat config.env")
+	result := CheckSecretAccess("cat config.env")
 	if result == "" {
 		t.Error("expected warning for 'cat config.env', got empty string")
 	}
@@ -26,42 +26,42 @@ func TestCheckSecretAccess_DetectsDotEnvInFilename(t *testing.T) {
 
 func TestCheckSecretAccess_DetectsDotEnvWithEnvironmentSuffix(t *testing.T) {
 	// The \b\.env\.\w+ pattern matches filenames like app.env.production
-	result := checkSecretAccess("cat app.env.production")
+	result := CheckSecretAccess("cat app.env.production")
 	if result == "" {
 		t.Error("expected warning for 'cat app.env.production', got empty string")
 	}
 }
 
 func TestCheckSecretAccess_DetectsEnvSuffixOnSource(t *testing.T) {
-	result := checkSecretAccess("source config.env.local")
+	result := CheckSecretAccess("source config.env.local")
 	if result == "" {
 		t.Error("expected warning for 'source config.env.local', got empty string")
 	}
 }
 
 func TestCheckSecretAccess_DetectsCredentialsJSON(t *testing.T) {
-	result := checkSecretAccess("cat credentials.json")
+	result := CheckSecretAccess("cat credentials.json")
 	if result == "" {
 		t.Error("expected warning for 'cat credentials.json', got empty string")
 	}
 }
 
 func TestCheckSecretAccess_DetectsCredentialsFile(t *testing.T) {
-	result := checkSecretAccess("less credentials")
+	result := CheckSecretAccess("less credentials")
 	if result == "" {
 		t.Error("expected warning for 'less credentials', got empty string")
 	}
 }
 
 func TestCheckSecretAccess_DetectsKeyFile(t *testing.T) {
-	result := checkSecretAccess("cat server.key")
+	result := CheckSecretAccess("cat server.key")
 	if result == "" {
 		t.Error("expected warning for 'cat server.key', got empty string")
 	}
 }
 
 func TestCheckSecretAccess_DetectsPemFile(t *testing.T) {
-	result := checkSecretAccess("openssl x509 -in cert.pem")
+	result := CheckSecretAccess("openssl x509 -in cert.pem")
 	if result == "" {
 		t.Error("expected warning for 'openssl x509 -in cert.pem', got empty string")
 	}
@@ -76,7 +76,7 @@ func TestCheckSecretAccess_IgnoresNonSecretFiles(t *testing.T) {
 		"cat readme.md",
 	}
 	for _, cmd := range benign {
-		if w := checkSecretAccess(cmd); w != "" {
+		if w := CheckSecretAccess(cmd); w != "" {
 			t.Errorf("expected no warning for %q, got %q", cmd, w)
 		}
 	}

@@ -384,7 +384,7 @@ func executeMonitor(ctx context.Context, tc *Context, rawArgs json.RawMessage) (
 			return &ExecuteResult{Output: "command is required to start a monitor", IsError: true}, nil
 		}
 
-		if warning := checkSecretAccess(args.Command); warning != "" {
+		if warning := CheckSecretAccess(args.Command); warning != "" {
 			slog.Warn("secret file access blocked", "command", args.Command, "warning", warning)
 			return &ExecuteResult{
 				Output:  fmt.Sprintf("Access to secret file blocked: %s. Use the permission system to explicitly approve.", warning),
