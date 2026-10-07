@@ -60,6 +60,7 @@ func TestSSETransport_NotificationHandling(t *testing.T) {
 	msgPosted := make(chan jsonrpcRequest, 8)
 
 	mux := http.NewServeMux()
+	handlerDone := make(chan struct{})
 	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -72,7 +73,7 @@ func TestSSETransport_NotificationHandling(t *testing.T) {
 		fmt.Fprintf(w, "event: endpoint\ndata: http://%s/messages\n\n", r.Host)
 		flusher.Flush()
 		sseReady <- sseSink{w: w, flusher: flusher}
-		<-r.Context().Done()
+		<-handlerDone
 	})
 	mux.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
 		var req jsonrpcRequest
@@ -86,7 +87,9 @@ func TestSSETransport_NotificationHandling(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
+	writerDone := make(chan struct{})
 	go func() {
+		defer close(writerDone)
 		sink := <-sseReady
 		// Complete initialize handshake via SSE message event.
 		req := <-msgPosted
@@ -130,6 +133,8 @@ func TestSSETransport_NotificationHandling(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
+	<-writerDone
+	close(handlerDone)
 }
 
 func TestSSETransport_DisconnectCallback(t *testing.T) {

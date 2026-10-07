@@ -316,6 +316,7 @@ func TestSSETransport_Connect_InitializeHandshake(t *testing.T) {
 	msgPosted := make(chan jsonrpcRequest, 8)
 
 	mux := http.NewServeMux()
+	handlerDone := make(chan struct{})
 	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
 		f, ok := w.(http.Flusher)
 		if !ok {
@@ -327,7 +328,7 @@ func TestSSETransport_Connect_InitializeHandshake(t *testing.T) {
 		fmt.Fprintf(w, "event: endpoint\ndata: http://%s/messages\n\n", r.Host)
 		f.Flush()
 		sseReady <- sseSink{w: w, flusher: f}
-		<-r.Context().Done()
+		<-handlerDone
 	})
 	mux.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
 		var req jsonrpcRequest
@@ -347,7 +348,9 @@ func TestSSETransport_Connect_InitializeHandshake(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
+	writerDone := make(chan struct{})
 	go func() {
+		defer close(writerDone)
 		sink := <-sseReady
 		for req := range msgPosted {
 			result, _ := json.Marshal(map[string]any{
@@ -373,6 +376,8 @@ func TestSSETransport_Connect_InitializeHandshake(t *testing.T) {
 	}
 	defer transport.Close()
 	close(msgPosted)
+	<-writerDone
+	close(handlerDone)
 
 	mu.Lock()
 	got := append([]string(nil), methods...)
