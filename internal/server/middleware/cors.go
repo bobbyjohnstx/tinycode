@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"fmt"
+	"net"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -15,23 +15,32 @@ type CORSConfig struct {
 	MaxAge          int
 }
 
-// isLocalhostOrigin returns true if the origin is http://localhost or
-// http://127.0.0.1 on any port.
-func isLocalhostOrigin(origin string) bool {
-	u, err := url.Parse(origin)
+// serverOrigins returns the exact CORS origins for a server bound to listenAddr
+// (host:port). It includes both localhost and 127.0.0.1 variants so the web UI
+// works regardless of which name the browser uses.
+func serverOrigins(listenAddr string) []string {
+	host, port, err := net.SplitHostPort(listenAddr)
 	if err != nil {
-		return false
+		return nil
 	}
-	host := u.Hostname()
-	return host == "localhost" || host == "127.0.0.1"
+	origins := []string{fmt.Sprintf("http://%s:%s", host, port)}
+	if host == "127.0.0.1" {
+		origins = append(origins, fmt.Sprintf("http://localhost:%s", port))
+	} else if host == "localhost" {
+		origins = append(origins, fmt.Sprintf("http://127.0.0.1:%s", port))
+	}
+	return origins
 }
 
-func DefaultCORSConfig() CORSConfig {
+// DefaultCORSConfig returns a CORS configuration that allows only the exact
+// origin matching the server's listen address. This prevents localhost CSRF
+// where a malicious page on another port makes credentialed requests.
+func DefaultCORSConfig(listenAddr string) CORSConfig {
 	return CORSConfig{
-		AllowOriginFunc: isLocalhostOrigin,
-		AllowMethods:    []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:    []string{"Content-Type", "Authorization", "X-Request-ID"},
-		MaxAge:          86400,
+		AllowOrigins: serverOrigins(listenAddr),
+		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{"Content-Type", "Authorization", "X-Request-ID"},
+		MaxAge:       86400,
 	}
 }
 

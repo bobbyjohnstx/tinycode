@@ -7,13 +7,16 @@ import (
 )
 
 func TestDefaultCORSConfig(t *testing.T) {
-	cfg := DefaultCORSConfig()
+	cfg := DefaultCORSConfig("127.0.0.1:4096")
 
-	if cfg.AllowOriginFunc == nil {
-		t.Error("AllowOriginFunc should be set")
+	expectedOrigins := []string{"http://127.0.0.1:4096", "http://localhost:4096"}
+	if len(cfg.AllowOrigins) != len(expectedOrigins) {
+		t.Fatalf("AllowOrigins length = %d, want %d", len(cfg.AllowOrigins), len(expectedOrigins))
 	}
-	if len(cfg.AllowOrigins) != 0 {
-		t.Errorf("AllowOrigins = %v, want empty (localhost-only via AllowOriginFunc)", cfg.AllowOrigins)
+	for i, o := range expectedOrigins {
+		if cfg.AllowOrigins[i] != o {
+			t.Errorf("AllowOrigins[%d] = %q, want %q", i, cfg.AllowOrigins[i], o)
+		}
 	}
 
 	expectedMethods := []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
@@ -42,7 +45,7 @@ func TestDefaultCORSConfig(t *testing.T) {
 }
 
 func TestCORS_NoOriginHeader(t *testing.T) {
-	handler := CORS(DefaultCORSConfig())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS(DefaultCORSConfig("127.0.0.1:3000"))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -59,7 +62,7 @@ func TestCORS_NoOriginHeader(t *testing.T) {
 }
 
 func TestCORS_DefaultAllowsLocalhost(t *testing.T) {
-	handler := CORS(DefaultCORSConfig())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS(DefaultCORSConfig("127.0.0.1:3000"))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -83,22 +86,37 @@ func TestCORS_DefaultAllowsLocalhost(t *testing.T) {
 }
 
 func TestCORS_DefaultAllows127001(t *testing.T) {
-	handler := CORS(DefaultCORSConfig())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS(DefaultCORSConfig("127.0.0.1:3000"))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Origin", "http://127.0.0.1:4096")
+	req.Header.Set("Origin", "http://127.0.0.1:3000")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "http://127.0.0.1:4096" {
-		t.Errorf("Access-Control-Allow-Origin = %q, want %q", v, "http://127.0.0.1:4096")
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "http://127.0.0.1:3000" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want %q", v, "http://127.0.0.1:3000")
+	}
+}
+
+func TestCORS_DefaultRejectsDifferentPort(t *testing.T) {
+	handler := CORS(DefaultCORSConfig("127.0.0.1:3000"))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Origin", "http://localhost:9999")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if v := rec.Header().Get("Access-Control-Allow-Origin"); v != "" {
+		t.Errorf("Access-Control-Allow-Origin should be empty for different port, got %q", v)
 	}
 }
 
 func TestCORS_DefaultRejectsExternalOrigin(t *testing.T) {
-	handler := CORS(DefaultCORSConfig())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS(DefaultCORSConfig("127.0.0.1:3000"))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -174,7 +192,7 @@ func TestCORS_SpecificOrigin_NotMatching(t *testing.T) {
 }
 
 func TestCORS_OptionsPreflight(t *testing.T) {
-	cfg := DefaultCORSConfig()
+	cfg := DefaultCORSConfig("127.0.0.1:3000")
 	handler := CORS(cfg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler should not be called for OPTIONS preflight")
 	}))
@@ -221,7 +239,7 @@ func TestCORS_OptionsNoMaxAge(t *testing.T) {
 
 func TestCORS_NonOptionsCallsNextHandler(t *testing.T) {
 	called := false
-	handler := CORS(DefaultCORSConfig())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := CORS(DefaultCORSConfig("127.0.0.1:3000"))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusCreated)
 	}))

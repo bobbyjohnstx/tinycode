@@ -132,7 +132,7 @@ func New(cfg Config, deps Dependencies) *Server {
 	s.registerRoutes()
 	s.wirePluginHooks()
 
-	corsConfig := middleware.DefaultCORSConfig()
+	corsConfig := middleware.DefaultCORSConfig(fmt.Sprintf("%s:%d", cfg.Hostname, cfg.Port))
 
 	var handler http.Handler
 	if cfg.ServeWebUI {

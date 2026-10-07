@@ -751,27 +751,35 @@ func TestServerPortFallback(t *testing.T) {
 // CORS tests
 
 func TestCORSHeaders(t *testing.T) {
-	srv, _ := testServer(t)
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	srv := New(Config{Port: 4096, Hostname: "127.0.0.1"}, Dependencies{Bus: b, DB: db, Registry: reg})
 
 	handler := srv.httpServer.Handler
 
 	req := httptest.NewRequest("GET", "/global/health", nil)
-	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Origin", "http://localhost:4096")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if w.Header().Get("Access-Control-Allow-Origin") != "http://localhost:3000" {
-		t.Error("expected CORS origin header")
+	if w.Header().Get("Access-Control-Allow-Origin") != "http://localhost:4096" {
+		t.Errorf("expected CORS origin http://localhost:4096, got %q", w.Header().Get("Access-Control-Allow-Origin"))
 	}
 }
 
 func TestCORSPreflight(t *testing.T) {
-	srv, _ := testServer(t)
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	srv := New(Config{Port: 4096, Hostname: "127.0.0.1"}, Dependencies{Bus: b, DB: db, Registry: reg})
 
 	handler := srv.httpServer.Handler
 
 	req := httptest.NewRequest("OPTIONS", "/session", nil)
-	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Origin", "http://127.0.0.1:4096")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -780,6 +788,25 @@ func TestCORSPreflight(t *testing.T) {
 	}
 	if w.Header().Get("Access-Control-Allow-Methods") == "" {
 		t.Error("expected allow-methods header")
+	}
+}
+
+func TestCORSRejectsDifferentPort(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	srv := New(Config{Port: 4096, Hostname: "127.0.0.1"}, Dependencies{Bus: b, DB: db, Registry: reg})
+
+	handler := srv.httpServer.Handler
+
+	req := httptest.NewRequest("GET", "/global/health", nil)
+	req.Header.Set("Origin", "http://localhost:9999")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if v := w.Header().Get("Access-Control-Allow-Origin"); v != "" {
+		t.Errorf("expected no CORS header for different port, got %q", v)
 	}
 }
 
