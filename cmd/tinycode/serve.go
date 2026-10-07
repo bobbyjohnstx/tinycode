@@ -257,9 +257,13 @@ func logServeAuthToken(token, baseURL string) {
 	if token == "" {
 		return
 	}
+	prefix := token
+	if len(prefix) > 8 {
+		prefix = prefix[:8] + "..."
+	}
 	slog.Info("authentication required",
 		"usage", "Authorization: Bearer <token>",
 		"url", baseURL,
-		"token", token,
+		"token", prefix,
 	)
 }
