@@ -62,7 +62,7 @@ On startup you see an animated boot sequence that verifies each subsystem:
    ✓  Loading configuration
    ✓  Connecting to server
    ✓  Discovering providers · Ollama / qwen3:8b
-   ✓  Loading agents · 15 agents
+   ✓  Loading agents · 14 agents
    ✓  Loading plugins · 2 plugins
    ✓  Loading sessions · 12 sessions
    ✓  Checking MCP servers · 1 servers
@@ -131,6 +131,7 @@ Toggle with **Ctrl+X b**. The sidebar shows:
 - **Context** -- token usage (input/output), percentage of context window used, cost spent, and provider balance remaining (if applicable)
 - **MCP** -- connected MCP servers with status indicators (green dot = connected, red = error, gray = disconnected) and tool counts
 - **Sessions** -- the 5 most recent titled sessions; click to switch
+- **LSP** -- diagnostics count from the language server (errors/warnings/clean/disabled)
 - **Metadata** -- current agent and model
 - **Footer** -- working directory and tinycode version
 
@@ -163,6 +164,7 @@ These execute immediately without sending anything to the model.
 | `/thinking` | Show the current reasoning level |
 | `/scoped-models` | Toggle model scoping -- mark favorite models so the model list only shows those |
 | `/auto-approve` | Toggle auto-approve for the current session (skips tool permission prompts) |
+| `/rewind` | Open a picker of conversation turns and roll back to a selected point; press `f` to fork instead of rewind |
 | `/undo` | Revert the last AI file changes (snapshot-based) |
 | `/redo` | Restore previously reverted changes |
 | `/diff` | Show uncommitted git changes in the working directory |
@@ -181,7 +183,7 @@ These are processed by the model. They show up in autocomplete alongside client 
 | `/swarm <task>` | Split a task into subtasks and dispatch parallel subagents (see [Swarm Mode](#subagents-and-swarm-mode)) |
 | `/work-loop <task>` | Iterate on a task autonomously until complete or blocked |
 | `/review [target]` | Review changes (commit, branch, or PR) |
-| `/init` | Guided project setup for AI-assisted development |
+| `/init` | Generate root `AGENTS.md` from repo signals (ecosystem detection) and guided project setup |
 
 ### Custom commands (skills)
 
@@ -243,6 +245,8 @@ The shell command runs in the working directory and its output is included as co
 | Shift+Tab | Cycle to previous agent |
 | F2 | Cycle to next recent model |
 | Shift+F2 | Cycle to previous recent model |
+| Ctrl+S | Stash current draft / restore stash (when empty) |
+| Ctrl+R | Open prompt history browser |
 
 ### Navigation
 
@@ -386,7 +390,7 @@ Each agent has a `.compact` variant that is automatically used when the model ha
 
 ### Switching agents
 
-**Tab/Shift+Tab** -- Cycle through enabled agents in the prompt. The agent name and its color update in the status bar.
+**Tab/Shift+Tab** -- Cycle through primary agents in the prompt (default: `build`, `plan`, `architect`, `code-reviewer`). The agent name and its color update in the status bar. Configure the cycle list with `cycle_agents` in config.
 
 **Ctrl+X a** -- Open the agent dialog showing all agents (including disabled ones). Navigate with j/k or arrows, press Enter to select.
 

@@ -81,7 +81,7 @@ Requires Go 1.27.1+. Other modes: `tinycode web` (browser UI), `tinycode serve` 
 - **Terminal bell and desktop notifications** --- audible bell on task completion; `notify` tool for desktop alerts with WSL support
 - **Leader key system** --- Ctrl+X prefix for sidebar, sessions, editor, diff, themes, MCP, and more
 - **Session resume from CLI** --- `-c` continues the most recent session; `-r` resumes by ID or title
-- **tinycode doctor** --- headless diagnostics that verify config, database, providers, agents, and plugins
+- **tinycode doctor** --- headless diagnostics that verify config, database, providers, agents, and plugins; detects VS Code, Cursor, Neovim, and JetBrains and prints ACP setup hints
 - **Safe mode** --- `--safe-mode` skips plugins, MCP, and user agents; status bar shows bold indicator
 - **System prompt override** --- `--append-system-prompt` and `--append-system-prompt-file` inject custom instructions
 - **Token budget ceiling** --- `--max-tokens` sets a cumulative token limit; session aborts when exceeded
@@ -107,7 +107,7 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 
 ### `cmd/tinycode/` --- Main binary
 
-Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, `models`, `providers`, `session`, `status`, `export`, `plugin`, `init`, `agent`, `doctor`, `debug`, `version`.
+Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, `models`, `providers`, `session`, `status`, `export`, `plugin`, `mcp`, `init`, `agent`, `doctor`, `debug`, `version`.
 
 ### `internal/` --- Core packages
 
@@ -136,6 +136,7 @@ Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, 
 | `id/`          | Sortable ID generation with typed prefixes                                     |
 | `redhat/`      | Red Hat shared library (OcClient, APIClient, PromQL, Containerfile parser)     |
 | `static/`      | Embedded web app file server with SPA fallback                                 |
+| `scaffold/`    | Project bootstrap (AGENTS.md generation from repo signals)                     |
 | `earlyinit/`   | Package-init side effects that run before other imports                        |
 
 ### `pkg/plugin/` --- Public Go plugin SDK
@@ -235,7 +236,8 @@ Config is loaded from `~/.config/tinycode/` with a 3-name fallback per directory
 {
   "model": "ollama/qwen3.5:9b",
   "small_model": "ollama/qwen3.5:1.7b",
-  "default_agent": "build"
+  "default_agent": "build",
+  "cycle_agents": ["build", "plan", "architect", "code-reviewer"]
 }
 ```
 

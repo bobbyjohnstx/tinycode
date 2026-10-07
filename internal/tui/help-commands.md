@@ -8,7 +8,7 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 |---------|-------------|----------------|
 | `/branch [name]` | Copy the current conversation to a new session and switch to it. The original is preserved. | Before trying a risky approach — branch, experiment, `/resume` back if it fails. |
 | `/compact [focus]` | Summarize the conversation via `Processor.Compact` to free context window space (works; not a stub). Optional focus instructions guide the summary. | When the model starts forgetting earlier context, or `/context` shows you're near the limit. |
-| `/rewind` | Open a picker of conversation turns and roll back to a selected point. Messages after that turn are removed. | When the conversation went in a wrong direction and you want to try again from an earlier point. |
+| `/rewind` | Open a picker of conversation turns and roll back to a selected point. Messages after that turn are removed. Press `f` instead of Enter to fork a new session at that turn (preserving the original). | When the conversation went in a wrong direction and you want to try again from an earlier point. |
 | `/rename [name]` | Set or auto-generate a session name. | To label sessions for easy identification in the session list. |
 | `/archive` | Archive the current session (hides from default list). | When you're done with a session but don't want to delete it. |
 | `/export` | Export the session as Markdown. | To save a conversation for documentation or sharing. |
@@ -64,6 +64,7 @@ Skills inject specialized instructions into the conversation. They're prompts, n
 | `/test` | Generate comprehensive test cases for a function or module. | Adding test coverage — happy path, edge cases, error conditions. |
 | `/doctor` | Check the tinycode environment — provider connectivity, model health, config audit. Also available as CLI: `tinycode doctor`. | First session, or when something seems misconfigured. |
 | `/remember` | Save findings from this session to memory for future conversations. | When you learn something that should persist across sessions. |
+| `/init` | Generate a root `AGENTS.md` from repo signals (Go, Node, Rust, Python, Ruby, Java), then prompt the LLM for refinement and project setup. | First time setting up tinycode in a project. |
 
 ## Tools Available to the Model
 
@@ -86,7 +87,10 @@ These are not slash commands — they are tools the model can invoke during a co
 | `@` | File path completion |
 | `/` | Command completion |
 | `Ctrl+P` | Command palette |
+| `Ctrl+R` | Open prompt history browser |
+| `Ctrl+S` | Stash current draft / restore stash (when empty) |
 | `Ctrl+C` | Clear prompt or quit |
 | `Ctrl+D` | Quit |
 | `Ctrl+X` | Leader key (then: `b` sidebar, `a` agents, `m` models, `o` sessions, `n` new session, `e` export, `y` copy, `u` undo, `r` redo, `d` diff, `t` theme) |
 | `Esc` | Dismiss dialog / interrupt active request |
+| `f` | Fork session at selected turn (in `/rewind` dialog) |

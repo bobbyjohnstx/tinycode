@@ -25,6 +25,7 @@ Quick reference for the most common keyboard shortcuts, agents, and commands.
 | `<leader>n` | Create a new session |
 | `<leader>m` | List available models |
 | `<leader>a` | List available agents |
+| `f` | Fork session at selected turn (in `/rewind` dialog) |
 
 ## Agents
 

@@ -2104,12 +2104,12 @@ section:last-of-type { border-bottom: none; }
               <span class="pkg-card-name">tool/</span>
               <span class="pkg-card-arrow">&rsaquo;</span>
             </div>
-            <div class="pkg-card-desc">Tool definitions &amp; registry (read, write, edit, apply_patch, shell, grep, glob + 11 more)</div>
+            <div class="pkg-card-desc">Tool definitions &amp; registry (read, write, edit, apply_patch, shell, grep, glob + 13 more)</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Key Types</div>
               <div class="pkg-card-detail-value"><code>Def</code> (ID, description, parameters, permission, execute), <code>Registry</code></div>
               <div class="pkg-card-detail-label">Built-in Tools</div>
-              <div class="pkg-card-detail-value">read, write, edit, apply_patch, shell, grep, glob, question, webfetch, task, todowrite, diagnostics, report_findings, monitor, notepad, skill, websearch (18 total: 16 unconditional + 2 conditional)</div>
+              <div class="pkg-card-detail-value">read, write, edit, apply_patch, shell, grep, glob, question, webfetch, task, todowrite, diagnostics, report_findings, monitor, notepad, plan_enter, plan_exit, skill, websearch (20 total: 18 unconditional + 2 conditional)</div>
             </div>
           </div>
           <div class="pkg-card" data-pkg="permission" data-search="permission service allow deny prompt rules">
@@ -2231,6 +2231,19 @@ section:last-of-type { border-bottom: none; }
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Purpose</div>
               <div class="pkg-card-detail-value">Merges built-in commands, agent names, user skills, and project skills into a unified list for TUI autocomplete.</div>
+            </div>
+          </div>
+          <div class="pkg-card" data-pkg="scaffold" data-search="scaffold init agents.md ecosystem detection bootstrap">
+            <div class="pkg-card-header">
+              <span class="pkg-card-name">scaffold/</span>
+              <span class="pkg-card-arrow">&rsaquo;</span>
+            </div>
+            <div class="pkg-card-desc">Project bootstrap file generation</div>
+            <div class="pkg-card-details">
+              <div class="pkg-card-detail-label">Key Function</div>
+              <div class="pkg-card-detail-value"><code>EnsureRootAgentsMD(dir)</code> generates a root AGENTS.md from repo indicator files (go.mod, package.json, Cargo.toml, etc.)</div>
+              <div class="pkg-card-detail-label">Pattern</div>
+              <div class="pkg-card-detail-value">Detects ecosystem (Go, Node, Rust, Python, Ruby, Java), writes AGENTS.md, then hands off to LLM for refinement via /init</div>
             </div>
           </div>
         </div>
@@ -2597,8 +2610,8 @@ section:last-of-type { border-bottom: none; }
       <div class="agent-card">
         <div class="agent-avatar" style="background: rgba(57, 211, 83, 0.1); color: var(--accent-green);">PL</div>
         <div class="agent-info">
-          <div class="agent-name">planner</div>
-          <div class="agent-desc">Strategic planning consultant. Interviews user, researches codebase, produces actionable work plans.</div>
+          <div class="agent-name">plan</div>
+          <div class="agent-desc">Planning mode. Interviews user, researches codebase, produces actionable work plans. Edits restricted to plans/* and drafts/*. Use plan_enter/plan_exit tools to switch.</div>
           <span class="agent-badge readonly">read-only</span>
         </div>
       </div>
@@ -2965,7 +2978,7 @@ tinycode run --max-iterations 20 \
     },
     tool: {
       title: 'Tool Registry (internal/tool/)',
-      desc: 'Thread-safe registry for tool definitions. 18 built-in tools: read, write, edit, apply_patch, shell, grep, glob, question, webfetch, task, todowrite, diagnostics, report_findings, monitor, notepad, skill, websearch (16 unconditional + 2 conditional). Execution includes permission checks, bus events, plugin after-hooks, and output truncation.',
+      desc: 'Thread-safe registry for tool definitions. 20 built-in tools: read, write, edit, apply_patch, shell, grep, glob, question, webfetch, task, todowrite, diagnostics, report_findings, monitor, notepad, plan_enter, plan_exit, skill, websearch (18 unconditional + 2 conditional). Execution includes permission checks, bus events, plugin after-hooks, and output truncation.',
       files: 'tool/tool.go, tool/builtin.go, tool/shell.go, tool/file_*.go'
     },
     permission: {

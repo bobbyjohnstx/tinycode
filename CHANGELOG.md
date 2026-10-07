@@ -1,6 +1,42 @@
 # Changelog
 
-## [Unreleased]
+## [2.1.5] - Unreleased
+
+### Features
+- `/init` generates root `AGENTS.md` from repo signals (Go, Node, Rust, Python, Ruby, Java ecosystem detection), then prompts LLM for refinement (#644)
+- MCP CLI: `tinycode mcp list|add|auth|logout|debug` subcommands for managing MCP servers from the command line (#645)
+- Plan/planner merge: `planner` agent removed; `plan` agent now carries the planner's rich prompt with read-only permissions (edits restricted to `plans/*`, `drafts/*`); `plan_enter`/`plan_exit` tools let the LLM self-switch between build and plan modes; agent count is now 14 (#651)
+- Prompt stash/history: `Ctrl+S` stashes the current draft, `Ctrl+R` opens a scrollable history browser (#652)
+- LSP sidebar: sidebar shows LSP diagnostics count (errors/warnings/clean/disabled) (#654)
+- Fork from rewind: `f` key in rewind dialog creates a forked session at the selected turn (#655)
+- CI integration docs: `docs/ci-integration.md` with GitHub Actions examples for `tinycode run` (#656)
+- Doctor IDE hints: `tinycode doctor` detects VS Code, Cursor, Neovim, and JetBrains and prints ACP setup hints (#657)
+
+### Security
+- CORS restricted to server's own origin (no more cross-port CSRF) (#620)
+- HTTP shell endpoint gated through `CheckSecretAccess` (#621)
+- Bearer token truncated in logs (#625)
+- `GET /config` redacts MCP secrets and API keys (#626)
+- SQLite DB file `chmod 0600`, data dir `0700` (#630)
+- `webfetch` scheme check (http/https only) + redirect scheme validation (#633)
+- `Permission.Ask` on shell endpoint (shell + destructive-shell) (#635)
+- `golang.org/x/text` bumped for CVE (#643)
+
+### Bug Fixes
+- Tab persona sync: Tab now updates the actual agent used; cycle limited to primary agents (`build`, `plan`, `architect`, `code-reviewer`); configurable via `cycle_agents` in config (#658)
+- LSP status singular/plural grammar ("1 error", not "1 errors") (#659)
+- Compaction reserve for local models (8K context windows work correctly) (#445)
+- LM Studio context length read from API (not hardcoded 131K) (#450)
+- Ollama deferred warmup (probe on first use, not all models at startup) (#455)
+
+### Infrastructure
+- Plugin system fully wired: external tools, permission hooks, `shell.env` integration (#460–#477)
+- ACP full stack for IDE integration (#478–#485)
+- CLI run mode polish (#486–#497)
+- Server hardening (#498–#507)
+- Ops console for `tinycode serve` (#510)
+- Session diff numstat, leaner system prompt, duplicate tool pruning (#515–#520)
+- First-run UX: `/connect` flow, doctor hints (#525–#530)
 
 ### Documentation
 - Honesty-pass alignment with module reviews (#498–#614) and docs/behavior updates (#615–#618): first-run is `tinycode doctor` + `/connect` (no `setup`); manual summarize/compact documented as working; web share default `disabled` / PTY unsupported; skills paths plural; obsolete `/tc-doctor` and `plugin-search` references removed from user-facing docs.
