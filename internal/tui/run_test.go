@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -498,6 +499,9 @@ func TestIsTerminalEscape_DetectsOSCFragments(t *testing.T) {
 		{";1R", true},
 		{"24;1R", true},
 		{"12;80R", true},
+		{"][53;1R", true},
+		{"]\\[53;1R", true},
+		{"[53;1R", true},
 		{"1R", false}, // too ambiguous without semicolon
 	}
 	for _, tt := range tests {
@@ -529,6 +533,56 @@ func TestPromptInput_FiltersCPRFragment(t *testing.T) {
 	p, _ = p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("24;1R")})
 	if p.Value() != "" {
 		t.Errorf("expected full CPR to be filtered, got %q", p.Value())
+	}
+}
+
+func TestPromptInput_FiltersMangledCPR(t *testing.T) {
+	cases := []string{"][53;1R", `]\[53;1R`, "[53;1R", "53;1R"}
+	for _, leak := range cases {
+		p := NewPromptInput(80)
+		p, _ = p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(leak)})
+		if p.Value() != "" {
+			t.Errorf("expected mangled CPR %q to be filtered, got %q", leak, p.Value())
+		}
+	}
+}
+
+func TestPromptInput_FiltersSplitMangledCPR(t *testing.T) {
+	p := NewPromptInput(80)
+	for _, ch := range []string{"]", "\\", "[", "5", "3", ";", "1", "R"} {
+		p, _ = p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(ch)})
+	}
+	if p.Value() != "" {
+		t.Errorf("expected split mangled CPR to be filtered, got %q", p.Value())
+	}
+}
+
+func TestPromptInput_ScrubsCPRAppendedToText(t *testing.T) {
+	p := NewPromptInput(80)
+	p.SetValue("hello]\\[53;1R")
+	p, _ = p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	// Scrub runs on forward; typing 'x' triggers it.
+	if strings.Contains(p.Value(), ";1R") || strings.Contains(p.Value(), "]\\[") {
+		t.Errorf("expected CPR scrub from value, got %q", p.Value())
+	}
+}
+
+func TestScrubCPRValue(t *testing.T) {
+	tests := []struct {
+		in, want string
+		changed  bool
+	}{
+		{`]\[53;1R`, "", true},
+		{"][53;1R", "", true},
+		{"hello][53;1R", "hello", true},
+		{"hello", "hello", false},
+		{";1R", "", true},
+	}
+	for _, tt := range tests {
+		got, changed := scrubCPRValue(tt.in)
+		if got != tt.want || changed != tt.changed {
+			t.Errorf("scrubCPRValue(%q) = (%q, %v), want (%q, %v)", tt.in, got, changed, tt.want, tt.changed)
+		}
 	}
 }
 

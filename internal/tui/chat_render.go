@@ -24,6 +24,8 @@ var (
 		Foreground(lipgloss.AdaptiveColor{Light: "#AAAAAA", Dark: "#666666"})
 	styleAgentFooter = lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
+	styleCopyAffordance = lipgloss.NewStyle().
+				Foreground(lipgloss.AdaptiveColor{Light: "#AAAAAA", Dark: "#666666"})
 	styleReasoningLabel = lipgloss.NewStyle().
 		Foreground(lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"})
 	styleReasoningText = lipgloss.NewStyle().
@@ -36,10 +38,17 @@ type subagentHit struct {
 	label      string
 }
 
+// copyHit records a copy-affordance line's offset and the text to copy.
+type copyHit struct {
+	lineOffset int
+	text       string
+}
+
 // renderOpts bundles rendering state and hit collectors.
 type renderOpts struct {
 	thoughtHits      *[]thoughtHit
 	subagentHits     *[]subagentHit
+	copyHits         *[]copyHit
 	subagentExpanded map[string]bool
 	subagentStatus   map[string]SubagentStatus
 }
@@ -150,6 +159,9 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 				lineNum += len(expandedLines) + 1
 			case "tool-call":
 				tc := renderToolCallPart(part)
+				if tc == "" {
+					break
+				}
 				sb.WriteString(tc)
 				sb.WriteString("\n")
 				lineNum += strings.Count(tc, "\n") + 1
@@ -162,9 +174,11 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 				}
 			case "tool":
 				tc := renderToolCallPart(part)
-				sb.WriteString(tc)
-				sb.WriteString("\n")
-				lineNum += strings.Count(tc, "\n") + 1
+				if tc != "" {
+					sb.WriteString(tc)
+					sb.WriteString("\n")
+					lineNum += strings.Count(tc, "\n") + 1
+				}
 				if part.Text != "" && !part.ToolError {
 					result := renderToolResultPart(part, width-4)
 					if result != "" {
@@ -184,12 +198,40 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 		}
 	}
 
+	// Copy affordance for completed assistant text responses.
+	if copyText := assistantCopyText(msg); copyText != "" {
+		if opts != nil && opts.copyHits != nil {
+			*opts.copyHits = append(*opts.copyHits, copyHit{lineOffset: lineNum, text: copyText})
+		}
+		sb.WriteString(styleCopyAffordance.Render("⎘"))
+		sb.WriteString("\n")
+		lineNum++
+	}
+
 	// Agent/model footer
 	footer := renderAgentFooter(msg)
 	if footer != "" {
 		sb.WriteString(footer)
 	}
 
+	return sb.String()
+}
+
+// assistantCopyText returns concatenated text parts when the message is
+// finished (no streaming parts) and has copyable content.
+func assistantCopyText(msg MessageView) string {
+	var sb strings.Builder
+	for _, p := range msg.Parts {
+		if p.Streaming {
+			return ""
+		}
+		if p.Type == "text" && p.Text != "" {
+			if sb.Len() > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(p.Text)
+		}
+	}
 	return sb.String()
 }
 
@@ -216,29 +258,38 @@ func renderParts(parts []PartView, width int, md *render.MarkdownRenderer) strin
 		width = 10
 	}
 
-	var sb strings.Builder
-	for i, part := range parts {
-		if i > 0 {
-			sb.WriteString("\n")
-		}
+	var chunks []string
+	for _, part := range parts {
 		switch part.Type {
 		case "text":
-			sb.WriteString(renderTextPart(part, width, md))
+			if s := renderTextPart(part, width, md); s != "" {
+				chunks = append(chunks, s)
+			}
 		case "tool-call":
-			sb.WriteString(renderToolCallPart(part))
+			if tc := renderToolCallPart(part); tc != "" {
+				chunks = append(chunks, tc)
+			}
 		case "tool-result":
-			sb.WriteString(renderToolResultPart(part, width))
+			if s := renderToolResultPart(part, width); s != "" {
+				chunks = append(chunks, s)
+			}
 		case "tool":
-			sb.WriteString(renderToolCallPart(part))
+			tc := renderToolCallPart(part)
+			if tc != "" {
+				chunks = append(chunks, tc)
+			}
 			if part.Text != "" && !part.ToolError {
-				sb.WriteString("\n")
-				sb.WriteString(renderToolResultPart(part, width))
+				if result := renderToolResultPart(part, width); result != "" {
+					chunks = append(chunks, result)
+				}
 			}
 		default:
-			sb.WriteString(renderTextPart(part, width, md))
+			if s := renderTextPart(part, width, md); s != "" {
+				chunks = append(chunks, s)
+			}
 		}
 	}
-	return sb.String()
+	return strings.Join(chunks, "\n")
 }
 
 // renderTextPart renders a text part through the markdown renderer.
@@ -253,10 +304,43 @@ func renderTextPart(part PartView, width int, md *render.MarkdownRenderer) strin
 }
 
 // renderToolCallPart renders a tool call with a status indicator.
+// Path-based tools (read/write/edit) with no path yet are suppressed — those
+// are streaming stubs that otherwise show as "▸ read done" and waste space.
 func renderToolCallPart(part PartView) string {
+	if shouldSuppressBareTool(part) {
+		return ""
+	}
 	inline := render.RenderToolInline(part.ToolName, part.ToolArgs, part.ToolError)
 	status := toolStatus(part)
 	return inline + " " + status
+}
+
+func shouldSuppressBareTool(part PartView) bool {
+	switch strings.ToLower(part.ToolName) {
+	case "read", "write", "edit":
+	default:
+		return false
+	}
+	if part.ToolError {
+		return false
+	}
+	return toolPathDetail(part.ToolArgs) == ""
+}
+
+func toolPathDetail(toolArgs string) string {
+	if toolArgs == "" {
+		return ""
+	}
+	var args map[string]any
+	if err := json.Unmarshal([]byte(toolArgs), &args); err != nil {
+		return ""
+	}
+	for _, key := range []string{"file_path", "path", "file", "filepath"} {
+		if path, ok := args[key].(string); ok && path != "" {
+			return path
+		}
+	}
+	return ""
 }
 
 // renderToolResultPart renders a tool result with truncated output.

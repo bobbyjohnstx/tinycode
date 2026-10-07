@@ -96,17 +96,11 @@ func inlineDetail(toolName, toolArgs string) string {
 			line := firstLine(cmd)
 			return styleToolDim.Render("$ " + truncate(line, 58))
 		}
-	case "read":
-		if path, ok := args["file_path"].(string); ok {
-			return styleToolDim.Render(truncate(path, 60))
-		}
-	case "write":
-		if path, ok := args["file_path"].(string); ok {
-			return styleToolDim.Render(truncate(path, 60))
-		}
-	case "edit":
-		if path, ok := args["file_path"].(string); ok {
-			return styleToolDim.Render(truncate(path, 60))
+	case "read", "write", "edit":
+		for _, key := range []string{"file_path", "path", "file", "filepath"} {
+			if path, ok := args[key].(string); ok && path != "" {
+				return styleToolDim.Render(truncate(path, 60))
+			}
 		}
 	case "glob":
 		if pattern, ok := args["pattern"].(string); ok {
@@ -143,17 +137,11 @@ func blockDetail(toolName, toolArgs string, width int) string {
 		if cmd, ok := args["command"].(string); ok {
 			return styleToolDim.Render("$ " + cmd)
 		}
-	case "read":
-		if path, ok := args["file_path"].(string); ok {
-			return styleToolDim.Render(path)
-		}
-	case "write":
-		if path, ok := args["file_path"].(string); ok {
-			return styleToolDim.Render(path)
-		}
-	case "edit":
-		if path, ok := args["file_path"].(string); ok {
-			return styleToolDim.Render(path)
+	case "read", "write", "edit":
+		for _, key := range []string{"file_path", "path", "file", "filepath"} {
+			if path, ok := args[key].(string); ok && path != "" {
+				return styleToolDim.Render(path)
+			}
 		}
 	case "apply_patch":
 		if patch, ok := args["patch"].(string); ok {

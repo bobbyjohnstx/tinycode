@@ -15,9 +15,14 @@ import (
 
 // handleKeyMsg handles all keyboard input: leader keys, overlay routing, and global keys.
 func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
-	// Drop leaked cursor-position reports before any focus routing.
-	if isTerminalEscape(msg.String()) {
+	// Drop leaked CPR/OSC (including split crumbs) before any focus routing.
+	if a.prompt.absorbTerminalNoise(msg.String()) {
 		return a, nil
+	}
+	if msg.Type == tea.KeyRunes && len(msg.Runes) > 0 {
+		if a.prompt.absorbTerminalNoise(string(msg.Runes)) {
+			return a, nil
+		}
 	}
 	// Leader key state machine runs first.
 	if a.leader.IsPending() {
@@ -494,6 +499,17 @@ func (a App) handleProvidersLoadedMsg(msg ProvidersLoadedMsg) (App, tea.Cmd) {
 		} else {
 			a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
 		}
+		a.setFocus(FocusDialog)
+		// Explicit /connect before a model is chosen counts as the first-run offer
+		// so a later refresh does not auto-reopen after dismiss.
+		if a.state.CurrentModel.ModelID == "" {
+			a.state.FirstRunConnectOffered = true
+		}
+	} else if a.state.CurrentModel.ModelID == "" && !a.state.FirstRunConnectOffered {
+		// First boot with no usable model: open the same dialog as /connect (#635).
+		a.state.FirstRunConnectOffered = true
+		a.modelDlg.SetScopedModels(a.state.ScopedModels)
+		a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
 		a.setFocus(FocusDialog)
 	}
 	a.updateSidebarContext()

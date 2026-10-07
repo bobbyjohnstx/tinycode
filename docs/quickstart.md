@@ -7,11 +7,11 @@ A hands-on walkthrough to get productive fast. You should have tinycode built al
 There is no `tinycode setup` wizard. First run is intentional and sufficient with two steps:
 
 1. **`tinycode doctor`** — diagnostic only (config, database, providers, agents, plugins). It does not configure models; it tells you what is missing.
-2. **`/connect` in the TUI** — interactively pick a provider and model (or set env vars / config before launch).
+2. **`tinycode` (TUI)** — if no model was auto-discovered, the connect dialog opens automatically (same UI as `/connect`). Esc dismisses; run `/connect` anytime to reopen. Or set env vars / config before launch.
 
 ```bash
 tinycode doctor          # diagnose; exit non-zero if critical checks fail
-tinycode                 # then /connect if no model was auto-discovered
+tinycode                 # connect dialog opens when no model is available
 ```
 
 ## 2. Start tinycode

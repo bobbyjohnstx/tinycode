@@ -14,8 +14,9 @@ import (
 
 var (
 	oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,2}\\?$`)
-	// Cursor Position Report fragments after ESC[ is stripped: "24;1R", ";1R".
-	cprFragment = regexp.MustCompile(`^\d{0,4};\d{1,4}R$`)
+	// Core CPR payload after optional mangled CSI/OSC prefixes are stripped.
+	cprCore = regexp.MustCompile(`^\d{0,4};\d{1,4}R$`)
+	cprCorePartial = regexp.MustCompile(`^\d{0,4};?\d{0,4}$`)
 )
 
 var (
@@ -44,6 +45,7 @@ type PromptInput struct {
 	guardEnabled  bool
 	startTime     time.Time
 	noiseUntil    time.Time // discard CPR/OSC fragments until this time
+	cprBuf        string    // accumulates split CPR/CSI crumbs
 	imageCount    int
 	imageSize     int // total bytes of attached images
 	waveOn        bool // braille wave above composer until first submit
@@ -246,21 +248,20 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 		return p.forwardToTextarea(msg)
 	}
 
-	// Discard terminal escape sequences that leak through bubbletea's input parser.
-	if s := keyMsg.String(); isTerminalEscape(s) {
+	// Discard terminal escape / CPR sequences (including split deliveries).
+	if p.absorbTerminalNoise(keyMsg.String()) {
 		return p, nil
+	}
+	if keyMsg.Type == tea.KeyRunes && len(keyMsg.Runes) > 0 {
+		if p.absorbTerminalNoise(string(keyMsg.Runes)) {
+			return p, nil
+		}
 	}
 	// Discard rune-only input during startup grace period — terminal
 	// responses (OSC color, CSI cursor reports) arrive as printable
 	// characters indistinguishable from typing.
 	if keyMsg.Type == tea.KeyRunes && p.guardEnabled && time.Since(p.startTime) < 2*time.Second {
 		return p, nil
-	}
-	// After ClearScreen/resize, discard CPR/OSC fragments for a short window.
-	if keyMsg.Type == tea.KeyRunes && time.Now().Before(p.noiseUntil) {
-		if s := keyMsg.String(); isTerminalNoise(s) {
-			return p, nil
-		}
 	}
 	if p.fileComplete.IsVisible() {
 		if result, cmd, handled := p.handleFileCompleteKey(keyMsg); handled {
@@ -335,6 +336,9 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 func (p PromptInput) forwardToTextarea(msg tea.Msg) (PromptInput, tea.Cmd) {
 	var cmd tea.Cmd
 	p.textarea, cmd = p.textarea.Update(msg)
+	if cleaned, changed := scrubCPRValue(p.textarea.Value()); changed {
+		p.textarea.SetValue(cleaned)
+	}
 	text := p.textarea.Value()
 
 	// Compute cursor offset from textarea position.
@@ -610,10 +614,32 @@ func formatImageSize(bytes int) string {
 	return fmt.Sprintf("%.1fMB PNG", mb)
 }
 
+// stripCPRPrefix removes mangled CSI/OSC junk bubbletea leaves when ESC is lost.
+// e.g. "][53;1R" / "]\[53;1R" / "[53;1R" → "53;1R"
+func stripCPRPrefix(s string) string {
+	for {
+		switch {
+		case strings.HasPrefix(s, "]"):
+			s = s[1:]
+		case strings.HasPrefix(s, "\\["):
+			s = s[2:]
+		case strings.HasPrefix(s, "["):
+			s = s[1:]
+		case strings.HasPrefix(s, "\\"):
+			s = s[1:]
+		default:
+			return s
+		}
+	}
+}
+
 // isTerminalEscape returns true if the string looks like a terminal escape
 // response that leaked through bubbletea's input parser (raw ESC/C1 bytes,
-// OSC color fragments, or CSI cursor-position reports like ";1R").
+// OSC color fragments, or CSI cursor-position reports like ";1R" / "][53;1R").
 func isTerminalEscape(s string) bool {
+	if s == "" {
+		return false
+	}
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if c == 0x1b || c == 0x9c {
@@ -626,24 +652,87 @@ func isTerminalEscape(s string) bool {
 	if oscHexFragment.MatchString(s) {
 		return true
 	}
-	if cprFragment.MatchString(s) {
+	if cprCore.MatchString(stripCPRPrefix(s)) {
 		return true
 	}
 	return false
 }
 
-// isTerminalNoise is a broader filter used only during the post-ClearScreen
-// noise window — catches split CPR pieces ("1R", ";1") that aren't full reports.
+// isTerminalNoise is a broader filter for split CPR/CSI crumbs.
 func isTerminalNoise(s string) bool {
 	if isTerminalEscape(s) {
 		return true
 	}
-	if cprFragment.MatchString(s) {
+	core := stripCPRPrefix(s)
+	if cprCorePartial.MatchString(core) && strings.ContainsAny(s, "][\\;R") {
 		return true
 	}
-	// Partial CPR crumbs after ESC[ was consumed elsewhere.
-	if matched, _ := regexp.MatchString(`^[\d;]{1,6}R?$`, s); matched && strings.ContainsAny(s, ";R") {
+	if matched, _ := regexp.MatchString(`^[\d;]{1,8}R?$`, s); matched && strings.ContainsAny(s, ";R") {
+		return true
+	}
+	// Lone CSI/OSC punctuation that starts a report.
+	if s == "]" || s == "[" || s == "\\[" || s == "\\" {
 		return true
 	}
 	return false
+}
+
+// absorbTerminalNoise drops complete or in-progress CPR/CSI/OSC leaks.
+// Returns true when the key should not reach the textarea.
+func (p *PromptInput) absorbTerminalNoise(s string) bool {
+	if s == "" {
+		return false
+	}
+	noisyWindow := time.Now().Before(p.noiseUntil)
+	if isTerminalEscape(s) || (noisyWindow && isTerminalNoise(s)) {
+		p.cprBuf = ""
+		return true
+	}
+
+	cand := p.cprBuf + s
+	if cprCore.MatchString(stripCPRPrefix(cand)) {
+		p.cprBuf = ""
+		return true
+	}
+
+	// Buffer CSI-ish prefixes and CPR digits so split deliveries ("[", "53", ";1R")
+	// never reach the textarea. Do not buffer bare digits (normal typing).
+	core := stripCPRPrefix(cand)
+	startsCSI := strings.ContainsAny(cand, "][\\") || strings.HasPrefix(cand, "\\")
+	if len(cand) <= 16 && startsCSI && cprCorePartial.MatchString(core) {
+		p.cprBuf = cand
+		return true
+	}
+	// During the post-ClearScreen window, also buffer digit/; crumbs that look
+	// like a CPR body (ESC[ already consumed by the parser).
+	if noisyWindow && len(cand) <= 12 && cprCorePartial.MatchString(cand) && strings.ContainsAny(cand, ";0123456789") {
+		p.cprBuf = cand
+		return true
+	}
+	if p.cprBuf != "" {
+		p.cprBuf = ""
+		if isTerminalNoise(s) || (noisyWindow && isTerminalNoise(cand)) {
+			return true
+		}
+	}
+	return false
+}
+
+// cprLeakRe matches mangled cursor-position reports that slipped into the buffer.
+// Requires a CSI/OSC-ish prefix or a semicolon so plain text like "1R" is kept.
+var cprLeakRe = regexp.MustCompile(`(?:[\]\\[]+\d{0,4};\d{1,4}R|\d{0,4};\d{1,4}R)`)
+
+// scrubCPRValue removes leaked CPR fragments from the composer value.
+func scrubCPRValue(s string) (string, bool) {
+	if s == "" {
+		return s, false
+	}
+	if isTerminalEscape(s) {
+		return "", true
+	}
+	cleaned := cprLeakRe.ReplaceAllString(s, "")
+	if cleaned == s {
+		return s, false
+	}
+	return cleaned, true
 }

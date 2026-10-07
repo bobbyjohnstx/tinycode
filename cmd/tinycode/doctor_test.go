@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"bytes"
+	"io"
+	"os"
+	"strings"
+	"testing"
+)
 
 func TestProviderPathUsable_Scenario(t *testing.T) {
 	tests := []struct {
@@ -49,5 +55,28 @@ func TestProviderPathUsable_Scenario(t *testing.T) {
 					tt.anyLocalConnected, tt.hasCloudAPIKey, tt.anyConfigConnected, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestPrintProviderNextSteps_MentionsConnect(t *testing.T) {
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	printProviderNextSteps()
+	w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "/connect") {
+		t.Errorf("expected /connect in next steps, got %q", out)
+	}
+	if !strings.Contains(out, "tinycode") {
+		t.Errorf("expected tinycode launch hint in next steps, got %q", out)
 	}
 }

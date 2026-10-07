@@ -71,9 +71,9 @@ To run against a different directory:
 
 ## Step 4: Connect a provider
 
-If something looks wrong, run `tinycode doctor` (or `/doctor` in the TUI). There is no `tinycode setup` wizard — first-run model config is `/connect` in the TUI.
+If something looks wrong, run `tinycode doctor` (or `/doctor` in the TUI). There is no `tinycode setup` wizard — first-run model config is the TUI connect dialog (`/connect`).
 
-If tinycode did not auto-discover your LLM provider, use `/connect` in the TUI prompt to add one interactively. Or set environment variables before launching:
+If tinycode did not auto-discover your LLM provider, the connect dialog opens on first launch when no model is set. You can also type `/connect` anytime, or set environment variables before launching:
 
 ```bash
 # Ollama on a non-default host (prefer TINYCODE_OLLAMA_HOST)

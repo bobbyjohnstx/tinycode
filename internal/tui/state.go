@@ -157,8 +157,9 @@ type AppState struct {
 	SidebarOpen        bool
 	Connected          bool
 	AutoApprove        bool
-	PendingModelDialog  bool
-	PendingScopingMode  bool
+	PendingModelDialog     bool
+	PendingScopingMode     bool
+	FirstRunConnectOffered bool // auto-opened /connect once this session
 }
 
 // SessionInfo is a lightweight view of session.Info for the TUI layer,

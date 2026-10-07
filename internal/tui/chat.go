@@ -24,6 +24,7 @@ type ChatView struct {
 	messages     []MessageView
 	renderer     *render.MarkdownRenderer
 	thoughtLines map[int]string // content line number → part ID
+	copyLines    map[int]string // content line number → text to copy
 	width        int
 	height       int
 	stickyBottom bool
@@ -150,6 +151,9 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 				c.toggleSubagent(label)
 				c.rebuildContent()
 				return c, nil
+			}
+			if text, ok := c.copyLines[contentLine]; ok && text != "" {
+				return c, copyToClipboard(text)
 			}
 			c.dragging = true
 			c.dragStart = [2]int{contentLine, msg.X}
@@ -480,6 +484,7 @@ func (c *ChatView) rebuildContent() {
 	var sb strings.Builder
 	c.thoughtLines = make(map[int]string)
 	c.subagentLines = make(map[int]string)
+	c.copyLines = make(map[int]string)
 	c.msgLineStarts = make([]int, 0, len(c.messages))
 	lineNum := 0
 
@@ -491,9 +496,11 @@ func (c *ChatView) rebuildContent() {
 		c.msgLineStarts = append(c.msgLineStarts, lineNum)
 		var tHits []thoughtHit
 		var sHits []subagentHit
+		var cHits []copyHit
 		opts := &renderOpts{
 			thoughtHits:      &tHits,
 			subagentHits:     &sHits,
+			copyHits:         &cHits,
 			subagentExpanded: c.subagentExpanded,
 			subagentStatus:   c.subagentStatus,
 		}
@@ -503,6 +510,9 @@ func (c *ChatView) rebuildContent() {
 		}
 		for _, h := range sHits {
 			c.subagentLines[lineNum+h.lineOffset] = h.label
+		}
+		for _, h := range cHits {
+			c.copyLines[lineNum+h.lineOffset] = h.text
 		}
 		sb.WriteString(rendered)
 		lineNum += strings.Count(rendered, "\n")

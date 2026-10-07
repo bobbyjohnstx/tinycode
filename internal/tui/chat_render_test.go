@@ -154,6 +154,91 @@ func TestRenderToolCallPart_InProgress(t *testing.T) {
 	}
 }
 
+func TestRenderToolCallPart_SuppressesBarePathTools(t *testing.T) {
+	cases := []PartView{
+		{Type: "tool-call", ToolName: "read", ToolArgs: "", Time: map[string]any{"end": float64(1)}},
+		{Type: "tool-call", ToolName: "read", ToolArgs: `{}`, Time: map[string]any{"end": float64(1)}},
+		{Type: "tool", ToolName: "write", ToolArgs: `{"content":"x"}`, Time: map[string]any{"end": float64(1)}},
+		{Type: "tool", ToolName: "edit", ToolArgs: `{}`},
+	}
+	for _, part := range cases {
+		got := renderToolCallPart(part)
+		if got != "" {
+			t.Errorf("bare %s should be suppressed, got %q", part.ToolName, got)
+		}
+	}
+}
+
+func TestRenderAssistantMessage_OmitsBareReadLines(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant", Agent: "build"},
+		Parts: []PartView{
+			{Type: "tool-call", ToolName: "read", ToolArgs: "", Time: map[string]any{"end": float64(1)}},
+			{Type: "tool", ToolName: "read", ToolArgs: `{"file_path":"/tmp/main.go"}`, Time: map[string]any{"end": float64(1)}},
+			{Type: "text", Text: "done reviewing"},
+		},
+	}
+	got := stripAnsi(renderMessage(msg, 80, md))
+	if !strings.Contains(got, "/tmp/main.go") {
+		t.Fatalf("expected path read, got %q", got)
+	}
+	// Count tool read lines: only one with path.
+	lines := strings.Split(got, "\n")
+	bare := 0
+	withPath := 0
+	for _, ln := range lines {
+		if !strings.Contains(ln, "read") {
+			continue
+		}
+		if strings.Contains(ln, "/tmp/main.go") {
+			withPath++
+		} else if strings.Contains(ln, "done") || strings.Contains(ln, "...") {
+			bare++
+		}
+	}
+	if withPath != 1 {
+		t.Errorf("want 1 path read line, got %d in %q", withPath, got)
+	}
+	if bare != 0 {
+		t.Errorf("want 0 bare read lines, got %d in %q", bare, got)
+	}
+}
+
+func TestRenderAssistantMessage_ShowsCopyAffordance(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info:  MessageInfo{ID: "m1", Role: "assistant", Agent: "build", ModelID: "test-model"},
+		Parts: []PartView{{Type: "text", Text: "hello from agent"}},
+	}
+	var hits []copyHit
+	opts := &renderOpts{copyHits: &hits}
+	got := stripAnsi(renderMessageWithOpts(msg, 80, md, opts))
+	if !strings.Contains(got, "⎘") {
+		t.Fatalf("expected copy affordance, got %q", got)
+	}
+	if len(hits) != 1 || hits[0].text != "hello from agent" {
+		t.Fatalf("expected one copy hit with text, got %+v", hits)
+	}
+}
+
+func TestRenderAssistantMessage_NoCopyWhileStreaming(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info:  MessageInfo{ID: "m1", Role: "assistant"},
+		Parts: []PartView{{Type: "text", Text: "partial", Streaming: true}},
+	}
+	var hits []copyHit
+	opts := &renderOpts{copyHits: &hits}
+	got := stripAnsi(renderMessageWithOpts(msg, 80, md, opts))
+	if strings.Contains(got, "⎘") {
+		t.Fatalf("streaming message should not show copy, got %q", got)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("expected no copy hits, got %+v", hits)
+	}
+}
+
 // --- unified tool part rendering tests ---
 
 func TestRenderAssistantMessage_UnifiedToolPart(t *testing.T) {

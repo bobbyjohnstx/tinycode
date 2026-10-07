@@ -302,7 +302,7 @@ func (a *App) reflowChrome() tea.Cmd {
 // and working→idle (to wipe residual ghosts), not when a turn starts.
 func (a *App) reflowChromeClear() tea.Cmd {
 	a.resize()
-	a.prompt.ArmNoiseGuard(500 * time.Millisecond)
+	a.prompt.ArmNoiseGuard(2 * time.Second)
 	return tea.ClearScreen
 }
 

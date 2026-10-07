@@ -113,6 +113,69 @@ func TestHandleProvidersLoadedMsg_EmptyDefaultsLeavesModelUnset(t *testing.T) {
 	}
 }
 
+func TestHandleProvidersLoadedMsg_AutoOpensConnectWhenNoModel(t *testing.T) {
+	app := NewApp("")
+	msg := ProvidersLoadedMsg{
+		Providers:       []ProviderInfo{{ID: "ollama", Name: "Ollama"}},
+		DefaultProvider: "",
+		DefaultModel:    "",
+	}
+
+	result, _ := app.handleProvidersLoadedMsg(msg)
+
+	if !result.modelDlg.IsVisible() {
+		t.Fatal("expected connect dialog to auto-open when no model")
+	}
+	if result.focus != FocusDialog {
+		t.Errorf("focus = %v, want FocusDialog", result.focus)
+	}
+	if !result.state.FirstRunConnectOffered {
+		t.Error("expected FirstRunConnectOffered after auto-open")
+	}
+}
+
+func TestHandleProvidersLoadedMsg_AutoOpenOnceOnly(t *testing.T) {
+	app := NewApp("")
+	msg := ProvidersLoadedMsg{
+		Providers: []ProviderInfo{{ID: "ollama", Name: "Ollama"}},
+	}
+	result, _ := app.handleProvidersLoadedMsg(msg)
+	result.modelDlg.Hide()
+	result.setFocus(FocusPrompt)
+
+	result, _ = result.handleProvidersLoadedMsg(msg)
+	if result.modelDlg.IsVisible() {
+		t.Fatal("expected connect dialog not to re-open after first offer")
+	}
+}
+
+func TestHandleProvidersLoadedMsg_NoAutoOpenWhenModelSet(t *testing.T) {
+	app := NewApp("")
+	msg := ProvidersLoadedMsg{
+		Providers: []ProviderInfo{
+			{ID: "ollama", Name: "Ollama", Models: []ModelInfo{{ID: "qwen", Name: "Qwen", ProviderID: "ollama"}}},
+		},
+		DefaultProvider: "ollama",
+		DefaultModel:    "qwen",
+	}
+
+	result, _ := app.handleProvidersLoadedMsg(msg)
+	if result.modelDlg.IsVisible() {
+		t.Fatal("expected no auto-open when default model resolved")
+	}
+	if result.state.FirstRunConnectOffered {
+		t.Error("FirstRunConnectOffered should stay false when model was set")
+	}
+}
+
+func TestHandleProvidersLoadedMsg_AutoOpensWithEmptyProviders(t *testing.T) {
+	app := NewApp("")
+	result, _ := app.handleProvidersLoadedMsg(ProvidersLoadedMsg{})
+	if !result.modelDlg.IsVisible() {
+		t.Fatal("expected connect dialog even with empty provider list")
+	}
+}
+
 func TestPaletteSelected_SkillExpandsIntoPrompt(t *testing.T) {
 	app := NewApp("")
 	app.state.Commands = []api.CommandInfo{

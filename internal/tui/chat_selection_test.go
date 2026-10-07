@@ -7,6 +7,43 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func TestChatView_ClickCopy(t *testing.T) {
+	cv := NewChatView(80, 40)
+	cv.messages = []MessageView{{
+		Info:  MessageInfo{ID: "m1", Role: "assistant", Agent: "build", ModelID: "m"},
+		Parts: []PartView{{Type: "text", Text: "copy me please"}},
+	}}
+	cv.rebuildContent()
+	if len(cv.copyLines) != 1 {
+		t.Fatalf("expected 1 copy hit line, got %d (content=%q)", len(cv.copyLines), cv.viewport.View())
+	}
+	var line int
+	var text string
+	for ln, ttext := range cv.copyLines {
+		line = ln
+		text = ttext
+	}
+	if text != "copy me please" {
+		t.Fatalf("copy text = %q, want %q", text, "copy me please")
+	}
+	y := line - cv.viewport.YOffset
+	if y < 0 {
+		t.Fatalf("copy line %d not visible (yOffset=%d)", line, cv.viewport.YOffset)
+	}
+	_, cmd := cv.Update(tea.MouseMsg{
+		X: 1, Y: y,
+		Button: tea.MouseButtonLeft,
+		Action: tea.MouseActionPress,
+	})
+	if cmd == nil {
+		t.Fatal("expected clipboard cmd from copy click")
+	}
+	msg := cmd()
+	if _, ok := msg.(CopiedToClipboardMsg); !ok {
+		t.Fatalf("expected CopiedToClipboardMsg, got %T", msg)
+	}
+}
+
 func TestSelectionCoordinates_NoScroll(t *testing.T) {
 	cv := NewChatView(80, 20)
 

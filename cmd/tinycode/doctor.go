@@ -220,7 +220,8 @@ func printProviderNextSteps() {
 	fmt.Println("    next steps:")
 	fmt.Println("    - start Ollama: ollama serve")
 	fmt.Println("    - or set OPENROUTER_API_KEY for cloud models")
-	fmt.Println("    - then run: tinycode models")
+	fmt.Println("    - then run: tinycode  (connect dialog opens if no model)")
+	fmt.Println("    - or in the TUI: /connect")
 }
 
 func ollamaURL() string {
