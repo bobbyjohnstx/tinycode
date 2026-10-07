@@ -134,6 +134,9 @@ func runDoctor() {
 	// LSP and diagnostics tools
 	checkDevTools(dir)
 
+	// IDEs (ACP setup hints — detection only, no install)
+	checkIDEs()
+
 	// Log file
 	logPath := filepath.Join(dataDir, "tinycode.log")
 	if checkWritable(filepath.Dir(logPath)) {
@@ -311,4 +314,29 @@ func countConfigPlugins(cfg *config.Info) int {
 		return 0
 	}
 	return len(specs)
+}
+
+// checkIDEs reports IDEs found on PATH and points at ACP setup docs.
+// Information only — no install or modify actions.
+func checkIDEs() {
+	ides := []struct {
+		command string
+		name    string
+	}{
+		{command: "code", name: "VS Code"},
+		{command: "cursor", name: "Cursor"},
+		{command: "nvim", name: "Neovim"},
+		{command: "idea", name: "JetBrains"},
+	}
+
+	found := false
+	for _, ide := range ides {
+		if _, err := exec.LookPath(ide.command); err == nil {
+			fmt.Printf("%s %s detected -- ACP setup: see docs/acp-integration.md\n", checkPass, ide.name)
+			found = true
+		}
+	}
+	if !found {
+		fmt.Printf("%s No IDE detected -- tinycode works standalone via TUI and web\n", checkPass)
+	}
 }

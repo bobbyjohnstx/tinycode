@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -78,5 +80,84 @@ func TestPrintProviderNextSteps_MentionsConnect(t *testing.T) {
 	}
 	if !strings.Contains(out, "tinycode") {
 		t.Errorf("expected tinycode launch hint in next steps, got %q", out)
+	}
+}
+
+func stubPATHBinaries(t *testing.T, names ...string) {
+	t.Helper()
+	dir := t.TempDir()
+	for _, name := range names {
+		path := filepath.Join(dir, name)
+		if runtime.GOOS == "windows" {
+			path += ".exe"
+		}
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir)
+}
+
+func TestCheckIDEs_DetectsStubsOnPATH(t *testing.T) {
+	stubPATHBinaries(t, "code", "cursor", "nvim", "idea")
+	cap := captureStdout(t)
+	checkIDEs()
+	out := cap.read()
+
+	for _, want := range []string{
+		"VS Code detected",
+		"Cursor detected",
+		"Neovim detected",
+		"JetBrains detected",
+		"docs/acp-integration.md",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in output, got %q", want, out)
+		}
+	}
+	if strings.Contains(out, "No IDE detected") {
+		t.Errorf("did not expect standalone hint when IDEs are on PATH, got %q", out)
+	}
+	if strings.Contains(out, "install:") {
+		t.Errorf("IDE check must not print install actions, got %q", out)
+	}
+}
+
+func TestCheckIDEs_NoIDEOnPATH(t *testing.T) {
+	stubPATHBinaries(t) // empty PATH dir — no IDE binaries
+	cap := captureStdout(t)
+	checkIDEs()
+	out := cap.read()
+
+	if !strings.Contains(out, "No IDE detected") {
+		t.Errorf("expected standalone hint when no IDEs on PATH, got %q", out)
+	}
+	if !strings.Contains(out, "standalone") {
+		t.Errorf("expected standalone wording, got %q", out)
+	}
+	for _, name := range []string{"VS Code detected", "Cursor detected", "Neovim detected", "JetBrains detected"} {
+		if strings.Contains(out, name) {
+			t.Errorf("did not expect %q when PATH has no IDEs, got %q", name, out)
+		}
+	}
+}
+
+func TestCheckIDEs_PartialDetection(t *testing.T) {
+	stubPATHBinaries(t, "nvim")
+	cap := captureStdout(t)
+	checkIDEs()
+	out := cap.read()
+
+	if !strings.Contains(out, "Neovim detected") {
+		t.Errorf("expected Neovim detected, got %q", out)
+	}
+	if !strings.Contains(out, "docs/acp-integration.md") {
+		t.Errorf("expected ACP docs pointer, got %q", out)
+	}
+	if strings.Contains(out, "VS Code detected") {
+		t.Errorf("did not expect VS Code when only nvim stubbed, got %q", out)
+	}
+	if strings.Contains(out, "No IDE detected") {
+		t.Errorf("did not expect standalone hint when nvim is present, got %q", out)
 	}
 }
