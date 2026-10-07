@@ -340,7 +340,7 @@ func TestFormatLSPStatus(t *testing.T) {
 		{name: "disabled", status: LSPStatus{Disabled: true}, want: "LSP: disabled"},
 		{name: "clean", status: LSPStatus{}, want: "LSP: clean"},
 		{name: "errors and warnings", status: LSPStatus{Errors: 3, Warnings: 2}, want: "LSP: 3 errors, 2 warnings"},
-		{name: "errors only", status: LSPStatus{Errors: 1, Warnings: 0}, want: "LSP: 1 errors, 0 warnings"},
+		{name: "errors only", status: LSPStatus{Errors: 1, Warnings: 0}, want: "LSP: 1 error, 0 warnings"},
 		{name: "warnings only", status: LSPStatus{Errors: 0, Warnings: 4}, want: "LSP: 0 errors, 4 warnings"},
 	}
 	for _, tt := range tests {

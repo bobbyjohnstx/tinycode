@@ -368,7 +368,14 @@ func formatLSPStatus(status LSPStatus) string {
 	if status.Errors == 0 && status.Warnings == 0 {
 		return "LSP: clean"
 	}
-	return fmt.Sprintf("LSP: %d errors, %d warnings", status.Errors, status.Warnings)
+	eLabel, wLabel := "errors", "warnings"
+	if status.Errors == 1 {
+		eLabel = "error"
+	}
+	if status.Warnings == 1 {
+		wLabel = "warning"
+	}
+	return fmt.Sprintf("LSP: %d %s, %d %s", status.Errors, eLabel, status.Warnings, wLabel)
 }
 
 // treeNode is a session with its children for tree rendering.
