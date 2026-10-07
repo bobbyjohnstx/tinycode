@@ -17,6 +17,7 @@ import (
 	commandpkg "github.com/bobbyjohnstx/tinycode/internal/command"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
+	"github.com/bobbyjohnstx/tinycode/internal/scaffold"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
@@ -77,6 +78,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 
 	if trimmed == "/btw" || strings.HasPrefix(trimmed, "/btw ") {
 		return c.handleBtwCommand(trimmed)
+	}
+
+	if trimmed == "/init" || strings.HasPrefix(trimmed, "/init ") {
+		return c.handleInitCommand()
 	}
 
 	if trimmed == "/goal" || strings.HasPrefix(trimmed, "/goal ") {
@@ -644,6 +649,36 @@ func (c *connectedApp) handleBranchCommand(trimmed string) (tea.Model, tea.Cmd) 
 
 	cmd := c.app.toast.Show("Branching conversation...", false)
 	return c, tea.Batch(cmd, branchSession(c.client, sessionID, title))
+}
+
+// handleInitCommand generates a root AGENTS.md (if missing) then submits an
+// improved setup prompt to the LLM.
+func (c *connectedApp) handleInitCommand() (tea.Model, tea.Cmd) {
+	dir := c.app.status.Cwd()
+	if dir == "" {
+		dir, _ = os.Getwd()
+	}
+
+	created, path, err := scaffold.EnsureRootAgentsMD(dir)
+	var toastCmd tea.Cmd
+	prompt := scaffold.InitPrompt
+	switch {
+	case err != nil:
+		model, cmd := c.app.Update(ToastMsg{Text: "Failed to write AGENTS.md: " + err.Error(), IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	case created:
+		toastCmd = c.app.toast.Show("Created "+filepath.Base(path), false)
+	default:
+		toastCmd = c.app.toast.Show("AGENTS.md already exists", false)
+		prompt = scaffold.InitPromptExisting
+	}
+
+	model, cmd := c.handlePromptSubmission(PromptSubmittedMsg{Content: prompt})
+	if toastCmd != nil {
+		return model, tea.Batch(toastCmd, cmd)
+	}
+	return model, cmd
 }
 
 // handleBtwCommand processes a /btw side question command.

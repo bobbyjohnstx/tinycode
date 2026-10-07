@@ -95,9 +95,9 @@ func builtinCommands() []Command {
 		},
 		{
 			Name:        "init",
-			Description: "Guided project setup",
+			Description: "Generate root AGENTS.md and guided project setup",
 			Source:      "builtin",
-			Template:    "Initialize this project for AI-assisted development.",
+			Template:    "I've created a root AGENTS.md for this project. Review it, suggest improvements based on the actual codebase structure, and help me configure tinycode for this project (model selection, agent preferences, skills).",
 			Hints:       []string{},
 		},
 		{
