@@ -475,40 +475,6 @@ func accent() lipgloss.TerminalColor {
 	return lipgloss.AdaptiveColor{Light: "#C87898", Dark: "#C87898"}
 }
 
-// truncatedModelProvider builds a "model  provider" string that fits within
-// maxWidth, truncating the model name with an ellipsis if needed.
-func truncatedModelProvider(model, provider string, maxWidth int) string {
-	var parts []string
-	if model != "" {
-		parts = append(parts, model)
-	}
-	if provider != "" {
-		parts = append(parts, provider)
-	}
-	combined := strings.Join(parts, "  ")
-	if maxWidth <= 0 || lipgloss.Width(combined) <= maxWidth {
-		return combined
-	}
-	if provider != "" && model != "" {
-		providerWidth := lipgloss.Width(provider)
-		available := maxWidth - providerWidth - 5 // "  " separator + "..."
-		if available > 3 {
-			modelRunes := []rune(model)
-			if len(modelRunes) > available {
-				model = string(modelRunes[:available]) + "..."
-			}
-			return model + "  " + provider
-		}
-	}
-	if lipgloss.Width(combined) > maxWidth && maxWidth > 3 {
-		combinedRunes := []rune(combined)
-		if len(combinedRunes) > maxWidth-3 {
-			return string(combinedRunes[:maxWidth-3]) + "..."
-		}
-	}
-	return combined
-}
-
 // shortenCwd returns a display-friendly path with ~ for home dir.
 func shortenCwd(p string) string {
 	if home, err := os.UserHomeDir(); err == nil {

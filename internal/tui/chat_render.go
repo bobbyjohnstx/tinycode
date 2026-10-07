@@ -209,7 +209,6 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 		}
 		sb.WriteString(styleCopyAffordance.Render(copyAffordanceLabel))
 		sb.WriteString("\n")
-		lineNum++
 	}
 
 	// Agent/model footer

@@ -18,6 +18,37 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
+// syncBuffer is a thread-safe bytes.Buffer for tests where a goroutine
+// writes (e.g. HandleStdio) while another reads (e.g. polling for output).
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (sb *syncBuffer) Write(p []byte) (int, error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Write(p)
+}
+
+func (sb *syncBuffer) Len() int {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Len()
+}
+
+func (sb *syncBuffer) Bytes() []byte {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return append([]byte(nil), sb.buf.Bytes()...)
+}
+
+func (sb *syncBuffer) String() string {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.String()
+}
+
 type mockSessionService struct {
 	sessions map[string]*session.Info
 	messages map[string][]session.Message
@@ -1101,7 +1132,7 @@ func TestParsePermissionOutcome(t *testing.T) {
 func TestStdioTransport_SendRequest(t *testing.T) {
 	svc, _, _ := testService(t)
 	pr, pw := io.Pipe()
-	var output bytes.Buffer
+	var output syncBuffer
 	transport := NewStdioTransport(svc, &output)
 
 	ctx, cancel := context.WithCancel(context.Background())

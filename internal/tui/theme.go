@@ -162,10 +162,6 @@ func ApplyColorTheme(ct *ColorTheme) {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(ct.Primary).
 		Padding(1, 2)
-	styleStatusBar = lipgloss.NewStyle().
-		Background(ct.BgPanel).
-		Foreground(ct.TextMuted).
-		Padding(0, 1)
 	styleToolName = lipgloss.NewStyle().Bold(true).Foreground(ct.Primary)
 	styleUserBorder = lipgloss.NewStyle().
 		BorderStyle(lipgloss.ThickBorder()).

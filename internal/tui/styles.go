@@ -14,7 +14,6 @@ var (
 	styleSelected     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"})
 	styleMetadata     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
 	styleDialogBorder = lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).BorderForeground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).Padding(1, 2)
-	styleStatusBar    = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#F5F5F5", Dark: "#1A1A1A"}).Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"}).Padding(0, 1)
 )
 
 // themeAgentColor overrides per-agent colors when a color theme is active.
@@ -121,7 +120,6 @@ func SetTheme(t Theme) {
 	styleSelected = t.DialogActive
 	styleMetadata = t.Dim
 	styleDialogBorder = t.DialogOverlay
-	styleStatusBar = t.StatusBar
 	colorError = t.ToastError.GetForeground()
 	colorSuccess = t.PermissionAllow.GetForeground()
 }
