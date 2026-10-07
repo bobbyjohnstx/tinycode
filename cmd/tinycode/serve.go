@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -183,7 +184,7 @@ func runWeb() {
 		os.Exit(1)
 	}
 
-	baseURL := listener.URL.String()
+	baseURL := browserBaseURL(listener.URL)
 	authParam := base64.StdEncoding.EncodeToString([]byte("tinycode:" + webToken))
 	browserURL := baseURL + "?auth_token=" + authParam
 	slog.Info("web UI ready", "url", baseURL)
@@ -209,6 +210,25 @@ func openBrowser(url string) {
 		return
 	}
 	_ = cmd.Start()
+}
+
+// browserBaseURL returns a URL safe to open in a browser. Wildcard bind
+// addresses (0.0.0.0 / ::) are rewritten to 127.0.0.1 so the auth cookie
+// matches the host the user actually visits (#636).
+func browserBaseURL(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	cu := *u
+	host := cu.Hostname()
+	if host == "0.0.0.0" || host == "::" || host == "[::]" {
+		if port := cu.Port(); port != "" {
+			cu.Host = "127.0.0.1:" + port
+		} else {
+			cu.Host = "127.0.0.1"
+		}
+	}
+	return cu.String()
 }
 
 // resolveServeAuthToken returns the bearer token for headless serve mode.

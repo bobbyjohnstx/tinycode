@@ -973,18 +973,13 @@ tinycode plugin uninstall safety-net
 tinycode web
 ```
 
-This starts the API server and opens the embedded web interface in your browser. The web UI is a SolidJS SPA (embedded via `go:embed`) that communicates with the same backend as the TUI. The in-browser terminal (PTY) is not available in the Go product (`PTY_SUPPORTED=false`); session share/publish is disabled by default (`config.share` defaults to `"disabled"`).
+This starts the API server and opens the embedded web interface in your browser (with an auth URL that sets a session cookie). The web UI is a SolidJS SPA (embedded via `go:embed`) that communicates with the same backend as the TUI. The in-browser terminal (PTY) is not available in the Go product (`PTY_SUPPORTED=false`); session share/publish is disabled by default (`config.share` defaults to `"disabled"`).
 
-Alternatively, start the headless server and access the web UI manually:
-
-```bash
-tinycode serve
-# Open http://localhost:4096 in your browser
-```
+`tinycode serve` is **API-only** — there is no browser UI on that port. Use `tinycode web` for the SPA. If you open the server URL without auth, you get a short HTML recovery page (not a hollow app).
 
 ### Authentication
 
-By default, `tinycode serve` / `tinycode web` generates an auth token and logs it at startup (with Bearer usage and the server URL). Set a custom token:
+By default, `tinycode serve` / `tinycode web` generates an auth token and logs it at startup (with Bearer usage and the server URL). `tinycode web` opens a URL with `?auth_token=…` that sets a cookie (`SameSite=Lax`), then redirects to a clean path. Set a custom token:
 
 ```bash
 TINYCODE_AUTH_TOKEN=my-secret tinycode web

@@ -750,6 +750,59 @@ func TestServerPortFallback(t *testing.T) {
 
 // CORS tests
 
+func TestServeMode_BrowserRootReturnsHTML(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	srv := New(Config{
+		Port:       4096,
+		Hostname:   "127.0.0.1",
+		Token:      "serve-secret",
+		ServeWebUI: false,
+	}, Dependencies{Bus: b, DB: db, Registry: provider.NewRegistry()})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Accept", "text/html")
+	w := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", w.Code)
+	}
+	if !strings.Contains(w.Header().Get("Content-Type"), "text/html") {
+		t.Fatalf("Content-Type = %q", w.Header().Get("Content-Type"))
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "API only") || !strings.Contains(body, "tinycode web") {
+		t.Fatalf("unexpected HTML body: %q", body)
+	}
+}
+
+func TestWebUI_UnauthenticatedRootReturnsHTMLNotSPA(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	srv := New(Config{
+		Port:       4096,
+		Hostname:   "127.0.0.1",
+		Token:      "web-secret",
+		ServeWebUI: true,
+	}, Dependencies{Bus: b, DB: db, Registry: provider.NewRegistry()})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Accept", "text/html")
+	w := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "Authentication required") {
+		t.Fatalf("expected web recovery HTML, got %q", body)
+	}
+}
+
 func TestCORSHeaders(t *testing.T) {
 	b := bus.New()
 	t.Cleanup(func() { b.Close() })

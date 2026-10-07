@@ -136,7 +136,7 @@ func New(cfg Config, deps Dependencies) *Server {
 
 	var handler http.Handler
 	if cfg.ServeWebUI {
-		authedAPI := middleware.TokenAuth(cfg.Token)(mux)
+		authedAPI := middleware.TokenAuthMode(cfg.Token, middleware.AuthModeWeb)(mux)
 		staticFS := static.Handler(cfg.WebUIDir)
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, pattern := mux.Handler(r)
@@ -144,23 +144,25 @@ func New(cfg Config, deps Dependencies) *Server {
 				authedAPI.ServeHTTP(w, r)
 				return
 			}
-			// Set auth cookie on initial page load with ?auth_token= so the
-			// SPA's API calls are authenticated even after page reloads.
-			if qt := r.URL.Query().Get("auth_token"); qt != "" && cfg.Token != "" {
-				if middleware.MatchesToken("Basic "+qt, cfg.Token) {
-					http.SetCookie(w, &http.Cookie{
-						Name:     "tinycode_auth",
-						Value:    qt,
-						Path:     "/",
-						HttpOnly: true,
-						SameSite: http.SameSiteStrictMode,
-					})
+			// Gate the SPA: never serve a hollow shell that then 401s every API call (#636).
+			if cfg.Token != "" {
+				if r.URL.Query().Get("auth_token") != "" && middleware.SetAuthCookieIfValid(w, r, cfg.Token) {
+					cleanQuery := r.URL.Query()
+					cleanQuery.Del("auth_token")
+					cleanURL := *r.URL
+					cleanURL.RawQuery = cleanQuery.Encode()
+					http.Redirect(w, r, cleanURL.String(), http.StatusFound)
+					return
+				}
+				if !middleware.IsAuthenticated(r, cfg.Token) {
+					middleware.WriteUnauthorized(w, r, middleware.AuthModeWeb)
+					return
 				}
 			}
 			staticFS.ServeHTTP(w, r)
 		})
 	} else {
-		handler = middleware.TokenAuth(cfg.Token)(mux)
+		handler = middleware.TokenAuthMode(cfg.Token, middleware.AuthModeAPI)(mux)
 	}
 
 	handler = middleware.CORS(corsConfig)(middleware.SecurityHeaders(handler))

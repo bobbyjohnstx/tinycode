@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -182,5 +183,94 @@ func TestTokenAuth_QueryParamNoOtherParams(t *testing.T) {
 	loc := rec.Header().Get("Location")
 	if loc != "/app" {
 		t.Errorf("Location = %q, want %q", loc, "/app")
+	}
+}
+
+func TestTokenAuth_HTMLUnauthorizedForBrowser(t *testing.T) {
+	handler := TokenAuthMode("secret", AuthModeAPI)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("inner should not run")
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(ct, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", ct)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "tinycode web") {
+		t.Fatalf("expected tinycode web hint in HTML, got %q", body)
+	}
+	if !strings.Contains(body, "API") {
+		t.Fatalf("expected API-only hint in serve mode HTML, got %q", body)
+	}
+}
+
+func TestTokenAuth_JSONUnauthorizedForAPI(t *testing.T) {
+	handler := TokenAuthMode("secret", AuthModeWeb)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	req := httptest.NewRequest(http.MethodGet, "/session", nil)
+	req.Header.Set("Accept", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+	if strings.Contains(rec.Header().Get("Content-Type"), "text/html") {
+		t.Fatal("API client should not receive HTML")
+	}
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["error"] != "unauthorized" {
+		t.Fatalf("error = %q", body["error"])
+	}
+}
+
+func TestTokenAuth_CookieSameSiteLax(t *testing.T) {
+	token := "test-secret-token"
+	encoded := base64.StdEncoding.EncodeToString([]byte("user:" + token))
+	handler := TokenAuth(token)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	req := httptest.NewRequest(http.MethodGet, "/?auth_token="+encoded, nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == authCookieName {
+			if c.SameSite != http.SameSiteLaxMode {
+				t.Fatalf("SameSite = %v, want Lax", c.SameSite)
+			}
+			return
+		}
+	}
+	t.Fatal("auth cookie not set")
+}
+
+func TestIsAuthenticated(t *testing.T) {
+	token := "sekrit"
+	encoded := base64.StdEncoding.EncodeToString([]byte("u:" + token))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	if IsAuthenticated(req, token) {
+		t.Fatal("expected unauthenticated")
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	if !IsAuthenticated(req, token) {
+		t.Fatal("expected bearer auth")
+	}
+	req2 := httptest.NewRequest(http.MethodGet, "/?auth_token="+encoded, nil)
+	if !IsAuthenticated(req2, token) {
+		t.Fatal("expected query auth")
+	}
+	req3 := httptest.NewRequest(http.MethodGet, "/", nil)
+	req3.AddCookie(&http.Cookie{Name: authCookieName, Value: encoded})
+	if !IsAuthenticated(req3, token) {
+		t.Fatal("expected cookie auth")
+	}
+	if !IsAuthenticated(req3, "") {
+		t.Fatal("empty server token should treat as auth disabled (authenticated)")
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -290,5 +291,20 @@ func TestRegisterConfigProviders_CopiesHeaders(t *testing.T) {
 	}
 	if m.Headers["X-From-Options"] != "b" {
 		t.Errorf("X-From-Options = %q", m.Headers["X-From-Options"])
+	}
+}
+
+func TestBrowserBaseURL_RewritesWildcard(t *testing.T) {
+	u, err := url.Parse("http://0.0.0.0:4096")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := browserBaseURL(u)
+	if got != "http://127.0.0.1:4096" {
+		t.Fatalf("got %q, want http://127.0.0.1:4096", got)
+	}
+	u2, _ := url.Parse("http://127.0.0.1:4096")
+	if browserBaseURL(u2) != "http://127.0.0.1:4096" {
+		t.Fatalf("unexpected rewrite of loopback: %q", browserBaseURL(u2))
 	}
 }
