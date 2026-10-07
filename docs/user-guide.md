@@ -355,7 +355,7 @@ Agents are specialized personas that share the same tools but have different sys
 | Agent | Mode | Description |
 |-------|------|-------------|
 | **build** | primary | Default agent. Full tool access. Handles simple tasks inline, delegates complex work to executor (implementation), architect (design), or critic (review) subagents. |
-| **plan** | primary | Plan mode. Same prompt as build but all edit tools are denied -- for thinking without changing. |
+| **plan** | primary | Planning mode. Interviews the user, researches the codebase, and writes work plans; edits restricted to `plans/*` and `drafts/*`. Use `plan_enter`/`plan_exit` to switch. |
 | **architect** | all | Design decisions, API design, system-level trade-offs. Read-only analysis. |
 | **code-reviewer** | all | Severity-rated code review with SOLID checks, logic defect detection, performance analysis. |
 | **critic** | all | Multi-perspective quality review with gap analysis and pre-mortem. |
@@ -364,7 +364,6 @@ Agents are specialized personas that share the same tools but have different sys
 | **explore** | subagent | Fast codebase search. Read-only: grep, glob, read, bash only. |
 | **general** | subagent | General-purpose research and multi-step tasks. |
 | **git-master** | all | Git history management, rebasing, atomic commits. |
-| **planner** | all | Interviews user, researches codebase, produces actionable work plans. |
 | **scout** | subagent | External research. Clones dependency repos, fetches docs. |
 | **security-reviewer** | all | OWASP Top 10, secrets detection, unsafe patterns, dependency CVEs. |
 | **test-engineer** | all | Test strategy, coverage authoring, TDD workflows. |

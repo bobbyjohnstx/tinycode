@@ -152,14 +152,15 @@ type Context struct {
 	BeforeHook     BeforeHookFunc
 	AfterHook      AfterHookFunc
 	ShellEnvHook   ShellEnvHookFunc
-	SubagentCount  *atomic.Int32   // concurrent subagent counter (shared across copies)
-	SubagentBudget *atomic.Int32   // per-session spawn budget (shared across copies)
-	TaskRoundDone  *atomic.Bool    // set after first foreground task batch completes (shared across copies)
-	AutoApprove    bool            // skip permission checks when true
-	ReadFiles      *SafeReadFiles  // tracks files the model has read or edited (shared across copies)
-	Findings       *SafeFindings   // accumulated code review findings (shared across copies)
-	Notepad        *SafeNotepad    // session scratch notes (shared across copies)
-	MonitorManager *MonitorManager // background process watcher (shared across copies)
+	SubagentCount  *atomic.Int32    // concurrent subagent counter (shared across copies)
+	SubagentBudget *atomic.Int32    // per-session spawn budget (shared across copies)
+	TaskRoundDone  *atomic.Bool     // set after first foreground task batch completes (shared across copies)
+	AutoApprove    bool             // skip permission checks when true
+	ReadFiles      *SafeReadFiles   // tracks files the model has read or edited (shared across copies)
+	Findings       *SafeFindings    // accumulated code review findings (shared across copies)
+	Notepad        *SafeNotepad     // session scratch notes (shared across copies)
+	MonitorManager *MonitorManager  // background process watcher (shared across copies)
+	AgentSwitch    *SafeAgentSwitch // pending plan_enter/plan_exit agent switch (shared across copies)
 }
 
 // clone returns a shallow copy of the Context. Pointer/interface fields
@@ -208,6 +209,9 @@ func NewRegistry(toolCtx *Context) *Registry {
 	}
 	if toolCtx.MonitorManager == nil {
 		toolCtx.MonitorManager = NewMonitorManager()
+	}
+	if toolCtx.AgentSwitch == nil {
+		toolCtx.AgentSwitch = NewSafeAgentSwitch()
 	}
 	return &Registry{
 		tools:    make(map[string]*Def),

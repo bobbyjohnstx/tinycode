@@ -40,7 +40,7 @@ func TestLoadDefaults_LoadsBundledAgents(t *testing.T) {
 		t.Fatalf("LoadDefaults failed: %v", err)
 	}
 
-	bundled := []string{"architect", "debugger", "executor", "code-reviewer", "planner"}
+	bundled := []string{"architect", "debugger", "executor", "code-reviewer"}
 	for _, name := range bundled {
 		agent := r.Get(name, nil)
 		if agent == nil {
@@ -779,7 +779,7 @@ func TestLoadDefaults_BundledSpecialistsDefaultSubagent(t *testing.T) {
 		}
 	}
 
-	for _, name := range []string{"planner", "executor"} {
+	for _, name := range []string{"executor"} {
 		agent := r.Get(name, nil)
 		if agent == nil {
 			t.Errorf("bundled agent %q not loaded", name)
@@ -813,28 +813,87 @@ Prompt body.`
 	}
 }
 
-func TestLoadDefaults_PlannerPathScopedEdit(t *testing.T) {
+func TestLoadDefaults_PlanPathScopedEdit(t *testing.T) {
 	r := NewRegistry()
 	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
 		t.Fatalf("LoadDefaults failed: %v", err)
 	}
 
-	planner := r.Get("planner", nil)
-	if planner == nil {
-		t.Fatal("planner not loaded")
+	plan := r.Get("plan", nil)
+	if plan == nil {
+		t.Fatal("plan not loaded")
 	}
 
-	allow := permission.Evaluate("edit", "plans/foo.md", planner.Permission)
+	allow := permission.Evaluate("edit", "plans/foo.md", plan.Permission)
 	if allow.Action != permission.ActionAllow {
 		t.Errorf("expected edit plans/foo.md allow, got %s", allow.Action)
 	}
-	drafts := permission.Evaluate("edit", "drafts/notes.md", planner.Permission)
+	drafts := permission.Evaluate("edit", "drafts/notes.md", plan.Permission)
 	if drafts.Action != permission.ActionAllow {
 		t.Errorf("expected edit drafts/notes.md allow, got %s", drafts.Action)
 	}
-	deny := permission.Evaluate("edit", "internal/foo.go", planner.Permission)
+	deny := permission.Evaluate("edit", "internal/foo.go", plan.Permission)
 	if deny.Action != permission.ActionDeny {
 		t.Errorf("expected edit internal/foo.go deny, got %s", deny.Action)
+	}
+	read := permission.Evaluate("read", "internal/foo.go", plan.Permission)
+	if read.Action != permission.ActionAllow {
+		t.Errorf("expected read internal/foo.go allow, got %s", read.Action)
+	}
+}
+
+func TestLoadDefaults_PlanAgentAllowsPlanExit(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	plan := r.Get("plan", nil)
+	if plan == nil {
+		t.Fatal("plan not loaded")
+	}
+
+	exit := permission.Evaluate("plan_exit", "*", plan.Permission)
+	if exit.Action != permission.ActionAllow {
+		t.Errorf("expected plan_exit allow on plan agent, got %s", exit.Action)
+	}
+}
+
+func TestLoadDefaults_BuildAgentAllowsPlanEnter(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	build := r.Get("build", nil)
+	if build == nil {
+		t.Fatal("build not loaded")
+	}
+
+	enter := permission.Evaluate("plan_enter", "*", build.Permission)
+	if enter.Action != permission.ActionAllow {
+		t.Errorf("expected plan_enter allow on build agent, got %s", enter.Action)
+	}
+}
+
+func TestLoadDefaults_AgentListHasPlanNotPlanner(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	names := make(map[string]bool)
+	for _, agent := range r.List("build") {
+		names[agent.Name] = true
+	}
+	if !names["plan"] {
+		t.Error("expected agent list to contain \"plan\"")
+	}
+	if names["planner"] {
+		t.Error("expected agent list to not contain \"planner\"")
+	}
+	if r.Get("planner", nil) != nil {
+		t.Error("expected \"planner\" agent to no longer be registered")
 	}
 }
 

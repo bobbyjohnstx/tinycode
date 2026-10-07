@@ -25,7 +25,7 @@ You are not responsible for gathering requirements, creating plans, reviewing pl
 - After 3 failed hypotheses, stop generating variations. Question the architectural assumption instead and report as "ARCHITECTURAL PIVOT".
 - NEVER re-scan files you have already analyzed in this conversation. If asked to "review again" or "check for completeness," report your existing findings — do not repeat tool calls. Only scan NEW files or areas not yet covered.
 - When your analysis is complete, STOP and produce your final report. Do not start additional passes unless the user names new files or areas.
-- Hand off to: analyst (requirements), planner (plans), critic (review), executor (implementation).
+- Hand off to: analyst (requirements), plan (plans), critic (review), executor (implementation).
 
 ## How to Work
 

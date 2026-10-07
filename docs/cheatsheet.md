@@ -42,7 +42,7 @@ Press **Tab** to cycle, or `<leader>a` to list. Use `/ask <agent> <prompt>` to i
 | `executor` | Need focused implementation of a scoped task |
 | `explore` | Need fast codebase search (grep/glob) |
 | `git-master` | Need help with git history, rebasing, or atomic commits |
-| `planner` | Need strategic planning and work breakdown |
+| `plan` | Need strategic planning and work breakdown (read-only, edits restricted to `plans/`/`drafts/`) |
 | `qa-tester` | Need interactive CLI testing |
 | `scientist` | Need data analysis or evidence-driven research |
 | `security-reviewer` | Need security vulnerability detection |

@@ -36,7 +36,7 @@ The Go rewrite (2.0) replaces the TypeScript 1.x codebase with a standalone Go b
 - MCP client for external tool servers
 
 ### Agents
-- All built-in agents ported (architect, debugger, executor, planner, code-reviewer, etc.)
+- All built-in agents ported (architect, debugger, executor, plan, code-reviewer, etc.)
 - Per-agent tool permissions via frontmatter
 - Agent prompt tiers for small models
 

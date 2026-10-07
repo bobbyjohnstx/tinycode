@@ -52,7 +52,7 @@ User/project `.md` agents may replace bundled (non-native) agents. Native agents
 | Agent | Mode | Description | Key Permissions |
 |-------|------|-------------|-----------------|
 | `build` | Primary | Default agent, full tool access | `question:allow`, `plan_enter:allow` |
-| `plan` | Primary | Read-only plan mode | `plan_exit:allow`, `edit:deny` |
+| `plan` | Primary | Planning mode — interviews, researches, writes plans; edits scoped to `plans/*`/`drafts/*` | `read:allow`, `plan_exit:allow`, `edit "plans/*":allow`, `edit "drafts/*":allow`, `edit:deny` elsewhere |
 | `general` | Subagent | Multi-step task execution | `todowrite:deny` |
 | `explore` | Subagent | Fast codebase search | Only: `grep`, `glob`, `bash`, `webfetch`, `websearch`, `read` |
 | `scout` | Subagent | External research | Only: `grep`, `glob`, `webfetch`, `websearch`, `read` |
@@ -73,7 +73,6 @@ Loaded from embedded markdown files with YAML frontmatter. Actual set in Go `int
 | `debugger` | Root-cause analysis and bug fixing |
 | `executor` | Focused implementation of scoped tasks |
 | `git-master` | Git history, rebasing, atomic commits |
-| `planner` | Strategic planning and work breakdown |
 | `qa-tester` | Interactive CLI testing (archived: disabled by default) |
 | `scientist` | Data analysis and research (archived: disabled by default) |
 | `security-reviewer` | Security vulnerability detection |
@@ -82,6 +81,8 @@ Loaded from embedded markdown files with YAML frontmatter. Actual set in Go `int
 | `writer` | Technical documentation |
 
 `explore.md` / `explore.compact.md` also live under defaults; the native `explore` agent uses the `explore.md` body as its prompt (permissions stay native). Compact peers of archived agents are disabled alongside the base agent.
+
+The former standalone `planner` bundled agent was merged into the native `plan` agent (its methodology now lives in `defaults/plan.txt`). Switching between `build` and `plan` mid-session goes through the `plan_enter` / `plan_exit` tools (see [08-tools.md](08-tools.md)) rather than the `/ask` or Tab mechanisms alone — both tools require `permission.Ask` approval, and an approved call updates the session's active agent (`Processor.applyPendingAgentSwitch`), taking full effect (new system prompt, new permission set) starting with the next turn.
 
 ## 7.3 Frontmatter Schema
 

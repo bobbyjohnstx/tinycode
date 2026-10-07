@@ -112,7 +112,8 @@ type ProcessResult struct {
 	Usage     TokenUsage
 	Error     error
 	Aborted   bool
-	Compacted bool // true if history was compacted during this turn
+	Compacted bool   // true if history was compacted during this turn
+	Agent     string // current agent name; differs from the input agent when plan_enter/plan_exit switched mid-turn
 }
 
 // Process runs the main processor loop. Helper methods are in processor_loop.go.
@@ -125,6 +126,7 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 		if result != nil {
 			p.mu.Lock()
 			result.Compacted = p.compacted
+			result.Agent = p.config.Agent
 			p.mu.Unlock()
 		}
 	}()

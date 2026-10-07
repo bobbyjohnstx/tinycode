@@ -57,7 +57,7 @@ Requires Go 1.27.1+. Other modes: `tinycode web` (browser UI), `tinycode serve` 
 ### Key features
 
 - **Multi-agent orchestration** --- build agent delegates to executor, architect, and critic subagents; `/swarm` dispatches parallel subagents as goroutines (not the legacy TypeScript tmux swarm — see [docs/spec/16-not-implemented.md](docs/spec/16-not-implemented.md)); `--plan` flag shows decomposition for review before dispatch
-- **15 built-in agents** --- architect, debugger, executor, code-reviewer, planner, and more (Tab to cycle, `/ask` for one-shot)
+- **14 built-in agents** --- architect, debugger, executor, code-reviewer, and more (Tab to cycle, `/ask` for one-shot); `plan` is a native mode (`plan_enter`/`plan_exit`) for read-only research and planning
 - **10 bundled skills** --- debug, verify, trace, review, plan, test, doctor, mcp-setup, remember, deepinit
 - **Workflow commands** --- `/effort` adjusts reasoning depth per session, `/goal` runs autonomous multi-turn loops until a condition is met, `/branch` forks conversations to try alternatives
 - **Context management** --- `/context` visualizes context window usage with per-category breakdown, `/btw` asks side questions without polluting history, `/changes` shows only files tinycode modified (not all uncommitted changes); automatic elision at 80% context, LLM summarization at the limit, `/compact` for manual compaction
@@ -217,7 +217,6 @@ Press **Tab** to cycle through agents, or use `<leader>a` to pick from a list. U
 | `executor`          | Focused task executor --- smallest viable diff, no scope creep                |
 | `explore`           | Fast read-only codebase search (grep/glob)                                    |
 | `git-master`        | Git expert for atomic commits, rebasing, and history management               |
-| `planner`           | Strategic planning --- gathers requirements, produces actionable work plans   |
 | `qa-tester`         | Interactive CLI testing specialist using tmux for session management           |
 | `scientist`         | Data analysis and research --- hypothesis-driven, evidence required           |
 | `security-reviewer` | Security vulnerability detection (OWASP Top 10, secrets, CVEs)               |

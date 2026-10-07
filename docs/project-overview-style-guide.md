@@ -267,7 +267,7 @@ Architecture layers map to specific accent colors:
 Agent avatars also use these colors to indicate the agent's general role:
 - Blue: read-only analytical (architect, explore, verifier)
 - Amber: active modification (code-reviewer, git-master)
-- Green: execution/creation (executor, planner, test-engineer)
+- Green: execution/creation (executor, plan, test-engineer)
 - Red: defensive/critical (debugger, critic, security-reviewer)
 - Purple: research/writing (scientist, writer, code-simplifier)
 

@@ -24,7 +24,6 @@ var agentColorMap = map[string]lipgloss.AdaptiveColor{
 	"architect":         {Light: "#0055AA", Dark: "#58A6FF"},
 	"debugger":          {Light: "#CC6600", Dark: "#FFAA33"},
 	"executor":          {Light: "#006600", Dark: "#66FF66"},
-	"planner":           {Light: "#8833AA", Dark: "#C882E7"},
 	"plan":              {Light: "#8833AA", Dark: "#C882E7"},
 	"code-reviewer":     {Light: "#997700", Dark: "#FFD700"},
 	"code-simplifier":   {Light: "#997700", Dark: "#FFD700"},

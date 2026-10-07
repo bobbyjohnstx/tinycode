@@ -370,6 +370,21 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 
 	result := proc.Process(ctx, llmText)
 
+	// plan_enter/plan_exit may have switched the active agent mid-turn
+	// (approved via permission.Ask). Persist it so the next turn resolves
+	// fresh permissions/system prompt under the new agent.
+	if result != nil && result.Agent != "" && result.Agent != input.Agent {
+		store := session.NewStore(sm.db)
+		if err := store.UpdateAgent(sessionID, result.Agent); err != nil {
+			slog.Warn("failed to persist agent switch", "sessionID", sessionID, "agent", result.Agent, "error", err)
+		}
+		sm.mu.Lock()
+		if active, ok := sm.sessions[sessionID]; ok {
+			active.agent = result.Agent
+		}
+		sm.mu.Unlock()
+	}
+
 	if len(existingMsgs) == 0 && !isChild {
 		title := autoTitle(userText)
 		if title != "" && isDefaultTitle(currentTitle) {

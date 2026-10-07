@@ -267,5 +267,7 @@ func (p *Processor) runToolCalls(ctx context.Context, toolCalls []Part, totalUsa
 		consecutiveToolFailures = 0
 	}
 
+	p.applyPendingAgentSwitch()
+
 	return false, nil, consecutiveToolFailures
 }

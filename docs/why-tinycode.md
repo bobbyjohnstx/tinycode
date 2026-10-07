@@ -62,8 +62,8 @@ Agents with specific expertise:
 - **executor** — Focused task implementation
 - **test-engineer** — Test strategy and TDD workflows
 - **security-reviewer** — OWASP Top 10, CVE detection
-- **planner** — Strategic work planning
-- Plus **18 more** (designer, tracer, verifier, git-master, cluster-admin, and others)
+- **plan** — Native planning mode (`plan_enter`/`plan_exit`): interviews, researches, writes work plans
+- Plus **17 more** (designer, tracer, verifier, git-master, cluster-admin, and others)
 
 Skills provide progressive capability disclosure:
 

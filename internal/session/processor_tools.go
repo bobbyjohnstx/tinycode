@@ -16,6 +16,47 @@ type ToolExecutor interface {
 	ToolDefs(agentPerms []string) []llm.Tool
 }
 
+// AgentSwitcher is an optional interface implemented by ToolExecutors that
+// support mid-session agent switches requested by the plan_enter/plan_exit
+// tools. Checked via type assertion after each tool-call round so that
+// ToolExecutor implementations without switch support (e.g. test mocks)
+// don't need to change.
+type AgentSwitcher interface {
+	TakePendingAgentSwitch() (string, bool)
+}
+
+// applyPendingAgentSwitch checks for an approved plan_enter/plan_exit tool
+// call and updates the processor's active agent bookkeeping. Returns the new
+// agent name, or "" if no switch was pending. The new agent's permissions and
+// system prompt take full effect starting with the session's next turn (the
+// caller persists the switch and resolves a fresh agent on the next prompt).
+func (p *Processor) applyPendingAgentSwitch() string {
+	switcher, ok := p.tools.(AgentSwitcher)
+	if !ok {
+		return ""
+	}
+	target, has := switcher.TakePendingAgentSwitch()
+	if !has || target == "" {
+		return ""
+	}
+
+	p.mu.Lock()
+	changed := p.config.Agent != target
+	p.config.Agent = target
+	p.mu.Unlock()
+
+	if !changed {
+		return ""
+	}
+
+	slog.Info("agent switched", "sessionID", p.config.SessionID, "agent", target)
+	p.bus.Publish("session.agent.switched", map[string]any{
+		"sessionID": p.config.SessionID,
+		"agent":     target,
+	})
+	return target
+}
+
 func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part, bool) {
 	type toolResult struct {
 		index  int

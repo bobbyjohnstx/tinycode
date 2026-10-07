@@ -20,6 +20,8 @@ func RegisterBuiltins(r *Registry) {
 	r.Register(ReportFindingsTool())
 	r.Register(MonitorTool())
 	r.Register(NotepadTool())
+	r.Register(PlanEnterTool())
+	r.Register(PlanExitTool())
 }
 
 // BuiltinConfig holds optional configuration for conditional tool registration.

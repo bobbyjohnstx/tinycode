@@ -34,7 +34,7 @@ Tools are registered in a thread-safe `Registry` (sync.RWMutex) that preserves i
 
 ### Registration
 
-`RegisterBuiltins(r)` registers 16 always-available tools. `RegisterConditional(r, cfg)` adds conditional tools:
+`RegisterBuiltins(r)` registers 18 always-available tools (including `plan_enter`/`plan_exit`). `RegisterConditional(r, cfg)` adds conditional tools:
 
 | Tool | Condition |
 |------|-----------|
@@ -300,6 +300,22 @@ Execute a skill by name. Source: `skill.go`
 
 **Permission:** `read`
 
+### plan_enter
+
+Switch the session into plan mode. Source: `plan_switch.go`.
+
+No parameters. On approval, records a pending switch to the `plan` agent (via a shared `SafeAgentSwitch`); the session processor applies it after the current tool round (`Processor.applyPendingAgentSwitch`), publishes `session.agent.switched`, and the caller persists the new agent so the next turn resolves `plan`'s permissions and system prompt.
+
+**Permission:** `plan_enter` (native `build` agent allows it by default; other agents fall back to `ask`)
+
+### plan_exit
+
+Switch the session back to the `build` agent. Source: `plan_switch.go`.
+
+No parameters. Same approval/apply flow as `plan_enter`, targeting `build` instead of `plan`.
+
+**Permission:** `plan_exit` (native `plan` agent allows it by default; other agents fall back to `ask`)
+
 ### invalid
 
 Fallback for malformed tool calls. Source: `invalid.go`
@@ -324,6 +340,8 @@ Fallback for malformed tool calls. Source: `invalid.go`
 | `edit` | write, edit, apply_patch, todowrite |
 | `shell` | bash, task, monitor |
 | `webfetch` | webfetch |
+| `plan_enter` | plan_enter |
+| `plan_exit` | plan_exit |
 | `destructive-shell` | (secondary check within bash/monitor for destructive commands) |
 
 ---

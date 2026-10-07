@@ -571,7 +571,7 @@ func TestBuiltinRegistration(t *testing.T) {
 	r := NewRegistry(&Context{Directory: t.TempDir()})
 	RegisterBuiltins(r)
 
-	expected := []string{"read", "write", "edit", "apply_patch", "bash", "grep", "glob", "question", "webfetch", "invalid", "task", "todowrite", "diagnostics", "report_findings", "monitor", "notepad"}
+	expected := []string{"read", "write", "edit", "apply_patch", "bash", "grep", "glob", "question", "webfetch", "invalid", "task", "todowrite", "diagnostics", "report_findings", "monitor", "notepad", "plan_enter", "plan_exit"}
 	names := r.List()
 
 	if len(names) != len(expected) {

@@ -335,6 +335,7 @@ func (r *Registry) DefaultAgent(configDefault string) (string, error) {
 
 func (r *Registry) registerNativeAgents(defaultPerms, userPerms permission.Ruleset) {
 	buildPrompt := readEmbeddedTxt("build.txt")
+	planPrompt := readEmbeddedTxt("plan.txt")
 	generalPrompt := readEmbeddedTxt("general.txt")
 	explorePrompt := readEmbeddedExplorePrompt()
 	scoutPrompt := readEmbeddedTxt("scout.txt")
@@ -342,12 +343,12 @@ func (r *Registry) registerNativeAgents(defaultPerms, userPerms permission.Rules
 	titlePrompt := readEmbeddedTxt("title.txt")
 	summaryPrompt := readEmbeddedTxt("summary.txt")
 
-	r.registerPrimaryAgents(buildPrompt, defaultPerms, userPerms)
+	r.registerPrimaryAgents(buildPrompt, planPrompt, defaultPerms, userPerms)
 	r.registerSubagents(generalPrompt, explorePrompt, scoutPrompt, defaultPerms, userPerms)
 	r.registerUtilityAgents(compactionPrompt, titlePrompt, summaryPrompt, defaultPerms, userPerms)
 }
 
-func (r *Registry) registerPrimaryAgents(buildPrompt string, defaultPerms, userPerms permission.Ruleset) {
+func (r *Registry) registerPrimaryAgents(buildPrompt, planPrompt string, defaultPerms, userPerms permission.Ruleset) {
 	r.agents["build"] = &Info{
 		Name:        "build",
 		Description: "The default agent. Executes tools based on configured permissions.",
@@ -368,14 +369,20 @@ func (r *Registry) registerPrimaryAgents(buildPrompt string, defaultPerms, userP
 
 	r.agents["plan"] = &Info{
 		Name:        "plan",
-		Description: "Plan mode. Disallows all edit tools.",
-		Prompt:      buildPrompt,
+		Description: "Plan mode. Interviews the user, researches the codebase, and produces work plans; edits restricted to plans/* and drafts/*.",
+		Color:       "#8833AA",
+		Prompt:      planPrompt,
 		Permission: permission.Merge(
 			defaultPerms,
 			permission.Ruleset{
 				{Permission: "question", Pattern: "*", Action: permission.ActionAllow},
+				{Permission: "read", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "plan_exit", Pattern: "*", Action: permission.ActionAllow},
+				// Catch-all edit deny must precede the scoped allows below so the
+				// scoped rules win under Evaluate's last-match-from-end semantics.
 				{Permission: "edit", Pattern: "*", Action: permission.ActionDeny},
+				{Permission: "edit", Pattern: "plans/*", Action: permission.ActionAllow},
+				{Permission: "edit", Pattern: "drafts/*", Action: permission.ActionAllow},
 			},
 			userPerms,
 		),
