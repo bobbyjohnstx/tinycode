@@ -336,6 +336,13 @@ type RewindDoneMsg struct {
 	Err       error
 }
 
+// ForkDoneMsg carries the result of forking a session at a specific turn.
+type ForkDoneMsg struct {
+	Session   *SessionInfo
+	TurnIndex int
+	Err       error
+}
+
 // Aliases for cmd.go compatibility.
 type SessionListMsg = SessionsLoadedMsg
 type MessageListMsg = MessagesLoadedMsg

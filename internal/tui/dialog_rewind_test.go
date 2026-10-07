@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -152,6 +153,48 @@ func TestRewindDialog_Enter(t *testing.T) {
 	}
 	if selected.Turn.MessageID != "m3" {
 		t.Errorf("selected turn messageID = %q, want %q", selected.Turn.MessageID, "m3")
+	}
+}
+
+func TestRewindDialog_Fork(t *testing.T) {
+	dlg := NewRewindDialog()
+	turns := []RewindTurn{
+		{Index: 2, MessageID: "m3", Preview: "Second"},
+		{Index: 1, MessageID: "m1", Preview: "First"},
+	}
+	dlg.Show(turns)
+
+	var resultCmd tea.Cmd
+	dlg, resultCmd = dlg.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}})
+
+	if dlg.IsVisible() {
+		t.Fatal("dialog should be hidden after fork")
+	}
+	if resultCmd == nil {
+		t.Fatal("expected a command from fork")
+	}
+
+	msg := resultCmd()
+	forkMsg, ok := msg.(RewindForkMsg)
+	if !ok {
+		t.Fatalf("expected RewindForkMsg, got %T", msg)
+	}
+	if forkMsg.Turn.MessageID != "m3" {
+		t.Errorf("fork turn messageID = %q, want %q", forkMsg.Turn.MessageID, "m3")
+	}
+	if forkMsg.Turn.Index != 2 {
+		t.Errorf("fork turn index = %d, want 2", forkMsg.Turn.Index)
+	}
+}
+
+func TestRewindDialog_HelpText(t *testing.T) {
+	dlg := NewRewindDialog()
+	dlg.Show([]RewindTurn{{Index: 1, MessageID: "m1", Preview: "First"}})
+	dlg.SetSize(80, 24)
+
+	view := dlg.View()
+	if !strings.Contains(view, "enter=rewind") || !strings.Contains(view, "f=fork") || !strings.Contains(view, "esc=close") {
+		t.Errorf("help text missing expected hints, got view:\n%s", view)
 	}
 }
 

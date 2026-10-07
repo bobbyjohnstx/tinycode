@@ -431,6 +431,57 @@ func TestBearerAuthorization(t *testing.T) {
 	}
 }
 
+func TestForkSessionAtMessage(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":        "ses_fork1",
+			"parentID":  "ses_parent",
+			"title":     "fork at turn 2",
+			"projectID": "prj_test",
+			"directory": "/tmp",
+			"version":   "1.0",
+			"tokens":    map[string]any{},
+			"time":      map[string]any{"created": 0, "updated": 0},
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp/project", "")
+	info, err := c.ForkSessionAtMessage("ses_parent", "msg_42", "fork at turn 2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotMethod != "POST" {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/session/ses_parent/fork" {
+		t.Errorf("path = %q, want /session/ses_parent/fork", gotPath)
+	}
+	if gotBody["messageID"] != "msg_42" {
+		t.Errorf("body messageID = %v, want %q", gotBody["messageID"], "msg_42")
+	}
+	if gotBody["title"] != "fork at turn 2" {
+		t.Errorf("body title = %v, want %q", gotBody["title"], "fork at turn 2")
+	}
+	if info.ID != "ses_fork1" {
+		t.Errorf("session ID = %q, want %q", info.ID, "ses_fork1")
+	}
+	if info.ParentID != "ses_parent" {
+		t.Errorf("session ParentID = %q, want %q", info.ParentID, "ses_parent")
+	}
+}
+
 func TestSummarizeSession_OK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

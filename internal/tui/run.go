@@ -555,6 +555,39 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, tea.Batch(cmds...)
 
+	case RewindForkMsg:
+		sessionID := c.app.state.ActiveSession
+		if sessionID == "" {
+			return c, tea.Batch(c.showErrorToast("No active session to fork")...)
+		}
+		title := fmt.Sprintf("fork at turn %d", msg.Turn.Index)
+		for _, s := range c.app.state.Sessions {
+			if s.ID == sessionID {
+				title = fmt.Sprintf("%s (turn %d)", s.Title, msg.Turn.Index)
+				break
+			}
+		}
+		cmd := c.app.toast.Show("Forking conversation...", false)
+		return c, tea.Batch(cmd, forkSessionAtTurn(c.client, sessionID, msg.Turn.MessageID, title, msg.Turn.Index))
+
+	case ForkDoneMsg:
+		if msg.Err != nil {
+			slog.Error("fork failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Fork failed: %v", msg.Err)...)
+		} else if msg.Session != nil {
+			c.app.state.Sessions = append([]SessionInfo{*msg.Session}, c.app.state.Sessions...)
+			c.app.sidebar.SetSessions(c.app.state.Sessions)
+			model, cmd := c.app.Update(ToastMsg{Text: "Switched to fork: " + msg.Session.Title, IsError: false})
+			c.updateApp(model)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			cmds = append(cmds, func() tea.Msg {
+				return SessionSwitchedMsg{SessionID: msg.Session.ID}
+			})
+		}
+		return c, tea.Batch(cmds...)
+
 	case BtwResponseMsg:
 		if msg.Err != nil {
 			slog.Error("btw failed", "error", msg.Err)

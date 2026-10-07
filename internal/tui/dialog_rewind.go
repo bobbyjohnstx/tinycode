@@ -21,6 +21,12 @@ type RewindSelectedMsg struct {
 	Turn RewindTurn
 }
 
+// RewindForkMsg is emitted when the user chooses to fork the session at a
+// selected turn instead of rewinding in place.
+type RewindForkMsg struct {
+	Turn RewindTurn
+}
+
 // RewindDialog displays a picker for rewinding to a previous conversation turn.
 type RewindDialog struct {
 	turns    []RewindTurn
@@ -86,6 +92,14 @@ func (d RewindDialog) Update(msg tea.Msg) (RewindDialog, tea.Cmd) {
 				return RewindSelectedMsg{Turn: turn}
 			}
 		}
+	case "f":
+		if d.selected < len(d.turns) {
+			turn := d.turns[d.selected]
+			d.visible = false
+			return d, func() tea.Msg {
+				return RewindForkMsg{Turn: turn}
+			}
+		}
 	case "esc", "q":
 		d.visible = false
 	}
@@ -109,7 +123,7 @@ func (d RewindDialog) View() string {
 
 	var sb strings.Builder
 	sb.WriteString("Rewind to Turn  ")
-	sb.WriteString(styleMetadata.Render("enter=select  esc=cancel"))
+	sb.WriteString(styleMetadata.Render("enter=rewind  f=fork  esc=close"))
 	sb.WriteString("\n\n")
 
 	if len(d.turns) == 0 {

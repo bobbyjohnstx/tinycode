@@ -413,6 +413,18 @@ func rewindSession(client *api.Client, sessionID, messageID string, turnIndex in
 	}
 }
 
+// forkSessionAtTurn forks a session at a specific message via POST /session/{id}/fork.
+func forkSessionAtTurn(client *api.Client, sessionID, messageID, title string, turnIndex int) tea.Cmd {
+	return func() tea.Msg {
+		info, err := client.ForkSessionAtMessage(sessionID, messageID, title)
+		if err != nil {
+			return ForkDoneMsg{TurnIndex: turnIndex, Err: err}
+		}
+		si := sessionInfoFromAPI(*info)
+		return ForkDoneMsg{Session: &si, TurnIndex: turnIndex}
+	}
+}
+
 // archiveSession archives a session via POST /session/{id}/archive.
 func archiveSession(client *api.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {

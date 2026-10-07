@@ -399,6 +399,9 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	case RewindSelectedMsg:
 		a.setFocus(FocusPrompt)
 		return a, func() tea.Msg { return msg }, true
+	case RewindForkMsg:
+		a.setFocus(FocusPrompt)
+		return a, func() tea.Msg { return msg }, true
 	case SidebarSessionSelectedMsg:
 		slog.Info("sidebar session selected", "sessionID", msg.SessionID)
 		return a, func() tea.Msg { return SessionSwitchedMsg(msg) }, true

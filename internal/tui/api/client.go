@@ -271,6 +271,18 @@ func (c *Client) BranchSession(sessionID, title string) (*session.Info, error) {
 	return &info, nil
 }
 
+// ForkSessionAtMessage forks a session at a specific message via POST /session/{id}/fork.
+// It creates a new session with ParentID set to the source session and copies
+// messages from the source session up to and including messageID.
+func (c *Client) ForkSessionAtMessage(sessionID, messageID, title string) (*session.Info, error) {
+	var info session.Info
+	body := map[string]string{"messageID": messageID, "title": title}
+	if err := c.postJSON("/session/"+sessionID+"/fork", body, &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
 // RewindSession rewinds a session to a specific message via POST /session/{id}/rewind.
 // All messages after the target message are deleted.
 func (c *Client) RewindSession(sessionID, messageID string) error {

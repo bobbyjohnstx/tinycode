@@ -1,15 +1,66 @@
 package tui
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
+
+// execCmdQuick runs a tea.Cmd and returns its message, or nil if it does not
+// resolve quickly. This avoids blocking tests on long-lived commands such as
+// toast expiry timers, which fire well outside any test-relevant window.
+func execCmdQuick(cmd tea.Cmd) tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	ch := make(chan tea.Msg, 1)
+	go func() { ch <- cmd() }()
+	select {
+	case msg := <-ch:
+		return msg
+	case <-time.After(100 * time.Millisecond):
+		return nil
+	}
+}
+
+// flattenCmd runs a tea.Cmd and recursively unwraps any tea.BatchMsg,
+// returning the flat list of resulting messages.
+func flattenCmd(cmd tea.Cmd) []tea.Msg {
+	msg := execCmdQuick(cmd)
+	if msg == nil {
+		return nil
+	}
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		var out []tea.Msg
+		for _, c := range batch {
+			out = append(out, flattenCmd(c)...)
+		}
+		return out
+	}
+	return []tea.Msg{msg}
+}
+
+// findMsg returns the first message of type T within msgs, or the zero
+// value and false if none is found.
+func findMsg[T any](msgs []tea.Msg) (T, bool) {
+	var zero T
+	for _, m := range msgs {
+		if typed, ok := m.(T); ok {
+			return typed, true
+		}
+	}
+	return zero, false
+}
 
 func TestBuildPromptInput_IncludesModel(t *testing.T) {
 	app := NewApp("http://localhost:4096")
@@ -915,5 +966,123 @@ func TestBuildPromptInput_EffortMediumDefault(t *testing.T) {
 	}
 	if input.MaxIterations != nil {
 		t.Errorf("expected MaxIterations nil for default effort, got %d", *input.MaxIterations)
+	}
+}
+
+func TestConnectedApp_RewindForkMsg_CallsForkAPI(t *testing.T) {
+	var gotPath string
+	var gotBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":        "ses_fork1",
+			"parentID":  "ses_parent",
+			"title":     "Test Session (turn 2)",
+			"projectID": "prj_test",
+			"directory": "/tmp",
+			"version":   "1.0",
+			"tokens":    map[string]any{},
+			"time":      map[string]any{"created": 0, "updated": 0},
+		})
+	}))
+	defer srv.Close()
+
+	app := NewApp(srv.URL)
+	app.state.ActiveSession = "ses_parent"
+	app.state.Sessions = []SessionInfo{{ID: "ses_parent", Title: "Test Session"}}
+	client := api.New(srv.URL, "/tmp", "")
+	ca := &connectedApp{app: app, client: client}
+
+	_, cmd := ca.Update(RewindForkMsg{Turn: RewindTurn{Index: 2, MessageID: "m3", Preview: "Second"}})
+	if cmd == nil {
+		t.Fatal("expected a command from RewindForkMsg")
+	}
+
+	forkDone, ok := findMsg[ForkDoneMsg](flattenCmd(cmd))
+	if !ok {
+		t.Fatal("expected a ForkDoneMsg from the dispatched command")
+	}
+	if forkDone.Err != nil {
+		t.Fatalf("unexpected fork error: %v", forkDone.Err)
+	}
+	if forkDone.Session == nil || forkDone.Session.ID != "ses_fork1" {
+		t.Fatalf("expected forked session ses_fork1, got %+v", forkDone.Session)
+	}
+	if forkDone.Session.ParentID != "ses_parent" {
+		t.Errorf("forked session ParentID = %q, want %q", forkDone.Session.ParentID, "ses_parent")
+	}
+
+	if gotPath != "/session/ses_parent/fork" {
+		t.Errorf("path = %q, want /session/ses_parent/fork", gotPath)
+	}
+	if gotBody["messageID"] != "m3" {
+		t.Errorf("body messageID = %v, want %q", gotBody["messageID"], "m3")
+	}
+}
+
+func TestConnectedApp_RewindForkMsg_NoActiveSession(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	_, cmd := ca.Update(RewindForkMsg{Turn: RewindTurn{Index: 1, MessageID: "m1"}})
+	if cmd == nil {
+		t.Fatal("expected an error toast command when no active session")
+	}
+}
+
+func TestConnectedApp_ForkDoneMsg_UpdatesSidebarAndSwitchesSession(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "ses_parent"
+	app.state.Sessions = []SessionInfo{{ID: "ses_parent", Title: "Test Session"}}
+	ca := &connectedApp{app: app}
+
+	forked := SessionInfo{ID: "ses_fork1", Title: "Test Session (turn 2)", ParentID: "ses_parent"}
+	_, cmd := ca.Update(ForkDoneMsg{Session: &forked, TurnIndex: 2})
+
+	found := false
+	for _, s := range ca.app.state.Sessions {
+		if s.ID == "ses_fork1" {
+			found = true
+			if s.ParentID != "ses_parent" {
+				t.Errorf("forked session ParentID = %q, want %q", s.ParentID, "ses_parent")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected forked session to be added to state.Sessions")
+	}
+
+	if cmd == nil {
+		t.Fatal("expected a command after ForkDoneMsg")
+	}
+	switched, ok := findMsg[SessionSwitchedMsg](flattenCmd(cmd))
+	if !ok {
+		t.Fatal("expected a SessionSwitchedMsg from the dispatched command")
+	}
+	if switched.SessionID != "ses_fork1" {
+		t.Errorf("expected switch to ses_fork1, got %q", switched.SessionID)
+	}
+}
+
+func TestConnectedApp_ForkDoneMsg_Error(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses_parent"
+	ca := &connectedApp{app: app}
+
+	_, cmd := ca.Update(ForkDoneMsg{Err: errors.New("boom")})
+	if cmd == nil {
+		t.Fatal("expected an error toast command")
+	}
+	if len(ca.app.state.Sessions) != 0 {
+		t.Errorf("expected no sessions added on error, got %+v", ca.app.state.Sessions)
 	}
 }
