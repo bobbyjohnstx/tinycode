@@ -38,6 +38,8 @@ func (s *Server) handleConfigGet(w http.ResponseWriter, r *http.Request) {
 		cfg.Share = "disabled"
 	}
 
+	redactConfig(cfg)
+
 	respondJSON(w, http.StatusOK, cfg)
 }
 
@@ -166,6 +168,36 @@ func asInt(v any) (int, bool) {
 		return int(i), err == nil
 	default:
 		return 0, false
+	}
+}
+
+// redactConfig strips sensitive values from cfg in place. The caller should
+// pass a freshly-loaded config (not the shared in-memory pointer) so the
+// original is never mutated.
+func redactConfig(cfg *config.Info) {
+	const redacted = "[REDACTED]"
+
+	for name, mcp := range cfg.MCP {
+		for k := range mcp.Headers {
+			mcp.Headers[k] = redacted
+		}
+		for k := range mcp.Env {
+			mcp.Env[k] = redacted
+		}
+		if mcp.OAuth != nil {
+			mcp.OAuth.AccessToken = redacted
+		}
+		cfg.MCP[name] = mcp
+	}
+
+	for name, prov := range cfg.Provider {
+		for k := range prov.Headers {
+			prov.Headers[k] = redacted
+		}
+		if _, ok := prov.Options["api_key"]; ok {
+			prov.Options["api_key"] = redacted
+		}
+		cfg.Provider[name] = prov
 	}
 }
 

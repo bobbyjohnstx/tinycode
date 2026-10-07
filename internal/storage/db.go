@@ -159,6 +159,13 @@ func openDB(dsn string) (*DB, error) {
 		return nil, fmt.Errorf("SQLite integrity check failed: %s", quickCheckResult)
 	}
 
+	if !isMemory {
+		if err := os.Chmod(path, 0o600); err != nil {
+			sqlDB.Close()
+			return nil, fmt.Errorf("setting database file permissions: %w", err)
+		}
+	}
+
 	db := &DB{
 		DB:   sqlDB,
 		path: path,
