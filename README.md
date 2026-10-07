@@ -311,6 +311,7 @@ The runtime is Go only. The `packages/` tree is legacy TypeScript retained for `
 
 - **Install:** [docs/install.md](docs/install.md)
 - **Getting started:** [docs/getting-started.md](docs/getting-started.md)
+- **CI / GitHub Actions:** [docs/ci-integration.md](docs/ci-integration.md)
 - **Spec index:** [docs/spec/README.md](docs/spec/README.md)
 - **Architecture:** [docs/architecture.md](docs/architecture.md)
 - **Build & embed web UI:** [docs/building.md](docs/building.md)
