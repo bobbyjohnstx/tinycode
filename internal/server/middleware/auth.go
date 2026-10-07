@@ -148,11 +148,12 @@ func unauthorizedHTML(mode AuthMode) string {
 <li>Use the same host as the server (<code>127.0.0.1</code> vs <code>localhost</code> are different cookies).</li>
 </ul>`
 	default:
-		body = `<h1>API only — no web UI here</h1>
-<p><code>tinycode serve</code> is a headless HTTP API. There is no browser UI on this port.</p>
+		body = `<h1>Authentication required</h1>
+<p><code>tinycode serve</code> exposes a JSON API plus a small ops console (status, doctor, models, sessions).</p>
 <ul>
-<li>For the web UI, run <code>tinycode web</code> instead.</li>
-<li>For API clients, send <code>Authorization: Bearer &lt;token&gt;</code> (token is printed in the server log at startup).</li>
+<li>Open the <code>?auth_token=…</code> URL printed in the server log (sets a session cookie).</li>
+<li>API clients: send <code>Authorization: Bearer &lt;token&gt;</code>.</li>
+<li>Full chat UI: run <code>tinycode web</code> (separate command).</li>
 </ul>`
 	}
 	return `<!DOCTYPE html>

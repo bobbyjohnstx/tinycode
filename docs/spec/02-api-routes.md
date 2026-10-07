@@ -183,9 +183,10 @@ OpenAPI MCP auth routes (`/mcp/{name}/auth`, `/mcp/{name}/auth/callback`, `/mcp/
 | POST | `/plugin/event` | `handlePluginEvent` | Send an event to plugins |
 | GET | `/plugin/registry` | `handlePluginRegistry` | Search the curated plugin registry |
 
-## 2.19 Static File Serving
+## 2.19 Static File Serving / Ops Console
 
-If `ServeWebUI` is enabled, a catch-all `GET /` handler serves the embedded web app (or a dev directory override) via `internal/static/`. SPA fallback returns `index.html` for non-asset paths.
+- **`ServeWebUI=true` (`tinycode web`):** catch-all serves the embedded Solid SPA (or a dev directory override) via `internal/static/`. SPA fallback returns `index.html` for non-asset paths.
+- **`ServeWebUI=false` (`tinycode serve`):** mux also registers server-rendered ops console routes from `internal/server/console` (`GET /`, `/status`, `/doctor`, `/providers`, `/models`, `/agents`, `/sessions`, `/plugins`, plus `POST /sessions/{id}/delete`). These are HTML inventory pages, not the chat SPA.
 
 ## 2.20 Response Format
 

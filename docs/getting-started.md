@@ -170,10 +170,10 @@ echo "fix the lint errors" | ./dist/tinycode run -m ollama/qwen3.5:9b
 # Multi-turn: loop on stdin for multiple prompts
 ./dist/tinycode run --multi-turn --format json -m ollama/qwen3.5:9b
 
-# Headless API proxy (API only, no SPA)
+# Headless API + thin ops console (no chat SPA)
 ./dist/tinycode serve
 
-# Browser UI (embedded SPA + API; opens auth URL)
+# Browser chat UI (embedded SPA + API; opens auth URL)
 ./dist/tinycode web
 
 # Agent Client Protocol (IDE integration, stdio)

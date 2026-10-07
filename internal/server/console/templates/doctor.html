@@ -1,0 +1,18 @@
+{{define "content"}}
+<h1>Doctor</h1>
+<p class="muted">Analogous to <code>tinycode doctor</code> (live server checks)</p>
+<div class="card">
+  <table>
+    <tr><th>Check</th><th>Status</th><th>Detail</th></tr>
+    {{range .Checks}}
+    <tr>
+      <td>{{.Name}}</td>
+      <td><span class="pill {{.Level}}">{{.Level}}</span></td>
+      <td>{{.Detail}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="3" class="empty">No checks</td></tr>
+    {{end}}
+  </table>
+</div>
+{{end}}

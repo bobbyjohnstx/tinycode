@@ -13,7 +13,7 @@ The Go rewrite (2.0) replaces the TypeScript 1.x codebase with a standalone Go b
 - **Provider abstraction** -- Ollama, OpenAI-compatible, OpenRouter auto-discovery with capability detection.
 - **Session management** -- SQLite-backed persistence, session tree hierarchy, context compaction.
 - **ACP mode** -- Agent Client Protocol for IDE integration (stdio transport).
-- **Headless mode** -- `tinycode serve` for API-only deployments.
+- **Headless mode** -- `tinycode serve` for API + thin ops console deployments (`tinycode web` for the chat SPA).
 
 ### Plugins
 - **30 plugin binaries** -- curated in `internal/plugin/registry.go`. notify, code-review, handoff, and context-pruning are in-process builtins, not separate binaries.

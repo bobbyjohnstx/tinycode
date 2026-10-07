@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -285,5 +286,10 @@ func logServeAuthToken(token, baseURL string) {
 		"usage", "Authorization: Bearer <token>",
 		"url", baseURL,
 		"token", prefix,
+	)
+	// Browser ops console on serve: print a one-shot auth URL (sets cookie, then redirect).
+	authParam := base64.StdEncoding.EncodeToString([]byte("tinycode:" + token))
+	slog.Info("ops console",
+		"url", strings.TrimRight(baseURL, "/")+"/?auth_token="+authParam,
 	)
 }

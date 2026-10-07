@@ -187,7 +187,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines and development s
 ### Linux
 
 - If terminal does not render colors, check `TERM` variable
-- On headless servers, use `./dist/tinycode serve` for the headless API mode
+- On headless servers, use `./dist/tinycode serve` for the API + ops console (use `tinycode web` for the chat SPA)
 - SELinux: May need to adjust contexts for file access
 
 ## LLM Model Help

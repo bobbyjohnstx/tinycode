@@ -1,0 +1,13 @@
+{{define "content"}}
+<h1>Status</h1>
+<p class="muted">Analogous to <code>tinycode status</code></p>
+<div class="card">
+  <table>
+    <tr><th>Field</th><th>Value</th></tr>
+    <tr><td>Healthy</td><td>{{if .Healthy}}<span class="pill ok">ok</span>{{else}}<span class="pill bad">degraded</span>{{end}}</td></tr>
+    <tr><td>Version</td><td><code>{{.Version}}</code></td></tr>
+    <tr><td>Directory</td><td><code>{{.Directory}}</code></td></tr>
+    <tr><td>Database</td><td>{{.Database}}</td></tr>
+  </table>
+</div>
+{{end}}

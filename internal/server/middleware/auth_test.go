@@ -203,11 +203,11 @@ func TestTokenAuth_HTMLUnauthorizedForBrowser(t *testing.T) {
 		t.Fatalf("Content-Type = %q, want text/html", ct)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "tinycode web") {
-		t.Fatalf("expected tinycode web hint in HTML, got %q", body)
+	if !strings.Contains(body, "ops console") {
+		t.Fatalf("expected ops console hint in HTML, got %q", body)
 	}
-	if !strings.Contains(body, "API") {
-		t.Fatalf("expected API-only hint in serve mode HTML, got %q", body)
+	if !strings.Contains(body, "auth_token") {
+		t.Fatalf("expected auth_token hint in serve HTML, got %q", body)
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
+	"github.com/bobbyjohnstx/tinycode/internal/server/console"
 	"github.com/bobbyjohnstx/tinycode/internal/server/middleware"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/static"
@@ -130,6 +131,23 @@ func New(cfg Config, deps Dependencies) *Server {
 	s.wirePendingStores()
 
 	s.registerRoutes()
+	// Ops console is for headless serve only — tinycode web keeps the SPA (#637).
+	if !cfg.ServeWebUI {
+		console.New(console.Deps{
+			Version:   cfg.Version,
+			Directory: cfg.Directory,
+			DB:        deps.DB,
+			Registry:  deps.Registry,
+			Agents:    deps.AgentRegistry,
+			Plugins:   deps.PluginManager,
+			MCP:       deps.MCPService,
+			LSP:       deps.LSPManager,
+			Config:    deps.Config,
+			SessionStore: func() *session.Store {
+				return s.sessionStore()
+			},
+		}).Register(mux)
+	}
 	s.wirePluginHooks()
 
 	corsConfig := middleware.DefaultCORSConfig(fmt.Sprintf("%s:%d", cfg.Hostname, cfg.Port))
@@ -162,6 +180,7 @@ func New(cfg Config, deps Dependencies) *Server {
 			staticFS.ServeHTTP(w, r)
 		})
 	} else {
+		// serve: JSON API + ops console HTML pages (same TokenAuth).
 		handler = middleware.TokenAuthMode(cfg.Token, middleware.AuthModeAPI)(mux)
 	}
 

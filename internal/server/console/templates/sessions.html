@@ -1,0 +1,27 @@
+{{define "content"}}
+<h1>Sessions</h1>
+<p class="muted">Analogous to <code>tinycode session</code></p>
+<div class="card">
+  {{if .Sessions}}
+  <table>
+    <tr><th>Title</th><th>ID</th><th>Agent</th><th>Updated</th><th></th></tr>
+    {{range .Sessions}}
+    <tr>
+      <td>{{.Title}}</td>
+      <td><code>{{.ID}}</code></td>
+      <td>{{.Agent}}</td>
+      <td class="muted">{{.Updated}}</td>
+      <td>
+        <form class="inline" method="post" action="/sessions/{{.ID}}/delete" onsubmit="return confirm('Delete session {{.ID}}?');">
+          <input type="hidden" name="confirm" value="delete">
+          <button type="submit" class="danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {{end}}
+  </table>
+  {{else}}
+  <p class="empty">No sessions</p>
+  {{end}}
+</div>
+{{end}}

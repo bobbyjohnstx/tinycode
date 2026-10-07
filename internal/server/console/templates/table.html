@@ -1,0 +1,16 @@
+{{define "content"}}
+<h1>{{.Heading}}</h1>
+<p class="muted">{{.Subtitle}}</p>
+<div class="card">
+  {{if .Rows}}
+  <table>
+    <tr>{{range .Headers}}<th>{{.}}</th>{{end}}</tr>
+    {{range .Rows}}
+    <tr>{{range .}}<td>{{.}}</td>{{end}}</tr>
+    {{end}}
+  </table>
+  {{else}}
+  <p class="empty">{{.Empty}}</p>
+  {{end}}
+</div>
+{{end}}

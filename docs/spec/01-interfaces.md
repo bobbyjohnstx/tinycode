@@ -303,14 +303,14 @@ Source: `cmd/tinycode/main.go` (`runACP`)
 
 ## 1.6 Headless Server (`tinycode serve`)
 
-Starts the HTTP API server without the TUI. The server binds to the configured host and port (default `127.0.0.1:4096`) and serves the REST + SSE API documented in [02-api-routes.md](02-api-routes.md).
+Starts the HTTP API server without the TUI. The server binds to the configured host and port (default `127.0.0.1:4096`) and serves the REST + SSE API documented in [02-api-routes.md](02-api-routes.md), plus a thin server-rendered **ops console** (`internal/server/console`) for health/inventory pages. The full Solid chat SPA is served only by `tinycode web` (`ServeWebUI=true`).
 
 ### Behavior
 
 - Blocks until SIGINT or SIGTERM
 - Graceful shutdown: disposes all sessions, drains connections, stops listener
-- Optional web UI serving when `--web` flag is used or `cfg.ServeWebUI` is true
-- Bearer token authentication when `TINYCODE_AUTH_TOKEN` is set (auto-generated and logged on startup if unset; disabled via `TINYCODE_NO_AUTH`)
+- Ops console HTML pages when `ServeWebUI` is false (default for `serve`); Solid SPA when `ServeWebUI` is true (`web`)
+- Bearer token authentication when `TINYCODE_AUTH_TOKEN` is set (auto-generated and logged on startup if unset; disabled via `TINYCODE_NO_AUTH`); serve also logs an ops-console `?auth_token=` browser URL
 
 ### Environment Variables
 

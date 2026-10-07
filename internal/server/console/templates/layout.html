@@ -1,0 +1,59 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · tinycode ops</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#111;--muted:#555;--line:#dde1e6;--card:#fff;--ok:#0a7a32;--warn:#9a6700;--bad:#b42318;--accent:#0969da}
+*{box-sizing:border-box}
+body{margin:0;font-family:ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--fg);line-height:1.45}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:.75rem 1.25rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+header .brand{font-weight:700}
+nav{display:flex;gap:.85rem;flex-wrap:wrap;font-size:.92rem}
+main{max-width:960px;margin:1.25rem auto;padding:0 1.25rem 2rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:1rem 1.1rem;margin-bottom:1rem}
+h1{font-size:1.25rem;margin:0 0 .75rem}
+h2{font-size:1.05rem;margin:0 0 .5rem}
+.muted{color:var(--muted);font-size:.9rem}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:.45rem .35rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+.pill{display:inline-block;padding:.1rem .45rem;border-radius:999px;font-size:.75rem;font-weight:600}
+.pill.ok{background:#dcffe4;color:var(--ok)}
+.pill.warn{background:#fff3cd;color:var(--warn)}
+.pill.bad{background:#ffe1e0;color:var(--bad)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.85rem}
+.stat .v{font-size:1.4rem;font-weight:700}
+.stat .l{color:var(--muted);font-size:.8rem}
+form.inline{display:inline}
+button, .btn{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:.35rem .7rem;font-size:.85rem;cursor:pointer}
+button.danger{background:var(--bad)}
+code{font-family:ui-monospace,monospace;font-size:.85em;background:#eef1f4;padding:.05em .3em;border-radius:3px}
+.empty{color:var(--muted);padding:.5rem 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><a href="/">tinycode ops</a></div>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/status">Status</a>
+    <a href="/doctor">Doctor</a>
+    <a href="/providers">Providers</a>
+    <a href="/models">Models</a>
+    <a href="/agents">Agents</a>
+    <a href="/sessions">Sessions</a>
+    <a href="/plugins">Plugins</a>
+  </nav>
+</header>
+<main>
+{{template "content" .}}
+</main>
+</body>
+</html>
+{{end}}

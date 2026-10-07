@@ -1,0 +1,15 @@
+{{define "content"}}
+<h1>Ops console</h1>
+<p class="muted">CLI-shaped browser surface for health and inventory. Chat stays in the TUI / <code>tinycode run</code> / ACP.</p>
+<div class="grid" style="margin:1rem 0">
+  <div class="stat"><div class="v">{{.Version}}</div><div class="l">version</div></div>
+  <div class="stat"><div class="v">{{if .Healthy}}ok{{else}}degraded{{end}}</div><div class="l">health</div></div>
+  <div class="stat"><div class="v">{{.ProviderCount}}</div><div class="l">providers</div></div>
+  <div class="stat"><div class="v">{{.SessionCount}}</div><div class="l">sessions</div></div>
+</div>
+<div class="card">
+  <h2>Quick links</h2>
+  <p><a href="/doctor">Run doctor checks</a> · <a href="/models">Browse models</a> · <a href="/sessions">Manage sessions</a></p>
+  <p class="muted">Directory: <code>{{.Directory}}</code></p>
+</div>
+{{end}}

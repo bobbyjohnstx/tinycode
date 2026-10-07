@@ -773,8 +773,36 @@ func TestServeMode_BrowserRootReturnsHTML(t *testing.T) {
 		t.Fatalf("Content-Type = %q", w.Header().Get("Content-Type"))
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, "API only") || !strings.Contains(body, "tinycode web") {
+	if !strings.Contains(body, "ops console") || !strings.Contains(body, "auth_token") {
 		t.Fatalf("unexpected HTML body: %q", body)
+	}
+}
+
+func TestServeMode_AuthenticatedRootServesOpsConsole(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	srv := New(Config{
+		Port:       4096,
+		Hostname:   "127.0.0.1",
+		Token:      "serve-secret",
+		Version:    "test",
+		Directory:  "/tmp/proj",
+		ServeWebUI: false,
+	}, Dependencies{Bus: b, DB: db, Registry: provider.NewRegistry()})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Authorization", "Bearer serve-secret")
+	w := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%q", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "tinycode ops") {
+		t.Fatalf("expected ops console HTML, got %q", body)
 	}
 }
 
