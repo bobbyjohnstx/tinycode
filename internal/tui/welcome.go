@@ -9,33 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type logoRow struct {
-	leftTpl  string
-	rightTpl string
-}
-
-func renderLogoTemplate(template string) string {
-	var sb strings.Builder
-	for _, ch := range template {
-		switch ch {
-		case '_':
-			sb.WriteRune(' ')
-		case '^', '~':
-			sb.WriteRune('▀')
-		default:
-			sb.WriteRune(ch)
-		}
-	}
-	return sb.String()
-}
-
-var logoData = []logoRow{
-	{"▀█▀ ▄_ █▀▀▄ █__█", "╲"},
-	{"_█_ █_ █__█ _▀▀█", "  ╲"},
-	{"_▀_ ▀_ ▀~~▀ ___▀", "    ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█"},
-	{"", "                      ╲  █___ █__█ █__█ █^^^"},
-	{"", "                        ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀"},
-}
+// logoRevealRows is the monogram chip + wordmark (3 lines), revealed on boot ticks.
+const logoRevealRows = 3
 
 type bootCheck struct {
 	label string
@@ -109,7 +84,7 @@ func (w *WelcomeView) updateBootDone() {
 }
 
 func (w *WelcomeView) Tick() tea.Cmd {
-	if w.bootDone && w.logoShow >= len(logoData) {
+	if w.bootDone && w.logoShow >= logoRevealRows {
 		return nil
 	}
 	w.logoShow++
@@ -139,35 +114,24 @@ func (w WelcomeView) View(width, height int, providerName, modelName string, ses
 
 	var lines []string
 
-	// Logo — reveal row by row
-	type renderedRow struct {
-		left, right string
-		plainLen    int
+	// Monogram chip + wordmark — reveal row by row
+	chipBorder := leftStyle
+	chipInner := leftStyle.Bold(true)
+	nameStyle := rightStyle.Bold(true)
+	subtitleStyle := dimStyle
+	logoRows := []string{
+		chipBorder.Render("┌────┐"),
+		chipBorder.Render("│") + chipInner.Render(" tc ") + chipBorder.Render("│") +
+			"   " + nameStyle.Render("tinycode"),
+		chipBorder.Render("└────┘") + "   " + subtitleStyle.Render("local-first coding agent"),
 	}
-	var rows []renderedRow
-	maxLen := 0
-	for _, row := range logoData {
-		left := renderLogoTemplate(row.leftTpl)
-		right := renderLogoTemplate(row.rightTpl)
-		plainLen := len([]rune(left)) + len([]rune(right))
-		if plainLen > maxLen {
-			maxLen = plainLen
-		}
-		rows = append(rows, renderedRow{left, right, plainLen})
-	}
-
 	showRows := w.logoShow
-	if showRows > len(rows) {
-		showRows = len(rows)
+	if showRows > len(logoRows) {
+		showRows = len(logoRows)
 	}
-	for i := 0; i < len(rows); i++ {
+	for i := 0; i < len(logoRows); i++ {
 		if i < showRows {
-			row := rows[i]
-			pad := strings.Repeat(" ", maxLen-row.plainLen)
-			line := leftStyle.Render(row.left) + rightStyle.Render(row.right) + pad
-			lines = append(lines, line)
-		} else {
-			lines = append(lines, strings.Repeat(" ", maxLen))
+			lines = append(lines, logoRows[i])
 		}
 	}
 	lines = append(lines, "")
@@ -243,7 +207,7 @@ func (w WelcomeView) View(width, height int, providerName, modelName string, ses
 		lines = append(lines, tipLine2)
 	}
 
-	blockWidth := maxLen
+	blockWidth := 0
 	for _, l := range lines {
 		if w := lipgloss.Width(l); w > blockWidth {
 			blockWidth = w

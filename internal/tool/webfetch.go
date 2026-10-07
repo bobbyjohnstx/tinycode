@@ -133,9 +133,13 @@ func ssrfSafeTransport() *http.Transport {
 func ssrfSafeClient() *http.Client {
 	return &http.Client{
 		Transport: ssrfSafeTransport(),
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return errors.New("stopped after 10 redirects")
+			}
+			scheme := strings.ToLower(req.URL.Scheme)
+			if scheme != "http" && scheme != "https" {
+				return fmt.Errorf("redirect to unsupported scheme %q", req.URL.Scheme)
 			}
 			// IP validation happens in the transport's DialContext for
 			// every connection, including those triggered by redirects.

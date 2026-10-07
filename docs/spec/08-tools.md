@@ -238,7 +238,7 @@ Fetch URL content with SSRF protection. Source: `webfetch.go`
 | Max redirects | 10 |
 | TLS minimum | TLS 1.2 |
 
-**SSRF protection:** Pre-flight DNS check against blocked CIDRs: `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `0.0.0.0/8`, `::1/128`, `fc00::/7`, `fe80::/10`. Redirect targets also checked.
+**SSRF protection:** Pre-flight DNS check against blocked CIDRs: `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `0.0.0.0/8`, `::1/128`, `fc00::/7`, `fe80::/10`; dial-time IP checks in `ssrfSafeTransport`; `CheckRedirect` limits redirects and schemes. Full scope/non-goals: [15-security.md §15.6](15-security.md).
 
 **Permission:** `webfetch`
 

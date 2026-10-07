@@ -52,7 +52,7 @@ func setupLogger() {
 	}
 
 	dataDir := config.DataDir()
-	os.MkdirAll(dataDir, 0o755)
+	os.MkdirAll(dataDir, 0o700)
 
 	logPath := filepath.Join(dataDir, "tinycode.log")
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
@@ -162,7 +162,7 @@ func loadOrCreateWebToken() string {
 		}
 	}
 	token := generateToken()
-	os.MkdirAll(config.DataDir(), 0o755)
+	os.MkdirAll(config.DataDir(), 0o700)
 	if err := os.WriteFile(tokenPath, []byte(token+"\n"), 0o600); err != nil {
 		slog.Warn("failed to persist web token", "error", err)
 	}

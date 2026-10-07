@@ -238,3 +238,22 @@ func TestSSRFSafeTransport_BlocksPrivateAtDialTime(t *testing.T) {
 		t.Errorf("expected SSRF block error, got: %v", err)
 	}
 }
+
+func TestSSRFSafeClient_BlocksFileSchemeRedirect(t *testing.T) {
+	client := ssrfSafeClient()
+	via, err := http.NewRequest(http.MethodGet, "https://example.com/", nil)
+	if err != nil {
+		t.Fatalf("via request: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodGet, "file:///etc/passwd", nil)
+	if err != nil {
+		t.Fatalf("redirect request: %v", err)
+	}
+	err = client.CheckRedirect(req, []*http.Request{via})
+	if err == nil {
+		t.Fatal("expected error for file:// redirect")
+	}
+	if !strings.Contains(err.Error(), "unsupported scheme") {
+		t.Errorf("expected unsupported scheme error, got: %v", err)
+	}
+}

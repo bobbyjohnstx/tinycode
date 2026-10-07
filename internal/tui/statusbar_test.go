@@ -127,12 +127,101 @@ func TestStatusBar_ViewShowsSpinnerWhenWorking(t *testing.T) {
 	sb.SetWorking(true)
 
 	view := sb.View()
-	if view == "" {
-		t.Error("expected non-empty view")
+	if !strings.Contains(view, "thinking") {
+		t.Error("expected default activity 'thinking' while working")
 	}
-	// When working, the hints line should contain "esc interrupt"
-	if len(view) == 0 {
-		t.Error("expected hints line content")
+	// Elapsed telemetry (tokens omitted when zero).
+	if !strings.Contains(view, "s") {
+		t.Errorf("expected elapsed telemetry, got %q", view)
+	}
+	// While working, shortcut hints are hidden (avoids wrap-duplication).
+	if strings.Contains(view, "ctrl+p") || strings.Contains(view, "/help") {
+		t.Error("shortcut hints should be hidden while working")
+	}
+	lines := strings.Split(view, "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected exactly 1 status line while working, got %d:\n%s", len(lines), view)
+	}
+	if sb.Height() != 1 {
+		t.Fatalf("working Height() = %d, want 1", sb.Height())
+	}
+}
+
+func TestStatusBar_WorkingShowsActivityAndTelemetry(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetWorking(true)
+	sb.SetActivity("bash ls -la")
+	sb.SetTurnTokens(320)
+	sb.turnStart = time.Now().Add(-2400 * time.Millisecond)
+
+	view := sb.View()
+	if !strings.Contains(view, "bash ls -la") {
+		t.Errorf("expected activity in working view, got %q", view)
+	}
+	if !strings.Contains(view, "s · ") {
+		t.Errorf("expected elapsed pattern, got %q", view)
+	}
+	if !strings.Contains(view, "320") {
+		t.Errorf("expected turn tokens in view, got %q", view)
+	}
+	if strings.Contains(view, "ctrl+p") {
+		t.Error("ctrl+p must not appear while working")
+	}
+	if strings.Count(view, "\n") != 0 {
+		t.Fatalf("working view must be 1 line, got %q", view)
+	}
+	if sb.Height() != 1 {
+		t.Fatalf("working Height() = %d, want 1", sb.Height())
+	}
+}
+
+func TestStatusBar_SetWorkingClearsActivity(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetWorking(true)
+	sb.SetActivity("read")
+	sb.SetTurnTokens(99)
+	_ = sb.SetWorking(false)
+	if sb.activity != "" {
+		t.Errorf("activity = %q, want empty after SetWorking(false)", sb.activity)
+	}
+	if sb.turnTokens != 0 {
+		t.Errorf("turnTokens = %d, want 0 after SetWorking(false)", sb.turnTokens)
+	}
+}
+
+func TestFormatActivity(t *testing.T) {
+	tests := []struct {
+		name string
+		part PartView
+		want string
+	}{
+		{name: "reasoning", part: PartView{Type: "reasoning"}, want: "thinking"},
+		{name: "thinking", part: PartView{Type: "thinking"}, want: "thinking"},
+		{name: "bash", part: PartView{Type: "tool-call", ToolName: "bash", ToolArgs: `{"command":"go test ./..."}`}, want: "bash go test ./..."},
+		{name: "read basename", part: PartView{Type: "tool", ToolName: "read", ToolArgs: `{"file_path":"/tmp/foo/bar.go"}`}, want: "read bar.go"},
+		{name: "webfetch", part: PartView{Type: "tool-call", ToolName: "webfetch", ToolArgs: `{"url":"https://example.com"}`}, want: "webfetch"},
+		{name: "other tool", part: PartView{Type: "tool-call", ToolName: "glob"}, want: "glob"},
+		{name: "text ignored", part: PartView{Type: "text", Text: "hi"}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatActivity(tt.part)
+			if got != tt.want {
+				t.Errorf("formatActivity() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderHintsLine_SingleRow(t *testing.T) {
+	left := "AAAAAAAA" // 8 cols
+	right := "tab agents  ctrl+p commands  /help reference"
+	line := renderHintsLine(40, left, right)
+	if strings.Count(line, "\n") != 0 {
+		t.Fatalf("hints line must be a single row, got %q", line)
+	}
+	if lipgloss.Width(line) > 40 {
+		t.Fatalf("hints line width %d > 40", lipgloss.Width(line))
 	}
 }
 
@@ -186,8 +275,11 @@ func TestStatusBar_ContextPercent(t *testing.T) {
 	sb.SetContextPercent(42)
 
 	view := sb.View()
-	if !strings.Contains(view, "42% ctx") {
-		t.Error("expected '42% ctx' in status bar")
+	if !strings.Contains(view, "42%") {
+		t.Error("expected '42%' in status bar")
+	}
+	if !strings.Contains(view, "█") || !strings.Contains(view, "░") {
+		t.Error("expected context meter bar glyphs in status bar")
 	}
 }
 
@@ -197,8 +289,23 @@ func TestStatusBar_ContextPercentZeroHidden(t *testing.T) {
 	sb.SetContextPercent(0)
 
 	view := sb.View()
-	if strings.Contains(view, "% ctx") {
-		t.Error("context percent should be hidden when 0")
+	if strings.Contains(view, "█") || strings.Contains(view, "0%") {
+		t.Error("context meter should be hidden when 0")
+	}
+}
+
+func TestRenderContextMeter_Thresholds(t *testing.T) {
+	low := renderContextMeter(42)
+	if !strings.Contains(low, "42%") {
+		t.Fatalf("low meter = %q", low)
+	}
+	warn := renderContextMeter(75)
+	if !strings.Contains(warn, "75%") {
+		t.Fatalf("warn meter = %q", warn)
+	}
+	hot := renderContextMeter(95)
+	if !strings.Contains(hot, "95%") {
+		t.Fatalf("hot meter = %q", hot)
 	}
 }
 
@@ -212,8 +319,8 @@ func TestStatusBar_Height_Idle(t *testing.T) {
 func TestStatusBar_Height_GoalActive(t *testing.T) {
 	sb := NewStatusBar(120)
 	sb.SetGoalState("all tests pass", 3, 10)
-	if sb.Height() != 4 {
-		t.Errorf("goal active height = %d, want 4", sb.Height())
+	if sb.Height() != 5 {
+		t.Errorf("goal active height = %d, want 5", sb.Height())
 	}
 }
 

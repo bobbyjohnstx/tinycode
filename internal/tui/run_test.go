@@ -495,6 +495,10 @@ func TestIsTerminalEscape_DetectsOSCFragments(t *testing.T) {
 		{"hello world", false},
 		{"a", false},
 		{"abc", false},
+		{";1R", true},
+		{"24;1R", true},
+		{"12;80R", true},
+		{"1R", false}, // too ambiguous without semicolon
 	}
 	for _, tt := range tests {
 		got := isTerminalEscape(tt.input)
@@ -513,6 +517,18 @@ func TestPromptInput_FiltersOSCResponse(t *testing.T) {
 
 	if p.Value() != "" {
 		t.Errorf("expected OSC response to be filtered, got %q", p.Value())
+	}
+}
+
+func TestPromptInput_FiltersCPRFragment(t *testing.T) {
+	p := NewPromptInput(80)
+	p, _ = p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(";1R")})
+	if p.Value() != "" {
+		t.Errorf("expected CPR fragment to be filtered, got %q", p.Value())
+	}
+	p, _ = p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("24;1R")})
+	if p.Value() != "" {
+		t.Errorf("expected full CPR to be filtered, got %q", p.Value())
 	}
 }
 

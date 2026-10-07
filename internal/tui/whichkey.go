@@ -96,13 +96,36 @@ func (w WhichKeyPanel) View() string {
 // placeWhichKey composites the which-key panel over the base view,
 // positioned at the bottom-right above the status bar.
 func placeWhichKey(base, panel string, width, height int) string {
-	return lipgloss.Place(
-		width, height,
-		lipgloss.Right, lipgloss.Bottom,
-		panel,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.NoColor{}),
-	)
+	if panel == "" {
+		return base
+	}
+	base = fitTerminal(base, width, height)
+	panelLines := strings.Split(panel, "\n")
+	panelH := len(panelLines)
+	panelW := 0
+	for _, ln := range panelLines {
+		if w := lipgloss.Width(ln); w > panelW {
+			panelW = w
+		}
+	}
+	if panelH < 1 || panelW < 1 || panelH > height || panelW > width {
+		return base
+	}
+	startY := height - panelH
+	startX := width - panelW
+	baseLines := strings.Split(base, "\n")
+	for i, pl := range panelLines {
+		y := startY + i
+		if y < 0 || y >= len(baseLines) {
+			continue
+		}
+		row := baseLines[y]
+		// Pad row to full width, then splice panel into the right side.
+		row = lipgloss.NewStyle().Width(width).MaxHeight(1).Render(row)
+		left := lipgloss.NewStyle().MaxWidth(startX).Width(startX).MaxHeight(1).Render(row)
+		baseLines[y] = left + lipgloss.NewStyle().Width(panelW).MaxHeight(1).Render(pl)
+	}
+	return strings.Join(baseLines, "\n")
 }
 
 // LeaderKeyEntries builds WhichKeyEntry items from the KeyMap, grouped by

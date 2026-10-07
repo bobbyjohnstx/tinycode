@@ -127,7 +127,9 @@ func newTestHarness(t *testing.T, scenarios []mockScenario) *testHarness {
 	})
 
 	agentReg := agent.NewRegistry()
-	agentReg.LoadDefaults(nil, nil)
+	agentReg.LoadDefaults(permission.Ruleset{
+		{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
+	}, nil)
 
 	pluginMgr := plugin.NewManagerWithRegistry([]plugin.RegistryEntry{
 		{Name: "test-plugin", Package: "test-plugin"},

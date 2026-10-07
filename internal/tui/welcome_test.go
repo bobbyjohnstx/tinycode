@@ -70,7 +70,7 @@ func TestWelcomeView_TickStopsAfterFull(t *testing.T) {
 	}
 
 	// Tick past the logo rows
-	for i := 0; i < len(logoData)+5; i++ {
+	for i := 0; i < logoRevealRows+5; i++ {
 		w.Tick()
 	}
 
@@ -86,7 +86,7 @@ func TestWelcomeView_ViewShowsCounts(t *testing.T) {
 		w.MarkDone(check.key)
 	}
 	// Show full logo
-	for i := 0; i < len(logoData)+1; i++ {
+	for i := 0; i < logoRevealRows+1; i++ {
 		w.Tick()
 	}
 
@@ -147,13 +147,19 @@ func TestWelcomeView_TipsAfterBoot(t *testing.T) {
 func TestWelcomeView_ViewContainsLogo(t *testing.T) {
 	w := NewWelcomeView()
 	// Show all logo rows
-	for i := 0; i < len(logoData)+1; i++ {
+	for i := 0; i < logoRevealRows+1; i++ {
 		w.Tick()
 	}
 
 	view := w.View(120, 30, "", "", 0, 0, 0, 0)
-	if !strings.Contains(view, "▀") {
-		t.Error("expected logo block characters in view")
+	if !strings.Contains(view, "tc") {
+		t.Error("expected monogram 'tc' in view")
+	}
+	if !strings.Contains(view, "tinycode") {
+		t.Error("expected wordmark 'tinycode' in view")
+	}
+	if !strings.Contains(view, "local-first coding agent") {
+		t.Error("expected subtitle in view")
 	}
 }
 

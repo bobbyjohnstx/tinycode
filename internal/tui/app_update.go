@@ -15,6 +15,10 @@ import (
 
 // handleKeyMsg handles all keyboard input: leader keys, overlay routing, and global keys.
 func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
+	// Drop leaked cursor-position reports before any focus routing.
+	if isTerminalEscape(msg.String()) {
+		return a, nil
+	}
 	// Leader key state machine runs first.
 	if a.leader.IsPending() {
 		action, consumed := a.leader.HandleKey(msg)
@@ -198,14 +202,25 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	case SessionStatusMsg:
 		prev, hadPrev := a.state.SessionStatus[msg.SessionID]
 		a.state.SessionStatus[msg.SessionID] = msg.Status
-		var spinCmd tea.Cmd
+		var cmds []tea.Cmd
 		if msg.SessionID == a.state.ActiveSession {
-			spinCmd = a.status.SetWorking(msg.Status.Working)
-			if hadPrev && prev.Working && !msg.Status.Working {
-				fmt.Print("\a")
+			wasWorking := a.status.working
+			spinCmd := a.status.SetWorking(msg.Status.Working)
+			if spinCmd != nil {
+				cmds = append(cmds, spinCmd)
+			}
+			if wasWorking && !msg.Status.Working {
+				// Turn ended: clear alt-screen ghosts; avoid ClearScreen when a turn starts
+				// (ClearScreen mid-turn can leak CPR fragments like ";1R" into the frame).
+				cmds = append(cmds, a.reflowChromeClear())
+				if hadPrev && prev.Working {
+					fmt.Print("\a")
+				}
+			} else if !wasWorking && msg.Status.Working {
+				cmds = append(cmds, a.reflowChrome())
 			}
 		}
-		return a, spinCmd, true
+		return a, tea.Batch(cmds...), true
 	case MCPStatusMsg:
 		a.sidebar.UpdateMCPServer(msg.Server)
 		if a.mcpDlg.IsVisible() {
@@ -244,15 +259,22 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return a, nil, true
 	case SessionErrorMsg:
 		cmd := a.toast.Show(msg.Error, true)
+		var cmds []tea.Cmd
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 		if msg.SessionID == a.state.ActiveSession || msg.SessionID == "" {
-			a.status.SetWorking(false)
+			if a.status.working {
+				a.status.SetWorking(false)
+				cmds = append(cmds, a.reflowChromeClear())
+			}
 		}
 		a.state.SessionStatus[msg.SessionID] = SessionStatus{Working: false}
 		if strings.Contains(strings.ToLower(msg.Error), "no model") {
 			a.state.PendingModelDialog = true
-			return a, tea.Batch(cmd, func() tea.Msg { return ProvidersRefreshMsg{} }), true
+			cmds = append(cmds, func() tea.Msg { return ProvidersRefreshMsg{} })
 		}
-		return a, cmd, true
+		return a, tea.Batch(cmds...), true
 	case CopiedToClipboardMsg:
 		if msg.Err != nil {
 			return a, nil, true
@@ -282,8 +304,16 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return a, cmd, true
 	case PromptSubmittedMsg:
 		a.state.SessionStatus[a.state.ActiveSession] = SessionStatus{Working: true}
+		wasWorking := a.status.working
 		spinCmd := a.status.SetWorking(true)
-		return a, spinCmd, true
+		var cmds []tea.Cmd
+		if spinCmd != nil {
+			cmds = append(cmds, spinCmd)
+		}
+		if !wasWorking {
+			cmds = append(cmds, a.reflowChrome()) // working status is 1 line
+		}
+		return a, tea.Batch(cmds...), true
 	}
 	return a, nil, false
 }
@@ -494,13 +524,58 @@ func (a App) forwardSSEMessages(msg tea.Msg) (App, tea.Cmd) {
 	if statusCmd != nil {
 		cmds = append(cmds, statusCmd)
 	}
+	if a.status.working {
+		msgs := a.chat.Messages()
+		if act := activityFromMessages(msgs); act != "" {
+			a.status.SetActivity(act)
+		}
+		if n := newestAssistantTokens(msgs); n > 0 {
+			a.status.SetTurnTokens(n)
+		}
+	}
 	a.updateSidebarContext()
 	return a, tea.Batch(cmds...)
 }
 
+// activityFromMessages finds the latest/streaming tool or reasoning activity.
+func activityFromMessages(msgs []MessageView) string {
+	var latest string
+	for i := len(msgs) - 1; i >= 0; i-- {
+		parts := msgs[i].Parts
+		for j := len(parts) - 1; j >= 0; j-- {
+			p := parts[j]
+			switch p.Type {
+			case "reasoning", "thinking", "tool-call", "tool":
+				act := formatActivity(p)
+				if act == "" {
+					continue
+				}
+				if p.Streaming {
+					return act
+				}
+				if latest == "" {
+					latest = act
+				}
+			}
+		}
+	}
+	return latest
+}
+
+// newestAssistantTokens returns Input+Output on the newest assistant message.
+func newestAssistantTokens(msgs []MessageView) int {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Info.Role != "assistant" {
+			continue
+		}
+		return msgs[i].Info.Tokens.Input + msgs[i].Info.Tokens.Output
+	}
+	return 0
+}
+
 // handleMouseMsg routes mouse events to the appropriate component.
 func (a App) handleMouseMsg(msg tea.MouseMsg) (App, tea.Cmd) {
-	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen(), a.status.Height())
+	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen(), a.prompt.Height(), a.status.Height())
 	if msg.Y < l.chatHeight && msg.X < l.chatWidth {
 		var cmd tea.Cmd
 		a.chat, cmd = a.chat.Update(msg)

@@ -194,8 +194,10 @@ func redactConfig(cfg *config.Info) {
 		for k := range prov.Headers {
 			prov.Headers[k] = redacted
 		}
-		if _, ok := prov.Options["api_key"]; ok {
-			prov.Options["api_key"] = redacted
+		for _, key := range []string{"api_key", "apiKey", "authorization", "Authorization"} {
+			if _, ok := prov.Options[key]; ok {
+				prov.Options[key] = redacted
+			}
 		}
 		cfg.Provider[name] = prov
 	}

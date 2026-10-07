@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -112,9 +113,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.width = msg.Width
 		a.height = msg.Height
-		a.resize()
 		a.ready = true
-		return a, nil
+		// Clear only on real resize — ClearScreen mid-turn can leak CPR (;1R) into the frame.
+		return a, a.reflowChromeClear()
 	case tea.KeyMsg:
 		return a.handleKeyMsg(msg)
 	case tea.MouseMsg:
@@ -123,8 +124,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.forwardSSEMessages(msg)
 	case goalFadeMsg:
 		a.status, _ = a.status.Update(msg)
-		a.resize()
-		return a, nil
+		return a, a.reflowChrome()
 	}
 
 	if model, cmd, ok := a.handleStateMsg(msg); ok {
@@ -147,7 +147,7 @@ func (a App) View() string {
 		return "Loading..."
 	}
 
-	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen(), a.status.Height())
+	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen(), a.prompt.Height(), a.status.Height())
 
 	// Show welcome screen when no messages exist yet.
 	var chatView string
@@ -218,15 +218,15 @@ func (a App) View() string {
 		}
 	}
 
-	// Overlay toast at the bottom if visible.
+	// Overlay toast onto the last chrome row (never append — that overflows the terminal).
 	if a.toast.IsVisible() {
 		toastLine := toastOverlay(a.toast.View(), a.width)
 		if toastLine != "" {
-			return base + "\n" + toastLine
+			base = overlayLastLine(base, toastLine)
 		}
 	}
 
-	return base
+	return fitTerminal(base, a.width, a.height)
 }
 
 // handleGlobalKey handles keys that work regardless of focus.
@@ -270,7 +270,7 @@ func (a *App) isSessionWorking() bool {
 
 // resize recalculates all component sizes.
 func (a *App) resize() {
-	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen(), a.status.Height())
+	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen(), a.prompt.Height(), a.status.Height())
 
 	a.chat.SetSize(l.chatWidth, l.chatHeight)
 	a.prompt.SetSize(l.promptWidth)
@@ -289,6 +289,21 @@ func (a *App) resize() {
 	a.permPrompt.SetSize(a.width, a.height)
 	a.toast.SetSize(a.width)
 	a.sidebar.SetSize(l.sidebarWidth, l.chatHeight)
+}
+
+// reflowChrome resizes after status/prompt height changes.
+// Prefer this during a turn — fitTerminal already clamps the frame.
+func (a *App) reflowChrome() tea.Cmd {
+	a.resize()
+	return nil
+}
+
+// reflowChromeClear resizes and clears the alt screen. Use for window resize
+// and working→idle (to wipe residual ghosts), not when a turn starts.
+func (a *App) reflowChromeClear() tea.Cmd {
+	a.resize()
+	a.prompt.ArmNoiseGuard(500 * time.Millisecond)
+	return tea.ClearScreen
 }
 
 // setFocus changes the focused component.

@@ -376,15 +376,17 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case AbortRequestMsg:
 		// Cancel any active goal when the user aborts.
+		var abortCmds []tea.Cmd
 		if c.goal != nil {
 			c.goal = nil
 			c.app.status.SetGoal("")
+			abortCmds = append(abortCmds, c.app.reflowChrome())
 		}
 		sessionID := c.app.state.ActiveSession
 		if sessionID != "" {
-			return c, abortSession(c.client, sessionID)
+			abortCmds = append(abortCmds, abortSession(c.client, sessionID))
 		}
-		return c, nil
+		return c, tea.Batch(abortCmds...)
 
 	case ArchiveRequestMsg:
 		sessionID := c.app.state.ActiveSession
@@ -484,6 +486,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.SessionID == c.app.state.ActiveSession && !msg.Status.Working && c.goal != nil {
 			c.goal.state.Iteration++
 			c.app.status.SetGoalState(c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations)
+			cmds = append(cmds, c.app.reflowChrome())
 			if c.goal.state.Command != "" {
 				// Shell-verifiable goal: run the command to check.
 				dir := c.app.status.Cwd()
@@ -496,6 +499,7 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				text := fmt.Sprintf("Goal not met after %d iterations: %s", c.goal.state.MaxIterations, c.goal.state.Text)
 				c.goal = nil
 				c.app.status.SetGoal("")
+				cmds = append(cmds, c.app.reflowChrome())
 				toastCmd := c.app.toast.Show(text, true)
 				if toastCmd != nil {
 					cmds = append(cmds, toastCmd)

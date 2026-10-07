@@ -39,6 +39,9 @@ type StatusBar struct {
 	contextPct    int // 0-100
 	goalDisplay   *goalDisplayState
 	working       bool
+	activity      string
+	turnStart     time.Time
+	turnTokens    int
 	leaderPending bool
 	safeMode      bool
 	spinner       spinner.Model
@@ -186,33 +189,58 @@ func (s *StatusBar) SetLeaderPending(pending bool) {
 	s.leaderPending = pending
 }
 
+// SetActivity updates the working-state activity verb (e.g. "thinking", "bash").
+func (s *StatusBar) SetActivity(activity string) {
+	s.activity = activity
+}
+
+// SetTurnTokens updates the per-turn token count shown while working.
+func (s *StatusBar) SetTurnTokens(n int) {
+	s.turnTokens = n
+}
+
 // SetWorking updates the working state and returns a command to restart
 // the spinner tick chain when transitioning to working.
 func (s *StatusBar) SetWorking(working bool) tea.Cmd {
 	wasWorking := s.working
 	s.working = working
+	if !working {
+		s.activity = ""
+		s.turnTokens = 0
+		s.turnStart = time.Time{}
+		return nil
+	}
 	if working && !wasWorking {
+		s.turnStart = time.Now()
+		s.turnTokens = 0
+		if s.activity == "" {
+			s.activity = "thinking"
+		}
 		return s.spinner.Tick
 	}
 	return nil
 }
 
-// Init implements tea.Model.
+// Init implements tea.Model. Spinner ticks start via SetWorking(true).
 func (s StatusBar) Init() tea.Cmd {
-	return s.spinner.Tick
+	return nil
 }
 
 // Height returns the current height of the status bar area.
-// Idle: 2 lines (hints + status). Goal active: 4 lines (hints + goal box + status).
-// Goal complete: 3 lines (hints + success line + status).
+// Working: 1 line (spinner + activity + turn telemetry). Idle: 2 lines (hints + status).
+// Goal active adds 3 lines (box) or 1 line (success).
 func (s StatusBar) Height() int {
+	base := 2
+	if s.working {
+		base = 1
+	}
 	if s.goalDisplay == nil {
-		return 2
+		return base
 	}
 	if s.goalDisplay.complete {
-		return 3
+		return base + 1
 	}
-	return 4
+	return base + 3 // top/mid/bottom border rows
 }
 
 // Update implements tea.Model.
@@ -234,43 +262,58 @@ func (s StatusBar) Update(msg tea.Msg) (StatusBar, tea.Cmd) {
 func (s StatusBar) View() string {
 	dim := styleStatusDim
 	accent := styleStatusAccent
+	dot := dim.Render(" · ")
+	meta := s.renderStatusMeta(dim, accent, dot)
 
-	// Hints line
-	var hintsLeft string
-	if s.working {
-		hintsLeft = s.spinner.View() + " " + dim.Render("esc interrupt")
-	}
-
-	var hintsRight string
-	if s.leaderPending {
-		hintsRight = dim.Render("ctrl+x →") + "  " +
-			accent.Render("b") + " sidebar  " +
-			accent.Render("a") + " agents  " +
-			accent.Render("m") + " models  " +
-			accent.Render("o") + " sessions  " +
-			accent.Render("n") + " new  " +
-			accent.Render("x") + " export"
-	} else {
-		hintsRight = dim.Render("tab") + " agents  " +
-			dim.Render("ctrl+p") + " commands  " +
-			dim.Render("/help") + " reference"
-	}
-
-	hintsGap := s.width - lipgloss.Width(hintsLeft) - lipgloss.Width(hintsRight)
-	if hintsGap < 1 {
-		hintsGap = 1
-	}
-	hintsLine := hintsLeft + strings.Repeat(" ", hintsGap) + hintsRight
-
-	// Goal box (between hints and status bar)
 	goalLine := s.renderGoal()
 
-	// Status bar: dot-separated format.
-	// agent · model · provider · effort · NN% ctx
-	innerWidth := s.width - 2
+	var body string
+	if s.working {
+		// One row while busy: spinner + activity | elapsed · tokens (no shortcut hints).
+		var left string
+		if s.activity == "" {
+			left = s.spinner.View() + "  " + dim.Render("esc") + " " + accent.Render("interrupt")
+		} else {
+			left = s.spinner.View() + "  " + accent.Render(s.activity)
+		}
+		elapsed := time.Duration(0)
+		if !s.turnStart.IsZero() {
+			elapsed = time.Since(s.turnStart)
+		}
+		right := dim.Render(formatElapsed(elapsed))
+		if s.turnTokens > 0 {
+			right = dim.Render(fmt.Sprintf("%s · %s", formatElapsed(elapsed), formatTokens(s.turnTokens)))
+		}
+		body = renderHintsLine(s.width, left, right)
+	} else {
+		var hintsRight string
+		if s.leaderPending {
+			hintsRight = dim.Render("ctrl+x →") + "  " +
+				accent.Render("b") + " sidebar  " +
+				accent.Render("a") + " agents  " +
+				accent.Render("m") + " models  " +
+				accent.Render("o") + " sessions  " +
+				accent.Render("n") + " new  " +
+				accent.Render("x") + " export"
+		} else {
+			hintsRight = dim.Render("tab") + " agents  " +
+				dim.Render("ctrl+p") + " commands  " +
+				dim.Render("/help") + " reference"
+		}
+		hintsLine := renderHintsLine(s.width, "", hintsRight)
+		// Avoid styleStatusBar Padding — it can push past width and wrap.
+		statusLine := clampStatusLine(s.width, meta)
+		body = hintsLine + "\n" + statusLine
+	}
 
-	dot := dim.Render(" · ")
+	if goalLine != "" {
+		return goalLine + "\n" + body
+	}
+	return body
+}
 
+// renderStatusMeta builds the agent · model · provider · meter segment.
+func (s StatusBar) renderStatusMeta(dim, accent lipgloss.Style, dot string) string {
 	var leftParts []string
 	if s.safeMode {
 		warn := lipgloss.NewStyle().
@@ -293,29 +336,84 @@ func (s StatusBar) View() string {
 		leftParts = append(leftParts, dim.Render(s.effort))
 	}
 	if s.contextPct > 0 {
-		leftParts = append(leftParts, styleStatusInfo.Render(fmt.Sprintf("%d%% ctx", s.contextPct)))
+		leftParts = append(leftParts, renderContextMeter(s.contextPct))
 	}
-	left := strings.Join(leftParts, dot)
+	return strings.Join(leftParts, dot)
+}
 
-	// Spinner on the right side when working.
-	right := ""
-	if s.working {
-		right = s.spinner.View()
+// formatElapsed formats a duration as a short elapsed string (e.g. "2.4s").
+func formatElapsed(d time.Duration) string {
+	if d < 0 {
+		d = 0
 	}
-
-	statusGap := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
-	if statusGap < 1 {
-		statusGap = 1
+	secs := d.Seconds()
+	if secs < 60 {
+		return fmt.Sprintf("%.1fs", secs)
 	}
-	statusLine := left + strings.Repeat(" ", statusGap) + right
+	mins := int(secs) / 60
+	rem := secs - float64(mins*60)
+	return fmt.Sprintf("%dm%.0fs", mins, rem)
+}
 
-	result := hintsLine
-	if goalLine != "" {
-		result += "\n" + goalLine
+// clampStatusLine forces a single row of exactly width columns.
+func clampStatusLine(width int, content string) string {
+	if width < 1 {
+		width = 1
 	}
-	result += "\n" + styleStatusBar.Width(s.width).Render(statusLine)
+	return lipgloss.NewStyle().Width(width).MaxHeight(1).Render(content)
+}
 
-	return result
+// renderHintsLine places left and right on a single row of exactly width columns.
+func renderHintsLine(width int, left, right string) string {
+	if width < 1 {
+		width = 1
+	}
+	if right == "" {
+		return clampStatusLine(width, left)
+	}
+	leftW := lipgloss.Width(left)
+	if leftW >= width {
+		return clampStatusLine(width, left)
+	}
+	gap := width - leftW - lipgloss.Width(right)
+	if gap < 1 {
+		gap = 1
+		avail := width - leftW - gap
+		if avail < 1 {
+			return clampStatusLine(width, left)
+		}
+		right = lipgloss.NewStyle().Width(avail).Align(lipgloss.Right).MaxHeight(1).Render(right)
+		gap = width - leftW - lipgloss.Width(right)
+		if gap < 0 {
+			gap = 0
+		}
+	}
+	return clampStatusLine(width, left+strings.Repeat(" ", gap)+right)
+}
+
+// renderContextMeter draws a short bar + percent with warn/hot thresholds.
+func renderContextMeter(pct int) string {
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	const width = 10
+	filled := pct * width / 100
+	if pct > 0 && filled == 0 {
+		filled = 1
+	}
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+	label := fmt.Sprintf("%s %d%%", bar, pct)
+	style := styleStatusInfo
+	switch {
+	case pct >= 90:
+		style = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#CC3333", Dark: "#e8607a"})
+	case pct >= 70:
+		style = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#B35900", Dark: "#FFA500"})
+	}
+	return style.Render(label)
 }
 
 // renderGoal returns the goal box or success line, or "" if no goal is active.

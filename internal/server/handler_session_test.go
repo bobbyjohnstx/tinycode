@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
@@ -264,6 +265,28 @@ func TestShellDirect_SecretAccessReturns403(t *testing.T) {
 		if resp.StatusCode != http.StatusForbidden {
 			t.Errorf("expected 403 for %q, got %d", cmd, resp.StatusCode)
 		}
+	}
+}
+
+func TestShellDirect_PermissionDenyReturns403(t *testing.T) {
+	h := newTestHarness(t, nil)
+	sessionID := h.createSession("Shell Deny", "build")
+
+	// Agent */* allow would override base deny; clear registry so SetBaseRules wins.
+	h.server.deps.AgentRegistry = nil
+	h.server.deps.PermService.SetBaseRules(permission.Ruleset{
+		{Permission: "shell", Pattern: "*", Action: permission.ActionDeny},
+	})
+
+	body := `{"command":"echo hello"}`
+	resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/shell", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("shell request: %v", err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 when shell is denied, got %d", resp.StatusCode)
 	}
 }
 

@@ -33,13 +33,13 @@ Source: `internal/server/middleware/cors.go`
 
 | Setting | Value |
 |---------|-------|
-| Allowed origins | `localhost` or `127.0.0.1` on any port (via `isLocalhostOrigin()`) |
+| Allowed origins | Exact origins matching the server listen address (`DefaultCORSConfig`): e.g. `http://127.0.0.1:4096` and `http://localhost:4096` |
 | Allowed methods | GET, POST, PUT, PATCH, DELETE, OPTIONS |
 | Allowed headers | Content-Type, Authorization, X-Request-ID |
 | Max-Age | 86400 seconds (24 hours) |
 | Credentials | Allowed |
 
-**Origin validation:** Parses origin URL, extracts hostname. Only `localhost` and `127.0.0.1` pass. Port is ignored (any port accepted). The `CORSConfig` also supports explicit `AllowOrigins` list and wildcard `*`, but the default config uses only the function-based check.
+**Origin validation:** Exact string match against `AllowOrigins` from `serverOrigins(listenAddr)` (host + port of the bound server, with both `localhost` and `127.0.0.1` variants when applicable). Other ports are rejected. `CORSConfig` also supports an explicit `AllowOrigins` list, wildcard `*`, or `AllowOriginFunc`, but the default config uses exact listen-address origins only (prevents localhost CSRF from another port).
 
 **Behavior on non-matching origin:** Request proceeds without CORS headers (browser blocks cross-origin access).
 
@@ -85,7 +85,9 @@ Source: `internal/server/respond.go`
 
 Source: `internal/tool/webfetch.go`
 
-The `webfetch` tool performs pre-flight DNS resolution via `checkSSRF()` against blocked CIDR ranges:
+Also see [08-tools.md](08-tools.md) (`webfetch`).
+
+The `webfetch` tool performs pre-flight DNS resolution via `checkSSRF()` against blocked CIDR ranges, and re-validates resolved IPs at dial time via `ssrfSafeTransport().DialContext`:
 
 | Range | Description |
 |-------|-------------|
@@ -99,7 +101,17 @@ The `webfetch` tool performs pre-flight DNS resolution via `checkSSRF()` against
 | `fc00::/7` | IPv6 unique local |
 | `fe80::/10` | IPv6 link-local |
 
-**Redirect validation:** `ssrfSafeClient()` validates each redirect target against the same blocklist via `CheckRedirect`. Max 10 redirects before stopping.
+**Redirect validation:** `ssrfSafeClient().CheckRedirect` enforces a max of 10 redirects and rejects non-`http`/`https` schemes (e.g. `file://`). IP/CIDR validation for redirect targets is **not** done in `CheckRedirect`; it runs in the transport `DialContext` when the redirected request is dialed.
+
+### Scope / non-goals
+
+| Surface | SSRF treatment |
+|---------|----------------|
+| `webfetch` | In scope — LLM-controlled URLs go through `checkSSRF` + `ssrfSafeClient` |
+| MCP remote / provider HTTP clients | Out of scope — config-trusted endpoints; no `checkSSRF` |
+| Shell / `curl` / other tools | Out of scope by design (permission system + secret/destructive checks apply instead) |
+| Domain allowlist | Not required by default |
+| Egress proxy requirement | Not required; OS `HTTPS_PROXY` / `HTTP_PROXY` work with the stdlib client |
 
 ### WebFetch Transport Limits
 

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -150,4 +151,17 @@ func toastOverlay(toastView string, width int) string {
 		return ""
 	}
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, toastView)
+}
+
+// overlayLastLine replaces the final row of base with overlay (same width assumed).
+func overlayLastLine(base, overlay string) string {
+	if overlay == "" {
+		return base
+	}
+	lines := strings.Split(base, "\n")
+	if len(lines) == 0 {
+		return overlay
+	}
+	lines[len(lines)-1] = overlay
+	return strings.Join(lines, "\n")
 }

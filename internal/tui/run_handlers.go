@@ -168,7 +168,7 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		})
 		c.updateApp(model)
 		c.app.status.SetWorking(false)
-		return c, cmd
+		return c, tea.Batch(cmd, c.app.reflowChrome())
 	}
 
 	if c.app.state.CurrentModel.ModelID == "" {
@@ -179,7 +179,7 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		})
 		c.updateApp(model)
 		c.app.status.SetWorking(false)
-		return c, tea.Batch(toastCmd, func() tea.Msg { return ProvidersRefreshMsg{} })
+		return c, tea.Batch(toastCmd, c.app.reflowChrome(), func() tea.Msg { return ProvidersRefreshMsg{} })
 	}
 
 	sessionID := c.app.state.ActiveSession
@@ -299,6 +299,7 @@ func (c *connectedApp) handleShellResult(msg ShellResultMsg) (tea.Model, tea.Cmd
 	}
 
 	spinCmd := c.app.status.SetWorking(true)
+	cmds = append(cmds, c.app.reflowChrome())
 	if spinCmd != nil {
 		cmds = append(cmds, spinCmd)
 	}
@@ -349,11 +350,12 @@ func (c *connectedApp) handleThinkingCommand(trimmed string) (tea.Model, tea.Cmd
 
 	c.app.state.ThinkingLevel = level
 	c.app.prompt.SetThinkingLevel(level)
+	reflowCmd := c.app.reflowChrome() // prompt meta row may appear/disappear
 
 	_, label, _ := thinkingLevelBudget(level)
 	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Thinking level: %s (%s)", level, label)})
 	c.updateApp(model)
-	return c, cmd
+	return c, tea.Batch(cmd, reflowCmd)
 }
 
 // effortSettings holds the parameters for a given effort level.
@@ -406,10 +408,11 @@ func (c *connectedApp) handleEffortCommand(trimmed string) (tea.Model, tea.Cmd) 
 	c.app.state.EffortLevel = level
 	c.app.prompt.SetEffortLevel(level)
 	c.app.status.SetEffort(level)
+	reflowCmd := c.app.reflowChrome() // prompt meta row may appear/disappear
 
 	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Effort level: %s", level)})
 	c.updateApp(model)
-	return c, cmd
+	return c, tea.Batch(cmd, reflowCmd)
 }
 
 // showErrorToast sends a ToastMsg to the app and returns any resulting cmds.
@@ -705,9 +708,10 @@ func (c *connectedApp) handleGoalCommand(trimmed string) (tea.Model, tea.Cmd) {
 		}
 		c.goal = nil
 		c.app.status.SetGoal("")
+		reflowCmd := c.app.reflowChrome()
 		model, cmd := c.app.Update(ToastMsg{Text: "Goal cancelled", IsError: false})
 		c.updateApp(model)
-		return c, cmd
+		return c, tea.Batch(cmd, reflowCmd)
 	}
 
 	// /goal <condition>: set and start a new goal.
@@ -722,6 +726,8 @@ func (c *connectedApp) handleGoalCommand(trimmed string) (tea.Model, tea.Cmd) {
 
 	c.goal = newGoalTracker(arg, command)
 	c.app.status.SetGoalState(c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations)
+	var cmds []tea.Cmd
+	cmds = append(cmds, c.app.reflowChrome())
 
 	// Send the initial prompt to the model.
 	var promptText string
@@ -735,7 +741,7 @@ func (c *connectedApp) handleGoalCommand(trimmed string) (tea.Model, tea.Cmd) {
 	pi := c.buildPromptInput(promptText)
 
 	spinCmd := c.app.status.SetWorking(true)
-	var cmds []tea.Cmd
+	cmds = append(cmds, c.app.reflowChrome())
 	if spinCmd != nil {
 		cmds = append(cmds, spinCmd)
 	}
@@ -769,6 +775,7 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 		iterations := c.goal.state.Iteration
 		c.goal = nil
 		fadeCmd := c.app.status.SetGoalComplete(text, iterations)
+		cmds = append(cmds, c.app.reflowChrome())
 		if fadeCmd != nil {
 			cmds = append(cmds, fadeCmd)
 		}
@@ -788,6 +795,7 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 		text := fmt.Sprintf("Goal not met after %d iterations: %s", c.goal.state.MaxIterations, c.goal.state.Text)
 		c.goal = nil
 		c.app.status.SetGoal("")
+		cmds = append(cmds, c.app.reflowChrome())
 		toastCmd := c.app.toast.Show(text, true)
 		if toastCmd != nil {
 			cmds = append(cmds, toastCmd)
@@ -800,6 +808,7 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 		text := fmt.Sprintf("Goal appears stuck: %s (same output %d times)", c.goal.state.Text, goalStuckThreshold)
 		c.goal = nil
 		c.app.status.SetGoal("")
+		cmds = append(cmds, c.app.reflowChrome())
 		toastCmd := c.app.toast.Show(text, true)
 		if toastCmd != nil {
 			cmds = append(cmds, toastCmd)
@@ -812,10 +821,11 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 	if sessionID == "" {
 		c.goal = nil
 		c.app.status.SetGoal("")
-		return c, nil
+		return c, c.app.reflowChrome()
 	}
 
 	c.app.status.SetGoalState(c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations)
+	cmds = append(cmds, c.app.reflowChrome())
 
 	// Truncate output for the follow-up prompt to avoid overwhelming context.
 	output := msg.Output
@@ -832,6 +842,7 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, sendPrompt(c.client, sessionID, pi))
 
 	spinCmd := c.app.status.SetWorking(true)
+	cmds = append(cmds, c.app.reflowChrome())
 	if spinCmd != nil {
 		cmds = append(cmds, spinCmd)
 	}

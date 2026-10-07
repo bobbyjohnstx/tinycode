@@ -35,8 +35,8 @@ func TestWelcomeScreen(t *testing.T) {
 	if !contains(out, "Ask anything") {
 		t.Error("expected placeholder text in prompt")
 	}
-	if !contains(out, "Build") {
-		t.Error("expected 'Build' agent label in prompt metadata")
+	if !contains(out, "build") {
+		t.Error("expected 'build' agent label in status bar")
 	}
 	if !contains(out, "tab agents") {
 		t.Error("expected hints in status bar")

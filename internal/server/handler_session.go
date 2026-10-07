@@ -9,6 +9,7 @@ import (
 	"time"
 
 	id2 "github.com/bobbyjohnstx/tinycode/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
@@ -431,9 +432,51 @@ func (s *Server) handleSessionShell(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dir := s.config.Directory
+	agentName := s.config.DefaultAgent
+	if agentName == "" {
+		agentName = "build"
+	}
 	store := s.sessionStore()
-	if info, err := store.Get(sessionID); err == nil && info != nil && info.Directory != "" {
-		dir = info.Directory
+	if info, err := store.Get(sessionID); err == nil && info != nil {
+		if info.Directory != "" {
+			dir = info.Directory
+		}
+		if info.Agent != "" {
+			agentName = info.Agent
+		}
+	}
+
+	if s.deps.PermService != nil {
+		var agentRules permission.Ruleset
+		if s.deps.AgentRegistry != nil {
+			if ai := s.deps.AgentRegistry.Get(agentName, nil); ai != nil {
+				agentRules = ai.Permission
+			}
+		}
+		askErr := s.deps.PermService.Ask(r.Context(), permission.AskInput{
+			SessionID:  sessionID,
+			Permission: "shell",
+			Patterns:   []string{command},
+			Metadata:   map[string]any{"command": command, "source": "http"},
+			Ruleset:    agentRules,
+		})
+		if askErr != nil {
+			respondError(w, http.StatusForbidden, askErr.Error())
+			return
+		}
+		if tool.IsDestructive(command) {
+			askErr = s.deps.PermService.Ask(r.Context(), permission.AskInput{
+				SessionID:  sessionID,
+				Permission: "destructive-shell",
+				Patterns:   []string{command},
+				Metadata:   map[string]any{"command": command, "source": "http"},
+				Ruleset:    agentRules,
+			})
+			if askErr != nil {
+				respondError(w, http.StatusForbidden, askErr.Error())
+				return
+			}
+		}
 	}
 
 	safego.Go(func() { s.executeShellDirect(sessionID, command, dir) })
@@ -482,45 +525,40 @@ func (s *Server) executeShellDirect(sessionID, command, dir string) {
 	var output string
 	var isErr bool
 
-	// Block destructive commands (same patterns the bash tool checks).
-	if tool.IsDestructive(command) {
-		output = "Destructive command blocked: " + command + "\nUse the bash tool in an agent session for destructive operations."
-		isErr = true
-	} else {
-		// Enforce a timeout matching the bash tool default (120s).
-		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-		defer cancel()
+	// Enforce a timeout matching the bash tool default (120s).
+	// Destructive gating is done in handleSessionShell via permission.Ask.
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
 
-		stdout := tool.NewLimitedWriter(tool.MaxOutputSize)
-		stderr := tool.NewLimitedWriter(tool.MaxOutputSize)
-		cmd := exec.CommandContext(ctx, "sh", "-c", command)
-		cmd.Dir = dir
-		cmd.Stdout = stdout
-		cmd.Stderr = stderr
-		cmdErr := cmd.Run()
+	stdout := tool.NewLimitedWriter(tool.MaxOutputSize)
+	stderr := tool.NewLimitedWriter(tool.MaxOutputSize)
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Dir = dir
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	cmdErr := cmd.Run()
 
-		var outputBuf strings.Builder
-		if stdout.Len() > 0 {
-			outputBuf.Write(stdout.Bytes())
-			if stdout.Overflow {
-				outputBuf.WriteString("\n[output truncated at 10MB]")
-			}
+	var outputBuf strings.Builder
+	if stdout.Len() > 0 {
+		outputBuf.Write(stdout.Bytes())
+		if stdout.Overflow {
+			outputBuf.WriteString("\n[output truncated at 10MB]")
 		}
-		if stderr.Len() > 0 {
-			if outputBuf.Len() > 0 {
-				outputBuf.WriteString("\n")
-			}
-			outputBuf.WriteString("STDERR:\n")
-			outputBuf.Write(stderr.Bytes())
-			if stderr.Overflow {
-				outputBuf.WriteString("\n[stderr truncated at 10MB]")
-			}
+	}
+	if stderr.Len() > 0 {
+		if outputBuf.Len() > 0 {
+			outputBuf.WriteString("\n")
 		}
-		output = outputBuf.String()
-		isErr = cmdErr != nil
-		if isErr && output == "" {
-			output = cmdErr.Error()
+		outputBuf.WriteString("STDERR:\n")
+		outputBuf.Write(stderr.Bytes())
+		if stderr.Overflow {
+			outputBuf.WriteString("\n[stderr truncated at 10MB]")
 		}
+	}
+	output = outputBuf.String()
+	isErr = cmdErr != nil
+	if isErr && output == "" {
+		output = cmdErr.Error()
 	}
 
 	input := map[string]any{"command": command}

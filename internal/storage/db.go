@@ -29,8 +29,11 @@ func Open(dbPath string) (*DB, error) {
 	}
 
 	dir := filepath.Dir(dbPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("creating data directory: %w", err)
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("setting data directory permissions: %w", err)
 	}
 
 	if err := archiveLegacyDB(dbPath); err != nil {

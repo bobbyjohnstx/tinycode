@@ -2,17 +2,21 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-var oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,2}\\?$`)
+var (
+	oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,2}\\?$`)
+	// Cursor Position Report fragments after ESC[ is stripped: "24;1R", ";1R".
+	cprFragment = regexp.MustCompile(`^\d{0,4};\d{1,4}R$`)
+)
 
 var (
 	colorPromptSurface lipgloss.TerminalColor = lipgloss.AdaptiveColor{Light: "#F0F0F0", Dark: "#1E293B"}
@@ -39,8 +43,11 @@ type PromptInput struct {
 	keys          KeyMap
 	guardEnabled  bool
 	startTime     time.Time
+	noiseUntil    time.Time // discard CPR/OSC fragments until this time
 	imageCount    int
 	imageSize     int // total bytes of attached images
+	waveOn        bool // braille wave above composer until first submit
+	wavePhase     int
 }
 
 // NewPromptInput creates a PromptInput with the given width.
@@ -74,7 +81,17 @@ func NewPromptInput(width int) PromptInput {
 		agentColor:   AgentColor("build"),
 		width:        width,
 		keys:         DefaultKeyMap(),
+		waveOn:       true,
 	}
+}
+
+// promptWaveTickMsg advances the idle braille wave above the composer.
+type promptWaveTickMsg struct{}
+
+func promptWaveTick() tea.Cmd {
+	return tea.Tick(80*time.Millisecond, func(time.Time) tea.Msg {
+		return promptWaveTickMsg{}
+	})
 }
 
 // EnableStartupGuard arms the startup guard. The actual timer starts
@@ -91,12 +108,34 @@ func (p *PromptInput) ResetStartupGuard() {
 	}
 }
 
+// ArmNoiseGuard discards leaked terminal responses (CPR/OSC) for a short window.
+// Call after ClearScreen / resize — those can provoke cursor-position reports.
+func (p *PromptInput) ArmNoiseGuard(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	until := time.Now().Add(d)
+	if until.After(p.noiseUntil) {
+		p.noiseUntil = until
+	}
+}
+
 // SetSize updates the prompt width.
 func (p *PromptInput) SetSize(width int) {
 	p.width = width
 	p.textarea.SetWidth(width - 6)
 	p.autocomplete.SetWidth(width)
 	p.fileComplete.SetWidth(width)
+}
+
+// Height returns the number of rows the prompt chrome occupies (excluding
+// autocomplete/file popovers, which overlay rather than resize the chat).
+func (p PromptInput) Height() int {
+	h := 1 + p.textarea.Height() + 1 // top rule + textarea + bottom bar
+	if p.renderMetadata() != "" {
+		h++
+	}
+	return h
 }
 
 // SetCwd updates the working directory for file completion.
@@ -183,11 +222,19 @@ func (p *PromptInput) Blur() {
 
 // Init implements tea.Model.
 func (p PromptInput) Init() tea.Cmd {
-	return textarea.Blink
+	return tea.Batch(textarea.Blink, promptWaveTick())
 }
 
 // Update implements tea.Model.
 func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
+	if _, ok := msg.(promptWaveTickMsg); ok {
+		if !p.waveOn {
+			return p, nil
+		}
+		p.wavePhase++
+		return p, promptWaveTick()
+	}
+
 	// Handle FileCompletionMsg for async file listing results.
 	if fcMsg, ok := msg.(FileCompletionMsg); ok {
 		p.fileComplete.SetResults(fcMsg.Items, fcMsg.Query)
@@ -209,6 +256,12 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 	if keyMsg.Type == tea.KeyRunes && p.guardEnabled && time.Since(p.startTime) < 2*time.Second {
 		return p, nil
 	}
+	// After ClearScreen/resize, discard CPR/OSC fragments for a short window.
+	if keyMsg.Type == tea.KeyRunes && time.Now().Before(p.noiseUntil) {
+		if s := keyMsg.String(); isTerminalNoise(s) {
+			return p, nil
+		}
+	}
 	if p.fileComplete.IsVisible() {
 		if result, cmd, handled := p.handleFileCompleteKey(keyMsg); handled {
 			return result, cmd
@@ -225,6 +278,7 @@ func (p PromptInput) Update(msg tea.Msg) (PromptInput, tea.Cmd) {
 		// Submit on Enter (plain, no modifier).
 		content := p.textarea.Value()
 		if content != "" {
+			p.waveOn = false
 			p.history.Add(content)
 			p.textarea.Reset()
 			return p, func() tea.Msg {
@@ -335,21 +389,28 @@ func (p PromptInput) View() string {
 
 	taView := p.textarea.View()
 	meta := p.renderMetadata()
-
-	composerBody := lipgloss.JoinVertical(lipgloss.Left, taView, meta)
+	composerBody := taView
+	if meta != "" {
+		composerBody = lipgloss.JoinVertical(lipgloss.Left, taView, meta)
+	}
 	paddedBody := lipgloss.NewStyle().PaddingLeft(1).Width(innerWidth).Render(composerBody)
 
-	// Separator line above prompt
-	spacerLine := lipgloss.NewStyle().
-		Foreground(colorPromptPrimary).
-		Render(strings.Repeat("─", p.width))
+	// Top of composer: animated braille wave until first submit, then a quiet rule.
+	var topLine string
+	if p.waveOn {
+		topLine = p.renderWaveLine()
+	} else {
+		topLine = lipgloss.NewStyle().
+			Foreground(colorPromptPrimary).
+			Render(strings.Repeat("─", p.width))
+	}
 
 	// Left border: ┃ with accent color, indented from left edge
 	indent := "  "
 	bodyLines := strings.Split(paddedBody, "\n")
 	borderChar := lipgloss.NewStyle().Foreground(accentColor).Render("┃")
 	var bordered []string
-	bordered = append(bordered, spacerLine)
+	bordered = append(bordered, topLine)
 	for _, line := range bodyLines {
 		bordered = append(bordered, indent+borderChar+line)
 	}
@@ -378,42 +439,54 @@ func (p PromptInput) View() string {
 	return result
 }
 
-// renderMetadata renders the status line below the textarea.
+// renderWaveLine draws a full-width braille sine wave with alternating colors.
+func (p PromptInput) renderWaveLine() string {
+	width := p.width
+	if width < 1 {
+		width = 1
+	}
+	heights := []rune{'⠀', '⡀', '⡄', '⡆', '⡇', '⣇', '⣧', '⣷', '⣿'}
+	cA := lipgloss.NewStyle().Foreground(colorPromptPrimary)
+	cB := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#f8fafc"})
+	phase := float64(p.wavePhase) / 16.0 * 2 * math.Pi
+	var b strings.Builder
+	for i := 0; i < width; i++ {
+		x := float64(i) / float64(width) * 4 * math.Pi
+		val := (math.Sin(x+phase) + 1) / 2
+		idx := int(val * float64(len(heights)-1))
+		ch := string(heights[idx])
+		if ((i / 2) + p.wavePhase) % 2 == 0 {
+			b.WriteString(cA.Render(ch))
+		} else {
+			b.WriteString(cB.Render(ch))
+		}
+	}
+	return b.String()
+}
+
+// renderMetadata renders prompt-only extras below the textarea.
+// Agent/model/provider live on the status bar (deduped).
 func (p PromptInput) renderMetadata() string {
-	dimColor := colorPromptDim
-
-	agentStyle := lipgloss.NewStyle().Foreground(p.agentColor)
-	dimStyle := lipgloss.NewStyle().Foreground(dimColor)
-
-	agentName := p.agent
-	if len(agentName) > 0 {
-		runes := []rune(agentName)
-		runes[0] = unicode.ToUpper(runes[0])
-		agentName = string(runes)
-	}
-	agent := agentStyle.Render(agentName)
-
-	modelInfo := truncatedModelProvider(p.model, p.provider, p.width-len(p.agent)-10)
-	if modelInfo == "" {
-		modelInfo = "No provider selected · /connect"
-	}
-
-	result := fmt.Sprintf("  %s %s %s", agent, dimStyle.Render("·"), dimStyle.Render(modelInfo))
+	dimStyle := lipgloss.NewStyle().Foreground(colorPromptDim)
+	var parts []string
 	if p.thinkingLevel != "" && p.thinkingLevel != "off" {
-		result += "  " + dimStyle.Render("thinking:"+p.thinkingLevel)
+		parts = append(parts, dimStyle.Render("thinking:"+p.thinkingLevel))
 	}
 	if p.effortLevel != "" && p.effortLevel != "medium" {
-		result += "  " + dimStyle.Render("effort:"+p.effortLevel)
+		parts = append(parts, dimStyle.Render("effort:"+p.effortLevel))
 	}
 	if p.imageCount > 0 {
 		label := formatImageSize(p.imageSize)
 		if p.imageCount == 1 {
-			result += "  " + dimStyle.Render("[image: "+label+"]")
+			parts = append(parts, dimStyle.Render("[image: "+label+"]"))
 		} else {
-			result += "  " + dimStyle.Render(fmt.Sprintf("[%d images: %s]", p.imageCount, label))
+			parts = append(parts, dimStyle.Render(fmt.Sprintf("[%d images: %s]", p.imageCount, label)))
 		}
 	}
-	return result
+	if len(parts) == 0 {
+		return ""
+	}
+	return "  " + strings.Join(parts, "  ")
 }
 
 // handleAutocompleteKey handles key events when the autocomplete popover is
@@ -538,8 +611,8 @@ func formatImageSize(bytes int) string {
 }
 
 // isTerminalEscape returns true if the string looks like a terminal escape
-// response that leaked through bubbletea's input parser (raw ESC/C1 bytes
-// or OSC color response fragments like "rgb:" or "11;").
+// response that leaked through bubbletea's input parser (raw ESC/C1 bytes,
+// OSC color fragments, or CSI cursor-position reports like ";1R").
 func isTerminalEscape(s string) bool {
 	for i := 0; i < len(s); i++ {
 		c := s[i]
@@ -551,6 +624,25 @@ func isTerminalEscape(s string) bool {
 		return true
 	}
 	if oscHexFragment.MatchString(s) {
+		return true
+	}
+	if cprFragment.MatchString(s) {
+		return true
+	}
+	return false
+}
+
+// isTerminalNoise is a broader filter used only during the post-ClearScreen
+// noise window — catches split CPR pieces ("1R", ";1") that aren't full reports.
+func isTerminalNoise(s string) bool {
+	if isTerminalEscape(s) {
+		return true
+	}
+	if cprFragment.MatchString(s) {
+		return true
+	}
+	// Partial CPR crumbs after ESC[ was consumed elsewhere.
+	if matched, _ := regexp.MatchString(`^[\d;]{1,6}R?$`, s); matched && strings.ContainsAny(s, ";R") {
 		return true
 	}
 	return false
