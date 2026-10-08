@@ -783,3 +783,200 @@ func TestHealthMonitor_RemovesDeadPlugin(t *testing.T) {
 		t.Error("expected tool unregistered after process death")
 	}
 }
+
+func TestKillForTimeout_KillsProcessAndCallsOnRemove(t *testing.T) {
+	mgr := newTestManager("with_tools")
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	mgr.SetToolRegistry(reg)
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	mgr.mu.RLock()
+	proc := mgr.plugins[info.ID]
+	mgr.mu.RUnlock()
+
+	proc.mu.Lock()
+	proc.killForTimeout()
+	proc.mu.Unlock()
+
+	if !proc.dead.Load() {
+		t.Error("expected process to be marked dead after killForTimeout")
+	}
+
+	// Wait for the health monitor goroutine to remove the process.
+	select {
+	case <-proc.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for process to exit")
+	}
+
+	// onRemove should have removed it from the manager map.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(mgr.List()) == 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Errorf("expected plugin removed from map after killForTimeout, got %d", len(mgr.List()))
+}
+
+func TestKillForTimeout_AlreadyExitedProcess(t *testing.T) {
+	mgr := newTestManager("")
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	mgr.mu.RLock()
+	proc := mgr.plugins[info.ID]
+	mgr.mu.RUnlock()
+
+	// Kill the process externally first.
+	if proc.cmd.Process != nil {
+		_ = proc.cmd.Process.Kill()
+	}
+	select {
+	case <-proc.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for process to exit")
+	}
+
+	// killForTimeout on an already-dead process should not panic.
+	proc.mu.Lock()
+	proc.killForTimeout()
+	proc.mu.Unlock()
+
+	if !proc.dead.Load() {
+		t.Error("expected process to be marked dead")
+	}
+}
+
+func TestKillForTimeout_OnRemoveCallback(t *testing.T) {
+	mgr := newTestManager("")
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	mgr.mu.RLock()
+	proc := mgr.plugins[info.ID]
+	mgr.mu.RUnlock()
+
+	var onRemoveCalled bool
+	var onRemoveReason string
+	originalOnRemove := proc.onRemove
+	proc.onRemove = func(reason string) {
+		onRemoveCalled = true
+		onRemoveReason = reason
+		originalOnRemove(reason)
+	}
+
+	proc.mu.Lock()
+	proc.killForTimeout()
+	proc.mu.Unlock()
+
+	if !onRemoveCalled {
+		t.Fatal("expected onRemove to be called")
+	}
+	if onRemoveReason != "rpc timeout" {
+		t.Errorf("expected reason 'rpc timeout', got %q", onRemoveReason)
+	}
+}
+
+func TestWaitForDrainIfNeeded_NoDrainReturnsImmediately(t *testing.T) {
+	mgr := newTestManager("")
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	mgr.mu.RLock()
+	proc := mgr.plugins[info.ID]
+	mgr.mu.RUnlock()
+
+	proc.mu.Lock()
+	err = proc.waitForDrainIfNeeded()
+	proc.mu.Unlock()
+
+	if err != nil {
+		t.Fatalf("expected nil error when no drain pending, got %v", err)
+	}
+}
+
+func TestWaitForDrainIfNeeded_DrainCompletesWithinTimeout(t *testing.T) {
+	mgr := newTestManager("")
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	mgr.mu.RLock()
+	proc := mgr.plugins[info.ID]
+	mgr.mu.RUnlock()
+
+	// Simulate a pending drain that completes quickly.
+	drain := make(chan struct{})
+	proc.drainDone = drain
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		close(drain)
+	}()
+
+	proc.mu.Lock()
+	err = proc.waitForDrainIfNeeded()
+	proc.mu.Unlock()
+
+	if err != nil {
+		t.Fatalf("expected nil error when drain completes, got %v", err)
+	}
+	if proc.drainDone != nil {
+		t.Error("expected drainDone to be cleared after drain completes")
+	}
+}
+
+func TestWaitForDrainIfNeeded_ProcessDiesWhileDraining(t *testing.T) {
+	mgr := newTestManager("")
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	mgr.mu.RLock()
+	proc := mgr.plugins[info.ID]
+	mgr.mu.RUnlock()
+
+	// Set a drain that never completes, but kill the process.
+	drain := make(chan struct{})
+	proc.drainDone = drain
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		if proc.cmd.Process != nil {
+			_ = proc.cmd.Process.Kill()
+		}
+	}()
+
+	proc.mu.Lock()
+	err = proc.waitForDrainIfNeeded()
+	proc.mu.Unlock()
+
+	if err == nil {
+		t.Fatal("expected error when process dies while draining")
+	}
+	if !strings.Contains(err.Error(), "dead") {
+		t.Errorf("expected 'dead' in error, got %v", err)
+	}
+}
