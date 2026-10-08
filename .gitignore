@@ -19,11 +19,9 @@ ts-dist
 /result
 refs
 Session.vim
-/opencode.json
 a.out
 target
 /tinycode
-/tinycode-go
 tinycode.log
 .scripts
 .direnv/
@@ -34,7 +32,6 @@ tinycode.log
 .plugin-test-build/
 
 # Local dev files
-opencode-dev
 UPCOMING_CHANGELOG.md
 logs/
 *.bun-build

@@ -32,8 +32,6 @@ logs/
 notes/
 plans/
 tinycode.log
-tinycode-go
-opencode-dev
 
 # Git
 .git/
