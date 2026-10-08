@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.1.5] - Unreleased
+## [2.2.0] - 2026-10-08
 
 ### Features
 - `/init` generates root `AGENTS.md` from repo signals (Go, Node, Rust, Python, Ruby, Java ecosystem detection), then prompts LLM for refinement (#644)
