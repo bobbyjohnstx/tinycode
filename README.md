@@ -2,7 +2,7 @@
 
 Local-first AI coding assistant. Bring any model — single binary, no runtime dependencies.
 
-![tinycode TUI](tinycode-screenshot.png)
+![tinycode splash screen after startup](tinycode-screenshot.png)
 
 [![Go CI](https://github.com/bobbyjohnstx/tinycode/actions/workflows/go-ci.yml/badge.svg)](https://github.com/bobbyjohnstx/tinycode/actions/workflows/go-ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -34,6 +34,8 @@ tinycode /path/to/project         # TUI against a project
 
 If no model was auto-discovered, type `/connect` in the TUI to pick a provider and model. There is no separate `tinycode setup` command — doctor + `/connect` is the first-run path.
 
+![Connect dialog listing discovered providers](tinycode-connect.png)
+
 Type a prompt and press Enter:
 
 ```
@@ -41,6 +43,12 @@ Explain what this repository does in 2 sentences.
 ```
 
 Press `Ctrl+X` then `m` to pick a model if needed. Full walkthrough: [docs/quickstart.md](docs/quickstart.md).
+
+`Ctrl+P` opens the command palette. `Ctrl+X` opens the which-key panel for leader shortcuts.
+
+![Command palette](tinycode-palette.png)
+
+![Which-key panel after Ctrl+X](tinycode-whichkey.png)
 
 ### Build from source
 
