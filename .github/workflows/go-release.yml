@@ -66,22 +66,21 @@ jobs:
             rm -rf "dist/release/${archiveName}"
           done
 
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create ${{ github.ref_name }} \
-            --title "${{ github.ref_name }}" \
-            --generate-notes \
-            dist/release/*
-
       - name: Generate checksums
         run: |
           cd dist/release
           sha256sum * > checksums-sha256.txt
 
-      - name: Upload checksums
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ github.ref_name }} dist/release/checksums-sha256.txt
+          if gh release view ${{ github.ref_name }} &>/dev/null; then
+            echo "Release ${{ github.ref_name }} already exists, uploading assets..."
+            gh release upload ${{ github.ref_name }} dist/release/* --clobber
+          else
+            gh release create ${{ github.ref_name }} \
+              --title "${{ github.ref_name }}" \
+              --generate-notes \
+              dist/release/*
+          fi
