@@ -1,5 +1,7 @@
 # Bubbletea TUI Architecture Design
 
+> **Historical design note.** The bubbletea TUI shipped. Current layout and behavior are in [architecture.md](architecture.md) and [user-guide.md](user-guide.md). The sentence below that says the TUI is not an embedded server is out of date: the TUI starts an in-process HTTP server.
+
 ## Overview
 
 Go bubbletea-based TUI replacing the TypeScript SolidJS/opentui TUI (~29K lines). The TUI is a client of the Go HTTP API server (same as the web UI), not an embedded server.

@@ -11,19 +11,29 @@ This specification documents tinycode, the Go rewrite of [tinycode](https://gith
 
 ## Start here (current documentation)
 
-Use this table before older gap analyses or September 2026 review notes (those files carry **Historical document** banners).
+Use this table as the current documentation index.
 
 | Audience | Document |
 |----------|----------|
-| New users | [../getting-started.md](../getting-started.md), [../user-guide.md](../user-guide.md), [../quickstart.md](../quickstart.md) |
+| New users | [../install.md](../install.md), then [../quickstart.md](../quickstart.md). Reference: [../user-guide.md](../user-guide.md) |
 | Operators / deploy | [../install.md](../install.md), [../deployment.md](../deployment.md), [../troubleshooting.md](../troubleshooting.md) |
 | Contributors (Go) | [../building.md](../building.md), [../architecture.md](../architecture.md), [../adding-a-tool.md](../adding-a-tool.md), root [../../AGENTS.md](../../AGENTS.md) and [../../CLAUDE.md](../../CLAUDE.md) |
 | Plugins | [../plugin-development.md](../plugin-development.md), [../plugin-catalog.md](../plugin-catalog.md) |
 | IDE / automation | [../acp-integration.md](../acp-integration.md), [17-testing-strategy.md](17-testing-strategy.md) |
-| TS-only / not in Go | [16-not-implemented.md](16-not-implemented.md) (tmux swarm, Electron desktop, etc.) |
+| TS-only / not in Go | [16-not-implemented.md](16-not-implemented.md) (tmux swarm, removed Electron desktop, etc.) |
 | Release / changelog | [../../CHANGELOG.md](../../CHANGELOG.md), [../../README.md](../../README.md) feature list |
 
-**Repository layout:** The product is the Go tree (`cmd/`, `internal/`, `pkg/`). The `packages/` directory is legacy TypeScript used only to build the optional embedded web UI (`make embed-webapp`); it is not the runtime.
+**Kept, but not current how-tos:**
+
+| File | Why it is still here |
+|------|----------------------|
+| [../getting-started.md](../getting-started.md) | Redirect. Merged into install + quickstart. Safe to delete. |
+| [../reference/oc-cli-cheatsheet.md](../reference/oc-cli-cheatsheet.md) | Generic OpenShift `oc` dump, not tinycode. |
+| [../reference/openshell-k8s-install.md](../reference/openshell-k8s-install.md) | OpenShell on plain Kubernetes. Still a how-to. |
+| [../plugin-sdk-design.md](../plugin-sdk-design.md), [../bubbletea-tui-design.md](../bubbletea-tui-design.md) | Design notes for decisions that shipped. Keep unless you want the history gone. |
+| [../plugin-auth-audit.md](../plugin-auth-audit.md) | September 2026 auth snapshot. |
+
+**Repository layout:** The product is the Go tree (`cmd/`, `internal/`, `pkg/`). `packages/` is legacy TypeScript kept for `make embed-webapp` (`app`, `sdk`, `ui`, `tinycode`, `plugin`). It is not the runtime. The Electron app and VS Code extension are not in the repository.
 
 **Authoritative HTTP surface:** Go route tables in [02-api-routes.md](02-api-routes.md) (and `internal/server/router.go`) are the source of truth for `tinycode serve`. `packages/sdk/openapi.json` is the historical TypeScript contract and overstates share/PTY/OAuth routes that are not implemented in Go.
 

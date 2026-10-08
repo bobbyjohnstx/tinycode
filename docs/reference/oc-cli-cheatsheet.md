@@ -1,4 +1,7 @@
 # OC CLI Cheatsheet
+
+> **Not a tinycode document.** Generic OpenShift 4.18 `oc` commands. Nothing here is implemented or verified by tinycode.
+
 Source: Red Hat OpenShift Container Platform 4.18
 
 ---

@@ -1,6 +1,8 @@
 # Plugin Development Guide
 
-This guide covers everything you need to build, test, and distribute plugins for tinycode 2.0.
+**Start here.** A plugin is a standalone Go binary that imports `pkg/plugin`. Copy a `cmd/plugin-*` command, define tools with `plugin.ToolDef`, and start it with `plugin.Run`. Hooks, the wire protocol, and how to ship the binary are below.
+
+This guide covers building, testing, and distributing plugins. Porting an old TypeScript plugin is [plugin-migration-guide.md](plugin-migration-guide.md). The catalog of plugins that ship today is [plugin-catalog.md](plugin-catalog.md).
 
 ## Overview
 

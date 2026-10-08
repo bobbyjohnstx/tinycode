@@ -1,5 +1,7 @@
 # Using tinycode with Red Hat OpenShift AI (RHOAI)
 
+**Start here.** Cluster-admin creates the data science project once. A regular user then deploys a vLLM serving runtime and points tinycode at its OpenAI-compatible URL with `/connect` or `TINYCODE_VLLM_HOST`.
+
 Deploy an LLM on RHOAI with vLLM serving runtime and connect tinycode to it as an OpenAI-compatible provider.
 
 ## Prerequisites

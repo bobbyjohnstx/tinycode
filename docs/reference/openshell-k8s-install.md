@@ -1,5 +1,7 @@
 # Installing OpenShell on Plain Kubernetes
 
+Companion install steps for [../openshell-integration.md](../openshell-integration.md). This is still a how-to, not an archive.
+
 ## Prerequisites
 
 - **Kubernetes 1.28+** (user namespaces need 1.33+)

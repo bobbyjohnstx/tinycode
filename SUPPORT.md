@@ -32,7 +32,8 @@ uname -a
 
 ### 1. Check the Docs
 
-- **[Getting Started](docs/getting-started.md)** -- Step-by-step walkthrough for first-time use
+- **[Install](docs/install.md)** -- Binary, Homebrew, or build from source
+- **[First session](docs/quickstart.md)** -- Doctor, connect, and a first prompt
 - **[Cheat Sheet](docs/cheatsheet.md)** -- Keyboard shortcuts and common commands
 - **[Troubleshooting](docs/troubleshooting.md)** -- Solutions to common problems
 - **[Architecture](docs/architecture.md)** -- How tinycode works internally

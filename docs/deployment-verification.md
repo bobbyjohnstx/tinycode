@@ -1,6 +1,6 @@
 # Deployment Verification Guide
 
-A companion to `tinycode doctor` (CLI) and the `/doctor` skill. While doctor automates checks, this guide explains what each check does, why it matters, and how to manually troubleshoot when things go wrong.
+**Start here.** Run `tinycode doctor` or `/doctor` in the TUI. This guide is what each check means and how to fix a failure by hand. `/swarm` does not use tmux. tmux is only for interactive CLI testing with the qa-tester agent.
 
 ---
 
@@ -24,7 +24,7 @@ This runs automated checks across your environment:
 9. Mac-specific checks
 10. tinycode ↔ Provider integration
 11. vLLM / Custom providers
-12. tmux / swarm readiness
+12. Optional tools (tmux is for qa-tester, not `/swarm`)
 13. Disk space
 14. Summary (issues, fixes, manual actions)
 
@@ -355,7 +355,7 @@ ramalama --version
 **Fix:** Install ramalama:
 
 ```bash
-# Requires Go 1.22+
+# ramalama's own build needs Go 1.22+. tinycode itself needs Go 1.27.1+.
 go install github.com/containers/ramalama/cmd/ramalama@latest
 
 # Or use the container image directly (no CLI needed)

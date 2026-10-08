@@ -14,7 +14,7 @@
 | `cmd/plugin-*/` | Optional plugin binaries (30 plugins) |
 | `internal/` | Private application code |
 | `pkg/plugin/` | Public plugin SDK |
-| `packages/` | **Legacy TypeScript** — used only when building the optional embedded web UI (`make embed-webapp`). Not part of the Go runtime. |
+| `packages/` | **Legacy TypeScript** for the optional web UI (`app`, `sdk`, `ui`, `tinycode`, `plugin`). Not the Go runtime. No Electron app or VS Code extension. |
 
 Agent and contributor guidance for Go lives in the repo root: `AGENTS.md` and `CLAUDE.md`. See [spec/README.md](spec/README.md) for a full documentation index.
 
@@ -114,7 +114,7 @@ This runs `script/embed-webapp.sh`, which builds the web app (with `TINYCODE_CHA
 
 After embedding, `make build` produces a binary that serves the web UI without external files via `tinycode web`. Without embedding, the binary still works -- it just does not serve a web UI unless `TINYCODE_WEB_DIR` points to a directory with built web assets.
 
-**Desktop packaging:** The supported GUI path is `tinycode web` (embedded SolidJS SPA). The Electron shell in `packages/desktop` is experimental and unsupported for the Go product; a Go-native desktop app is not planned. See [spec/16-not-implemented.md](spec/16-not-implemented.md) §16.1.
+**Desktop packaging:** There is no desktop shell in this repository. The GUI is `tinycode web` (the SolidJS app embedded in the binary). See [spec/16-not-implemented.md](spec/16-not-implemented.md) §16.1.
 
 **Not in Go:** The original TypeScript **tmux swarm** (multi-pane workers) is documented in [spec/16-not-implemented.md](spec/16-not-implemented.md). The Go binary implements goroutine-based `/swarm` and the `task` tool instead.
 

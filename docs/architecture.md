@@ -43,7 +43,7 @@ internal/
   vcs/                Git operations
 pkg/
   plugin/             Public plugin SDK (protocol, hooks, tools)
-packages/             Legacy TypeScript packages (app, desktop, etc.)
+packages/             Legacy TypeScript for the web UI (app, sdk, ui, tinycode, plugin)
 ```
 
 ---
@@ -249,4 +249,4 @@ No external router library -- the HTTP server uses standard `net/http` with a cu
 
 ## Historical Audit
 
-An initial architecture review (`docs/architecture-review.md`) identified five issues: plugin wire protocol mismatch, path traversal in file tools, data races in provider registry, SSE route handler inversion, and dead TUI components. All five have been fixed.
+An early architecture review found five issues: plugin wire protocol mismatch, path traversal in file tools, data races in provider registry, SSE route handler inversion, and dead TUI components. All five have been fixed.

@@ -1,6 +1,6 @@
 # tinycode Roadmap
 
-Vision and current status of tinycode 2.0 development.
+What the Go rewrite shipped, and what is out of scope. The rewrite itself is done.
 
 ## Completed -- Go 2.0 Rewrite
 

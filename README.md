@@ -40,7 +40,7 @@ Type a prompt and press Enter:
 Explain what this repository does in 2 sentences.
 ```
 
-Press `Ctrl+X` then `m` to pick a model if needed. Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
+Press `Ctrl+X` then `m` to pick a model if needed. Full walkthrough: [docs/quickstart.md](docs/quickstart.md).
 
 ### Build from source
 
@@ -99,7 +99,7 @@ tinycode also supports:
 - **Agent Client Protocol** (`tinycode acp`) --- real stdio ACP transport for IDE integration (`internal/acp/service.go`, …; VS Code, Zed, JetBrains)
 - **Non-interactive mode** (`tinycode run`) --- run a prompt and exit, for scripts and CI
 
-The Electron shell in `packages/desktop` is experimental and unsupported for the Go product. A Go-native desktop app is not planned.
+There is no desktop shell in this repository. The GUI is `tinycode web`.
 
 ## Architecture
 
@@ -307,12 +307,12 @@ make embed-webapp   # Embed SolidJS web app into the binary (builds from package
 make clean          # Remove build artifacts
 ```
 
-The runtime is Go only. The `packages/` tree is legacy TypeScript retained for `make embed-webapp`; see [docs/building.md](docs/building.md) and [docs/spec/README.md](docs/spec/README.md).
+The runtime is Go only. `packages/` is legacy TypeScript kept so `make embed-webapp` can build the web UI (`app`, `sdk`, `ui`, `tinycode`, and `plugin`). See [docs/building.md](docs/building.md) and [docs/spec/README.md](docs/spec/README.md).
 
 ## Documentation
 
 - **Install:** [docs/install.md](docs/install.md)
-- **Getting started:** [docs/getting-started.md](docs/getting-started.md)
+- **First session:** [docs/quickstart.md](docs/quickstart.md)
 - **CI / GitHub Actions:** [docs/ci-integration.md](docs/ci-integration.md)
 - **Spec index:** [docs/spec/README.md](docs/spec/README.md)
 - **Architecture:** [docs/architecture.md](docs/architecture.md)

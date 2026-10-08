@@ -18,6 +18,9 @@
   --text-muted: #4a5568;
   --accent-green: #39d353;
   --accent-green-dim: #26a641;
+  --accent-green-hover: #4ae366;
+  --bg-nav: rgba(10, 14, 20, 0.85);
+  --shadow-terminal: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.03);
   --accent-blue: #58a6ff;
   --accent-amber: #f0883e;
   --accent-red: #f85149;
@@ -64,7 +67,7 @@ body {
   right: 0;
   z-index: 100;
   height: var(--nav-height);
-  background: rgba(10, 14, 20, 0.85);
+  background: var(--bg-nav);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -339,7 +342,7 @@ section:last-of-type { border-bottom: none; }
 }
 
 .hero-cta:hover {
-  background: #4ae366;
+  background: var(--accent-green-hover);
   box-shadow: var(--glow-green);
   transform: translateY(-1px);
 }
@@ -353,7 +356,7 @@ section:last-of-type { border-bottom: none; }
   font-family: var(--font-mono);
   font-size: 0.8rem;
   line-height: 1.65;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.03);
+  box-shadow: var(--shadow-terminal);
   position: relative;
 }
 
@@ -372,9 +375,9 @@ section:last-of-type { border-bottom: none; }
   border-radius: 50%;
 }
 
-.terminal-dot.red { background: #ff5f57; }
-.terminal-dot.yellow { background: #febc2e; }
-.terminal-dot.green { background: #28c840; }
+.terminal-dot.red { background: var(--accent-red); }
+.terminal-dot.yellow { background: var(--accent-amber); }
+.terminal-dot.green { background: var(--accent-green); }
 
 .terminal-title {
   margin-left: auto;
@@ -1469,7 +1472,7 @@ section:last-of-type { border-bottom: none; }
       <div class="hero-content animate-in">
         <div class="hero-badge">
           <span class="dot"></span>
-          v2.1 &mdash; Single Binary
+          v2.1.2 &mdash; Single Binary
         </div>
         <h1>
           <span class="highlight">tinycode</span><br>
@@ -1490,7 +1493,7 @@ section:last-of-type { border-bottom: none; }
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
-            <span>14 built-in agents</span>
+            <span>15 agents, build by default</span>
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
@@ -1502,7 +1505,7 @@ section:last-of-type { border-bottom: none; }
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
-            <span>No telemetry, no sign-up</span>
+            <span>No phone-home, no sign-up</span>
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
@@ -1522,7 +1525,7 @@ section:last-of-type { border-bottom: none; }
         <div class="terminal-body">
           <div class="term-line"><span class="term-prompt">$ </span><span class="term-cmd">tinycode</span></div>
           <div class="term-line">&nbsp;</div>
-          <div class="term-line"><span class="term-success">tinycode</span> <span class="term-dim">v2.1.1</span> <span class="term-dim">&middot;</span> <span class="term-accent">ollama/qwen3:8b</span></div>
+          <div class="term-line"><span class="term-success">tinycode</span> <span class="term-dim">v2.1.2</span> <span class="term-dim">&middot;</span> <span class="term-accent">ollama/qwen3:8b</span></div>
           <div class="term-line"><span class="term-dim">session ses_01JAB &middot; ~/projects/myapp</span></div>
           <div class="term-line">&nbsp;</div>
           <div class="term-line"><span class="term-amber">you</span> <span class="term-dim">&gt;</span> <span class="term-output">add input validation to the user registration handler</span></div>
@@ -1975,12 +1978,12 @@ section:last-of-type { border-bottom: none; }
     <div class="section-label animate-in">Packages</div>
     <h2 class="section-title animate-in">Package explorer</h2>
     <p class="section-desc animate-in">
-      26 internal packages organized by domain. Click any package to expand its details, key types, and file locations.
+      Go packages under <code>internal/</code>, organized by domain. Click any package to expand its details, key types, and file locations. The optional web UI is built from <code>packages/app</code>. There is no Electron app or VS Code extension in this repository.
     </p>
 
     <div class="pkg-search animate-in">
       <input type="text" class="pkg-search-input" placeholder="Filter packages..." id="pkg-filter" aria-label="Filter packages by name or description">
-      <span class="pkg-count" id="pkg-count">26 packages</span>
+      <span class="pkg-count" id="pkg-count">28 packages</span>
     </div>
 
     <div id="pkg-container">
@@ -2541,12 +2544,19 @@ section:last-of-type { border-bottom: none; }
 <section id="agents">
   <div class="container">
     <div class="section-label animate-in">Agents</div>
-    <h2 class="section-title animate-in">14 built-in agents</h2>
+    <h2 class="section-title animate-in">15 agents</h2>
     <p class="section-desc animate-in">
-      Press Tab to cycle agents, or use &lt;leader&gt;a to pick from a list. Each agent has a specialized system prompt, tool permissions, and compact variant for smaller models.
+      <code>build</code> is the default. Tab cycles the primary agents (<code>build</code>, <code>plan</code>, <code>architect</code>, <code>code-reviewer</code>). The agent list (<code>Ctrl+X</code> then <code>a</code>) shows the rest. Compact prompts are selected automatically for smaller models. <code>code-simplifier</code>, <code>qa-tester</code>, and <code>scientist</code> ship disabled.
     </p>
 
     <div class="agents-grid animate-in">
+      <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(57, 211, 83, 0.1); color: var(--accent-green);">BU</div>
+        <div class="agent-info">
+          <div class="agent-name">build</div>
+          <div class="agent-desc">Default agent. Executes tools under the configured permissions and delegates heavier work to subagents.</div>
+        </div>
+      </div>
       <div class="agent-card">
         <div class="agent-avatar" style="background: rgba(88, 166, 255, 0.1); color: var(--accent-blue);">AR</div>
         <div class="agent-info">
@@ -2561,13 +2571,6 @@ section:last-of-type { border-bottom: none; }
           <div class="agent-name">code-reviewer</div>
           <div class="agent-desc">Severity-rated code review with logic defect detection, SOLID checks, and quality strategy.</div>
           <span class="agent-badge readonly">read-only</span>
-        </div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-avatar" style="background: rgba(188, 140, 255, 0.1); color: var(--accent-purple);">CS</div>
-        <div class="agent-info">
-          <div class="agent-name">code-simplifier</div>
-          <div class="agent-desc">Simplifies recently modified code for clarity and maintainability without changing behavior.</div>
         </div>
       </div>
       <div class="agent-card">
@@ -2601,6 +2604,13 @@ section:last-of-type { border-bottom: none; }
         </div>
       </div>
       <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(88, 166, 255, 0.1); color: var(--accent-blue);">GN</div>
+        <div class="agent-info">
+          <div class="agent-name">general</div>
+          <div class="agent-desc">General-purpose subagent for research and multi-step tasks.</div>
+        </div>
+      </div>
+      <div class="agent-card">
         <div class="agent-avatar" style="background: rgba(240, 136, 62, 0.1); color: var(--accent-amber);">GM</div>
         <div class="agent-info">
           <div class="agent-name">git-master</div>
@@ -2616,10 +2626,10 @@ section:last-of-type { border-bottom: none; }
         </div>
       </div>
       <div class="agent-card">
-        <div class="agent-avatar" style="background: rgba(188, 140, 255, 0.1); color: var(--accent-purple);">SC</div>
+        <div class="agent-avatar" style="background: rgba(88, 166, 255, 0.1); color: var(--accent-blue);">SO</div>
         <div class="agent-info">
-          <div class="agent-name">scientist</div>
-          <div class="agent-desc">Data analysis and research execution. Hypothesis-driven with statistical evidence required.</div>
+          <div class="agent-name">scout</div>
+          <div class="agent-desc">External research. Clones and inspects dependency repos and fetches docs. Cannot edit files.</div>
           <span class="agent-badge readonly">read-only</span>
         </div>
       </div>
@@ -2719,7 +2729,7 @@ section:last-of-type { border-bottom: none; }
       <div class="tech-card">
         <div class="tech-icon">Go</div>
         <div>
-          <div class="tech-name">Go 1.23+</div>
+          <div class="tech-name">Go 1.27.1+</div>
           <div class="tech-desc">Systems language for the entire codebase. Static linking, fast startup, low memory footprint, cross-compiles to 5 platforms.</div>
           <div class="tech-why">Replaced TypeScript/Bun. No runtime dependency, instant startup.</div>
         </div>
@@ -2805,8 +2815,8 @@ cd tinycode &amp;&amp; make build
       <div class="start-step">
         <div class="start-step-num">02</div>
         <div class="start-step-content">
-          <div class="start-step-title">Start a local LLM</div>
-          <div class="start-step-desc">Run <code>tinycode doctor</code> to diagnose the environment. Auto-discovers Ollama, vLLM, and LM Studio at default addresses. If no model is found, use <code>/connect</code> in the TUI (no <code>tinycode setup</code> wizard).</div>
+          <div class="start-step-title">Diagnose and connect</div>
+          <div class="start-step-desc"><code>tinycode doctor</code> reports what is missing. It does not configure a model. Auto-discovery finds Ollama, vLLM, and LM Studio. If none is found, <code>/connect</code> in the TUI picks one. There is no <code>tinycode setup</code> wizard.</div>
           <div class="code-block">
             <div class="code-header">
               <span class="code-lang">bash</span>
@@ -2840,10 +2850,10 @@ tinycode
 <span class="comment"># Or target a specific project</span>
 tinycode ~/projects/myapp
 
-<span class="comment"># Headless API server</span>
+<span class="comment"># Browser chat, headless API, IDE, or one prompt</span>
+tinycode web
 tinycode serve
-
-<span class="comment"># Non-interactive (scripts, CI)</span>
+tinycode acp
 tinycode run <span class="string">"explain the main function"</span>
 
 <span class="comment"># Multi-turn with NDJSON output</span>
@@ -2870,8 +2880,8 @@ tinycode run --max-iterations 20 \
 {
   <span class="string">"model"</span>: <span class="string">"ollama/qwen3:8b"</span>,
   <span class="string">"small_model"</span>: <span class="string">"ollama/qwen3:1.7b"</span>,
-  <span class="string">"default_agent"</span>: <span class="string">"executor"</span>,
-  <span class="string">"plugins"</span>: [<span class="string">"safety-net"</span>, <span class="string">"notify"</span>]
+  <span class="string">"default_agent"</span>: <span class="string">"build"</span>,
+  <span class="string">"plugins"</span>: [<span class="string">"safety-net"</span>]
 }</div>
           </div>
         </div>
@@ -2943,7 +2953,7 @@ tinycode run --max-iterations 20 \
     },
     web: {
       title: 'Web UI (internal/static/)',
-      desc: 'SolidJS web application embedded into the binary via go:embed. Served by the embedded HTTP server with SPA fallback routing. Same API as the TUI uses. In-browser PTY terminal is unsupported; session share defaults to disabled (no Go share routes).',
+      desc: 'SolidJS web application built from packages/app and embedded into the binary via go:embed. Served by the embedded HTTP server with SPA fallback routing. Same API as the TUI uses. There is no Electron shell in this repository. In-browser PTY terminal is unsupported; session share defaults to disabled (no Go share routes).',
       files: 'static/handler.go, packages/app/'
     },
     acp: {
@@ -3192,6 +3202,7 @@ function resetFlow(flowId) {
   var cards = document.querySelectorAll('.pkg-card');
   var filterInput = document.getElementById('pkg-filter');
   var countEl = document.getElementById('pkg-count');
+  if (countEl) countEl.textContent = cards.length + ' packages';
 
   // Toggle expand
   cards.forEach(function(card) {

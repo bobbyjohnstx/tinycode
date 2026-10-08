@@ -6,7 +6,7 @@ tinycode has two integration test suites: **headless** (run-mode) and **TUI** (t
 
 | Dependency | Required by | Install |
 |---|---|---|
-| Go 1.22+ | `make build` | `brew install go` |
+| Go 1.27.1+ | `make build` | `brew install go` |
 | tmux | TUI tests | `brew install tmux` |
 | jq | Headless tests | `brew install jq` |
 | sqlite3 | TC-H18 (session title) | pre-installed on macOS |

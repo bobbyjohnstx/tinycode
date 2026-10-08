@@ -1,6 +1,8 @@
 # Plugin Catalog
 
-Complete reference for the 30 plugins and 4 core builtins shipped with tinycode. Plugins are organized by category. For plugin development, SDK usage, and wire protocol details, see [plugin-development.md](plugin-development.md).
+**Start here.** Look up a plugin by category below. Install with `tinycode plugin install <name>` and enable it in `~/.config/tinycode/tinycode.json`. What each plugin needs for credentials is [plugin-credentials.md](plugin-credentials.md). How to write one is [plugin-development.md](plugin-development.md).
+
+Complete reference for the 30 plugins and 4 core builtins shipped with tinycode.
 
 ## Quick Start
 

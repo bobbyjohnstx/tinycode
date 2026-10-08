@@ -1,6 +1,6 @@
 # Tinycode User Guide
 
-A complete guide to tinycode -- the local-first AI coding assistant for the terminal.
+Reference for tinycode after you have a binary and a working model. Install from [install.md](install.md). The first session is [quickstart.md](quickstart.md). This guide covers the interface, commands, agents, sessions, configuration, and `tinycode run`.
 
 **Table of Contents**
 
@@ -26,70 +26,9 @@ A complete guide to tinycode -- the local-first AI coding assistant for the term
 
 ## Getting Started
 
-### Prerequisites
+Install from [install.md](install.md). The first session is [quickstart.md](quickstart.md).
 
-- **Go 1.27+** -- [install here](https://go.dev/dl/)
-- **make**
-- A running LLM provider. [Ollama](https://ollama.com) is the easiest way to start:
-
-```bash
-ollama pull qwen3:8b    # Download a model
-ollama serve            # Start the server (if not already running)
-```
-
-### Build and run
-
-```bash
-git clone https://github.com/bobbyjohnstx/tinycode.git
-cd tinycode
-make build
-./dist/tinycode
-```
-
-The binary at `dist/tinycode` is self-contained -- no runtime dependencies, no Node.js, no separate server process.
-
-### First launch
-
-On startup you see an animated boot sequence that verifies each subsystem:
-
-```
-  ▀█▀ ▄  █▀▀▄ █  █  ╲
-   █  █  █  █  ▀▀█    ╲
-   ▀  ▀  ▀  ▀    ▀      ╲    █▀▀▀ █▀▀█ █▀▀█ █▀▀█
-                           ╲  █    █  █ █  █ █
-                             ╲▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
-
-   ✓  Loading configuration
-   ✓  Connecting to server
-   ✓  Discovering providers · Ollama / qwen3:8b
-   ✓  Loading agents · 14 agents
-   ✓  Loading plugins · 2 plugins
-   ✓  Loading sessions · 12 sessions
-   ✓  Checking MCP servers · 1 servers
-```
-
-Each check mark confirms a subsystem is ready. If a check fails (e.g., no providers found), it shows a red X but tinycode still launches -- you can connect a provider later.
-
-After boot, tips appear at the bottom:
-
-```
-→  / commands  ·  @ files  ·  tab agents  ·  ctrl+p palette
-   ctrl+x sidebar/sessions  ·  shift+enter newline  ·  /help reference
-```
-
-### Connecting to a provider
-
-If no model was auto-discovered, type `/connect` to open the provider/model selector. This is also how you switch models at any time.
-
-### Your first conversation
-
-Type a prompt at the bottom and press Enter:
-
-```
-explain what this project does
-```
-
-The model reads your project files using its built-in tools (read, grep, glob, bash, edit, write, apply_patch) and responds in the chat area. The `apply_patch` tool applies atomic multi-file edits via unified diff format. You can scroll up with PgUp to review long responses.
+On startup, tinycode checks configuration, the embedded server, providers, agents, plugins, sessions, and MCP. A failed check is a red X. tinycode still launches. `/connect` picks a provider when none was discovered. After boot, the footer lists `/` commands, `@` files, Tab for agents, and Ctrl+P for the palette.
 
 ---
 

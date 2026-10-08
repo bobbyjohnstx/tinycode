@@ -1,5 +1,7 @@
 # 8. Tools
 
+Built-in tools the model can call. Plugin tools are specified in [09-plugins.md](09-plugins.md).
+
 Package: `internal/tool/`
 
 ## 8.1 Tool Framework

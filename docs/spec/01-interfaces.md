@@ -1,5 +1,7 @@
 # 1. Interfaces
 
+What you can run: the TUI, `tinycode web`, `tinycode serve`, `tinycode run`, and `tinycode acp`. There is no desktop shell in this repository.
+
 ## 1.1 Terminal UI (TUI)
 
 Package: `internal/tui/`

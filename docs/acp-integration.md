@@ -220,7 +220,7 @@ All ACP methods return promises that reject on error. Handle JSON-RPC error code
 
 | Editor | Status |
 |--------|--------|
-| VS Code (`packages/vscode-extension`) | Spawn + handshake aligned with Go ACP; chat streams `session/update` |
+| VS Code | Spawn `tinycode acp --cwd …` from the editor. There is no VS Code extension in this repository. |
 | Zed | Use official ACP agent spawn pointing at `tinycode acp --cwd …` |
 | JetBrains | Not packaged yet; same stdio protocol applies |
 
@@ -247,22 +247,11 @@ All ACP methods return promises that reject on error. Handle JSON-RPC error code
 
 ACP is implemented in Go under `internal/acp/` (`service.go`, `transport.go`, `adapter.go`, `event.go`) — not a stub. Entry point: `tinycode acp`.
 
-## Reference Implementation
-
-See `packages/vscode-extension/` for a VS Code extension that:
-
-- Spawns `tinycode acp --cwd <workspace>`
-- Initializes with protocol version `1`
-- Creates a session and registers a chat participant
-- Streams `session/update` chunks into the chat UI
-- Handles `session/request_permission` with quick-picks
-
 ## Specification
 
 The full ACP specification is available at [agentclientprotocol.com](https://agentclientprotocol.com).
 
 ## Next Steps
 
-- Read the [VS Code extension README](../packages/vscode-extension/README.md)
 - Explore [@agentclientprotocol/sdk](https://www.npmjs.com/package/@agentclientprotocol/sdk)
 )

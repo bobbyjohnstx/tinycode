@@ -6,7 +6,7 @@ This guide covers everything you need to run the tinycode LLM benchmark on any m
 
 | Dependency | Version | Check |
 |------------|---------|-------|
-| Go | 1.22+ | `go version` |
+| Go | 1.27.1+ | `go version` |
 | Ollama | 0.30+ | `ollama --version` |
 | Git | any | `git --version` |
 

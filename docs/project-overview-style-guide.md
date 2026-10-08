@@ -1,5 +1,7 @@
 # project-overview.html Style Guide
 
+For people editing [project-overview.html](project-overview.html). Not a user guide.
+
 Design decisions and conventions for the tinycode project overview page. Follow this guide when updating or extending the page to maintain visual consistency.
 
 ## 1. Color Palette

@@ -17,7 +17,7 @@ Deploy to:
 
 The industry's coding assistants optimize for large, cloud-hosted models. tinycode optimizes for the models you actually run locally: Llama 3, Qwen, Mistral, and other 3B–13B parameter variants.
 
-**24 compact agent presets** tuned specifically for these models:
+**14 compact agent presets** tuned specifically for these models:
 
 - Average system prompt: **~1K tokens** (vs. ~4K for full variants)
 - Fits snugly in 4K–32K context windows
@@ -26,13 +26,12 @@ The industry's coding assistants optimize for large, cloud-hosted models. tinyco
 
 Runs production-grade coding assistance from a laptop. No GPU cluster required.
 
-## Three Interfaces, One Experience
+## Two Interfaces, One Experience
 
 - **Terminal UI (primary)** — Fast, responsive, zero dependencies. Stays in your terminal where your code is.
-- **Web UI** — Browser access from anywhere on your network. Same conversation, agent, and tool capabilities as the TUI.
-- **Electron Desktop App** — Native window for macOS, Windows, and Linux. System tray integration. Standalone binaries.
+- **Web UI** — Browser access from anywhere on your network via `tinycode web`. Same conversation, agent, and tool capabilities as the TUI.
 
-All three share the same API server, so you can switch interfaces mid-conversation without losing context.
+Both share the same API server, so you can switch interfaces mid-conversation without losing context. There is no desktop shell in this repository.
 
 ## Safe Exploration with Plan Mode
 
@@ -178,7 +177,7 @@ Three complementary projects work together:
 
 | Project | Role |
 |---------|------|
-| **tinycode** (this repo) | Core server, TUI, web UI, desktop app, agents, skills, tools, and LLM provider integrations |
+| **tinycode** (this repo) | Core server, TUI, web UI, agents, skills, tools, and LLM provider integrations |
 | **tinycode-container** | OCI image for Kubernetes and OpenShift deployments—bundles tinycode with oh-my-tiny, tmux, and git |
 | **tinycode-operator** | Kubernetes Operator for declarative TinycodeInstance management, RBAC, GitOps, and multi-team scenarios |
 

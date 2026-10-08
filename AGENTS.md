@@ -1,3 +1,28 @@
+Shared project rules for coding agents. Keep this file in sync with `CLAUDE.md`. `CLAUDE.md` also has a Claude-only agent delegation section.
+
+## Commands
+
+```bash
+# Build
+make build                      # builds dist/tinycode
+
+# Run
+./dist/tinycode                 # TUI mode
+./dist/tinycode <directory>     # TUI against a different directory
+./dist/tinycode serve           # headless API proxy
+./dist/tinycode acp             # Agent Client Protocol (IDE integration, stdio)
+
+# Tests
+go test ./... -count=1          # all tests (or: make test)
+go test ./internal/tui/... -count=1   # single package
+
+# Lint
+make lint                       # go vet + staticcheck (make test-race for -race)
+
+# Embed web app into binary (requires packages/app built first)
+make embed-webapp
+```
+
 ## Commits and PR Titles
 
 Use conventional commit-style messages and PR titles: `type(scope): summary`.
@@ -21,9 +46,24 @@ Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes: 
 - Test names: `TestFunctionName_ScenarioDescription`
 - Run from repo root: `go test ./...` or target a package: `go test ./internal/tui/...`
 
-## Product honesty (docs / UX)
+## Pitfalls
 
-- First-run: `tinycode doctor` + TUI `/connect` (no `tinycode setup`; `/tc-doctor` is obsolete)
-- Manual compact/summarize works (`Processor.Compact`); do not document as `501`
-- Web: `config.share` default `"disabled"`; PTY unsupported — do not advertise share/terminal as working
-- Skills paths are plural: `skills/`; project agents: `.tinycode/agent/*.md`
+Things that break silently if you guess wrong.
+
+- **`earlyinit` import**: `cmd/tinycode/main.go` must keep the blank import `_ "github.com/bobbyjohnstx/tinycode/internal/earlyinit"`, and that import must appear before any TUI package import. It sets lipgloss dark-background defaults before TUI packages initialize. Removing it, or importing a TUI package ahead of it, breaks all TUI colors with no error. It currently follows the standard-library imports. It is not `_ "internal/earlyinit"`.
+- **Plugin JSON-RPC field is `"args"`, not `"arguments"`**: `pkg/plugin/protocol.go` uses `json:"args"`. Sending `"arguments"` silently zero-values the struct — the tool runs with empty params.
+- **`defaultAutoContinueMax = 0` is intentional**: The agent does not auto-continue by default. Setting this to a positive number enables unsupervised agent loops that burn tokens and run tools without consent.
+- **`SetWorking(true)` return value must be propagated**: `StatusBar.SetWorking()` returns a `tea.Cmd` that drives the spinner tick chain. Discarding it freezes the spinner — the UI appears hung.
+- **Config file 3-name fallback**: Config loading tries `tinycode.jsonc` → `tinycode.json` → `config.json` in each directory. Only checking one name silently ignores user config.
+- **`internal/static/dist/` is committed, not gitignored**: The `//go:embed dist/*` directive in `internal/static/static.go` requires these files at compile time. Deleting them as build artifacts breaks `go build`.
+- **`LSPConfig` accepts both forms**: `"lsp": true` (boolean shorthand) and `"lsp": { "enabled": true, ... }` (struct). Always expecting an object breaks boolean-shorthand users.
+- **SQLite is pure Go (`modernc.org/sqlite`), not cgo**: No C toolchain needed. Setting `CGO_ENABLED=1` or switching to `mattn/go-sqlite3` breaks cross-compilation.
+- **Project config walks UP the directory tree**: Config files in nested directories merge with parent configs (innermost wins). Only checking the project root ignores monorepo nested configs.
+- **Plugin system is JSON-RPC over stdin/stdout**: Plugins are standalone Go binaries spawned as child processes, not HTTP services. `pkg/plugin/` is the public SDK.
+- **`packages/` is legacy TypeScript**: Not the Go runtime. `make embed-webapp` builds `packages/app` (with `sdk`, `ui`, `tinycode`, and `plugin`). `packages/desktop`, `packages/vscode-extension`, `packages/llm`, `packages/http-recorder`, `packages/effect-drizzle-sqlite`, and `packages/script` are not in the repo.
+- **`safego.Go()` must wrap all goroutine launches**: Bare `go func()` skips panic recovery — a panic in the goroutine crashes the process with no log. `internal/safego` adds `recover()` + `slog.Error`.
+- **Plugin tool timeout is 30s, hook timeout is 5s**: `internal/plugin/manager.go` constants. Plugins that exceed these are killed. Changing them affects all plugins and shutdown timing.
+- **`config.share` defaults to `"disabled"`**: Not a working share/publish feature in Go — no `/session/{id}/share` routes; web PTY is unsupported (`PTY_SUPPORTED=false`). Do not advertise share or the in-browser terminal as working.
+- **Manual summarize works**: `POST /session/{id}/summarize` and TUI `/compact` run `Processor.Compact` and return `200` + `{"compacted": bool}` — not `501`.
+- **First-run is doctor + `/connect`**: Use `tinycode doctor` (diagnose) and TUI `/connect` (configure models). There is no `tinycode setup`. Legacy `/tc-doctor` bash skill is obsolete.
+- **Skills paths are plural**: `skills/`. Project agents live at `.tinycode/agent/*.md`.

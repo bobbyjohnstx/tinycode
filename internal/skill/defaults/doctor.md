@@ -31,7 +31,7 @@ Prefer the headless CLI when appropriate: `tinycode doctor` (same diagnostic goa
 Verify these directories exist and are writable: `.tinycode/`, `~/.config/tinycode/`, `~/.local/share/tinycode/`. Create any that are missing.
 
 ### 2. Tools availability
-Check for required tools: `curl`, `git`. Check optional tools: `tmux` (needed for /swarm).
+Check for required tools: `curl`, `git`. Check optional tools: `tmux` (interactive CLI testing with the qa-tester agent only; `/swarm` does not use tmux).
 
 ### 3. Provider connectivity
 Check if the configured provider (Ollama, etc.) is reachable. Verify the API endpoint responds.

@@ -52,6 +52,14 @@ For cloud models via OpenRouter, set your API key before launching:
 OPENROUTER_API_KEY=your-key tinycode
 ```
 
+Local providers on a non-default host:
+
+```bash
+export TINYCODE_OLLAMA_HOST=http://your-host:11434   # preferred; OLLAMA_HOST is the fallback
+export TINYCODE_VLLM_HOST=http://localhost:8000
+export TINYCODE_LMSTUDIO_HOST=http://localhost:1234
+```
+
 ## 4. Send your first prompt
 
 Type a question at the bottom and press Enter:
@@ -257,6 +265,26 @@ Resume where you left off without the TUI session picker:
 tinycode -c                        # Continue the most recent session
 tinycode -r "my feature work"     # Resume by title substring
 ```
+
+## Other run modes
+
+```bash
+tinycode run -m ollama/qwen3.5:9b "explain the main function"   # one prompt, then exit
+tinycode run --multi-turn --format json -m ollama/qwen3.5:9b    # loop on stdin, NDJSON events
+tinycode serve    # headless API and the thin ops console
+tinycode web      # browser chat UI
+tinycode acp      # IDE integration over stdio
+```
+
+Flags, NDJSON events, and permission handling are in the [user guide](user-guide.md#run-mode).
+
+## If something fails
+
+- **Model not found.** Pull it first: `ollama pull <model>`.
+- **Cannot reach Ollama.** `ollama serve` must be running. On another host, set `TINYCODE_OLLAMA_HOST`.
+- **No tool calls.** The warmup probe checks tool-call support. A model that fails it still answers in text. Larger models (9B and up) usually do better.
+
+More cases: [troubleshooting.md](troubleshooting.md).
 
 ## Next steps
 

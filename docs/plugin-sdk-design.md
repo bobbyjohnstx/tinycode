@@ -1,5 +1,7 @@
 # Go Plugin SDK Design
 
+> **Historical design note.** This decision shipped. The JSON-RPC stdio SDK is `pkg/plugin`, and the current guide is [plugin-development.md](plugin-development.md). Do not treat the "recommendation" below as an open choice.
+
 ## Recommendation: JSON-RPC over stdin/stdout
 
 Each plugin is a standalone binary. Tinycode spawns it, communicates via JSON-RPC over stdin/stdout — the same pattern already used by MCP (`internal/mcp/stdio.go`) and LSP. Language-agnostic, process-isolated, no protobuf.
