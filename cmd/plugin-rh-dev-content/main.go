@@ -80,13 +80,13 @@ func parseTopicPage(html string) []articleLink {
 }
 
 var (
-	itemPattern    = regexp.MustCompile(`(?is)<item>([\s\S]*?)</item>`)
-	titleCDATA     = regexp.MustCompile(`<title><!\[CDATA\[(.*?)\]\]></title>`)
-	titlePlain     = regexp.MustCompile(`<title>(.*?)</title>`)
-	linkTag        = regexp.MustCompile(`<link>(.*?)</link>`)
-	pubDateTag     = regexp.MustCompile(`<pubDate>(.*?)</pubDate>`)
-	creatorCDATA   = regexp.MustCompile(`<dc:creator><!\[CDATA\[(.*?)\]\]></dc:creator>`)
-	creatorPlain   = regexp.MustCompile(`<dc:creator>(.*?)</dc:creator>`)
+	itemPattern  = regexp.MustCompile(`(?is)<item>([\s\S]*?)</item>`)
+	titleCDATA   = regexp.MustCompile(`<title><!\[CDATA\[(.*?)\]\]></title>`)
+	titlePlain   = regexp.MustCompile(`<title>(.*?)</title>`)
+	linkTag      = regexp.MustCompile(`<link>(.*?)</link>`)
+	pubDateTag   = regexp.MustCompile(`<pubDate>(.*?)</pubDate>`)
+	creatorCDATA = regexp.MustCompile(`<dc:creator><!\[CDATA\[(.*?)\]\]></dc:creator>`)
+	creatorPlain = regexp.MustCompile(`<dc:creator>(.*?)</dc:creator>`)
 )
 
 func parseRSSFeed(xml string) []articleLink {
@@ -131,8 +131,8 @@ func parseRSSFeed(xml string) []articleLink {
 }
 
 var (
-	bodyDivRe   = regexp.MustCompile(`(?is)<div[^>]*class="[^"]*field--name-body[^"]*"[^>]*>([\s\S]*?)</div>\s*</div>\s*</div>`)
-	mainTagRe   = regexp.MustCompile(`(?is)<main[^>]*>([\s\S]*?)</main>`)
+	bodyDivRe    = regexp.MustCompile(`(?is)<div[^>]*class="[^"]*field--name-body[^"]*"[^>]*>([\s\S]*?)</div>\s*</div>\s*</div>`)
+	mainTagRe    = regexp.MustCompile(`(?is)<main[^>]*>([\s\S]*?)</main>`)
 	articleTagRe = regexp.MustCompile(`(?is)<article[^>]*>([\s\S]*?)</article>`)
 )
 
@@ -155,9 +155,9 @@ func extractArticleContent(html string) string {
 
 var (
 	htmlTitleRe    = regexp.MustCompile(`(?i)<title>(.*?)</title>`)
-	h1Re          = regexp.MustCompile(`(?i)<h1[^>]*>(.*?)</h1>`)
-	metaAuthorRe  = regexp.MustCompile(`(?i)<meta[^>]*name="author"[^>]*content="([^"]+)"`)
-	metaDateRe    = regexp.MustCompile(`(?i)<meta[^>]*property="article:published_time"[^>]*content="([^"]+)"`)
+	h1Re           = regexp.MustCompile(`(?i)<h1[^>]*>(.*?)</h1>`)
+	metaAuthorRe   = regexp.MustCompile(`(?i)<meta[^>]*name="author"[^>]*content="([^"]+)"`)
+	metaDateRe     = regexp.MustCompile(`(?i)<meta[^>]*property="article:published_time"[^>]*content="([^"]+)"`)
 	timeDatetimeRe = regexp.MustCompile(`(?i)<time[^>]*datetime="([^"]+)"`)
 )
 
@@ -208,7 +208,7 @@ func isValidTopic(topic string) bool {
 func buildTools() []plugin.ToolDef {
 	return []plugin.ToolDef{
 		{
-			Name: "rh_dev_search",
+			Name:        "rh_dev_search",
 			Description: "Browse Red Hat developer articles by topic. Available topics include: kubernetes, containers, ai-ml, python, go, rust, nodejs, enterprise-java, security, devops, gitops, automation, microservices, and more.",
 			Parameters: map[string]any{
 				"type": "object",
@@ -261,7 +261,9 @@ func buildTools() []plugin.ToolDef {
 				"required": []string{"url"},
 			},
 			Execute: func(_ context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ URL string `json:"url"` }
+				var input struct {
+					URL string `json:"url"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
@@ -299,8 +301,12 @@ func buildTools() []plugin.ToolDef {
 				},
 			},
 			Execute: func(_ context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ Limit int `json:"limit"` }
-				json.Unmarshal(args, &input)
+				var input struct {
+					Limit int `json:"limit"`
+				}
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				xml, err := fetchHTML(baseURL + "/blog/feed/")
 				if err != nil {
 					return fmt.Sprintf("Failed to fetch recent articles: %v", err), nil

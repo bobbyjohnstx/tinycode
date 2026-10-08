@@ -249,6 +249,58 @@ func TestEdgeCases(t *testing.T) {
 	})
 }
 
+func TestAdditionalSecretsRedacted(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			"openshift token",
+			"token sha256~abcDEF_123-xyz",
+			"token [REDACTED]",
+		},
+		{
+			"github fine grained pat",
+			"auth github_pat_11AAAAAAA0123456789",
+			"auth [REDACTED]",
+		},
+		{
+			"bare jwt",
+			"cookie eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.signaturepart",
+			"cookie [REDACTED]",
+		},
+		{
+			"quoted password with space",
+			`password="hello world"`,
+			"[REDACTED]",
+		},
+		{
+			"openssh private key",
+			"-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----",
+			"[REDACTED]",
+		},
+		{
+			"encrypted private key",
+			"-----BEGIN ENCRYPTED PRIVATE KEY-----\nabc\n-----END ENCRYPTED PRIVATE KEY-----",
+			"[REDACTED]",
+		},
+		{
+			"token count unchanged",
+			"token count: 3",
+			"token count: 3",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := sanitize(tc.input)
+			if got != tc.want {
+				t.Errorf("sanitize(%q)\n got: %q\nwant: %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

@@ -240,8 +240,12 @@ func buildTools(consoleClient *redhat.APIClient, catalogPath string) []plugin.To
 				},
 			},
 			Execute: func(_ context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ Search string `json:"search"` }
-				json.Unmarshal(args, &input)
+				var input struct {
+					Search string `json:"search"`
+				}
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				results := apiCatalog
 				if input.Search != "" {
@@ -272,7 +276,9 @@ func buildTools(consoleClient *redhat.APIClient, catalogPath string) []plugin.To
 				if !hasSource {
 					return notAvailableMsg, nil
 				}
-				var input struct{ API string `json:"api"` }
+				var input struct {
+					API string `json:"api"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}

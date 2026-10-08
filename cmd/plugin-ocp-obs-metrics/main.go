@@ -251,7 +251,7 @@ func buildObsTools(client *redhat.PromQLClient) []plugin.ToolDef {
 				}
 
 				if _, err := redhat.ParseDuration(input.Duration); err != nil {
-					return fmt.Sprintf("Invalid duration: %v", err), nil
+					return "", fmt.Errorf("invalid duration: %w", err)
 				}
 
 				matchers := []redhat.AlertMatcher{
@@ -259,7 +259,7 @@ func buildObsTools(client *redhat.PromQLClient) []plugin.ToolDef {
 				}
 				silenceID, err := client.SilenceAlert(ctx, matchers, input.Duration, "tinycode", input.Comment)
 				if err != nil {
-					return fmt.Sprintf("Failed to silence alert: %v", err), nil
+					return "", fmt.Errorf("silence alert: %w", err)
 				}
 				return fmt.Sprintf("Alert '%s' silenced for %s. Silence ID: %s", input.AlertName, input.Duration, silenceID), nil
 			},
@@ -338,7 +338,7 @@ func unconfiguredObsTools() []plugin.ToolDef {
 				"required": []string{"alertName", "duration", "comment"},
 			},
 			Execute: func(_ context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
-				return msg, nil
+				return "", fmt.Errorf("%s", msg)
 			},
 		},
 	}

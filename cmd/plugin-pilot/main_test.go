@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,9 +12,9 @@ import (
 
 func TestParseGitRemoteURL(t *testing.T) {
 	tests := []struct {
-		name   string
-		url    string
-		want   *ParsedRemote
+		name string
+		url  string
+		want *ParsedRemote
 	}{
 		{
 			name: "https URL",
@@ -203,7 +204,7 @@ func TestGiteaListIssues(t *testing.T) {
 		authValue:  "token test-token",
 	})
 
-	issues, err := p.ListIssues(ListIssuesParams{Owner: "owner", Repo: "repo", State: "open"})
+	issues, err := p.ListIssues(context.Background(), ListIssuesParams{Owner: "owner", Repo: "repo", State: "open"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -240,7 +241,7 @@ func TestGiteaCreateIssue(t *testing.T) {
 		authValue:  "token test-token",
 	})
 
-	issue, err := p.CreateIssue(CreateIssueParams{Owner: "owner", Repo: "repo", Title: "New Issue"})
+	issue, err := p.CreateIssue(context.Background(), CreateIssueParams{Owner: "owner", Repo: "repo", Title: "New Issue"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -251,7 +252,7 @@ func TestGiteaCreateIssue(t *testing.T) {
 
 func TestGiteaTokenRequired(t *testing.T) {
 	p := newGiteaProviderWithConfig(providerConfig{baseURL: "http://localhost", token: ""})
-	_, err := p.ListIssues(ListIssuesParams{Owner: "o", Repo: "r"})
+	_, err := p.ListIssues(context.Background(), ListIssuesParams{Owner: "o", Repo: "r"})
 	if err == nil {
 		t.Fatal("expected error for missing token")
 	}
@@ -272,7 +273,7 @@ func TestGiteaHandleStatus404(t *testing.T) {
 		authHeader: "Authorization",
 		authValue:  "token tok",
 	})
-	_, err := p.ListIssues(ListIssuesParams{Owner: "o", Repo: "r", State: "open"})
+	_, err := p.ListIssues(context.Background(), ListIssuesParams{Owner: "o", Repo: "r", State: "open"})
 	if err == nil {
 		t.Fatal("expected error for 404")
 	}
@@ -312,7 +313,7 @@ func TestGitHubListIssues(t *testing.T) {
 		},
 	})
 
-	issues, err := p.ListIssues(ListIssuesParams{Owner: "octocat", Repo: "hello", State: "open"})
+	issues, err := p.ListIssues(context.Background(), ListIssuesParams{Owner: "octocat", Repo: "hello", State: "open"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -326,7 +327,7 @@ func TestGitHubListIssues(t *testing.T) {
 
 func TestGitHubTokenRequired(t *testing.T) {
 	p := newGitHubProviderWithConfig(providerConfig{baseURL: "http://localhost", token: ""})
-	_, err := p.ListIssues(ListIssuesParams{Owner: "o", Repo: "r"})
+	_, err := p.ListIssues(context.Background(), ListIssuesParams{Owner: "o", Repo: "r"})
 	if err == nil {
 		t.Fatal("expected error for missing token")
 	}
@@ -366,7 +367,7 @@ func TestGitLabListIssues(t *testing.T) {
 		authValue:  "gl-token",
 	})
 
-	issues, err := p.ListIssues(ListIssuesParams{Owner: "owner", Repo: "repo", State: "open"})
+	issues, err := p.ListIssues(context.Background(), ListIssuesParams{Owner: "owner", Repo: "repo", State: "open"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -428,7 +429,7 @@ func TestGitLabUpdateIssueUsesStateEvent(t *testing.T) {
 		authValue:  "tok",
 	})
 
-	_, err := p.UpdateIssue(UpdateIssueParams{Owner: "o", Repo: "r", IssueNumber: 1, State: "closed"})
+	_, err := p.UpdateIssue(context.Background(), UpdateIssueParams{Owner: "o", Repo: "r", IssueNumber: 1, State: "closed"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -439,7 +440,7 @@ func TestGitLabUpdateIssueUsesStateEvent(t *testing.T) {
 
 func TestGitLabTokenRequired(t *testing.T) {
 	p := newGitLabProviderWithConfig(providerConfig{baseURL: "http://localhost", token: ""})
-	_, err := p.ListIssues(ListIssuesParams{Owner: "o", Repo: "r"})
+	_, err := p.ListIssues(context.Background(), ListIssuesParams{Owner: "o", Repo: "r"})
 	if err == nil {
 		t.Fatal("expected error for missing token")
 	}
@@ -466,7 +467,7 @@ func TestGiteaResolveLabelsMissing(t *testing.T) {
 		authValue:  "token tok",
 	})
 
-	_, err := p.resolveLabels("owner", "repo", []string{"bug", "nonexistent"})
+	_, err := p.resolveLabels(context.Background(), "owner", "repo", []string{"bug", "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for missing labels")
 	}
@@ -495,7 +496,7 @@ func TestGiteaCommentOnIssue(t *testing.T) {
 		authValue:  "token tok",
 	})
 
-	comment, err := p.CommentOnIssue(CommentParams{Owner: "o", Repo: "r", IssueNumber: 1, Body: "test comment"})
+	comment, err := p.CommentOnIssue(context.Background(), CommentParams{Owner: "o", Repo: "r", IssueNumber: 1, Body: "test comment"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -508,11 +509,19 @@ func TestGiteaCommentOnIssue(t *testing.T) {
 
 type stubProvider struct{}
 
-func (s *stubProvider) Name() string                                           { return "stub" }
-func (s *stubProvider) ListIssues(_ ListIssuesParams) ([]NormalizedIssue, error) { return nil, nil }
-func (s *stubProvider) CreateIssue(_ CreateIssueParams) (*NormalizedIssue, error) { return nil, nil }
-func (s *stubProvider) UpdateIssue(_ UpdateIssueParams) (*NormalizedIssue, error) { return nil, nil }
-func (s *stubProvider) CommentOnIssue(_ CommentParams) (*NormalizedComment, error) { return nil, nil }
+func (s *stubProvider) Name() string { return "stub" }
+func (s *stubProvider) ListIssues(context.Context, ListIssuesParams) ([]NormalizedIssue, error) {
+	return nil, nil
+}
+func (s *stubProvider) CreateIssue(context.Context, CreateIssueParams) (*NormalizedIssue, error) {
+	return nil, nil
+}
+func (s *stubProvider) UpdateIssue(context.Context, UpdateIssueParams) (*NormalizedIssue, error) {
+	return nil, nil
+}
+func (s *stubProvider) CommentOnIssue(context.Context, CommentParams) (*NormalizedComment, error) {
+	return nil, nil
+}
 
 // --- Helpers ---
 

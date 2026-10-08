@@ -11,7 +11,11 @@ import (
 var dangerousPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\brm\s+(-\w*\s+)*-r\w*\s+(-\w+\s+)*/\s*$`),
 	regexp.MustCompile(`\brm\s+(-\w*\s+)*-r\w*\s+(-\w+\s+)*/\b`),
-	regexp.MustCompile(`\bchmod\s+777\b`),
+	regexp.MustCompile(`\brm\s+[^\n]*--recursive\b[^\n]*\s/(?:\b|\s*$)`),
+	regexp.MustCompile(`\bchmod\s+(?:-+\S+\s+)*777\b`),
+	regexp.MustCompile(`\bfind\b[^\n]*\s-delete\b`),
+	regexp.MustCompile(`\bgit\s+clean\b[^\n]*\s-[a-zA-Z]*f`),
+	regexp.MustCompile(`\bgit\s+clean\b[^\n]*--force\b`),
 	regexp.MustCompile(`\bmkfs\b`),
 	regexp.MustCompile(`\bdd\s+if=`),
 	regexp.MustCompile(`\bshutdown\b`),
@@ -29,7 +33,19 @@ func matchDangerous(cmd string) *regexp.Regexp {
 	return nil
 }
 
-func checkPermission(toolArgs string) *plugin.PermissionOutput {
+func isShellTool(name string) bool {
+	switch name {
+	case "bash", "shell":
+		return true
+	default:
+		return false
+	}
+}
+
+func checkPermission(toolName, toolArgs string) *plugin.PermissionOutput {
+	if !isShellTool(toolName) {
+		return &plugin.PermissionOutput{Allowed: true}
+	}
 	if p := matchDangerous(toolArgs); p != nil {
 		return &plugin.PermissionOutput{
 			Allowed: false,
@@ -44,7 +60,7 @@ func main() {
 		ID: "safety-net",
 		Hooks: plugin.HookHandlers{
 			PermissionAsk: func(_ context.Context, input plugin.PermissionInput) (*plugin.PermissionOutput, error) {
-				return checkPermission(input.ToolArgs), nil
+				return checkPermission(input.ToolName, input.ToolArgs), nil
 			},
 		},
 	})

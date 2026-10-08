@@ -48,7 +48,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				ns := input.Namespace
 				if ns == "" {
 					ns = "openshift-storage"
@@ -81,7 +83,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				ns := input.Namespace
 				if ns == "" {
 					ns = "openshift-storage"
@@ -172,7 +176,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				ns := input.Namespace
 				if ns == "" {
 					ns = "openshift-storage"
@@ -212,7 +218,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				odfClasses := odfStorageClassNames(ctx, oc)
 				if len(odfClasses) == 0 {
@@ -254,7 +262,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				var raw string
 				var err error

@@ -32,7 +32,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				var raw string
 				var err error
@@ -314,7 +316,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				var raw string
 				var err error
@@ -354,7 +358,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				type templateInfo struct {
 					Name        string `json:"name"`
@@ -441,7 +447,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				var raw string
 				var err error
@@ -512,7 +520,9 @@ func buildTools(oc *redhat.OcClient) []plugin.ToolDef {
 				var input struct {
 					Namespace string `json:"namespace"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				var raw string
 				var err error

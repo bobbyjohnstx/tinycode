@@ -3,6 +3,9 @@ package plugin
 import (
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
@@ -230,6 +233,60 @@ func TestDispatchPermissionAsk_Denied(t *testing.T) {
 	}
 	if out.Reason != "blocked by test" {
 		t.Errorf("expected reason 'blocked by test', got %q", out.Reason)
+	}
+}
+
+func TestDispatchPermissionAsk_InvalidResponseFailsClosed(t *testing.T) {
+	mgr := newTestManager("bad_permission")
+
+	_, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	_, err = DispatchPermissionAsk(mgr, PermissionInput{
+		SessionID: "ses_1",
+		ToolName:  "bash",
+		ToolArgs:  "ls",
+	})
+	if err == nil {
+		t.Fatal("expected invalid permission.ask response to fail closed")
+	}
+}
+
+func TestDispatchToolExecBefore_RedactsLoggedArgs(t *testing.T) {
+	mgr := newTestManager("redact_args")
+	_, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	defer mgr.Shutdown()
+
+	logPath := filepath.Join(t.TempDir(), "args.txt")
+	runner := NewShellHookRunner(map[string][]config.HookConfig{
+		"tool.execute.before": {{
+			Command: "printf %s $ARGS > " + logPath,
+		}},
+	}, slog.Default())
+
+	_, err = DispatchToolExecBefore(mgr, ToolExecBeforeEvent{
+		SessionID: "ses_1",
+		ToolName:  "bash",
+		ToolArgs:  "token=supersecretvalue",
+	}, runner)
+	if err != nil {
+		t.Fatalf("DispatchToolExecBefore: %v", err)
+	}
+	got, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read hook log: %v", err)
+	}
+	if string(got) != "token=[REDACTED]" {
+		t.Fatalf("logged args = %q", got)
+	}
+	if strings.Contains(string(got), "supersecretvalue") {
+		t.Fatalf("secret leaked into logged args: %q", got)
 	}
 }
 

@@ -128,7 +128,9 @@ func buildMgNodes(st *state) plugin.ToolDef {
 			var input struct {
 				Role string `json:"role"`
 			}
-			json.Unmarshal(args, &input)
+			if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+				return "", err
+			}
 			return toolNodes(root, input.Role)
 		},
 	}
@@ -172,7 +174,9 @@ func buildMgCerts(st *state) plugin.ToolDef {
 				ExpiredOnly bool `json:"expired_only"`
 				Days        int  `json:"days"`
 			}
-			json.Unmarshal(args, &input)
+			if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+				return "", err
+			}
 			if input.Days == 0 {
 				input.Days = 30
 			}
@@ -203,7 +207,9 @@ func buildMgNodeLogs(st *state) plugin.ToolDef {
 				Pattern string `json:"pattern"`
 				Max     int    `json:"max"`
 			}
-			json.Unmarshal(args, &input)
+			if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+				return "", err
+			}
 			if input.Max == 0 {
 				input.Max = 100
 			}
@@ -248,7 +254,9 @@ func buildMgPrometheus(st *state) plugin.ToolDef {
 			var input struct {
 				Metric string `json:"metric"`
 			}
-			json.Unmarshal(args, &input)
+			if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+				return "", err
+			}
 			return toolPrometheus(root, input.Metric)
 		},
 	}
@@ -292,7 +300,9 @@ func buildMgPods(st *state) plugin.ToolDef {
 				Namespace string `json:"namespace"`
 				Status    string `json:"status"`
 			}
-			json.Unmarshal(args, &input)
+			if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+				return "", err
+			}
 			return toolPods(root, input.Namespace, input.Status)
 		},
 	}
@@ -320,7 +330,9 @@ func buildMgEvents(st *state) plugin.ToolDef {
 				Type      string `json:"type"`
 				Reason    string `json:"reason"`
 			}
-			json.Unmarshal(args, &input)
+			if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+				return "", err
+			}
 			return toolEvents(root, input.Namespace, input.Type, input.Reason)
 		},
 	}

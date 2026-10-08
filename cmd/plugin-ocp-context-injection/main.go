@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -14,11 +18,11 @@ import (
 )
 
 type clusterContext struct {
-	Cluster   string   `json:"cluster"`
-	Version   string   `json:"version"`
-	Nodes     string   `json:"nodes"`
-	Namespace string   `json:"namespace"`
-	Operators []string `json:"operators"`
+	Cluster   string        `json:"cluster"`
+	Version   string        `json:"version"`
+	Nodes     string        `json:"nodes"`
+	Namespace string        `json:"namespace"`
+	Operators []string      `json:"operators"`
 	Alerts    *alertSummary `json:"alerts,omitempty"`
 }
 
@@ -70,9 +74,9 @@ func parseOptions(raw map[string]any) options {
 }
 
 type state struct {
-	mu          sync.RWMutex
-	clusterCtx  *clusterContext
-	costCtx     *costContext
+	mu         sync.RWMutex
+	clusterCtx *clusterContext
+	costCtx    *costContext
 }
 
 func queryFiringAlerts(ctx context.Context, oc *redhat.OcClient) *alertSummary {
@@ -173,8 +177,12 @@ func queryClusterContext(ctx context.Context, oc *redhat.OcClient) *clusterConte
 	if csvOut, err := oc.Raw(ctx, "get", "csv", "-A", "-o", "json"); err == nil {
 		var csvData struct {
 			Items []struct {
-				Metadata struct{ Name string `json:"name"` } `json:"metadata"`
-				Spec     struct{ DisplayName string `json:"displayName"` } `json:"spec"`
+				Metadata struct {
+					Name string `json:"name"`
+				} `json:"metadata"`
+				Spec struct {
+					DisplayName string `json:"displayName"`
+				} `json:"spec"`
 			} `json:"items"`
 		}
 		if json.Unmarshal([]byte(csvOut), &csvData) == nil {
@@ -334,16 +342,7 @@ func newPlugin(opts options) plugin.Plugin {
 						return "", fmt.Errorf("no token provided and consoleOfflineToken not configured")
 					}
 
-					loginArgs := []string{"login", "--server=" + server, "--token=" + token}
-					if opts.InsecureSkipTLS {
-						loginArgs = append(loginArgs, "--insecure-skip-tls-verify")
-					}
-					cmd := exec.CommandContext(ctx, "oc", loginArgs...)
-					out, err := cmd.CombinedOutput()
-					if err != nil {
-						return string(out), fmt.Errorf("oc login failed: %w", err)
-					}
-					return strings.TrimSpace(string(out)), nil
+					return ocLogin(ctx, server, token, opts.InsecureSkipTLS)
 				},
 			},
 		},
@@ -397,6 +396,147 @@ func newPlugin(opts options) plugin.Plugin {
 			},
 		},
 	}
+}
+
+func validateOcTarget(server, token string) error {
+	if server == "" || strings.ContainsAny(server, " \t\r\n") || strings.HasPrefix(server, "-") {
+		return fmt.Errorf("invalid server URL")
+	}
+	u, err := url.Parse(server)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return fmt.Errorf("server must be an https URL")
+	}
+	if token == "" || strings.ContainsAny(token, " \t\r\n'\"\\") || strings.HasPrefix(token, "-") {
+		return fmt.Errorf("invalid token")
+	}
+	return nil
+}
+
+func redactSecret(text, secret string) string {
+	if secret == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, secret, "[REDACTED]")
+}
+
+func kubeconfigDest() (string, error) {
+	if v := os.Getenv("KUBECONFIG"); v != "" && !strings.Contains(v, string(os.PathListSeparator)) {
+		return v, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("home directory: %w", err)
+	}
+	return filepath.Join(home, ".kube", "config"), nil
+}
+
+func writeKubeconfig(path, server, token string, insecure bool) error {
+	if err := validateOcTarget(server, token); err != nil {
+		return err
+	}
+	insecureLine := "    insecure-skip-tls-verify: false\n"
+	if insecure {
+		insecureLine = "    insecure-skip-tls-verify: true\n"
+	}
+	body := fmt.Sprintf(`apiVersion: v1
+kind: Config
+clusters:
+- name: tinycode
+  cluster:
+    server: %s
+%susers:
+- name: tinycode
+  user:
+    token: %s
+contexts:
+- name: tinycode
+  context:
+    cluster: tinycode
+    user: tinycode
+current-context: tinycode
+`, server, insecureLine, token)
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
+}
+
+// ocLogin authenticates with oc without placing the token on the process
+// argument list. The token is written to a 0600 kubeconfig and verified with
+// oc whoami --kubeconfig.
+func ocLogin(ctx context.Context, server, token string, insecure bool) (string, error) {
+	if err := validateOcTarget(server, token); err != nil {
+		return "", err
+	}
+
+	dir, err := os.MkdirTemp("", "oc-login-*")
+	if err != nil {
+		return "", fmt.Errorf("creating login dir: %w", err)
+	}
+	defer os.RemoveAll(dir)
+
+	kcPath := filepath.Join(dir, "config")
+	if err := writeKubeconfig(kcPath, server, token, insecure); err != nil {
+		return "", fmt.Errorf("writing kubeconfig: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, "oc", "whoami", "--kubeconfig="+kcPath)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("oc login failed: %s", strings.TrimSpace(redactSecret(string(out), token)))
+	}
+	user := strings.TrimSpace(redactSecret(string(out), token))
+
+	dest, err := kubeconfigDest()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
+		return "", fmt.Errorf("creating kubeconfig dir: %w", err)
+	}
+	if _, statErr := os.Stat(dest); os.IsNotExist(statErr) {
+		data, err := os.ReadFile(kcPath)
+		if err != nil {
+			return "", fmt.Errorf("reading kubeconfig: %w", err)
+		}
+		if err := os.WriteFile(dest, data, 0o600); err != nil {
+			return "", fmt.Errorf("writing kubeconfig: %w", err)
+		}
+		if err := os.Chmod(dest, 0o600); err != nil {
+			return "", fmt.Errorf("chmod kubeconfig: %w", err)
+		}
+	} else {
+		merge := exec.CommandContext(ctx, "oc", "config", "view", "--flatten")
+		merge.Env = append(os.Environ(), "KUBECONFIG="+kcPath+string(os.PathListSeparator)+dest)
+		merged, err := merge.Output()
+		if err != nil {
+			detail := string(merged)
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+				if strings.TrimSpace(detail) != "" {
+					detail += "\n"
+				}
+				detail += string(exitErr.Stderr)
+			}
+			detail = strings.TrimSpace(redactSecret(detail, token))
+			if detail == "" {
+				detail = err.Error()
+			}
+			return "", fmt.Errorf("merging kubeconfig: %s", detail)
+		}
+		tmp := dest + ".tmp"
+		if err := os.WriteFile(tmp, merged, 0o600); err != nil {
+			return "", fmt.Errorf("writing kubeconfig: %w", err)
+		}
+		if err := os.Chmod(tmp, 0o600); err != nil {
+			return "", fmt.Errorf("chmod kubeconfig: %w", err)
+		}
+		if err := os.Rename(tmp, dest); err != nil {
+			return "", fmt.Errorf("replacing kubeconfig: %w", err)
+		}
+	}
+
+	return fmt.Sprintf("Logged in to %s as %s", server, user), nil
 }
 
 func main() {

@@ -81,18 +81,22 @@ type job struct {
 }
 
 type inventory struct {
-	ID                       int    `json:"id"`
-	Name                     string `json:"name"`
-	Description              string `json:"description"`
-	TotalHosts               int    `json:"total_hosts"`
-	HostsWithActiveFailures  int    `json:"hosts_with_active_failures"`
+	ID                      int    `json:"id"`
+	Name                    string `json:"name"`
+	Description             string `json:"description"`
+	TotalHosts              int    `json:"total_hosts"`
+	HostsWithActiveFailures int    `json:"hosts_with_active_failures"`
 }
 
 type collection struct {
-	Namespace     *struct{ Name string `json:"name"` } `json:"namespace"`
+	Namespace *struct {
+		Name string `json:"name"`
+	} `json:"namespace"`
 	Name          string `json:"name"`
 	Description   string `json:"description"`
-	LatestVersion *struct{ Version string `json:"version"` } `json:"latest_version"`
+	LatestVersion *struct {
+		Version string `json:"version"`
+	} `json:"latest_version"`
 }
 
 func (c *aapClient) listTemplates(ctx context.Context, search string) ([]jobTemplate, error) {
@@ -104,7 +108,9 @@ func (c *aapClient) listTemplates(ctx context.Context, search string) ([]jobTemp
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Results []jobTemplate `json:"results"` }
+	var result struct {
+		Results []jobTemplate `json:"results"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -163,7 +169,9 @@ func (c *aapClient) listInventories(ctx context.Context, search string) ([]inven
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Results []inventory `json:"results"` }
+	var result struct {
+		Results []inventory `json:"results"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -175,7 +183,9 @@ func (c *aapClient) searchCollections(ctx context.Context, keyword string) ([]co
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Results []collection `json:"results"` }
+	var result struct {
+		Results []collection `json:"results"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -285,7 +295,7 @@ type lintViolation struct {
 func buildHealthTool(client *aapClient) plugin.ToolDef {
 	return plugin.ToolDef{
 		Name:        "aap_health",
-		Description: "Check health of AAP services (Controller API, EDA controller).",
+		Description: "Check health of AAP services (Controller API and controller config).",
 		Parameters: map[string]any{
 			"type":       "object",
 			"properties": map[string]any{},
@@ -295,7 +305,7 @@ func buildHealthTool(client *aapClient) plugin.ToolDef {
 
 			if client == nil {
 				lines = append(lines, "[SKIP] Controller API (not configured)")
-				lines = append(lines, "[SKIP] EDA Controller (not configured)")
+				lines = append(lines, "[SKIP] Controller config (not configured)")
 				return "Service Health:\n" + strings.Join(lines, "\n"), nil
 			}
 
@@ -306,11 +316,10 @@ func buildHealthTool(client *aapClient) plugin.ToolDef {
 				lines = append(lines, "[OK] Controller API")
 			}
 
-			// Check EDA controller via config endpoint
 			if _, err := client.api.Get(ctx, client.apiPrefix+"/config/", nil); err != nil {
-				lines = append(lines, fmt.Sprintf("[DOWN] EDA Controller: %v", err))
+				lines = append(lines, fmt.Sprintf("[DOWN] Controller config: %v", err))
 			} else {
-				lines = append(lines, "[OK] EDA Controller")
+				lines = append(lines, "[OK] Controller config")
 			}
 
 			return "Service Health:\n" + strings.Join(lines, "\n"), nil
@@ -343,8 +352,12 @@ func buildTools(client *aapClient) []plugin.ToolDef {
 				},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ Search string `json:"search"` }
-				json.Unmarshal(args, &input)
+				var input struct {
+					Search string `json:"search"`
+				}
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				templates, err := client.listTemplates(ctx, input.Search)
 				if err != nil {
 					return fmt.Sprintf("Failed to list templates: %v", err), nil
@@ -389,7 +402,9 @@ func buildTools(client *aapClient) []plugin.ToolDef {
 				"required": []string{"jobId"},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ JobID int `json:"jobId"` }
+				var input struct {
+					JobID int `json:"jobId"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
@@ -411,7 +426,9 @@ func buildTools(client *aapClient) []plugin.ToolDef {
 				"required": []string{"jobId"},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ JobID int `json:"jobId"` }
+				var input struct {
+					JobID int `json:"jobId"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
@@ -435,8 +452,12 @@ func buildTools(client *aapClient) []plugin.ToolDef {
 				},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ Search string `json:"search"` }
-				json.Unmarshal(args, &input)
+				var input struct {
+					Search string `json:"search"`
+				}
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				invs, err := client.listInventories(ctx, input.Search)
 				if err != nil {
 					return fmt.Sprintf("Failed to list inventories: %v", err), nil
@@ -455,7 +476,9 @@ func buildTools(client *aapClient) []plugin.ToolDef {
 				"required": []string{"keyword"},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ Keyword string `json:"keyword"` }
+				var input struct {
+					Keyword string `json:"keyword"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
@@ -478,7 +501,7 @@ func stubTool(name, description, message string) plugin.ToolDef {
 			"properties": map[string]any{},
 		},
 		Execute: func(_ context.Context, _ json.RawMessage, _ plugin.ToolContext) (string, error) {
-			return message, nil
+			return "", fmt.Errorf("%s", message)
 		},
 	}
 }
@@ -505,7 +528,7 @@ func lintTool() plugin.ToolDef {
 			}
 
 			if _, err := exec.LookPath("ansible-lint"); err != nil {
-				return "ansible-lint not found. Install with: pip install ansible-lint (included in ansible-dev-tools)", nil
+				return "", fmt.Errorf("ansible-lint not found. Install with: pip install ansible-lint (included in ansible-dev-tools)")
 			}
 
 			profile := input.Profile
@@ -522,12 +545,12 @@ func lintTool() plugin.ToolDef {
 
 			output := strings.TrimSpace(string(out))
 			if !strings.HasPrefix(output, "[") {
-				return fmt.Sprintf("ansible-lint error: %s", output), nil
+				return "", fmt.Errorf("ansible-lint error: %s", output)
 			}
 
 			var violations []lintViolation
 			if err := json.Unmarshal([]byte(output), &violations); err != nil {
-				return fmt.Sprintf("Lint failed: %s", output), nil
+				return "", fmt.Errorf("lint failed: %s", output)
 			}
 
 			lines := []string{fmt.Sprintf("Violations found: %d (profile: %s)", len(violations), profile), ""}

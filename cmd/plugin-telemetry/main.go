@@ -75,6 +75,11 @@ func initDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("creating sessions table: %w", err)
 	}
 
+	if err := os.Chmod(path, 0o600); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("chmod database: %w", err)
+	}
+
 	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS tool_calls (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,7 +96,39 @@ func initDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("creating tool_calls table: %w", err)
 	}
 
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_tool_calls_timestamp ON tool_calls(timestamp)`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("creating timestamp index: %w", err)
+	}
+
 	return db, nil
+}
+
+const (
+	telemetryRetentionDays = 90
+	telemetryQueryLimit    = 500
+	telemetryMaxDays       = 90
+)
+
+func clampQueryDays(days int) int {
+	if days <= 0 {
+		return 7
+	}
+	if days > telemetryMaxDays {
+		return telemetryMaxDays
+	}
+	return days
+}
+
+func pruneTelemetry(db *sql.DB) error {
+	cutoff := time.Now().Add(-telemetryRetentionDays * 24 * time.Hour).UnixMilli()
+	if _, err := db.Exec(`DELETE FROM tool_calls WHERE timestamp < ?`, cutoff); err != nil {
+		return fmt.Errorf("deleting old tool calls: %w", err)
+	}
+	if _, err := db.Exec(`DELETE FROM sessions WHERE started_at < ?`, cutoff); err != nil {
+		return fmt.Errorf("deleting old sessions: %w", err)
+	}
+	return nil
 }
 
 // ensureDB lazily initializes the database connection.
@@ -190,12 +227,8 @@ func formatReport(db *sql.DB) (string, error) {
 
 // queryToolCalls returns a formatted list of tool call records.
 func queryToolCalls(db *sql.DB, tool string, days int) (string, error) {
-	var cutoff int64
-	if days == 0 {
-		cutoff = time.Now().UnixMilli() + 1
-	} else {
-		cutoff = time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
-	}
+	days = clampQueryDays(days)
+	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
 
 	query := "SELECT tool_name, args_hash, timestamp, duration_ms, success, session_id FROM tool_calls WHERE timestamp >= ?"
 	args := []any{cutoff}
@@ -204,7 +237,8 @@ func queryToolCalls(db *sql.DB, tool string, days int) (string, error) {
 		query += " AND tool_name = ?"
 		args = append(args, tool)
 	}
-	query += " ORDER BY timestamp DESC"
+	query += " ORDER BY timestamp DESC LIMIT ?"
+	args = append(args, telemetryQueryLimit+1)
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -241,6 +275,12 @@ func queryToolCalls(db *sql.DB, tool string, days int) (string, error) {
 		return msg, nil
 	}
 
+	capped := false
+	if len(records) > telemetryQueryLimit {
+		records = records[:telemetryQueryLimit]
+		capped = true
+	}
+
 	lines := []string{
 		fmt.Sprintf("Tool calls%s (last %d day(s)): %d result(s)",
 			func() string {
@@ -259,6 +299,9 @@ func queryToolCalls(db *sql.DB, tool string, days int) (string, error) {
 			status = "fail"
 		}
 		lines = append(lines, fmt.Sprintf("  %s | %s | %s | session: %s", r.ToolName, ts, status, r.SessionID))
+	}
+	if capped {
+		lines = append(lines, "", fmt.Sprintf("Results capped at %d.", telemetryQueryLimit))
 	}
 
 	return strings.Join(lines, "\n"), nil
@@ -406,6 +449,9 @@ func buildHooks(s *state) plugin.HookHandlers {
 			if _, err := db.Exec("UPDATE sessions SET ended_at = ?, tool_count = ? WHERE id = ?",
 				time.Now().UnixMilli(), len(s.buffer), event.SessionID); err != nil {
 				return fmt.Errorf("updating session: %w", err)
+			}
+			if err := pruneTelemetry(db); err != nil {
+				return err
 			}
 
 			s.buffer = s.buffer[:0]

@@ -382,8 +382,7 @@ func wirePermissionAskHook(permSvc *permission.Service, mgr *plugin.Manager) {
 			Permission: req.Permission,
 		})
 		if err != nil {
-			slog.Warn("permission.ask interceptor failed", "error", err)
-			return nil // fail-open on hook errors
+			return fmt.Errorf("permission hook: %w", err)
 		}
 		if out != nil && !out.Allowed {
 			if out.Reason != "" {

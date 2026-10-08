@@ -170,7 +170,9 @@ func (c *centralClient) checkImage(ctx context.Context, imageName string) ([]pol
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Alerts []policyAlert `json:"alerts"` }
+	var result struct {
+		Alerts []policyAlert `json:"alerts"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -182,7 +184,9 @@ func (c *centralClient) checkDeployment(ctx context.Context, yaml string) ([]pol
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Alerts []policyAlert `json:"alerts"` }
+	var result struct {
+		Alerts []policyAlert `json:"alerts"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -194,7 +198,9 @@ func (c *centralClient) listAlerts(ctx context.Context, query map[string]string)
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Alerts []alert `json:"alerts"` }
+	var result struct {
+		Alerts []alert `json:"alerts"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -219,7 +225,9 @@ func (c *centralClient) getComplianceProfiles(ctx context.Context) ([]compliance
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Profiles []complianceProfile `json:"profiles"` }
+	var result struct {
+		Profiles []complianceProfile `json:"profiles"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -241,7 +249,9 @@ func (c *centralClient) getComplianceResults(ctx context.Context, scanConfigID s
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Results []complianceScanResult `json:"results"` }
+	var result struct {
+		Results []complianceScanResult `json:"results"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -526,7 +536,9 @@ func buildTools(client *centralClient) []plugin.ToolDef {
 				"required": []string{"image"},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ Image string `json:"image"` }
+				var input struct {
+					Image string `json:"image"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
@@ -548,7 +560,9 @@ func buildTools(client *centralClient) []plugin.ToolDef {
 				"required": []string{"image"},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ Image string `json:"image"` }
+				var input struct {
+					Image string `json:"image"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
@@ -573,7 +587,9 @@ func buildTools(client *centralClient) []plugin.ToolDef {
 				"required": []string{"yaml"},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ YAML string `json:"yaml"` }
+				var input struct {
+					YAML string `json:"yaml"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
@@ -602,7 +618,9 @@ func buildTools(client *centralClient) []plugin.ToolDef {
 					Namespace string `json:"namespace"`
 					Severity  string `json:"severity"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				var filters []string
 				if input.Namespace != "" {
@@ -634,7 +652,9 @@ func buildTools(client *centralClient) []plugin.ToolDef {
 				"required": []string{"deploymentId"},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ DeploymentID string `json:"deploymentId"` }
+				var input struct {
+					DeploymentID string `json:"deploymentId"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
@@ -691,8 +711,12 @@ func buildTools(client *centralClient) []plugin.ToolDef {
 				},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ ScanConfigID string `json:"scanConfigId"` }
-				json.Unmarshal(args, &input)
+				var input struct {
+					ScanConfigID string `json:"scanConfigId"`
+				}
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				if input.ScanConfigID == "" {
 					results, err := client.getComplianceResults(ctx, "")
@@ -756,8 +780,12 @@ func buildTools(client *centralClient) []plugin.ToolDef {
 				},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ ProfileName string `json:"profileName"` }
-				json.Unmarshal(args, &input)
+				var input struct {
+					ProfileName string `json:"profileName"`
+				}
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 
 				profiles, err := client.getComplianceProfiles(ctx)
 				if err != nil {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -423,4 +424,85 @@ func TestDecodeTypeMeta(t *testing.T) {
 			t.Error("expected error for short data")
 		}
 	})
+}
+
+func TestSnapshotGetRedactsSecretData(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "secret.db")
+	db, err := bolt.Open(path, 0600, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Secret",
+		"metadata":   map[string]any{"name": "db-cred"},
+		"data":       map[string]any{"password": "c3VwZXJzZWNyZXQ="},
+		"stringData": map[string]any{"note": "keep-me-out"},
+	}
+	raw, _ := json.Marshal(secret)
+	cm := map[string]any{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata":   map[string]any{"name": "app"},
+		"data":       map[string]any{"password": "visible-config"},
+	}
+	cmRaw, _ := json.Marshal(cm)
+	err = db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucket([]byte("key"))
+		if err != nil {
+			return err
+		}
+		if err := b.Put([]byte("/registry/secrets/default/db-cred"), raw); err != nil {
+			return err
+		}
+		return b.Put([]byte("/registry/configmaps/default/app"), cmRaw)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	st := &state{}
+	if _, err := toolSnapshotOpen(st, path); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := requireDB(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := toolSnapshotGet(opened, "secrets", "default", "db-cred")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "c3VwZXJzZWNyZXQ=") || strings.Contains(out, "keep-me-out") {
+		t.Fatalf("secret material leaked:\n%s", out)
+	}
+	if !strings.Contains(out, "db-cred") {
+		t.Fatalf("metadata name missing:\n%s", out)
+	}
+
+	cmOut, err := toolSnapshotGet(opened, "configmaps", "default", "app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(cmOut, "visible-config") {
+		t.Fatalf("configmap data should remain:\n%s", cmOut)
+	}
+}
+
+func TestSnapshotOpenRejectsHugeFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "huge.db")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(maxSnapshotBytes + 1); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	_, err = toolSnapshotOpen(&state{}, path)
+	if err == nil || !strings.Contains(err.Error(), "2GiB") {
+		t.Fatalf("expected size refusal, got %v", err)
+	}
 }

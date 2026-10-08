@@ -15,6 +15,12 @@ import (
 
 // --- Archive helpers ---
 
+var (
+	maxArchiveBytes int64 = 1 << 30
+	maxArchiveFiles       = 100_000
+	maxFileBytes    int64 = 500 << 20
+)
+
 func extractTarGz(archivePath, destDir string) (int, error) {
 	f, err := os.Open(archivePath)
 	if err != nil {
@@ -30,6 +36,7 @@ func extractTarGz(archivePath, destDir string) (int, error) {
 
 	tr := tar.NewReader(gz)
 	count := 0
+	var total int64
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -37,6 +44,10 @@ func extractTarGz(archivePath, destDir string) (int, error) {
 		}
 		if err != nil {
 			return count, fmt.Errorf("reading tar: %w", err)
+		}
+		count++
+		if count > maxArchiveFiles {
+			return count, fmt.Errorf("archive exceeds %d files", maxArchiveFiles)
 		}
 		target := filepath.Join(destDir, header.Name)
 		if !isWithinDir(destDir, target) {
@@ -55,12 +66,21 @@ func extractTarGz(archivePath, destDir string) (int, error) {
 			if err != nil {
 				return count, fmt.Errorf("creating file: %w", err)
 			}
-			if _, err := io.Copy(out, io.LimitReader(tr, 500<<20)); err != nil {
-				out.Close()
+			n, err := io.Copy(out, io.LimitReader(tr, maxFileBytes+1))
+			out.Close()
+			if err != nil {
+				os.Remove(target)
 				return count, fmt.Errorf("extracting file: %w", err)
 			}
-			out.Close()
-			count++
+			if n > maxFileBytes {
+				os.Remove(target)
+				return count, fmt.Errorf("file %s exceeds %d byte limit", header.Name, maxFileBytes)
+			}
+			total += n
+			if total > maxArchiveBytes {
+				os.Remove(target)
+				return count, fmt.Errorf("archive exceeds %d bytes", maxArchiveBytes)
+			}
 		}
 	}
 	return count, nil
@@ -980,7 +1000,7 @@ func toolUIDOverlap(rootDir string) (string, error) {
 	sort.Slice(ranges, func(i, j int) bool { return ranges[i].Start < ranges[j].Start })
 
 	type overlap struct {
-		NS1, NS2    string
+		NS1, NS2     string
 		Start1, End1 int64
 		Start2, End2 int64
 	}

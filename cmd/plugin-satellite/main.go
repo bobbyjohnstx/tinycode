@@ -17,10 +17,11 @@ import (
 )
 
 type options struct {
-	SatelliteURL string
-	Username     string
-	Password     string
-	Token        string
+	SatelliteURL    string
+	Username        string
+	Password        string
+	Token           string
+	InsecureSkipTLS bool
 }
 
 func parseOptions(raw map[string]any) options {
@@ -37,13 +38,17 @@ func parseOptions(raw map[string]any) options {
 	if v, ok := raw["token"].(string); ok {
 		opts.Token = v
 	}
+	if v, ok := raw["insecureSkipTLS"].(bool); ok {
+		opts.InsecureSkipTLS = v
+	}
 	return opts
 }
 
 type satelliteClient struct {
-	api        *redhat.APIClient
-	baseURL    string
-	authHeader string
+	api             *redhat.APIClient
+	baseURL         string
+	authHeader      string
+	insecureSkipTLS bool
 }
 
 func newSatelliteClient(baseURL string, opts options) *satelliteClient {
@@ -60,9 +65,10 @@ func newSatelliteClient(baseURL string, opts options) *satelliteClient {
 		cfg.TokenFn = func(_ context.Context) (string, error) { return opts.Token, nil }
 	}
 	return &satelliteClient{
-		api:        redhat.NewAPIClient(cfg),
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		authHeader: authHeader,
+		api:             redhat.NewAPIClient(cfg),
+		baseURL:         strings.TrimRight(baseURL, "/"),
+		authHeader:      authHeader,
+		insecureSkipTLS: opts.InsecureSkipTLS,
 	}
 }
 
@@ -226,7 +232,9 @@ func (c *satelliteClient) runREXCommand(ctx context.Context, hostSearch, command
 	if err != nil {
 		return 0, err
 	}
-	var result struct{ ID int `json:"id"` }
+	var result struct {
+		ID int `json:"id"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return 0, err
 	}
@@ -301,7 +309,9 @@ func (c *satelliteClient) listSmartProxies(ctx context.Context) ([]smartProxy, e
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Results []smartProxy `json:"results"` }
+	var result struct {
+		Results []smartProxy `json:"results"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -322,7 +332,9 @@ func (c *satelliteClient) listRepositories(ctx context.Context, contentViewID in
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Results []repository `json:"results"` }
+	var result struct {
+		Results []repository `json:"results"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -380,7 +392,6 @@ func formatSmartProxies(proxies []smartProxy) string {
 	return strings.Join(lines, "\n")
 }
 
-
 func (c *satelliteClient) listHosts(ctx context.Context, search string) ([]host, error) {
 	var query map[string]string
 	if search != "" {
@@ -390,7 +401,9 @@ func (c *satelliteClient) listHosts(ctx context.Context, search string) ([]host,
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Results []host `json:"results"` }
+	var result struct {
+		Results []host `json:"results"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -436,19 +449,44 @@ type probeResult struct {
 	Detail  string
 }
 
+func (c *satelliteClient) probeClient() *http.Client {
+	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	if c.insecureSkipTLS {
+		tlsCfg.InsecureSkipVerify = true
+	}
+	return &http.Client{
+		Timeout:   5 * time.Second,
+		Transport: &http.Transport{TLSClientConfig: tlsCfg},
+	}
+}
+
+func probeOnce(ctx context.Context, client *http.Client, rawURL, port, authHeader string) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	if port == "443" && authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if err != nil {
+		return resp.StatusCode, body, err
+	}
+	return resp.StatusCode, body, nil
+}
+
 func (c *satelliteClient) healthCheck(ctx context.Context) string {
 	parsed, err := url.Parse(c.baseURL)
 	if err != nil {
 		return fmt.Sprintf("Failed to parse base URL: %v", err)
 	}
 	hostname := parsed.Hostname()
-
-	httpClient := &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
+	httpClient := c.probeClient()
 
 	probes := []struct {
 		port    string
@@ -463,21 +501,11 @@ func (c *satelliteClient) healthCheck(ctx context.Context) string {
 	var results []probeResult
 	for _, p := range probes {
 		target := fmt.Sprintf("https://%s:%s%s", hostname, p.port, p.path)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-		if err != nil {
-			results = append(results, probeResult{p.port, p.service, "ERROR", err.Error()})
-			continue
-		}
-		if c.authHeader != "" {
-			req.Header.Set("Authorization", c.authHeader)
-		}
-		resp, err := httpClient.Do(req)
+		statusCode, body, err := probeOnce(ctx, httpClient, target, p.port, c.authHeader)
 		if err != nil {
 			results = append(results, probeResult{p.port, p.service, "DOWN", err.Error()})
 			continue
 		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
 
 		detail := ""
 		if p.port == "443" {
@@ -506,8 +534,8 @@ func (c *satelliteClient) healthCheck(ctx context.Context) string {
 		}
 
 		status := "UP"
-		if resp.StatusCode >= 400 {
-			status = fmt.Sprintf("HTTP %d", resp.StatusCode)
+		if statusCode >= 400 {
+			status = fmt.Sprintf("HTTP %d", statusCode)
 		}
 		results = append(results, probeResult{p.port, p.service, status, detail})
 	}
@@ -573,7 +601,9 @@ func (c *satelliteClient) listErrata(ctx context.Context, search, errataType str
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Results []erratum `json:"results"` }
+	var result struct {
+		Results []erratum `json:"results"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -585,7 +615,9 @@ func (c *satelliteClient) listContentViews(ctx context.Context) ([]contentView, 
 	if err != nil {
 		return nil, err
 	}
-	var result struct{ Results []contentView `json:"results"` }
+	var result struct {
+		Results []contentView `json:"results"`
+	}
 	if err := json.Unmarshal(resp.Data, &result); err != nil {
 		return nil, err
 	}
@@ -691,8 +723,12 @@ func buildTools(client *satelliteClient) []plugin.ToolDef {
 				},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ Search string `json:"search"` }
-				json.Unmarshal(args, &input)
+				var input struct {
+					Search string `json:"search"`
+				}
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				hosts, err := client.listHosts(ctx, input.Search)
 				if err != nil {
 					return fmt.Sprintf("Failed to list hosts: %v", err), nil
@@ -741,7 +777,9 @@ func buildTools(client *satelliteClient) []plugin.ToolDef {
 					Search string `json:"search"`
 					Type   string `json:"type"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				errata, err := client.listErrata(ctx, input.Search, input.Type)
 				if err != nil {
 					return fmt.Sprintf("Failed to list errata: %v", err), nil
@@ -794,7 +832,9 @@ func buildTools(client *satelliteClient) []plugin.ToolDef {
 					Search  string `json:"search"`
 					PerPage int    `json:"perPage"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				tasks, total, err := client.listTasks(ctx, input.Search, input.PerPage)
 				if err != nil {
 					return fmt.Sprintf("Failed to list tasks: %v", err), nil
@@ -832,7 +872,9 @@ func buildTools(client *satelliteClient) []plugin.ToolDef {
 					ContentViewID int    `json:"contentViewId"`
 					Search        string `json:"search"`
 				}
-				json.Unmarshal(args, &input)
+				if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+					return "", err
+				}
 				label := "all"
 				if input.ContentViewID > 0 {
 					label = fmt.Sprintf("content view #%d", input.ContentViewID)
@@ -881,7 +923,9 @@ func buildTools(client *satelliteClient) []plugin.ToolDef {
 				"required": []string{"jobId"},
 			},
 			Execute: func(ctx context.Context, args json.RawMessage, _ plugin.ToolContext) (string, error) {
-				var input struct{ JobID int `json:"jobId"` }
+				var input struct {
+					JobID int `json:"jobId"`
+				}
 				if err := json.Unmarshal(args, &input); err != nil {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}

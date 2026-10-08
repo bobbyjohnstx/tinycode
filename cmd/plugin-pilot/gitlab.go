@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -118,7 +119,7 @@ func normalizeGitLabIssue(raw json.RawMessage) NormalizedIssue {
 	}
 }
 
-func (g *gitlabProvider) ListIssues(params ListIssuesParams) ([]NormalizedIssue, error) {
+func (g *gitlabProvider) ListIssues(ctx context.Context, params ListIssuesParams) ([]NormalizedIssue, error) {
 	if err := g.checkToken(); err != nil {
 		return nil, err
 	}
@@ -142,7 +143,7 @@ func (g *gitlabProvider) ListIssues(params ListIssuesParams) ([]NormalizedIssue,
 		path += sep + fmt.Sprintf("per_page=%d", params.Limit)
 	}
 
-	body, status, err := doRequest(g.cfg, "", path, nil)
+	body, status, err := doRequest(ctx, g.cfg, "", path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +163,7 @@ func (g *gitlabProvider) ListIssues(params ListIssuesParams) ([]NormalizedIssue,
 	return issues, nil
 }
 
-func (g *gitlabProvider) CreateIssue(params CreateIssueParams) (*NormalizedIssue, error) {
+func (g *gitlabProvider) CreateIssue(ctx context.Context, params CreateIssueParams) (*NormalizedIssue, error) {
 	if err := g.checkToken(); err != nil {
 		return nil, err
 	}
@@ -178,7 +179,7 @@ func (g *gitlabProvider) CreateIssue(params CreateIssueParams) (*NormalizedIssue
 		reqBody["labels"] = strings.Join(params.Labels, ",")
 	}
 
-	body, status, err := doRequest(g.cfg, http.MethodPost, fmt.Sprintf("/projects/%s/issues", project), reqBody)
+	body, status, err := doRequest(ctx, g.cfg, http.MethodPost, fmt.Sprintf("/projects/%s/issues", project), reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,7 @@ func (g *gitlabProvider) CreateIssue(params CreateIssueParams) (*NormalizedIssue
 	return &issue, nil
 }
 
-func (g *gitlabProvider) UpdateIssue(params UpdateIssueParams) (*NormalizedIssue, error) {
+func (g *gitlabProvider) UpdateIssue(ctx context.Context, params UpdateIssueParams) (*NormalizedIssue, error) {
 	if err := g.checkToken(); err != nil {
 		return nil, err
 	}
@@ -207,7 +208,7 @@ func (g *gitlabProvider) UpdateIssue(params UpdateIssueParams) (*NormalizedIssue
 		reqBody["state_event"] = stateEvent(params.State)
 	}
 
-	body, status, err := doRequest(g.cfg, http.MethodPut, fmt.Sprintf("/projects/%s/issues/%d", project, params.IssueNumber), reqBody)
+	body, status, err := doRequest(ctx, g.cfg, http.MethodPut, fmt.Sprintf("/projects/%s/issues/%d", project, params.IssueNumber), reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -219,14 +220,14 @@ func (g *gitlabProvider) UpdateIssue(params UpdateIssueParams) (*NormalizedIssue
 	return &issue, nil
 }
 
-func (g *gitlabProvider) CommentOnIssue(params CommentParams) (*NormalizedComment, error) {
+func (g *gitlabProvider) CommentOnIssue(ctx context.Context, params CommentParams) (*NormalizedComment, error) {
 	if err := g.checkToken(); err != nil {
 		return nil, err
 	}
 
 	project := g.projectPath(params.Owner, params.Repo)
 	reqBody := map[string]any{"body": params.Body}
-	body, status, err := doRequest(g.cfg, http.MethodPost, fmt.Sprintf("/projects/%s/issues/%d/notes", project, params.IssueNumber), reqBody)
+	body, status, err := doRequest(ctx, g.cfg, http.MethodPost, fmt.Sprintf("/projects/%s/issues/%d/notes", project, params.IssueNumber), reqBody)
 	if err != nil {
 		return nil, err
 	}

@@ -50,6 +50,9 @@ func toolSnapshotOpen(st *state, path string) (string, error) {
 		return "", fmt.Errorf("stat snapshot: %w", err)
 	}
 	dbSize := fi.Size()
+	if dbSize > maxSnapshotBytes {
+		return "", fmt.Errorf("snapshot %s is %s, refusing files over 2GiB", path, formatBytes(dbSize))
+	}
 
 	db, err := bolt.Open(path, 0600, &bolt.Options{ReadOnly: true})
 	if err != nil {
@@ -131,8 +134,8 @@ func buildSnapshotResources(st *state) plugin.ToolDef {
 			var input struct {
 				SortBy string `json:"sort_by"`
 			}
-			if args != nil {
-				_ = json.Unmarshal(args, &input)
+			if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+				return "", err
 			}
 			if input.SortBy == "" {
 				input.SortBy = "count"
@@ -255,6 +258,34 @@ func buildSnapshotGet(st *state) plugin.ToolDef {
 	}
 }
 
+const (
+	maxSnapshotBytes int64 = 2 << 30
+	maxSnapshotJSON        = 32 << 10
+)
+
+func prepareSnapshotJSON(keyPath string, value []byte) []byte {
+	var obj map[string]any
+	if err := json.Unmarshal(value, &obj); err != nil {
+		return value
+	}
+	kind, _ := obj["kind"].(string)
+	if kind != "Secret" && !strings.Contains(keyPath, "/secrets/") {
+		return value
+	}
+	for _, field := range []string{"data", "stringData"} {
+		m, ok := obj[field].(map[string]any)
+		if !ok || len(m) == 0 {
+			continue
+		}
+		obj[field] = map[string]any{"redacted": len(m)}
+	}
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return value
+	}
+	return out
+}
+
 func toolSnapshotGet(db *bolt.DB, kind, namespace, name string) (string, error) {
 	// Build key path: /registry/<kind>/<namespace>/<name> or /registry/<kind>/<name>
 	var keyPath string
@@ -302,10 +333,17 @@ func toolSnapshotGet(db *bolt.DB, kind, namespace, name string) (string, error) 
 		}
 	} else {
 		// Try JSON pretty-print.
+		printable := prepareSnapshotJSON(keyPath, value)
 		var prettyJSON bytes.Buffer
-		if err := json.Indent(&prettyJSON, value, "", "  "); err == nil {
+		if err := json.Indent(&prettyJSON, printable, "", "  "); err == nil {
 			fmt.Fprintf(&b, "Encoding: JSON\n\n")
-			b.Write(prettyJSON.Bytes())
+			pretty := prettyJSON.Bytes()
+			if len(pretty) > maxSnapshotJSON {
+				b.Write(pretty[:maxSnapshotJSON])
+				fmt.Fprintf(&b, "\n\n... truncated to %d bytes", maxSnapshotJSON)
+			} else {
+				b.Write(pretty)
+			}
 		} else {
 			fmt.Fprintf(&b, "Encoding: unknown\n")
 			fmt.Fprintf(&b, "Raw size: %d bytes\n", len(value))
@@ -432,10 +470,12 @@ func toolSnapshotStorage(st *state, db *bolt.DB) (string, error) {
 		size int
 	}
 
-	var allKeys []keyEntry
+	const topN = 20
+	top := make([]keyEntry, 0, topN)
 	typeSizes := make(map[string]int64)
 	typeCounts := make(map[string]int)
 	totalValueBytes := int64(0)
+	totalKeys := 0
 
 	if err := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("key"))
@@ -445,8 +485,21 @@ func toolSnapshotStorage(st *state, db *bolt.DB) (string, error) {
 		return b.ForEach(func(k, v []byte) error {
 			key := string(k)
 			size := len(v)
-			allKeys = append(allKeys, keyEntry{key: key, size: size})
+			totalKeys++
 			totalValueBytes += int64(size)
+			if len(top) < topN {
+				top = append(top, keyEntry{key: key, size: size})
+			} else {
+				minI := 0
+				for i := 1; i < len(top); i++ {
+					if top[i].size < top[minI].size {
+						minI = i
+					}
+				}
+				if size > top[minI].size {
+					top[minI] = keyEntry{key: key, size: size}
+				}
+			}
 
 			if strings.HasPrefix(key, "/registry/") {
 				parts := strings.SplitN(key[len("/registry/"):], "/", 2)
@@ -461,9 +514,8 @@ func toolSnapshotStorage(st *state, db *bolt.DB) (string, error) {
 		return "", fmt.Errorf("reading snapshot: %w", err)
 	}
 
-	// Sort keys by value size descending for top-20.
-	sort.Slice(allKeys, func(i, j int) bool {
-		return allKeys[i].size > allKeys[j].size
+	sort.Slice(top, func(i, j int) bool {
+		return top[i].size > top[j].size
 	})
 
 	// Get DB file size.
@@ -481,7 +533,7 @@ func toolSnapshotStorage(st *state, db *bolt.DB) (string, error) {
 	fmt.Fprintf(&b, "etcd Snapshot Storage Analysis\n")
 	fmt.Fprintf(&b, "==============================\n\n")
 
-	fmt.Fprintf(&b, "Total keys: %d\n", len(allKeys))
+	fmt.Fprintf(&b, "Total keys: %d\n", totalKeys)
 	fmt.Fprintf(&b, "Total value data: %s\n", formatBytes(totalValueBytes))
 	if dbFileSize > 0 {
 		fmt.Fprintf(&b, "DB file size: %s\n", formatBytes(dbFileSize))
@@ -496,12 +548,8 @@ func toolSnapshotStorage(st *state, db *bolt.DB) (string, error) {
 
 	// Top 20 largest keys.
 	fmt.Fprintf(&b, "\nTop 20 largest keys:\n")
-	limit := 20
-	if len(allKeys) < limit {
-		limit = len(allKeys)
-	}
-	for i := 0; i < limit; i++ {
-		fmt.Fprintf(&b, "  %-70s %s\n", allKeys[i].key, formatBytes(int64(allKeys[i].size)))
+	for _, entry := range top {
+		fmt.Fprintf(&b, "  %-70s %s\n", entry.key, formatBytes(int64(entry.size)))
 	}
 
 	// Size distribution by resource type.

@@ -5,7 +5,7 @@ import (
 )
 
 func TestCheckPermission_AllowReturnsAllowedTrue(t *testing.T) {
-	out := checkPermission("ls -la")
+	out := checkPermission("bash", "ls -la")
 	if out == nil {
 		t.Fatal("expected non-nil PermissionOutput on allow")
 	}
@@ -15,9 +15,20 @@ func TestCheckPermission_AllowReturnsAllowedTrue(t *testing.T) {
 }
 
 func TestCheckPermission_Deny(t *testing.T) {
-	out := checkPermission("rm -rf /")
+	out := checkPermission("bash", "rm -rf /")
 	if out == nil || out.Allowed {
 		t.Fatalf("expected deny, got %+v", out)
+	}
+}
+
+func TestCheckPermission_IgnoresNonShellTools(t *testing.T) {
+	out := checkPermission("read", "rm -rf /")
+	if out == nil || !out.Allowed {
+		t.Fatalf("non-shell tool should be allowed, got %+v", out)
+	}
+	out = checkPermission("shell", "rm -rf /")
+	if out == nil || out.Allowed {
+		t.Fatalf("shell permission should deny, got %+v", out)
 	}
 }
 
@@ -40,6 +51,13 @@ func TestDangerousCommandsBlocked(t *testing.T) {
 		{"shutdown", "shutdown -h now"},
 		{"reboot", "reboot"},
 		{"fork bomb", ":(){ :|:& };:"},
+		{"rm long recursive", "rm --recursive --force /"},
+		{"rm long recursive absolute", "rm --recursive /home"},
+		{"rm long recursive nested", "rm --recursive --force /var/log"},
+		{"chmod recursive 777", "chmod -R 777 /tmp"},
+		{"find delete", "find /var/tmp -name '*.log' -delete"},
+		{"git clean force", "git clean -fdx"},
+		{"git clean long force", "git clean --force -d"},
 	}
 
 	for _, tc := range blocked {
@@ -63,6 +81,9 @@ func TestSafeCommandsAllowed(t *testing.T) {
 		{"echo", "echo hello"},
 		{"mkdir", "mkdir -p /tmp/test"},
 		{"rm single file", "rm /tmp/file.txt"},
+		{"rm recursive relative", "rm --recursive ./rel"},
+		{"git clean dry run", "git clean -n"},
+		{"find print", "find . -name '*.go' -print"},
 	}
 
 	for _, tc := range safe {

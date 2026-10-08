@@ -20,8 +20,11 @@ type SessionStartOutput struct {
 }
 
 // ToolExecBeforeOutput is the optional response from a tool.execute.before hook.
+// ToolArgs, when set, replaces the arguments recorded for execution logging.
+// It does not change the arguments passed to the tool itself.
 type ToolExecBeforeOutput struct {
 	AdditionalContext []string `json:"additionalContext,omitempty"`
+	ToolArgs          string   `json:"toolArgs,omitempty"`
 }
 
 // SessionStartEvent is emitted when a new session is created.

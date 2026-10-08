@@ -180,6 +180,12 @@ func helperHandleHookInvoke(encoder *json.Encoder, req pkgplugin.JSONRPCRequest,
 	var resultOutput json.RawMessage
 	switch params.Name {
 	case "tool.execute.before":
+		if behavior == "redact_args" {
+			resultOutput, _ = json.Marshal(map[string]any{
+				"toolArgs": "token=[REDACTED]",
+			})
+			break
+		}
 		if behavior == "abort_before" {
 			_ = encoder.Encode(pkgplugin.JSONRPCResponse{
 				JSONRPC: "2.0",
@@ -213,9 +219,12 @@ func helperHandleHookInvoke(encoder *json.Encoder, req pkgplugin.JSONRPCRequest,
 		})
 		os.Exit(0)
 	case "permission.ask":
-		if behavior == "deny_permission" {
+		switch behavior {
+		case "deny_permission":
 			resultOutput, _ = json.Marshal(permissionResult{Allowed: false, Reason: "blocked by test"})
-		} else {
+		case "bad_permission":
+			resultOutput = json.RawMessage(`"nope"`)
+		default:
 			resultOutput, _ = json.Marshal(permissionResult{Allowed: true})
 		}
 	case "shell.env":

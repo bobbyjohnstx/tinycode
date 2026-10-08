@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/bobbyjohnstx/tinycode/pkg/plugin"
@@ -22,8 +23,12 @@ func (s *state) get() string {
 
 func (s *state) set(dir string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	old := s.rootDir
 	s.rootDir = dir
+	s.mu.Unlock()
+	if old != "" && old != dir {
+		_ = os.RemoveAll(old)
+	}
 }
 
 func newPlugin() plugin.Plugin {
@@ -31,6 +36,12 @@ func newPlugin() plugin.Plugin {
 	return plugin.Plugin{
 		ID:    "insights",
 		Tools: buildTools(st),
+		Hooks: plugin.HookHandlers{
+			Dispose: func(context.Context) error {
+				st.set("")
+				return nil
+			},
+		},
 	}
 }
 
@@ -164,7 +175,9 @@ func buildInsightsMemory(st *state) plugin.ToolDef {
 			var input struct {
 				Threshold int `json:"threshold"`
 			}
-			json.Unmarshal(args, &input)
+			if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+				return "", err
+			}
 			if input.Threshold == 0 {
 				input.Threshold = 80
 			}
@@ -230,7 +243,9 @@ func buildInsightsAlerts(st *state) plugin.ToolDef {
 			var input struct {
 				Severity string `json:"severity"`
 			}
-			json.Unmarshal(args, &input)
+			if err := plugin.UnmarshalToolArgs(args, &input); err != nil {
+				return "", err
+			}
 			return toolAlerts(root, input.Severity)
 		},
 	}

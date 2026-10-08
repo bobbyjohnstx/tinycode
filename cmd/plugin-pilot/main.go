@@ -47,7 +47,7 @@ func buildTools(provider IssueProvider) []plugin.ToolDef {
 				},
 				"required": []string{"owner", "repo"},
 			},
-			Execute: func(_ context.Context, raw json.RawMessage, _ plugin.ToolContext) (string, error) {
+			Execute: func(ctx context.Context, raw json.RawMessage, _ plugin.ToolContext) (string, error) {
 				var args struct {
 					Owner  string `json:"owner"`
 					Repo   string `json:"repo"`
@@ -64,7 +64,7 @@ func buildTools(provider IssueProvider) []plugin.ToolDef {
 					state = "open"
 				}
 
-				issues, err := provider.ListIssues(ListIssuesParams{
+				issues, err := provider.ListIssues(ctx, ListIssuesParams{
 					Owner:  args.Owner,
 					Repo:   args.Repo,
 					State:  state,
@@ -92,7 +92,7 @@ func buildTools(provider IssueProvider) []plugin.ToolDef {
 				},
 				"required": []string{"owner", "repo", "title"},
 			},
-			Execute: func(_ context.Context, raw json.RawMessage, _ plugin.ToolContext) (string, error) {
+			Execute: func(ctx context.Context, raw json.RawMessage, _ plugin.ToolContext) (string, error) {
 				var args struct {
 					Owner  string   `json:"owner"`
 					Repo   string   `json:"repo"`
@@ -104,7 +104,7 @@ func buildTools(provider IssueProvider) []plugin.ToolDef {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
 
-				issue, err := provider.CreateIssue(CreateIssueParams{
+				issue, err := provider.CreateIssue(ctx, CreateIssueParams{
 					Owner:  args.Owner,
 					Repo:   args.Repo,
 					Title:  args.Title,
@@ -132,7 +132,7 @@ func buildTools(provider IssueProvider) []plugin.ToolDef {
 				},
 				"required": []string{"owner", "repo", "issue_number"},
 			},
-			Execute: func(_ context.Context, raw json.RawMessage, _ plugin.ToolContext) (string, error) {
+			Execute: func(ctx context.Context, raw json.RawMessage, _ plugin.ToolContext) (string, error) {
 				var args struct {
 					Owner       string `json:"owner"`
 					Repo        string `json:"repo"`
@@ -145,7 +145,7 @@ func buildTools(provider IssueProvider) []plugin.ToolDef {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
 
-				issue, err := provider.UpdateIssue(UpdateIssueParams{
+				issue, err := provider.UpdateIssue(ctx, UpdateIssueParams{
 					Owner:       args.Owner,
 					Repo:        args.Repo,
 					IssueNumber: args.IssueNumber,
@@ -172,7 +172,7 @@ func buildTools(provider IssueProvider) []plugin.ToolDef {
 				},
 				"required": []string{"owner", "repo", "issue_number", "body"},
 			},
-			Execute: func(_ context.Context, raw json.RawMessage, _ plugin.ToolContext) (string, error) {
+			Execute: func(ctx context.Context, raw json.RawMessage, _ plugin.ToolContext) (string, error) {
 				var args struct {
 					Owner       string `json:"owner"`
 					Repo        string `json:"repo"`
@@ -183,7 +183,7 @@ func buildTools(provider IssueProvider) []plugin.ToolDef {
 					return "", fmt.Errorf("parsing args: %w", err)
 				}
 
-				_, err := provider.CommentOnIssue(CommentParams{
+				_, err := provider.CommentOnIssue(ctx, CommentParams{
 					Owner:       args.Owner,
 					Repo:        args.Repo,
 					IssueNumber: args.IssueNumber,

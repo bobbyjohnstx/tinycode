@@ -180,14 +180,15 @@ func DispatchPermissionAsk(mgr *Manager, input PermissionInput) (*PermissionOutp
 	for _, proc := range procs {
 		raw, err := proc.sendHook("permission.ask", input)
 		if err != nil {
-			mgr.logger.Warn("permission.ask hook failed", "plugin", proc.info.Name, "error", err)
+			return nil, fmt.Errorf("plugin %q permission.ask: %w", proc.info.Name, err)
+		}
+		if len(raw) == 0 {
 			continue
 		}
 
 		var result permissionResult
 		if err := json.Unmarshal(raw, &result); err != nil {
-			mgr.logger.Warn("permission.ask invalid response", "plugin", proc.info.Name, "error", err)
-			continue
+			return nil, fmt.Errorf("plugin %q permission.ask invalid response: %w", proc.info.Name, err)
 		}
 
 		if !result.Allowed {
@@ -245,25 +246,30 @@ func DispatchShellEnv(mgr *Manager, input ShellEnvInput) (*ShellEnvOutput, error
 // both plugin and shell hooks.
 func DispatchToolExecBefore(mgr *Manager, evt ToolExecBeforeEvent, shellRunner ...*ShellHookRunner) ([]string, error) {
 	var collected []string
+	current := evt
 
 	if mgr != nil {
 		procs := mgr.pluginsWithHook("tool.execute.before")
 		for _, proc := range procs {
-			raw, err := proc.sendHook("tool.execute.before", evt)
+			raw, err := proc.sendHook("tool.execute.before", current)
 			if err != nil {
 				return nil, fmt.Errorf("plugin %q tool.execute.before: %w", proc.info.Name, err)
 			}
-			if ctx := parsePluginAdditionalContext(raw); len(ctx) > 0 {
-				collected = append(collected, ctx...)
+			extra, toolArgs, hasArgs := parseBeforeHookOutput(raw)
+			if hasArgs {
+				current.ToolArgs = toolArgs
+			}
+			if len(extra) > 0 {
+				collected = append(collected, extra...)
 			}
 		}
 	}
 
 	if len(shellRunner) > 0 && shellRunner[0] != nil {
 		vars := map[string]string{
-			"TOOL":       evt.ToolName,
-			"ARGS":       evt.ToolArgs,
-			"SESSION_ID": evt.SessionID,
+			"TOOL":       current.ToolName,
+			"ARGS":       current.ToolArgs,
+			"SESSION_ID": current.SessionID,
 		}
 		ctx, err := shellRunner[0].RunBefore("tool.execute.before", vars)
 		if err != nil {
@@ -355,16 +361,27 @@ func DispatchToolExecAfter(mgr *Manager, evt ToolExecAfterEvent, shellRunner ...
 // plugin's JSON-RPC response. Applies the per-string character cap.
 // Returns nil if raw is nil or doesn't contain the field.
 func parsePluginAdditionalContext(raw json.RawMessage) []string {
-	if raw == nil {
-		return nil
+	extra, _, _ := parseBeforeHookOutput(raw)
+	return extra
+}
+
+// parseBeforeHookOutput reads additionalContext and an optional replacement
+// for logged tool arguments. hasArgs is true only when the plugin set toolArgs.
+func parseBeforeHookOutput(raw json.RawMessage) (extra []string, toolArgs string, hasArgs bool) {
+	if len(raw) == 0 {
+		return nil, "", false
 	}
 	var parsed struct {
 		AdditionalContext []string `json:"additionalContext"`
+		ToolArgs          *string  `json:"toolArgs"`
 	}
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return nil
+		return nil, "", false
 	}
-	return capAdditionalContext(parsed.AdditionalContext)
+	if parsed.ToolArgs != nil {
+		return capAdditionalContext(parsed.AdditionalContext), *parsed.ToolArgs, true
+	}
+	return capAdditionalContext(parsed.AdditionalContext), "", false
 }
 
 // capAdditionalContext enforces the 10,000 character cap on each string.

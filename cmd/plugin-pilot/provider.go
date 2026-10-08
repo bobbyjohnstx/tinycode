@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // NormalizedIssue is a provider-agnostic issue representation.
@@ -71,10 +73,10 @@ type CommentParams struct {
 // IssueProvider is the interface that each platform implements.
 type IssueProvider interface {
 	Name() string
-	ListIssues(params ListIssuesParams) ([]NormalizedIssue, error)
-	CreateIssue(params CreateIssueParams) (*NormalizedIssue, error)
-	UpdateIssue(params UpdateIssueParams) (*NormalizedIssue, error)
-	CommentOnIssue(params CommentParams) (*NormalizedComment, error)
+	ListIssues(ctx context.Context, params ListIssuesParams) ([]NormalizedIssue, error)
+	CreateIssue(ctx context.Context, params CreateIssueParams) (*NormalizedIssue, error)
+	UpdateIssue(ctx context.Context, params UpdateIssueParams) (*NormalizedIssue, error)
+	CommentOnIssue(ctx context.Context, params CommentParams) (*NormalizedComment, error)
 }
 
 // ProviderError is returned when a provider API call fails.
@@ -90,16 +92,20 @@ func (e *ProviderError) Error() string {
 
 // providerConfig holds common HTTP config for a provider.
 type providerConfig struct {
-	baseURL     string
-	token       string
-	authHeader  string
-	authValue   string
+	baseURL      string
+	token        string
+	authHeader   string
+	authValue    string
 	extraHeaders map[string]string
 }
 
+const maxProviderBody = 2 << 20
+
+var providerHTTP = &http.Client{Timeout: 30 * time.Second}
+
 // doRequest performs an HTTP request against the provider API and returns the
 // decoded JSON response body. method defaults to GET if empty.
-func doRequest(cfg providerConfig, method, path string, body any) (json.RawMessage, int, error) {
+func doRequest(ctx context.Context, cfg providerConfig, method, path string, body any) (json.RawMessage, int, error) {
 	var reqBody io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -113,7 +119,7 @@ func doRequest(cfg providerConfig, method, path string, body any) (json.RawMessa
 		method = http.MethodGet
 	}
 
-	req, err := http.NewRequest(method, cfg.baseURL+path, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, cfg.baseURL+path, reqBody)
 	if err != nil {
 		return nil, 0, fmt.Errorf("creating request: %w", err)
 	}
@@ -125,15 +131,18 @@ func doRequest(cfg providerConfig, method, path string, body any) (json.RawMessa
 		req.Header.Set(k, v)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := providerHTTP.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("performing request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxProviderBody+1))
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("reading response: %w", err)
+	}
+	if len(respBody) > maxProviderBody {
+		return nil, resp.StatusCode, fmt.Errorf("response exceeds %d bytes", maxProviderBody)
 	}
 
 	return json.RawMessage(respBody), resp.StatusCode, nil
@@ -145,7 +154,9 @@ func createProvider(directory string) IssueProvider {
 	envOverride := os.Getenv("PILOT_PROVIDER")
 
 	var remoteURL string
-	cmd := exec.Command("git", "remote", "get-url", "origin")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "remote", "get-url", "origin")
 	cmd.Dir = directory
 	out, err := cmd.Output()
 	if err == nil {

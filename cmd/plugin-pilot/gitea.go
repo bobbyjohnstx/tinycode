@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -91,8 +92,8 @@ func normalizeGiteaIssue(raw json.RawMessage) NormalizedIssue {
 	}
 }
 
-func (g *giteaProvider) resolveLabels(owner, repo string, names []string) ([]int, error) {
-	body, status, err := doRequest(g.cfg, "", fmt.Sprintf("/repos/%s/%s/labels", owner, repo), nil)
+func (g *giteaProvider) resolveLabels(ctx context.Context, owner, repo string, names []string) ([]int, error) {
+	body, status, err := doRequest(ctx, g.cfg, "", fmt.Sprintf("/repos/%s/%s/labels", owner, repo), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +138,7 @@ func (g *giteaProvider) resolveLabels(owner, repo string, names []string) ([]int
 	return ids, nil
 }
 
-func (g *giteaProvider) ListIssues(params ListIssuesParams) ([]NormalizedIssue, error) {
+func (g *giteaProvider) ListIssues(ctx context.Context, params ListIssuesParams) ([]NormalizedIssue, error) {
 	if err := g.checkToken(); err != nil {
 		return nil, err
 	}
@@ -160,7 +161,7 @@ func (g *giteaProvider) ListIssues(params ListIssuesParams) ([]NormalizedIssue, 
 		path += sep + fmt.Sprintf("limit=%d", params.Limit)
 	}
 
-	body, status, err := doRequest(g.cfg, "", path, nil)
+	body, status, err := doRequest(ctx, g.cfg, "", path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +181,7 @@ func (g *giteaProvider) ListIssues(params ListIssuesParams) ([]NormalizedIssue, 
 	return issues, nil
 }
 
-func (g *giteaProvider) CreateIssue(params CreateIssueParams) (*NormalizedIssue, error) {
+func (g *giteaProvider) CreateIssue(ctx context.Context, params CreateIssueParams) (*NormalizedIssue, error) {
 	if err := g.checkToken(); err != nil {
 		return nil, err
 	}
@@ -192,14 +193,14 @@ func (g *giteaProvider) CreateIssue(params CreateIssueParams) (*NormalizedIssue,
 		reqBody["body"] = params.Body
 	}
 	if len(params.Labels) > 0 {
-		ids, err := g.resolveLabels(params.Owner, params.Repo, params.Labels)
+		ids, err := g.resolveLabels(ctx, params.Owner, params.Repo, params.Labels)
 		if err != nil {
 			return nil, err
 		}
 		reqBody["labels"] = ids
 	}
 
-	body, status, err := doRequest(g.cfg, http.MethodPost, fmt.Sprintf("/repos/%s/%s/issues", params.Owner, params.Repo), reqBody)
+	body, status, err := doRequest(ctx, g.cfg, http.MethodPost, fmt.Sprintf("/repos/%s/%s/issues", params.Owner, params.Repo), reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +212,7 @@ func (g *giteaProvider) CreateIssue(params CreateIssueParams) (*NormalizedIssue,
 	return &issue, nil
 }
 
-func (g *giteaProvider) UpdateIssue(params UpdateIssueParams) (*NormalizedIssue, error) {
+func (g *giteaProvider) UpdateIssue(ctx context.Context, params UpdateIssueParams) (*NormalizedIssue, error) {
 	if err := g.checkToken(); err != nil {
 		return nil, err
 	}
@@ -227,7 +228,7 @@ func (g *giteaProvider) UpdateIssue(params UpdateIssueParams) (*NormalizedIssue,
 		reqBody["state"] = params.State
 	}
 
-	body, status, err := doRequest(g.cfg, http.MethodPatch, fmt.Sprintf("/repos/%s/%s/issues/%d", params.Owner, params.Repo, params.IssueNumber), reqBody)
+	body, status, err := doRequest(ctx, g.cfg, http.MethodPatch, fmt.Sprintf("/repos/%s/%s/issues/%d", params.Owner, params.Repo, params.IssueNumber), reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -239,13 +240,13 @@ func (g *giteaProvider) UpdateIssue(params UpdateIssueParams) (*NormalizedIssue,
 	return &issue, nil
 }
 
-func (g *giteaProvider) CommentOnIssue(params CommentParams) (*NormalizedComment, error) {
+func (g *giteaProvider) CommentOnIssue(ctx context.Context, params CommentParams) (*NormalizedComment, error) {
 	if err := g.checkToken(); err != nil {
 		return nil, err
 	}
 
 	reqBody := map[string]any{"body": params.Body}
-	body, status, err := doRequest(g.cfg, http.MethodPost, fmt.Sprintf("/repos/%s/%s/issues/%d/comments", params.Owner, params.Repo, params.IssueNumber), reqBody)
+	body, status, err := doRequest(ctx, g.cfg, http.MethodPost, fmt.Sprintf("/repos/%s/%s/issues/%d/comments", params.Owner, params.Repo, params.IssueNumber), reqBody)
 	if err != nil {
 		return nil, err
 	}
