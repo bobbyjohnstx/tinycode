@@ -91,7 +91,8 @@ type connectedApp struct {
 	resumeSessionID string
 	btwHistory      []sideQA
 	goal            *goalTracker
-	startHead       string // git HEAD at session start, for /changes
+	startHead       string   // git HEAD at session start, for /changes
+	promptQueue     []string // queued prompts waiting for current run to finish
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
@@ -505,6 +506,15 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Refresh LSP diagnostics after a turn ends (tools may have opened files).
 		if msg.SessionID == c.app.state.ActiveSession && wasWorking && !msg.Status.Working {
 			cmds = append(cmds, fetchLSPStatus(c.client))
+		}
+		// Drain prompt queue when the active session transitions to idle.
+		if msg.SessionID == c.app.state.ActiveSession && wasWorking && !msg.Status.Working && len(c.promptQueue) > 0 {
+			next := c.promptQueue[0]
+			c.promptQueue = c.promptQueue[1:]
+			c.app.status.SetQueueCount(len(c.promptQueue))
+			cmds = append(cmds, func() tea.Msg {
+				return PromptSubmittedMsg{Content: next}
+			})
 		}
 		// When the active session transitions from working to idle and a goal is active,
 		// trigger goal evaluation.

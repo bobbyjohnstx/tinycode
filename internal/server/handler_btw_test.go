@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
@@ -121,6 +122,132 @@ promptDone:
 	messagesAfter := h.listMessages(sessionID)
 	if len(messagesAfter) != len(messagesBefore) {
 		t.Errorf("message count changed: before=%d, after=%d", len(messagesBefore), len(messagesAfter))
+	}
+}
+
+func TestParseModelRef(t *testing.T) {
+	tests := []struct {
+		input      string
+		wantProv   string
+		wantModel  string
+	}{
+		{"ollama/qwen3.5:9b", "ollama", "qwen3.5:9b"},
+		{"gpt-4o", "", "gpt-4o"},
+		{"anthropic/claude-opus-4-20250514", "anthropic", "claude-opus-4-20250514"},
+		{"", "", ""},
+	}
+	for _, tt := range tests {
+		pid, mid := parseModelRef(tt.input)
+		if pid != tt.wantProv || mid != tt.wantModel {
+			t.Errorf("parseModelRef(%q) = (%q, %q), want (%q, %q)", tt.input, pid, mid, tt.wantProv, tt.wantModel)
+		}
+	}
+}
+
+func TestBtw_UsesSmallModelWhenConfigured(t *testing.T) {
+	h := newTestHarness(t, []mockScenario{
+		{textResponse: "small model answer"},
+	})
+
+	// Register a small model provider.
+	h.server.deps.Registry.Register(&provider.Info{
+		ID:     "ollama",
+		Name:   "Ollama",
+		Source: "test",
+		Models: map[string]*provider.Model{
+			"qwen3.5:9b": {
+				ID:           "qwen3.5:9b",
+				ProviderID:   "ollama",
+				Name:         "Qwen 3.5 9B",
+				API:          provider.ModelAPI{ID: "qwen3.5:9b"},
+				Status:       "available",
+				Capabilities: provider.ModelCaps{Input: provider.ModalityCaps{Text: true}, Output: provider.ModalityCaps{Text: true}},
+			},
+		},
+	})
+
+	// Configure small_model.
+	h.server.sessionManager.cfg.SmallModel = "ollama/qwen3.5:9b"
+
+	sessionID := h.createSession("Btw Small", "build")
+
+	body := `{"question":"What is Go?"}`
+	resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/btw", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("btw request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var result map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if result["answer"] != "small model answer" {
+		t.Errorf("expected 'small model answer', got %q", result["answer"])
+	}
+}
+
+func TestBtw_FallsBackWhenSmallModelEmpty(t *testing.T) {
+	h := newTestHarness(t, []mockScenario{
+		{textResponse: "session model answer"},
+	})
+	// SmallModel is empty by default — should use session model.
+	sessionID := h.createSession("Btw Fallback Empty", "build")
+
+	body := `{"question":"What is Go?"}`
+	resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/btw", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("btw request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var result map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if result["answer"] != "session model answer" {
+		t.Errorf("expected 'session model answer', got %q", result["answer"])
+	}
+}
+
+func TestBtw_FallsBackWhenSmallModelUnknown(t *testing.T) {
+	h := newTestHarness(t, []mockScenario{
+		{textResponse: "session model answer"},
+	})
+
+	// Configure a small_model that doesn't exist in the registry.
+	h.server.sessionManager.cfg.SmallModel = "nonexistent/fake-model"
+
+	sessionID := h.createSession("Btw Fallback Unknown", "build")
+
+	body := `{"question":"What is Go?"}`
+	resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/btw", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("btw request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var result map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	if result["answer"] != "session model answer" {
+		t.Errorf("expected 'session model answer', got %q", result["answer"])
 	}
 }
 

@@ -6,6 +6,7 @@ import "github.com/charmbracelet/bubbles/key"
 type KeyMap struct {
 	// Global
 	CommandPalette key.Binding
+	UnifiedPalette key.Binding
 	Quit           key.Binding
 	ClearOrQuit    key.Binding
 
@@ -48,6 +49,10 @@ func DefaultKeyMap() KeyMap {
 		CommandPalette: key.NewBinding(
 			key.WithKeys("ctrl+p"),
 			key.WithHelp("ctrl+p", "command palette"),
+		),
+		UnifiedPalette: key.NewBinding(
+			key.WithKeys("ctrl+k"),
+			key.WithHelp("ctrl+k", "unified picker"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+d"),

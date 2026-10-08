@@ -151,12 +151,33 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		}
 	}
 
+	if trimmed == "/clear-queue" || trimmed == "/queue clear" {
+		c.promptQueue = nil
+		c.app.status.SetQueueCount(0)
+		model, cmd := c.app.Update(ToastMsg{Text: "Queue cleared", IsError: false})
+		c.updateApp(model)
+		return c, cmd
+	}
+
 	if strings.HasPrefix(trimmed, "/") {
 		cmdName := strings.TrimPrefix(strings.Fields(trimmed)[0], "/")
 		if cmd, handled := c.app.handleClientCommand(cmdName); handled {
 			slog.Info("client command handled", "cmd", cmdName)
 			return c, cmd
 		}
+	}
+
+	// If session is working, queue the prompt instead of sending.
+	if c.app.status.working && c.app.state.ActiveSession != "" {
+		c.promptQueue = append(c.promptQueue, msg.Content)
+		queueCount := len(c.promptQueue)
+		model, cmd := c.app.Update(ToastMsg{
+			Text:    fmt.Sprintf("Queued (%d pending)", queueCount),
+			IsError: false,
+		})
+		c.updateApp(model)
+		c.app.status.SetQueueCount(queueCount)
+		return c, tea.Batch(cmd, c.app.reflowChrome())
 	}
 
 	// Parse /ask <agent> <message> into agent override + stripped text.

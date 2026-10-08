@@ -252,6 +252,9 @@ func (a *App) handleGlobalKey(msg tea.KeyMsg) tea.Cmd {
 	case "ctrl+p":
 		a.showPalette()
 		return nil
+	case "ctrl+k":
+		a.showUnifiedPalette()
+		return nil
 	case "ctrl+f":
 		if a.hasMessages() {
 			a.chat.ActivateSearch()
@@ -471,6 +474,48 @@ func (a *App) showPalette() {
 
 	items = append(items, keybindingPaletteItems(a.keys)...)
 	a.palette.Show(items)
+	a.focus = FocusPalette
+}
+
+// showUnifiedPalette opens the unified picker with commands, files, and sessions.
+func (a *App) showUnifiedPalette() {
+	// Build command items (reuse showPalette logic).
+	clientNames := make(map[string]bool, len(clientCommandDefs))
+	var commands []PaletteItem
+	for _, def := range clientCommandDefs {
+		clientNames[def.Name] = true
+		if def.InPalette {
+			commands = append(commands, PaletteItem{
+				Label:       def.Name,
+				Description: def.Description,
+				Value:       def.Name,
+				Category:    "command",
+			})
+		}
+	}
+	for _, cmd := range a.state.Commands {
+		if clientNames[cmd.Name] {
+			continue
+		}
+		commands = append(commands, PaletteItem{
+			Label:       cmd.Name,
+			Description: cmd.Description,
+			Value:       cmd.Name,
+			Category:    "command",
+		})
+	}
+	if a.frecStore != nil {
+		sort.SliceStable(commands, func(i, j int) bool {
+			si := a.frecStore.Score("command:" + commands[i].Value)
+			sj := a.frecStore.Score("command:" + commands[j].Value)
+			return si > sj
+		})
+	}
+
+	files := buildFilePaletteItems(a.status.Cwd())
+	sessions := buildSessionPaletteItems(a.state.Sessions, a.state.ActiveSession)
+
+	a.palette.ShowUnified(commands, files, sessions)
 	a.focus = FocusPalette
 }
 

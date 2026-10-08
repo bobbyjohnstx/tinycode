@@ -44,6 +44,7 @@ type StatusBar struct {
 	turnTokens    int
 	leaderPending bool
 	safeMode      bool
+	queueCount    int
 	spinner       spinner.Model
 	agentColor    lipgloss.AdaptiveColor
 	width         int
@@ -199,6 +200,11 @@ func (s *StatusBar) SetTurnTokens(n int) {
 	s.turnTokens = n
 }
 
+// SetQueueCount updates the queued prompt count shown in the status bar.
+func (s *StatusBar) SetQueueCount(n int) {
+	s.queueCount = n
+}
+
 // SetWorking updates the working state and returns a command to restart
 // the spinner tick chain when transitioning to working.
 func (s *StatusBar) SetWorking(working bool) tea.Cmd {
@@ -275,6 +281,9 @@ func (s StatusBar) View() string {
 			left = s.spinner.View() + "  " + dim.Render("esc") + " " + accent.Render("interrupt")
 		} else {
 			left = s.spinner.View() + "  " + accent.Render(s.activity)
+		}
+		if s.queueCount > 0 {
+			left += "  " + dim.Render(fmt.Sprintf("[Q:%d]", s.queueCount))
 		}
 		elapsed := time.Duration(0)
 		if !s.turnStart.IsZero() {

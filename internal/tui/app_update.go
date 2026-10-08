@@ -341,6 +341,24 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return a, nil, true
 	case PaletteSelectedMsg:
 		a.setFocus(FocusPrompt)
+
+		// Route by category for unified picker items.
+		switch msg.Item.Category {
+		case "file":
+			// Insert @-reference into the prompt.
+			current := a.prompt.Value()
+			if current != "" && current[len(current)-1] != ' ' {
+				current += " "
+			}
+			a.prompt.SetValue(current + msg.Item.Value)
+			return a, nil, true
+		case "session":
+			// Switch to selected session.
+			sessionID := strings.TrimPrefix(msg.Item.Value, "session:")
+			return a, func() tea.Msg { return SessionSwitchedMsg{SessionID: sessionID} }, true
+		}
+
+		// Default: command behavior (existing logic).
 		if a.frecStore != nil && msg.Item.Value != "" {
 			a.frecStore.Record("command:" + msg.Item.Value)
 		}

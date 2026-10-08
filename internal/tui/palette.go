@@ -14,6 +14,7 @@ type PaletteItem struct {
 	Label       string
 	Description string
 	Value       string
+	Category    string // "command", "file", "session" — shown as a dimmed prefix in unified mode
 }
 
 // PaletteOpenMsg signals the command palette should open.
@@ -35,6 +36,7 @@ type CommandPalette struct {
 	selected int
 	scroll   int
 	visible  bool
+	unified  bool // true when showing mixed commands/files/sessions
 	width    int
 	height   int
 }
@@ -50,13 +52,30 @@ func NewCommandPalette() CommandPalette {
 	}
 }
 
-// Show opens the palette with the given items.
+// Show opens the palette with the given items (command-only mode).
 func (p *CommandPalette) Show(items []PaletteItem) {
 	p.items = items
 	p.filtered = items
 	p.selected = 0
 	p.scroll = 0
 	p.visible = true
+	p.unified = false
+	p.input.Reset()
+	p.input.Focus()
+}
+
+// ShowUnified opens the palette with mixed commands, files, and sessions.
+func (p *CommandPalette) ShowUnified(commands, files, sessions []PaletteItem) {
+	var all []PaletteItem
+	all = append(all, commands...)
+	all = append(all, files...)
+	all = append(all, sessions...)
+	p.items = all
+	p.filtered = all
+	p.selected = 0
+	p.scroll = 0
+	p.visible = true
+	p.unified = true
 	p.input.Reset()
 	p.input.Focus()
 }
@@ -159,6 +178,12 @@ func (p CommandPalette) View() string {
 
 	maxVisible := p.maxVisibleItems()
 
+	// Category tag width for unified mode.
+	tagWidth := 0
+	if p.unified {
+		tagWidth = 6 // "[cmd] " / "[fil] " / "[ses] "
+	}
+
 	// Calculate name column width for alignment.
 	nameCol := 0
 	for _, item := range p.filtered {
@@ -166,7 +191,7 @@ func (p CommandPalette) View() string {
 			nameCol = len(item.Label)
 		}
 	}
-	nameCol += 4 // padding (2 for prefix + 2 gap)
+	nameCol += 4 + tagWidth // padding (2 for prefix + 2 gap + optional tag)
 	descCol := innerWidth - nameCol
 	if descCol < 15 {
 		descCol = 15
@@ -196,18 +221,24 @@ func (p CommandPalette) View() string {
 			desc = desc[:descCol-1] + "…"
 		}
 
+		// Build category tag for unified mode.
+		tag := ""
+		if p.unified {
+			tag = categoryTag(item.Category)
+		}
+
 		prefix := "  "
 		if i == p.selected {
 			prefix = "▸ "
 			nameStr := highlightBg.Bold(true).
 				Foreground(lipgloss.AdaptiveColor{Light: "#0070F3", Dark: "#58A6FF"}).
-				Width(nameCol).Render(prefix + item.Label)
+				Width(nameCol).Render(prefix + tag + item.Label)
 			descStr := highlightBg.
 				Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#999999"}).
 				Width(descCol).Render(desc)
 			sb.WriteString(nameStr + descStr)
 		} else {
-			nameStr := lipgloss.NewStyle().Bold(true).Width(nameCol).Render(prefix + item.Label)
+			nameStr := lipgloss.NewStyle().Bold(true).Width(nameCol).Render(prefix + tag + item.Label)
 			descStr := dimStyle.Width(descCol).Render(desc)
 			sb.WriteString(nameStr + descStr)
 		}
@@ -264,4 +295,18 @@ func filterItems(items []PaletteItem, query string) []PaletteItem {
 		}
 	}
 	return result
+}
+
+// categoryTag returns a short bracketed prefix for unified palette display.
+func categoryTag(category string) string {
+	switch category {
+	case "command":
+		return "[cmd] "
+	case "file":
+		return "[fil] "
+	case "session":
+		return "[ses] "
+	default:
+		return ""
+	}
 }
