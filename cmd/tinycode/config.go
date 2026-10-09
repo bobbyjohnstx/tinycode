@@ -465,7 +465,7 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 	disc := provider.NewDiscovery(reg, b)
 
 	ollamaURL := "http://127.0.0.1:11434"
-	lmStudioURL := "http://127.0.0.1:1234"
+	lmStudioURL := ""
 	vllmURL := ""
 
 	if v := os.Getenv("TINYCODE_OLLAMA_HOST"); v != "" {
@@ -475,6 +475,8 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 	}
 	if v := os.Getenv("TINYCODE_LMSTUDIO_HOST"); v != "" {
 		lmStudioURL = v
+	} else if _, ok := cfg.Provider["lm-studio"]; ok {
+		lmStudioURL = "http://127.0.0.1:1234"
 	}
 	if v := os.Getenv("TINYCODE_VLLM_HOST"); v != "" {
 		vllmURL = v
