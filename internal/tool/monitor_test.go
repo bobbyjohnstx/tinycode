@@ -72,6 +72,32 @@ func TestRingBuffer_DrainEmpty(t *testing.T) {
 	}
 }
 
+func TestMonitorManager_DropsCredentialEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "super-secret")
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	if _, err := mm.Start(context.Background(), `printf 'ran:%s\n' "$OPENROUTER_API_KEY"`, "env", t.TempDir(), 5*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	var got string
+	for time.Now().Before(deadline) {
+		got += mm.DrainAll()
+		if strings.Contains(got, "ran:") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if strings.Contains(got, "super-secret") {
+		t.Fatalf("monitor leaked the API key: %q", got)
+	}
+	if !strings.Contains(got, "ran:") {
+		t.Fatalf("monitor output = %q", got)
+	}
+}
+
 func TestMonitorManager_StartAndStop(t *testing.T) {
 	mm := NewMonitorManager()
 	defer mm.Shutdown()

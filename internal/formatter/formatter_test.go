@@ -101,6 +101,32 @@ func TestFormat_DisabledGofmtSkipsFile(t *testing.T) {
 	}
 }
 
+func TestFormat_CustomCommandDropsCredentialEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "super-secret")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "note.txt")
+	if err := os.WriteFile(path, []byte("before\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := Resolve(enabledConfig(map[string]config.FormatterItem{
+		"stamp": {
+			Command:     []string{"sh", "-c", `printf '%s|%s' "$OPENROUTER_API_KEY" "$STAMP_TOKEN" > "$1"`, "sh"},
+			Extensions:  []string{".txt"},
+			Environment: map[string]string{"STAMP_TOKEN": "from-config"},
+		},
+	}))
+	if _, _, err := r.Format(context.Background(), path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "|from-config" {
+		t.Fatalf("file = %q, want the configured token and not the parent API key", got)
+	}
+}
+
 func TestFormat_CustomCommandRewritesFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "note.txt")

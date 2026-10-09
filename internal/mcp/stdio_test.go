@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -211,6 +212,43 @@ func TestStdioTransport_Connect_PerformsInitializeHandshake(t *testing.T) {
 	if transport.cmd.Process.Pid <= 0 {
 		t.Errorf("expected positive PID, got %d", transport.cmd.Process.Pid)
 	}
+}
+
+func TestStdioTransport_Connect_DropsCredentialEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "super-secret")
+	out := filepath.Join(t.TempDir(), "env.txt")
+	script := `printf '%s|%s' "$OPENROUTER_API_KEY" "$MCP_TOKEN" > ` + strconvQuote(out)
+	transport := NewStdioTransport("sh", []string{"-c", script}, map[string]string{"MCP_TOKEN": "from-config"})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	// The shell exits after writing the file, so the MCP handshake fails.
+	// The child environment is applied before that handshake.
+	if err := transport.Connect(ctx); err != nil && !strings.Contains(err.Error(), "MCP initialize") {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { transport.Close() })
+
+	deadline := time.Now().Add(2 * time.Second)
+	var got []byte
+	var err error
+	for time.Now().Before(deadline) {
+		got, err = os.ReadFile(out)
+		if err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "|from-config" {
+		t.Fatalf("child env = %q, want the configured token and not the parent API key", got)
+	}
+}
+
+func strconvQuote(path string) string {
+	return `'` + strings.ReplaceAll(path, `'`, `'\''`) + `'`
 }
 
 func TestStdioTransport_Connect_FailsOnBadCommand(t *testing.T) {

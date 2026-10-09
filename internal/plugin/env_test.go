@@ -6,6 +6,17 @@ import (
 	"testing"
 )
 
+func TestExecShellCommand_DropsCredentialEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "super-secret")
+	got, err := execShellCommand(context.Background(), `printf 'ran:%s' "$OPENROUTER_API_KEY"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "ran:" {
+		t.Fatalf("shell hook output = %q", got)
+	}
+}
+
 func TestDefaultCommandFactory_DropsCredentialEnv(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "super-secret")
 	cmd := defaultCommandFactory(context.Background(), "true")

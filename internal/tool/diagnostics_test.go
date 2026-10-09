@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -134,6 +135,19 @@ func TestDiagnostics_Timeout(t *testing.T) {
 	_ = result
 }
 
+func TestRunCmd_DropsCredentialEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "super-secret")
+	cmd := exec.Command("sh", "-c", `printf 'ran:%s' "$OPENROUTER_API_KEY"`)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	if err := runCmd(context.Background(), cmd); err != nil {
+		t.Fatal(err)
+	}
+	if got := stdout.String(); got != "ran:" {
+		t.Fatalf("diagnostics command output = %q", got)
+	}
+}
+
 func TestDiagnostics_Registration(t *testing.T) {
 	r := NewRegistry(&Context{Directory: t.TempDir()})
 	RegisterBuiltins(r)
@@ -146,4 +160,3 @@ func TestDiagnostics_Registration(t *testing.T) {
 		t.Errorf("expected ID 'diagnostics', got %q", def.ID)
 	}
 }
-

@@ -96,6 +96,58 @@ func TestShellDirect_PublishesUserMessageWithCommandPrefix(t *testing.T) {
 	}
 }
 
+func TestShellDirect_DropsCredentialEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "super-secret")
+	h := newTestHarness(t, nil)
+
+	dir := t.TempDir()
+	body := `{"title":"Shell Env","agent":"build","model":{"modelID":"test-model","providerID":"test-provider"}}`
+	resp, err := http.Post(h.baseURL()+"/session?directory="+dir, "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	var created map[string]any
+	json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+	sessionID := created["id"].(string)
+
+	partSub := h.bus.Subscribe("message.part.updated")
+	defer partSub.Unsubscribe()
+
+	shellBody := `{"command":"printf 'ran:%s' \"$OPENROUTER_API_KEY\""}`
+	shellResp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/shell", "application/json", strings.NewReader(shellBody))
+	if err != nil {
+		t.Fatalf("shell request: %v", err)
+	}
+	shellResp.Body.Close()
+
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case evt := <-partSub.C:
+			props := evt.Properties.(map[string]any)
+			if props["sessionID"] != sessionID {
+				continue
+			}
+			part, _ := props["part"].(map[string]any)
+			if part["type"] != "tool" || part["tool"] != "bash" {
+				continue
+			}
+			state, _ := part["state"].(map[string]any)
+			if state["status"] != "completed" {
+				continue
+			}
+			output, _ := state["output"].(string)
+			if strings.Contains(output, "super-secret") || !strings.Contains(output, "ran:") {
+				t.Fatalf("shell output = %q", output)
+			}
+			return
+		case <-deadline:
+			t.Fatal("timeout waiting for shell output")
+		}
+	}
+}
+
 func TestShellDirect_PublishesToolPartWithCompletedStatus(t *testing.T) {
 	h := newTestHarness(t, nil)
 

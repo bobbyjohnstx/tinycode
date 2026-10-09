@@ -11,6 +11,39 @@ import (
 	"time"
 )
 
+func TestConnect_DropsCredentialEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "super-secret")
+	out := filepath.Join(t.TempDir(), "env.txt")
+	script := `printf '%s|%s' "$OPENROUTER_API_KEY" "$LSP_TOKEN" > '` + strings.ReplaceAll(out, `'`, `'\''`) + `'`
+	client := newClient(ServerSpec{
+		Command: "sh",
+		Args:    []string{"-c", script},
+	}, t.TempDir(), map[string]string{"LSP_TOKEN": "from-config"}, time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := client.connect(ctx); err == nil {
+		t.Fatal("expected initialize to fail for a shell that is not a language server")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	var got []byte
+	var err error
+	for time.Now().Before(deadline) {
+		got, err = os.ReadFile(out)
+		if err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "|from-config" {
+		t.Fatalf("child env = %q, want the configured token and not the parent API key", got)
+	}
+}
+
 func TestFileURI_EncodesSpacesAndHash(t *testing.T) {
 	dir := t.TempDir()
 	spaced := filepath.Join(dir, "my file.go")
@@ -280,7 +313,6 @@ func TestParseLocations_ArrayOfLocations(t *testing.T) {
 		t.Errorf("locs[1].Range.Start.Line = %d, want 20", locs[1].Range.Start.Line)
 	}
 }
-
 
 func TestFileFromURI_PercentEncodedPath(t *testing.T) {
 	uri := "file:///path/with%20space/file%23hash.go"

@@ -1,6 +1,9 @@
 package tui
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestGoalTracker_StatusText(t *testing.T) {
 	g := newGoalTracker("all tests pass", "go test ./... -count=1")
@@ -99,5 +102,20 @@ func TestGoalTracker_EmptyCommandSkipsShellEval(t *testing.T) {
 	g.state.Iteration++
 	if g.state.Iteration != 1 {
 		t.Errorf("Iteration = %d, want 1", g.state.Iteration)
+	}
+}
+
+func TestEvaluateGoal_DropsCredentialEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "super-secret")
+	msg := evaluateGoal(`printf 'ran:%s' "$OPENROUTER_API_KEY"`, t.TempDir(), 1)()
+	got, ok := msg.(GoalEvalMsg)
+	if !ok {
+		t.Fatalf("message = %T", msg)
+	}
+	if got.Err != nil {
+		t.Fatal(got.Err)
+	}
+	if strings.Contains(got.Output, "super-secret") || got.Output != "ran:" {
+		t.Fatalf("goal output = %q", got.Output)
 	}
 }
