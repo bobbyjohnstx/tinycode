@@ -180,12 +180,13 @@ export function createChildStoreManager(input: {
           const initialIcon = icon[0].value
           const [mcpEnabled, setMcpEnabled] = createSignal(false)
 
-          const [pathQuery, mcpQuery, lspQuery, providerQuery] = useQueries(() => ({
+          const [pathQuery, mcpQuery, lspQuery, providerQuery, formatterQuery] = useQueries(() => ({
             queries: [
               input.queryOptions.path(key),
               { ...input.queryOptions.mcp(key), enabled: mcpEnabled() },
               input.queryOptions.lsp(key),
               input.queryOptions.providers(key),
+              input.queryOptions.formatter(key),
             ],
           }))
 
@@ -233,6 +234,10 @@ export function createChildStoreManager(input: {
             },
             get lsp() {
               return lspQuery.isLoading ? [] : (Array.isArray(lspQuery.data) ? lspQuery.data : [])
+            },
+            get formatter() {
+              if (!formatterQuery || formatterQuery.isLoading) return []
+              return Array.isArray(formatterQuery.data) ? formatterQuery.data : []
             },
             vcs: vcsStore.value,
             limit: 5,

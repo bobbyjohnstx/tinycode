@@ -161,7 +161,7 @@ Source: `internal/server/middleware/`
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
 | GET | `/lsp` | `handleLSP` | LSP status (`enabled`, `languages` from manager when attached) |
-| GET | `/formatter` | `handleFormatter` | Formatter availability |
+| GET | `/formatter` | `handleFormatter` | Formatter status array (`name`, `extensions`, `enabled`). Empty when formatting is off |
 
 ## 2.17 MCP Routes
 

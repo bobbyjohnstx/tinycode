@@ -634,6 +634,7 @@ Config files support JSONC (JSON with comments) and environment variable substit
 | `instructions` | `[]` | Custom instructions prepended to system prompt |
 | `disabled_providers` | `[]` | Providers to hide |
 | `enabled_providers` | `[]` | Providers to show (if set, only these appear) |
+| `formatter` | off | Run a formatter after `write`, `edit`, and `apply_patch`. `true` enables built-in `gofmt` |
 
 ### Provider environment variables
 
@@ -842,6 +843,36 @@ Server keys are language names (`go`, `typescript`, `python`, `rust`, …), not 
 ### Auto-detection
 
 When enabled, tinycode detects available language servers on your PATH (gopls for Go, typescript-language-server for TypeScript, etc.) and starts them lazily when a relevant file is opened.
+
+---
+
+## Formatters
+
+A formatter rewrites a file after the agent writes or edits it. Formatting is off until you turn it on. The web status popover lists the result of `GET /formatter` on the LSP tab.
+
+`"formatter": true` enables the built-in `gofmt` formatter for `.go` files. It uses Go's `go/format` package, so the `gofmt` binary does not need to be on `PATH`.
+
+```json
+{
+  "formatter": true
+}
+```
+
+An object enables the built-ins and then applies per-name overrides. A custom formatter's `command` is an argument list. Tinycode appends the file path as the last argument and runs the command in the file's directory, with a 30 second timeout. When more than one enabled formatter lists the same extension, the one whose name comes first alphabetically runs.
+
+```json
+{
+  "formatter": {
+    "gofmt": { "disabled": true },
+    "prettier": {
+      "command": ["prettier", "--write"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx"]
+    }
+  }
+}
+```
+
+`write`, `edit`, and `apply_patch` (creates and updates) run the formatter after the file is saved. Deletes are left alone. The tool output says `Formatted with <name>` when the bytes change. If the formatter fails, the written file stays as the agent saved it and the tool output says `Formatter failed:`.
 
 ---
 

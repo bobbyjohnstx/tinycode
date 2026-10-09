@@ -106,6 +106,7 @@ Create or overwrite files. Source: `write.go`
 - Creates parent directories with `os.MkdirAll(dir, 0755)`
 - Line ending preservation: if existing file has CRLF, converts new content to CRLF
 - Writes with mode `0644`
+- When `formatter` is enabled, runs the matching formatter after the write. A failure is appended to the tool output and does not undo the write. `edit` and `apply_patch` updates do the same
 - Publishes `file.modified` bus event with operation `"write"`
 
 **Permission:** `edit`

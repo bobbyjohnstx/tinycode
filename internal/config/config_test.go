@@ -502,3 +502,72 @@ func TestMerge_ServerPortKeepsHost(t *testing.T) {
 		t.Errorf("port = %v, want 8080", result.Server.Port)
 	}
 }
+
+func TestFormatterConfig_UnmarshalJSON(t *testing.T) {
+	var off Info
+	if err := json.Unmarshal([]byte(`{"formatter": false}`), &off); err != nil {
+		t.Fatal(err)
+	}
+	if off.Formatter == nil || off.Formatter.Enabled == nil || *off.Formatter.Enabled {
+		t.Fatalf("false form = %#v", off.Formatter)
+	}
+
+	var on Info
+	if err := json.Unmarshal([]byte(`{"formatter": true}`), &on); err != nil {
+		t.Fatal(err)
+	}
+	if on.Formatter == nil || on.Formatter.Enabled == nil || !*on.Formatter.Enabled {
+		t.Fatalf("true form = %#v", on.Formatter)
+	}
+
+	var custom Info
+	raw := `{"formatter": {"gofmt": {"disabled": true}, "stamp": {"command": ["stamp"], "extensions": [".txt"]}}}`
+	if err := json.Unmarshal([]byte(raw), &custom); err != nil {
+		t.Fatal(err)
+	}
+	if custom.Formatter == nil || custom.Formatter.Enabled == nil || !*custom.Formatter.Enabled {
+		t.Fatal("object form should enable formatters")
+	}
+	if custom.Formatter.Items["gofmt"].Disabled == nil || !*custom.Formatter.Items["gofmt"].Disabled {
+		t.Fatalf("gofmt override = %#v", custom.Formatter.Items["gofmt"])
+	}
+	if len(custom.Formatter.Items["stamp"].Command) != 1 || custom.Formatter.Items["stamp"].Command[0] != "stamp" {
+		t.Fatalf("stamp override = %#v", custom.Formatter.Items["stamp"])
+	}
+
+	data, err := json.Marshal(custom.Formatter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back map[string]FormatterItem
+	if err := json.Unmarshal(data, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back["stamp"].Extensions[0] != ".txt" {
+		t.Fatalf("marshal = %s", data)
+	}
+}
+
+func TestMerge_FormatterOverrideKeepsOtherItems(t *testing.T) {
+	disabled := true
+	parentOn := true
+	dst := &Info{Formatter: &FormatterConfig{
+		Enabled: &parentOn,
+		Items: map[string]FormatterItem{
+			"stamp": {Command: []string{"stamp"}, Extensions: []string{".txt"}},
+		},
+	}}
+	src := &Info{Formatter: &FormatterConfig{
+		Enabled: &parentOn,
+		Items: map[string]FormatterItem{
+			"gofmt": {Disabled: &disabled},
+		},
+	}}
+	result := Merge(dst, src)
+	if result.Formatter.Items["stamp"].Command[0] != "stamp" {
+		t.Fatalf("stamp lost: %#v", result.Formatter.Items)
+	}
+	if result.Formatter.Items["gofmt"].Disabled == nil || !*result.Formatter.Items["gofmt"].Disabled {
+		t.Fatalf("gofmt override lost: %#v", result.Formatter.Items)
+	}
+}

@@ -97,7 +97,7 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	if !ok {
 		if count > 1 {
 			return &ExecuteResult{
-				Output: fmt.Sprintf("old_string appears %d times in %s. Use replace_all or provide more context to make the match unique.", count, path),
+				Output:  fmt.Sprintf("old_string appears %d times in %s. Use replace_all or provide more context to make the match unique.", count, path),
 				IsError: true,
 			}, nil
 		}
@@ -113,6 +113,7 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	if err := writeFileSync(path, []byte(newContent), 0644); err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Error writing file: %v", err), IsError: true}, nil
 	}
+	note := formatNote(ctx, tc, path)
 
 	if tc.Bus != nil {
 		tc.Bus.Publish("file.modified", map[string]any{
@@ -125,7 +126,7 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	tc.ReadFiles.Mark(path)
 
 	return &ExecuteResult{
-		Output: fmt.Sprintf("Replaced in %s", path),
+		Output: fmt.Sprintf("Replaced in %s", path) + note,
 	}, nil
 }
 

@@ -161,6 +161,9 @@ type Context struct {
 	Notepad        *SafeNotepad     // session scratch notes (shared across copies)
 	MonitorManager *MonitorManager  // background process watcher (shared across copies)
 	AgentSwitch    *SafeAgentSwitch // pending plan_enter/plan_exit agent switch (shared across copies)
+	// FormatFile runs after a successful write or edit. name is the formatter
+	// that matched the file. changed is true when the file bytes differ.
+	FormatFile func(ctx context.Context, path string) (name string, changed bool, err error)
 }
 
 // clone returns a shallow copy of the Context. Pointer/interface fields

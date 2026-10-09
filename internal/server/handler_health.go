@@ -1,6 +1,11 @@
 package server
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/formatter"
+)
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	healthy := true
@@ -67,7 +72,9 @@ func (s *Server) handleLSP(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleFormatter(w http.ResponseWriter, _ *http.Request) {
-	respondJSON(w, http.StatusOK, map[string]any{
-		"status": "unavailable",
-	})
+	var cfg *config.FormatterConfig
+	if s.deps.Config != nil {
+		cfg = s.deps.Config.Formatter
+	}
+	respondJSON(w, http.StatusOK, formatter.Resolve(cfg).Status())
 }

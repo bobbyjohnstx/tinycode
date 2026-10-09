@@ -109,6 +109,7 @@ type Info struct {
     Reference         map[string]string          `json:"reference,omitempty"`
     Watcher           []string                   `json:"watcher,omitempty"`
     LSP               *LSPConfig                 `json:"lsp,omitempty"`
+    Formatter         *FormatterConfig           `json:"formatter,omitempty"`
     Theme             string                     `json:"theme,omitempty"`
 }
 ```
@@ -148,6 +149,7 @@ type Info struct {
 | Reference | map[string]string | `reference` | Directory `@alias` references |
 | Watcher | []string | `watcher` | File watcher ignore patterns |
 | LSP | *LSPConfig | `lsp` | LSP client config (accepts bool or object) |
+| Formatter | *FormatterConfig | `formatter` | Formatter config (accepts bool or object). Off when omitted |
 | Theme | string | `theme` | TUI theme name |
 
 ## 13.4 Sub-Configs
@@ -290,6 +292,33 @@ type LSPServerConfig struct {
     "go": { "command": "gopls", "args": ["serve"] },
     "typescript": { "disabled": true }
   }
+}
+```
+
+### FormatterConfig
+
+```go
+type FormatterConfig struct {
+    Enabled *bool                    `json:"-"`
+    Items   map[string]FormatterItem `json:"-"`
+}
+
+type FormatterItem struct {
+    Disabled    *bool             `json:"disabled,omitempty"`
+    Command     []string          `json:"command,omitempty"`
+    Environment map[string]string `json:"environment,omitempty"`
+    Extensions  []string          `json:"extensions,omitempty"`
+}
+```
+
+`FormatterConfig` has a custom `UnmarshalJSON`. Omit it or set `"formatter": false` to disable formatting. `"formatter": true` enables the built-in `gofmt` formatter for `.go` files. An object enables the built-ins and applies per-name overrides. A custom `command` is an argv; the file path is appended as the last argument.
+
+```jsonc
+"formatter": false
+"formatter": true
+"formatter": {
+  "gofmt": { "disabled": true },
+  "prettier": { "command": ["prettier", "--write"], "extensions": [".ts", ".tsx"] }
 }
 ```
 

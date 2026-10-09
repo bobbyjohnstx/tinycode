@@ -77,6 +77,7 @@ func executeApplyPatch(ctx context.Context, tc *Context, rawArgs json.RawMessage
 		newContent string
 		isNew      bool
 		isDelete   bool
+		note       string
 	}
 	results := make([]fileResult, 0, len(patches))
 
@@ -121,7 +122,8 @@ func executeApplyPatch(ctx context.Context, tc *Context, rawArgs json.RawMessage
 	}
 
 	// Phase 2: All hunks applied successfully — write all files
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		if r.isDelete {
 			if err := os.Remove(r.path); err != nil && !os.IsNotExist(err) {
 				return &ExecuteResult{Output: fmt.Sprintf("Error deleting file %s: %v", r.path, err), IsError: true}, nil
@@ -146,6 +148,7 @@ func executeApplyPatch(ctx context.Context, tc *Context, rawArgs json.RawMessage
 		if err := writeFileSync(r.path, []byte(r.newContent), 0644); err != nil {
 			return &ExecuteResult{Output: fmt.Sprintf("Error writing file %s: %v", r.path, err), IsError: true}, nil
 		}
+		r.note = formatNote(ctx, tc, r.path)
 
 		if tc.Bus != nil {
 			op := "edit"
@@ -172,6 +175,7 @@ func executeApplyPatch(ctx context.Context, tc *Context, rawArgs json.RawMessage
 		} else {
 			summary.WriteString(fmt.Sprintf("Modified %s", r.path))
 		}
+		summary.WriteString(r.note)
 	}
 	return &ExecuteResult{Output: summary.String()}, nil
 }

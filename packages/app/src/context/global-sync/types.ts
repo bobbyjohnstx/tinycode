@@ -2,6 +2,7 @@ import type {
   Agent,
   Command,
   Config,
+  FormatterStatus,
   LspStatus,
   McpStatus,
   Message,
@@ -65,6 +66,7 @@ export type State = {
   }
   lsp_ready: boolean
   lsp: LspStatus[]
+  formatter: FormatterStatus[]
   vcs: VcsInfo | undefined
   limit: number
   message: {

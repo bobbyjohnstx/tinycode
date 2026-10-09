@@ -19,6 +19,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/formatter"
 	"github.com/bobbyjohnstx/tinycode/internal/lsp"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
@@ -247,8 +248,12 @@ func initTooling(b *bus.Bus, directory string, db *sql.DB, cfg ...*config.Info) 
 		SubagentBudget: subagentBudget,
 		TaskRoundDone:  &atomic.Bool{},
 	}
-	if len(cfg) > 0 && cfg[0] != nil && cfg[0].AutoApprove != nil && *cfg[0].AutoApprove {
-		toolCtx.AutoApprove = true
+	if len(cfg) > 0 && cfg[0] != nil {
+		runner := formatter.Resolve(cfg[0].Formatter)
+		toolCtx.FormatFile = runner.Format
+		if cfg[0].AutoApprove != nil && *cfg[0].AutoApprove {
+			toolCtx.AutoApprove = true
+		}
 	}
 	if len(cfg) > 0 && cfg[0] != nil && cfg[0].ToolOutput != nil {
 		to := cfg[0].ToolOutput

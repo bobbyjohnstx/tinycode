@@ -12,37 +12,38 @@ import (
 // omitempty to support forward compatibility: unknown fields are silently
 // ignored during unmarshaling.
 type Info struct {
-	Shell             string                    `json:"shell,omitempty"`
-	LogLevel          string                    `json:"logLevel,omitempty"`
-	Model             string                    `json:"model,omitempty"`
-	SmallModel        string                    `json:"small_model,omitempty"`
-	DefaultAgent      string                    `json:"default_agent,omitempty"`
-	CycleAgents       []string                  `json:"cycle_agents,omitempty"`
-	SubagentDepth     *int                      `json:"subagent_depth,omitempty"`
-	Username          string                    `json:"username,omitempty"`
-	Share             string                    `json:"share,omitempty"`
-	Snapshot          *bool                     `json:"snapshot,omitempty"`
-	DisabledProviders []string                  `json:"disabled_providers,omitempty"`
-	EnabledProviders  []string                  `json:"enabled_providers,omitempty"`
-	Server            *ServerConfig             `json:"server,omitempty"`
-	Provider          map[string]ProviderConfig `json:"provider,omitempty"`
-	Permission        *PermissionConfig         `json:"permission,omitempty"`
-	ToolOutput        *ToolOutputConfig         `json:"tool_output,omitempty"`
-	Compaction        *CompactionConfig         `json:"compaction,omitempty"`
-	Instructions      []string                  `json:"instructions,omitempty"`
-	Plugins           []json.RawMessage         `json:"plugins,omitempty"`
-	MCP               map[string]MCPConfig      `json:"mcp,omitempty"`
+	Shell             string                     `json:"shell,omitempty"`
+	LogLevel          string                     `json:"logLevel,omitempty"`
+	Model             string                     `json:"model,omitempty"`
+	SmallModel        string                     `json:"small_model,omitempty"`
+	DefaultAgent      string                     `json:"default_agent,omitempty"`
+	CycleAgents       []string                   `json:"cycle_agents,omitempty"`
+	SubagentDepth     *int                       `json:"subagent_depth,omitempty"`
+	Username          string                     `json:"username,omitempty"`
+	Share             string                     `json:"share,omitempty"`
+	Snapshot          *bool                      `json:"snapshot,omitempty"`
+	DisabledProviders []string                   `json:"disabled_providers,omitempty"`
+	EnabledProviders  []string                   `json:"enabled_providers,omitempty"`
+	Server            *ServerConfig              `json:"server,omitempty"`
+	Provider          map[string]ProviderConfig  `json:"provider,omitempty"`
+	Permission        *PermissionConfig          `json:"permission,omitempty"`
+	ToolOutput        *ToolOutputConfig          `json:"tool_output,omitempty"`
+	Compaction        *CompactionConfig          `json:"compaction,omitempty"`
+	Instructions      []string                   `json:"instructions,omitempty"`
+	Plugins           []json.RawMessage          `json:"plugins,omitempty"`
+	MCP               map[string]MCPConfig       `json:"mcp,omitempty"`
 	Agents            map[string]json.RawMessage `json:"agents,omitempty"`
 	Experimental      *ExperimentalConfig        `json:"experimental,omitempty"`
 	Temperature       *float64                   `json:"temperature,omitempty"`
 	TopP              *float64                   `json:"top_p,omitempty"`
 	MaxTokens         *int                       `json:"max_tokens,omitempty"`
 	Skills            *SkillsConfig              `json:"skills,omitempty"`
-	Attachment        *AttachmentConfig           `json:"attachment,omitempty"`
+	Attachment        *AttachmentConfig          `json:"attachment,omitempty"`
 	Command           map[string]string          `json:"command,omitempty"`
 	Reference         map[string]string          `json:"reference,omitempty"`
 	Watcher           []string                   `json:"watcher,omitempty"`
 	LSP               *LSPConfig                 `json:"lsp,omitempty"`
+	Formatter         *FormatterConfig           `json:"formatter,omitempty"`
 	Theme             string                     `json:"theme,omitempty"`
 	Effort            string                     `json:"effort,omitempty"`
 	AutoApprove       *bool                      `json:"autoApprove,omitempty"`
@@ -60,9 +61,9 @@ type HookConfig struct {
 // LSPConfig holds language server protocol client settings.
 // Accepts both a boolean (e.g. "lsp": true) and an object in JSON.
 type LSPConfig struct {
-	Enabled *bool                       `json:"enabled,omitempty"`
-	Servers map[string]LSPServerConfig  `json:"servers,omitempty"`
-	Timeout *int                        `json:"timeout,omitempty"`
+	Enabled *bool                      `json:"enabled,omitempty"`
+	Servers map[string]LSPServerConfig `json:"servers,omitempty"`
+	Timeout *int                       `json:"timeout,omitempty"`
 }
 
 func (c *LSPConfig) UnmarshalJSON(data []byte) error {
@@ -79,6 +80,53 @@ func (c *LSPConfig) UnmarshalJSON(data []byte) error {
 	}
 	*c = LSPConfig(alias)
 	return nil
+}
+
+// FormatterConfig enables code formatters that run after a file write.
+// Accepts false, true, or an object of named formatters.
+// An object enables the built-ins and applies those overrides.
+type FormatterConfig struct {
+	Enabled *bool                    `json:"-"`
+	Items   map[string]FormatterItem `json:"-"`
+}
+
+// FormatterItem is one named formatter. Command is the argv, and the file
+// path is appended as the last argument when the formatter runs.
+type FormatterItem struct {
+	Disabled    *bool             `json:"disabled,omitempty"`
+	Command     []string          `json:"command,omitempty"`
+	Environment map[string]string `json:"environment,omitempty"`
+	Extensions  []string          `json:"extensions,omitempty"`
+}
+
+func (c *FormatterConfig) UnmarshalJSON(data []byte) error {
+	var b bool
+	if err := json.Unmarshal(data, &b); err == nil {
+		c.Enabled = &b
+		c.Items = nil
+		return nil
+	}
+	var items map[string]FormatterItem
+	if err := json.Unmarshal(data, &items); err != nil {
+		return err
+	}
+	enabled := true
+	c.Enabled = &enabled
+	c.Items = items
+	return nil
+}
+
+func (c FormatterConfig) MarshalJSON() ([]byte, error) {
+	if len(c.Items) > 0 {
+		return json.Marshal(c.Items)
+	}
+	if c.Enabled != nil && *c.Enabled {
+		return []byte("true"), nil
+	}
+	if c.Enabled != nil && !*c.Enabled {
+		return []byte("false"), nil
+	}
+	return []byte("null"), nil
 }
 
 // LSPServerConfig holds per-language server overrides.
@@ -426,6 +474,9 @@ func mergeScalarFields(result, src *Info) {
 	}
 	if src.LSP != nil {
 		result.LSP = deepMergePtr(result.LSP, src.LSP)
+	}
+	if src.Formatter != nil {
+		result.Formatter = deepMergePtr(result.Formatter, src.Formatter)
 	}
 	if src.Effort != "" {
 		result.Effort = src.Effort

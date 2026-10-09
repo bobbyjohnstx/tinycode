@@ -367,7 +367,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 
 **TS behavior:** Configurable code formatter runs after file write/edit. Formatter status available via `GET /formatter`.
 
-**Go status:** Not implemented.
+**Go status:** Implemented. Omit or `"formatter": false` disables formatting. `"formatter": true` enables built-in `gofmt` for `.go` files via `go/format`. An object enables the built-ins and applies per-name overrides (`disabled`, `command`, `extensions`, `environment`). `write`, `edit`, and `apply_patch` run the matching formatter after a successful write. A formatter error is reported in the tool output and does not undo the write. `GET /formatter` returns `[{name, extensions, enabled}]`, or `[]` when formatting is off. See the user guide.
 
 ---
 

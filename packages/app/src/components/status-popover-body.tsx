@@ -321,6 +321,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
   const mcpConnected = createMemo(() => mcpNames().filter((name) => mcpStatus(name) === "connected").length)
   const lspItems = createMemo(() => sync.data.lsp ?? [])
   const lspCount = createMemo(() => lspItems().length)
+  const formatterItems = createMemo(() => sync.data.formatter ?? [])
   const plugins = createMemo(() =>
     (sync.data.config.plugin ?? []).map((item) => (typeof item === "string" ? item : item[0])),
   )
@@ -484,7 +485,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
         </Tabs.Content>
 
         <Tabs.Content value="lsp">
-          <div class="flex flex-col px-2 pb-2">
+          <div class="flex flex-col gap-2 px-2 pb-2">
             <div class="flex flex-col p-3 bg-background-base rounded-sm min-h-14">
               <Show
                 when={lspItems().length > 0}
@@ -503,6 +504,33 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                         }}
                       />
                       <span class="text-14-regular text-text-base truncate">{item.name || item.id}</span>
+                    </div>
+                  )}
+                </For>
+              </Show>
+            </div>
+            <div class="flex flex-col p-3 bg-background-base rounded-sm min-h-14">
+              <div class="text-12-medium text-text-weak px-2 pb-1">{language.t("dialog.formatter.heading")}</div>
+              <Show
+                when={formatterItems().length > 0}
+                fallback={
+                  <div class="text-14-regular text-text-base text-center my-auto">
+                    {language.t("dialog.formatter.empty")}
+                  </div>
+                }
+              >
+                <For each={formatterItems()}>
+                  {(item) => (
+                    <div class="flex items-center gap-2 w-full px-2 py-1">
+                      <div
+                        classList={{
+                          "size-1.5 rounded-full shrink-0": true,
+                          "bg-icon-success-base": item.enabled,
+                          "bg-border-weak-base": !item.enabled,
+                        }}
+                      />
+                      <span class="text-14-regular text-text-base truncate">{item.name}</span>
+                      <span class="text-12-regular text-text-weak truncate">{item.extensions.join(" ")}</span>
                     </div>
                   )}
                 </For>

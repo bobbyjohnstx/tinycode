@@ -93,6 +93,65 @@ func TestWriteExistingUnreadFileWarning(t *testing.T) {
 	}
 }
 
+func TestWrite_AppendsFormatterNote(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.go")
+
+	tc := &Context{
+		Directory: dir,
+		ReadFiles: NewSafeReadFiles(),
+		FormatFile: func(context.Context, string) (string, bool, error) {
+			return "gofmt", true, nil
+		},
+	}
+	result, err := executeWrite(context.Background(), tc, mustJSON(t, writeArgs{
+		FilePath: path,
+		Content:  "package main\n",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "Formatted with gofmt") {
+		t.Fatalf("output = %q", result.Output)
+	}
+}
+
+func TestWrite_KeepsFileWhenFormatterFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.go")
+
+	tc := &Context{
+		Directory: dir,
+		ReadFiles: NewSafeReadFiles(),
+		FormatFile: func(context.Context, string) (string, bool, error) {
+			return "gofmt", false, os.ErrInvalid
+		},
+	}
+	result, err := executeWrite(context.Background(), tc, mustJSON(t, writeArgs{
+		FilePath: path,
+		Content:  "package main\n",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("formatter failure should stay in the tool output: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "Formatter failed:") {
+		t.Fatalf("output = %q", result.Output)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "package main\n" {
+		t.Fatalf("file = %q", got)
+	}
+}
+
 func TestWriteExistingReadFileNoWarning(t *testing.T) {
 	dir, _ := filepath.EvalSymlinks(t.TempDir())
 	path := filepath.Join(dir, "existing.txt")

@@ -59,6 +59,12 @@ export const loadLspQuery = (directory: string, sdk: TinycodeClient) =>
     queryFn: () => sdk.lsp.status().then((r) => Array.isArray(r.data) ? r.data : []),
   })
 
+export const loadFormatterQuery = (directory: string, sdk: TinycodeClient) =>
+  queryOptions({
+    queryKey: [directory, "formatter"] as const,
+    queryFn: () => sdk.formatter.status().then((r) => (Array.isArray(r.data) ? r.data : [])),
+  })
+
 function makeQueryOptionsApi(serverSDK: () => TinycodeClient, sdkFor: (dir: PathKey) => TinycodeClient) {
   return {
     globalConfig: () => loadGlobalConfigQuery(serverSDK()),
@@ -69,6 +75,7 @@ function makeQueryOptionsApi(serverSDK: () => TinycodeClient, sdkFor: (dir: Path
     agents: (directory: PathKey) => loadAgentsQuery(directory, sdkFor(directory)),
     mcp: (directory: PathKey) => loadMcpQuery(directory, sdkFor(directory)),
     lsp: (directory: PathKey) => loadLspQuery(directory, sdkFor(directory)),
+    formatter: (directory: PathKey) => loadFormatterQuery(directory, sdkFor(directory)),
     sessions: (directory: PathKey) => ({ queryKey: [directory, "loadSessions"] as const }),
   }
 }

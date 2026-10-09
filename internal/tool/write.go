@@ -67,6 +67,7 @@ func executeWrite(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	if err := writeFileSync(path, []byte(args.Content), 0644); err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Error writing file: %v", err), IsError: true}, nil
 	}
+	note := formatNote(ctx, tc, path)
 
 	if tc.Bus != nil {
 		tc.Bus.Publish("file.modified", map[string]any{
@@ -76,7 +77,7 @@ func executeWrite(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		})
 	}
 
-	output := fmt.Sprintf("Successfully wrote %d bytes to %s", len(args.Content), path)
+	output := fmt.Sprintf("Successfully wrote %d bytes to %s", len(args.Content), path) + note
 	if warnUnread {
 		output = "WARNING: You have not read this file. The write may be based on incorrect assumptions about the file's contents.\n\n" + output
 	}
