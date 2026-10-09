@@ -144,14 +144,13 @@ func unauthorizedHTML(mode AuthMode) string {
 <p>This is the tinycode web UI, but this browser is not authenticated.</p>
 <ul>
 <li>Run <code>tinycode web</code> again — it opens a URL that sets your session cookie.</li>
-<li>Or paste the startup URL that includes <code>?auth_token=…</code> (printed in the server log).</li>
 <li>Use the same host as the server (<code>127.0.0.1</code> vs <code>localhost</code> are different cookies).</li>
 </ul>`
 	default:
 		body = `<h1>Authentication required</h1>
 <p><code>tinycode serve</code> exposes a JSON API plus a small ops console (status, doctor, models, sessions).</p>
 <ul>
-<li>Open the <code>?auth_token=…</code> URL printed in the server log (sets a session cookie).</li>
+<li>Open the <code>?auth_token=…</code> URL printed in the terminal when <code>tinycode serve</code> starts (sets a session cookie). The log file stores only a truncated token.</li>
 <li>API clients: send <code>Authorization: Bearer &lt;token&gt;</code>.</li>
 <li>Full chat UI: run <code>tinycode web</code> (separate command).</li>
 </ul>`

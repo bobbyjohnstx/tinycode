@@ -312,7 +312,7 @@ Starts the HTTP API server without the TUI. The server binds to the configured h
 - Blocks until SIGINT or SIGTERM
 - Graceful shutdown: disposes all sessions, drains connections, stops listener
 - Ops console HTML pages when `ServeWebUI` is false (default for `serve`); Solid SPA when `ServeWebUI` is true (`web`)
-- Bearer token authentication when `TINYCODE_AUTH_TOKEN` is set (auto-generated and logged on startup if unset; disabled via `TINYCODE_NO_AUTH`); serve also logs an ops-console `?auth_token=` browser URL
+- Bearer token authentication when `TINYCODE_AUTH_TOKEN` is set (auto-generated if unset; the log records an 8-character prefix; disabled via `TINYCODE_NO_AUTH`); `tinycode serve` prints an ops-console `?auth_token=` URL to the terminal and does not write that URL to the log
 
 ### Environment Variables
 

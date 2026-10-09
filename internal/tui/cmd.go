@@ -140,6 +140,17 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 			IsError: false,
 		}
 
+	case "toast":
+		text := stringProp(props, "message")
+		if text == "" {
+			return SSEEventMsg{Event: evt}
+		}
+		kind := stringProp(props, "type")
+		return ToastMsg{
+			Text:    text,
+			IsError: kind == "warning" || kind == "error",
+		}
+
 	case "subagent.completed":
 		label, _ := props["label"].(string)
 		agent, _ := props["agent"].(string)

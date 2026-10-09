@@ -73,6 +73,25 @@ func TestExtractAllowedPerms_SpecificAllowAfterWildcardDeny(t *testing.T) {
 	}
 }
 
+func TestExtractAllowedPerms_AskStaysVisible(t *testing.T) {
+	ruleset := permission.Ruleset{
+		{Permission: "read", Pattern: "*", Action: permission.ActionAllow},
+		{Permission: "read", Pattern: ".env*", Action: permission.ActionAsk},
+		{Permission: "webfetch", Pattern: "*", Action: permission.ActionAsk},
+	}
+	result := extractAllowedPerms(ruleset)
+	sort.Strings(result)
+	expected := []string{"read", "webfetch"}
+	if len(result) != len(expected) {
+		t.Fatalf("got %v, want %v", result, expected)
+	}
+	for i, perm := range expected {
+		if result[i] != perm {
+			t.Errorf("result[%d] = %q, want %q", i, result[i], perm)
+		}
+	}
+}
+
 func TestExtractAllowedPerms_NilRuleset(t *testing.T) {
 	result := extractAllowedPerms(nil)
 	if len(result) != 0 {

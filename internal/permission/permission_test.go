@@ -739,6 +739,31 @@ func TestDisabled_EmptyRuleset(t *testing.T) {
 	}
 }
 
+func TestVisible_AskKeepsTool(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "read", Pattern: "*", Action: ActionAllow},
+		{Permission: "read", Pattern: ".env*", Action: ActionAsk},
+		{Permission: "webfetch", Pattern: "*", Action: ActionAsk},
+		{Permission: "edit", Pattern: "*", Action: ActionDeny},
+	}
+	got := map[string]bool{}
+	for _, perm := range Visible(rules) {
+		got[perm] = true
+	}
+	if !got["read"] {
+		t.Error("read ask for .env should keep the read tool available")
+	}
+	if !got["webfetch"] {
+		t.Error("webfetch ask should keep the webfetch tool available")
+	}
+	if got["edit"] {
+		t.Error("edit deny should hide the edit tool")
+	}
+	if got["*"] {
+		t.Error("wildcard should not be offered")
+	}
+}
+
 func TestDefaultRules_ReadAllowed(t *testing.T) {
 	result := Evaluate("read", "/some/file.go")
 	if result.Action != ActionAllow {
@@ -1073,4 +1098,3 @@ func TestService_Ask_ReadEnvWithDefaultRules(t *testing.T) {
 		cancel()
 	}
 }
-

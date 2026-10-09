@@ -935,11 +935,11 @@ tinycode web
 
 This starts the API server and opens the embedded web interface in your browser (with an auth URL that sets a session cookie). The web UI is a SolidJS SPA (embedded via `go:embed`) that communicates with the same backend as the TUI. The in-browser terminal (PTY) is not available in the Go product (`PTY_SUPPORTED=false`); session share/publish is disabled by default (`config.share` defaults to `"disabled"`).
 
-`tinycode serve` exposes the JSON API plus a thin **ops console** (status, doctor, models, providers, agents, sessions, plugins) — not the full chat SPA. Use `tinycode web` for the Solid chat UI. If you open the serve URL without auth, you get a short HTML recovery page pointing at the `?auth_token=…` URL from the server log.
+`tinycode serve` exposes the JSON API plus a thin **ops console** (status, doctor, models, providers, agents, sessions, plugins) — not the full chat SPA. Use `tinycode web` for the Solid chat UI. If you open the serve URL without auth, you get a short HTML recovery page. The one-shot `?auth_token=…` URL is printed to the terminal when `tinycode serve` starts.
 
 ### Authentication
 
-By default, `tinycode serve` / `tinycode web` generates an auth token and logs it at startup (with Bearer usage and the server URL). `tinycode web` opens a URL with `?auth_token=…` that sets a cookie (`SameSite=Lax`), then redirects to a clean path. `tinycode serve` prints the same style of ops-console auth URL in the log (it does not open a browser). Set a custom token:
+By default, `tinycode serve` / `tinycode web` generates an auth token. The log records Bearer usage, the server URL, and the first 8 characters of the token. `tinycode web` opens a URL with `?auth_token=…` that sets a cookie (`SameSite=Lax`), then redirects to a clean path. `tinycode serve` prints that URL to the terminal (it does not open a browser, and it does not write the URL to the log). Set a custom token:
 
 ```bash
 TINYCODE_AUTH_TOKEN=my-secret tinycode web
@@ -1250,7 +1250,7 @@ Type `/privacy` in the TUI to see this information with your configured provider
 
 ### Logs
 
-Logs are written to `~/.local/share/tinycode/tinycode.log`. For verbose output:
+Logs are written to `~/.local/share/tinycode/tinycode.log`. The file rotates at 5 MiB and keeps three older copies (`tinycode.log.1` through `tinycode.log.3`). For verbose output:
 
 ```bash
 TINYCODE_LOG_LEVEL=debug tinycode

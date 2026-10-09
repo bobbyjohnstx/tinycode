@@ -149,42 +149,10 @@ func (sm *SessionManager) subscribeSummarize() {
 	})
 }
 
-// extractAllowedPerms returns the set of permission names that are effectively
-// allowed after applying last-wins semantics to the merged ruleset.
-// A later deny rule overrides an earlier allow for the same permission.
+// extractAllowedPerms returns permission names the model may call.
+// Ask stays visible so the execution-time prompt can appear. Deny hides the tool.
 func extractAllowedPerms(ruleset permission.Ruleset) []string {
-	// Collect all unique non-wildcard permission names from the ruleset.
-	seen := make(map[string]struct{})
-	for _, rule := range ruleset {
-		if rule.Permission != "*" {
-			seen[rule.Permission] = struct{}{}
-		}
-	}
-
-	var result []string
-	for perm := range seen {
-		// Last-wins: scan backward, first matching rule determines action.
-		for i := len(ruleset) - 1; i >= 0; i-- {
-			if permission.WildcardMatch(perm, ruleset[i].Permission) {
-				if ruleset[i].Action == permission.ActionAllow {
-					result = append(result, perm)
-				}
-				break
-			}
-		}
-	}
-
-	// Check if the wildcard permission itself is effectively allowed.
-	for i := len(ruleset) - 1; i >= 0; i-- {
-		if ruleset[i].Permission == "*" {
-			if ruleset[i].Action == permission.ActionAllow {
-				result = append(result, "*")
-			}
-			break
-		}
-	}
-
-	return result
+	return permission.Visible(ruleset)
 }
 
 func (sm *SessionManager) bridgeWarning(evt bus.Event) {

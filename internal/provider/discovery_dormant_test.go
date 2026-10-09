@@ -52,8 +52,17 @@ func TestPoll_DormantProviderReconnects(t *testing.T) {
 	if !d.isDormant("ollama") {
 		t.Fatal("expected ollama to be marked dormant")
 	}
+	if d.shouldPoll("ollama") {
+		t.Fatal("dormant provider should wait for backoff")
+	}
+	hitsAtDormant := hits.Load()
+	d.poll(t.Context(), srv.URL, "", "")
+	if hits.Load() != hitsAtDormant {
+		t.Fatal("polled a dormant provider before backoff elapsed")
+	}
+	d.now = func() time.Time { return time.Now().Add(time.Hour) }
 	if !d.shouldPoll("ollama") {
-		t.Fatal("dormant providers must remain eligible for polling")
+		t.Fatal("dormant provider should be eligible after backoff")
 	}
 
 	select {
@@ -80,5 +89,32 @@ func TestPoll_DormantProviderReconnects(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("expected provider.reconnected")
+	}
+}
+
+func TestScheduleDormantPoll_DoublesUntilCap(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	d := NewDiscovery(NewRegistry(), b)
+	base := time.Unix(1_700_000_000, 0)
+	d.now = func() time.Time { return base }
+
+	d.scheduleDormantPoll("ollama")
+	if d.backoff["ollama"] != dormantPollInitial {
+		t.Fatalf("initial backoff = %s, want %s", d.backoff["ollama"], dormantPollInitial)
+	}
+	if !d.nextPoll["ollama"].Equal(base.Add(dormantPollInitial)) {
+		t.Fatalf("next poll = %s", d.nextPoll["ollama"])
+	}
+
+	d.scheduleDormantPoll("ollama")
+	if d.backoff["ollama"] != 2*dormantPollInitial {
+		t.Fatalf("second backoff = %s, want %s", d.backoff["ollama"], 2*dormantPollInitial)
+	}
+
+	d.backoff["ollama"] = dormantPollMax
+	d.scheduleDormantPoll("ollama")
+	if d.backoff["ollama"] != dormantPollMax {
+		t.Fatalf("capped backoff = %s, want %s", d.backoff["ollama"], dormantPollMax)
 	}
 }

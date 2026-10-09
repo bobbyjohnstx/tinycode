@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
@@ -100,6 +102,7 @@ func runServe() {
 
 	slog.Info("server ready", "url", listener.URL.String())
 	logServeAuthToken(serveToken, listener.URL.String())
+	printOpsConsoleURL(os.Stderr, serveToken, listener.URL.String())
 
 	<-ctx.Done()
 	srv.WaitForShutdown()
@@ -278,18 +281,26 @@ func logServeAuthToken(token, baseURL string) {
 	if token == "" {
 		return
 	}
-	prefix := token
-	if len(prefix) > 8 {
-		prefix = prefix[:8] + "..."
-	}
 	slog.Info("authentication required",
 		"usage", "Authorization: Bearer <token>",
-		"url", baseURL,
-		"token", prefix,
+		"url", strings.TrimRight(baseURL, "/"),
+		"token", truncateToken(token),
 	)
-	// Browser ops console on serve: print a one-shot auth URL (sets cookie, then redirect).
+}
+
+func truncateToken(token string) string {
+	if len(token) <= 8 {
+		return token
+	}
+	return token[:8] + "..."
+}
+
+// printOpsConsoleURL writes the one-shot browser URL to the terminal.
+// The log records only truncateToken; this URL is not passed to slog.
+func printOpsConsoleURL(w io.Writer, token, baseURL string) {
+	if token == "" {
+		return
+	}
 	authParam := base64.StdEncoding.EncodeToString([]byte("tinycode:" + token))
-	slog.Info("ops console",
-		"url", strings.TrimRight(baseURL, "/")+"/?auth_token="+authParam,
-	)
+	fmt.Fprintf(w, "ops console: %s/?auth_token=%s\n", strings.TrimRight(baseURL, "/"), authParam)
 }

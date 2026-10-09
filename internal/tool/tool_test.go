@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
@@ -207,6 +208,39 @@ func TestRegistry_ToolDefs_BashShellAlias(t *testing.T) {
 	defs := r.ToolDefs([]string{"bash", "read"})
 	if len(defs) != 2 {
 		t.Fatalf("expected bash+read when bash allowed, got %d tools", len(defs))
+	}
+}
+
+func TestRegistry_ToolDefs_BuildAgentOffersAskTools(t *testing.T) {
+	reg := agent.NewRegistry()
+	if err := reg.LoadDefaults(agent.DefaultPerms, nil); err != nil {
+		t.Fatalf("LoadDefaults: %v", err)
+	}
+	build := reg.Get("build", nil)
+	if build == nil {
+		t.Fatal("build agent not found")
+	}
+
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	RegisterBuiltins(r)
+	names := map[string]bool{}
+	for _, d := range r.ToolDefs(permission.Visible(build.Permission)) {
+		names[d.Function.Name] = true
+	}
+	for _, want := range []string{"read", "grep", "glob", "edit", "write", "apply_patch", "bash", "webfetch", "task", "diagnostics"} {
+		if !names[want] {
+			t.Errorf("build agent should offer %s", want)
+		}
+	}
+
+	explore := reg.Get("explore", nil)
+	if explore == nil {
+		t.Fatal("explore agent not found")
+	}
+	for _, d := range r.ToolDefs(permission.Visible(explore.Permission)) {
+		if d.Function.Name == "edit" || d.Function.Name == "write" {
+			t.Errorf("explore should not offer %s", d.Function.Name)
+		}
 	}
 }
 

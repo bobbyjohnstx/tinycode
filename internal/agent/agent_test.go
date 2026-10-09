@@ -917,3 +917,91 @@ func TestLoadDefaults_ScoutPromptHonesty(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildAgent_SensitiveActionsAsk(t *testing.T) {
+	if len(DefaultPerms) != 0 {
+		t.Fatalf("shared agent seed must stay empty, got %#v", DefaultPerms)
+	}
+
+	r := NewRegistry()
+	if err := r.LoadDefaults(DefaultPerms, nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+	build := r.Get("build", nil)
+	if build == nil {
+		t.Fatal("build agent not found")
+	}
+
+	asks := []struct {
+		permission string
+		pattern    string
+	}{
+		{"read", ".env"},
+		{"read", ".env.local"},
+		{"webfetch", "https://example.com"},
+		{"external_directory", "/tmp/outside"},
+		{"destructive-shell", "rm -rf /tmp/x"},
+	}
+	for _, tc := range asks {
+		got := permission.Evaluate(tc.permission, tc.pattern, build.Permission)
+		if got.Action != permission.ActionAsk {
+			t.Errorf("build %s %q: got %s, want ask", tc.permission, tc.pattern, got.Action)
+		}
+	}
+
+	allows := []struct {
+		permission string
+		pattern    string
+	}{
+		{"read", "main.go"},
+		{"edit", "main.go"},
+		{"shell", "ls"},
+		{"bash", "ls"},
+	}
+	for _, tc := range allows {
+		got := permission.Evaluate(tc.permission, tc.pattern, build.Permission)
+		if got.Action != permission.ActionAllow {
+			t.Errorf("build %s %q: got %s, want allow", tc.permission, tc.pattern, got.Action)
+		}
+	}
+
+	general := r.Get("general", nil)
+	if general == nil {
+		t.Fatal("general agent not found")
+	}
+	if got := permission.Evaluate("edit", "main.go", general.Permission); got.Action != permission.ActionAsk {
+		t.Errorf("general edit: got %s, want ask", got.Action)
+	}
+	if got := permission.Evaluate("read", "main.go", general.Permission); got.Action != permission.ActionAllow {
+		t.Errorf("general read: got %s, want allow", got.Action)
+	}
+
+	explore := r.Get("explore", nil)
+	if explore == nil {
+		t.Fatal("explore agent not found")
+	}
+	if got := permission.Evaluate("edit", "main.go", explore.Permission); got.Action != permission.ActionDeny {
+		t.Errorf("explore edit: got %s, want deny", got.Action)
+	}
+
+	plan := r.Get("plan", nil)
+	if plan == nil {
+		t.Fatal("plan agent not found")
+	}
+	if got := permission.Evaluate("edit", "internal/foo.go", plan.Permission); got.Action != permission.ActionDeny {
+		t.Errorf("plan edit outside plans: got %s, want deny", got.Action)
+	}
+	if got := permission.Evaluate("edit", "plans/foo.md", plan.Permission); got.Action != permission.ActionAllow {
+		t.Errorf("plan edit plans/foo.md: got %s, want allow", got.Action)
+	}
+
+	withUser := NewRegistry()
+	user := permission.Ruleset{{Permission: "webfetch", Pattern: "*", Action: permission.ActionAllow}}
+	if err := withUser.LoadDefaults(DefaultPerms, user); err != nil {
+		t.Fatalf("LoadDefaults with user rules failed: %v", err)
+	}
+	build = withUser.Get("build", nil)
+	if got := permission.Evaluate("webfetch", "https://example.com", build.Permission); got.Action != permission.ActionAllow {
+		t.Errorf("user webfetch allow: got %s, want allow", got.Action)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 )
@@ -287,8 +288,12 @@ func TestHandleDiscoveryFailure_RemovesProviderAfterMaxFailures(t *testing.T) {
 	if !d.isDormant("test-prov") {
 		t.Error("expected provider to be dormant after max failures")
 	}
+	if d.shouldPoll("test-prov") {
+		t.Error("dormant provider should wait for backoff before the next probe")
+	}
+	d.now = func() time.Time { return time.Now().Add(dormantPollInitial) }
 	if !d.shouldPoll("test-prov") {
-		t.Error("dormant providers must still be polled for reconnect")
+		t.Error("dormant provider should be probed again after backoff")
 	}
 
 	// Should have published provider.removed.

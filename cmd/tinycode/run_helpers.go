@@ -302,11 +302,7 @@ func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Reg
 	if agentInfo != nil {
 		agentPrompt = agentInfo.Prompt
 		agentRuleset = agentInfo.Permission
-		for _, rule := range agentInfo.Permission {
-			if rule.Action == permission.ActionAllow {
-				agentPerms = append(agentPerms, rule.Permission)
-			}
-		}
+		agentPerms = permission.Visible(agentInfo.Permission)
 		tools = toolReg.WithAgentRules(agentInfo.Permission)
 	}
 

@@ -57,6 +57,8 @@ func (p *Processor) applyPendingAgentSwitch() string {
 	return target
 }
 
+const maxConcurrentTools = 8
+
 func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part, bool) {
 	type toolResult struct {
 		index  int
@@ -66,12 +68,20 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 
 	results := make([]Part, len(toolCalls))
 	ch := make(chan toolResult, len(toolCalls))
+	sem := make(chan struct{}, maxConcurrentTools)
 
 	var wg sync.WaitGroup
+launch:
 	for i, tc := range toolCalls {
+		select {
+		case <-ctx.Done():
+			break launch
+		case sem <- struct{}{}:
+		}
 		wg.Add(1)
 		go func(idx int, call Part) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
 					slog.Error("tool panicked", "tool", call.ToolName, "panic", r)

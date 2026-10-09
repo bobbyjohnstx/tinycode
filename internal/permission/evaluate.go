@@ -94,6 +94,42 @@ func permissionKeysForTool(tool string) []string {
 	return keys
 }
 
+// Visible returns permission names the model may call. A permission is
+// included when its last matching rule allows or asks, so a prompt can
+// still appear. A later deny hides it. The wildcard "*" is included only
+// when the last "*" rule allows; an ask on a specific permission does not
+// grant every tool.
+func Visible(ruleset Ruleset) []string {
+	seen := make(map[string]struct{})
+	for _, rule := range ruleset {
+		if rule.Permission != "*" {
+			seen[rule.Permission] = struct{}{}
+		}
+	}
+
+	var result []string
+	for perm := range seen {
+		for i := len(ruleset) - 1; i >= 0; i-- {
+			if WildcardMatch(perm, ruleset[i].Permission) {
+				if ruleset[i].Action == ActionAllow || ruleset[i].Action == ActionAsk {
+					result = append(result, perm)
+				}
+				break
+			}
+		}
+	}
+
+	for i := len(ruleset) - 1; i >= 0; i-- {
+		if ruleset[i].Permission == "*" {
+			if ruleset[i].Action == ActionAllow {
+				result = append(result, "*")
+			}
+			break
+		}
+	}
+	return result
+}
+
 // Disabled returns the set of tool names that are globally denied
 // (pattern "*" with action "deny").
 func Disabled(tools []string, ruleset Ruleset) map[string]bool {

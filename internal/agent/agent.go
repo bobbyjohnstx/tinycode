@@ -17,6 +17,39 @@ import (
 //go:embed defaults/*.md defaults/*.txt
 var defaultsFS embed.FS
 
+// DefaultPerms is the shared seed merged ahead of each agent's own rules.
+// It is empty on purpose. A catch-all allow is evaluated after DefaultRules
+// and would approve .env reads, webfetch, external directories, and
+// destructive shell for every agent that does not override it.
+var DefaultPerms permission.Ruleset
+
+// buildPerms allows ordinary work for the default agent. The ask rules come
+// after those allows so last-match prompts for .env reads, webfetch,
+// directories outside the project, and destructive shell. User rules are
+// merged after this set and can still override an ask.
+//
+// read covers grep, glob, question, skill, and websearch, which use the read
+// permission. edit covers write, apply_patch, and todowrite. shell covers
+// bash and monitor. task, diagnostics, notepad, and report_findings have no
+// permission of their own; naming them here keeps them in the tool list.
+var buildPerms = permission.Ruleset{
+	{Permission: "question", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "plan_enter", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "read", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "grep", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "glob", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "edit", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "shell", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "task", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "diagnostics", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "notepad", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "report_findings", Pattern: "*", Action: permission.ActionAllow},
+	{Permission: "read", Pattern: ".env*", Action: permission.ActionAsk},
+	{Permission: "webfetch", Pattern: "*", Action: permission.ActionAsk},
+	{Permission: "external_directory", Pattern: "*", Action: permission.ActionAsk},
+	{Permission: "destructive-shell", Pattern: "*", Action: permission.ActionAsk},
+}
+
 type Mode string
 
 const (
@@ -356,10 +389,7 @@ func (r *Registry) registerPrimaryAgents(buildPrompt, planPrompt string, default
 		Prompt:      buildPrompt,
 		Permission: permission.Merge(
 			defaultPerms,
-			permission.Ruleset{
-				{Permission: "question", Pattern: "*", Action: permission.ActionAllow},
-				{Permission: "plan_enter", Pattern: "*", Action: permission.ActionAllow},
-			},
+			buildPerms,
 			userPerms,
 		),
 		Mode:    ModePrimary,

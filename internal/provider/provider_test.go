@@ -194,13 +194,13 @@ func TestNumCtxFromProfileName(t *testing.T) {
 func TestCalculateNumCtx(t *testing.T) {
 	gpuMem := int64(16) * 1024 * 1024 * 1024 // 16 GB
 	info := OllamaShowResult{
-		ParameterSize:    "9B",
+		ParameterSize:     "9B",
 		QuantizationLevel: "Q4_K_M",
-		BlockCount:       32,
-		EmbeddingLength:  4096,
-		HeadCount:        32,
-		HeadCountKV:      8,
-		ContextLength:    131072,
+		BlockCount:        32,
+		EmbeddingLength:   4096,
+		HeadCount:         32,
+		HeadCountKV:       8,
+		ContextLength:     131072,
 	}
 
 	numCtx := CalculateNumCtx(gpuMem, info, 131072)
@@ -405,13 +405,21 @@ func TestDiscovery_ShouldPollAllowsRepolling(t *testing.T) {
 		t.Error("expected shouldPoll to return true for already-registered provider (re-polling)")
 	}
 
-	// Mark dormant — shouldPoll must still return true so late-start reconnects work
+	// Mark dormant with a future probe. Live providers still poll every tick;
+	// a dormant one waits, then becomes eligible again.
 	d.dormantMu.Lock()
 	d.dormant["ollama"] = true
+	d.nextPoll["ollama"] = time.Now().Add(time.Hour)
 	d.dormantMu.Unlock()
 
+	if d.shouldPoll("ollama") {
+		t.Error("expected shouldPoll to wait during dormant backoff")
+	}
+	d.dormantMu.Lock()
+	d.nextPoll["ollama"] = time.Now().Add(-time.Second)
+	d.dormantMu.Unlock()
 	if !d.shouldPoll("ollama") {
-		t.Error("expected shouldPoll to return true for dormant provider (reconnect polling)")
+		t.Error("expected shouldPoll once dormant backoff has elapsed")
 	}
 	if !d.isDormant("ollama") {
 		t.Error("expected isDormant true while still polling")

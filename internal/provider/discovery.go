@@ -17,26 +17,31 @@ import (
 const (
 	probeTimeout           = 2 * time.Second
 	pollInterval           = 30 * time.Second
+	dormantPollInitial     = 2 * time.Minute
+	dormantPollMax         = 10 * time.Minute
 	maxConsecutiveFailures = 3
 	maxWarmupFailures      = 3
 )
 
 type Discovery struct {
-	registry     *Registry
-	bus          *bus.Bus
-	client       *http.Client // short timeout for discovery probes
-	ollamaClient *http.Client // longer timeout for Show/Create/Delete
-	cancel       context.CancelFunc
-	autoProfile  *AutoProfileConfig
-	detectGPU    func() (int64, error)
-	gpuMemory    int64
-	gpuOnce      sync.Once
-	warmedMu     sync.Mutex
-	warmedModels map[string]bool
+	registry      *Registry
+	bus           *bus.Bus
+	client        *http.Client // short timeout for discovery probes
+	ollamaClient  *http.Client // longer timeout for Show/Create/Delete
+	cancel        context.CancelFunc
+	autoProfile   *AutoProfileConfig
+	detectGPU     func() (int64, error)
+	gpuMemory     int64
+	gpuOnce       sync.Once
+	warmedMu      sync.Mutex
+	warmedModels  map[string]bool
 	warmingModels map[string]bool
-	warmupFails  map[string]int
-	dormantMu    sync.Mutex
-	dormant      map[string]bool // providers removed after consecutive failures
+	warmupFails   map[string]int
+	dormantMu     sync.Mutex
+	dormant       map[string]bool // providers removed after consecutive failures
+	nextPoll      map[string]time.Time
+	backoff       map[string]time.Duration
+	now           func() time.Time
 }
 
 func NewDiscovery(registry *Registry, b *bus.Bus) *Discovery {
@@ -48,6 +53,9 @@ func NewDiscovery(registry *Registry, b *bus.Bus) *Discovery {
 		warmingModels: make(map[string]bool),
 		warmupFails:   make(map[string]int),
 		dormant:       make(map[string]bool),
+		nextPoll:      make(map[string]time.Time),
+		backoff:       make(map[string]time.Duration),
+		now:           time.Now,
 		client: &http.Client{
 			Timeout: probeTimeout,
 		},
@@ -105,10 +113,37 @@ func (d *Discovery) poll(ctx context.Context, ollamaURL, vllmURL, lmStudioURL st
 }
 
 // shouldPoll reports whether a provider should be probed this tick.
-// Dormant providers stay eligible so a late-start daemon can reconnect.
+// Live providers are probed every tick. Dormant providers wait until their
+// backoff elapses so a late-start daemon can still reconnect.
 func (d *Discovery) shouldPoll(providerID string) bool {
-	_ = providerID
-	return true
+	d.dormantMu.Lock()
+	defer d.dormantMu.Unlock()
+	if !d.dormant[providerID] {
+		return true
+	}
+	next, ok := d.nextPoll[providerID]
+	if !ok {
+		return true
+	}
+	return !d.now().Before(next)
+}
+
+// scheduleDormantPoll sets the next probe for a dormant provider.
+// The first wait is dormantPollInitial; later failures double it up to dormantPollMax.
+func (d *Discovery) scheduleDormantPoll(providerID string) {
+	d.dormantMu.Lock()
+	defer d.dormantMu.Unlock()
+	delay := d.backoff[providerID]
+	if delay <= 0 {
+		delay = dormantPollInitial
+	} else {
+		delay *= 2
+		if delay > dormantPollMax {
+			delay = dormantPollMax
+		}
+	}
+	d.backoff[providerID] = delay
+	d.nextPoll[providerID] = d.now().Add(delay)
 }
 
 // isDormant reports whether a provider was removed after consecutive failures.
@@ -148,13 +183,14 @@ func (d *Discovery) handleDiscoveryFailure(providerID, providerName string, err 
 		d.dormantMu.Lock()
 		d.dormant[providerID] = true
 		d.dormantMu.Unlock()
+		d.scheduleDormantPoll(providerID)
 		d.bus.Publish("provider.removed", map[string]any{
 			"providerID":   providerID,
 			"providerName": providerName,
 			"reason":       "consecutive_failures",
 			"failures":     count,
 		})
-		slog.Warn("provider removed after consecutive failures, continuing to poll for reconnect",
+		slog.Warn("provider removed after consecutive failures, polling for reconnect on backoff",
 			"provider", providerID,
 			"failures", count,
 		)
@@ -167,6 +203,8 @@ func (d *Discovery) handleDiscoverySuccess(providerID string) {
 	d.dormantMu.Lock()
 	wasDormant := d.dormant[providerID]
 	delete(d.dormant, providerID)
+	delete(d.nextPoll, providerID)
+	delete(d.backoff, providerID)
 	d.dormantMu.Unlock()
 
 	prev := d.registry.ResetFailures(providerID)
@@ -611,12 +649,12 @@ func (d *Discovery) discoverVLLM(ctx context.Context, baseURL string) {
 // OpenAI-compat /v1/models omits context; the native API reports both the
 // architectural max and the currently loaded window.
 type lmStudioNativeModel struct {
-	ID                   string   `json:"id"`
-	Type                 string   `json:"type"`
-	State                string   `json:"state"`
-	MaxContextLength     int      `json:"max_context_length"`
-	LoadedContextLength  int      `json:"loaded_context_length"`
-	Capabilities         []string `json:"capabilities"`
+	ID                  string   `json:"id"`
+	Type                string   `json:"type"`
+	State               string   `json:"state"`
+	MaxContextLength    int      `json:"max_context_length"`
+	LoadedContextLength int      `json:"loaded_context_length"`
+	Capabilities        []string `json:"capabilities"`
 }
 
 type lmStudioNativeModelsResponse struct {

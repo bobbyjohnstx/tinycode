@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -30,7 +31,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
-var logFile *os.File
+var logFile io.Closer
 
 func setupLogger() {
 	levelStr := os.Getenv("TINYCODE_LOG_LEVEL")
@@ -55,7 +56,7 @@ func setupLogger() {
 	os.MkdirAll(dataDir, 0o700)
 
 	logPath := filepath.Join(dataDir, "tinycode.log")
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := openRotatingLog(logPath, logMaxBytes, logMaxFiles)
 	if err != nil {
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 		slog.Warn("failed to open log file, falling back to stderr", "path", logPath, "error", err)
@@ -204,9 +205,7 @@ func serverConfig(cfg *config.Info, serveWebUI bool) server.Config {
 }
 
 func initAgentRegistry(cfg *config.Info, directory string) *agent.Registry {
-	defaultPerms := permission.Ruleset{
-		{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
-	}
+	defaultPerms := agent.DefaultPerms
 	var userPerms permission.Ruleset
 	if cfg.Permission != nil {
 		userPerms = permission.FromConfig(cfg.Permission.Allow, cfg.Permission.Deny)
