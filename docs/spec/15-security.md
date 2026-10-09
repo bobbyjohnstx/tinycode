@@ -171,7 +171,13 @@ When a secret-file pattern matches:
 
 ### Credential environment
 
-Shell commands, monitors, diagnostics, goal checks, plugins, MCP stdio, language servers, and custom formatters receive `procenv.Child` instead of the raw process environment. Names that look like credentials are removed (`OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `AWS_SECRET_ACCESS_KEY`, and the same suffixes). `PATH`, `HOME`, `KUBECONFIG`, and `SSH_AUTH_SOCK` stay. A configured `env` map for MCP, LSP, or a formatter is applied after the filter, so that one child can receive a token on purpose. `gh` and `git` keep working when their credentials live in the system keychain rather than in an environment variable.
+Source: `internal/procenv`
+
+Shell commands, `!` commands, monitors, diagnostics, goal checks, plugins, MCP stdio, language servers, custom formatters, and config shell hooks receive `procenv.Child` instead of the raw process environment. The interactive `/shell` session does not; it is the user's shell.
+
+A name is removed, case-insensitively, when it ends with `_API_KEY`, `_APIKEY`, `_SECRET`, `_TOKEN`, `_PASSWORD`, `_PASSWD`, `_CREDENTIAL`, `_CREDENTIALS`, `_PRIVATE_KEY`, or `_ACCESS_KEY`; when it contains `API_KEY`, `SECRET_KEY`, `ACCESS_KEY`, `SESSION_TOKEN`, or `AUTH_TOKEN`; or when it is exactly `AUTHORIZATION`, `AUTH_HEADER`, `SECRET`, `TOKEN`, or `PASSWORD`.
+
+`PATH`, `HOME`, `KUBECONFIG`, and `SSH_AUTH_SOCK` stay. MCP `env`, LSP server `env`, and formatter `environment` are applied after the filter, so one child can receive a token on purpose. `gh` and `git` keep working when their credentials live in the system keychain.
 
 ### Audit Trail
 

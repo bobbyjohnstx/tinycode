@@ -221,7 +221,7 @@ type CompactionConfig struct {
 }
 ```
 
-See [05-context-compaction.md](05-context-compaction.md) for compaction behavior.
+The session uses `mask_observations` (default true), `preserve_recent_tokens` (clamped to 2000–15000), and `max_messages` (default 80). `auto`, `prune`, `tail_turns`, and `reserved` are parsed and not applied. See [05-context-compaction.md](05-context-compaction.md).
 
 ### ExperimentalConfig
 
@@ -232,7 +232,7 @@ type ExperimentalConfig struct {
 }
 ```
 
-`AutoContinue` controls maximum automatic continuation iterations (0 = disabled).
+`auto_continue` is read by `tinycode run` only. `0` leaves the run stopped after a turn. A positive value is the number of unattended continuations. `doom_loop_threshold` is parsed and not applied; the processor stops after 3 identical tool calls.
 
 ### SkillsConfig
 

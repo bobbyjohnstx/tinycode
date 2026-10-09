@@ -537,13 +537,14 @@ Configure compaction behavior in config:
 ```json
 {
   "compaction": {
-    "auto": true,
-    "max_messages": 80,
-    "tail_turns": 4,
-    "preserve_recent_tokens": 8000
+    "mask_observations": true,
+    "preserve_recent_tokens": 8000,
+    "max_messages": 80
   }
 }
 ```
+
+`mask_observations` defaults to true and replaces old tool results with stubs. `preserve_recent_tokens` is how many recent tokens stay unsummarized; values outside 2000–15000 are clamped. `max_messages` defaults to 80 and triggers summarization once the session reaches that many messages. `auto`, `prune`, `tail_turns`, and `reserved` are accepted in the file and not applied.
 
 ---
 
@@ -592,7 +593,7 @@ Config files support JSONC (JSON with comments) and environment variable substit
   // Permission rules
   "permission": {
     "allow": ["read", "grep", "glob"],
-    "deny": ["shell:rm *"]
+    "deny": ["shell rm *"]
   },
 
   // Custom instructions included in every prompt
@@ -635,6 +636,105 @@ Config files support JSONC (JSON with comments) and environment variable substit
 | `disabled_providers` | `[]` | Providers to hide |
 | `enabled_providers` | `[]` | Providers to show (if set, only these appear) |
 | `formatter` | off | Run a formatter after `write`, `edit`, and `apply_patch`. `true` enables built-in `gofmt` |
+| `tool_output.max_lines` | `2000` | Lines kept from a tool result before truncation |
+| `tool_output.max_bytes` | `51200` | Bytes kept from a tool result before truncation |
+| `skills.paths` | *(none)* | Extra directories scanned for `*/SKILL.md` |
+| `hooks` | *(none)* | Shell commands on session and tool events. See below |
+
+### Child process environment
+
+Shell commands, `!` commands, monitors, diagnostics, goal checks, plugins, MCP stdio servers, language servers, and custom formatters do not inherit credential environment variables from the tinycode process. A command such as `env` cannot read `OPENROUTER_API_KEY` and put it in the transcript.
+
+A name is removed when it matches any of these, ignoring case:
+
+- It ends with `_API_KEY`, `_APIKEY`, `_SECRET`, `_TOKEN`, `_PASSWORD`, `_PASSWD`, `_CREDENTIAL`, `_CREDENTIALS`, `_PRIVATE_KEY`, or `_ACCESS_KEY`
+- It contains `API_KEY`, `SECRET_KEY`, `ACCESS_KEY`, `SESSION_TOKEN`, or `AUTH_TOKEN`
+- It is exactly `AUTHORIZATION`, `AUTH_HEADER`, `SECRET`, `TOKEN`, or `PASSWORD`
+
+Everything else is passed through, including `PATH`, `HOME`, `USER`, `LANG`, `KUBECONFIG`, `SSH_AUTH_SOCK`, `GOPROXY`, and `TERM`. `git` and `gh` still work when their credentials live in the system keychain. The interactive `/shell` session is your own shell and still receives the full environment.
+
+A token that one child needs belongs in that child's config map. Those values are applied after the filter:
+
+```json
+{
+  "mcp": {
+    "github": {
+      "command": "github-mcp",
+      "env": { "GITHUB_TOKEN": "{env:GITHUB_TOKEN}" }
+    }
+  },
+  "lsp": {
+    "servers": {
+      "typescript": { "env": { "NPM_TOKEN": "{env:NPM_TOKEN}" } }
+    }
+  },
+  "formatter": {
+    "prettier": {
+      "command": ["prettier", "--write"],
+      "extensions": [".ts", ".tsx"],
+      "environment": { "PRETTIER_TOKEN": "{env:PRETTIER_TOKEN}" }
+    }
+  }
+}
+```
+
+`{env:VAR}` is replaced when the config file is loaded. The parent process still has the variable. Only the child named in that map receives the copy.
+
+### Permission rules
+
+Each `permission.allow` or `permission.deny` entry is a permission name, or a name and a pattern separated by the first space. A name alone means pattern `*`. `~` and `$HOME` at the start of a pattern expand to your home directory.
+
+```json
+{
+  "permission": {
+    "allow": ["read", "bash *"],
+    "deny": ["edit /etc/*", "shell rm *"]
+  }
+}
+```
+
+Deny entries are applied after allow entries, so a deny wins over an allow for the same match inside this list. The last matching rule wins overall, including later rules from the agent. `bash` and `shell` are the same permission. `read .env*` , `webfetch *`, paths outside the project, destructive shell commands, and shell commands that name a secret file ask even when a broad allow exists, unless a later rule allows them.
+
+### Shell hooks
+
+`hooks` runs a shell command when a session or tool event fires. The command receives the filtered environment from the section above. `$SESSION_ID`, `$TOOL`, and `$ARGS` are replaced and single-quoted.
+
+| Event | When it runs | Failure |
+|-------|----------------|---------|
+| `session.start` | Session begins | Logged; stdout JSON can add context |
+| `session.end` | Session ends | Logged |
+| `tool.execute.before` | Before a tool runs | Non-zero exit aborts the tool |
+| `tool.execute.after` | After a tool finishes | Logged; stdout JSON can add context |
+
+`timeout` is seconds. The default is 10. `match` runs the hook only when every listed variable equals that value. Match keys are looked up in uppercase (`tool` matches `TOOL`). The value must match exactly.
+
+```json
+{
+  "hooks": {
+    "tool.execute.before": [
+      {
+        "command": "echo '{\"hookSpecificOutput\":{\"additionalContext\":[\"run tests after edits\"]}}'",
+        "match": { "TOOL": "edit" },
+        "timeout": 5
+      }
+    ]
+  }
+}
+```
+
+Plain text on stdout is ignored. A JSON object with `hookSpecificOutput.additionalContext` is added to the model context. Each string is capped at 10,000 characters.
+
+### Other config that is easy to miss
+
+`experimental.auto_continue` applies to `tinycode run` only. `0` leaves the agent stopped after a turn. A positive number lets `tinycode run` continue that many times without another prompt. The TUI does not read this field.
+
+`experimental.doom_loop_threshold` is stored and not applied. The session stops after 3 identical tool calls in a row.
+
+`skills.urls` is stored and not fetched. Only `skills.paths` is scanned.
+
+These keys are accepted and currently have no effect: `attachment`, `watcher`, `reference`, `command`, `effort`, `snapshot`, and `username`. The TUI effort level is a session control, not the `effort` config field.
+
+Binding `tinycode serve` or `tinycode web` to a non-localhost address with auth disabled is refused unless you set `TINYCODE_FORCE_NO_AUTH=1`.
 
 ### Provider environment variables
 
