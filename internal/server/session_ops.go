@@ -351,6 +351,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		ThinkingBudget:  input.ThinkingBudget,
 		TokenBudget:     sm.tokenBudget,
 		SmallModel:      smallModel,
+		DoomThreshold:   config.DoomLoopThreshold(sm.cfg),
 		Temperature:     temp,
 		TopP:            topP,
 	}, client, sessionTools, sm.bus)

@@ -270,6 +270,15 @@ type ExperimentalConfig struct {
 	AutoContinue      int `json:"auto_continue,omitempty"`
 }
 
+// DoomLoopThreshold returns the configured stop count for identical tool calls.
+// Zero means the processor default of 3. Unset, zero, and negative values return 0.
+func DoomLoopThreshold(cfg *Info) int {
+	if cfg == nil || cfg.Experimental == nil || cfg.Experimental.DoomLoopThreshold <= 0 {
+		return 0
+	}
+	return cfg.Experimental.DoomLoopThreshold
+}
+
 // SkillsConfig defines paths and URLs for skill discovery.
 type SkillsConfig struct {
 	Paths []string `json:"paths,omitempty"`

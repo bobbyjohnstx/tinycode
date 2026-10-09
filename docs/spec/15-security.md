@@ -233,7 +233,7 @@ See [12-permissions.md](12-permissions.md) for the full permission system specif
 
 Source: `internal/session/processor_validation.go`, `internal/session/processor_loop.go`
 
-`isDoomLoop()` detects when the last N tool calls have identical signatures (same tool name and arguments). Default threshold: 3 consecutive identical calls (`defaultDoomThreshold`). This is a hard-stop in the processor (`checkDoomLoop` returns an error) — it does not go through `permission.Ask`.
+`isDoomLoop()` detects when the last N tool calls have identical signatures (same tool name and arguments). Default threshold: 3 consecutive identical calls (`defaultDoomThreshold`). `experimental.doom_loop_threshold` overrides that default when it is greater than 0. This is a hard-stop in the processor (`checkDoomLoop` returns an error) — it does not go through `permission.Ask`.
 
 ### Consecutive Failure Tracking
 

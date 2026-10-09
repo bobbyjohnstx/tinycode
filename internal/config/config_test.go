@@ -297,6 +297,24 @@ func TestMerge_Watcher(t *testing.T) {
 	}
 }
 
+func TestDoomLoopThreshold(t *testing.T) {
+	if got := DoomLoopThreshold(nil); got != 0 {
+		t.Errorf("nil config = %d, want 0", got)
+	}
+	if got := DoomLoopThreshold(&Info{}); got != 0 {
+		t.Errorf("unset experimental = %d, want 0", got)
+	}
+	if got := DoomLoopThreshold(&Info{Experimental: &ExperimentalConfig{}}); got != 0 {
+		t.Errorf("zero threshold = %d, want 0", got)
+	}
+	if got := DoomLoopThreshold(&Info{Experimental: &ExperimentalConfig{DoomLoopThreshold: -2}}); got != 0 {
+		t.Errorf("negative threshold = %d, want 0", got)
+	}
+	if got := DoomLoopThreshold(&Info{Experimental: &ExperimentalConfig{DoomLoopThreshold: 5}}); got != 5 {
+		t.Errorf("threshold = %d, want 5", got)
+	}
+}
+
 func TestParseConfig_ExperimentalConfig(t *testing.T) {
 	input := `{
 		"experimental": {

@@ -232,7 +232,7 @@ type ExperimentalConfig struct {
 }
 ```
 
-`auto_continue` is read by `tinycode run` only. `0` leaves the run stopped after a turn. A positive value is the number of unattended continuations. `doom_loop_threshold` is parsed and not applied; the processor stops after 3 identical tool calls.
+`auto_continue` is read by `tinycode run` only. `0` leaves the run stopped after a turn. A positive value is the number of unattended continuations. `doom_loop_threshold` is the number of identical tool calls that stop the processor, including `tinycode run`, the TUI, and subagents. Unset or `0` stops after 3.
 
 ### SkillsConfig
 

@@ -740,7 +740,7 @@ Plain text on stdout is ignored. A JSON object with `hookSpecificOutput.addition
 
 `experimental.auto_continue` applies to `tinycode run` only. `0` leaves the agent stopped after a turn. A positive number lets `tinycode run` continue that many times without another prompt. The TUI does not read this field.
 
-`experimental.doom_loop_threshold` is stored and not applied. The session stops after 3 identical tool calls in a row.
+`experimental.doom_loop_threshold` is the number of identical tool calls in a row that stop the session. Unset or `0` stops after 3. The value applies to `tinycode run`, the TUI, and subagents.
 
 `skills.urls` is stored and not fetched. Only `skills.paths` is scanned.
 

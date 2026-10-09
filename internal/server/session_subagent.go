@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
@@ -112,6 +113,7 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		Perms:         sm.perms,
 		Directory:     directory,
 		MaxIterations: maxIter,
+		DoomThreshold: config.DoomLoopThreshold(sm.cfg),
 	}
 	temp, topP := sm.resolveAgentLLMParams(agentInfo)
 	procCfg.Temperature = temp

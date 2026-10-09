@@ -9,6 +9,9 @@
 - Formatter after `write`, `edit`, and `apply_patch`. `"formatter": true` runs built-in `gofmt` for `.go` files
 - Authoring guide for agents and skills: `docs/authoring.md`
 
+### Fixes
+- `experimental.doom_loop_threshold` stops the processor after that many identical tool calls. Unset still stops after 3
+
 ### Security
 - Child processes drop credential environment variables. The interactive `/shell` session still receives the full environment
 - A shell command that names a secret file asks (`secret-shell`). Escape rejects a permission prompt

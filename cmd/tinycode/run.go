@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
 	"github.com/bobbyjohnstx/tinycode/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
@@ -187,6 +188,7 @@ func runRun() {
 		Directory:       dir,
 		Perms:           permSvc,
 		AutoContinueMax: autoContinueMax,
+		DoomThreshold:   config.DoomLoopThreshold(cfg),
 		SmallModel:      cfg.SmallModel,
 	}, client, toolReg, b)
 	proc.SetMessages(existingMsgs)

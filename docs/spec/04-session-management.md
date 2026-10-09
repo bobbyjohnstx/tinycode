@@ -233,4 +233,4 @@ When the LLM produces a response with no tool calls, the processor checks whethe
 
 The processor tracks recent tool call signatures. If the same sequence of tool names + truncated args repeats, it indicates the model is stuck in a loop. When detected, the processor returns an error result.
 
-`DoomThreshold` is configurable via `ExperimentalConfig.DoomLoopThreshold` in config.
+`DoomThreshold` is configurable via `ExperimentalConfig.DoomLoopThreshold` in config. Unset or `0` uses 3.
