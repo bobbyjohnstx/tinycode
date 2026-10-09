@@ -18,7 +18,7 @@ var (
 	// Terminals vary in separator: xterm uses "rgb:R/G/B", others use "rgb/R:G:B".
 	// Occurs when the response arrives split across reads: "\033]10;rg" is consumed
 	// by the escape-byte check and the remaining tail leaks into the textarea.
-	oscRGBTail = regexp.MustCompile(`^[rgb]{1,3}[:\/][0-9a-fA-F]{1,4}([:\/][0-9a-fA-F]{1,4}){0,2}\\?$`)
+	oscRGBTail = regexp.MustCompile(`^[rgb]{0,3}[:\/][0-9a-fA-F]{1,4}([:\/][0-9a-fA-F]{1,4}){0,2}\\?$`)
 	// Core CPR payload after optional mangled CSI/OSC prefixes are stripped.
 	cprCore        = regexp.MustCompile(`^\d{0,4};\d{1,4}R$`)
 	cprCorePartial = regexp.MustCompile(`^\d{0,4};?\d{0,4}$`)
