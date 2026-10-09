@@ -11,18 +11,13 @@ This is the core value proposition: **if your LLM stays on your machines, your c
 Deploy to:
 - **Your laptop** — instant, air-gapped local inference with Ollama or vLLM
 - **Your private Kubernetes cluster** — declarative deployment via the tinycode-operator, with cross-namespace model discovery and multi-user workspaces
-- **Your OpenShift infrastructure** — UBI9 container image (quay.io/bjohns/tinycode-container), Kubernetes operator, and cluster-admin mode out of the box
+- **Your OpenShift infrastructure** — UBI9 container image (quay.io/bjohns/tinycode-container) and the Kubernetes operator. The **ops** agent is the cluster and host persona
 
 ## Built for Small Models
 
 The industry's coding assistants optimize for large, cloud-hosted models. tinycode optimizes for the models you actually run locally: Llama 3, Qwen, Mistral, and other 3B–13B parameter variants.
 
-**14 compact agent presets** tuned specifically for these models:
-
-- Average system prompt: **~1K tokens** (vs. ~4K for full variants)
-- Fits snugly in 4K–32K context windows
-- No performance degradation—just focused, purposeful instructions
-- Auto-selection based on model size
+**Compact prompts** are selected automatically for models at 8B parameters and under. Each shipped specialist has a shorter prompt with the same permissions as the full version.
 
 Runs production-grade coding assistance from a laptop. No GPU cluster required.
 
@@ -52,33 +47,22 @@ Long conversations with small-context models hit limits fast. tinycode handles i
 
 Works especially well with 4K–32K context windows.
 
-## 24 Specialized Agents, 9 Built-in Skills
+## Agents and skills
 
-Agents with specific expertise:
+Tab cycles `build`, `general`, `ops`, `plan`, `architect`, and `code-reviewer`. **ops** is cluster and host administration: read first, then one change. **general** is a plain assistant.
 
-- **architect** — Read-only code analysis and guidance
-- **debugger** — Root-cause analysis and bug fixing
-- **executor** — Focused task implementation
-- **test-engineer** — Test strategy and TDD workflows
-- **security-reviewer** — OWASP Top 10, CVE detection
-- **plan** — Native planning mode (`plan_enter`/`plan_exit`): interviews, researches, writes work plans
-- Plus **17 more** (designer, tracer, verifier, git-master, cluster-admin, and others)
+- **architect** — Design and trade-offs. Read-only
+- **debugger** — Root cause in application code
+- **executor** — Scoped code changes
+- **tracer** — Competing explanations and the next probe
+- **document-specialist** — External docs and changelogs
+- **plan** — Work plans. Edits limited to `plans/*` and `drafts/*`
 
-Skills provide progressive capability disclosure:
-
-- `/debug` — Isolate root causes
-- `/trace` — Evidence-driven causal analysis
-- `/verify` — Confirm changes work
-- `/deepinit` — Generate per-directory AGENTS.md files
-- `/mcp-setup` — Configure MCP servers interactively
-- `/ai-slop-cleaner` — Remove AI-generated cruft safely
-- Plus **3 more**
+`/incident`, `/change`, and `/host` are checklists. `/debug`, `/trace`, `/plan`, `/verify`, `/test`, and `/review` ask the matching agent. `code-simplifier`, `qa-tester`, and `scientist` ship disabled.
 
 ## IDE Integration (Agent Client Protocol)
 
-Run `tinycode acp --cwd /path/to/project` to start an ACP server for IDE integration. Stdio transport — no network exposure, no auth needed for local use. A reference VS Code extension is included; any ACP-compatible editor (Zed, JetBrains, etc.) can connect using the same protocol.
-
-A reference VS Code extension is included. Build custom IDE integrations with the ACP protocol.
+Run `tinycode acp --cwd /path/to/project` to start an ACP server for IDE integration. Stdio transport — no network exposure, no auth needed for local use. Any ACP-compatible editor can connect. This repository does not include a VS Code extension.
 
 ## Kubernetes-Native Deployment
 

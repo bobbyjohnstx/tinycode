@@ -17,7 +17,7 @@ This runs automated checks across your environment:
 2. Agents (container only)
 3. Skills (container only)
 4. System tools
-5. OpenShift oc CLI (if cluster-admin mode)
+5. OpenShift `oc` CLI, when it is installed
 6. Ollama installation & health
 7. Model availability
 8. Model functionality (warmup probe)

@@ -307,7 +307,7 @@ Agents are specialized personas that share the same tools but have different sys
 | **document-specialist** | subagent | External SDK docs, API references, changelogs, and integration guides. |
 | **executor** | primary | Focused task implementation. Smallest viable diff, no scope creep. |
 | **explore** | subagent | Fast codebase search. Read-only: grep, glob, read, bash only. |
-| **general** | subagent | General-purpose research and multi-step tasks. |
+| **general** | subagent | Plain assistant. Answers directly and uses a tool only when the question needs one. |
 | **git-master** | subagent | Git history management, rebasing, atomic commits. |
 | **ops** | primary | Cluster and host administration. Read-only first. Asks before a command that changes the system. |
 | **scout** | subagent | Upstream dependency source. Official docs go to document-specialist. |
@@ -336,6 +336,14 @@ Each agent has a `.compact` variant that is automatically used when the model ha
 ### Switching agents
 
 **Tab/Shift+Tab** -- Cycle through agents in the prompt (default: `build`, `general`, `ops`, `plan`, `architect`, `code-reviewer`). The agent name and its color update in the status bar. Configure the cycle list with `cycle_agents` in config.
+
+### Cluster and host work
+
+**ops** is the agent for a live cluster or machine. It reads first, names the blast radius, and makes one change. `/incident` triages a failure. `/change` plans one update. `/host` inspects the machine tinycode is running on, or another host over ssh. A failed ssh stops there.
+
+Read-only `oc` and `kubectl` commands (`get`, `describe`, `logs`) run. `apply`, `delete`, `scale`, `patch`, `drain`, `cordon`, `rollout`, and `exec` ask. On a host, `systemctl status` runs. `systemctl restart`, firewall edits, account changes, and address or route changes ask, including when the command is sent over ssh.
+
+**ops** uses the plugin that owns the product. An ambiguous cause goes to **tracer**. Product docs go to **document-specialist**. Config in this repo goes to **explore**. Exposure in source goes to **security-reviewer**. File edits go to **executor**. Application bugs go to **debugger**.
 
 **Ctrl+X a** -- Open the agent dialog showing all agents (including disabled ones). Navigate with j/k or arrows, press Enter to select.
 
@@ -697,7 +705,7 @@ Each `permission.allow` or `permission.deny` entry is a permission name, or a na
 }
 ```
 
-Deny entries are applied after allow entries, so a deny wins over an allow for the same match inside this list. The last matching rule wins overall, including later rules from the agent. `bash` and `shell` are the same permission. `read .env*` , `webfetch *`, paths outside the project, destructive shell commands, and shell commands that name a secret file ask even when a broad allow exists, unless a later rule allows them.
+Deny entries are applied after allow entries, so a deny wins over an allow for the same match inside this list. The last matching rule wins overall, including later rules from the agent. `bash` and `shell` are the same permission. `read .env*` , `webfetch *`, paths outside the project, destructive shell commands, and shell commands that name a secret file ask even when a broad allow exists, unless a later rule allows them. Destructive shell includes recursive `rm`, force-push, cluster mutations (`oc delete`, `kubectl apply`, `helm upgrade`), and host mutations (`systemctl restart`, firewall edits, account changes, route changes), including the same command over `ssh`. `oc get` and `systemctl status` do not ask.
 
 ### Shell hooks
 

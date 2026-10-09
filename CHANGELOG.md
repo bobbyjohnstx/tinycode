@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+- **ops** agent for cluster and host administration. Default Tab cycle is `build`, `general`, `ops`, `plan`, `architect`, `code-reviewer`
+- Skills `/incident`, `/change`, and `/host`. `/debug`, `/trace`, `/plan`, `/verify`, `/test`, and `/review` delegate to the matching agent
+- Bundled agents now include analyst, designer, document-specialist, and tracer, each with a compact prompt for models at 8B and under
+- Formatter after `write`, `edit`, and `apply_patch`. `"formatter": true` runs built-in `gofmt` for `.go` files
+- Authoring guide for agents and skills: `docs/authoring.md`
+
+### Security
+- Child processes drop credential environment variables. The interactive `/shell` session still receives the full environment
+- A shell command that names a secret file asks (`secret-shell`). Escape rejects a permission prompt
+- Cluster mutations (`oc`/`kubectl` apply, delete, scale, and the other changing verbs; `helm upgrade`) and host mutations (`systemctl restart`, firewall edits, account changes, route changes, including over `ssh`) ask before they run
+
+### Removed
+- Unused TypeScript CLI, server, session, and PTY code. The web UI remains under `packages/`
+
 ## [2.2.0] - 2026-10-08
 
 ### Features

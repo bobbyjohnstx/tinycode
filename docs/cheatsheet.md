@@ -31,33 +31,30 @@ Quick reference for the most common keyboard shortcuts, agents, and commands.
 
 Press **Tab** to cycle, or `<leader>a` to list. Use `/ask <agent> <prompt>` to invoke any agent inline.
 
+Tab cycles `build`, `general`, `ops`, `plan`, `architect`, and `code-reviewer`. `<leader>a` lists the rest. `code-simplifier`, `qa-tester`, and `scientist` ship disabled.
+
 | Agent | Use when... |
 |-------|------------|
-| `architect` | Need to analyze code design, architecture review, or technical guidance (read-only) |
-| `code-reviewer` | Need severity-rated code review with SOLID principle checks |
-| `code-simplifier` | Need to refactor recent changes for clarity and maintainability |
-| `critic` | Need multi-perspective quality review of plans and code |
-| `debugger` | Need root-cause analysis or bug fixing |
-| `designer` | Need to build production-grade UI/UX |
-| `document-specialist` | Need to understand external libraries or API references |
-| `executor` | Need focused implementation of a scoped task |
-| `explore` | Need fast codebase search (grep/glob) |
-| `git-master` | Need help with git history, rebasing, or atomic commits |
-| `plan` | Need strategic planning and work breakdown (read-only, edits restricted to `plans/`/`drafts/`) |
-| `qa-tester` | Need interactive CLI testing |
-| `scientist` | Need data analysis or evidence-driven research |
-| `security-reviewer` | Need security vulnerability detection |
-| `test-engineer` | Need test strategy or TDD workflows |
-| `tracer` | Need evidence-driven causal tracing with hypotheses |
-| `verifier` | Need to verify work is actually complete |
-| `workspace` | Need to set up development environment |
-| `writer` | Need technical documentation |
-
-**Special agents:**
-- `build` — Full tool access (default)
-- `plan` — Read-only, write-protected plan mode
-- `cluster-admin` — Kubernetes/OpenShift cluster operations
-- `analyst` — Requirements analysis before planning
+| `build` | Doing ordinary coding. Small work stays here; the rest is delegated |
+| `general` | Asking a direct question |
+| `ops` | Working on a cluster, a host, or an ssh target. Read-only first |
+| `plan` | Writing a work plan. Edits stay in `plans/` and `drafts/` |
+| `analyst` | Turning decided scope into acceptance criteria |
+| `architect` | Choosing a design. Known failures go to debugger |
+| `code-reviewer` | Reviewing a code change |
+| `critic` | Reviewing a plan for gaps |
+| `debugger` | Finding one root cause in application code |
+| `designer` | Building UI |
+| `document-specialist` | Reading external SDK docs or a changelog |
+| `executor` | Applying a scoped code change |
+| `explore` | Finding a file or symbol in this repo |
+| `git-master` | Committing, rebasing, or reading history |
+| `scout` | Reading upstream dependency source |
+| `security-reviewer` | Looking for exposure in source |
+| `test-engineer` | Writing tests |
+| `tracer` | Ranking competing explanations |
+| `verifier` | Proving a change works |
+| `writer` | Writing technical documentation |
 
 ## Skills (Slash Commands)
 
@@ -65,15 +62,19 @@ Type `/` to autocomplete. Use before or after your prompt.
 
 | Command | Purpose |
 |---------|---------|
-| `/ai-slop-cleaner` | Clean up AI-generated code with regression-safe deletion-first workflow |
-| `/configure-notifications` | Set up Telegram, Discord, or Slack notifications |
-| `/debug` | Delegate a known failure to the debugger agent |
-| `/deepinit` | Generate per-directory `AGENTS.md` files across the codebase |
-| `/mcp-setup` | Configure MCP servers via guided menu |
-| `/remember` | Triage findings to memory surfaces (project memory, CLAUDE.md, session notes) |
-| `/doctor` | Full diagnostic skill — provider connectivity, model health, config audit (also: CLI `tinycode doctor`) |
-| `/trace` | Delegate competing-hypothesis tracing to the tracer agent |
-| `/verify` | Delegate a completion check to the verifier agent |
+| `/debug` | Ask debugger for one root cause |
+| `/trace` | Ask tracer to rank competing explanations |
+| `/plan` | Ask the plan agent for a work plan |
+| `/verify` | Ask verifier for proof a change works |
+| `/test` | Ask test-engineer to write tests |
+| `/review` | Ask code-reviewer to review a change |
+| `/incident` | Triage a live system failure: impact, evidence, one next command |
+| `/change` | Plan one cluster or host change: the command, the check, and the undo |
+| `/host` | Inspect this machine, or another host over ssh |
+| `/doctor` | Diagnose the tinycode environment (also: `tinycode doctor`) |
+| `/mcp-setup` | Configure MCP servers |
+| `/remember` | Triage findings to memory surfaces |
+| `/deepinit` | Generate per-directory `AGENTS.md` files |
 
 **CLI commands:**
 
@@ -122,13 +123,11 @@ Select one
 <leader>a          # Switch to code-reviewer
 Paste or reference the code
 Return
-<leader>a          # Then switch to code-simplifier
-Follow the suggestions
 ```
 
 ### Debug a failing test
 ```
-/ask debugger why is src/session/processor.test.ts failing?
+/ask debugger why is internal/session/processor_test.go failing?
 /debug              # (if the agent found a likely cause)
 ```
 

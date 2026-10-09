@@ -165,6 +165,10 @@ Shell command execution. Tool ID is `bash` (not `shell`). Source: `shell.go`
 - `git push --force`, `git reset --hard`, `git clean -f`, `git branch -D`
 - `DROP TABLE/DATABASE`, `TRUNCATE TABLE`
 - `kill -9`, `mkfs`, `dd`, `> /dev/sd*`
+- `reboot`, `shutdown`, `poweroff`, `halt`
+- `oc` / `kubectl` mutating verbs (`apply`, `create`, `delete`, `replace`, `patch`, `scale`, `rollout`, `exec`, `drain`, `cordon`, and the others in `IsDestructive`). `get`, `describe`, `logs`, and `oc adm top` stay read-only
+- `helm install`, `upgrade`, `uninstall`, `rollback`, `delete`
+- Host changes: `systemctl` start/stop/restart/reload/enable/disable/mask, account commands (`useradd`, `passwd`, `visudo`), `setenforce` / `setsebool`, firewall edits, and address or route changes. The same verbs ask when they appear after `ssh`. `systemctl status` and firewall listings stay read-only
 
 **Secret file detection** (asks with `secret-shell` when a permission service is present; blocked when it is not): `.env`, `.env.*`, `credentials`, `*.key`, `*.pem`
 

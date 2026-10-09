@@ -56,15 +56,20 @@ Skills inject specialized instructions into the conversation. They're prompts, n
 | Command | What it does | When to use it |
 |---------|-------------|----------------|
 | `/ask <agent> <message>` | Send a one-shot message to a specific agent (architect, debugger, executor, etc.) | When you want a specific agent's perspective without switching the session agent. |
-| `/review` | Structured code review of the current diff with severity-rated findings. | Before committing — catches bugs, style issues, and security problems. |
-| `/debug` | Ask the debugger agent for one root cause. | When something is broken and you need to find why. |
-| `/trace` | Ask the tracer agent to rank competing explanations. | When there are multiple possible causes. |
-| `/verify` | Ask the verifier agent for proof a change works. | Before claiming a fix is done. |
-| `/plan` | Ask the plan agent for a work plan. | Before starting a complex multi-step task. |
-| `/test` | Ask the test-engineer agent to write tests. | Adding test coverage. |
-| `/doctor` | Check the tinycode environment — provider connectivity, model health, config audit. Also available as CLI: `tinycode doctor`. | First session, or when something seems misconfigured. |
-| `/remember` | Save findings from this session to memory for future conversations. | When you learn something that should persist across sessions. |
-| `/init` | Generate a root `AGENTS.md` from repo signals (Go, Node, Rust, Python, Ruby, Java), then prompt the LLM for refinement and project setup. | First time setting up tinycode in a project. |
+| `/review` | Ask code-reviewer to review a change. | Before committing. |
+| `/debug` | Ask debugger for one root cause. | When application code is failing. |
+| `/trace` | Ask tracer to rank competing explanations. | When more than one cause is plausible. |
+| `/verify` | Ask verifier for proof a change works. | Before claiming a fix is done. |
+| `/plan` | Ask the plan agent for a work plan. | Before a complex multi-step task. |
+| `/test` | Ask test-engineer to write tests. | Adding test coverage. |
+| `/incident` | Triage a live system failure: impact, evidence, and one next command. | A cluster or host is down or alerting. |
+| `/change` | Plan one cluster or host change: the command, the check, and the undo. | A planned update, with nothing currently failing. |
+| `/host` | Inspect this machine, or another host over ssh. | Health, misconfiguration, or exposure on a host. |
+| `/doctor` | Check the tinycode environment. Also available as `tinycode doctor`. | First session, or when tinycode itself seems misconfigured. |
+| `/mcp-setup` | Configure MCP servers. | Adding an external tool server. |
+| `/deepinit` | Generate per-directory `AGENTS.md` files. | Onboarding a large repository. |
+| `/remember` | Save findings from this session to memory. | Something should persist across sessions. |
+| `/init` | Generate a root `AGENTS.md` from repo signals, then refine it. | First time setting up tinycode in a project. |
 
 ## Tools Available to the Model
 

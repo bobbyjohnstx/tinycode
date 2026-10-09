@@ -138,8 +138,8 @@ spec:
 # Ensure oc/kubectl is available and configured
 oc whoami  # verify authentication
 
-# Start tinycode with cluster-admin agent
-tinycode serve
+# Start the TUI and press Tab until the status bar says ops
+tinycode
 ```
 
 ### Environment Variables
@@ -151,16 +151,16 @@ tinycode serve
 
 ### Capabilities
 
-- `oc`/`kubectl` commands for cluster inspection and management
-- Log and event correlation across namespaces
-- Resource scaling and deployment management
-- YAML generation and validation
+- Read-only `oc`/`kubectl` inspection, then one change after a permission prompt
+- Product plugins for OpenShift and the other Red Hat tools that are installed
+- `/incident` for a live failure, `/change` for a planned update, `/host` for the machine or an ssh target
+- File edits go to the executor agent
 
 ### Guardrails
 
-- Confirm before destructive operations (`oc delete`, `scale`, `patch`)
-- Always read events/logs before recommending changes
-- No file writes outside designated config paths
+- `oc get`, `describe`, and `logs` run. `apply`, `delete`, `scale`, `patch`, `drain`, and `rollout` ask
+- Host changes such as `systemctl restart` ask, including over ssh
+- **ops** does not edit source files
 
 ---
 

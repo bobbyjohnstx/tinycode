@@ -1493,7 +1493,7 @@ section:last-of-type { border-bottom: none; }
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
-            <span>15 agents, build by default</span>
+            <span>20 agents, build by default</span>
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
@@ -2544,7 +2544,7 @@ section:last-of-type { border-bottom: none; }
 <section id="agents">
   <div class="container">
     <div class="section-label animate-in">Agents</div>
-    <h2 class="section-title animate-in">15 agents</h2>
+    <h2 class="section-title animate-in">20 agents</h2>
     <p class="section-desc animate-in">
       <code>build</code> is the default. Tab cycles <code>build</code>, <code>general</code>, <code>ops</code>, <code>plan</code>, <code>architect</code>, and <code>code-reviewer</code>. The agent list (<code>Ctrl+X</code> then <code>a</code>) shows the rest. Compact prompts are selected automatically for smaller models. <code>code-simplifier</code>, <code>qa-tester</code>, and <code>scientist</code> ship disabled.
     </p>
@@ -2558,10 +2558,25 @@ section:last-of-type { border-bottom: none; }
         </div>
       </div>
       <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(57, 211, 83, 0.1); color: var(--accent-green);">OP</div>
+        <div class="agent-info">
+          <div class="agent-name">ops</div>
+          <div class="agent-desc">Cluster and host administration. Read-only first. Asks before a command that changes the system.</div>
+        </div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(88, 166, 255, 0.1); color: var(--accent-blue);">AN</div>
+        <div class="agent-info">
+          <div class="agent-name">analyst</div>
+          <div class="agent-desc">Turns decided scope into acceptance criteria before planning.</div>
+          <span class="agent-badge readonly">read-only</span>
+        </div>
+      </div>
+      <div class="agent-card">
         <div class="agent-avatar" style="background: rgba(88, 166, 255, 0.1); color: var(--accent-blue);">AR</div>
         <div class="agent-info">
           <div class="agent-name">architect</div>
-          <div class="agent-desc">Strategic architecture advisor. Analyzes code, diagnoses bugs, provides guidance with file:line evidence.</div>
+          <div class="agent-desc">Design and trade-offs. Read-only. Known failures go to debugger.</div>
           <span class="agent-badge readonly">read-only</span>
         </div>
       </div>
@@ -2577,7 +2592,7 @@ section:last-of-type { border-bottom: none; }
         <div class="agent-avatar" style="background: rgba(248, 81, 73, 0.1); color: var(--accent-red);">CT</div>
         <div class="agent-info">
           <div class="agent-name">critic</div>
-          <div class="agent-desc">Multi-perspective review of plans and code with gap analysis, pre-mortem, and severity ratings.</div>
+          <div class="agent-desc">Plan and gap review with a pre-mortem. Code defects go to code-reviewer.</div>
           <span class="agent-badge readonly">read-only</span>
         </div>
       </div>
@@ -2586,6 +2601,21 @@ section:last-of-type { border-bottom: none; }
         <div class="agent-info">
           <div class="agent-name">debugger</div>
           <div class="agent-desc">Root-cause analysis, regression isolation, stack trace analysis. One hypothesis at a time, minimal diff.</div>
+        </div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(188, 140, 255, 0.1); color: var(--accent-purple);">DS</div>
+        <div class="agent-info">
+          <div class="agent-name">designer</div>
+          <div class="agent-desc">UI implementation. Detects the framework and keeps the visual design intentional.</div>
+        </div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(88, 166, 255, 0.1); color: var(--accent-blue);">DO</div>
+        <div class="agent-info">
+          <div class="agent-name">document-specialist</div>
+          <div class="agent-desc">External SDK docs, API references, changelogs, and integration guides.</div>
+          <span class="agent-badge readonly">read-only</span>
         </div>
       </div>
       <div class="agent-card">
@@ -2607,7 +2637,7 @@ section:last-of-type { border-bottom: none; }
         <div class="agent-avatar" style="background: rgba(88, 166, 255, 0.1); color: var(--accent-blue);">GN</div>
         <div class="agent-info">
           <div class="agent-name">general</div>
-          <div class="agent-desc">General-purpose subagent for research and multi-step tasks.</div>
+          <div class="agent-desc">Plain assistant. Answers directly and uses a tool only when the question needs one.</div>
         </div>
       </div>
       <div class="agent-card">
@@ -2629,7 +2659,7 @@ section:last-of-type { border-bottom: none; }
         <div class="agent-avatar" style="background: rgba(88, 166, 255, 0.1); color: var(--accent-blue);">SO</div>
         <div class="agent-info">
           <div class="agent-name">scout</div>
-          <div class="agent-desc">External research. Clones and inspects dependency repos and fetches docs. Cannot edit files.</div>
+          <div class="agent-desc">Upstream dependency source. Official docs go to document-specialist.</div>
           <span class="agent-badge readonly">read-only</span>
         </div>
       </div>
@@ -2646,6 +2676,14 @@ section:last-of-type { border-bottom: none; }
         <div class="agent-info">
           <div class="agent-name">test-engineer</div>
           <div class="agent-desc">Test strategy, coverage authoring, flaky test hardening, and TDD workflows.</div>
+        </div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-avatar" style="background: rgba(188, 140, 255, 0.1); color: var(--accent-purple);">TR</div>
+        <div class="agent-info">
+          <div class="agent-name">tracer</div>
+          <div class="agent-desc">Competing explanations, evidence for and against, and the next probe.</div>
+          <span class="agent-badge readonly">read-only</span>
         </div>
       </div>
       <div class="agent-card">

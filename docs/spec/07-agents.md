@@ -52,10 +52,10 @@ User/project `.md` agents may replace bundled (non-native) agents. Native agents
 | Agent | Mode | Description | Key Permissions |
 |-------|------|-------------|-----------------|
 | `build` | Primary | Default agent, full tool access | `question:allow`, `plan_enter:allow` |
-| `plan` | Primary | Planning mode — interviews, researches, writes plans; edits scoped to `plans/*`/`drafts/*` | `read:allow`, `plan_exit:allow`, `edit "plans/*":allow`, `edit "drafts/*":allow`, `edit:deny` elsewhere |
-| `general` | Subagent | Multi-step task execution | `todowrite:deny` |
+| `plan` | Primary | Planning mode — interviews, researches, writes plans; edits scoped to `plans/*`/`drafts/*` | `read:allow`, `task:allow`, `plan_exit:allow`, `edit "plans/*":allow`, `edit "drafts/*":allow`, `edit:deny` elsewhere |
+| `general` | Subagent | Plain assistant. Answers directly and uses a tool only when needed. On the default Tab cycle | `todowrite:deny` |
 | `explore` | Subagent | Fast codebase search | Only: `grep`, `glob`, `bash`, `webfetch`, `websearch`, `read` |
-| `scout` | Subagent | External research | Only: `grep`, `glob`, `webfetch`, `websearch`, `read` |
+| `scout` | Subagent | Upstream dependency source. Official docs go to document-specialist | Only: `grep`, `glob`, `webfetch`, `websearch`, `read` |
 | `compaction` | Primary (hidden) | Context summarization | All denied |
 | `title` | Primary (hidden) | Session title generation | All denied, temp=0.5 |
 | `summary` | Primary (hidden) | Session summary | All denied |
@@ -86,6 +86,8 @@ Loaded from embedded markdown files with YAML frontmatter. Actual set in Go `int
 | `writer` | Technical documentation |
 
 `explore.md` / `explore.compact.md` also live under defaults; the native `explore` agent uses the `explore.md` body as its prompt (permissions stay native). Compact peers of archived agents are disabled alongside the base agent.
+
+The default Tab cycle is `build`, `general`, `ops`, `plan`, `architect`, `code-reviewer`. **ops** is primary. It allows read-only shell commands and asks for `destructive-shell` and `secret-shell`. It does not edit source. `/incident`, `/change`, and `/host` expand into checklists. An ambiguous cause goes to tracer, product docs to document-specialist, repo config to explore, source exposure to security-reviewer, file edits to executor, and application bugs to debugger.
 
 The former standalone `planner` bundled agent was merged into the native `plan` agent (its methodology now lives in `defaults/plan.txt`). Switching between `build` and `plan` mid-session goes through the `plan_enter` / `plan_exit` tools (see [08-tools.md](08-tools.md)) rather than the `/ask` or Tab mechanisms alone — both tools require `permission.Ask` approval, and an approved call updates the session's active agent (`Processor.applyPendingAgentSwitch`), taking full effect (new system prompt, new permission set) starting with the next turn.
 

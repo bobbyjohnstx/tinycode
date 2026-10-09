@@ -216,24 +216,30 @@ Press **Tab** to cycle through agents, or use `<leader>a` to pick from a list. U
 
 ### Built-in agents
 
-| Agent               | Description                                                                   |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `architect`         | Strategic architecture advisor --- analyzes code, diagnoses bugs (read-only)  |
-| `code-reviewer`     | Severity-rated code review with logic defect detection and SOLID checks       |
-| `code-simplifier`   | Simplifies recently modified code without changing behavior                   |
-| `critic`            | Multi-perspective review of plans and code with gap analysis (read-only)      |
-| `debugger`          | Root-cause analysis, regression isolation, stack trace analysis                |
-| `executor`          | Focused task executor --- smallest viable diff, no scope creep                |
-| `explore`           | Fast read-only codebase search (grep/glob)                                    |
-| `git-master`        | Git expert for atomic commits, rebasing, and history management               |
-| `qa-tester`         | Interactive CLI testing specialist using tmux for session management           |
-| `scientist`         | Data analysis and research --- hypothesis-driven, evidence required           |
-| `security-reviewer` | Security vulnerability detection (OWASP Top 10, secrets, CVEs)               |
-| `test-engineer`     | Test strategy, coverage authoring, flaky test hardening, TDD workflows        |
-| `verifier`          | Evidence-based verification of completion claims                              |
-| `writer`            | Technical documentation                                                       |
+| Agent               | Description                                                                 |
+| ------------------- | --------------------------------------------------------------------------- |
+| `build`             | Default. Handles small work inline and delegates the rest                  |
+| `general`           | Plain assistant. Answers directly and uses a tool only when needed         |
+| `ops`               | Cluster and host administration. Read-only first. Asks before a change     |
+| `plan`              | Planning mode. Edits limited to `plans/*` and `drafts/*`                   |
+| `analyst`           | Acceptance criteria before planning                                         |
+| `architect`         | Design and trade-offs. Read-only. Known failures go to debugger            |
+| `code-reviewer`     | Severity-rated code review                                                  |
+| `critic`            | Plan and gap review. Code defects go to code-reviewer                      |
+| `debugger`          | Root cause in application code                                              |
+| `designer`          | UI implementation                                                           |
+| `document-specialist` | External SDK docs, API references, and changelogs                        |
+| `executor`          | Scoped code changes                                                         |
+| `explore`           | Fast codebase search                                                        |
+| `git-master`        | Commits, rebase, and history                                                |
+| `scout`             | Upstream dependency source                                                  |
+| `security-reviewer` | Exposure in source: OWASP, secrets, CVEs                                   |
+| `test-engineer`     | Tests and TDD                                                               |
+| `tracer`            | Competing explanations and the next probe                                   |
+| `verifier`          | Proof a change works                                                        |
+| `writer`            | Technical documentation                                                     |
 
-Agents with a `.compact.md` variant automatically use a smaller prompt for models with limited context windows.
+Tab cycles `build`, `general`, `ops`, `plan`, `architect`, and `code-reviewer`. `code-simplifier`, `qa-tester`, and `scientist` ship disabled. Models at 8B parameters and under receive the compact prompt. `/incident`, `/change`, and `/host` are checklists for **ops**. `/debug`, `/trace`, `/plan`, `/verify`, `/test`, and `/review` ask the matching agent to do the job.
 
 ## Configuration
 
