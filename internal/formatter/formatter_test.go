@@ -91,8 +91,9 @@ func TestFormat_DisabledGofmtSkipsFile(t *testing.T) {
 	r := Resolve(enabledConfig(map[string]config.FormatterItem{
 		"gofmt": {Disabled: &disabled},
 	}))
-	if r.Status()[0].Enabled {
-		t.Fatal("expected gofmt disabled")
+	status := r.Status()
+	if len(status) != 1 || status[0].Name != "gofmt" || status[0].Enabled || status[0].Extensions[0] != ".go" {
+		t.Fatalf("status = %#v, want disabled gofmt for .go", status)
 	}
 	name, changed, err := r.Format(context.Background(), path)
 	if err != nil || changed || name != "" {

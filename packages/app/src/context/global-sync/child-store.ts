@@ -180,7 +180,7 @@ export function createChildStoreManager(input: {
           const initialIcon = icon[0].value
           const [mcpEnabled, setMcpEnabled] = createSignal(false)
 
-          const [pathQuery, mcpQuery, lspQuery, providerQuery, formatterQuery] = useQueries(() => ({
+          const queries = useQueries(() => ({
             queries: [
               input.queryOptions.path(key),
               { ...input.queryOptions.mcp(key), enabled: mcpEnabled() },
@@ -189,6 +189,13 @@ export function createChildStoreManager(input: {
               input.queryOptions.formatter(key),
             ],
           }))
+          const pathQuery = queries[0]
+          const mcpQuery = queries[1]
+          const lspQuery = queries[2]
+          const providerQuery = queries[3]
+          // Read the formatter query through the store on each access. Destructuring
+          // once keeps the first result object, which stays "loading" after the request settles.
+          const formatterQuery = () => (queries.length > 4 ? queries[4] : undefined)
 
           const child = createStore<State>({
             project: "",
@@ -235,9 +242,14 @@ export function createChildStoreManager(input: {
             get lsp() {
               return lspQuery.isLoading ? [] : (Array.isArray(lspQuery.data) ? lspQuery.data : [])
             },
+            get formatter_ready() {
+              const query = formatterQuery()
+              return Boolean(query) && !query.isLoading
+            },
             get formatter() {
-              if (!formatterQuery || formatterQuery.isLoading) return []
-              return Array.isArray(formatterQuery.data) ? formatterQuery.data : []
+              const query = formatterQuery()
+              if (!query || query.isLoading) return []
+              return Array.isArray(query.data) ? query.data : []
             },
             vcs: vcsStore.value,
             limit: 5,

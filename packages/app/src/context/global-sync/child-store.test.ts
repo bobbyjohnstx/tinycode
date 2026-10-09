@@ -10,6 +10,10 @@ const queryGroups: Array<() => { queries: Array<{ enabled?: boolean }> }> = []
 
 const child = () => createStore({} as State)
 const provider = { all: new Map(), connected: [], default: {} } satisfies NormalizedProviderListResponse
+const formatterResult: { isLoading: boolean; data: Array<{ name: string; extensions: string[]; enabled: boolean }> | undefined } = {
+  isLoading: true,
+  data: undefined,
+}
 
 const queryOptionsApi = {
   globalConfig: () => ({ queryKey: ["globalConfig"], queryFn: async () => ({}) }),
@@ -57,6 +61,7 @@ beforeAll(async () => {
         { isLoading: false, data: {} },
         { isLoading: false, data: [] },
         { isLoading: false, data: provider },
+        formatterResult,
       ]
     },
   }))
@@ -166,6 +171,47 @@ describe("createChildStoreManager", () => {
       expect(queries().queries[1]?.enabled).toBe(false)
       expect(manager.mcp("/project")).toBe(false)
     } finally {
+      dispose()
+    }
+  })
+
+  test("keeps formatter status hidden until the query settles", () => {
+    let manager: ReturnType<typeof createChildStoreManager> | undefined
+    formatterResult.isLoading = true
+    formatterResult.data = undefined
+
+    const dispose = createOwner((owner) => {
+      manager = createChildStoreManager({
+        owner,
+        isBooting: () => false,
+        isLoadingSessions: () => false,
+        onBootstrap() {},
+        onMcp() {},
+        onDispose() {},
+        translate: (key) => key,
+        queryOptions: queryOptionsApi,
+        global: { provider },
+      })
+    })
+
+    try {
+      if (!manager) throw new Error("manager required")
+      const [store] = manager.child("/format", { bootstrap: false })
+
+      expect(store.formatter_ready).toBe(false)
+      expect(store.formatter).toEqual([])
+
+      formatterResult.isLoading = false
+      formatterResult.data = []
+      expect(store.formatter_ready).toBe(true)
+      expect(store.formatter).toEqual([])
+
+      formatterResult.data = [{ name: "gofmt", extensions: [".go"], enabled: false }]
+      expect(store.formatter[0]?.enabled).toBe(false)
+      expect(store.formatter[0]?.extensions).toEqual([".go"])
+    } finally {
+      formatterResult.isLoading = true
+      formatterResult.data = undefined
       dispose()
     }
   })

@@ -66,6 +66,7 @@ export type State = {
   }
   lsp_ready: boolean
   lsp: LspStatus[]
+  formatter_ready: boolean
   formatter: FormatterStatus[]
   vcs: VcsInfo | undefined
   limit: number

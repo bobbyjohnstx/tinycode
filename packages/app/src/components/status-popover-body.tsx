@@ -18,6 +18,7 @@ import { type ServerHealth } from "@/utils/server-health"
 import { useQueryOptions } from "@/context/server-sync"
 import { pathKey } from "@/utils/path-key"
 import { useServers } from "@/context/servers"
+import { formatterView } from "@/components/formatter-status"
 
 const pollMs = 10_000
 
@@ -322,6 +323,8 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
   const lspItems = createMemo(() => sync.data.lsp ?? [])
   const lspCount = createMemo(() => lspItems().length)
   const formatterItems = createMemo(() => sync.data.formatter ?? [])
+  const formatterState = createMemo(() => formatterView(sync.data.formatter_ready, sync.data.formatter))
+  const formatterEmpty = createMemo(() => pluginEmptyMessage(language.t("dialog.formatter.empty"), `"formatter": true`))
   const plugins = createMemo(() =>
     (sync.data.config.plugin ?? []).map((item) => (typeof item === "string" ? item : item[0])),
   )
@@ -511,14 +514,10 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
             </div>
             <div class="flex flex-col p-3 bg-background-base rounded-sm min-h-14">
               <div class="text-12-medium text-text-weak px-2 pb-1">{language.t("dialog.formatter.heading")}</div>
-              <Show
-                when={formatterItems().length > 0}
-                fallback={
-                  <div class="text-14-regular text-text-base text-center my-auto">
-                    {language.t("dialog.formatter.empty")}
-                  </div>
-                }
-              >
+              <Show when={formatterState() === "empty"}>
+                <div class="text-14-regular text-text-base text-center my-auto">{formatterEmpty()}</div>
+              </Show>
+              <Show when={formatterState() === "list"}>
                 <For each={formatterItems()}>
                   {(item) => (
                     <div class="flex items-center gap-2 w-full px-2 py-1">
@@ -530,7 +529,10 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                         }}
                       />
                       <span class="text-14-regular text-text-base truncate">{item.name}</span>
-                      <span class="text-12-regular text-text-weak truncate">{item.extensions.join(" ")}</span>
+                      <Show when={!item.enabled}>
+                        <span class="text-12-regular text-text-weak shrink-0">{language.t("dialog.formatter.off")}</span>
+                      </Show>
+                      <span class="text-12-regular text-text-weak truncate">{(item.extensions ?? []).join(" ")}</span>
                     </div>
                   )}
                 </For>

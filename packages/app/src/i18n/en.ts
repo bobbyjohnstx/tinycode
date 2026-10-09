@@ -383,7 +383,8 @@ export const dict = {
 
   "dialog.lsp.empty": "LSPs auto-detected from file types",
   "dialog.formatter.heading": "Formatters",
-  "dialog.formatter.empty": "Formatters run after a file write when enabled in tinycode.json",
+  "dialog.formatter.empty": "Formatting is off until tinycode.json sets \"formatter\": true",
+  "dialog.formatter.off": "off",
   "dialog.plugins.empty": "Plugins configured in tinycode.json",
 
   "mcp.status.connected": "connected",
