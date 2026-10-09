@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
@@ -193,7 +194,7 @@ func (r *ShellHookRunner) Hooks() map[string][]config.HookConfig {
 }
 
 // shellQuote wraps s in POSIX single quotes, escaping any internal single
-// quotes with the '\'' idiom. This prevents shell metacharacter injection
+// quotes with the '\” idiom. This prevents shell metacharacter injection
 // when substituting untrusted values into sh -c commands.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
@@ -235,6 +236,7 @@ func shellHookTimeout(seconds int) time.Duration {
 // execShellCommand runs a command via sh -c and returns combined output.
 func execShellCommand(ctx context.Context, command string) (string, error) {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Env = procenv.Child(nil)
 	cmd.WaitDelay = 500 * time.Millisecond
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err

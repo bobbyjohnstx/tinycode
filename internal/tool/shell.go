@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 )
 
 const (
@@ -123,14 +123,13 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 
 	cmd := exec.CommandContext(cmdCtx, "sh", "-c", args.Command)
 	cmd.Dir = tc.Directory
-
-	if tc.ShellEnvHook != nil {
-		env := environToMap(os.Environ())
-		merged := tc.ShellEnvHook(tc.SessionID, tc.Directory, env)
-		if len(merged) > 0 {
-			cmd.Env = flattenEnv(merged)
+	env := environToMap(procenv.Child(nil))
+	if tc != nil && tc.ShellEnvHook != nil {
+		if merged := tc.ShellEnvHook(tc.SessionID, tc.Directory, env); merged != nil {
+			env = merged
 		}
 	}
+	cmd.Env = flattenEnv(env)
 
 	stdout := NewLimitedWriter(MaxOutputSize)
 	stderr := NewLimitedWriter(MaxOutputSize)

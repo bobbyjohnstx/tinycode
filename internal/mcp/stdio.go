@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"os/exec"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
@@ -56,10 +56,7 @@ func (t *StdioTransport) Connect(ctx context.Context) error {
 
 	cmd := exec.CommandContext(ctx, t.command, t.args...)
 
-	cmd.Env = os.Environ()
-	for k, v := range t.env {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
-	}
+	cmd.Env = procenv.Child(t.env)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

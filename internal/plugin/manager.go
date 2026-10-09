@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 	pkgplugin "github.com/bobbyjohnstx/tinycode/pkg/plugin"
@@ -93,7 +94,9 @@ type ResolveFunc func(name string) (string, error)
 
 // defaultCommandFactory uses exec.CommandContext.
 func defaultCommandFactory(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = procenv.Child(nil)
+	return cmd
 }
 
 // Manager manages loaded plugins and the curated plugin registry.

@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
@@ -34,9 +35,9 @@ func newGoalTracker(text, command string) *goalTracker {
 
 // GoalEvalMsg carries the result of a goal condition evaluation.
 type GoalEvalMsg struct {
-	Met      bool   // true if exit code 0
-	Output   string // combined stdout+stderr
-	Err      error  // exec error (non-zero exit is NOT an error here)
+	Met       bool   // true if exit code 0
+	Output    string // combined stdout+stderr
+	Err       error  // exec error (non-zero exit is NOT an error here)
 	Iteration int
 }
 
@@ -48,6 +49,7 @@ func evaluateGoal(command, dir string, iteration int) tea.Cmd {
 
 		cmd := exec.CommandContext(ctx, "sh", "-c", command)
 		cmd.Dir = dir
+		cmd.Env = procenv.Child(nil)
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr

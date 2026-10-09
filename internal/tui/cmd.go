@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
@@ -683,6 +684,7 @@ func runUserShell(command, dir string) tea.Cmd {
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "sh", "-c", command)
 		cmd.Dir = dir
+		cmd.Env = procenv.Child(nil)
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr

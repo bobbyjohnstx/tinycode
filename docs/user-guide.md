@@ -157,7 +157,7 @@ Prefix a command with `!` to run it locally and feed the output to the model:
 !git log --oneline -10
 ```
 
-The shell command runs in the working directory and its output is included as context for the model's next response. A command that names a `.env` file, a credentials file, a `.key` file, or a `.pem` file asks for approval before it runs.
+The shell command runs in the working directory and its output is included as context for the model's next response. A command that names a `.env` file, a credentials file, a `.key` file, or a `.pem` file asks for approval before it runs. Shell commands, plugins, and MCP servers do not receive credential environment variables such as `OPENROUTER_API_KEY` or `GITHUB_TOKEN`. `PATH`, `HOME`, and `SSH_AUTH_SOCK` are still passed through. A token a single MCP server or formatter needs belongs in that entry's `env` or `environment` map.
 
 ---
 

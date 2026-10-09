@@ -169,6 +169,10 @@ When a secret-file pattern matches:
 
 `.env*` reads through the read tool use the `read` / `.env*` ask rule (see section 15.9).
 
+### Credential environment
+
+Shell commands, monitors, diagnostics, goal checks, plugins, MCP stdio, language servers, and custom formatters receive `procenv.Child` instead of the raw process environment. Names that look like credentials are removed (`OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `AWS_SECRET_ACCESS_KEY`, and the same suffixes). `PATH`, `HOME`, `KUBECONFIG`, and `SSH_AUTH_SOCK` stay. A configured `env` map for MCP, LSP, or a formatter is applied after the filter, so that one child can receive a token on purpose. `gh` and `git` keep working when their credentials live in the system keychain rather than in an environment variable.
+
 ### Audit Trail
 
 The shell tool accepts a `description` parameter for human-readable command descriptions, logged alongside the command for audit purposes.

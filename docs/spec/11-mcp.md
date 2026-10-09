@@ -168,8 +168,9 @@ Spawns a subprocess and communicates via newline-delimited JSON-RPC over stdin/s
 
 ### Process Management
 
-- Command executed via `exec.CommandContext` with parent environment inherited
-- Custom `env` map appended to `os.Environ()`
+- Command executed via `exec.CommandContext`
+- Parent environment is passed through `procenv.Child`, which drops credential-like variables (`*_API_KEY`, `*_TOKEN`, `*_SECRET`, `*_PASSWORD`, and similar)
+- Custom `env` map is applied after that filter, so a configured value can be passed to that server on purpose
 - Stderr discarded (`io.Discard`)
 - Buffered reader: 1 MB buffer for stdout
 - Message channel: buffered (64 messages)

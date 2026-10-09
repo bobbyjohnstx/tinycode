@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 )
 
 const formatTimeout = 30 * time.Second
@@ -182,13 +183,7 @@ func runCommand(ctx context.Context, it item, path string) error {
 	args := append(append([]string{}, it.command[1:]...), path)
 	cmd := exec.CommandContext(ctx, it.command[0], args...)
 	cmd.Dir = filepath.Dir(path)
-	if len(it.environment) > 0 {
-		env := os.Environ()
-		for k, v := range it.environment {
-			env = append(env, k+"="+v)
-		}
-		cmd.Env = env
-	}
+	cmd.Env = procenv.Child(it.environment)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		msg := strings.TrimSpace(string(out))

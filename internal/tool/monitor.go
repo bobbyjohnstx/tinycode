@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
@@ -118,6 +119,7 @@ func (mm *MonitorManager) Start(ctx context.Context, command, description, dir s
 	cmd := exec.CommandContext(monCtx, "sh", "-c", command)
 	cmd.WaitDelay = 500 * time.Millisecond
 	cmd.Dir = dir
+	cmd.Env = procenv.Child(nil)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

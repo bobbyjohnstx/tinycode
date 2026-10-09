@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 )
 
 const diagnosticsTimeout = 10 * time.Second
@@ -113,6 +115,9 @@ func diagnosticCommand(ext, path string) (*exec.Cmd, string) {
 
 // runCmd starts and waits for the command, respecting the context for cancellation.
 func runCmd(ctx context.Context, cmd *exec.Cmd) error {
+	if cmd.Env == nil {
+		cmd.Env = procenv.Child(nil)
+	}
 	if err := cmd.Start(); err != nil {
 		return err
 	}

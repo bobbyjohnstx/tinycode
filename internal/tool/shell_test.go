@@ -299,6 +299,24 @@ func TestExecuteShell_ShellEnvHookInjectsEnv(t *testing.T) {
 	}
 }
 
+func TestExecuteShell_DropsCredentialEnv(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "super-secret")
+	args := shellArgs{Command: `printf '%s' "$OPENROUTER_API_KEY"`}
+	raw, _ := json.Marshal(args)
+
+	tc := &Context{Directory: t.TempDir(), ReadFiles: NewSafeReadFiles()}
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Output)
+	}
+	if strings.Contains(result.Output, "super-secret") {
+		t.Fatalf("shell output leaked the API key: %q", result.Output)
+	}
+}
+
 func TestExecuteShell_TruncatesLargeOutput(t *testing.T) {
 	// Generate >10MB of stdout via a shell command.
 	// yes produces infinite output; head caps it at 11MB.

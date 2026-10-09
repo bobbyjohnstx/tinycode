@@ -10,6 +10,7 @@ import (
 
 	id2 "github.com/bobbyjohnstx/tinycode/internal/id"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
@@ -547,6 +548,7 @@ func (s *Server) executeShellDirect(sessionID, command, dir string) {
 	stderr := tool.NewLimitedWriter(tool.MaxOutputSize)
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = dir
+	cmd.Env = procenv.Child(nil)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmdErr := cmd.Run()

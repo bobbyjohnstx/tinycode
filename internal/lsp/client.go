@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
@@ -119,10 +120,7 @@ func newClient(spec ServerSpec, rootDir string, env map[string]string, timeout t
 
 func (c *Client) connect(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, c.spec.Command, c.spec.Args...)
-	cmd.Env = os.Environ()
-	for k, v := range c.env {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
-	}
+	cmd.Env = procenv.Child(c.env)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
