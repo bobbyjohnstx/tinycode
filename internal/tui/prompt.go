@@ -14,6 +14,13 @@ import (
 
 var (
 	oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,2}\\?$`)
+	// Tail of a split OSC rgb: color response, e.g. "b:0000/0000/0000" or "gb/0000:0000:0000".
+	// Terminals vary in separator: xterm uses "rgb:R/G/B", others use "rgb/R:G:B".
+	// Occurs when the response arrives split across reads: "\033]10;rg" is consumed
+	// by the escape-byte check and the remaining tail leaks into the textarea.
+	// Terminal color responses always use exactly 4 hex digits per channel (16-bit).
+	// Requiring {4} avoids false-positives on user input like "/exit" (/e = 1 hex char).
+	oscRGBTail = regexp.MustCompile(`^[rgb]{0,3}[:\/][0-9a-fA-F]{4}([:\/][0-9a-fA-F]{4}){0,2}\\?$`)
 	// Core CPR payload after optional mangled CSI/OSC prefixes are stripped.
 	cprCore        = regexp.MustCompile(`^\d{0,4};\d{1,4}R$`)
 	cprCorePartial = regexp.MustCompile(`^\d{0,4};?\d{0,4}$`)
@@ -807,7 +814,7 @@ func isTerminalEscape(s string) bool {
 	if strings.Contains(s, "rgb:") || strings.HasPrefix(s, "]10;") || strings.HasPrefix(s, "]11;") {
 		return true
 	}
-	if oscHexFragment.MatchString(s) {
+	if oscHexFragment.MatchString(s) || oscRGBTail.MatchString(s) {
 		return true
 	}
 	if cprCore.MatchString(stripCPRPrefix(s)) {

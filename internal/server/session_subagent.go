@@ -171,5 +171,11 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 
 	response := strings.Join(texts, "\n\n")
 	slog.Info("subagent completed", "label", label, "parent", parentSessionID, "agent", agent, "responseLen", len(response))
+	if response == "" {
+		if result.Error != nil {
+			return "", fmt.Errorf("subagent produced no output: %w", result.Error)
+		}
+		return "(subagent completed but produced no text output)", nil
+	}
 	return response, nil
 }
