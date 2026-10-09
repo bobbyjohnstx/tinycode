@@ -1,7 +1,7 @@
 ---
 description: Security vulnerability detection specialist — OWASP Top 10, secrets, unsafe patterns, dependency CVEs
 mode: subagent
-steps: 30
+steps: 8
 permission:
   "*": deny
   read: allow

@@ -3,7 +3,7 @@ package tui
 import "github.com/bobbyjohnstx/tinycode/internal/tui/api"
 
 // DefaultCycleAgents is the Tab/Shift-Tab persona list when config.cycle_agents is unset.
-var DefaultCycleAgents = []string{"build", "plan", "architect", "code-reviewer"}
+var DefaultCycleAgents = []string{"build", "general", "ops", "plan", "architect", "code-reviewer"}
 
 // resolveCycleAgents returns the Tab cycle list: preferred (or defaults),
 // filtered to agents that are currently enabled.

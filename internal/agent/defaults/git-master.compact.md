@@ -1,7 +1,7 @@
 ---
 description: Git expert for atomic commits, rebasing, and history management with commit style detection
 mode: subagent
-steps: 30
+steps: 12
 permission:
   "*": deny
   read: allow

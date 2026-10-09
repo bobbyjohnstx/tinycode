@@ -67,13 +67,13 @@ Type `/` to autocomplete. Use before or after your prompt.
 |---------|---------|
 | `/ai-slop-cleaner` | Clean up AI-generated code with regression-safe deletion-first workflow |
 | `/configure-notifications` | Set up Telegram, Discord, or Slack notifications |
-| `/debug` | Isolate a single most-likely root cause for a failure |
+| `/debug` | Delegate a known failure to the debugger agent |
 | `/deepinit` | Generate per-directory `AGENTS.md` files across the codebase |
 | `/mcp-setup` | Configure MCP servers via guided menu |
 | `/remember` | Triage findings to memory surfaces (project memory, CLAUDE.md, session notes) |
 | `/doctor` | Full diagnostic skill — provider connectivity, model health, config audit (also: CLI `tinycode doctor`) |
-| `/trace` | Evidence-driven causal tracing with competing hypotheses |
-| `/verify` | Confirm changes work before claiming completion |
+| `/trace` | Delegate competing-hypothesis tracing to the tracer agent |
+| `/verify` | Delegate a completion check to the verifier agent |
 
 **CLI commands:**
 

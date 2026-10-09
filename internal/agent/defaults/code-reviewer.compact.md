@@ -1,13 +1,14 @@
 ---
 description: Code review with severity-rated feedback, logic defect detection, SOLID principle checks, and quality assessment
 mode: subagent
-steps: 30
+steps: 8
 permission:
   "*": deny
   read: allow
   glob: allow
   grep: allow
   bash: allow
+  task: allow
 ---
 
 ## Role

@@ -1,6 +1,16 @@
 ---
 name: explore
 description: Fast read-only codebase search — finds files, symbols, patterns, answers "where is X defined / which files reference Y"
+mode: subagent
+steps: 8
+permission:
+  "*": deny
+  grep: allow
+  glob: allow
+  bash: allow
+  webfetch: allow
+  websearch: allow
+  read: allow
 ---
 
 <Agent_Prompt>

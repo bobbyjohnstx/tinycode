@@ -214,14 +214,13 @@ func TestDiscover_DirWithoutSkillMDSkipped(t *testing.T) {
 
 func TestDefaultSkills_LoadedAndNamed(t *testing.T) {
 	skills := DefaultSkills()
-	if len(skills) < 10 {
-		t.Fatalf("expected at least 10 default skills, got %d", len(skills))
+	if len(skills) < 4 {
+		t.Fatalf("expected at least 4 default skills, got %d", len(skills))
 	}
 
 	expected := map[string]bool{
-		"debug": false, "verify": false, "trace": false,
 		"remember": false, "deepinit": false, "doctor": false,
-		"mcp-setup": false, "review": false, "plan": false, "test": false,
+		"mcp-setup": false, "incident": false, "change": false, "host": false,
 	}
 	for _, s := range skills {
 		if _, ok := expected[s.Name]; ok {
@@ -242,18 +241,41 @@ func TestDefaultSkills_LoadedAndNamed(t *testing.T) {
 }
 
 func TestReadDefaultSkill(t *testing.T) {
-	content, err := ReadDefaultSkill("debug")
+	content, err := ReadDefaultSkill("doctor")
 	if err != nil {
-		t.Fatalf("ReadDefaultSkill(debug) error: %v", err)
+		t.Fatalf("ReadDefaultSkill(doctor) error: %v", err)
 	}
 	if content == "" {
-		t.Fatal("ReadDefaultSkill(debug) returned empty content")
+		t.Fatal("ReadDefaultSkill(doctor) returned empty content")
 	}
-	if !strings.Contains(content, "name: debug") {
-		t.Error("expected debug skill content to contain frontmatter")
+	if !strings.Contains(content, "name: doctor") {
+		t.Error("expected doctor skill content to contain frontmatter")
 	}
-	if !strings.Contains(content, "# Debug") {
-		t.Error("expected debug skill content to contain body heading")
+	if !strings.Contains(content, "# Doctor") {
+		t.Error("expected doctor skill content to contain body heading")
+	}
+}
+
+func TestReadDefaultSkill_OpsChecklists(t *testing.T) {
+	cases := []struct {
+		name    string
+		needles []string
+	}{
+		{"incident", []string{"name: incident", "what is broken", "One next command"}},
+		{"change", []string{"name: change", "exact command", "Undo"}},
+		{"host", []string{"name: host", "ssh", "permission prompt", "Do not print key material", "SELinux"}},
+	}
+	for _, c := range cases {
+		content, err := ReadDefaultSkill(c.name)
+		if err != nil {
+			t.Errorf("ReadDefaultSkill(%s): %v", c.name, err)
+			continue
+		}
+		for _, needle := range c.needles {
+			if !strings.Contains(content, needle) {
+				t.Errorf("%s skill missing %q", c.name, needle)
+			}
+		}
 	}
 }
 

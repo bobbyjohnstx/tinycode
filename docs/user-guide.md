@@ -98,7 +98,7 @@ These execute immediately without sending anything to the model.
 | `/editor @file.md` | Open a file in `$EDITOR` for direct editing |
 | `/shell` | Drop into an interactive shell session; return to tinycode on exit |
 | `/diagnostics` | Open a diagnostics dialog showing config, paths, providers, and system info |
-| `/debug` | Expand the bundled debug skill (systematic root-cause analysis) into the prompt |
+| `/debug` | Ask the debugger agent to find one root cause. This is not the diagnostics dialog |
 | `/thinking <level>` | Set the reasoning level: `off`, `low` (1k tokens), `medium` (4k), `high` (16k), `max` (128k) |
 | `/thinking` | Show the current reasoning level |
 | `/scoped-models` | Toggle model scoping -- mark favorite models so the model list only shows those |
@@ -121,27 +121,24 @@ These are processed by the model. They show up in autocomplete alongside client 
 | `/ask <agent> <message>` | Route a prompt to a specific agent (e.g., `/ask architect design the auth flow`) |
 | `/swarm <task>` | Split a task into subtasks and dispatch parallel subagents (see [Swarm Mode](#subagents-and-swarm-mode)) |
 | `/work-loop <task>` | Iterate on a task autonomously until complete or blocked |
-| `/review [target]` | Review changes (commit, branch, or PR) |
+| `/review [target]` | Ask code-reviewer to review a change |
 | `/init` | Generate root `AGENTS.md` from repo signals (ecosystem detection) and guided project setup |
 
 ### Custom commands (skills)
 
 If you have skill files in `~/.config/tinycode/skills/` or `.tinycode/skills/`, they appear as additional slash commands. Skills are markdown files with a `SKILL.md` in a named directory that inject specialized instructions into the prompt.
 
-tinycode bundles 10 default skills that are always available (user/project skills override them by name):
+tinycode bundles seven skills. User and project skills override them by name. `/debug`, `/trace`, `/plan`, `/verify`, `/test`, and `/review` delegate to agents instead of expanding a skill. See [authoring.md](authoring.md) to add either one.
 
 | Skill | Description |
 |-------|-------------|
-| `debug` | Systematic debugging with reproduction steps and root-cause analysis |
-| `verify` | Evidence-based completion checks before claiming work is done |
-| `trace` | Causal tracing with competing hypotheses and discriminating probes |
 | `remember` | Triage session findings across memory surfaces |
-| `deepinit` | Deep project initialization and onboarding |
-| `doctor` | Diagnose project health issues |
+| `deepinit` | Per-directory `AGENTS.md` files |
+| `doctor` | Diagnose the tinycode environment |
 | `mcp-setup` | Guided MCP server configuration |
-| `review` | Code review workflow |
-| `plan` | Multi-step implementation planning |
-| `test` | Test-driven development workflow |
+| `incident` | Triage a live system failure: impact, evidence, one next command |
+| `change` | Plan one cluster or host change: the command, the check, and the undo |
+| `host` | Inspect a machine, local or over ssh: health, misconfiguration, and exposure |
 
 ### Image paste (multimodal input)
 
@@ -299,25 +296,32 @@ Agents are specialized personas that share the same tools but have different sys
 
 | Agent | Mode | Description |
 |-------|------|-------------|
-| **build** | primary | Default agent. Full tool access. Handles simple tasks inline, delegates complex work to executor (implementation), architect (design), or critic (review) subagents. |
+| **build** | primary | Default agent. Handles simple work inline and delegates the rest. |
 | **plan** | primary | Planning mode. Interviews the user, researches the codebase, and writes work plans; edits restricted to `plans/*` and `drafts/*`. Use `plan_enter`/`plan_exit` to switch. |
-| **architect** | all | Design decisions, API design, system-level trade-offs. Read-only analysis. |
-| **code-reviewer** | all | Severity-rated code review with SOLID checks, logic defect detection, performance analysis. |
-| **critic** | all | Multi-perspective quality review with gap analysis and pre-mortem. |
-| **debugger** | all | Root-cause analysis. One hypothesis at a time, minimal diff fixes. |
-| **executor** | all | Focused task implementation. Smallest viable diff, no scope creep. |
+| **analyst** | subagent | Turns decided scope into acceptance criteria and catches gaps before planning. |
+| **architect** | subagent | Design decisions, API design, system-level trade-offs. Read-only. |
+| **code-reviewer** | subagent | Severity-rated code review with SOLID checks, logic defect detection, performance analysis. |
+| **critic** | subagent | Plan and gap review with a pre-mortem. Code defects go to code-reviewer. |
+| **debugger** | subagent | Root-cause analysis. One hypothesis at a time, minimal diff fixes. |
+| **designer** | subagent | UI implementation. Detects the framework and keeps the visual design intentional. |
+| **document-specialist** | subagent | External SDK docs, API references, changelogs, and integration guides. |
+| **executor** | primary | Focused task implementation. Smallest viable diff, no scope creep. |
 | **explore** | subagent | Fast codebase search. Read-only: grep, glob, read, bash only. |
 | **general** | subagent | General-purpose research and multi-step tasks. |
-| **git-master** | all | Git history management, rebasing, atomic commits. |
-| **scout** | subagent | External research. Clones dependency repos, fetches docs. |
-| **security-reviewer** | all | OWASP Top 10, secrets detection, unsafe patterns, dependency CVEs. |
-| **test-engineer** | all | Test strategy, coverage authoring, TDD workflows. |
-| **verifier** | all | Evidence-based completion checks. No approval without fresh evidence. |
-| **writer** | all | Technical documentation with verified examples. |
+| **git-master** | subagent | Git history management, rebasing, atomic commits. |
+| **ops** | primary | Cluster and host administration. Read-only first. Asks before a command that changes the system. |
+| **scout** | subagent | Upstream dependency source. Official docs go to document-specialist. |
+| **security-reviewer** | subagent | OWASP Top 10, secrets detection, unsafe patterns, dependency CVEs. |
+| **test-engineer** | subagent | Test strategy, coverage authoring, TDD workflows. |
+| **tracer** | subagent | Causal tracing with competing hypotheses, evidence for and against, and a next probe. |
+| **verifier** | subagent | Evidence-based completion checks. No approval without fresh evidence. |
+| **writer** | subagent | Technical documentation with verified examples. |
 
 Hidden utility agents (compaction, title, summary) handle internal tasks and are not selectable.
 
 Some agents (code-simplifier, qa-tester, scientist) are disabled by default but can be enabled in config.
+
+How to add an agent or a skill is in [authoring.md](authoring.md).
 
 ### Agent modes
 
@@ -331,7 +335,7 @@ Each agent has a `.compact` variant that is automatically used when the model ha
 
 ### Switching agents
 
-**Tab/Shift+Tab** -- Cycle through primary agents in the prompt (default: `build`, `plan`, `architect`, `code-reviewer`). The agent name and its color update in the status bar. Configure the cycle list with `cycle_agents` in config.
+**Tab/Shift+Tab** -- Cycle through agents in the prompt (default: `build`, `general`, `ops`, `plan`, `architect`, `code-reviewer`). The agent name and its color update in the status bar. Configure the cycle list with `cycle_agents` in config.
 
 **Ctrl+X a** -- Open the agent dialog showing all agents (including disabled ones). Navigate with j/k or arrows, press Enter to select.
 
@@ -573,7 +577,7 @@ Config files support JSONC (JSON with comments) and environment variable substit
   "default_agent": "build",
 
   // Tab/Shift-Tab persona cycle (agent picker still lists all)
-  "cycle_agents": ["build", "plan", "architect", "code-reviewer"],
+  "cycle_agents": ["build", "general", "ops", "plan", "architect", "code-reviewer"],
 
   // Shell for tool execution
   "shell": "/bin/zsh",
@@ -620,7 +624,7 @@ Config files support JSONC (JSON with comments) and environment variable substit
 | `model` | *(auto)* | Default model in `provider/model` format |
 | `small_model` | *(none)* | Smaller model for lightweight tasks (titles, summaries) |
 | `default_agent` | `build` | Agent loaded on startup |
-| `cycle_agents` | `build`, `plan`, `architect`, `code-reviewer` | Ordered Tab/Shift-Tab persona list |
+| `cycle_agents` | `build`, `general`, `ops`, `plan`, `architect`, `code-reviewer` | Ordered Tab/Shift-Tab persona list |
 | `shell` | *(system)* | Shell for tool execution |
 | `logLevel` | *(none)* | Log verbosity (wired into the logger) |
 | `theme` | *(default)* | Color theme name |
@@ -1409,7 +1413,7 @@ Type `/diagnostics` in the TUI to open a diagnostics dialog showing:
 - MCP server connections
 - System info (Go version, OS, architecture)
 
-`/debug` is a **bundled skill** (not the diagnostics UI). It expands systematic debugging instructions into the prompt for the model.
+`/debug` asks the debugger agent to investigate a failure. It does not open this dialog, and it is not `tinycode debug`.
 
 From the CLI:
 

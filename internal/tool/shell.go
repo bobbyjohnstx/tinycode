@@ -38,6 +38,21 @@ var destructivePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\bmkfs\b`),
 	regexp.MustCompile(`\bdd\s+`),
 	regexp.MustCompile(`>\s*/dev/sd`),
+	regexp.MustCompile(`(?i)\b(?:reboot|shutdown|poweroff|halt)\b`),
+	regexp.MustCompile(`(?i)\b(?:oc|kubectl)\s+(?:apply|create|delete|replace|patch|scale|rollout|annotate|label|expose|set|exec|rsh|debug|cp|edit|drain|cordon|uncordon|taint)\b`),
+	regexp.MustCompile(`(?i)\b(?:oc|kubectl)\s+adm\s+(?:drain|cordon|uncordon|reboot|upgrade|policy|prune|release|migrate)\b`),
+	regexp.MustCompile(`(?i)\b(?:oc|kubectl)\s+config\s+(?:set|use-context|delete|rename|unset)\b`),
+	regexp.MustCompile(`(?i)\bhelm\s+(?:install|upgrade|uninstall|rollback|delete)\b`),
+	regexp.MustCompile(`(?i)\bsystemctl\s+(?:--\S+\s+)*(?:start|stop|restart|reload|try-restart|reload-or-restart|enable|disable|mask|unmask|kill|isolate|edit|daemon-reload|set-property)\b`),
+	regexp.MustCompile(`(?i)\bservice\s+\S+\s+(?:start|stop|restart|reload)\b`),
+	regexp.MustCompile(`(?i)\b(?:useradd|userdel|usermod|groupadd|groupdel|groupmod|passwd|chpasswd|visudo|chage)\b`),
+	regexp.MustCompile(`(?i)\b(?:hostnamectl|timedatectl|localectl)\s+set-`),
+	regexp.MustCompile(`(?i)\b(?:setenforce|setsebool)\b`),
+	regexp.MustCompile(`(?i)\bfirewall-cmd\b.*(?:--add-|--remove-|--permanent|--reload|--panic-)`),
+	regexp.MustCompile(`(?i)\biptables\b.*(?:-[ADIFXPZ]\b|--flush|--delete)`),
+	regexp.MustCompile(`(?i)\bnft\s+(?:add|delete|flush|insert|replace)\b`),
+	regexp.MustCompile(`(?i)\bnmcli\s+(?:connection|con|device|dev)\s+(?:up|down|modify|mod|delete|del|add|reapply|connect|disconnect)\b`),
+	regexp.MustCompile(`(?i)\bip\s+(?:link|addr|address|route|rule)\s+(?:add|del|delete|replace|set|change|flush)\b`),
 }
 
 type shellArgs struct {

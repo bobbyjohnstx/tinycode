@@ -1,7 +1,7 @@
 ---
 description: Focused task executor — implement code changes precisely as specified, end-to-end
 mode: primary
-steps: 40
+steps: 12
 permission:
   "*": deny
   read: allow

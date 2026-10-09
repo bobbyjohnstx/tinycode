@@ -32,24 +32,24 @@ func TestLoadContent_StripsFrontmatter(t *testing.T) {
 }
 
 func TestLoadContent_Builtin(t *testing.T) {
-	var debug Skill
+	var doctor Skill
 	for _, s := range DefaultSkills() {
-		if s.Name == "debug" {
-			debug = s
+		if s.Name == "doctor" {
+			doctor = s
 			break
 		}
 	}
-	if debug.Name == "" {
-		t.Fatal("debug skill not found")
+	if doctor.Name == "" {
+		t.Fatal("doctor skill not found")
 	}
-	content, err := LoadContent(debug)
+	content, err := LoadContent(doctor)
 	if err != nil {
 		t.Fatalf("LoadContent: %v", err)
 	}
 	if strings.HasPrefix(strings.TrimSpace(content), "---") {
 		t.Error("expected frontmatter stripped from builtin skill")
 	}
-	if !strings.Contains(content, "Debug") && !strings.Contains(content, "debug") {
+	if !strings.Contains(content, "Doctor") && !strings.Contains(content, "doctor") {
 		snippet := content
 		if len(snippet) > 80 {
 			snippet = snippet[:80]

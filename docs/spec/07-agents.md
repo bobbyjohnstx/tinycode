@@ -66,17 +66,22 @@ Loaded from embedded markdown files with YAML frontmatter. Actual set in Go `int
 
 | Agent | Description |
 |-------|-------------|
-| `architect` | Code design and architecture review (read-only) |
+| `analyst` | Requirements and acceptance criteria before planning |
+| `architect` | Code design and architecture review (read-only). Known failures go to debugger |
 | `code-reviewer` | Severity-rated code review with SOLID checks |
 | `code-simplifier` | Refactoring for clarity (archived: disabled by default) |
-| `critic` | Multi-perspective quality review |
+| `critic` | Plan and gap review. Code defects go to code-reviewer |
 | `debugger` | Root-cause analysis and bug fixing |
+| `designer` | UI implementation with framework-aware visual design |
+| `document-specialist` | External SDK docs, API references, changelogs, and integration guides |
 | `executor` | Focused implementation of scoped tasks |
 | `git-master` | Git history, rebasing, atomic commits |
+| `ops` | Cluster and host administration. Primary. Read-only first; mutating shell commands ask |
 | `qa-tester` | Interactive CLI testing (archived: disabled by default) |
 | `scientist` | Data analysis and research (archived: disabled by default) |
 | `security-reviewer` | Security vulnerability detection |
 | `test-engineer` | Test strategy and TDD workflows |
+| `tracer` | Competing-hypothesis causal tracing |
 | `verifier` | Completion verification |
 | `writer` | Technical documentation |
 

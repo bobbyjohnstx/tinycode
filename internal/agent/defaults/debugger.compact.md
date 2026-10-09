@@ -1,7 +1,7 @@
 ---
 description: Root-cause analysis, regression isolation, stack trace analysis, build and compilation error resolution
 mode: subagent
-steps: 30
+steps: 12
 permission:
   "*": deny
   read: allow

@@ -57,11 +57,11 @@ Skills inject specialized instructions into the conversation. They're prompts, n
 |---------|-------------|----------------|
 | `/ask <agent> <message>` | Send a one-shot message to a specific agent (architect, debugger, executor, etc.) | When you want a specific agent's perspective without switching the session agent. |
 | `/review` | Structured code review of the current diff with severity-rated findings. | Before committing — catches bugs, style issues, and security problems. |
-| `/debug` | Root-cause analysis for a known failure. Reproduces narrowly, gathers evidence. | When something is broken and you need to find why. |
-| `/trace` | Evidence-driven causal tracing with competing hypotheses. | When there are multiple possible causes and you need to rank them. |
-| `/verify` | Confirm a change works by building and running the app, not just passing tests. | Before claiming a fix is done — proves it works end-to-end. |
-| `/plan` | Create a structured implementation plan with acceptance criteria. | Before starting a complex multi-step task. |
-| `/test` | Generate comprehensive test cases for a function or module. | Adding test coverage — happy path, edge cases, error conditions. |
+| `/debug` | Ask the debugger agent for one root cause. | When something is broken and you need to find why. |
+| `/trace` | Ask the tracer agent to rank competing explanations. | When there are multiple possible causes. |
+| `/verify` | Ask the verifier agent for proof a change works. | Before claiming a fix is done. |
+| `/plan` | Ask the plan agent for a work plan. | Before starting a complex multi-step task. |
+| `/test` | Ask the test-engineer agent to write tests. | Adding test coverage. |
 | `/doctor` | Check the tinycode environment — provider connectivity, model health, config audit. Also available as CLI: `tinycode doctor`. | First session, or when something seems misconfigured. |
 | `/remember` | Save findings from this session to memory for future conversations. | When you learn something that should persist across sessions. |
 | `/init` | Generate a root `AGENTS.md` from repo signals (Go, Node, Rust, Python, Ruby, Java), then prompt the LLM for refinement and project setup. | First time setting up tinycode in a project. |

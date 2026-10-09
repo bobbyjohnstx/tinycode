@@ -2,6 +2,7 @@
 name: executor
 description: Focused task executor for implementation work — smallest viable diff, no scope creep, verify before claiming done
 mode: primary
+steps: 12
 permission:
   "*": deny
   read: allow

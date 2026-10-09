@@ -10,10 +10,10 @@ import (
 
 func TestBuiltinCommands_Count(t *testing.T) {
 	cmds := builtinCommands()
-	if len(cmds) != 12 {
-		t.Fatalf("expected 12 builtins, got %d", len(cmds))
+	if len(cmds) != 17 {
+		t.Fatalf("expected 17 builtins, got %d", len(cmds))
 	}
-	expected := []string{"branch", "init", "review", "ask", "swarm", "auto-approve", "effort", "btw", "goal", "rewind", "hooks", "context"}
+	expected := []string{"branch", "init", "review", "debug", "trace", "plan", "verify", "test", "ask", "swarm", "auto-approve", "effort", "btw", "goal", "rewind", "hooks", "context"}
 	for i, name := range expected {
 		if cmds[i].Name != name {
 			t.Errorf("builtins[%d].Name = %q, want %q", i, cmds[i].Name, name)
@@ -34,18 +34,21 @@ func TestDiscover_EmptyDirsReturnsBuiltinsAndDefaults(t *testing.T) {
 	projectDir := t.TempDir()
 	cmds := Discover(configDir, projectDir, nil)
 
-	// Count expected: 12 builtins + default skills (minus deduped)
 	defaultSkills := skill.DefaultSkills()
+	builtins := builtinCommands()
+	builtinNames := make(map[string]bool, len(builtins))
+	for _, cmd := range builtins {
+		builtinNames[cmd.Name] = true
+	}
 	deduped := 0
-	builtinNames := map[string]bool{"init": true, "review": true, "ask": true, "swarm": true, "auto-approve": true, "effort": true, "btw": true, "goal": true, "rewind": true, "hooks": true, "context": true}
 	for _, ds := range defaultSkills {
 		if builtinNames[ds.Name] {
 			deduped++
 		}
 	}
-	expected := 12 + len(defaultSkills) - deduped
+	expected := len(builtins) + len(defaultSkills) - deduped
 	if len(cmds) != expected {
-		t.Fatalf("expected %d commands (12 builtins + %d default skills - %d deduped), got %d", expected, len(defaultSkills), deduped, len(cmds))
+		t.Fatalf("expected %d commands (%d builtins + %d default skills - %d deduped), got %d", expected, len(builtins), len(defaultSkills), deduped, len(cmds))
 	}
 }
 
@@ -207,7 +210,7 @@ func TestDiscover_DefaultSkillsAppearAsCommands(t *testing.T) {
 	configDir := t.TempDir()
 	cmds := Discover(configDir, "", nil)
 
-	expectedSkills := []string{"debug", "verify", "trace", "remember", "deepinit", "doctor", "mcp-setup", "plan", "test"}
+	expectedSkills := []string{"remember", "deepinit", "doctor", "mcp-setup", "incident", "change", "host"}
 	for _, name := range expectedSkills {
 		found := false
 		for _, cmd := range cmds {

@@ -102,10 +102,38 @@ func builtinCommands() []Command {
 		},
 		{
 			Name:        "review",
-			Description: "Review changes -- /review [commit|branch|pr]",
+			Description: "Delegate a code review to code-reviewer -- /review [target]",
 			Source:      "builtin",
-			Template:    "Review the recent changes in this project.",
-			Subtask:     true,
+			Hints:       []string{"$1"},
+		},
+		{
+			Name:        "debug",
+			Description: "Delegate a root-cause investigation to debugger -- /debug [issue]",
+			Source:      "builtin",
+			Hints:       []string{"$1"},
+		},
+		{
+			Name:        "trace",
+			Description: "Delegate competing-hypothesis tracing to tracer -- /trace [observation]",
+			Source:      "builtin",
+			Hints:       []string{"$1"},
+		},
+		{
+			Name:        "plan",
+			Description: "Delegate a work plan to the plan agent -- /plan [goal]",
+			Source:      "builtin",
+			Hints:       []string{"$1"},
+		},
+		{
+			Name:        "verify",
+			Description: "Delegate a completion check to verifier -- /verify [claim]",
+			Source:      "builtin",
+			Hints:       []string{"$1"},
+		},
+		{
+			Name:        "test",
+			Description: "Delegate test writing to test-engineer -- /test [target]",
+			Source:      "builtin",
 			Hints:       []string{"$1"},
 		},
 		{

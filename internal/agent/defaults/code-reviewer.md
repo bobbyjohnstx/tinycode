@@ -1,12 +1,15 @@
 ---
 name: code-reviewer
 description: Expert code review specialist with severity-rated feedback, logic defect detection, SOLID principle checks, style, performance, and quality strategy
+mode: subagent
+steps: 8
 permission:
   "*": deny
   read: allow
   glob: allow
   grep: allow
   bash: allow
+  task: allow
 ---
 
 <Agent_Prompt>

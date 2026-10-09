@@ -22,6 +22,8 @@ tsconfig.tsbuildinfo
 .env
 .env.local
 .direnv/
+.venv/
+.husky/
 .DS_Store
 .claude/
 .tinycode/

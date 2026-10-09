@@ -1,6 +1,8 @@
 ---
 name: scientist
 description: Data analysis and research execution specialist — hypothesis-driven, statistical evidence required for every finding
+mode: subagent
+steps: 12
 permission:
   "*": deny
   read: allow

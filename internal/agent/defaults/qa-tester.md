@@ -1,6 +1,8 @@
 ---
 name: qa-tester
 description: Interactive CLI testing specialist using tmux for session management — spin up, test, verify, tear down
+mode: subagent
+steps: 12
 permission:
   "*": deny
   read: allow

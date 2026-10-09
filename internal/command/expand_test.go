@@ -151,6 +151,52 @@ func TestExpandSlashCommand_BuiltinSkill(t *testing.T) {
 	if strings.Contains(result.Text, "$ARGUMENTS") {
 		t.Error("$ARGUMENTS should be substituted")
 	}
+	if !strings.Contains(result.Text, `subagent_type "debugger"`) {
+		t.Errorf("debug alias should delegate to debugger, got %q", result.Text)
+	}
+	if !strings.Contains(result.Text, "investigate flaky test") {
+		t.Errorf("debug alias should keep the task text, got %q", result.Text)
+	}
+}
+
+func TestExpandSlashCommand_OpsSkills(t *testing.T) {
+	cases := []struct {
+		cmd    string
+		needle string
+	}{
+		{"/incident api is down", "One next command"},
+		{"/change scale the deployment", "Undo"},
+		{"/host check this machine", "ssh"},
+	}
+	for _, c := range cases {
+		result := ExpandSlashCommand(c.cmd, "", "")
+		if result.Text == c.cmd {
+			t.Errorf("%s was not expanded", c.cmd)
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(result.Text), "---") {
+			t.Errorf("%s expansion includes frontmatter", c.cmd)
+		}
+		if !strings.Contains(result.Text, c.needle) {
+			t.Errorf("%s expansion missing %q", c.cmd, c.needle)
+		}
+		if result.DisplayText != c.cmd {
+			t.Errorf("%s DisplayText = %q", c.cmd, result.DisplayText)
+		}
+	}
+}
+
+func TestExpandSlashCommand_ReviewDelegates(t *testing.T) {
+	result := ExpandSlashCommand("/review the auth change", "", "")
+	if !strings.Contains(result.Text, `subagent_type "code-reviewer"`) {
+		t.Fatalf("review alias should delegate to code-reviewer, got %q", result.Text)
+	}
+	if !strings.Contains(result.Text, "the auth change") {
+		t.Errorf("review alias should keep the task text, got %q", result.Text)
+	}
+	if result.DisplayText != "/review the auth change" {
+		t.Errorf("DisplayText = %q", result.DisplayText)
+	}
 }
 
 func TestExpandSlashCommand_UserSkill(t *testing.T) {

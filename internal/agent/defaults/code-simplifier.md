@@ -1,6 +1,8 @@
 ---
 name: code-simplifier
 description: Simplifies and refines recently modified code for clarity, consistency, and maintainability while preserving all functionality
+mode: subagent
+steps: 12
 permission:
   "*": deny
   read: allow

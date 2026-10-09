@@ -132,7 +132,7 @@ Source: `internal/tool/shell.go`
 
 ### Destructive Command Detection
 
-`isDestructive()` checks commands against 10 regex patterns before execution:
+`IsDestructive()` checks commands against these patterns before execution:
 
 | Pattern | Matches |
 |---------|---------|
@@ -146,6 +146,15 @@ Source: `internal/tool/shell.go`
 | `kill -9` | Forceful process kill |
 | `mkfs` | Filesystem formatting |
 | `dd` / `> /dev/sd*` | Raw disk writes |
+| `reboot` / `shutdown` / `poweroff` / `halt` | Host restart or power off |
+| `oc` / `kubectl` `apply`, `create`, `delete`, `replace`, `patch`, `scale`, `rollout`, `exec`, `drain`, `cordon`, and the other mutating verbs | Cluster changes. `get`, `describe`, `logs`, and `oc adm top` stay read-only |
+| `oc` / `kubectl` `config set` / `use-context` | kubeconfig changes |
+| `helm install` / `upgrade` / `uninstall` / `rollback` / `delete` | Helm release changes |
+| `systemctl` `start`, `stop`, `restart`, `reload`, `enable`, `disable`, `mask` | Service changes, including the same command over `ssh`. `status` and `--failed` stay read-only |
+| `useradd` / `usermod` / `passwd` / `visudo` | Account changes |
+| `timedatectl set-` / `hostnamectl set-` / `setenforce` / `setsebool` | Host identity, clock, or mandatory-access changes |
+| `firewall-cmd` with `--add-`, `--remove-`, `--permanent`, or `--reload`; `iptables` with `-A`, `-D`, `-I`, or `-F`; `nft add` / `delete` / `flush` | Firewall changes. Listing rules stays read-only |
+| `nmcli connection up` / `down` / `modify`; `ip addr add`; `ip route add` / `del` | Address, route, and link changes |
 
 When a destructive pattern is matched:
 - If permission service is available: triggers `permission.Ask()` with permission `"destructive-shell"` and the command as both pattern and metadata

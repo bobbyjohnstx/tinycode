@@ -1,7 +1,7 @@
 ---
 description: Technical documentation writer — README, API docs, architecture docs, code comments
 mode: subagent
-steps: 20
+steps: 12
 permission:
   "*": deny
   read: allow

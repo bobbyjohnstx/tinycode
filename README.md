@@ -245,7 +245,7 @@ Config is loaded from `~/.config/tinycode/` with a 3-name fallback per directory
   "model": "ollama/qwen3.5:9b",
   "small_model": "ollama/qwen3.5:1.7b",
   "default_agent": "build",
-  "cycle_agents": ["build", "plan", "architect", "code-reviewer"]
+  "cycle_agents": ["build", "general", "ops", "plan", "architect", "code-reviewer"]
 }
 ```
 

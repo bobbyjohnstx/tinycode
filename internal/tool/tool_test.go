@@ -244,6 +244,40 @@ func TestRegistry_ToolDefs_BuildAgentOffersAskTools(t *testing.T) {
 	}
 }
 
+func TestRegistry_ToolDefs_CycleAgentsOfferTask(t *testing.T) {
+	reg := agent.NewRegistry()
+	if err := reg.LoadDefaults(nil, nil); err != nil {
+		t.Fatalf("LoadDefaults: %v", err)
+	}
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	RegisterBuiltins(r)
+	size := 7.0
+	// Same order as tui.DefaultCycleAgents. Slash delegation tells the
+	// current agent to call task, so each persona on that cycle must offer it.
+	for _, name := range []string{"build", "general", "ops", "plan", "architect", "code-reviewer"} {
+		variants := []struct {
+			label string
+			info  *agent.Info
+		}{
+			{"full", reg.Get(name, nil)},
+			{"small-model", reg.Get(name, &size)},
+		}
+		for _, v := range variants {
+			if v.info == nil {
+				t.Errorf("%s %s missing", name, v.label)
+				continue
+			}
+			offered := map[string]bool{}
+			for _, d := range r.ToolDefs(permission.Visible(v.info.Permission)) {
+				offered[d.Function.Name] = true
+			}
+			if !offered["task"] {
+				t.Errorf("%s (%s) does not offer task", name, v.label)
+			}
+		}
+	}
+}
+
 func TestRegistry_WithAgentRules_PlanHidesEditTools(t *testing.T) {
 	r := NewRegistry(&Context{Directory: t.TempDir()})
 	RegisterBuiltins(r)

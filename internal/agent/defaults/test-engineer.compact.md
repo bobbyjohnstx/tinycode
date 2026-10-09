@@ -1,7 +1,7 @@
 ---
 description: Test strategy, integration/e2e coverage, flaky test hardening, TDD workflows
 mode: subagent
-steps: 30
+steps: 12
 permission:
   "*": deny
   read: allow

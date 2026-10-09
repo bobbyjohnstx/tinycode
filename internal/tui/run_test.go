@@ -791,11 +791,13 @@ func TestHandleAgentListMsg_DefaultPrimaryCycle(t *testing.T) {
 			{Name: "code-reviewer", Mode: "subagent"},
 			{Name: "debugger", Mode: "subagent"},
 			{Name: "executor", Mode: "primary"},
+			{Name: "ops", Mode: "primary"},
+			{Name: "general", Mode: "subagent"},
 		},
 	})
 
 	got := result.prompt.cycleAgents
-	want := []string{"build", "plan", "architect", "code-reviewer"}
+	want := []string{"build", "general", "ops", "plan", "architect", "code-reviewer"}
 	if len(got) != len(want) {
 		t.Fatalf("cycle agents = %v, want %v", got, want)
 	}
@@ -805,8 +807,8 @@ func TestHandleAgentListMsg_DefaultPrimaryCycle(t *testing.T) {
 		}
 	}
 	// Autocomplete / picker still has all enabled agents in state.
-	if len(result.state.Agents) != 6 {
-		t.Errorf("expected all 6 enabled agents in state, got %d", len(result.state.Agents))
+	if len(result.state.Agents) != 8 {
+		t.Errorf("expected all 8 enabled agents in state, got %d", len(result.state.Agents))
 	}
 }
 

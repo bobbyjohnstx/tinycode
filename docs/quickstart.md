@@ -230,20 +230,23 @@ tinycode help
 
 ### Bundled skills
 
-tinycode includes 10 built-in skills available as slash commands. Typing `/skill-name` (or selecting a skill in the command palette) expands the skill body into the prompt.
+Seven built-in skills expand into the current prompt. `/debug`, `/trace`, `/plan`, `/verify`, `/test`, and `/review` instead ask the matching agent to do the job. Adding either kind is described in [authoring.md](authoring.md).
 
-| Skill | What it does |
+| Command | What it does |
 |-------|--------------|
-| `/debug` | Systematic debugging with reproduction steps |
-| `/verify` | Evidence-based completion checks |
-| `/trace` | Causal tracing with competing hypotheses |
-| `/review` | Code review workflow |
-| `/plan` | Multi-step implementation planning |
-| `/test` | Test-driven development workflow |
-| `/doctor` | Diagnose project health issues |
+| `/debug` | Ask debugger for one root cause |
+| `/verify` | Ask verifier for proof a change works |
+| `/trace` | Ask tracer to rank competing explanations |
+| `/review` | Ask code-reviewer to review a change |
+| `/plan` | Ask the plan agent for a work plan |
+| `/test` | Ask test-engineer to write tests |
+| `/doctor` | Diagnose the tinycode environment |
 | `/mcp-setup` | Guided MCP server configuration |
 | `/remember` | Triage session findings across memory surfaces |
 | `/deepinit` | Deep project initialization and onboarding |
+| `/incident` | Triage a live system failure |
+| `/change` | Plan one cluster or host change |
+| `/host` | Inspect a machine, local or over ssh |
 
 ### Terminal bell
 

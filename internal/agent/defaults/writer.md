@@ -1,6 +1,8 @@
 ---
 name: writer
 description: Technical documentation writer for README, API docs, and comments — verifies all examples before publishing
+mode: subagent
+steps: 12
 permission:
   "*": deny
   read: allow

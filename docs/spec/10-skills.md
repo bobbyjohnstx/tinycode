@@ -178,7 +178,7 @@ Built-in commands and agent names are registered first, so a skill cannot shadow
 | Command | Kind | Behavior |
 |---------|------|----------|
 | `/diagnostics` | Client TUI command | Opens the diagnostics dialog (config, providers, system info) |
-| `/debug` | Bundled skill | Expands the systematic debugging skill body into the prompt |
+| `/debug` | Built-in alias | Tells the current agent to delegate to the debugger agent |
 
 ### Command Schema
 
@@ -201,16 +201,15 @@ Bundled as embedded markdown under `internal/skill/defaults/` (`embed.go`):
 
 | Skill | Description |
 |-------|-------------|
-| `debug` | Isolate single most-likely root cause |
-| `verify` | Confirm changes work before claiming completion |
-| `trace` | Evidence-driven causal tracing |
 | `remember` | Triage findings to memory surfaces |
 | `deepinit` | Generate per-directory AGENTS.md files |
 | `doctor` | Project / environment health checks |
 | `mcp-setup` | Configure MCP servers via guided menu |
-| `review` | Code review workflow |
-| `plan` | Multi-step implementation planning |
-| `test` | Test-driven development workflow |
+| `incident` | Triage a live system failure |
+| `change` | Plan one cluster or host change |
+| `host` | Inspect a machine, local or over ssh |
+
+`/debug`, `/trace`, `/plan`, `/verify`, `/test`, and `/review` are built-in commands. Each expands to a short instruction to call the task tool with `debugger`, `tracer`, `plan`, `verifier`, `test-engineer`, or `code-reviewer`. A user or project skill of the same name is loaded instead. The copy-paste format is [authoring.md](../authoring.md).
 
 ## 10.8 Directory Layout
 

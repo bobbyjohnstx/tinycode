@@ -399,6 +399,7 @@ func (r *Registry) registerPrimaryAgents(buildPrompt, planPrompt string, default
 		Options: make(map[string]any),
 	}
 
+	planSteps := 12
 	r.agents["plan"] = &Info{
 		Name:        "plan",
 		Description: "Plan mode. Interviews the user, researches the codebase, and produces work plans; edits restricted to plans/* and drafts/*.",
@@ -409,6 +410,7 @@ func (r *Registry) registerPrimaryAgents(buildPrompt, planPrompt string, default
 			permission.Ruleset{
 				{Permission: "question", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "read", Pattern: "*", Action: permission.ActionAllow},
+				{Permission: "task", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "plan_exit", Pattern: "*", Action: permission.ActionAllow},
 				// Catch-all edit deny must precede the scoped allows below so the
 				// scoped rules win under Evaluate's last-match-from-end semantics.
@@ -420,11 +422,16 @@ func (r *Registry) registerPrimaryAgents(buildPrompt, planPrompt string, default
 		),
 		Mode:    ModePrimary,
 		Native:  true,
+		Steps:   &planSteps,
 		Options: make(map[string]any),
 	}
 }
 
 func (r *Registry) registerSubagents(generalPrompt, explorePrompt, scoutPrompt string, defaultPerms, userPerms permission.Ruleset) {
+	generalSteps := 12
+	exploreSteps := 8
+	scoutSteps := 8
+
 	r.agents["general"] = &Info{
 		Name:        "general",
 		Description: "General-purpose agent for researching complex questions and executing multi-step tasks.",
@@ -438,6 +445,7 @@ func (r *Registry) registerSubagents(generalPrompt, explorePrompt, scoutPrompt s
 		),
 		Mode:    ModeSubagent,
 		Native:  true,
+		Steps:   &generalSteps,
 		Options: make(map[string]any),
 	}
 
@@ -460,12 +468,13 @@ func (r *Registry) registerSubagents(generalPrompt, explorePrompt, scoutPrompt s
 		),
 		Mode:    ModeSubagent,
 		Native:  true,
+		Steps:   &exploreSteps,
 		Options: make(map[string]any),
 	}
 
 	r.agents["scout"] = &Info{
 		Name:        "scout",
-		Description: "External research specialist. Clones and inspects dependency repos, fetches docs.",
+		Description: "External research specialist. Reads upstream dependency source.",
 		Prompt:      scoutPrompt,
 		Permission: permission.Merge(
 			defaultPerms,
@@ -481,6 +490,7 @@ func (r *Registry) registerSubagents(generalPrompt, explorePrompt, scoutPrompt s
 		),
 		Mode:    ModeSubagent,
 		Native:  true,
+		Steps:   &scoutSteps,
 		Options: make(map[string]any),
 	}
 }

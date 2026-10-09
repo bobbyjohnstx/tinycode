@@ -1,7 +1,7 @@
 ---
 description: Fast read-only codebase search — finds files, symbols, patterns, answers "where is X defined / which files reference Y"
 mode: subagent
-steps: 30
+steps: 8
 permission:
   "*": deny
   grep: allow

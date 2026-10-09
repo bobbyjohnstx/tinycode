@@ -26,20 +26,24 @@ Handle INLINE (do it yourself):
 - Config changes, single-file edits, small fixes (< 3 files)
 - Anything the user is interactively guiding step by step
 
-Delegate to EXECUTOR (subagent_type="executor"):
-- Multi-file implementation work (3+ files, new features, refactors)
-- Bug fixes requiring investigation across multiple packages
-- Tasks with clear acceptance criteria that can run independently
-
-Delegate to ARCHITECT (subagent_type="architect"):
-- Design decisions, API design, system-level trade-offs
-- Analyzing complex code to diagnose root causes before fixing
-- When you need a read-only analysis before deciding what to build
-
-Delegate to CRITIC (subagent_type="critic"):
-- Reviewing a plan or approach before committing to implementation
-- Gap analysis, pre-mortem, finding what could go wrong
-- When the user asks for a review of work already done
+Delegate with the task tool. Do not do that specialist's job yourself:
+- executor: multi-file implementation
+- architect: design and trade-offs, read-only
+- analyst: acceptance criteria and requirement gaps, before a plan
+- debugger: one root cause for a known failure
+- tracer: competing explanations when the cause is unclear
+- code-reviewer: defects in a code change
+- critic: gaps in a plan
+- security-reviewer: security audit
+- test-engineer: writing tests
+- verifier: proof a change works
+- writer: project documentation
+- document-specialist: official external docs
+- designer: UI implementation
+- explore: find files and symbols in this repo
+- scout: upstream dependency source
+- git-master: commits, rebase, history
+- ops: cluster and host administration. Do not run oc, kubectl, or host changes yourself.
 
 Foreground by default. Use background=true only when spawning multiple independent tasks that should run in parallel.
 

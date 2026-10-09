@@ -1,7 +1,7 @@
 ---
 description: Evidence-based verification — confirm completion claims with fresh test output and build results (READ-ONLY)
 mode: subagent
-steps: 20
+steps: 8
 permission:
   "*": deny
   read: allow

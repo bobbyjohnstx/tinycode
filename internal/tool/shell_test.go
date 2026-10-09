@@ -127,6 +127,86 @@ func TestIsDestructive_DetectsSQLDestructiveOps(t *testing.T) {
 	}
 }
 
+func TestIsDestructive_DetectsClusterMutations(t *testing.T) {
+	destructive := []string{
+		"oc delete pod api-1",
+		"kubectl apply -f deploy.yaml",
+		"oc scale deployment/api --replicas=0",
+		"kubectl patch deploy/api -p '{}'",
+		"oc adm drain node1",
+		"oc adm cordon node1",
+		"kubectl rollout restart deployment/api",
+		"oc exec pod/api -- rm /tmp/x",
+		"helm upgrade myrel ./chart",
+		"sudo reboot",
+	}
+	for _, cmd := range destructive {
+		if !IsDestructive(cmd) {
+			t.Errorf("expected destructive for %q", cmd)
+		}
+	}
+}
+
+func TestIsDestructive_IgnoresReadOnlyClusterCommands(t *testing.T) {
+	safe := []string{
+		"oc get pods",
+		"oc describe node/worker-1",
+		"kubectl logs deploy/api",
+		"oc adm top pods",
+		"oc whoami",
+		"helm list",
+	}
+	for _, cmd := range safe {
+		if IsDestructive(cmd) {
+			t.Errorf("expected safe for %q", cmd)
+		}
+	}
+}
+
+func TestIsDestructive_DetectsHostMutations(t *testing.T) {
+	destructive := []string{
+		"systemctl restart sshd",
+		"systemctl --no-block stop firewalld",
+		"ssh node systemctl restart sshd",
+		"service nginx reload",
+		"useradd deploy",
+		"timedatectl set-ntp true",
+		"setenforce 0",
+		"firewall-cmd --add-port=22/tcp",
+		"iptables -A INPUT -j DROP",
+		"nft add rule inet filter input drop",
+		"nmcli connection down eth0",
+		"ip route add 10.0.0.0/8 via 10.1.1.1",
+	}
+	for _, cmd := range destructive {
+		if !IsDestructive(cmd) {
+			t.Errorf("expected destructive for %q", cmd)
+		}
+	}
+}
+
+func TestIsDestructive_IgnoresReadOnlyHostCommands(t *testing.T) {
+	safe := []string{
+		"hostname",
+		"systemctl status sshd",
+		"systemctl --failed",
+		"ssh node systemctl status sshd",
+		"service nginx status",
+		"firewall-cmd --list-all",
+		"iptables -L",
+		"iptables -S",
+		"nft list ruleset",
+		"nmcli device status",
+		"ip route",
+		"getenforce",
+	}
+	for _, cmd := range safe {
+		if IsDestructive(cmd) {
+			t.Errorf("expected safe for %q", cmd)
+		}
+	}
+}
+
 func TestIsDestructive_IgnoresSafeCommands(t *testing.T) {
 	safe := []string{
 		"ls -la",
@@ -138,6 +218,32 @@ func TestIsDestructive_IgnoresSafeCommands(t *testing.T) {
 	for _, cmd := range safe {
 		if IsDestructive(cmd) {
 			t.Errorf("expected safe for %q", cmd)
+		}
+	}
+}
+
+func TestExecuteShell_HostMutationBlockedWithoutPerms(t *testing.T) {
+	dir := t.TempDir()
+	r := NewRegistry(&Context{Directory: dir})
+	RegisterBuiltins(r)
+
+	for _, cmd := range []string{
+		"systemctl restart sshd",
+		"ssh node systemctl restart sshd",
+	} {
+		raw, err := json.Marshal(map[string]string{"command": cmd})
+		if err != nil {
+			t.Fatal(err)
+		}
+		output, isErr, execErr := r.Execute(context.Background(), "bash", raw, "sess-host")
+		if execErr != nil {
+			t.Errorf("%s execute error: %v", cmd, execErr)
+		}
+		if !isErr {
+			t.Errorf("%s should be blocked without a permission service", cmd)
+		}
+		if !strings.Contains(output, "destructive") {
+			t.Errorf("%s output = %q, want a destructive block", cmd, output)
 		}
 	}
 }

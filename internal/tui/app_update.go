@@ -456,12 +456,10 @@ func (a App) handleAgentListMsg(msg AgentListMsg) (App, tea.Cmd) {
 
 		agentItems := make([]AutocompleteItem, 0, len(enabled))
 		for _, ag := range enabled {
-			if ag.Mode != "primary" {
-				agentItems = append(agentItems, AutocompleteItem{
-					Name:        ag.Name,
-					Description: ag.Description,
-				})
-			}
+			agentItems = append(agentItems, AutocompleteItem{
+				Name:        ag.Name,
+				Description: ag.Description,
+			})
 		}
 		a.prompt.SetAgents(agentItems)
 		cycle := resolveCycleAgents(a.state.CycleAgents, enabled)

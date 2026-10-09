@@ -1,7 +1,7 @@
 ---
 description: Interactive CLI testing specialist — spin up services, send commands, verify behavior via tmux
 mode: subagent
-steps: 25
+steps: 12
 permission:
   "*": deny
   read: allow

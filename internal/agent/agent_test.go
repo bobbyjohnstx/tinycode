@@ -768,7 +768,7 @@ func TestLoadDefaults_BundledSpecialistsDefaultSubagent(t *testing.T) {
 		t.Fatalf("LoadDefaults failed: %v", err)
 	}
 
-	for _, name := range []string{"architect", "debugger", "code-reviewer", "critic", "verifier"} {
+	for _, name := range []string{"architect", "debugger", "code-reviewer", "critic", "verifier", "analyst", "designer", "document-specialist", "tracer"} {
 		agent := r.Get(name, nil)
 		if agent == nil {
 			t.Errorf("bundled agent %q not loaded", name)
@@ -1007,5 +1007,131 @@ func TestBuildAgent_SensitiveActionsAsk(t *testing.T) {
 	build = withUser.Get("build", nil)
 	if got := permission.Evaluate("webfetch", "https://example.com", build.Permission); got.Action != permission.ActionAllow {
 		t.Errorf("user webfetch allow: got %s, want allow", got.Action)
+	}
+}
+
+func TestBundledCompactMatchesFullPermissionsAndSteps(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(nil, nil); err != nil {
+		t.Fatalf("LoadDefaults: %v", err)
+	}
+	names := []string{
+		"analyst", "architect", "code-reviewer", "critic", "debugger", "designer",
+		"document-specialist", "executor", "git-master", "ops", "security-reviewer",
+		"test-engineer", "tracer", "verifier", "writer",
+	}
+	size := 7.0
+	checks := []string{"read", "edit", "bash", "webfetch"}
+	for _, name := range names {
+		full := r.Get(name, nil)
+		compact := r.Get(name, &size)
+		if full == nil || compact == nil {
+			t.Errorf("%s missing full=%v compact=%v", name, full != nil, compact != nil)
+			continue
+		}
+		if !compact.Compact {
+			t.Errorf("%s small-model get should be compact", name)
+		}
+		if full.Steps == nil || compact.Steps == nil || *full.Steps != *compact.Steps {
+			t.Errorf("%s steps full=%v compact=%v", name, full.Steps, compact.Steps)
+		}
+		for _, perm := range checks {
+			fullAction := permission.Evaluate(perm, "*", full.Permission).Action
+			compactAction := permission.Evaluate(perm, "*", compact.Permission).Action
+			if fullAction != compactAction {
+				t.Errorf("%s %s: full %s, compact %s", name, perm, fullAction, compactAction)
+			}
+		}
+	}
+
+	doc := r.Get("document-specialist", nil)
+	if doc == nil {
+		t.Fatal("document-specialist missing")
+	}
+	if got := permission.Evaluate("webfetch", "https://example.com", doc.Permission); got.Action != permission.ActionAllow {
+		t.Errorf("document-specialist webfetch: got %s, want allow", got.Action)
+	}
+	if got := permission.Evaluate("edit", "README.md", doc.Permission); got.Action != permission.ActionDeny {
+		t.Errorf("document-specialist edit: got %s, want deny", got.Action)
+	}
+
+	ops := r.Get("ops", nil)
+	if ops == nil || ops.Mode != ModePrimary || ops.Steps == nil || *ops.Steps != 12 {
+		t.Fatalf("ops mode/steps = %+v", ops)
+	}
+	if got := permission.Evaluate("bash", "oc get pods", ops.Permission); got.Action != permission.ActionAllow {
+		t.Errorf("ops read-only shell: got %s, want allow", got.Action)
+	}
+	if got := permission.Evaluate("destructive-shell", "oc delete pod api", ops.Permission); got.Action != permission.ActionAsk {
+		t.Errorf("ops mutating shell: got %s, want ask", got.Action)
+	}
+	if got := permission.Evaluate("edit", "main.go", ops.Permission); got.Action != permission.ActionDeny {
+		t.Errorf("ops edit: got %s, want deny", got.Action)
+	}
+	if got := permission.Evaluate("secret-shell", "cat /etc/shadow", ops.Permission); got.Action != permission.ActionAsk {
+		t.Errorf("ops secret shell: got %s, want ask", got.Action)
+	}
+	if got := permission.Evaluate("task", "*", ops.Permission); got.Action != permission.ActionAllow {
+		t.Errorf("ops task: got %s, want allow", got.Action)
+	}
+	opsCompact := r.Get("ops", &size)
+	if opsCompact == nil || !opsCompact.Compact {
+		t.Fatal("ops compact missing")
+	}
+	for _, perm := range []string{"destructive-shell", "secret-shell"} {
+		fullAction := permission.Evaluate(perm, "systemctl restart sshd", ops.Permission).Action
+		compactAction := permission.Evaluate(perm, "systemctl restart sshd", opsCompact.Permission).Action
+		if fullAction != permission.ActionAsk || compactAction != permission.ActionAsk {
+			t.Errorf("ops %s full=%s compact=%s, want ask", perm, fullAction, compactAction)
+		}
+	}
+}
+
+func TestAgentPromptsAvoidMissingHandoffs(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(nil, nil); err != nil {
+		t.Fatalf("LoadDefaults: %v", err)
+	}
+	checks := []struct{ name, needle string }{
+		{"analyst", "planner"},
+		{"debugger", "code-simplifier"},
+		{"designer", "scientist"},
+		{"git-master", "qa-tester"},
+		{"test-engineer", "qa-tester"},
+		{"architect", "diagnos"},
+		{"build", "code-simplifier"},
+		{"ops", "code-simplifier"},
+		{"ops", "qa-tester"},
+		{"ops", "scientist"},
+		{"ops", "planner"},
+	}
+	size := 7.0
+	for _, c := range checks {
+		full := r.Get(c.name, nil)
+		if full == nil {
+			t.Errorf("%s missing", c.name)
+			continue
+		}
+		if strings.Contains(strings.ToLower(full.Prompt), c.needle) {
+			t.Errorf("%s prompt still mentions %s", c.name, c.needle)
+		}
+		compact := r.Get(c.name, &size)
+		if compact != nil && compact.Compact && strings.Contains(strings.ToLower(compact.Prompt), c.needle) {
+			t.Errorf("%s compact prompt still mentions %s", c.name, c.needle)
+		}
+	}
+	build := r.Get("build", nil)
+	if build == nil || !strings.Contains(build.Prompt, "ops:") {
+		t.Error("build prompt should hand cluster work to ops")
+	}
+	opsFull := r.Get("ops", nil)
+	opsCompact := r.Get("ops", &size)
+	for _, needle := range []string{"tracer", "document-specialist", "explore", "security-reviewer", "name incident", "name change", "name host"} {
+		if opsFull == nil || !strings.Contains(opsFull.Prompt, needle) {
+			t.Errorf("ops prompt should name %s", needle)
+		}
+		if opsCompact == nil || !opsCompact.Compact || !strings.Contains(opsCompact.Prompt, needle) {
+			t.Errorf("ops compact prompt should name %s", needle)
+		}
 	}
 }

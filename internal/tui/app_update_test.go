@@ -182,28 +182,28 @@ func TestHandleProvidersLoadedMsg_AutoOpensWithEmptyProviders(t *testing.T) {
 func TestPaletteSelected_SkillExpandsIntoPrompt(t *testing.T) {
 	app := NewApp("")
 	app.state.Commands = []api.CommandInfo{
-		{Name: "debug", Description: "Debug skill", Source: "skill"},
+		{Name: "doctor", Description: "Doctor skill", Source: "skill"},
 	}
 
 	result, _, handled := app.handleDialogMsg(PaletteSelectedMsg{
-		Item: PaletteItem{Label: "debug", Value: "debug"},
+		Item: PaletteItem{Label: "doctor", Value: "doctor"},
 	})
 	if !handled {
 		t.Fatal("expected palette selection handled")
 	}
 	val := result.prompt.Value()
-	if val == "" || val == "debug" || val == "/debug" {
+	if val == "" || val == "doctor" || val == "/doctor" {
 		t.Fatalf("expected expanded skill body in prompt, got %q", val)
 	}
 	if strings.HasPrefix(strings.TrimSpace(val), "---") {
 		t.Error("prompt should not contain skill frontmatter")
 	}
-	if !strings.Contains(val, "Debug") && !strings.Contains(val, "root cause") {
+	if !strings.Contains(val, "doctor") && !strings.Contains(val, "Doctor") {
 		snippet := val
 		if len(snippet) > 120 {
 			snippet = snippet[:120]
 		}
-		t.Errorf("expected debug skill body content, got %q", snippet)
+		t.Errorf("expected doctor skill body content, got %q", snippet)
 	}
 }
 
@@ -250,6 +250,25 @@ func TestHandleStateMsg_AgentListMsg_StoresAgentsAndPopulatesAutocomplete(t *tes
 	// Agents should only contain enabled (non-disabled) agents.
 	if len(result.state.Agents) != 3 {
 		t.Errorf("expected 3 enabled Agents, got %d", len(result.state.Agents))
+	}
+}
+
+func TestHandleAgentListMsg_AskIncludesPrimaryAgents(t *testing.T) {
+	app := NewApp("")
+	agents := []api.AgentInfo{
+		{Name: "executor", Description: "implement", Mode: "primary"},
+		{Name: "architect", Description: "design", Mode: "subagent"},
+	}
+	result, _, handled := app.handleStateMsg(AgentListMsg{Agents: agents})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	names := map[string]bool{}
+	for _, ag := range result.prompt.autocomplete.agents {
+		names[ag.Name] = true
+	}
+	if !names["executor"] || !names["architect"] {
+		t.Fatalf("ask autocomplete = %v", names)
 	}
 }
 

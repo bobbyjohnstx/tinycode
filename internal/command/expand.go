@@ -85,6 +85,25 @@ CONSTRAINTS:
 USER TASK:
 `
 
+// delegateAgents maps a slash command to the specialist that should do the work.
+// A user or project skill with the same name is loaded first and wins.
+var delegateAgents = map[string]string{
+	"debug":  "debugger",
+	"trace":  "tracer",
+	"plan":   "plan",
+	"verify": "verifier",
+	"test":   "test-engineer",
+	"review": "code-reviewer",
+}
+
+func delegationPrompt(agent, task string) string {
+	task = strings.TrimSpace(task)
+	if task == "" {
+		task = "Use the conversation so far as the task."
+	}
+	return "Delegate this to the " + agent + " agent. Call the task tool once with subagent_type \"" + agent + "\". Do not do this job yourself.\n\nTask:\n" + task
+}
+
 // ExpandResult holds the expanded prompt text and any flags signaled by the
 // slash command (e.g. /swarm implies auto-approve).
 type ExpandResult struct {
@@ -153,6 +172,12 @@ func ExpandSlashCommand(text, configDir, projectDir string, skillPaths ...string
 				}
 				return ExpandResult{
 					Text:        skill.SubstituteParams(content, args),
+					DisplayText: trimmed,
+				}
+			}
+			if agent, ok := delegateAgents[name]; ok {
+				return ExpandResult{
+					Text:        delegationPrompt(agent, args),
 					DisplayText: trimmed,
 				}
 			}
