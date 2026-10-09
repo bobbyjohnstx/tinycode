@@ -14,10 +14,11 @@ import (
 
 var (
 	oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,2}\\?$`)
-	// Tail of a split OSC rgb: color response, e.g. "b:0000/0000/0000" or "gb:ffff/ffff/ffff".
-	// Occurs when the terminal response arrives split across reads: "\033]10;rg" is consumed
-	// by the escape-byte check and "b:0000/0000/0000" leaks through as the next fragment.
-	oscRGBTail = regexp.MustCompile(`^[rgb]{1,3}:([0-9a-fA-F]{1,4}/){1,2}[0-9a-fA-F]{1,4}\\?$`)
+	// Tail of a split OSC rgb: color response, e.g. "b:0000/0000/0000" or "gb/0000:0000:0000".
+	// Terminals vary in separator: xterm uses "rgb:R/G/B", others use "rgb/R:G:B".
+	// Occurs when the response arrives split across reads: "\033]10;rg" is consumed
+	// by the escape-byte check and the remaining tail leaks into the textarea.
+	oscRGBTail = regexp.MustCompile(`^[rgb]{1,3}[:\/][0-9a-fA-F]{1,4}([:\/][0-9a-fA-F]{1,4}){0,2}\\?$`)
 	// Core CPR payload after optional mangled CSI/OSC prefixes are stripped.
 	cprCore        = regexp.MustCompile(`^\d{0,4};\d{1,4}R$`)
 	cprCorePartial = regexp.MustCompile(`^\d{0,4};?\d{0,4}$`)
