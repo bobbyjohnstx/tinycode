@@ -642,3 +642,113 @@ func (h *mockMCPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
+
+func TestStreamableHTTPTransport_Close_ReturnsNil(t *testing.T) {
+	transport := NewStreamableHTTPTransport("http://example.com/mcp", nil)
+	err := transport.Close()
+	if err != nil {
+		t.Errorf("Close() = %v, want nil", err)
+	}
+}
+
+func TestSetTransportCallbacks_WiresSSECallbacks(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+
+	transport := NewSSETransport("http://example.com/sse", nil)
+	s.setTransportCallbacks(transport, context.Background(), "test-sse")
+
+	if transport.onDisconnect == nil {
+		t.Error("expected onDisconnect to be set on SSE transport")
+	}
+	if transport.onNotification == nil {
+		t.Error("expected onNotification to be set on SSE transport")
+	}
+}
+
+func TestSetTransportCallbacks_WiresStreamableCallbacks(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+
+	transport := NewStreamableHTTPTransport("http://example.com/mcp", nil)
+	s.setTransportCallbacks(transport, context.Background(), "test-stream")
+
+	if transport.onDisconnect == nil {
+		t.Error("expected onDisconnect to be set on streamable transport")
+	}
+	if transport.onNotification == nil {
+		t.Error("expected onNotification to be set on streamable transport")
+	}
+}
+
+func TestOAuthAccessToken_ReturnsEmptyWhenClientIDMissing(t *testing.T) {
+	got := oauthAccessToken(config.MCPConfig{
+		OAuth: &config.MCPOAuthConfig{},
+	})
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestOAuthAccessToken_LoadsPersistedTokens(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", tmpDir)
+
+	if err := saveOAuthState("persisted-client", &OAuthState{
+		Tokens: &OAuthTokens{AccessToken: "persisted-token-123"},
+	}); err != nil {
+		t.Fatalf("saveOAuthState: %v", err)
+	}
+
+	got := oauthAccessToken(config.MCPConfig{
+		OAuth: &config.MCPOAuthConfig{
+			ClientID: "persisted-client",
+		},
+	})
+	if got != "persisted-token-123" {
+		t.Errorf("expected persisted-token-123, got %q", got)
+	}
+}
+
+func TestServiceRestart_RestartsKnownServer(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+	defer s.Close()
+
+	oldCtx, oldCancel := context.WithCancel(context.Background())
+	defer oldCancel()
+
+	mt := &mockTransport{callResult: "ok"}
+	s.mu.Lock()
+	s.servers["restart-srv"] = &serverConn{
+		name:      "restart-srv",
+		config:    config.MCPConfig{Transport: "stdio", Command: "nonexistent-cmd-restart-xyz"},
+		transport: mt,
+		status:    StatusConnected,
+		tools:     []MCPTool{{Name: "tool-a"}},
+		cancel:    oldCancel,
+		ctx:       oldCtx,
+	}
+	s.mu.Unlock()
+
+	err := s.Restart(context.Background(), "restart-srv")
+	if err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+
+	// Wait for async connectServer to settle.
+	s.WaitForConnections(context.Background(), 3*time.Second)
+
+	s.mu.RLock()
+	conn := s.servers["restart-srv"]
+	status := conn.status
+	s.mu.RUnlock()
+
+	// Server should be in error state since the command does not exist.
+	if status != StatusError {
+		t.Errorf("expected StatusError after restart with bad command, got %q", status)
+	}
+}

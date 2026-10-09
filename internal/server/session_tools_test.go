@@ -3,7 +3,9 @@ package server
 import (
 	"sort"
 	"testing"
+	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
@@ -96,5 +98,69 @@ func TestExtractAllowedPerms_NilRuleset(t *testing.T) {
 	result := extractAllowedPerms(nil)
 	if len(result) != 0 {
 		t.Fatalf("expected empty result for nil ruleset, got %v", result)
+	}
+}
+
+func TestBridgeWarning_PublishesToastEvent(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	sub := b.Subscribe("toast")
+	defer sub.Unsubscribe()
+
+	evt := bus.Event{
+		Properties: map[string]any{
+			"sessionID": "ses_warn_1",
+			"message":   "rate limit approaching",
+		},
+	}
+
+	sm.bridgeWarning(evt)
+
+	select {
+	case received := <-sub.C:
+		props := received.Properties.(map[string]any)
+		if props["sessionID"] != "ses_warn_1" {
+			t.Errorf("expected sessionID 'ses_warn_1', got %v", props["sessionID"])
+		}
+		if props["type"] != "warning" {
+			t.Errorf("expected type 'warning', got %v", props["type"])
+		}
+		if props["message"] != "rate limit approaching" {
+			t.Errorf("expected message 'rate limit approaching', got %v", props["message"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for toast event")
+	}
+}
+
+func TestBridgeWarning_IgnoresInvalidProperties(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	sub := b.Subscribe("toast")
+	defer sub.Unsubscribe()
+
+	sm.bridgeWarning(bus.Event{Properties: "not a map"})
+
+	select {
+	case <-sub.C:
+		t.Error("expected no toast event for invalid properties")
+	default:
+		// Good
+	}
+}
+
+func TestToolSnapshot_ReturnsNilWhenNoToolsRegistered(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	// newMinimalSM passes nil for tools, so toolSnapshot should be nil.
+	sm := newMinimalSM(t, b)
+
+	snap := sm.ToolSnapshot()
+	if snap != nil {
+		t.Error("expected nil ToolSnapshot when tools is nil")
 	}
 }

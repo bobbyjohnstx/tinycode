@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -352,5 +353,53 @@ func TestOAuthFlow_StartAuth_NilConfig(t *testing.T) {
 	_, _, err := flow.StartAuth(context.Background(), nil)
 	if err == nil {
 		t.Fatal("expected error for nil config")
+	}
+}
+
+func TestOAuthFlow_WaitForCallback_ReceivesCode(t *testing.T) {
+	flow := NewOAuthFlow()
+	defer flow.Close()
+
+	state := "test-wait-state"
+
+	// Send callback after WaitForCallback registers its pending channel.
+	go func() {
+		for {
+			flow.mu.Lock()
+			ch, ok := flow.pending[state]
+			flow.mu.Unlock()
+			if ok {
+				ch <- oauthCallback{code: "callback-code-789", state: state}
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	code, err := flow.WaitForCallback(ctx, state)
+	if err != nil {
+		t.Fatalf("WaitForCallback: %v", err)
+	}
+	if code != "callback-code-789" {
+		t.Errorf("code = %q, want callback-code-789", code)
+	}
+}
+
+func TestOAuthFlow_WaitForCallback_CancelledContext(t *testing.T) {
+	flow := NewOAuthFlow()
+	defer flow.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := flow.WaitForCallback(ctx, "cancelled-state")
+	if err == nil {
+		t.Fatal("expected error for cancelled context")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error = %v, want context.Canceled", err)
 	}
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -113,6 +114,77 @@ func TestAbort_DoesNotPanicForUnknownSession(t *testing.T) {
 
 	// Should not panic.
 	sm.Abort("nonexistent_session")
+}
+
+func TestWarmupModel_NoopsWhenModelIsNil(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	called := false
+	sm.SetModelWarmup(func(_ context.Context, _ *provider.Model) {
+		called = true
+	})
+
+	sm.warmupModel(nil)
+
+	if called {
+		t.Error("expected warmup not to be called when model is nil")
+	}
+}
+
+func TestWarmupModel_InvokesCallbackWhenSet(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	var warmedModel *provider.Model
+	sm.SetModelWarmup(func(_ context.Context, m *provider.Model) {
+		warmedModel = m
+	})
+
+	model := &provider.Model{ID: "test-model", ProviderID: "test-provider"}
+	sm.warmupModel(model)
+
+	if warmedModel == nil {
+		t.Fatal("expected warmup callback to be invoked")
+	}
+	if warmedModel.ID != "test-model" {
+		t.Errorf("expected model ID 'test-model', got %q", warmedModel.ID)
+	}
+}
+
+func TestWarmupModel_NoopsWhenNoCallbackSet(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	// No SetModelWarmup called — should not panic.
+	model := &provider.Model{ID: "m1"}
+	sm.warmupModel(model)
+}
+
+func TestSetModelWarmup_OverridesPreviousCallback(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	var firstCalled, secondCalled bool
+	sm.SetModelWarmup(func(_ context.Context, _ *provider.Model) {
+		firstCalled = true
+	})
+	sm.SetModelWarmup(func(_ context.Context, _ *provider.Model) {
+		secondCalled = true
+	})
+
+	sm.warmupModel(&provider.Model{ID: "m"})
+
+	if firstCalled {
+		t.Error("first callback should not be called after override")
+	}
+	if !secondCalled {
+		t.Error("second callback should be called")
+	}
 }
 
 func TestSubscribeProcessorEvents_WiresMessageBridging(t *testing.T) {

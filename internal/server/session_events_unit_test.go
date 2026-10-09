@@ -746,6 +746,238 @@ func TestSubagentTextDelta_ForwardsToParent(t *testing.T) {
 	}
 }
 
+func TestPublishAssistantParts_TextPart(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	sub := b.Subscribe("message.part.updated")
+	defer sub.Unsubscribe()
+
+	parts := []session.Part{session.TextPart("hello world")}
+	now := time.Now().UnixMilli()
+	sm.publishAssistantParts("ses_1", "msg_1", "part_text", parts, now, now+100)
+
+	select {
+	case evt := <-sub.C:
+		props := evt.Properties.(map[string]any)
+		part := props["part"].(map[string]any)
+		if part["type"] != "text" {
+			t.Errorf("expected type 'text', got %v", part["type"])
+		}
+		if part["id"] != "part_text" {
+			t.Errorf("expected id 'part_text', got %v", part["id"])
+		}
+		if part["text"] != "hello world" {
+			t.Errorf("expected text 'hello world', got %v", part["text"])
+		}
+		if part["messageID"] != "msg_1" {
+			t.Errorf("expected messageID 'msg_1', got %v", part["messageID"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for text part event")
+	}
+}
+
+func TestPublishAssistantParts_ReasoningPart(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	sub := b.Subscribe("message.part.updated")
+	defer sub.Unsubscribe()
+
+	parts := []session.Part{
+		{Type: session.PartReasoning, Text: "thinking about this..."},
+	}
+	now := time.Now().UnixMilli()
+	sm.publishAssistantParts("ses_r", "msg_r", "part_text", parts, now, now+50)
+
+	select {
+	case evt := <-sub.C:
+		props := evt.Properties.(map[string]any)
+		part := props["part"].(map[string]any)
+		if part["type"] != "reasoning" {
+			t.Errorf("expected type 'reasoning', got %v", part["type"])
+		}
+		if part["text"] != "thinking about this..." {
+			t.Errorf("expected reasoning text, got %v", part["text"])
+		}
+		if part["messageID"] != "msg_r" {
+			t.Errorf("expected messageID 'msg_r', got %v", part["messageID"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for reasoning part event")
+	}
+}
+
+func TestPublishAssistantParts_ToolCallPart(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	sub := b.Subscribe("message.part.updated")
+	defer sub.Unsubscribe()
+
+	parts := []session.Part{
+		{
+			Type:       session.PartToolCall,
+			ToolCallID: "tc_1",
+			ToolName:   "shell",
+			ToolArgs:   `{"command":"ls"}`,
+		},
+	}
+	now := time.Now().UnixMilli()
+	sm.publishAssistantParts("ses_tc", "msg_tc", "part_text", parts, now, now+100)
+
+	select {
+	case evt := <-sub.C:
+		props := evt.Properties.(map[string]any)
+		part := props["part"].(map[string]any)
+		if part["type"] != "tool" {
+			t.Errorf("expected type 'tool', got %v", part["type"])
+		}
+		if part["callID"] != "tc_1" {
+			t.Errorf("expected callID 'tc_1', got %v", part["callID"])
+		}
+		if part["tool"] != "shell" {
+			t.Errorf("expected tool 'shell', got %v", part["tool"])
+		}
+		state, ok := part["state"].(map[string]any)
+		if !ok {
+			t.Fatal("expected state map")
+		}
+		if state["status"] != "completed" {
+			t.Errorf("expected status 'completed', got %v", state["status"])
+		}
+		input, ok := state["input"].(map[string]any)
+		if !ok {
+			t.Fatal("expected input map in state")
+		}
+		if input["args"] != `{"command":"ls"}` {
+			t.Errorf("expected args in input, got %v", input["args"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for tool call part event")
+	}
+}
+
+func TestPublishAssistantParts_ToolCallWithEmptyArgs(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	sub := b.Subscribe("message.part.updated")
+	defer sub.Unsubscribe()
+
+	parts := []session.Part{
+		{
+			Type:       session.PartToolCall,
+			ToolCallID: "tc_empty",
+			ToolName:   "read",
+			ToolArgs:   "",
+		},
+	}
+	now := time.Now().UnixMilli()
+	sm.publishAssistantParts("ses_tc2", "msg_tc2", "pt", parts, now, now+10)
+
+	select {
+	case evt := <-sub.C:
+		props := evt.Properties.(map[string]any)
+		part := props["part"].(map[string]any)
+		state := part["state"].(map[string]any)
+		input := state["input"].(map[string]any)
+		if _, hasArgs := input["args"]; hasArgs {
+			t.Error("expected no args key when ToolArgs is empty")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for tool part event")
+	}
+}
+
+func TestPublishAssistantParts_MultipleMixedParts(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	sub := b.Subscribe("message.part.updated")
+	defer sub.Unsubscribe()
+
+	parts := []session.Part{
+		session.TextPart("response text"),
+		{Type: session.PartReasoning, Text: "reasoning"},
+		{Type: session.PartToolCall, ToolCallID: "tc_multi", ToolName: "write", ToolArgs: `{"path":"/tmp/f"}`},
+	}
+	now := time.Now().UnixMilli()
+	sm.publishAssistantParts("ses_multi", "msg_multi", "pt_txt", parts, now, now+100)
+
+	types := make(map[string]bool)
+	for i := 0; i < 3; i++ {
+		select {
+		case evt := <-sub.C:
+			props := evt.Properties.(map[string]any)
+			part := props["part"].(map[string]any)
+			types[part["type"].(string)] = true
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for part event %d", i)
+		}
+	}
+
+	for _, expected := range []string{"text", "reasoning", "tool"} {
+		if !types[expected] {
+			t.Errorf("missing part type %q", expected)
+		}
+	}
+}
+
+func TestBridgeTextDelta_StartsStreamingOnFirstDelta(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	registerActiveSession(sm, "ses_delta_start", nil, "build", "/tmp")
+
+	// Subscribe to message.updated (initial assistant message) and message.part.updated (initial text part).
+	msgSub := b.Subscribe("message.updated")
+	defer msgSub.Unsubscribe()
+	partSub := b.Subscribe("message.part.updated")
+	defer partSub.Unsubscribe()
+
+	sm.bridgeTextDelta(bus.Event{
+		Properties: map[string]any{
+			"sessionID": "ses_delta_start",
+			"text":      "first chunk",
+		},
+	})
+
+	// Should publish initial message.updated with assistant role.
+	select {
+	case evt := <-msgSub.C:
+		props := evt.Properties.(map[string]any)
+		info := props["info"].(map[string]any)
+		if info["role"] != "assistant" {
+			t.Errorf("expected role 'assistant', got %v", info["role"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for initial message.updated")
+	}
+
+	// Should publish initial empty text part.
+	select {
+	case evt := <-partSub.C:
+		props := evt.Properties.(map[string]any)
+		part := props["part"].(map[string]any)
+		if part["type"] != "text" {
+			t.Errorf("expected type 'text', got %v", part["type"])
+		}
+		if part["text"] != "" {
+			t.Errorf("expected empty initial text, got %v", part["text"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for initial text part")
+	}
+}
+
 func TestBridgeMessageEvent_IgnoresInvalidProperties(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

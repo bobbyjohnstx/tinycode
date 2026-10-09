@@ -273,6 +273,82 @@ func TestStreamEvents_LastEventIDReplay(t *testing.T) {
 	}
 }
 
+func TestEventSessionID_MapProperties(t *testing.T) {
+	sid := eventSessionID(map[string]any{"sessionID": "ses_map"})
+	if sid != "ses_map" {
+		t.Errorf("expected 'ses_map', got %q", sid)
+	}
+}
+
+func TestEventSessionID_MapWithoutSessionID(t *testing.T) {
+	sid := eventSessionID(map[string]any{"other": "value"})
+	if sid != "" {
+		t.Errorf("expected empty string, got %q", sid)
+	}
+}
+
+func TestEventSessionID_StructWithSessionIDField(t *testing.T) {
+	// Struct with a SessionID field should be handled via JSON round-trip.
+	type testStruct struct {
+		SessionID string `json:"sessionID"`
+		Data      string `json:"data"`
+	}
+	sid := eventSessionID(testStruct{SessionID: "ses_struct", Data: "test"})
+	if sid != "ses_struct" {
+		t.Errorf("expected 'ses_struct', got %q", sid)
+	}
+}
+
+func TestEventSessionID_NilProperties(t *testing.T) {
+	sid := eventSessionID(nil)
+	if sid != "" {
+		t.Errorf("expected empty string for nil, got %q", sid)
+	}
+}
+
+func TestEventSessionID_StringProperties(t *testing.T) {
+	sid := eventSessionID("not a map")
+	// Strings won't have a sessionID — JSON round-trip of a string won't produce a map.
+	if sid != "" {
+		t.Errorf("expected empty string for string props, got %q", sid)
+	}
+}
+
+func TestSSEEventMatchesSession_GlobalStreamAllowsAllNonSubagent(t *testing.T) {
+	evt := bus.Event{Properties: map[string]any{"sessionID": "ses_any"}}
+	if !sseEventMatchesSession(evt, "") {
+		t.Error("global stream (empty filter) should allow non-subagent events")
+	}
+}
+
+func TestSSEEventMatchesSession_GlobalStreamFiltersSubagent(t *testing.T) {
+	evt := bus.Event{Properties: map[string]any{"sessionID": "ses_1:executor"}}
+	if sseEventMatchesSession(evt, "") {
+		t.Error("global stream should filter subagent events")
+	}
+}
+
+func TestSSEEventMatchesSession_SessionFilterMatchesExact(t *testing.T) {
+	evt := bus.Event{Properties: map[string]any{"sessionID": "ses_target"}}
+	if !sseEventMatchesSession(evt, "ses_target") {
+		t.Error("expected match for exact sessionID")
+	}
+}
+
+func TestSSEEventMatchesSession_SessionFilterRejectsOther(t *testing.T) {
+	evt := bus.Event{Properties: map[string]any{"sessionID": "ses_other"}}
+	if sseEventMatchesSession(evt, "ses_target") {
+		t.Error("expected rejection for non-matching sessionID")
+	}
+}
+
+func TestSSEEventMatchesSession_EventWithNoSessionIDPassesGlobal(t *testing.T) {
+	evt := bus.Event{Properties: map[string]any{"data": "no-session"}}
+	if !sseEventMatchesSession(evt, "") {
+		t.Error("events without sessionID should pass global filter")
+	}
+}
+
 func TestStreamEvents_LastEventIDGap(t *testing.T) {
 	eventBus := bus.New()
 	defer eventBus.Close()
