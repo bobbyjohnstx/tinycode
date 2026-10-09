@@ -835,6 +835,12 @@ func TestHandleDialogMsg_ModelSelectedMsg_SetsCurrentModel(t *testing.T) {
 }
 
 func TestHandleDialogMsg_ThemeSelectedMsg_SetsThemeAndShowsToast(t *testing.T) {
+	// ApplyColorTheme sets themeAgentColor (package-level). Restore it so
+	// downstream tests (e.g. TestStatusBar_SetAgent_ChangesSpinner) that rely
+	// on per-agent colors are not poisoned.
+	savedAgentColor := themeAgentColor
+	t.Cleanup(func() { themeAgentColor = savedAgentColor })
+
 	app := NewApp("")
 
 	// Get a real theme ID from the registry.

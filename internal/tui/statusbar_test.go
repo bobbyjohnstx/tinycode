@@ -39,6 +39,14 @@ func TestBrailleWaveSpinner_FramesNotEmpty(t *testing.T) {
 }
 
 func TestStatusBar_SetAgent_ChangesSpinner(t *testing.T) {
+	// Guard against themeAgentColor being set by a prior test (e.g. theme
+	// selection tests that call ApplyColorTheme). When non-nil, AgentColor()
+	// returns the same color for every agent, making the comparison below
+	// always equal.
+	savedAgentColor := themeAgentColor
+	themeAgentColor = nil
+	t.Cleanup(func() { themeAgentColor = savedAgentColor })
+
 	sb := NewStatusBar(120)
 
 	originalColor := sb.agentColor
