@@ -463,7 +463,13 @@ func toggleAgent(client *api.Client, name string, disabled bool) tea.Cmd {
 	}
 }
 
-// renameSession updates the session title via PATCH /session/{id}.
+// patchSessionModel sends the selected model to the server via PATCH /session/{id}.
+func patchSessionModel(client *api.Client, sessionID, providerID, modelID string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.UpdateSessionModel(sessionID, providerID, modelID)
+		return SessionModelPatchedMsg{Err: err}
+	}
+}
 func renameSession(client *api.Client, sessionID, title string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.UpdateSessionTitle(sessionID, title)

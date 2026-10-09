@@ -244,6 +244,12 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return c, nil
 
+	case SessionModelPatchedMsg:
+		if msg.Err != nil {
+			slog.Warn("session model patch failed", "error", msg.Err)
+		}
+		return c, nil
+
 	case PromptSentMsg:
 		if msg.Err != nil {
 			slog.Error("prompt send failed", "error", msg.Err)
@@ -635,6 +641,9 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		c.updateApp(model)
 		if cmd != nil {
 			cmds = append(cmds, cmd)
+		}
+		if sid := c.app.state.ActiveSession; sid != "" {
+			cmds = append(cmds, patchSessionModel(c.client, sid, c.app.state.CurrentModel.ProviderID, c.app.state.CurrentModel.ModelID))
 		}
 		if c.app.state.CurrentModel.ProviderID != "" {
 			slog.Info("fetching provider balance", "provider", c.app.state.CurrentModel.ProviderID)

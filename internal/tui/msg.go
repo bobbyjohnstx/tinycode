@@ -286,6 +286,11 @@ type SessionAgentPatchedMsg struct {
 	Err error
 }
 
+// SessionModelPatchedMsg reports that PATCH /session/{id} model completed.
+type SessionModelPatchedMsg struct {
+	Err error
+}
+
 // RevertRequestMsg requests reverting the active session's file changes.
 type RevertRequestMsg struct{}
 

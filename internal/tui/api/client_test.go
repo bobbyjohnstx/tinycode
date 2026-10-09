@@ -143,6 +143,42 @@ func TestGetSession(t *testing.T) {
 	}
 }
 
+func TestUpdateSessionModel(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	if err := c.UpdateSessionModel("ses_xyz", "lm-studio", "ornith-1.0-9b-mlx"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotMethod != "PATCH" {
+		t.Errorf("method = %q, want PATCH", gotMethod)
+	}
+	if gotPath != "/session/ses_xyz" {
+		t.Errorf("path = %q, want /session/ses_xyz", gotPath)
+	}
+	model, ok := gotBody["model"].(map[string]any)
+	if !ok {
+		t.Fatalf("body model = %v, want object", gotBody["model"])
+	}
+	if model["id"] != "ornith-1.0-9b-mlx" {
+		t.Errorf("model.id = %v, want ornith-1.0-9b-mlx", model["id"])
+	}
+	if model["providerID"] != "lm-studio" {
+		t.Errorf("model.providerID = %v, want lm-studio", model["providerID"])
+	}
+}
+
 func TestDeleteSession(t *testing.T) {
 	var gotMethod, gotPath string
 
