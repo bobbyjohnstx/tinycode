@@ -337,10 +337,13 @@ func (p *Processor) compact(ctx context.Context) (bool, error) {
 	summary := strings.Join(summaryParts, "")
 
 	summaryMsgID, _ := id.Ascending("message")
+	// Use a user-role message: some providers reject conversations whose
+	// first non-system message is a system message ("no user query found in
+	// messages", HTTP 500).
 	summaryMsg := Message{
 		ID:        summaryMsgID,
 		SessionID: p.config.SessionID,
-		Role:      RoleSystem,
+		Role:      RoleUser,
 		Parts:     []Part{TextPart(summary)},
 		CreatedAt: time.Now(),
 	}

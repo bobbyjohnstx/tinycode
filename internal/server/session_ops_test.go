@@ -354,7 +354,7 @@ func TestPersistPromptResult_CompactedReplacesHistory(t *testing.T) {
 	}
 
 	compacted := []session.Message{
-		{ID: "summary", SessionID: info.ID, Role: session.RoleSystem, Parts: []session.Part{session.TextPart("summary")}, CreatedAt: now},
+		{ID: "summary", SessionID: info.ID, Role: session.RoleUser, Parts: []session.Part{session.TextPart("summary")}, CreatedAt: now},
 		{ID: "keep", SessionID: info.ID, Role: session.RoleUser, Parts: []session.Part{session.TextPart("keep")}, CreatedAt: now.Add(time.Second)},
 		{ID: "reply", SessionID: info.ID, Role: session.RoleAssistant, Parts: []session.Part{session.TextPart("reply")}, CreatedAt: now.Add(2 * time.Second)},
 	}

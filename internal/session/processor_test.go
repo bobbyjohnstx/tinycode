@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -647,6 +648,58 @@ func TestProcessor_BelowThreshold_NoCompaction(t *testing.T) {
 	}
 	if p.compactionCount != 0 {
 		t.Errorf("expected no compaction, but compactionCount=%d", p.compactionCount)
+	}
+}
+
+// Issue #23: after compaction the conversation must start with a user-role
+// message, otherwise providers reject it with HTTP 500 "no user query found
+// in messages".
+func TestProcessor_Compact_SummaryIsUserRole(t *testing.T) {
+	// Build a conversation (18 x ~2000 est. tokens = ~36k) that exceeds the
+	// 15k preserve budget so compaction actually runs and preserves a tail.
+	seed := make([]Message, 0, 18)
+	for i := 0; i < 9; i++ {
+		seed = append(seed,
+			Message{ID: fmt.Sprintf("u%d", i), SessionID: "ses_c23", Role: RoleUser, Parts: []Part{TextPart("user turn " + strings.Repeat("x", 8000)+fmt.Sprintf("%d", i))}},
+			Message{ID: fmt.Sprintf("a%d", i), SessionID: "ses_c23", Role: RoleAssistant, Parts: []Part{TextPart("assistant turn " + strings.Repeat("y", 8000)+fmt.Sprintf("%d", i))}},
+		)
+	}
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_c23",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{ // compaction summary call
+				{Type: llm.EventTextDelta, Text: "summary of earlier work"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 100, CompletionTokens: 10}},
+			}},
+		},
+	}, &stubToolExecutor{}, bus.New())
+	p.SetMessages(seed)
+
+	compacted, err := p.Compact(context.Background())
+	if err != nil {
+		t.Fatalf("Compact: %v", err)
+	}
+	if !compacted {
+		t.Fatal("expected compaction to run, got no-op")
+	}
+
+	msgs := p.Messages()
+	if msgs[0].Role != RoleUser {
+		t.Fatalf("first message after compaction has role %q, want %q", msgs[0].Role, RoleUser)
+	}
+	hasUser := false
+	for _, m := range msgs {
+		if m.Role == RoleUser {
+			hasUser = true
+			break
+		}
+	}
+	if !hasUser {
+		t.Fatal("compacted conversation has no user-role message at all")
 	}
 }
 
