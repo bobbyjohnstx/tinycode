@@ -562,3 +562,793 @@ func TestContentType_NotSetForGET(t *testing.T) {
 		t.Errorf("Content-Type should be empty for GET, got %q", gotContentType)
 	}
 }
+
+func TestUpdateSessionTitle_Success(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.UpdateSessionTitle("ses_1", "New Title")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PATCH" {
+		t.Errorf("method = %q, want PATCH", gotMethod)
+	}
+	if gotPath != "/session/ses_1" {
+		t.Errorf("path = %q, want /session/ses_1", gotPath)
+	}
+	if gotBody["title"] != "New Title" {
+		t.Errorf("title = %q, want %q", gotBody["title"], "New Title")
+	}
+}
+
+func TestUpdateSessionTitle_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.UpdateSessionTitle("ses_1", "Title")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestUpdateSessionAgent_Success(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.UpdateSessionAgent("ses_2", "coder")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PATCH" {
+		t.Errorf("method = %q, want PATCH", gotMethod)
+	}
+	if gotPath != "/session/ses_2" {
+		t.Errorf("path = %q, want /session/ses_2", gotPath)
+	}
+	if gotBody["agent"] != "coder" {
+		t.Errorf("agent = %q, want %q", gotBody["agent"], "coder")
+	}
+}
+
+func TestUpdateSessionAgent_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.UpdateSessionAgent("ses_2", "coder")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestSetProviderAuth_Success(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	creds := map[string]string{"apiKey": "sk-test-123"}
+	err := c.SetProviderAuth("openai", creds)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PUT" {
+		t.Errorf("method = %q, want PUT", gotMethod)
+	}
+	if gotPath != "/auth/openai" {
+		t.Errorf("path = %q, want /auth/openai", gotPath)
+	}
+	if gotBody["apiKey"] != "sk-test-123" {
+		t.Errorf("apiKey = %q, want %q", gotBody["apiKey"], "sk-test-123")
+	}
+}
+
+func TestSetProviderAuth_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.SetProviderAuth("openai", map[string]string{"apiKey": "x"})
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestListAllAgents_IncludesDisabledQueryParam(t *testing.T) {
+	var gotPath, gotQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]AgentInfo{
+			{Name: "coder", Description: "Code agent", Mode: "tool_use"},
+			{Name: "disabled-agent", Description: "Off", Mode: "tool_use", Disabled: true},
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	agents, err := c.ListAllAgents()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/agent" {
+		t.Errorf("path = %q, want /agent", gotPath)
+	}
+	if gotQuery != "include=disabled" {
+		t.Errorf("query = %q, want include=disabled", gotQuery)
+	}
+	if len(agents) != 2 {
+		t.Errorf("agents count = %d, want 2", len(agents))
+	}
+}
+
+func TestListAllAgents_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	_, err := c.ListAllAgents()
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestPatchConfig_Success(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.PatchConfig(map[string]any{"theme": "dark"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PATCH" {
+		t.Errorf("method = %q, want PATCH", gotMethod)
+	}
+	if gotPath != "/config" {
+		t.Errorf("path = %q, want /config", gotPath)
+	}
+	if gotBody["theme"] != "dark" {
+		t.Errorf("theme = %v, want %q", gotBody["theme"], "dark")
+	}
+}
+
+func TestPatchConfig_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.PatchConfig(map[string]any{"theme": "dark"})
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestGetMCPStatus_ReturnsServerStatus(t *testing.T) {
+	var gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]map[string]any{
+			"filesystem": {"status": "connected", "tools": 5.0},
+			"github":     {"status": "error", "error": "timeout"},
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	status, err := c.GetMCPStatus()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/mcp/status" {
+		t.Errorf("path = %q, want /mcp/status", gotPath)
+	}
+	if len(status) != 2 {
+		t.Errorf("status count = %d, want 2", len(status))
+	}
+	if status["filesystem"]["status"] != "connected" {
+		t.Errorf("filesystem status = %v, want connected", status["filesystem"]["status"])
+	}
+}
+
+func TestGetMCPStatus_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	_, err := c.GetMCPStatus()
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestGetLSPStatus_ReturnsStatus(t *testing.T) {
+	var gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(LSPStatusResponse{
+			Enabled:  true,
+			Errors:   2,
+			Warnings: 5,
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	status, err := c.GetLSPStatus()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/lsp" {
+		t.Errorf("path = %q, want /lsp", gotPath)
+	}
+	if !status.Enabled {
+		t.Error("expected Enabled to be true")
+	}
+	if status.Errors != 2 {
+		t.Errorf("Errors = %d, want 2", status.Errors)
+	}
+	if status.Warnings != 5 {
+		t.Errorf("Warnings = %d, want 5", status.Warnings)
+	}
+}
+
+func TestGetLSPStatus_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	_, err := c.GetLSPStatus()
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestReconnectMCP_Success(t *testing.T) {
+	var gotMethod, gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.ReconnectMCP("filesystem")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "POST" {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/mcp/filesystem/reconnect" {
+		t.Errorf("path = %q, want /mcp/filesystem/reconnect", gotPath)
+	}
+}
+
+func TestReconnectMCP_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.ReconnectMCP("filesystem")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestListPlugins_ReturnsPlugins(t *testing.T) {
+	var gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]PluginInfo{
+			{ID: "plugin-1", Name: "my-plugin"},
+			{ID: "plugin-2", Name: "other-plugin"},
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	plugins, err := c.ListPlugins()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/plugin" {
+		t.Errorf("path = %q, want /plugin", gotPath)
+	}
+	if len(plugins) != 2 {
+		t.Errorf("plugins count = %d, want 2", len(plugins))
+	}
+	if plugins[0].ID != "plugin-1" {
+		t.Errorf("plugin[0].ID = %q, want %q", plugins[0].ID, "plugin-1")
+	}
+	if plugins[1].Name != "other-plugin" {
+		t.Errorf("plugin[1].Name = %q, want %q", plugins[1].Name, "other-plugin")
+	}
+}
+
+func TestListPlugins_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	_, err := c.ListPlugins()
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestGetProviderBalance_ReturnsBalance(t *testing.T) {
+	var gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		remaining := 42.5
+		usage := 7.5
+		json.NewEncoder(w).Encode(BalanceResponse{
+			Remaining: &remaining,
+			Usage:     &usage,
+			Provider:  "anthropic",
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	balance, err := c.GetProviderBalance("anthropic")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/provider/anthropic/balance" {
+		t.Errorf("path = %q, want /provider/anthropic/balance", gotPath)
+	}
+	if balance.Provider != "anthropic" {
+		t.Errorf("Provider = %q, want %q", balance.Provider, "anthropic")
+	}
+	if balance.Remaining == nil || *balance.Remaining != 42.5 {
+		t.Errorf("Remaining = %v, want 42.5", balance.Remaining)
+	}
+	if balance.Usage == nil || *balance.Usage != 7.5 {
+		t.Errorf("Usage = %v, want 7.5", balance.Usage)
+	}
+}
+
+func TestGetProviderBalance_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	_, err := c.GetProviderBalance("anthropic")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+// TestSessionLifecycleActions_TableDriven covers doNoBody-based session actions:
+// ArchiveSession, RevertSession, UnrevertSession.
+func TestSessionLifecycleActions_TableDriven(t *testing.T) {
+	tests := []struct {
+		name       string
+		callFn     func(c *Client) error
+		wantMethod string
+		wantPath   string
+	}{
+		{
+			name:       "ArchiveSession sends POST to /session/{id}/archive",
+			callFn:     func(c *Client) error { return c.ArchiveSession("ses_arc") },
+			wantMethod: "POST",
+			wantPath:   "/session/ses_arc/archive",
+		},
+		{
+			name:       "RevertSession sends POST to /session/{id}/revert",
+			callFn:     func(c *Client) error { return c.RevertSession("ses_rev") },
+			wantMethod: "POST",
+			wantPath:   "/session/ses_rev/revert",
+		},
+		{
+			name:       "UnrevertSession sends POST to /session/{id}/unrevert",
+			callFn:     func(c *Client) error { return c.UnrevertSession("ses_unrev") },
+			wantMethod: "POST",
+			wantPath:   "/session/ses_unrev/unrevert",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotMethod, gotPath string
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotMethod = r.Method
+				gotPath = r.URL.Path
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer srv.Close()
+
+			c := New(srv.URL, "/tmp", "")
+			err := tt.callFn(c)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if gotMethod != tt.wantMethod {
+				t.Errorf("method = %q, want %q", gotMethod, tt.wantMethod)
+			}
+			if gotPath != tt.wantPath {
+				t.Errorf("path = %q, want %q", gotPath, tt.wantPath)
+			}
+		})
+	}
+}
+
+func TestSessionLifecycleActions_ServerError(t *testing.T) {
+	tests := []struct {
+		name   string
+		callFn func(c *Client) error
+	}{
+		{"ArchiveSession returns error on 500", func(c *Client) error { return c.ArchiveSession("ses_1") }},
+		{"RevertSession returns error on 500", func(c *Client) error { return c.RevertSession("ses_1") }},
+		{"UnrevertSession returns error on 500", func(c *Client) error { return c.UnrevertSession("ses_1") }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte("fail"))
+			}))
+			defer srv.Close()
+
+			c := New(srv.URL, "/tmp", "")
+			err := tt.callFn(c)
+			if err == nil {
+				t.Fatal("expected error for 500 response")
+			}
+		})
+	}
+}
+
+func TestBranchSession_ReturnsNewSession(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":        "ses_branch1",
+			"parentID":  "ses_orig",
+			"title":     "branched session",
+			"projectID": "prj_test",
+			"directory": "/tmp",
+			"version":   "1.0",
+			"tokens":    map[string]any{},
+			"time":      map[string]any{"created": 0, "updated": 0},
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	info, err := c.BranchSession("ses_orig", "branched session")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "POST" {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/session/ses_orig/fork" {
+		t.Errorf("path = %q, want /session/ses_orig/fork", gotPath)
+	}
+	if gotBody["title"] != "branched session" {
+		t.Errorf("body title = %v, want %q", gotBody["title"], "branched session")
+	}
+	// BranchSession should NOT include messageID in the body
+	if _, hasMessageID := gotBody["messageID"]; hasMessageID {
+		t.Errorf("body should not contain messageID for BranchSession, got %v", gotBody["messageID"])
+	}
+	if info.ID != "ses_branch1" {
+		t.Errorf("session ID = %q, want %q", info.ID, "ses_branch1")
+	}
+	if info.ParentID != "ses_orig" {
+		t.Errorf("session ParentID = %q, want %q", info.ParentID, "ses_orig")
+	}
+}
+
+func TestBranchSession_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	_, err := c.BranchSession("ses_1", "branch")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestRewindSession_SendsMessageID(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.RewindSession("ses_rw", "msg_99")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "POST" {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/session/ses_rw/rewind" {
+		t.Errorf("path = %q, want /session/ses_rw/rewind", gotPath)
+	}
+	if gotBody["messageID"] != "msg_99" {
+		t.Errorf("messageID = %q, want %q", gotBody["messageID"], "msg_99")
+	}
+}
+
+func TestRewindSession_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.RewindSession("ses_1", "msg_1")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestBtw_ReturnsAnswer(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"answer": "42"})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	answer, err := c.Btw("ses_btw", "what is the meaning of life?")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "POST" {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/session/ses_btw/btw" {
+		t.Errorf("path = %q, want /session/ses_btw/btw", gotPath)
+	}
+	if gotBody["question"] != "what is the meaning of life?" {
+		t.Errorf("question = %q, want %q", gotBody["question"], "what is the meaning of life?")
+	}
+	if answer != "42" {
+		t.Errorf("answer = %q, want %q", answer, "42")
+	}
+}
+
+func TestBtw_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	_, err := c.Btw("ses_1", "question")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestUpdateSessionTitle_ClosesResponseBody(t *testing.T) {
+	var bodyClosed atomic.Bool
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	base := http.DefaultTransport
+	c.http.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		resp, err := base.RoundTrip(req)
+		if err != nil {
+			return nil, err
+		}
+		resp.Body = &closeTrackingBody{ReadCloser: resp.Body, closed: &bodyClosed}
+		return resp, nil
+	})
+
+	err := c.UpdateSessionTitle("ses_1", "Title")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bodyClosed.Load() {
+		t.Error("expected response body to be closed")
+	}
+}
+
+func TestPatchConfig_ClosesResponseBody(t *testing.T) {
+	var bodyClosed atomic.Bool
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	base := http.DefaultTransport
+	c.http.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		resp, err := base.RoundTrip(req)
+		if err != nil {
+			return nil, err
+		}
+		resp.Body = &closeTrackingBody{ReadCloser: resp.Body, closed: &bodyClosed}
+		return resp, nil
+	})
+
+	err := c.PatchConfig(map[string]any{"theme": "dark"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bodyClosed.Load() {
+		t.Error("expected response body to be closed")
+	}
+}
+
+func TestSetProviderAuth_ClosesResponseBody(t *testing.T) {
+	var bodyClosed atomic.Bool
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	base := http.DefaultTransport
+	c.http.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		resp, err := base.RoundTrip(req)
+		if err != nil {
+			return nil, err
+		}
+		resp.Body = &closeTrackingBody{ReadCloser: resp.Body, closed: &bodyClosed}
+		return resp, nil
+	})
+
+	err := c.SetProviderAuth("openai", map[string]string{"apiKey": "x"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bodyClosed.Load() {
+		t.Error("expected response body to be closed")
+	}
+}
+
+func TestGetProviderBalance_NilValues(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"remaining":null,"usage":null,"provider":"anthropic"}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	balance, err := c.GetProviderBalance("anthropic")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if balance.Remaining != nil {
+		t.Errorf("Remaining should be nil, got %v", *balance.Remaining)
+	}
+	if balance.Usage != nil {
+		t.Errorf("Usage should be nil, got %v", *balance.Usage)
+	}
+	if balance.Provider != "anthropic" {
+		t.Errorf("Provider = %q, want %q", balance.Provider, "anthropic")
+	}
+}

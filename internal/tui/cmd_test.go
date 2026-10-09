@@ -1,11 +1,27 @@
 package tui
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
+
+func sessionInfoFixture() session.Info {
+	return session.Info{
+		ID:       "ses-api",
+		Title:    "API Session",
+		Agent:    "executor",
+		ParentID: "ses-parent",
+		Model:    &session.ModelRef{ModelID: "test-model", ProviderID: "test-provider"},
+		Time:     session.TimeInfo{Created: 1000, Updated: 2000},
+	}
+}
 
 func TestParsePartView_UnifiedToolPart(t *testing.T) {
 	props := map[string]any{
@@ -935,5 +951,1432 @@ func TestParsePartView_LegacyToolResult(t *testing.T) {
 	pv := parsePartView(props)
 	if pv.Text != "output data" {
 		t.Errorf("expected Text from toolResult, got %q", pv.Text)
+	}
+}
+
+// --- fetchSessions tests ---
+
+func TestFetchSessions_ReturnsSessionList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || !strings.HasPrefix(r.URL.Path, "/session") {
+			http.Error(w, "not found", 404)
+			return
+		}
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"id": "s1", "title": "Session One", "time": map[string]any{"created": 1000, "updated": 2000}},
+			{"id": "s2", "title": "Session Two", "time": map[string]any{"created": 3000, "updated": 4000}},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchSessions(client, 50, 0)
+	msg := cmd()
+
+	loaded, ok := msg.(SessionListMsg)
+	if !ok {
+		t.Fatalf("expected SessionListMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if len(loaded.Sessions) != 2 {
+		t.Fatalf("expected 2 sessions, got %d", len(loaded.Sessions))
+	}
+	if loaded.Sessions[0].ID != "s1" {
+		t.Errorf("expected first session ID 's1', got %q", loaded.Sessions[0].ID)
+	}
+}
+
+func TestFetchSessions_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "internal error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchSessions(client, 50, 0)
+	msg := cmd()
+
+	loaded, ok := msg.(SessionListMsg)
+	if !ok {
+		t.Fatalf("expected SessionListMsg, got %T", msg)
+	}
+	if loaded.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- fetchProviders tests ---
+
+func TestFetchProviders_ReturnsProviderList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"all": []map[string]any{
+				{
+					"id":   "openrouter",
+					"name": "OpenRouter",
+					"models": map[string]any{
+						"gpt-4": map[string]any{
+							"name": "GPT-4",
+							"cost": map[string]any{"input": 0.5, "output": 1.0},
+						},
+					},
+				},
+			},
+			"connected": []string{"openrouter"},
+			"default":   map[string]string{"openrouter": "gpt-4"},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchProviders(client)
+	msg := cmd()
+
+	loaded, ok := msg.(ProvidersLoadedMsg)
+	if !ok {
+		t.Fatalf("expected ProvidersLoadedMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if len(loaded.Providers) != 1 {
+		t.Fatalf("expected 1 provider, got %d", len(loaded.Providers))
+	}
+	if loaded.Providers[0].ID != "openrouter" {
+		t.Errorf("expected provider ID 'openrouter', got %q", loaded.Providers[0].ID)
+	}
+	if loaded.DefaultProvider != "openrouter" {
+		t.Errorf("expected default provider 'openrouter', got %q", loaded.DefaultProvider)
+	}
+	if loaded.DefaultModel != "gpt-4" {
+		t.Errorf("expected default model 'gpt-4', got %q", loaded.DefaultModel)
+	}
+}
+
+func TestFetchProviders_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "provider error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchProviders(client)
+	msg := cmd()
+
+	loaded, ok := msg.(ProvidersLoadedMsg)
+	if !ok {
+		t.Fatalf("expected ProvidersLoadedMsg, got %T", msg)
+	}
+	if loaded.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- fetchMCPStatus tests ---
+
+func TestFetchMCPStatus_ReturnsServerList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]map[string]any{
+			"filesystem": {"status": "connected", "toolCount": float64(5)},
+			"broken":     {"status": "error", "error": "connection refused"},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchMCPStatus(client)
+	msg := cmd()
+
+	loaded, ok := msg.(MCPStatusLoadedMsg)
+	if !ok {
+		t.Fatalf("expected MCPStatusLoadedMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if len(loaded.Servers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(loaded.Servers))
+	}
+	// Find filesystem server
+	var found bool
+	for _, s := range loaded.Servers {
+		if s.Name == "filesystem" {
+			found = true
+			if s.Status != "connected" {
+				t.Errorf("expected status 'connected', got %q", s.Status)
+			}
+			if s.ToolCount != 5 {
+				t.Errorf("expected toolCount 5, got %d", s.ToolCount)
+			}
+		}
+	}
+	if !found {
+		t.Error("filesystem server not found")
+	}
+}
+
+func TestFetchMCPStatus_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "mcp error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchMCPStatus(client)
+	msg := cmd()
+
+	loaded, ok := msg.(MCPStatusLoadedMsg)
+	if !ok {
+		t.Fatalf("expected MCPStatusLoadedMsg, got %T", msg)
+	}
+	if loaded.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- fetchLSPStatus tests ---
+
+func TestFetchLSPStatus_ReturnsStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"enabled":  true,
+			"errors":   3,
+			"warnings": 7,
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchLSPStatus(client)
+	msg := cmd()
+
+	loaded, ok := msg.(LSPStatusLoadedMsg)
+	if !ok {
+		t.Fatalf("expected LSPStatusLoadedMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if loaded.Status.Disabled {
+		t.Error("expected Disabled=false for enabled LSP")
+	}
+	if loaded.Status.Errors != 3 {
+		t.Errorf("expected 3 errors, got %d", loaded.Status.Errors)
+	}
+	if loaded.Status.Warnings != 7 {
+		t.Errorf("expected 7 warnings, got %d", loaded.Status.Warnings)
+	}
+}
+
+func TestFetchLSPStatus_DisabledLSP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"enabled":  false,
+			"errors":   0,
+			"warnings": 0,
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchLSPStatus(client)
+	msg := cmd()
+
+	loaded, ok := msg.(LSPStatusLoadedMsg)
+	if !ok {
+		t.Fatalf("expected LSPStatusLoadedMsg, got %T", msg)
+	}
+	if !loaded.Status.Disabled {
+		t.Error("expected Disabled=true for disabled LSP")
+	}
+}
+
+func TestFetchLSPStatus_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "lsp error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchLSPStatus(client)
+	msg := cmd()
+
+	loaded, ok := msg.(LSPStatusLoadedMsg)
+	if !ok {
+		t.Fatalf("expected LSPStatusLoadedMsg, got %T", msg)
+	}
+	if loaded.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- fetchAllAgents tests ---
+
+func TestFetchAllAgents_ReturnsAgentList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"name": "executor", "mode": "tool", "native": true},
+			{"name": "custom", "mode": "tool", "disabled": true},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchAllAgents(client)
+	msg := cmd()
+
+	loaded, ok := msg.(AgentListMsg)
+	if !ok {
+		t.Fatalf("expected AgentListMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if len(loaded.Agents) != 2 {
+		t.Fatalf("expected 2 agents, got %d", len(loaded.Agents))
+	}
+	if loaded.Agents[0].Name != "executor" {
+		t.Errorf("expected first agent 'executor', got %q", loaded.Agents[0].Name)
+	}
+}
+
+func TestFetchAllAgents_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "agent error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchAllAgents(client)
+	msg := cmd()
+
+	loaded, ok := msg.(AgentListMsg)
+	if !ok {
+		t.Fatalf("expected AgentListMsg, got %T", msg)
+	}
+	if loaded.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- fetchCommands tests ---
+
+func TestFetchCommands_ReturnsCommandList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"name": "help", "description": "Show help"},
+			{"name": "connect", "description": "Configure models"},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchCommands(client)
+	msg := cmd()
+
+	loaded, ok := msg.(CommandListMsg)
+	if !ok {
+		t.Fatalf("expected CommandListMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if len(loaded.Commands) != 2 {
+		t.Fatalf("expected 2 commands, got %d", len(loaded.Commands))
+	}
+	if loaded.Commands[0].Name != "help" {
+		t.Errorf("expected first command 'help', got %q", loaded.Commands[0].Name)
+	}
+}
+
+func TestFetchCommands_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "command error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchCommands(client)
+	msg := cmd()
+
+	loaded, ok := msg.(CommandListMsg)
+	if !ok {
+		t.Fatalf("expected CommandListMsg, got %T", msg)
+	}
+	if loaded.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- fetchMessages tests ---
+
+func TestFetchMessages_ReturnsMessageList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"id": "msg-1", "role": "user"},
+			{"id": "msg-2", "role": "assistant"},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchMessages(client, "ses-1")
+	msg := cmd()
+
+	loaded, ok := msg.(MessageListMsg)
+	if !ok {
+		t.Fatalf("expected MessageListMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if loaded.SessionID != "ses-1" {
+		t.Errorf("expected SessionID 'ses-1', got %q", loaded.SessionID)
+	}
+	if len(loaded.Messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(loaded.Messages))
+	}
+}
+
+func TestFetchMessages_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "message error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchMessages(client, "ses-1")
+	msg := cmd()
+
+	loaded, ok := msg.(MessageListMsg)
+	if !ok {
+		t.Fatalf("expected MessageListMsg, got %T", msg)
+	}
+	if loaded.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if loaded.SessionID != "ses-1" {
+		t.Errorf("expected SessionID 'ses-1' even on error, got %q", loaded.SessionID)
+	}
+}
+
+// --- fetchPlugins tests ---
+
+func TestFetchPlugins_ReturnsPluginList(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"id": "omt", "name": "omt"},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchPlugins(client)
+	msg := cmd()
+
+	loaded, ok := msg.(PluginListMsg)
+	if !ok {
+		t.Fatalf("expected PluginListMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if len(loaded.Plugins) != 1 {
+		t.Fatalf("expected 1 plugin, got %d", len(loaded.Plugins))
+	}
+	if loaded.Plugins[0].Name != "omt" {
+		t.Errorf("expected plugin name 'omt', got %q", loaded.Plugins[0].Name)
+	}
+}
+
+func TestFetchPlugins_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "plugin error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchPlugins(client)
+	msg := cmd()
+
+	loaded, ok := msg.(PluginListMsg)
+	if !ok {
+		t.Fatalf("expected PluginListMsg, got %T", msg)
+	}
+	if loaded.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- fetchProviderBalance tests ---
+
+func TestFetchProviderBalance_WithLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		remaining := 42.5
+		usage := 7.5
+		json.NewEncoder(w).Encode(map[string]any{
+			"provider":  "openrouter",
+			"remaining": remaining,
+			"usage":     usage,
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchProviderBalance(client, "openrouter")
+	msg := cmd()
+
+	loaded, ok := msg.(ProviderBalanceMsg)
+	if !ok {
+		t.Fatalf("expected ProviderBalanceMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if loaded.Balance == nil {
+		t.Fatal("expected non-nil Balance")
+	}
+	if loaded.Balance.Provider != "openrouter" {
+		t.Errorf("expected provider 'openrouter', got %q", loaded.Balance.Provider)
+	}
+	if loaded.Balance.Remaining != 42.5 {
+		t.Errorf("expected remaining 42.5, got %f", loaded.Balance.Remaining)
+	}
+	if !loaded.Balance.HasLimit {
+		t.Error("expected HasLimit=true when remaining is present")
+	}
+	if loaded.Balance.Usage != 7.5 {
+		t.Errorf("expected usage 7.5, got %f", loaded.Balance.Usage)
+	}
+}
+
+func TestFetchProviderBalance_NoLimitNoUsage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"provider": "local",
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchProviderBalance(client, "local")
+	msg := cmd()
+
+	loaded, ok := msg.(ProviderBalanceMsg)
+	if !ok {
+		t.Fatalf("expected ProviderBalanceMsg, got %T", msg)
+	}
+	// When there's no limit and no usage, Balance should be nil
+	if loaded.Balance != nil {
+		t.Errorf("expected nil Balance when no limit and no usage, got %+v", loaded.Balance)
+	}
+}
+
+func TestFetchProviderBalance_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "balance error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchProviderBalance(client, "openrouter")
+	msg := cmd()
+
+	loaded, ok := msg.(ProviderBalanceMsg)
+	if !ok {
+		t.Fatalf("expected ProviderBalanceMsg, got %T", msg)
+	}
+	if loaded.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- sendPrompt tests ---
+
+func TestSendPrompt_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	input := api.PromptInput{
+		Parts: []api.PromptPart{{Type: "text", Text: "hello"}},
+	}
+	cmd := sendPrompt(client, "ses-1", input)
+	msg := cmd()
+
+	sent, ok := msg.(PromptSentMsg)
+	if !ok {
+		t.Fatalf("expected PromptSentMsg, got %T", msg)
+	}
+	if sent.Err != nil {
+		t.Errorf("expected no error, got %v", sent.Err)
+	}
+}
+
+func TestSendPrompt_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "prompt error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	input := api.PromptInput{
+		Parts: []api.PromptPart{{Type: "text", Text: "hello"}},
+	}
+	cmd := sendPrompt(client, "ses-1", input)
+	msg := cmd()
+
+	sent, ok := msg.(PromptSentMsg)
+	if !ok {
+		t.Fatalf("expected PromptSentMsg, got %T", msg)
+	}
+	if sent.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- abortSession tests ---
+
+func TestAbortSession_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := abortSession(client, "ses-1")
+	msg := cmd()
+
+	sent, ok := msg.(AbortSentMsg)
+	if !ok {
+		t.Fatalf("expected AbortSentMsg, got %T", msg)
+	}
+	if sent.Err != nil {
+		t.Errorf("expected no error, got %v", sent.Err)
+	}
+}
+
+func TestAbortSession_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "abort error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := abortSession(client, "ses-1")
+	msg := cmd()
+
+	sent, ok := msg.(AbortSentMsg)
+	if !ok {
+		t.Fatalf("expected AbortSentMsg, got %T", msg)
+	}
+	if sent.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- createSession tests ---
+
+func TestCreateSession_ReturnsSessionInfo(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":    "new-ses",
+			"title": "New Session",
+			"time":  map[string]any{"created": 1000, "updated": 2000},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := createSession(client, api.SessionCreateInput{Title: "New Session"})
+	msg := cmd()
+
+	created, ok := msg.(SessionCreatedLocalMsg)
+	if !ok {
+		t.Fatalf("expected SessionCreatedLocalMsg, got %T", msg)
+	}
+	if created.Err != nil {
+		t.Fatalf("unexpected error: %v", created.Err)
+	}
+	if created.Session == nil {
+		t.Fatal("expected non-nil Session")
+	}
+	if created.Session.ID != "new-ses" {
+		t.Errorf("expected session ID 'new-ses', got %q", created.Session.ID)
+	}
+}
+
+func TestCreateSession_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "create error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := createSession(client, api.SessionCreateInput{Title: "New"})
+	msg := cmd()
+
+	created, ok := msg.(SessionCreatedLocalMsg)
+	if !ok {
+		t.Fatalf("expected SessionCreatedLocalMsg, got %T", msg)
+	}
+	if created.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- revertSession tests ---
+
+func TestRevertSession_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := revertSession(client, "ses-1")
+	msg := cmd()
+
+	sent, ok := msg.(RevertSentMsg)
+	if !ok {
+		t.Fatalf("expected RevertSentMsg, got %T", msg)
+	}
+	if sent.Err != nil {
+		t.Errorf("expected no error, got %v", sent.Err)
+	}
+}
+
+func TestRevertSession_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "revert error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := revertSession(client, "ses-1")
+	msg := cmd()
+
+	sent, ok := msg.(RevertSentMsg)
+	if !ok {
+		t.Fatalf("expected RevertSentMsg, got %T", msg)
+	}
+	if sent.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- unrevertSession tests ---
+
+func TestUnrevertSession_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := unrevertSession(client, "ses-1")
+	msg := cmd()
+
+	sent, ok := msg.(UnrevertSentMsg)
+	if !ok {
+		t.Fatalf("expected UnrevertSentMsg, got %T", msg)
+	}
+	if sent.Err != nil {
+		t.Errorf("expected no error, got %v", sent.Err)
+	}
+}
+
+func TestUnrevertSession_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "unrevert error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := unrevertSession(client, "ses-1")
+	msg := cmd()
+
+	sent, ok := msg.(UnrevertSentMsg)
+	if !ok {
+		t.Fatalf("expected UnrevertSentMsg, got %T", msg)
+	}
+	if sent.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- branchSession tests ---
+
+func TestBranchSession_ReturnsNewSession(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":       "branch-ses",
+			"title":    "Branch",
+			"parentID": "ses-1",
+			"time":     map[string]any{"created": 5000, "updated": 5000},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := branchSession(client, "ses-1", "Branch")
+	msg := cmd()
+
+	done, ok := msg.(BranchDoneMsg)
+	if !ok {
+		t.Fatalf("expected BranchDoneMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Fatalf("unexpected error: %v", done.Err)
+	}
+	if done.Session == nil {
+		t.Fatal("expected non-nil Session")
+	}
+	if done.Session.ID != "branch-ses" {
+		t.Errorf("expected session ID 'branch-ses', got %q", done.Session.ID)
+	}
+	if done.Session.ParentID != "ses-1" {
+		t.Errorf("expected parentID 'ses-1', got %q", done.Session.ParentID)
+	}
+}
+
+func TestBranchSession_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "branch error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := branchSession(client, "ses-1", "Branch")
+	msg := cmd()
+
+	done, ok := msg.(BranchDoneMsg)
+	if !ok {
+		t.Fatalf("expected BranchDoneMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- rewindSession tests ---
+
+func TestRewindSession_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := rewindSession(client, "ses-1", "msg-5", 3)
+	msg := cmd()
+
+	done, ok := msg.(RewindDoneMsg)
+	if !ok {
+		t.Fatalf("expected RewindDoneMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+	if done.TurnIndex != 3 {
+		t.Errorf("expected TurnIndex 3, got %d", done.TurnIndex)
+	}
+}
+
+func TestRewindSession_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "rewind error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := rewindSession(client, "ses-1", "msg-5", 3)
+	msg := cmd()
+
+	done, ok := msg.(RewindDoneMsg)
+	if !ok {
+		t.Fatalf("expected RewindDoneMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if done.TurnIndex != 3 {
+		t.Errorf("expected TurnIndex preserved on error, got %d", done.TurnIndex)
+	}
+}
+
+// --- summarizeSession tests ---
+
+func TestSummarizeSession_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := summarizeSession(client, "ses-1")
+	msg := cmd()
+
+	done, ok := msg.(CompactDoneMsg)
+	if !ok {
+		t.Fatalf("expected CompactDoneMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+}
+
+func TestSummarizeSession_ReturnsWrappedErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "summarize error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := summarizeSession(client, "ses-1")
+	msg := cmd()
+
+	done, ok := msg.(CompactDoneMsg)
+	if !ok {
+		t.Fatalf("expected CompactDoneMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(done.Err.Error(), "context compaction failed") {
+		t.Errorf("expected wrapped error message, got %q", done.Err.Error())
+	}
+}
+
+// --- archiveSession tests ---
+
+func TestArchiveSession_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := archiveSession(client, "ses-1")
+	msg := cmd()
+
+	sent, ok := msg.(ArchiveSentMsg)
+	if !ok {
+		t.Fatalf("expected ArchiveSentMsg, got %T", msg)
+	}
+	if sent.Err != nil {
+		t.Errorf("expected no error, got %v", sent.Err)
+	}
+}
+
+func TestArchiveSession_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "archive error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := archiveSession(client, "ses-1")
+	msg := cmd()
+
+	sent, ok := msg.(ArchiveSentMsg)
+	if !ok {
+		t.Fatalf("expected ArchiveSentMsg, got %T", msg)
+	}
+	if sent.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- renameSession tests ---
+
+func TestRenameSession_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := renameSession(client, "ses-1", "New Title")
+	msg := cmd()
+
+	done, ok := msg.(SessionRenamedMsg)
+	if !ok {
+		t.Fatalf("expected SessionRenamedMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+}
+
+func TestRenameSession_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "rename error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := renameSession(client, "ses-1", "New Title")
+	msg := cmd()
+
+	done, ok := msg.(SessionRenamedMsg)
+	if !ok {
+		t.Fatalf("expected SessionRenamedMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- patchSessionAgent tests ---
+
+func TestPatchSessionAgent_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := patchSessionAgent(client, "ses-1", "executor")
+	msg := cmd()
+
+	done, ok := msg.(SessionAgentPatchedMsg)
+	if !ok {
+		t.Fatalf("expected SessionAgentPatchedMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+}
+
+func TestPatchSessionAgent_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "patch error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := patchSessionAgent(client, "ses-1", "executor")
+	msg := cmd()
+
+	done, ok := msg.(SessionAgentPatchedMsg)
+	if !ok {
+		t.Fatalf("expected SessionAgentPatchedMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- reconnectMCP tests ---
+
+func TestReconnectMCP_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := reconnectMCP(client, "filesystem")
+	msg := cmd()
+
+	result, ok := msg.(MCPReconnectResultMsg)
+	if !ok {
+		t.Fatalf("expected MCPReconnectResultMsg, got %T", msg)
+	}
+	if result.Err != nil {
+		t.Errorf("expected no error, got %v", result.Err)
+	}
+	if result.Name != "filesystem" {
+		t.Errorf("expected name 'filesystem', got %q", result.Name)
+	}
+}
+
+func TestReconnectMCP_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "reconnect error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := reconnectMCP(client, "filesystem")
+	msg := cmd()
+
+	result, ok := msg.(MCPReconnectResultMsg)
+	if !ok {
+		t.Fatalf("expected MCPReconnectResultMsg, got %T", msg)
+	}
+	if result.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if result.Name != "filesystem" {
+		t.Errorf("expected name preserved on error, got %q", result.Name)
+	}
+}
+
+// --- patchScopedModels tests ---
+
+func TestPatchScopedModels_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := patchScopedModels(client, []string{"gpt-4", "claude-3"})
+	msg := cmd()
+
+	done, ok := msg.(ModelScopedDoneMsg)
+	if !ok {
+		t.Fatalf("expected ModelScopedDoneMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+}
+
+func TestPatchScopedModels_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "config error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := patchScopedModels(client, []string{"gpt-4"})
+	msg := cmd()
+
+	done, ok := msg.(ModelScopedDoneMsg)
+	if !ok {
+		t.Fatalf("expected ModelScopedDoneMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- storeOpenRouterAuth tests ---
+
+func TestStoreOpenRouterAuth_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := storeOpenRouterAuth(client, "sk-test-key")
+	msg := cmd()
+
+	done, ok := msg.(AuthStoredMsg)
+	if !ok {
+		t.Fatalf("expected AuthStoredMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+}
+
+func TestStoreOpenRouterAuth_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "auth error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := storeOpenRouterAuth(client, "sk-test-key")
+	msg := cmd()
+
+	done, ok := msg.(AuthStoredMsg)
+	if !ok {
+		t.Fatalf("expected AuthStoredMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- toggleAgent tests ---
+
+func TestToggleAgent_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := toggleAgent(client, "executor", true)
+	msg := cmd()
+
+	done, ok := msg.(AgentToggleDoneMsg)
+	if !ok {
+		t.Fatalf("expected AgentToggleDoneMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+}
+
+func TestToggleAgent_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "toggle error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := toggleAgent(client, "executor", false)
+	msg := cmd()
+
+	done, ok := msg.(AgentToggleDoneMsg)
+	if !ok {
+		t.Fatalf("expected AgentToggleDoneMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- replyPermission tests ---
+
+func TestReplyPermission_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := replyPermission(client, "ses-1", "perm-1", "once")
+	msg := cmd()
+
+	done, ok := msg.(PermissionRepliedMsg)
+	if !ok {
+		t.Fatalf("expected PermissionRepliedMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+}
+
+func TestReplyPermission_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "permission error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := replyPermission(client, "ses-1", "perm-1", "reject")
+	msg := cmd()
+
+	done, ok := msg.(PermissionRepliedMsg)
+	if !ok {
+		t.Fatalf("expected PermissionRepliedMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// --- forkSessionAtTurn tests ---
+
+func TestForkSessionAtTurn_ReturnsNewSession(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":       "fork-ses",
+			"title":    "Fork at turn 2",
+			"parentID": "ses-1",
+			"time":     map[string]any{"created": 6000, "updated": 6000},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := forkSessionAtTurn(client, "ses-1", "msg-3", "Fork at turn 2", 2)
+	msg := cmd()
+
+	done, ok := msg.(ForkDoneMsg)
+	if !ok {
+		t.Fatalf("expected ForkDoneMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Fatalf("unexpected error: %v", done.Err)
+	}
+	if done.Session == nil {
+		t.Fatal("expected non-nil Session")
+	}
+	if done.Session.ID != "fork-ses" {
+		t.Errorf("expected session ID 'fork-ses', got %q", done.Session.ID)
+	}
+	if done.TurnIndex != 2 {
+		t.Errorf("expected TurnIndex 2, got %d", done.TurnIndex)
+	}
+}
+
+func TestForkSessionAtTurn_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "fork error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := forkSessionAtTurn(client, "ses-1", "msg-3", "Fork", 2)
+	msg := cmd()
+
+	done, ok := msg.(ForkDoneMsg)
+	if !ok {
+		t.Fatalf("expected ForkDoneMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if done.TurnIndex != 2 {
+		t.Errorf("expected TurnIndex preserved on error, got %d", done.TurnIndex)
+	}
+}
+
+// --- runUserShell tests ---
+
+func TestRunUserShell_ReturnsOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sh not available on Windows")
+	}
+
+	cmd := runUserShell("echo hello", "/tmp")
+	msg := cmd()
+
+	result, ok := msg.(ShellResultMsg)
+	if !ok {
+		t.Fatalf("expected ShellResultMsg, got %T", msg)
+	}
+	if result.Err != nil {
+		t.Fatalf("unexpected error: %v", result.Err)
+	}
+	if result.Command != "echo hello" {
+		t.Errorf("expected command 'echo hello', got %q", result.Command)
+	}
+	if !strings.Contains(result.Output, "hello") {
+		t.Errorf("expected output to contain 'hello', got %q", result.Output)
+	}
+}
+
+func TestRunUserShell_ReturnsErrorForBadCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sh not available on Windows")
+	}
+
+	cmd := runUserShell("false", "/tmp")
+	msg := cmd()
+
+	result, ok := msg.(ShellResultMsg)
+	if !ok {
+		t.Fatalf("expected ShellResultMsg, got %T", msg)
+	}
+	if result.Err == nil {
+		t.Fatal("expected error for failing command, got nil")
+	}
+}
+
+func TestRunUserShell_CapturesStderr(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("sh not available on Windows")
+	}
+
+	cmd := runUserShell("echo errout >&2", "/tmp")
+	msg := cmd()
+
+	result, ok := msg.(ShellResultMsg)
+	if !ok {
+		t.Fatalf("expected ShellResultMsg, got %T", msg)
+	}
+	if !strings.Contains(result.Output, "errout") {
+		t.Errorf("expected output to contain stderr 'errout', got %q", result.Output)
+	}
+}
+
+// --- waitForSSE tests ---
+
+func TestWaitForSSE_ReturnsEventMsg(t *testing.T) {
+	ch := make(chan api.ServerEvent, 1)
+	ch <- api.ServerEvent{Type: "session.created", Properties: map[string]any{"sessionID": "ses-1"}}
+
+	cmd := waitForSSE(ch)
+	msg := cmd()
+
+	evt, ok := msg.(SSEEventMsg)
+	if !ok {
+		t.Fatalf("expected SSEEventMsg, got %T", msg)
+	}
+	if evt.Event.Type != "session.created" {
+		t.Errorf("expected event type 'session.created', got %q", evt.Event.Type)
+	}
+}
+
+func TestWaitForSSE_ReturnsDisconnectedOnClosedChannel(t *testing.T) {
+	ch := make(chan api.ServerEvent)
+	close(ch)
+
+	cmd := waitForSSE(ch)
+	msg := cmd()
+
+	_, ok := msg.(SSEDisconnectedMsg)
+	if !ok {
+		t.Fatalf("expected SSEDisconnectedMsg, got %T", msg)
+	}
+}
+
+// --- sessionInfoFromAPI tests ---
+
+func TestSessionInfoFromAPI_FullInfo(t *testing.T) {
+	info := sessionInfoFromAPI(sessionInfoFixture())
+	if info.ID != "ses-api" {
+		t.Errorf("expected ID 'ses-api', got %q", info.ID)
+	}
+	if info.Title != "API Session" {
+		t.Errorf("expected Title 'API Session', got %q", info.Title)
+	}
+	if info.ModelID != "test-model" {
+		t.Errorf("expected ModelID 'test-model', got %q", info.ModelID)
+	}
+	if info.ProviderID != "test-provider" {
+		t.Errorf("expected ProviderID 'test-provider', got %q", info.ProviderID)
+	}
+}
+
+func TestSessionInfoFromAPI_NoModel(t *testing.T) {
+	s := sessionInfoFixture()
+	s.Model = nil
+	info := sessionInfoFromAPI(s)
+	if info.ModelID != "" {
+		t.Errorf("expected empty ModelID, got %q", info.ModelID)
+	}
+	if info.ProviderID != "" {
+		t.Errorf("expected empty ProviderID, got %q", info.ProviderID)
 	}
 }
