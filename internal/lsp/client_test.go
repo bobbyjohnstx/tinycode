@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -174,6 +175,131 @@ func main() {
 		t.Errorf("expected definition at line 2, got %d", defLine)
 	}
 	t.Logf("definition at: %s:%d:%d", fileFromURI(locs[0].URI), defLine+1, locs[0].Range.Start.Character+1)
+}
+
+func TestParseHoverContents_MarkupContent(t *testing.T) {
+	raw := json.RawMessage(`{"kind":"markdown","value":"func Println(a ...any)"}`)
+	got := parseHoverContents(raw)
+	if got != "func Println(a ...any)" {
+		t.Errorf("parseHoverContents(MarkupContent) = %q, want %q", got, "func Println(a ...any)")
+	}
+}
+
+func TestParseHoverContents_PlainString(t *testing.T) {
+	raw := json.RawMessage(`"this is a plain hover string"`)
+	got := parseHoverContents(raw)
+	if got != "this is a plain hover string" {
+		t.Errorf("parseHoverContents(string) = %q, want %q", got, "this is a plain hover string")
+	}
+}
+
+func TestParseHoverContents_ArrayWithLanguageBlocks(t *testing.T) {
+	raw := json.RawMessage(`[{"language":"go","value":"func Foo()"},{"language":"","value":"Documentation for Foo"},"plain text"]`)
+	got := parseHoverContents(raw)
+	if !strings.Contains(got, "```go\nfunc Foo()\n```") {
+		t.Errorf("expected go code block, got %q", got)
+	}
+	if !strings.Contains(got, "Documentation for Foo") {
+		t.Errorf("expected documentation text, got %q", got)
+	}
+	if !strings.Contains(got, "plain text") {
+		t.Errorf("expected plain text item, got %q", got)
+	}
+}
+
+func TestParseHoverContents_ArrayOfPlainStrings(t *testing.T) {
+	raw := json.RawMessage(`["first line","second line"]`)
+	got := parseHoverContents(raw)
+	if !strings.Contains(got, "first line") || !strings.Contains(got, "second line") {
+		t.Errorf("parseHoverContents(string array) = %q, want both lines", got)
+	}
+}
+
+func TestParseHoverContents_FallbackRawJSON(t *testing.T) {
+	// A number is not a valid hover content type; should fall through to raw.
+	raw := json.RawMessage(`42`)
+	got := parseHoverContents(raw)
+	if got != "42" {
+		t.Errorf("parseHoverContents(raw) = %q, want %q", got, "42")
+	}
+}
+
+func TestParseLocations_NullReturnsNil(t *testing.T) {
+	locs, err := parseLocations(json.RawMessage("null"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if locs != nil {
+		t.Errorf("expected nil, got %v", locs)
+	}
+}
+
+func TestParseLocations_EmptyReturnsNil(t *testing.T) {
+	locs, err := parseLocations(json.RawMessage(""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if locs != nil {
+		t.Errorf("expected nil, got %v", locs)
+	}
+}
+
+func TestParseLocations_SingleLocation(t *testing.T) {
+	raw := json.RawMessage(`{"uri":"file:///src/main.go","range":{"start":{"line":10,"character":5},"end":{"line":10,"character":15}}}`)
+	locs, err := parseLocations(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(locs) != 1 {
+		t.Fatalf("expected 1 location, got %d", len(locs))
+	}
+	if locs[0].URI != "file:///src/main.go" {
+		t.Errorf("URI = %q, want %q", locs[0].URI, "file:///src/main.go")
+	}
+	if locs[0].Range.Start.Line != 10 {
+		t.Errorf("start line = %d, want 10", locs[0].Range.Start.Line)
+	}
+}
+
+func TestParseLocations_ArrayOfLocations(t *testing.T) {
+	raw := json.RawMessage(`[
+		{"uri":"file:///a.go","range":{"start":{"line":1,"character":0},"end":{"line":1,"character":5}}},
+		{"uri":"file:///b.go","range":{"start":{"line":20,"character":3},"end":{"line":20,"character":10}}}
+	]`)
+	locs, err := parseLocations(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(locs) != 2 {
+		t.Fatalf("expected 2 locations, got %d", len(locs))
+	}
+	if locs[0].URI != "file:///a.go" {
+		t.Errorf("locs[0].URI = %q, want file:///a.go", locs[0].URI)
+	}
+	if locs[1].Range.Start.Line != 20 {
+		t.Errorf("locs[1].Range.Start.Line = %d, want 20", locs[1].Range.Start.Line)
+	}
+}
+
+
+func TestFileFromURI_PercentEncodedPath(t *testing.T) {
+	uri := "file:///path/with%20space/file%23hash.go"
+	got := fileFromURI(uri)
+	if !strings.Contains(got, "with space") {
+		t.Errorf("fileFromURI(%q) = %q, expected decoded space", uri, got)
+	}
+	if !strings.Contains(got, "file#hash.go") {
+		t.Errorf("fileFromURI(%q) = %q, expected decoded hash", uri, got)
+	}
+}
+
+func TestFileFromURI_InvalidScheme(t *testing.T) {
+	// Non-file URI should strip file:// prefix or return as-is.
+	uri := "http://example.com/file.go"
+	got := fileFromURI(uri)
+	if got == "" {
+		t.Error("fileFromURI should return non-empty for non-file URI")
+	}
 }
 
 func TestClientDiagnosticsIntegration(t *testing.T) {

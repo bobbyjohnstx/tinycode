@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -264,6 +265,235 @@ func TestDefaultPath(t *testing.T) {
 	path := DefaultPath()
 	if path == "" {
 		t.Error("DefaultPath should return a non-empty path")
+	}
+}
+
+func TestDefaultPath_WithEnvAbsolute(t *testing.T) {
+	t.Setenv("TINYCODE_DB", "/tmp/custom.db")
+	got := DefaultPath()
+	if got != "/tmp/custom.db" {
+		t.Errorf("expected /tmp/custom.db, got %s", got)
+	}
+}
+
+func TestDefaultPath_WithEnvRelative(t *testing.T) {
+	t.Setenv("TINYCODE_DB", "relative.db")
+	got := DefaultPath()
+	if !filepath.IsAbs(got) {
+		t.Errorf("expected absolute path, got %s", got)
+	}
+	if !strings.HasSuffix(got, "relative.db") {
+		t.Errorf("expected path ending in relative.db, got %s", got)
+	}
+}
+
+func TestDefaultPath_WithEnvMemory(t *testing.T) {
+	t.Setenv("TINYCODE_DB", ":memory:")
+	got := DefaultPath()
+	if got != ":memory:" {
+		t.Errorf("expected :memory:, got %s", got)
+	}
+}
+
+func TestOpen_CreatesNestedDirectory(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "nested", "deep", "tinycode.db")
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open with nested path failed: %v", err)
+	}
+	defer db.Close()
+
+	parentDir := filepath.Dir(dbPath)
+	info, err := os.Stat(parentDir)
+	if err != nil {
+		t.Fatalf("parent directory not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatal("expected parent to be a directory")
+	}
+}
+
+func TestOpen_SetsDirectoryPermissions(t *testing.T) {
+	dir := t.TempDir()
+	subDir := filepath.Join(dir, "data")
+	dbPath := filepath.Join(subDir, "tinycode.db")
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	info, err := os.Stat(subDir)
+	if err != nil {
+		t.Fatalf("stat parent dir: %v", err)
+	}
+	perm := info.Mode().Perm()
+	if perm != 0o700 {
+		t.Errorf("expected directory permissions 0700, got %04o", perm)
+	}
+}
+
+func TestOpen_SetsFilePermissions(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	info, err := os.Stat(dbPath)
+	if err != nil {
+		t.Fatalf("stat db file: %v", err)
+	}
+	perm := info.Mode().Perm()
+	if perm != 0o600 {
+		t.Errorf("expected file permissions 0600, got %04o", perm)
+	}
+}
+
+func TestOpen_DoubleOpen_SecondSucceeds(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	db1, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("first Open failed: %v", err)
+	}
+	db1.Close()
+
+	db2, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("second Open failed: %v", err)
+	}
+	defer db2.Close()
+
+	// Migrations should still be recorded from the first open.
+	var count int
+	if err := db2.QueryRow("SELECT COUNT(*) FROM _migrations").Scan(&count); err != nil {
+		t.Fatalf("query migrations: %v", err)
+	}
+	if count == 0 {
+		t.Error("expected migrations from first open to persist")
+	}
+}
+
+func TestIsLegacyTSDB_ReturnsFalseForGoDatabase(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	// Create a DB that has _migrations (Go) but NOT __drizzle_migrations.
+	sqlDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to create test DB: %v", err)
+	}
+	sqlDB.Exec("CREATE TABLE _migrations (name TEXT PRIMARY KEY)")
+	sqlDB.Close()
+
+	isLegacy, err := isLegacyTSDB(dbPath)
+	if err != nil {
+		t.Fatalf("isLegacyTSDB error: %v", err)
+	}
+	if isLegacy {
+		t.Error("expected false for Go database with _migrations")
+	}
+}
+
+func TestIsLegacyTSDB_ReturnsTrueForTSDatabase(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	// Create a DB with __drizzle_migrations but no _migrations.
+	sqlDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to create test DB: %v", err)
+	}
+	sqlDB.Exec("CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY)")
+	sqlDB.Close()
+
+	isLegacy, err := isLegacyTSDB(dbPath)
+	if err != nil {
+		t.Fatalf("isLegacyTSDB error: %v", err)
+	}
+	if !isLegacy {
+		t.Error("expected true for TS database with __drizzle_migrations")
+	}
+}
+
+func TestIsLegacyTSDB_ReturnsFalseForBothTables(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	// DB that has BOTH tables (already partially migrated) should not be treated as legacy.
+	sqlDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to create test DB: %v", err)
+	}
+	sqlDB.Exec("CREATE TABLE __drizzle_migrations (id INTEGER PRIMARY KEY)")
+	sqlDB.Exec("CREATE TABLE _migrations (name TEXT PRIMARY KEY)")
+	sqlDB.Close()
+
+	isLegacy, err := isLegacyTSDB(dbPath)
+	if err != nil {
+		t.Fatalf("isLegacyTSDB error: %v", err)
+	}
+	if isLegacy {
+		t.Error("expected false when both __drizzle_migrations and _migrations exist")
+	}
+}
+
+func TestOpen_FailsWhenDirectoryBlocked(t *testing.T) {
+	dir := t.TempDir()
+	// Create a file where MkdirAll needs to create a directory.
+	blocker := filepath.Join(dir, "blocker")
+	if err := os.WriteFile(blocker, []byte("not a dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(blocker, "sub", "tinycode.db")
+
+	_, err := Open(dbPath)
+	if err == nil {
+		t.Fatal("expected error when directory creation is blocked by file")
+	}
+	if !strings.Contains(err.Error(), "creating data directory") {
+		t.Errorf("expected 'creating data directory' error, got: %v", err)
+	}
+}
+
+func TestOpen_FailsOnCorruptedDB(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+	// Write garbage that isn't valid SQLite.
+	if err := os.WriteFile(dbPath, []byte("this is not sqlite data at all, just garbage bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Open(dbPath)
+	if err == nil {
+		t.Fatal("expected error opening corrupted database")
+	}
+}
+
+func TestIsLegacyTSDB_ReturnsFalseForEmptyDB(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tinycode.db")
+
+	// Create a valid but empty database (no tables).
+	sqlDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("failed to create test DB: %v", err)
+	}
+	sqlDB.Close()
+
+	isLegacy, err := isLegacyTSDB(dbPath)
+	if err != nil {
+		t.Fatalf("isLegacyTSDB error: %v", err)
+	}
+	if isLegacy {
+		t.Error("expected false for empty database")
 	}
 }
 

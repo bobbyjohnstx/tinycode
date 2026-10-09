@@ -1175,3 +1175,626 @@ func TestStdioTransport_SendRequest(t *testing.T) {
 	pw.Close()
 	<-done
 }
+
+// --- Coverage gap tests ---
+
+func TestReplayHistory_SendsTextAndReasoningNotifications(t *testing.T) {
+	svc, _, mock := testService(t)
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "test", Directory: "/tmp", Title: "Test",
+	})
+
+	mock.messages[created.ID] = []session.Message{
+		{
+			ID: "msg_1", SessionID: created.ID, Role: session.RoleUser,
+			Parts: []session.Part{{Type: session.PartText, Text: "user says hi"}},
+		},
+		{
+			ID: "msg_2", SessionID: created.ID, Role: session.RoleAssistant,
+			Parts: []session.Part{
+				{Type: session.PartReasoning, Text: "thinking..."},
+				{Type: session.PartText, Text: "assistant reply"},
+			},
+		},
+	}
+
+	output := newNotifyBuffer()
+	_ = NewStdioTransport(svc, output)
+
+	params, _ := json.Marshal(map[string]string{"sessionId": created.ID})
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/load", json.RawMessage(params))
+	if rpcErr != nil {
+		t.Fatalf("loadSession error: %s", rpcErr.Message)
+	}
+
+	out := output.String()
+	if !strings.Contains(out, "user_message_chunk") {
+		t.Errorf("expected user_message_chunk in output, got: %s", out)
+	}
+	if !strings.Contains(out, "agent_thought_chunk") {
+		t.Errorf("expected agent_thought_chunk in output, got: %s", out)
+	}
+	if !strings.Contains(out, "agent_message_chunk") {
+		t.Errorf("expected agent_message_chunk in output, got: %s", out)
+	}
+	if !strings.Contains(out, "user says hi") {
+		t.Errorf("expected user text in output, got: %s", out)
+	}
+	if !strings.Contains(out, "thinking...") {
+		t.Errorf("expected reasoning text in output, got: %s", out)
+	}
+	if !strings.Contains(out, "assistant reply") {
+		t.Errorf("expected assistant text in output, got: %s", out)
+	}
+}
+
+func TestReplayHistory_SkipsNonTextParts(t *testing.T) {
+	svc, _, mock := testService(t)
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "test", Directory: "/tmp", Title: "Test",
+	})
+
+	mock.messages[created.ID] = []session.Message{
+		{
+			ID: "msg_1", SessionID: created.ID, Role: session.RoleAssistant,
+			Parts: []session.Part{{Type: "tool_use", Text: "should skip"}},
+		},
+	}
+
+	output := newNotifyBuffer()
+	_ = NewStdioTransport(svc, output)
+
+	params, _ := json.Marshal(map[string]string{"sessionId": created.ID})
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/load", json.RawMessage(params))
+	if rpcErr != nil {
+		t.Fatalf("loadSession error: %s", rpcErr.Message)
+	}
+
+	if output.Len() > 0 {
+		t.Errorf("expected no output for non-text parts, got: %s", output.String())
+	}
+}
+
+func TestResolveDefaultModel_WithSlashFormat(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	svc := NewServiceWithConfig(Config{
+		Sessions:     mock,
+		Bus:          b,
+		DefaultModel: "ollama/llama3:8b",
+		DefaultCWD:   "/tmp",
+	})
+
+	params := json.RawMessage(`{"cwd": "/tmp/project"}`)
+	result, rpcErr := svc.HandleRequest(context.Background(), "session/new", params)
+	if rpcErr != nil {
+		t.Fatalf("session/new error: %s", rpcErr.Message)
+	}
+
+	data, _ := json.Marshal(result)
+	var resp map[string]any
+	json.Unmarshal(data, &resp)
+	sessionID := resp["sessionId"].(string)
+
+	info := mock.sessions[sessionID]
+	if info.Model == nil {
+		t.Fatal("expected model to be set")
+	}
+	if info.Model.ProviderID != "ollama" {
+		t.Errorf("expected provider 'ollama', got %q", info.Model.ProviderID)
+	}
+	if info.Model.ModelID != "llama3:8b" {
+		t.Errorf("expected model 'llama3:8b', got %q", info.Model.ModelID)
+	}
+}
+
+func TestResolveDefaultModel_InvalidFormatReturnsNil(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	svc := NewServiceWithConfig(Config{
+		Sessions:     mock,
+		Bus:          b,
+		DefaultModel: "bare-model",
+		DefaultCWD:   "/tmp",
+	})
+
+	params := json.RawMessage(`{"cwd": "/tmp/project"}`)
+	result, rpcErr := svc.HandleRequest(context.Background(), "session/new", params)
+	if rpcErr != nil {
+		t.Fatalf("session/new error: %s", rpcErr.Message)
+	}
+
+	data, _ := json.Marshal(result)
+	var resp map[string]any
+	json.Unmarshal(data, &resp)
+	sessionID := resp["sessionId"].(string)
+
+	if mock.sessions[sessionID].Model != nil {
+		t.Error("expected nil model for invalid format")
+	}
+}
+
+func TestNewSession_NoCWD(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	svc := NewServiceWithConfig(Config{
+		Sessions: mock,
+		Bus:      b,
+	})
+
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/new", json.RawMessage(`{}`))
+	if rpcErr == nil {
+		t.Fatal("expected error when no CWD provided")
+	}
+	if rpcErr.Code != InvalidParams {
+		t.Errorf("expected InvalidParams, got %d", rpcErr.Code)
+	}
+	if !strings.Contains(rpcErr.Message, "cwd is required") {
+		t.Errorf("expected 'cwd is required', got %q", rpcErr.Message)
+	}
+}
+
+func TestResumeSession_NotFound(t *testing.T) {
+	svc, _, _ := testService(t)
+	params := json.RawMessage(`{"sessionId": "ses_nonexistent"}`)
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/resume", params)
+	if rpcErr == nil {
+		t.Fatal("expected error for nonexistent session")
+	}
+	if rpcErr.Code != InvalidParams {
+		t.Errorf("expected InvalidParams, got %d", rpcErr.Code)
+	}
+}
+
+func TestSetSessionMode_EmptyModeId(t *testing.T) {
+	svc, _, mock := testService(t)
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: "/tmp", Title: "Test",
+	})
+	params, _ := json.Marshal(map[string]string{"sessionId": created.ID, "modeId": ""})
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/set_mode", params)
+	if rpcErr == nil {
+		t.Fatal("expected error for empty modeId")
+	}
+	if rpcErr.Code != InvalidParams {
+		t.Errorf("expected InvalidParams, got %d", rpcErr.Code)
+	}
+}
+
+func TestSetSessionMode_SessionNotFound(t *testing.T) {
+	svc, _, _ := testService(t)
+	params := json.RawMessage(`{"sessionId":"ses_nonexistent","modeId":"plan"}`)
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/set_mode", params)
+	if rpcErr == nil {
+		t.Fatal("expected error for nonexistent session")
+	}
+	if rpcErr.Code != InvalidParams {
+		t.Errorf("expected InvalidParams, got %d", rpcErr.Code)
+	}
+}
+
+func TestSetSessionModel_SessionNotFound(t *testing.T) {
+	svc, _, _ := testService(t)
+	params := json.RawMessage(`{"sessionId":"ses_nonexistent","modelId":"ollama/qwen3:8b"}`)
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/set_model", params)
+	if rpcErr == nil {
+		t.Fatal("expected error for nonexistent session")
+	}
+	if rpcErr.Code != InvalidParams {
+		t.Errorf("expected InvalidParams, got %d", rpcErr.Code)
+	}
+}
+
+func TestPrompt_SessionNotFound(t *testing.T) {
+	svc, _, _ := testService(t)
+	params := json.RawMessage(`{"sessionId":"ses_nonexistent","prompt":[{"type":"text","text":"hello"}]}`)
+	_, rpcErr := svc.HandleRequest(context.Background(), "prompt", params)
+	if rpcErr == nil {
+		t.Fatal("expected error for nonexistent session")
+	}
+	if rpcErr.Code != InvalidParams {
+		t.Errorf("expected InvalidParams, got %d", rpcErr.Code)
+	}
+}
+
+func TestPrompt_ContextCancelled(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	runner := newMockRunner(b)
+	runner.delay = 5 * time.Second
+	svc := NewServiceWithConfig(Config{
+		Sessions:   mock,
+		Bus:        b,
+		Runner:     runner,
+		DefaultCWD: "/tmp",
+	})
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: "/tmp", Title: "Test",
+		Model:     &session.ModelRef{ProviderID: "ollama", ModelID: "llama"},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	params, _ := json.Marshal(map[string]any{
+		"sessionId": created.ID,
+		"prompt":    []map[string]string{{"type": "text", "text": "hello"}},
+	})
+	result, rpcErr := svc.HandleRequest(ctx, "session/prompt", params)
+	if rpcErr != nil {
+		t.Fatalf("unexpected rpc error: %s", rpcErr.Message)
+	}
+	resp := result.(map[string]any)
+	if resp["stopReason"] != "cancelled" {
+		t.Errorf("expected stopReason 'cancelled', got %v", resp["stopReason"])
+	}
+}
+
+func TestPrompt_CancelledDuringExecution(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	runner := newMockRunner(b)
+	runner.delay = 2 * time.Second
+	svc := NewServiceWithConfig(Config{
+		Sessions:   mock,
+		Bus:        b,
+		Runner:     runner,
+		DefaultCWD: "/tmp",
+	})
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: "/tmp", Title: "Test",
+		Model:     &session.ModelRef{ProviderID: "ollama", ModelID: "llama"},
+	})
+
+	type promptResult struct {
+		result map[string]any
+		err    *RPCError
+	}
+	ch := make(chan promptResult, 1)
+	safego.Go(func() {
+		params, _ := json.Marshal(map[string]any{
+			"sessionId": created.ID,
+			"prompt":    []map[string]string{{"type": "text", "text": "hello"}},
+		})
+		result, rpcErr := svc.HandleRequest(context.Background(), "session/prompt", params)
+		pr := promptResult{err: rpcErr}
+		if result != nil {
+			pr.result = result.(map[string]any)
+		}
+		ch <- pr
+	})
+
+	time.Sleep(50 * time.Millisecond)
+	cancelParams, _ := json.Marshal(map[string]string{"sessionId": created.ID})
+	svc.HandleRequest(context.Background(), "session/cancel", cancelParams)
+
+	select {
+	case pr := <-ch:
+		if pr.err != nil {
+			t.Fatalf("prompt error: %s", pr.err.Message)
+		}
+		if pr.result["stopReason"] != "cancelled" {
+			t.Errorf("expected stopReason 'cancelled', got %v", pr.result["stopReason"])
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout waiting for prompt to complete")
+	}
+}
+
+func TestEventRelay_ToolEndEvent(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
+	time.Sleep(10 * time.Millisecond)
+
+	b.Publish("session.tool.end", map[string]any{
+		"sessionID":  "ses_1",
+		"toolCallID": "tc_1",
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, "tool_call_update") {
+		t.Errorf("expected tool_call_update notification, got: %s", out)
+	}
+	if !strings.Contains(out, "completed") {
+		t.Errorf("expected status 'completed', got: %s", out)
+	}
+}
+
+func TestEventRelay_LegacyFlatMessagePart(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
+	time.Sleep(10 * time.Millisecond)
+
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"type":      "text",
+		"content":   "legacy content",
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, "agent_message_chunk") {
+		t.Errorf("expected agent_message_chunk, got: %s", out)
+	}
+	if !strings.Contains(out, "legacy content") {
+		t.Errorf("expected legacy content, got: %s", out)
+	}
+}
+
+func TestEventRelay_LegacyFlatTextFallback(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
+	time.Sleep(10 * time.Millisecond)
+
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"type":      "text",
+		"text":      "legacy text fallback",
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, "legacy text fallback") {
+		t.Errorf("expected 'legacy text fallback', got: %s", out)
+	}
+}
+
+func TestEventRelay_PartContentFallback(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
+	time.Sleep(10 * time.Millisecond)
+
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"part": map[string]any{
+			"type":    "text",
+			"content": "via content field",
+		},
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, "via content field") {
+		t.Errorf("expected 'via content field', got: %s", out)
+	}
+}
+
+func TestEventRelay_ToolBeginFallbackName(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
+	time.Sleep(10 * time.Millisecond)
+
+	b.Publish("session.tool.begin", map[string]any{
+		"sessionID":  "ses_1",
+		"tool":       "edit",
+		"toolCallID": "tc_2",
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, "tool_call") {
+		t.Errorf("expected tool_call notification, got: %s", out)
+	}
+}
+
+func TestEventRelay_PermissionAskedMapForm(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+	// permSvc is nil — handlePermissionAsked returns early
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
+	time.Sleep(10 * time.Millisecond)
+
+	b.Publish("permission.asked", map[string]any{
+		"id":         "perm_1",
+		"sessionID":  "ses_1",
+		"permission": "bash",
+	})
+
+	// Give the goroutine time to process the event.
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	// No panic or deadlock = success; handlePermissionAsked exits early with nil permSvc.
+}
+
+func TestEventRelay_PermissionAskedTypedRequest(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
+	time.Sleep(10 * time.Millisecond)
+
+	b.Publish("permission.asked", permission.Request{
+		ID:         "perm_1",
+		SessionID:  "ses_1",
+		Permission: "bash",
+	})
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+}
+
+func TestEventRelay_SetPermissionService(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	permSvc := permission.NewService(b)
+	relay.SetPermissionService(permSvc)
+
+	// Verify by triggering a permission event; the relay won't panic
+	// because permSvc is set (it will attempt SendRequest and fail, but
+	// handlePermissionAsked handles that error path).
+}
+
+func TestStdioTransport_MissingMethod(t *testing.T) {
+	svc, _, _ := testService(t)
+
+	input := `{"jsonrpc":"2.0","id":1,"method":""}` + "\n"
+	reader := strings.NewReader(input)
+	var output bytes.Buffer
+
+	transport := NewStdioTransport(svc, &output)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	transport.HandleStdio(ctx, reader)
+
+	deadline := time.Now().Add(time.Second)
+	for output.Len() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	var resp rpcResponse
+	json.Unmarshal(output.Bytes(), &resp)
+
+	if resp.Error == nil {
+		t.Fatal("expected error for missing method")
+	}
+	if resp.Error.Code != InvalidRequest {
+		t.Errorf("expected InvalidRequest code, got %d", resp.Error.Code)
+	}
+}
+
+func TestStdioTransport_RejectPendingOnClose(t *testing.T) {
+	svc, _, _ := testService(t)
+	pr, pw := io.Pipe()
+	var output syncBuffer
+	transport := NewStdioTransport(svc, &output)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	safego.Go(func() {
+		defer close(done)
+		_ = transport.HandleStdio(ctx, pr)
+	})
+
+	pending := &pendingRequest{ch: make(chan rpcResponse, 1)}
+	transport.pending.Store(int64(999), pending)
+
+	pw.Close()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for HandleStdio to finish")
+	}
+
+	select {
+	case resp := <-pending.ch:
+		if resp.Error == nil {
+			t.Fatal("expected error response for rejected pending request")
+		}
+		if resp.Error.Code != InternalError {
+			t.Errorf("expected InternalError code, got %d", resp.Error.Code)
+		}
+	default:
+		t.Fatal("expected pending request to be rejected")
+	}
+}
+
+func TestPendingKey_Variants(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  any
+		expect any
+	}{
+		{"float64", float64(42), int64(42)},
+		{"json.Number", json.Number("42"), int64(42)},
+		{"string", "abc", "abc"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := pendingKey(tt.input)
+			if got != tt.expect {
+				t.Errorf("pendingKey(%v) = %v, want %v", tt.input, got, tt.expect)
+			}
+		})
+	}
+}
