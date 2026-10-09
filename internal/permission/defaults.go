@@ -6,10 +6,12 @@ package permission
 //
 // Note: doom_loop is enforced as a hard-stop in the session processor
 // (checkDoomLoop), not via permission.Ask. Destructive shell commands use
-// the "destructive-shell" permission from the shell/monitor tools.
+// the "destructive-shell" permission from the shell/monitor tools. Commands
+// that name a secret file use "secret-shell".
 var DefaultRules = Ruleset{
 	{Permission: "read", Pattern: "*", Action: ActionAllow},
 	{Permission: "read", Pattern: ".env*", Action: ActionAsk},
 	{Permission: "webfetch", Pattern: "*", Action: ActionAsk},
 	{Permission: "external_directory", Pattern: "*", Action: ActionAsk},
+	{Permission: "secret-shell", Pattern: "*", Action: ActionAsk},
 }

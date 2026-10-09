@@ -15,6 +15,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
+import { usableAuthMethods } from "./dialog-connect-provider-auth"
 
 export function DialogConnectProvider(props: { provider: string }) {
   const dialog = useDialog()
@@ -56,15 +57,9 @@ export function DialogConnectProvider(props: { provider: string }) {
     },
   )
   const loading = createMemo(() => auth.loading && !serverSync.data.provider_auth[props.provider])
-  // Provider OAuth routes are not implemented. Drop those methods so the dialog
-  // cannot offer a login the server will reject. See issue #674.
-  const methods = createMemo(() => {
-    const raw = auth.latest ?? serverSync.data.provider_auth[props.provider] ?? fallback()
-    const usable = raw.filter((method) => method.type !== "oauth")
-    if (usable.length > 0) return usable
-    if (raw.some((method) => method.type === "oauth")) return fallback()
-    return raw
-  })
+  const methods = createMemo(() =>
+    usableAuthMethods(auth.latest ?? serverSync.data.provider_auth[props.provider], fallback()),
+  )
   const [store, setStore] = createStore({
     methodIndex: undefined as undefined | number,
   })

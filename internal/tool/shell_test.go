@@ -3,8 +3,14 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 func TestCheckSecretAccess_DetectsStandaloneDotEnv(t *testing.T) {
@@ -133,6 +139,134 @@ func TestIsDestructive_IgnoresSafeCommands(t *testing.T) {
 		if IsDestructive(cmd) {
 			t.Errorf("expected safe for %q", cmd)
 		}
+	}
+}
+
+func TestExecuteShell_SecretBlockedWithoutPerms(t *testing.T) {
+	dir := t.TempDir()
+	r := NewRegistry(&Context{Directory: dir})
+	RegisterBuiltins(r)
+
+	output, isErr, err := r.Execute(context.Background(), "bash", json.RawMessage(`{"command":"touch .env"}`), "sess-secret")
+	if err != nil {
+		t.Fatalf("execute error: %v", err)
+	}
+	if !isErr {
+		t.Fatal("expected secret command to be blocked without a permission service")
+	}
+	if !strings.Contains(output, "Access to secret") {
+		t.Errorf("expected secret block message, got %q", output)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, ".env")); !os.IsNotExist(statErr) {
+		t.Fatalf("command ran and created .env: %v", statErr)
+	}
+}
+
+func TestExecuteShell_SecretAsksWhenShellIsAllowed(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	perms := permission.NewService(b)
+	defer perms.Close()
+
+	dir := t.TempDir()
+	r := NewRegistry(&Context{
+		Directory: dir,
+		Bus:       b,
+		Perms:     perms,
+		Ruleset: permission.Ruleset{
+			{Permission: "shell", Pattern: "*", Action: permission.ActionAllow},
+			{Permission: "secret-shell", Pattern: "*", Action: permission.ActionAsk},
+		},
+	})
+	RegisterBuiltins(r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	var output string
+	var isErr bool
+	go func() {
+		output, isErr, _ = r.Execute(ctx, "bash", json.RawMessage(`{"command":"touch .env"}`), "sess-secret")
+		close(done)
+	}()
+
+	req := waitForPermission(t, perms, 2*time.Second)
+	if req.Permission != "secret-shell" {
+		t.Fatalf("permission %q, want secret-shell", req.Permission)
+	}
+	if err := perms.RespondToAsk(permission.ReplyInput{
+		RequestID: req.ID,
+		Reply:     permission.ReplyOnce,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for approved secret command")
+	}
+	if isErr {
+		t.Fatalf("approved command failed: %s", output)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".env")); err != nil {
+		t.Fatalf("expected .env to be created after approval: %v", err)
+	}
+}
+
+func TestExecuteShell_SecretRejectSkipsCommand(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	perms := permission.NewService(b)
+	defer perms.Close()
+
+	dir := t.TempDir()
+	r := NewRegistry(&Context{
+		Directory: dir,
+		Bus:       b,
+		Perms:     perms,
+		Ruleset: permission.Ruleset{
+			{Permission: "shell", Pattern: "*", Action: permission.ActionAllow},
+		},
+	})
+	RegisterBuiltins(r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	var output string
+	var isErr bool
+	go func() {
+		output, isErr, _ = r.Execute(ctx, "bash", json.RawMessage(`{"command":"touch .env"}`), "sess-secret")
+		close(done)
+	}()
+
+	req := waitForPermission(t, perms, 2*time.Second)
+	if req.Permission != "secret-shell" {
+		t.Fatalf("permission %q, want secret-shell", req.Permission)
+	}
+	if err := perms.RespondToAsk(permission.ReplyInput{
+		RequestID: req.ID,
+		Reply:     permission.ReplyReject,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for rejected secret command")
+	}
+	if !isErr {
+		t.Fatal("expected rejection to fail the command")
+	}
+	if output == "" {
+		t.Fatal("expected rejection output")
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, ".env")); !os.IsNotExist(statErr) {
+		t.Fatalf("rejected command created .env: %v", statErr)
 	}
 }
 

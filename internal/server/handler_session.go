@@ -426,7 +426,7 @@ func (s *Server) handleSessionShell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if warning := tool.CheckSecretAccess(command); warning != "" {
+	if warning := tool.CheckSecretAccess(command); warning != "" && s.deps.PermService == nil {
 		respondError(w, http.StatusForbidden, "access to secret file blocked: "+warning)
 		return
 	}
@@ -463,6 +463,19 @@ func (s *Server) handleSessionShell(w http.ResponseWriter, r *http.Request) {
 		if askErr != nil {
 			respondError(w, http.StatusForbidden, askErr.Error())
 			return
+		}
+		if tool.CheckSecretAccess(command) != "" {
+			askErr = s.deps.PermService.Ask(r.Context(), permission.AskInput{
+				SessionID:  sessionID,
+				Permission: "secret-shell",
+				Patterns:   []string{command},
+				Metadata:   map[string]any{"command": command, "source": "http"},
+				Ruleset:    agentRules,
+			})
+			if askErr != nil {
+				respondError(w, http.StatusForbidden, askErr.Error())
+				return
+			}
 		}
 		if tool.IsDestructive(command) {
 			askErr = s.deps.PermService.Ask(r.Context(), permission.AskInput{

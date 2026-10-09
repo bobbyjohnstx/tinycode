@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 func TestRingBuffer_AddAndDrain(t *testing.T) {
@@ -345,6 +348,54 @@ func TestMonitorTool_BlocksSecretAccess(t *testing.T) {
 	}
 	if !strings.Contains(output, "Access to secret") {
 		t.Errorf("expected secret block message, got %q", output)
+	}
+}
+
+func TestMonitorTool_SecretAsksWhenShellIsAllowed(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	perms := permission.NewService(b)
+	defer perms.Close()
+
+	r := NewRegistry(&Context{
+		Directory: t.TempDir(),
+		Bus:       b,
+		Perms:     perms,
+		Ruleset: permission.Ruleset{
+			{Permission: "shell", Pattern: "*", Action: permission.ActionAllow},
+		},
+	})
+	RegisterBuiltins(r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	var output string
+	var isErr bool
+	go func() {
+		output, isErr, _ = r.Execute(ctx, "monitor", json.RawMessage(`{"command":"cat .env"}`), "ses-secret")
+		close(done)
+	}()
+
+	req := waitForPermission(t, perms, 2*time.Second)
+	if req.Permission != "secret-shell" {
+		t.Fatalf("permission %q, want secret-shell", req.Permission)
+	}
+	if err := perms.RespondToAsk(permission.ReplyInput{
+		RequestID: req.ID,
+		Reply:     permission.ReplyReject,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for rejected monitor command")
+	}
+	if !isErr {
+		t.Fatalf("expected rejection to fail the monitor, got %q", output)
 	}
 }
 

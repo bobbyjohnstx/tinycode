@@ -94,12 +94,8 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		}
 	}
 
-	if warning := CheckSecretAccess(args.Command); warning != "" {
-		slog.Warn("secret file access blocked", "command", args.Command, "warning", warning)
-		return &ExecuteResult{
-			Output:  fmt.Sprintf("Access to secret file blocked: %s. Use the permission system to explicitly approve.", warning),
-			IsError: true,
-		}, nil
+	if blocked := gateSecretAccess(ctx, tc, args.Command); blocked != nil {
+		return blocked, nil
 	}
 
 	if IsDestructive(args.Command) {
@@ -190,6 +186,34 @@ func IsDestructive(command string) bool {
 		}
 	}
 	return false
+}
+
+// gateSecretAccess asks before a command that names a secret file.
+// A nil result means the command may run. With no permission service the
+// command stays blocked, because nothing can approve it.
+func gateSecretAccess(ctx context.Context, tc *Context, command string) *ExecuteResult {
+	warning := CheckSecretAccess(command)
+	if warning == "" {
+		return nil
+	}
+	if tc == nil || tc.Perms == nil {
+		slog.Warn("secret file access blocked", "command", command, "warning", warning)
+		return &ExecuteResult{
+			Output:  fmt.Sprintf("Access to secret file blocked: %s", warning),
+			IsError: true,
+		}
+	}
+	askErr := tc.Perms.Ask(ctx, permission.AskInput{
+		SessionID:  tc.SessionID,
+		Permission: "secret-shell",
+		Patterns:   []string{command},
+		Metadata:   map[string]any{"command": command},
+		Ruleset:    tc.Ruleset,
+	})
+	if askErr != nil {
+		return &ExecuteResult{Output: askErr.Error(), IsError: true}
+	}
+	return nil
 }
 
 // CheckSecretAccess returns a warning message if the command references

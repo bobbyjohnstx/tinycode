@@ -437,16 +437,35 @@ func TestPermissionPrompt_Update_EnterDismisses(t *testing.T) {
 	}
 }
 
-func TestPermissionPrompt_Update_EscDoesNotDismiss(t *testing.T) {
+func TestPermissionPrompt_Update_EscRejects(t *testing.T) {
 	p := NewPermissionPrompt()
-	p.Show(PermissionRequest{ID: "perm-1", Permission: "shell"})
+	req := PermissionRequest{ID: "perm-1", SessionID: "ses_1", Permission: "shell"}
+	p.Show(req)
+	p, _ = p.Update(tea.KeyMsg{Type: tea.KeyRight})
 
 	p, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if !p.visible {
-		t.Error("expected prompt to remain visible after Esc")
+	if p.visible {
+		t.Error("expected prompt to be hidden after Esc")
 	}
-	if cmd != nil {
-		t.Error("expected no cmd from Esc")
+	if p.selected != PermissionAlways {
+		t.Errorf("expected selection to stay on Always, got %d", p.selected)
+	}
+	if cmd == nil {
+		t.Fatal("expected cmd from Esc")
+	}
+	msg := cmd()
+	dismissed, ok := msg.(PermissionDismissedMsg)
+	if !ok {
+		t.Fatalf("expected PermissionDismissedMsg, got %T", msg)
+	}
+	if dismissed.Action != PermissionReject {
+		t.Errorf("expected action PermissionReject, got %d", dismissed.Action)
+	}
+	if dismissed.Request.ID != "perm-1" {
+		t.Errorf("expected request ID 'perm-1', got %q", dismissed.Request.ID)
+	}
+	if dismissed.Request.SessionID != "ses_1" {
+		t.Errorf("expected session ID 'ses_1', got %q", dismissed.Request.SessionID)
 	}
 }
 
@@ -498,5 +517,8 @@ func TestPermissionPrompt_View_ContainsPermissionRequired(t *testing.T) {
 	}
 	if !strings.Contains(view, "Reject") {
 		t.Error("expected 'Reject' button in view")
+	}
+	if !strings.Contains(view, "esc reject") {
+		t.Error("expected 'esc reject' hint in view")
 	}
 }

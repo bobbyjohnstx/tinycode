@@ -103,18 +103,21 @@ func (p PermissionPrompt) Update(msg tea.Msg) (PermissionPrompt, tea.Cmd) {
 			p.selected++
 		}
 	case "enter":
-		req := p.request
-		action := p.selected
-		p.visible = false
-		return p, func() tea.Msg {
-			return PermissionDismissedMsg{Request: req, Action: action}
-		}
+		return p.dismiss(p.selected)
 	case "esc":
-		// Ignore Esc so an accidental press does not reject the request.
-		// Reject requires selecting Reject and confirming with Enter.
+		return p.dismiss(PermissionReject)
 	}
 
 	return p, nil
+}
+
+// dismiss hides the prompt and replies with action.
+func (p PermissionPrompt) dismiss(action PermissionAction) (PermissionPrompt, tea.Cmd) {
+	req := p.request
+	p.visible = false
+	return p, func() tea.Msg {
+		return PermissionDismissedMsg{Request: req, Action: action}
+	}
 }
 
 // View renders the permission prompt.
@@ -173,7 +176,7 @@ func (p PermissionPrompt) View() string {
 		}
 	}
 	sb.WriteString(strings.Join(buttons, "  "))
-	sb.WriteString("    " + dimStyle.Render("⇆ select  enter confirm"))
+	sb.WriteString("    " + dimStyle.Render("⇆ select  enter confirm  esc reject"))
 
 	content := sb.String()
 

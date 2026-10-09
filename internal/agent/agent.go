@@ -25,8 +25,9 @@ var DefaultPerms permission.Ruleset
 
 // buildPerms allows ordinary work for the default agent. The ask rules come
 // after those allows so last-match prompts for .env reads, webfetch,
-// directories outside the project, and destructive shell. User rules are
-// merged after this set and can still override an ask.
+// directories outside the project, destructive shell, and shell commands
+// that name a secret file. User rules are merged after this set and can
+// still override an ask.
 //
 // read covers grep, glob, question, skill, and websearch, which use the read
 // permission. edit covers write, apply_patch, and todowrite. shell covers
@@ -48,6 +49,7 @@ var buildPerms = permission.Ruleset{
 	{Permission: "webfetch", Pattern: "*", Action: permission.ActionAsk},
 	{Permission: "external_directory", Pattern: "*", Action: permission.ActionAsk},
 	{Permission: "destructive-shell", Pattern: "*", Action: permission.ActionAsk},
+	{Permission: "secret-shell", Pattern: "*", Action: permission.ActionAsk},
 }
 
 type Mode string

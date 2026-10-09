@@ -46,12 +46,13 @@ var DefaultRules = Ruleset{
     {Permission: "read",               Pattern: ".env*", Action: ActionAsk},
     {Permission: "webfetch",           Pattern: "*",     Action: ActionAsk},
     {Permission: "external_directory", Pattern: "*",     Action: ActionAsk},
+    {Permission: "secret-shell",       Pattern: "*",     Action: ActionAsk},
 }
 ```
 
-DefaultRules are automatically prepended during evaluation. They establish the baseline: file reads are allowed, but `.env*` files, web fetches, and external directory access all require user approval.
+DefaultRules are automatically prepended during evaluation. They establish the baseline: file reads are allowed, but `.env*` files, web fetches, external directory access, and shell commands that name a secret file all require user approval.
 
-Doom-loop detection is a hard-stop in the session processor (`checkDoomLoop`), not a permission Ask. Destructive shell commands use the `destructive-shell` permission from the shell/monitor tools.
+Doom-loop detection is a hard-stop in the session processor (`checkDoomLoop`), not a permission Ask. Destructive shell commands use the `destructive-shell` permission from the shell/monitor tools. Secret-file shell commands use `secret-shell`.
 
 ## 12.3 Evaluation
 

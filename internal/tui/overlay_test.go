@@ -53,27 +53,27 @@ func TestPermissionPrompt_NavigateAndSelect(t *testing.T) {
 	}
 }
 
-func TestPermissionPrompt_EscapeDoesNotReject(t *testing.T) {
+func TestPermissionPrompt_EscapeRejects(t *testing.T) {
 	p := NewPermissionPrompt()
 	p.Show(PermissionRequest{ID: "3", Permission: "edit"})
 
 	p, cmd := p.Update(keyMsg("esc"))
-	if cmd != nil {
-		t.Fatal("expected no cmd from escape; Esc must not reject")
-	}
-	if !p.IsVisible() {
-		t.Error("expected prompt to remain visible after escape")
-	}
-
-	// Allow flow still works after ignored Esc.
-	p, cmd = p.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
-		t.Fatal("expected cmd from enter after escape")
+		t.Fatal("expected cmd from escape")
+	}
+	if p.IsVisible() {
+		t.Error("expected prompt to be hidden after escape")
 	}
 	msg := cmd()
-	dm := msg.(PermissionDismissedMsg)
-	if dm.Action != PermissionAllow {
-		t.Errorf("expected Allow after escape+enter, got %v", dm.Action)
+	dm, ok := msg.(PermissionDismissedMsg)
+	if !ok {
+		t.Fatalf("expected PermissionDismissedMsg, got %T", msg)
+	}
+	if dm.Action != PermissionReject {
+		t.Errorf("expected Reject, got %v", dm.Action)
+	}
+	if dm.Request.ID != "3" {
+		t.Errorf("expected request ID 3, got %q", dm.Request.ID)
 	}
 }
 

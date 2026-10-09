@@ -163,7 +163,11 @@ When a destructive pattern is matched:
 | `*.key` | Private key files |
 | `*.pem` | PEM certificate/key files |
 
-This is a warning-only check (logged, not blocked). Blocking of `.env*` reads is handled by the permission system's default rules (see section 15.9).
+When a secret-file pattern matches:
+- If a permission service is available: `permission.Ask()` with permission `"secret-shell"` and the command as the pattern
+- If no permission service: the command is blocked
+
+`.env*` reads through the read tool use the `read` / `.env*` ask rule (see section 15.9).
 
 ### Audit Trail
 
@@ -196,7 +200,7 @@ See [12-permissions.md](12-permissions.md) for the full permission system specif
 
 ### Default Rules
 
-4 rules applied as the base layer for every session:
+5 rules applied as the base layer for every session:
 
 | Permission | Pattern | Action | Security Purpose |
 |------------|---------|--------|-----------------|
@@ -204,6 +208,7 @@ See [12-permissions.md](12-permissions.md) for the full permission system specif
 | `read` | `.env*` | ask | Protects secret files from silent reads |
 | `webfetch` | `*` | ask | Gates all external HTTP requests |
 | `external_directory` | `*` | ask | Protects paths outside project directory |
+| `secret-shell` | `*` | ask | Asks before a shell command names a secret file |
 
 ### Doom Loop Detection
 

@@ -941,6 +941,7 @@ func TestBuildAgent_SensitiveActionsAsk(t *testing.T) {
 		{"webfetch", "https://example.com"},
 		{"external_directory", "/tmp/outside"},
 		{"destructive-shell", "rm -rf /tmp/x"},
+		{"secret-shell", "cat .env"},
 	}
 	for _, tc := range asks {
 		got := permission.Evaluate(tc.permission, tc.pattern, build.Permission)
@@ -982,6 +983,9 @@ func TestBuildAgent_SensitiveActionsAsk(t *testing.T) {
 	}
 	if got := permission.Evaluate("edit", "main.go", explore.Permission); got.Action != permission.ActionDeny {
 		t.Errorf("explore edit: got %s, want deny", got.Action)
+	}
+	if got := permission.Evaluate("secret-shell", "cat .env", explore.Permission); got.Action != permission.ActionDeny {
+		t.Errorf("explore secret-shell: got %s, want deny", got.Action)
 	}
 
 	plan := r.Get("plan", nil)

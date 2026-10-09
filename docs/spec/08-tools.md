@@ -165,7 +165,7 @@ Shell command execution. Tool ID is `bash` (not `shell`). Source: `shell.go`
 - `DROP TABLE/DATABASE`, `TRUNCATE TABLE`
 - `kill -9`, `mkfs`, `dd`, `> /dev/sd*`
 
-**Secret file detection** (hard-block — returns error, does not ask): `.env`, `.env.*`, `credentials`, `*.key`, `*.pem`
+**Secret file detection** (asks with `secret-shell` when a permission service is present; blocked when it is not): `.env`, `.env.*`, `credentials`, `*.key`, `*.pem`
 
 Executes via `sh -c <command>` in `tc.Directory`. Combines stdout/stderr (stderr prefixed with `"STDERR:\n"`).
 
@@ -345,6 +345,7 @@ Fallback for malformed tool calls. Source: `invalid.go`
 | `plan_enter` | plan_enter |
 | `plan_exit` | plan_exit |
 | `destructive-shell` | (secondary check within bash/monitor for destructive commands) |
+| `secret-shell` | (secondary check within bash/monitor and session shell for commands that name a secret file) |
 
 ---
 

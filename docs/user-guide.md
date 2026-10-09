@@ -157,7 +157,7 @@ Prefix a command with `!` to run it locally and feed the output to the model:
 !git log --oneline -10
 ```
 
-The shell command runs in the working directory and its output is included as context for the model's next response.
+The shell command runs in the working directory and its output is included as context for the model's next response. A command that names a `.env` file, a credentials file, a `.key` file, or a `.pem` file asks for approval before it runs.
 
 ---
 
@@ -171,7 +171,7 @@ The shell command runs in the working directory and its output is included as co
 | Ctrl+F | Open in-transcript search |
 | Ctrl+C | Clear prompt input, or quit if empty |
 | Ctrl+D | Quit |
-| Escape | Interrupt the current model operation |
+| Escape | Interrupt the current model operation. On a permission prompt, reject the request |
 
 ### Prompt input
 
@@ -259,6 +259,8 @@ When a dialog is open (agents, models, sessions, themes):
 | Enter | Confirm selection |
 | Esc / q | Close dialog |
 | d | Toggle enable/disable (agent dialog only, non-native agents) |
+
+On a permission prompt, Left/Right or h/l move between Allow once, Allow always, and Reject. Enter confirms the highlighted choice. Esc rejects the request.
 
 ---
 

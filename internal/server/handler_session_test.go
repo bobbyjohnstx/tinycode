@@ -250,20 +250,64 @@ func TestShellDirect_EmptyCommandReturns400(t *testing.T) {
 	}
 }
 
-func TestShellDirect_SecretAccessReturns403(t *testing.T) {
+func TestShellDirect_SecretAccessAsks(t *testing.T) {
 	h := newTestHarness(t, nil)
 	sessionID := h.createSession("Shell Secret", "build")
 
-	for _, cmd := range []string{"cat .env", "less credentials.json", "cat server.key"} {
-		body := fmt.Sprintf(`{"command":%q}`, cmd)
-		resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/shell", "application/json", strings.NewReader(body))
-		if err != nil {
-			t.Fatalf("shell request for %q: %v", cmd, err)
-		}
-		resp.Body.Close()
+	for _, tc := range []struct {
+		cmd   string
+		reply permission.Reply
+		want  int
+	}{
+		{"cat .env", permission.ReplyReject, http.StatusForbidden},
+		{"echo credentials", permission.ReplyOnce, http.StatusNoContent},
+	} {
+		done := make(chan int, 1)
+		go func(cmd string) {
+			body := fmt.Sprintf(`{"command":%q}`, cmd)
+			resp, err := http.Post(h.baseURL()+"/session/"+sessionID+"/shell", "application/json", strings.NewReader(body))
+			if err != nil {
+				t.Errorf("shell request for %q: %v", cmd, err)
+				done <- 0
+				return
+			}
+			resp.Body.Close()
+			done <- resp.StatusCode
+		}(tc.cmd)
 
-		if resp.StatusCode != http.StatusForbidden {
-			t.Errorf("expected 403 for %q, got %d", cmd, resp.StatusCode)
+		var req permission.Request
+		deadline := time.After(5 * time.Second)
+		for req.ID == "" {
+			for _, pending := range h.server.deps.PermService.List() {
+				if pending.Permission == "secret-shell" && pending.SessionID == sessionID {
+					req = pending
+					break
+				}
+			}
+			if req.ID != "" {
+				break
+			}
+			select {
+			case <-deadline:
+				t.Fatalf("timed out waiting for secret-shell ask for %q", tc.cmd)
+			default:
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+		if err := h.server.deps.PermService.RespondToAsk(permission.ReplyInput{
+			RequestID: req.ID,
+			Reply:     tc.reply,
+		}); err != nil {
+			t.Fatalf("reply for %q: %v", tc.cmd, err)
+		}
+
+		select {
+		case got := <-done:
+			if got != tc.want {
+				t.Errorf("%q status %d, want %d", tc.cmd, got, tc.want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for shell response to %q", tc.cmd)
 		}
 	}
 }

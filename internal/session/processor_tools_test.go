@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -233,6 +234,61 @@ func TestExecuteTools_CancelledContext_AbandonsPending(t *testing.T) {
 	_ = allFailed // may or may not be true depending on timing
 }
 
+func TestExecuteTools_CapsConcurrentCalls(t *testing.T) {
+	exec := &countingToolExecutor{
+		started: make(chan struct{}, 32),
+		release: make(chan struct{}),
+	}
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses-cap",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, &mockLLMClient{}, exec, b)
+
+	const calls = maxConcurrentTools + 4
+	toolCalls := make([]Part, calls)
+	for i := range toolCalls {
+		toolCalls[i] = ToolCallPart("call-"+string(rune('a'+i)), "slow", `{}`)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	go func() {
+		for i := 0; i < maxConcurrentTools; i++ {
+			select {
+			case <-exec.started:
+			case <-ctx.Done():
+				return
+			}
+		}
+		time.Sleep(30 * time.Millisecond)
+		exec.mu.Lock()
+		exec.observed = exec.current
+		exec.observedMax = exec.maxSeen
+		exec.mu.Unlock()
+		close(exec.release)
+	}()
+
+	results, allFailed := p.executeTools(ctx, toolCalls)
+	if allFailed {
+		t.Fatal("expected capped tools to finish")
+	}
+	if len(results) != calls {
+		t.Fatalf("results = %d, want %d", len(results), calls)
+	}
+	if exec.observed != maxConcurrentTools {
+		t.Errorf("in flight when the cap filled = %d, want %d", exec.observed, maxConcurrentTools)
+	}
+	if exec.observedMax > maxConcurrentTools {
+		t.Errorf("max in flight = %d, want at most %d", exec.observedMax, maxConcurrentTools)
+	}
+}
+
 func TestExecuteTools_ErrorPath_ReturnsErrorResult(t *testing.T) {
 	tools := &errorToolExecutor{
 		err: "permission denied",
@@ -430,6 +486,47 @@ func TestPublishToolResult_ErrorResult(t *testing.T) {
 }
 
 // --- Test helper types ---
+
+// countingToolExecutor records how many calls run at once and blocks until release is closed.
+type countingToolExecutor struct {
+	mu          sync.Mutex
+	current     int
+	maxSeen     int
+	observed    int
+	observedMax int
+	started     chan struct{}
+	release     chan struct{}
+}
+
+func (c *countingToolExecutor) Execute(ctx context.Context, _ string, _ json.RawMessage, _ string) (string, bool, error) {
+	c.mu.Lock()
+	c.current++
+	if c.current > c.maxSeen {
+		c.maxSeen = c.current
+	}
+	c.mu.Unlock()
+
+	select {
+	case c.started <- struct{}{}:
+	case <-ctx.Done():
+		return "", true, ctx.Err()
+	}
+
+	select {
+	case <-c.release:
+	case <-ctx.Done():
+		return "", true, ctx.Err()
+	}
+
+	c.mu.Lock()
+	c.current--
+	c.mu.Unlock()
+	return "ok", false, nil
+}
+
+func (c *countingToolExecutor) ToolDefs(_ []string) []llm.Tool {
+	return nil
+}
 
 // blockingToolExecutor blocks until its channel is closed or context is cancelled.
 type blockingToolExecutor struct {

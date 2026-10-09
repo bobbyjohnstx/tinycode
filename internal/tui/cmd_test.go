@@ -772,6 +772,41 @@ func TestMapSSEToMsg_MessagePartDelta(t *testing.T) {
 	}
 }
 
+func TestMapSSEToMsg_ToastWarning(t *testing.T) {
+	evt := api.ServerEvent{
+		Type: "toast",
+		Properties: map[string]any{
+			"sessionID": "ses_1",
+			"type":      "warning",
+			"message":   "Multiple consecutive tool call failures. Consider switching to a larger model.",
+		},
+	}
+	msg := mapSSEToMsg(evt)
+	toast, ok := msg.(ToastMsg)
+	if !ok {
+		t.Fatalf("expected ToastMsg, got %T", msg)
+	}
+	if toast.Text != "Multiple consecutive tool call failures. Consider switching to a larger model." {
+		t.Errorf("toast text = %q", toast.Text)
+	}
+	if !toast.IsError {
+		t.Error("expected a warning toast to be marked as an error")
+	}
+}
+
+func TestMapSSEToMsg_ToastEmptyMessage(t *testing.T) {
+	evt := api.ServerEvent{
+		Type: "toast",
+		Properties: map[string]any{
+			"type": "warning",
+		},
+	}
+	msg := mapSSEToMsg(evt)
+	if _, ok := msg.(SSEEventMsg); !ok {
+		t.Fatalf("expected SSEEventMsg for an empty toast, got %T", msg)
+	}
+}
+
 func TestMapSSEToMsg_SessionCompacted(t *testing.T) {
 	evt := api.ServerEvent{
 		Type: "session.compacted",
@@ -902,5 +937,3 @@ func TestParsePartView_LegacyToolResult(t *testing.T) {
 		t.Errorf("expected Text from toolResult, got %q", pv.Text)
 	}
 }
-
-

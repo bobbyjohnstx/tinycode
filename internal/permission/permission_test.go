@@ -648,8 +648,8 @@ func TestEvaluate_UnknownPermissionFallback(t *testing.T) {
 }
 
 func TestDefaultRules_Structure(t *testing.T) {
-	if len(DefaultRules) != 4 {
-		t.Fatalf("expected 4 default rules, got %d", len(DefaultRules))
+	if len(DefaultRules) != 5 {
+		t.Fatalf("expected 5 default rules, got %d", len(DefaultRules))
 	}
 
 	expected := []struct {
@@ -661,6 +661,7 @@ func TestDefaultRules_Structure(t *testing.T) {
 		{"read", ".env*", ActionAsk},
 		{"webfetch", "*", ActionAsk},
 		{"external_directory", "*", ActionAsk},
+		{"secret-shell", "*", ActionAsk},
 	}
 
 	for i, want := range expected {
