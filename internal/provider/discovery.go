@@ -106,9 +106,9 @@ func (d *Discovery) poll(ctx context.Context, ollamaURL, vllmURL, lmStudioURL st
 
 // shouldPoll reports whether a provider should be probed this tick.
 // Dormant providers stay eligible so a late-start daemon can reconnect.
+// Disabled providers are never polled.
 func (d *Discovery) shouldPoll(providerID string) bool {
-	_ = providerID
-	return true
+	return !d.registry.isFiltered(providerID)
 }
 
 // isDormant reports whether a provider was removed after consecutive failures.
