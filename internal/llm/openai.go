@@ -199,6 +199,9 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 	if delta.ReasoningContent != "" {
 		ch <- Event{Type: EventReasoningDelta, Text: delta.ReasoningContent}
 	}
+	if delta.Reasoning != "" {
+		ch <- Event{Type: EventReasoningDelta, Text: delta.Reasoning}
+	}
 
 	for _, tc := range delta.ToolCalls {
 		accum, exists := toolCalls[tc.Index]
@@ -303,7 +306,8 @@ type chatCompletionChoice struct {
 type chatCompletionDelta struct {
 	Role             string                   `json:"role,omitempty"`
 	Content          string                   `json:"content,omitempty"`
-	ReasoningContent string                   `json:"reasoning_content,omitempty"`
+	ReasoningContent string                   `json:"reasoning_content,omitempty"` // DeepSeek / most providers
+	Reasoning        string                   `json:"reasoning,omitempty"`         // Ollama (qwen3 etc.)
 	ToolCalls        []chatCompletionToolCall `json:"tool_calls,omitempty"`
 }
 

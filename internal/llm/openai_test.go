@@ -365,6 +365,42 @@ func TestOpenAIStream_ReasoningContent(t *testing.T) {
 	}
 }
 
+func TestOpenAIStream_OllamaReasoning(t *testing.T) {
+	// Ollama uses "reasoning" not "reasoning_content" (e.g. qwen3 models).
+	lines := []string{
+		`{"choices":[{"delta":{"reasoning":"Let me think..."}}]}`,
+		textChunk("Answer"),
+		finishChunk("stop"),
+	}
+
+	server := httptest.NewServer(sseHandler(lines))
+	defer server.Close()
+
+	client := NewOpenAIClient(server.URL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:    "qwen3.8:27b",
+		Messages: []Message{{Role: "user", Content: "Think"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+
+	events := collectEvents(t, ch, 5*time.Second)
+
+	var gotReasoning bool
+	for _, ev := range events {
+		if ev.Type == EventReasoningDelta {
+			gotReasoning = true
+			if ev.Text != "Let me think..." {
+				t.Errorf("reasoning text = %q, want 'Let me think...'", ev.Text)
+			}
+		}
+	}
+	if !gotReasoning {
+		t.Error("missing reasoning delta for Ollama 'reasoning' field")
+	}
+}
+
 func TestOpenAIStream_InvalidToolCallJSON_Repaired(t *testing.T) {
 	lines := []string{
 		`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_02","type":"function","function":{"name":"write","arguments":""}}]}}]}`,
