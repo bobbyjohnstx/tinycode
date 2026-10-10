@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-10
+
 ### Features
 - **ops** agent for cluster and host administration. Default Tab cycle is `build`, `general`, `ops`, `plan`, `architect`, `code-reviewer`
 - Skills `/incident`, `/change`, and `/host`. `/debug`, `/trace`, `/plan`, `/verify`, `/test`, and `/review` delegate to the matching agent
