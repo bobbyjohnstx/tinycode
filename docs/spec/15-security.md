@@ -235,6 +235,24 @@ Source: `internal/session/processor_validation.go`, `internal/session/processor_
 
 `isDoomLoop()` detects when the last N tool calls have identical signatures (same tool name and arguments). Default threshold: 3 consecutive identical calls (`defaultDoomThreshold`). `experimental.doom_loop_threshold` overrides that default when it is greater than 0. This is a hard-stop in the processor (`checkDoomLoop` returns an error) — it does not go through `permission.Ask`.
 
+### Reasoning Loop Detection
+
+Source: `internal/llm/budget.go`, `internal/llm/openai.go`
+
+`ReasoningLoop()` detects two patterns in a model's reasoning trace during streaming:
+1. The phrase "but wait" appears ≥4 times (`reasoningStallCount`)
+2. Any sentence ≥48 characters appears ≥3 times (`reasoningRepeatCount` / `reasoningRepeatMin`)
+
+When detected, the SSE stream is stopped immediately and `ErrStreamBudget` is returned. The model's partial answer up to that point is preserved. This primarily affects small models (9B–14B) that enter self-doubt spirals or verbatim repetition loops.
+
+| Constant | Value |
+|----------|-------|
+| `DefaultStreamTokens` | 8192 |
+| `StreamWallClock` | 8 minutes |
+| `reasoningStallCount` | 4 |
+| `reasoningRepeatMin` | 48 characters |
+| `reasoningRepeatCount` | 3 |
+
 ### Consecutive Failure Tracking
 
 Source: `internal/session/processor.go`, `internal/session/processor_loop.go`

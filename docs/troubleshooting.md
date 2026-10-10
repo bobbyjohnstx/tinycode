@@ -256,6 +256,19 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
 2. Switch to a larger model: Press `<leader>m` and select `qwen3:14b`, `qwen3.5:9b`, or similar
 3. For very small models (<7B parameters), tool calling may not work at all — see next section
 
+### Model reasoning loops
+
+**Problem:** The model's thinking trace repeats the same sentence or says "but wait" over and over without making progress.
+
+**Solution:** tinycode detects two patterns and stops the stream automatically:
+1. The phrase "but wait" appears 4+ times in one reasoning trace
+2. The same sentence (≥48 characters) appears 3+ times
+
+When a loop is detected, the stream stops with a budget error and the model's partial answer is returned. This is most common with small models (9B–14B) on complex tasks. If it happens frequently:
+1. Switch to a larger model or one with less aggressive reasoning
+2. Simplify the prompt — break the task into smaller steps
+3. Increase `experimental.doom_loop_threshold` in `tinycode.jsonc` if the model is making progress but hitting the identical-tool-call limit
+
 ### Model doesn't support tool calling
 
 **Problem:** tinycode detects `capabilities.toolcall=false` for this model and skips tools entirely.

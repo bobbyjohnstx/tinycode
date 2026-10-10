@@ -70,8 +70,9 @@ type Tool struct {
 1. HTTP POST with `Accept: text/event-stream`
 2. Background goroutine reads SSE lines via `bufio.Scanner` (1MB buffer limit)
 3. Lines dispatched to event channel (capacity: 64)
-4. Timeout management: separate timer for each chunk (5 min)
-5. Context cancellation propagated to HTTP request
+4. Timeout management: wall-clock cap (8 min) and per-completion token cap (8192)
+5. Reasoning loop detector: stops the stream when the model repeats "but wait" ≥4 times or the same sentence ≥3 times
+6. Context cancellation propagated to HTTP request
 
 ### JSON Repair
 
