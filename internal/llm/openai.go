@@ -127,16 +127,17 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 	defer timer.Stop()
 	tokens := 0
 	completed := false
+	var reasoning strings.Builder
 
-	stopForBudget := func() {
-		slog.Warn("SSE stream budget", "tokens", tokens, "limit", tokenLimit, "elapsed", time.Since(started))
+	stop := func(reason string) {
+		slog.Warn("SSE stream stopped", "reason", reason, "tokens", tokens, "limit", tokenLimit, "elapsed", time.Since(started))
 		c.finalizeOpenAIToolCalls(toolCalls, ch)
 		ch <- Event{Type: EventError, Error: ErrStreamBudget}
 	}
 
 	for {
 		if !completed && StreamBudgetHit(tokens, tokenLimit, time.Since(started), StreamWallClock) {
-			stopForBudget()
+			stop("budget")
 			return
 		}
 		var line string
@@ -190,12 +191,19 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 
 		n, finished := c.processOpenAIChunk(chunk, toolCalls, ch)
 		tokens += n
+		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.ReasoningContent != "" {
+			reasoning.WriteString(chunk.Choices[0].Delta.ReasoningContent)
+			if ReasoningLoop(reasoning.String()) {
+				stop("reasoning loop")
+				return
+			}
+		}
 		if finished {
 			completed = true
 			continue
 		}
 		if StreamBudgetHit(tokens, tokenLimit, time.Since(started), StreamWallClock) {
-			stopForBudget()
+			stop("budget")
 			return
 		}
 	}

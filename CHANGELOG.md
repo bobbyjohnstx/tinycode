@@ -11,7 +11,7 @@
 
 ### Fixes
 - `experimental.doom_loop_threshold` stops the processor after that many identical tool calls. Unset still stops after 3
-- An OpenAI-compatible completion stops after 4,096 tokens or 5 minutes. Reasoning counts. If that cut leaves no answer and tool results are already in the session, tinycode asks once for the report
+- An OpenAI-compatible completion stops after 8,192 tokens or 8 minutes. Reasoning counts. A trace that keeps saying "but wait", or repeats the same sentence, stops too. If that cut leaves no answer and tool results are already in the session, tinycode asks once for the report
 
 ### Security
 - Child processes drop credential environment variables. The interactive `/shell` session still receives the full environment

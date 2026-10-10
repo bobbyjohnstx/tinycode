@@ -662,9 +662,46 @@ func TestOpenAIStream_DefaultsMaxTokens(t *testing.T) {
 	}
 }
 
+func TestOpenAIStream_StopsWhenReasoningLoops(t *testing.T) {
+	sentence := "But wait, index.html still has the same unclosed footer. "
+	lines := make([]string, 8)
+	for i := range lines {
+		lines[i] = `{"choices":[{"delta":{"reasoning_content":"` + sentence + `"}}]}`
+	}
+	server := httptest.NewServer(sseHandler(lines))
+	defer server.Close()
+
+	client := NewOpenAIClient(server.URL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:    "ornith",
+		Messages: []Message{{Role: "user", Content: "Think"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+	events := collectEvents(t, ch, 5*time.Second)
+	var reasoning int
+	var budget bool
+	for _, ev := range events {
+		if ev.Type == EventReasoningDelta {
+			reasoning++
+		}
+		if ev.Type == EventError && errors.Is(ev.Error, ErrStreamBudget) {
+			budget = true
+		}
+	}
+	if !budget {
+		t.Fatal("expected the reasoning loop to stop the stream")
+	}
+	if reasoning >= len(lines) {
+		t.Fatalf("reasoning chunks = %d, loop was not cut before the end", reasoning)
+	}
+}
+
 func TestOpenAIStream_StopsWhenReasoningExceedsBudget(t *testing.T) {
 	chunk := `{"choices":[{"delta":{"reasoning_content":"` + strings.Repeat("x", 400) + `"}}]}`
-	lines := make([]string, 80)
+	// 400 bytes is about 100 tokens. Send more than the cap so the stream stops early.
+	lines := make([]string, DefaultStreamTokens/100+20)
 	for i := range lines {
 		lines[i] = chunk
 	}
