@@ -69,6 +69,7 @@ Things that break silently if you guess wrong.
 - **Manual summarize works**: `POST /session/{id}/summarize` and TUI `/compact` run `Processor.Compact` and return `200` + `{"compacted": bool}` — not `501`.
 - **First-run is doctor + `/connect`**: Use `tinycode doctor` (diagnose) and TUI `/connect` (configure models). There is no `tinycode setup`. Legacy `/tc-doctor` bash skill is obsolete.
 - **Skills paths are plural**: `skills/`. Project agents live at `.tinycode/agent/*.md`.
+- **`go.mod` minimum version is `go 1.25.0` with `toolchain go1.26.8`**: Never run `go mod tidy` or any command that upgrades the `go` directive. `GOTOOLCHAIN=auto` will silently bump it to whatever toolchain is installed (e.g. 1.27.1). Always run tests with `GOTOOLCHAIN=local go test ./...` to prevent this. If `go.mod` shows a version above `1.25.0`, reset it: `go 1.25.0\ntoolchain go1.26.8`.
 
 ## Agent Delegation
 
