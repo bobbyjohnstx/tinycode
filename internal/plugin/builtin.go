@@ -43,7 +43,7 @@ type BuiltinHooks struct {
 	SessionStart  func(ctx context.Context, sessionID string) error
 	SessionEnd    func(ctx context.Context, sessionID string) error
 	Dispose       func(ctx context.Context) error
-	ToolExecAfter func(ctx context.Context, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool)
+	ToolExecAfter func(ctx context.Context, toolName, toolArgs, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool)
 }
 
 // BuiltinManager manages registered built-in plugins and dispatches
@@ -124,7 +124,7 @@ func (m *BuiltinManager) DispatchHook(name string, input any) error {
 }
 
 // DispatchToolExecAfter sends tool output through all builtin plugins that handle it.
-func (m *BuiltinManager) DispatchToolExecAfter(ctx context.Context, toolName, output string, isError bool) (string, bool, bool) {
+func (m *BuiltinManager) DispatchToolExecAfter(ctx context.Context, toolName, toolArgs, output string, isError bool) (string, bool, bool) {
 	m.mu.RLock()
 	plugins := make([]BuiltinPlugin, len(m.plugins))
 	copy(plugins, m.plugins)
@@ -136,7 +136,7 @@ func (m *BuiltinManager) DispatchToolExecAfter(ctx context.Context, toolName, ou
 		if hooks.ToolExecAfter == nil {
 			continue
 		}
-		modOut, modErr, changed := hooks.ToolExecAfter(ctx, toolName, output, isError)
+		modOut, modErr, changed := hooks.ToolExecAfter(ctx, toolName, toolArgs, output, isError)
 		if changed {
 			output = modOut
 			isError = modErr

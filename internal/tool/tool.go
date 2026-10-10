@@ -28,9 +28,10 @@ type ExecuteResult struct {
 type BeforeHookFunc func(sessionID, toolName, toolArgs string) (additionalContext []string, err error)
 
 // AfterHookFunc is called after tool execution with the tool output.
-// If it returns non-empty modifiedOutput, that replaces the original.
-// Any additionalContext strings are appended to the tool result.
-type AfterHookFunc func(sessionID, toolName, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool, additionalContext []string)
+// toolArgs is the raw argument JSON. If modified is true, modifiedOutput
+// replaces the original, including an empty string. Any additionalContext
+// strings are appended to the tool result.
+type AfterHookFunc func(sessionID, toolName, toolArgs, output string, isError bool) (modifiedOutput string, modifiedIsError bool, modified bool, additionalContext []string)
 
 // ShellEnvHookFunc is called before shell command execution so plugins can
 // inject or modify environment variables. Returning nil or an empty map
@@ -333,7 +334,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 
 	var afterContext []string
 	if toolCtx.AfterHook != nil {
-		mod, modErr, changed, actx := toolCtx.AfterHook(sessionID, name, output, isError)
+		mod, modErr, changed, actx := toolCtx.AfterHook(sessionID, name, string(args), output, isError)
 		if changed {
 			output = mod
 			isError = modErr

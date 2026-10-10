@@ -4,21 +4,27 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"os"
 	"strconv"
 	"sync"
 )
 
+type recentCall struct {
+	seq     int
+	output  string
+	isError bool
+}
+
 type contextPruningPlugin struct {
 	mu        sync.Mutex
-	seen      map[string]int // hash -> sequence number of last occurrence
+	seen      map[string]recentCall // request key -> last result
 	seq       int
 	threshold int
 }
 
-// NewContextPruningPlugin creates a builtin plugin that detects duplicate tool
-// calls within a sliding window and replaces the repeated output with a note.
+// NewContextPruningPlugin creates a builtin plugin that remembers recent tool
+// calls. A repeat of the same tool and arguments returns the earlier result
+// instead of a note that drops it.
 func NewContextPruningPlugin() BuiltinPlugin {
 	threshold := 20
 	if val := os.Getenv("CONTEXT_PRUNE_THRESHOLD"); val != "" {
@@ -27,7 +33,7 @@ func NewContextPruningPlugin() BuiltinPlugin {
 		}
 	}
 	return &contextPruningPlugin{
-		seen:      make(map[string]int),
+		seen:      make(map[string]recentCall),
 		threshold: threshold,
 	}
 }
@@ -38,12 +44,8 @@ func (p *contextPruningPlugin) Tools() []BuiltinTool { return nil }
 
 func (p *contextPruningPlugin) Hooks() BuiltinHooks {
 	return BuiltinHooks{
-		ToolExecAfter: func(_ context.Context, toolName, output string, isError bool) (string, bool, bool) {
-			h := sha256.New()
-			h.Write([]byte(toolName))
-			h.Write([]byte{0})
-			h.Write([]byte(output))
-			hash := hex.EncodeToString(h.Sum(nil))
+		ToolExecAfter: func(_ context.Context, toolName, toolArgs, output string, isError bool) (string, bool, bool) {
+			key := requestKey(toolName, toolArgs)
 
 			p.mu.Lock()
 			defer p.mu.Unlock()
@@ -54,19 +56,28 @@ func (p *contextPruningPlugin) Hooks() BuiltinHooks {
 			if p.seq > 2*p.threshold {
 				cutoff := p.seq - p.threshold
 				for k, v := range p.seen {
-					if v < cutoff {
+					if v.seq < cutoff {
 						delete(p.seen, k)
 					}
 				}
 			}
 
-			prev, exists := p.seen[hash]
-			p.seen[hash] = p.seq
-
-			if exists && (p.seq-prev) <= p.threshold {
-				return fmt.Sprintf("[note: duplicate of recent %s call]", toolName), isError, true
+			prev, exists := p.seen[key]
+			if exists && (p.seq-prev.seq) <= p.threshold {
+				prev.seq = p.seq
+				p.seen[key] = prev
+				return prev.output, prev.isError, true
 			}
+			p.seen[key] = recentCall{seq: p.seq, output: output, isError: isError}
 			return "", false, false
 		},
 	}
+}
+
+func requestKey(toolName, toolArgs string) string {
+	h := sha256.New()
+	h.Write([]byte(toolName))
+	h.Write([]byte{0})
+	h.Write([]byte(toolArgs))
+	return hex.EncodeToString(h.Sum(nil))
 }

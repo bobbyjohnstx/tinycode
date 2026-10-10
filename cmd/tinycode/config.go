@@ -425,12 +425,12 @@ func permissionAskToolArgs(req permission.Request) string {
 }
 
 func wireToolAfterHook(toolCtx *tool.Context, mgr *plugin.Manager, bm *plugin.BuiltinManager, shellRunner *plugin.ShellHookRunner) {
-	toolCtx.AfterHook = func(sessionID, toolName, output string, isError bool) (string, bool, bool, []string) {
+	toolCtx.AfterHook = func(sessionID, toolName, toolArgs, output string, isError bool) (string, bool, bool, []string) {
 		modified := false
 
 		// Run builtin hooks first (e.g., context-pruning).
 		if bm != nil {
-			if modOut, modErr, changed := bm.DispatchToolExecAfter(context.Background(), toolName, output, isError); changed {
+			if modOut, modErr, changed := bm.DispatchToolExecAfter(context.Background(), toolName, toolArgs, output, isError); changed {
 				output = modOut
 				isError = modErr
 				modified = true
