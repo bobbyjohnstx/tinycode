@@ -22,6 +22,7 @@ func RegisterBuiltins(r *Registry) {
 	r.Register(NotepadTool())
 	r.Register(PlanEnterTool())
 	r.Register(PlanExitTool())
+	r.Register(ExitTool())
 }
 
 // BuiltinConfig holds optional configuration for conditional tool registration.
