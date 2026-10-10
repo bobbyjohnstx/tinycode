@@ -35,7 +35,6 @@
 set -uo pipefail
 
 PORT="${SI_PORT:-4096}"
-TOKEN="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 D="$(pwd)"
 MODEL_OVERRIDE=""
 ROUNDS="${MAX_ITERATIONS:-8}"
@@ -64,7 +63,7 @@ trap cleanup EXIT
 
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*"; }
 fail() { log "FATAL: $*"; exit 1; }
-api() { curl -sS --max-time 15 -H "Authorization: Bearer $TOKEN" "$@"; }
+api() { curl -sS --max-time 15 "$@"; }  # no auth — server uses TINYCODE_FORCE_NO_AUTH=1
 
 usage() { sed -n '2,34p' "$0" | sed 's/^#\{1,2\} \{0,1\}//'; }
 
@@ -125,9 +124,12 @@ EOF
 MODEL_ARGS=()
 [[ -n "$MODEL_OVERRIDE" ]] && MODEL_ARGS=(--model "$MODEL_OVERRIDE")
 
+# The server reads its auth token from $DATADIR/web_token (not an env var).
+# Use TINYCODE_FORCE_NO_AUTH=1 — safe here because we bind to 127.0.0.1 only.
 (
   cd "$D" || exit 1
   export TINYCODE_CONFIG_DIR="$CFG_DIR"
+  export TINYCODE_FORCE_NO_AUTH=1
   if [[ ${#MODEL_ARGS[@]} -gt 0 ]]; then
     exec "$TINYCODE" serve "${MODEL_ARGS[@]}" </dev/null >>"$LOG_FILE" 2>&1
   else
@@ -138,7 +140,7 @@ SERVER_PID=$!
 
 ok=""
 for i in $(seq 1 30); do
-  if curl -sS --max-time 2 -H "Authorization: Bearer $TOKEN" "$BASE/global/health" >/dev/null 2>&1; then ok=1; break; fi
+  if curl -sS --max-time 2 "$BASE/global/health" >/dev/null 2>&1; then ok=1; break; fi
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
     log "server exited early — last log lines:"; tail -5 "$LOG_FILE"; exit 1
   fi
