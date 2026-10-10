@@ -131,15 +131,21 @@ func (sm *SessionManager) bridgeAssistantMessage(sessionID string, active *activ
 	// Flush any batched deltas before finalizing
 	batcher := active.deltaBatcher
 	active.deltaBatcher = nil
+	reasoningBatcher := active.reasoningBatcher
+	active.reasoningBatcher = nil
 
 	// Reset streaming state for next potential iteration (tool loop)
 	active.streamStarted = false
 	active.assistMsgID = ""
 	active.textPartID = ""
+	active.reasoningPartID = ""
 	active.mu.Unlock()
 
 	if batcher != nil {
 		batcher.Flush()
+	}
+	if reasoningBatcher != nil {
+		reasoningBatcher.Flush()
 	}
 
 	// If no streaming happened (no text deltas received), use processor's ID directly
@@ -314,14 +320,13 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 
 	active.mu.Lock()
 	if !active.streamStarted {
-		active.assistMsgID, _ = id.Ascending("message")
+		sm.ensureAssistantStream(active, publishID)
+	}
+	if active.textPartID == "" {
 		active.textPartID, _ = id.Ascending("part")
-		active.msgStartTime = time.Now().UnixMilli()
-		active.streamStarted = true
-		msgID := active.assistMsgID
 		partID := active.textPartID
+		msgID := active.assistMsgID
 		startTime := active.msgStartTime
-
 		batcher := newDeltaBatcher(func(batched string) {
 			sm.bus.Publish("message.part.delta", map[string]any{
 				"sessionID": publishID,
@@ -334,37 +339,6 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 		active.deltaBatcher = batcher
 		active.mu.Unlock()
 
-		modelID := ""
-		providerID := ""
-		if active.model != nil {
-			modelID = active.model.ID
-			providerID = active.model.ProviderID
-		}
-
-		// Emit initial assistant message
-		sm.bus.Publish("message.updated", map[string]any{
-			"sessionID": publishID,
-			"info": map[string]any{
-				"id":         msgID,
-				"sessionID":  publishID,
-				"role":       "assistant",
-				"time":       map[string]any{"created": startTime},
-				"modelID":    modelID,
-				"providerID": providerID,
-				"mode":       "build",
-				"agent":      active.agent,
-				"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
-				"cost":       0,
-				"tokens": map[string]any{
-					"input":     0,
-					"output":    0,
-					"reasoning": 0,
-					"cache":     map[string]any{"read": 0, "write": 0},
-				},
-			},
-		})
-
-		// Emit initial empty text part
 		sm.bus.Publish("message.part.updated", map[string]any{
 			"sessionID": publishID,
 			"part": map[string]any{
@@ -377,7 +351,6 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 			},
 			"time": startTime,
 		})
-
 		batcher.Add(text)
 		return
 	}
@@ -388,6 +361,103 @@ func (sm *SessionManager) bridgeTextDelta(evt bus.Event) {
 	if batcher != nil {
 		batcher.Add(text)
 	}
+}
+
+func (sm *SessionManager) bridgeReasoningDelta(evt bus.Event) {
+	props, ok := evt.Properties.(map[string]any)
+	if !ok {
+		return
+	}
+	sessionID, _ := props["sessionID"].(string)
+	text, _ := props["text"].(string)
+	active, publishID, _ := sm.resolveSession(sessionID)
+	if active == nil {
+		return
+	}
+
+	active.mu.Lock()
+	sm.ensureAssistantStream(active, publishID)
+	if active.reasoningPartID == "" {
+		active.reasoningPartID, _ = id.Ascending("part")
+		partID := active.reasoningPartID
+		msgID := active.assistMsgID
+		startTime := active.msgStartTime
+		batcher := newDeltaBatcher(func(batched string) {
+			sm.bus.Publish("message.part.delta", map[string]any{
+				"sessionID": publishID,
+				"messageID": msgID,
+				"partID":    partID,
+				"field":     "text",
+				"delta":     batched,
+			})
+		})
+		active.reasoningBatcher = batcher
+		active.mu.Unlock()
+
+		sm.bus.Publish("message.part.updated", map[string]any{
+			"sessionID": publishID,
+			"part": map[string]any{
+				"id":        partID,
+				"sessionID": publishID,
+				"messageID": msgID,
+				"type":      "reasoning",
+				"text":      "",
+				"expanded":  true,
+				"time":      map[string]any{"start": startTime},
+			},
+			"time": startTime,
+		})
+		batcher.Add(text)
+		return
+	}
+	batcher := active.reasoningBatcher
+	active.mu.Unlock()
+	if batcher != nil {
+		batcher.Add(text)
+	}
+}
+
+// ensureAssistantStream opens the streaming assistant message once.
+// Caller holds active.mu.
+func (sm *SessionManager) ensureAssistantStream(active *activeSession, publishID string) {
+	if active.streamStarted {
+		return
+	}
+	active.assistMsgID, _ = id.Ascending("message")
+	active.msgStartTime = time.Now().UnixMilli()
+	active.streamStarted = true
+	msgID := active.assistMsgID
+	startTime := active.msgStartTime
+	active.mu.Unlock()
+
+	modelID := ""
+	providerID := ""
+	if active.model != nil {
+		modelID = active.model.ID
+		providerID = active.model.ProviderID
+	}
+	sm.bus.Publish("message.updated", map[string]any{
+		"sessionID": publishID,
+		"info": map[string]any{
+			"id":         msgID,
+			"sessionID":  publishID,
+			"role":       "assistant",
+			"time":       map[string]any{"created": startTime},
+			"modelID":    modelID,
+			"providerID": providerID,
+			"mode":       "build",
+			"agent":      active.agent,
+			"path":       map[string]any{"cwd": sm.dir, "root": sm.dir},
+			"cost":       0,
+			"tokens": map[string]any{
+				"input":     0,
+				"output":    0,
+				"reasoning": 0,
+				"cache":     map[string]any{"read": 0, "write": 0},
+			},
+		},
+	})
+	active.mu.Lock()
 }
 
 func (sm *SessionManager) bridgeToolBegin(evt bus.Event) {

@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -12,6 +14,8 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
+
+const answerFollowUp = "Stop reasoning. Report the findings from the tool results already in the session."
 
 func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) {
 	req := p.buildRequest()
@@ -46,6 +50,9 @@ func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) 
 
 		msg, usage, err := p.consumeStream(ch)
 		if err != nil {
+			if ctx.Err() != nil || err.Error() == "aborted" || errors.Is(err, llm.ErrStreamBudget) {
+				return msg, usage, err
+			}
 			if provider.IsRetryable(err.Error()) {
 				lastErr = err
 				continue
@@ -190,6 +197,10 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 
 		case llm.EventReasoningDelta:
 			reasoningParts = append(reasoningParts, event.Text)
+			p.bus.Publish("session.reasoning.delta", map[string]any{
+				"sessionID": p.config.SessionID,
+				"text":      event.Text,
+			})
 
 		case llm.EventToolCallBegin:
 			part := ToolCallPart(event.ToolCallID, event.ToolName, "")
@@ -239,7 +250,8 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 		}
 	}
 
-	if streamErr != nil {
+	budget := errors.Is(streamErr, llm.ErrStreamBudget)
+	if streamErr != nil && !budget {
 		return nil, nil, streamErr
 	}
 
@@ -261,7 +273,64 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 		CreatedAt: time.Now(),
 	}
 
+	if budget {
+		return msg, usage, llm.ErrStreamBudget
+	}
 	return msg, usage, nil
+}
+
+// recoverStreamBudget keeps a capped completion that already has an answer.
+// When the cap hits before any answer and tool results are already in the
+// session, it asks once for the report and does not retry that call.
+func (p *Processor) recoverStreamBudget(ctx context.Context, iteration int, msg *Message, usage *TokenUsage, err error) (*Message, *TokenUsage, error) {
+	if !errors.Is(err, llm.ErrStreamBudget) {
+		return msg, usage, err
+	}
+	if messageHasVisibleAnswer(msg) {
+		slog.Info("stream budget kept partial answer", "sessionID", p.config.SessionID, "iteration", iteration)
+		return msg, usage, nil
+	}
+	if p.answerFollowUpUsed || !p.hasToolResult() {
+		return msg, usage, err
+	}
+	p.answerFollowUpUsed = true
+	slog.Info("stream budget produced no answer", "sessionID", p.config.SessionID, "iteration", iteration)
+	p.addUserMessage(answerFollowUp, "")
+	msg, usage, err = p.runLLMStep(ctx, iteration)
+	if errors.Is(err, llm.ErrStreamBudget) && messageHasVisibleAnswer(msg) {
+		return msg, usage, nil
+	}
+	return msg, usage, err
+}
+
+func messageHasVisibleAnswer(msg *Message) bool {
+	if msg == nil {
+		return false
+	}
+	for _, part := range msg.Parts {
+		switch part.Type {
+		case PartText:
+			if strings.TrimSpace(part.Text) != "" {
+				return true
+			}
+		case PartToolCall:
+			if part.ToolName != "" && part.ToolName != "invalid" && json.Valid([]byte(part.ToolArgs)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (p *Processor) hasToolResult() bool {
+	for _, msg := range p.Messages() {
+		for _, part := range msg.Parts {
+			if part.Type == PartToolResult {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Compact runs a manual context compaction pass (same logic as proactive overflow compaction).

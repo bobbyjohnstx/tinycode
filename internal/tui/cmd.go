@@ -219,6 +219,9 @@ func parsePartView(props map[string]any) PartView {
 	pv.MessageID, _ = part["messageID"].(string)
 	pv.Type, _ = part["type"].(string)
 	pv.Text, _ = part["text"].(string)
+	if expanded, ok := part["expanded"].(bool); ok {
+		pv.ThoughtExpanded = expanded
+	}
 
 	// Unified tool part: read tool/callID and extract fields from state
 	if pv.Type == "tool" {

@@ -3,7 +3,9 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -507,9 +509,9 @@ func TestProcessor_AutoContinue(t *testing.T) {
 
 func TestIsInsideDirectory(t *testing.T) {
 	tests := []struct {
-		path    string
-		dir     string
-		inside  bool
+		path   string
+		dir    string
+		inside bool
 	}{
 		{"/project/src/main.go", "/project", true},
 		{"/project/src/../src/main.go", "/project", true},
@@ -996,5 +998,69 @@ func TestProcessor_ToolPanicRecovery(t *testing.T) {
 	}
 	if !foundPanicResult {
 		t.Error("expected a tool result containing the panic message")
+	}
+}
+
+func TestRecoverStreamBudget_AsksOnceForTheReport(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{{
+			events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "main.go drops the error"},
+				{Type: llm.EventFinish, FinishReason: "stop"},
+			},
+		}},
+	}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses_test",
+		Model:     &provider.Model{ID: "test-model"},
+	}, client, &stubToolExecutor{}, b)
+	p.SetMessages([]Message{{
+		Role:  RoleTool,
+		Parts: []Part{ToolResultPart("call", "read", "contents", false)},
+	}})
+
+	partial := &Message{Parts: []Part{TextPart("found a bug")}}
+	kept, _, err := p.recoverStreamBudget(context.Background(), 1, partial, &TokenUsage{}, llm.ErrStreamBudget)
+	if err != nil {
+		t.Fatalf("partial answer error: %v", err)
+	}
+	if !messageHasVisibleAnswer(kept) {
+		t.Fatal("expected to keep the partial answer")
+	}
+	if client.callCount != 0 {
+		t.Fatalf("partial answer made %d calls, want 0", client.callCount)
+	}
+
+	got, _, err := p.recoverStreamBudget(context.Background(), 2, &Message{
+		Parts: []Part{ReasoningPart("thinking forever")},
+	}, &TokenUsage{}, llm.ErrStreamBudget)
+	if err != nil {
+		t.Fatalf("follow-up error: %v", err)
+	}
+	if got == nil || !strings.Contains(got.Parts[0].Text, "drops the error") {
+		t.Fatalf("follow-up answer = %#v", got)
+	}
+	var nudged bool
+	for _, msg := range p.Messages() {
+		for _, part := range msg.Parts {
+			if part.Type == PartText && part.Text == answerFollowUp {
+				nudged = true
+			}
+		}
+	}
+	if !nudged {
+		t.Fatal("expected one report request")
+	}
+
+	_, _, err = p.recoverStreamBudget(context.Background(), 3, &Message{
+		Parts: []Part{ReasoningPart("again")},
+	}, &TokenUsage{}, llm.ErrStreamBudget)
+	if !errors.Is(err, llm.ErrStreamBudget) {
+		t.Fatalf("second cap error = %v, want stream budget", err)
+	}
+	if client.callCount != 1 {
+		t.Fatalf("calls = %d, want 1", client.callCount)
 	}
 }

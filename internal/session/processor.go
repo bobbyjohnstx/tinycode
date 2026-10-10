@@ -43,20 +43,21 @@ type ProcessorConfig struct {
 }
 
 type Processor struct {
-	config            ProcessorConfig
-	client            llm.Client
-	tools             ToolExecutor
-	bus               *bus.Bus
-	messages          []Message
-	priorSummary      string
-	compactionCount   int
-	elisionDone       bool
-	aborted           bool
-	compacted         bool
-	recentToolCalls   []toolCallSignature
-	autoContinueCount int
-	userExtraParts    []Part
-	mu                sync.Mutex
+	config             ProcessorConfig
+	client             llm.Client
+	tools              ToolExecutor
+	bus                *bus.Bus
+	messages           []Message
+	priorSummary       string
+	compactionCount    int
+	elisionDone        bool
+	aborted            bool
+	compacted          bool
+	recentToolCalls    []toolCallSignature
+	autoContinueCount  int
+	answerFollowUpUsed bool
+	userExtraParts     []Part
+	mu                 sync.Mutex
 }
 
 func NewProcessor(config ProcessorConfig, client llm.Client, tools ToolExecutor, eventBus *bus.Bus) *Processor {
@@ -135,6 +136,7 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 	p.aborted = false
 	p.elisionDone = false
 	p.autoContinueCount = 0
+	p.answerFollowUpUsed = false
 	p.compacted = false
 	p.mu.Unlock()
 
@@ -161,6 +163,7 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 		}
 
 		assistantMsg, usage, stepErr := p.runLLMStep(ctx, iteration)
+		assistantMsg, usage, stepErr = p.recoverStreamBudget(ctx, iteration, assistantMsg, usage, stepErr)
 
 		if stepErr != nil {
 			if result := p.handleLLMError(ctx, stepErr, totalUsage, iteration); result != nil {

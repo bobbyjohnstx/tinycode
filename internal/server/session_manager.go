@@ -27,14 +27,16 @@ type activeSession struct {
 	dir       string        // session's working directory (may differ from server default)
 	done      chan struct{} // closed when processPrompt returns
 
-	mu            sync.Mutex
-	assistMsgID   string            // bridge-generated assistant message ID during streaming
-	textPartID    string            // bridge-generated text part ID during streaming
-	streamStarted bool              // whether initial assistant events have been emitted
-	msgStartTime  int64             // timestamp when the current assistant message started
-	idMap         map[string]string // processor msg ID → bridge msg ID
-	deltaBatcher  *deltaBatcher     // 16ms debounce for text deltas
-	toolPartIDs   map[string]string // toolCallID → partID mapping for begin/end pairing
+	mu               sync.Mutex
+	assistMsgID      string            // bridge-generated assistant message ID during streaming
+	textPartID       string            // bridge-generated text part ID during streaming
+	reasoningPartID  string            // bridge-generated reasoning part ID during streaming
+	streamStarted    bool              // whether initial assistant events have been emitted
+	msgStartTime     int64             // timestamp when the current assistant message started
+	idMap            map[string]string // processor msg ID → bridge msg ID
+	deltaBatcher     *deltaBatcher     // 16ms debounce for text deltas
+	reasoningBatcher *deltaBatcher     // 16ms debounce for reasoning deltas
+	toolPartIDs      map[string]string // toolCallID → partID mapping for begin/end pairing
 }
 
 const deltaBatchInterval = 16 * time.Millisecond
@@ -203,6 +205,7 @@ func (sm *SessionManager) trackSub(sub *bus.Subscription) *bus.Subscription {
 func (sm *SessionManager) subscribeProcessorEvents() {
 	msgSub := sm.trackSub(sm.bus.Subscribe("session.message"))
 	deltaSub := sm.trackSub(sm.bus.Subscribe("session.text.delta"))
+	reasoningSub := sm.trackSub(sm.bus.Subscribe("session.reasoning.delta"))
 	toolBeginSub := sm.trackSub(sm.bus.Subscribe("session.tool.begin"))
 	toolEndSub := sm.trackSub(sm.bus.Subscribe("session.tool.end"))
 	warnSub := sm.trackSub(sm.bus.Subscribe("session.warning"))
@@ -215,6 +218,11 @@ func (sm *SessionManager) subscribeProcessorEvents() {
 	safego.Go(func() {
 		for evt := range deltaSub.C {
 			sm.bridgeTextDelta(evt)
+		}
+	})
+	safego.Go(func() {
+		for evt := range reasoningSub.C {
+			sm.bridgeReasoningDelta(evt)
 		}
 	})
 	safego.Go(func() {

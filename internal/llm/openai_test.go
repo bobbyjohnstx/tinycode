@@ -3,9 +3,11 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -633,5 +635,65 @@ func TestOpenAIStream_MalformedSSEContinues(t *testing.T) {
 	}
 	if text != "ok" {
 		t.Errorf("text = %q, want ok (stream should continue after bad SSE line)", text)
+	}
+}
+
+func TestOpenAIStream_DefaultsMaxTokens(t *testing.T) {
+	var raw map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&raw)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer server.Close()
+
+	client := NewOpenAIClient(server.URL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:    "gpt-4",
+		Messages: []Message{{Role: "user", Content: "Hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+	collectEvents(t, ch, 5*time.Second)
+	got, _ := raw["max_tokens"].(float64)
+	if int(got) != DefaultStreamTokens {
+		t.Errorf("max_tokens = %v, want %d", raw["max_tokens"], DefaultStreamTokens)
+	}
+}
+
+func TestOpenAIStream_StopsWhenReasoningExceedsBudget(t *testing.T) {
+	chunk := `{"choices":[{"delta":{"reasoning_content":"` + strings.Repeat("x", 400) + `"}}]}`
+	lines := make([]string, 80)
+	for i := range lines {
+		lines[i] = chunk
+	}
+	server := httptest.NewServer(sseHandler(lines))
+	defer server.Close()
+
+	client := NewOpenAIClient(server.URL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:    "ornith",
+		Messages: []Message{{Role: "user", Content: "Think"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+	events := collectEvents(t, ch, 5*time.Second)
+	var reasoning int
+	var budget bool
+	for _, ev := range events {
+		if ev.Type == EventReasoningDelta {
+			reasoning++
+		}
+		if ev.Type == EventError && errors.Is(ev.Error, ErrStreamBudget) {
+			budget = true
+		}
+	}
+	if !budget {
+		t.Fatal("expected stream budget error")
+	}
+	if reasoning == 0 || reasoning >= len(lines) {
+		t.Fatalf("reasoning chunks = %d, want a stop before all %d", reasoning, len(lines))
 	}
 }

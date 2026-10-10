@@ -51,6 +51,13 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 	wire.Stream = true
 	wire.StreamOptions = &StreamOptions{IncludeUsage: true}
 	wire.ThinkingBudget = nil
+	tokenLimit := DefaultStreamTokens
+	if req.MaxTokens != nil && *req.MaxTokens > 0 {
+		tokenLimit = *req.MaxTokens
+	} else {
+		limit := DefaultStreamTokens
+		wire.MaxTokens = &limit
+	}
 	resolveContentPartsOpenAI(wire.Messages)
 	body, err := json.Marshal(wire)
 	if err != nil {
@@ -95,11 +102,11 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 
 	slog.Info("LLM stream started", "model", req.Model, "elapsed", time.Since(start))
 	ch := make(chan Event, 64)
-	safego.Go(func() { c.readSSE(ctx, resp.Body, ch) })
+	safego.Go(func() { c.readSSE(ctx, resp.Body, ch, tokenLimit, time.Now()) })
 	return ch, nil
 }
 
-func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<- Event) {
+func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<- Event, tokenLimit int, started time.Time) {
 	defer close(ch)
 	defer body.Close()
 
@@ -118,8 +125,20 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 	toolCalls := make(map[int]*toolCallAccum)
 	timer := time.NewTimer(chunkTimeout)
 	defer timer.Stop()
+	tokens := 0
+	completed := false
+
+	stopForBudget := func() {
+		slog.Warn("SSE stream budget", "tokens", tokens, "limit", tokenLimit, "elapsed", time.Since(started))
+		c.finalizeOpenAIToolCalls(toolCalls, ch)
+		ch <- Event{Type: EventError, Error: ErrStreamBudget}
+	}
 
 	for {
+		if !completed && StreamBudgetHit(tokens, tokenLimit, time.Since(started), StreamWallClock) {
+			stopForBudget()
+			return
+		}
 		var line string
 		select {
 		case <-ctx.Done():
@@ -169,13 +188,22 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 			continue
 		}
 
-		c.processOpenAIChunk(chunk, toolCalls, ch)
+		n, finished := c.processOpenAIChunk(chunk, toolCalls, ch)
+		tokens += n
+		if finished {
+			completed = true
+			continue
+		}
+		if StreamBudgetHit(tokens, tokenLimit, time.Since(started), StreamWallClock) {
+			stopForBudget()
+			return
+		}
 	}
 }
 
 // processOpenAIChunk handles a single parsed SSE chunk: emits text/reasoning
 // deltas, accumulates tool call arguments, and finalizes tool calls on finish.
-func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls map[int]*toolCallAccum, ch chan<- Event) {
+func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls map[int]*toolCallAccum, ch chan<- Event) (int, bool) {
 	if len(chunk.Choices) == 0 {
 		if chunk.Usage != nil {
 			ch <- Event{
@@ -187,16 +215,19 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 				},
 			}
 		}
-		return
+		return 0, false
 	}
 
 	choice := chunk.Choices[0]
 	delta := choice.Delta
+	tokens := 0
 
 	if delta.Content != "" {
+		tokens += ApproxTokens(delta.Content)
 		ch <- Event{Type: EventTextDelta, Text: delta.Content}
 	}
 	if delta.ReasoningContent != "" {
+		tokens += ApproxTokens(delta.ReasoningContent)
 		ch <- Event{Type: EventReasoningDelta, Text: delta.ReasoningContent}
 	}
 
@@ -218,7 +249,11 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 				accum.name = tc.Function.Name
 			}
 		}
+		if tc.Function.Name != "" {
+			tokens += ApproxTokens(tc.Function.Name)
+		}
 		if tc.Function.Arguments != "" {
+			tokens += ApproxTokens(tc.Function.Arguments)
 			accum.args += tc.Function.Arguments
 			ch <- Event{
 				Type:         EventToolCallDelta,
@@ -234,7 +269,9 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 			Type:         EventFinish,
 			FinishReason: choice.FinishReason,
 		}
+		return tokens, true
 	}
+	return tokens, false
 }
 
 // finalizeOpenAIToolCalls emits EventToolCallEnd for each accumulated tool call,
