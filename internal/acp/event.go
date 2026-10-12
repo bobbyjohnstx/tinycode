@@ -32,8 +32,22 @@ func (r *EventRelay) SetPermissionService(permSvc *permission.Service) {
 
 // Run relays bus events for all sessions until ctx is cancelled.
 func (r *EventRelay) Run(ctx context.Context) {
+	r.run(ctx, nil)
+}
+
+// RunSession relays bus events filtered to a single session (used by tests).
+func (r *EventRelay) RunSession(ctx context.Context, sessionID string) {
+	r.runSession(ctx, sessionID, nil)
+}
+
+// run relays all sessions. If ready is non-nil it is closed once after
+// SubscribeAll returns so tests can wait before publishing.
+func (r *EventRelay) run(ctx context.Context, ready chan struct{}) {
 	sub := r.bus.SubscribeAll()
 	defer sub.Unsubscribe()
+	if ready != nil {
+		close(ready)
+	}
 
 	for {
 		select {
@@ -48,10 +62,13 @@ func (r *EventRelay) Run(ctx context.Context) {
 	}
 }
 
-// RunSession relays bus events filtered to a single session (used by tests).
-func (r *EventRelay) RunSession(ctx context.Context, sessionID string) {
+// runSession is like RunSession with an optional ready signal after subscribe.
+func (r *EventRelay) runSession(ctx context.Context, sessionID string, ready chan struct{}) {
 	sub := r.bus.SubscribeAll()
 	defer sub.Unsubscribe()
+	if ready != nil {
+		close(ready)
+	}
 
 	for {
 		select {
