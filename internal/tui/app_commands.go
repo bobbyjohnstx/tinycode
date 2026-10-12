@@ -35,7 +35,7 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return func() tea.Msg { return CompactRequestMsg{} }, true
 	case "connect":
 		a.state.PendingModelDialog = true
-		return func() tea.Msg { return ProvidersRefreshMsg{} }, true
+		return func() tea.Msg { return ProvidersRescanRequestMsg{} }, true
 	case "theme":
 		a.themeDlg.Show(a.themes.List(), a.state.CurrentTheme)
 		a.setFocus(FocusDialog)

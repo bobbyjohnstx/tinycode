@@ -131,6 +131,16 @@ func (c *Client) ListProviders() (*ProviderListResponse, error) {
 	return &resp, nil
 }
 
+// RescanProviders force-probes local providers via POST /provider/refresh
+// and returns the updated list.
+func (c *Client) RescanProviders() (*ProviderListResponse, error) {
+	var resp ProviderListResponse
+	if err := c.postJSON("/provider/refresh", map[string]any{}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // SetProviderAuth stores credentials for a provider via PUT /auth/{providerID}.
 func (c *Client) SetProviderAuth(providerID string, creds map[string]string) error {
 	return c.putNoResp("/auth/"+providerID, creds)

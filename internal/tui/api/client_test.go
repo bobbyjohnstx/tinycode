@@ -143,6 +143,29 @@ func TestGetSession(t *testing.T) {
 	}
 }
 
+func TestRescanProviders(t *testing.T) {
+	var gotMethod, gotPath string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"all":[],"connected":[],"default":{}}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	if _, err := c.RescanProviders(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/provider/refresh" {
+		t.Errorf("path = %q, want /provider/refresh", gotPath)
+	}
+}
+
 func TestDeleteSession(t *testing.T) {
 	var gotMethod, gotPath string
 

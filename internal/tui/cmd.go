@@ -284,28 +284,39 @@ func fetchSessions(client *api.Client, limit, offset int) tea.Cmd {
 func fetchProviders(client *api.Client) tea.Cmd {
 	return func() tea.Msg {
 		resp, err := client.ListProviders()
-		if err != nil {
-			return ProvidersLoadedMsg{Err: err}
-		}
-		providers := make([]ProviderInfo, len(resp.All))
-		for i, p := range resp.All {
-			pi := ProviderInfo{ID: p.ID, Name: p.Name}
-			for modelID, raw := range p.Models {
-				pi.Models = append(pi.Models, parseModelInfo(modelID, p.ID, raw))
-			}
-			sort.Slice(pi.Models, func(a, b int) bool {
-				return pi.Models[a].Name < pi.Models[b].Name
-			})
-			providers[i] = pi
-		}
-		msg := ProvidersLoadedMsg{Providers: providers}
-		for providerID, modelID := range resp.Default {
-			msg.DefaultProvider = providerID
-			msg.DefaultModel = modelID
-			break
-		}
-		return msg
+		return providersLoadedMsg(resp, err)
 	}
+}
+
+func rescanProviders(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := client.RescanProviders()
+		return providersLoadedMsg(resp, err)
+	}
+}
+
+func providersLoadedMsg(resp *api.ProviderListResponse, err error) tea.Msg {
+	if err != nil {
+		return ProvidersLoadedMsg{Err: err}
+	}
+	providers := make([]ProviderInfo, len(resp.All))
+	for i, p := range resp.All {
+		pi := ProviderInfo{ID: p.ID, Name: p.Name}
+		for modelID, raw := range p.Models {
+			pi.Models = append(pi.Models, parseModelInfo(modelID, p.ID, raw))
+		}
+		sort.Slice(pi.Models, func(a, b int) bool {
+			return pi.Models[a].Name < pi.Models[b].Name
+		})
+		providers[i] = pi
+	}
+	msg := ProvidersLoadedMsg{Providers: providers}
+	for providerID, modelID := range resp.Default {
+		msg.DefaultProvider = providerID
+		msg.DefaultModel = modelID
+		break
+	}
+	return msg
 }
 
 func storeOpenRouterAuth(client *api.Client, apiKey string) tea.Cmd {

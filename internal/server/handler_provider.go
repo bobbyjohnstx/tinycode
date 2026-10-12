@@ -8,6 +8,13 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
 
+func (s *Server) handleProviderRefresh(w http.ResponseWriter, r *http.Request) {
+	if s.deps.Discovery != nil {
+		s.deps.Discovery.Rescan(r.Context())
+	}
+	s.handleProviderList(w, r)
+}
+
 func (s *Server) handleProviderList(w http.ResponseWriter, r *http.Request) {
 	reg := s.deps.Registry
 	providers := reg.ListProviders()

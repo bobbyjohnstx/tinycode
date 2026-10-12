@@ -126,6 +126,15 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		cmds = append(cmds, fetchProviders(c.client))
 		return c, tea.Batch(cmds...), true
 
+	case ProvidersRescanRequestMsg:
+		model, cmd := c.app.Update(ToastMsg{Text: "Rescanning providers…", IsError: false})
+		c.updateApp(model)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		cmds = append(cmds, rescanProviders(c.client))
+		return c, tea.Batch(cmds...), true
+
 	case ClipboardImageMsg:
 		if msg.Err != nil {
 			slog.Warn("clipboard image read failed", "error", msg.Err)

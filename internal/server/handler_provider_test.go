@@ -6,8 +6,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
 
@@ -133,5 +135,43 @@ func TestHandleAuthDelete_ClearsOptionsAndOpenRouterEnv(t *testing.T) {
 	}
 	if got := os.Getenv("OPENROUTER_API_KEY"); got != "" {
 		t.Errorf("expected OPENROUTER_API_KEY unset, got %q", got)
+	}
+}
+
+func TestHandleProviderRefresh_RescansDespiteHealthy(t *testing.T) {
+	var hits atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if r.URL.Path != "/api/tags" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"models":[{"name":"llama3:latest"}]}`))
+	}))
+	defer ts.Close()
+
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	reg := provider.NewRegistry()
+	disc := provider.NewDiscovery(reg, b)
+	disc.Start(t.Context(), ts.URL, "", "")
+	t.Cleanup(disc.Stop)
+	if hits.Load() != 1 {
+		t.Fatalf("startup probes = %d, want 1", hits.Load())
+	}
+
+	srv := New(Config{}, Dependencies{Bus: b, DB: testDB(t), Registry: reg, Discovery: disc})
+	req := httptest.NewRequest(http.MethodPost, "/provider/refresh", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+	if hits.Load() != 2 {
+		t.Fatalf("probes after refresh = %d, want 2", hits.Load())
+	}
+	if !reg.Has("ollama") {
+		t.Fatal("expected ollama registered")
 	}
 }

@@ -53,6 +53,7 @@ func (s *Server) registerRoutes() {
 
 	// Provider
 	s.mux.HandleFunc("GET /provider", s.handleProviderList)
+	s.mux.HandleFunc("POST /provider/refresh", s.handleProviderRefresh)
 	s.mux.HandleFunc("GET /provider/auth", s.handleProviderAuth)
 	s.mux.HandleFunc("GET /provider/{id}", s.handleProviderGet)
 	s.mux.HandleFunc("GET /provider/{id}/model", s.handleModelList)

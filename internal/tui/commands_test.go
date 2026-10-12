@@ -237,11 +237,11 @@ func TestHandleClientCommand_ConnectSetsFlag(t *testing.T) {
 		t.Error("expected PendingModelDialog to be true")
 	}
 	if cmd == nil {
-		t.Fatal("expected non-nil cmd (ProvidersRefreshMsg)")
+		t.Fatal("expected non-nil cmd (ProvidersRescanRequestMsg)")
 	}
 	msg := cmd()
-	if _, ok := msg.(ProvidersRefreshMsg); !ok {
-		t.Fatalf("expected ProvidersRefreshMsg, got %T", msg)
+	if _, ok := msg.(ProvidersRescanRequestMsg); !ok {
+		t.Fatalf("expected ProvidersRescanRequestMsg, got %T", msg)
 	}
 }
 
