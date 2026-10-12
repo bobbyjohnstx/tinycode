@@ -52,6 +52,11 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		a.permPrompt, cmd = a.permPrompt.Update(msg)
 		return a, cmd
 	}
+	if a.questionPrompt.IsVisible() {
+		var cmd tea.Cmd
+		a.questionPrompt, cmd = a.questionPrompt.Update(msg)
+		return a, cmd
+	}
 	if a.palette.IsVisible() {
 		var cmd tea.Cmd
 		a.palette, cmd = a.palette.Update(msg)
@@ -336,6 +341,10 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		a.permPrompt.Show(msg.Request)
 		fmt.Print("\a")
 		return a, nil, true
+	case QuestionAskedMsg:
+		cmd := a.questionPrompt.Show(msg)
+		fmt.Print("\a")
+		return a, cmd, true
 	case PaletteClosedMsg:
 		a.setFocus(FocusPrompt)
 		return a, nil, true
@@ -418,6 +427,13 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 				PermissionID: msg.Request.ID,
 				Action:       msg.Action.String(),
 			}
+		}, true
+	case QuestionDismissedMsg:
+		a.questionPrompt.Hide()
+		a.setFocus(FocusPrompt)
+		slog.Info("question answered", "id", msg.ID, "sessionID", msg.SessionID)
+		return a, func() tea.Msg {
+			return QuestionReplyMsg{ID: msg.ID, Answer: msg.Answer}
 		}, true
 	case RewindSelectedMsg:
 		a.setFocus(FocusPrompt)

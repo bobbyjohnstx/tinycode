@@ -308,6 +308,12 @@ func (c *Client) ReplyPermission(sessionID, permissionID, reply string) error {
 	return c.postNoResp("/session/"+sessionID+"/permissions/"+permissionID, body)
 }
 
+// ReplyQuestion answers a pending question via POST /question/{id}/reply.
+func (c *Client) ReplyQuestion(questionID, answer string) error {
+	body := map[string]string{"answer": answer}
+	return c.postNoResp("/question/"+questionID+"/reply", body)
+}
+
 // BranchSession branches a session via POST /session/{id}/fork.
 // It creates a new session with ParentID set to the source session and copies all messages.
 func (c *Client) BranchSession(sessionID, title string) (*session.Info, error) {

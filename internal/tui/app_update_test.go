@@ -921,6 +921,103 @@ func TestHandleDialogMsg_PermissionDismissedMsg_HidesPromptAndReturnsReply(t *te
 	}
 }
 
+func TestHandleDialogMsg_QuestionAsked_ShowsPrompt(t *testing.T) {
+	app := NewApp("")
+	app.width = 100
+	app.height = 30
+
+	result, _, handled := app.handleDialogMsg(QuestionAskedMsg{
+		ID:        "q_1",
+		SessionID: "ses_q",
+		Question:  "Continue?",
+		Options:   []string{"yes", "no"},
+	})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if !result.questionPrompt.IsVisible() {
+		t.Error("expected question prompt to be visible")
+	}
+	view := result.questionPrompt.View()
+	if !strings.Contains(view, "Continue?") {
+		t.Errorf("expected question text in view, got %q", view)
+	}
+}
+
+func TestHandleDialogMsg_QuestionDismissed_EmitsReply(t *testing.T) {
+	app := NewApp("")
+	app.questionPrompt.Show(QuestionAskedMsg{ID: "q_1", SessionID: "ses_q", Question: "Continue?"})
+
+	result, cmd, handled := app.handleDialogMsg(QuestionDismissedMsg{
+		ID:        "q_1",
+		SessionID: "ses_q",
+		Answer:    "yes",
+	})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if result.questionPrompt.IsVisible() {
+		t.Error("expected question prompt to be hidden")
+	}
+	if result.focus != FocusPrompt {
+		t.Errorf("expected focus returned to FocusPrompt, got %v", result.focus)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd with QuestionReplyMsg")
+	}
+	msg := cmd()
+	reply, ok := msg.(QuestionReplyMsg)
+	if !ok {
+		t.Fatalf("expected QuestionReplyMsg, got %T", msg)
+	}
+	if reply.ID != "q_1" || reply.Answer != "yes" {
+		t.Errorf("reply = %+v", reply)
+	}
+}
+
+func TestQuestionPrompt_EnterSubmitsOption(t *testing.T) {
+	p := NewQuestionPrompt()
+	p.Show(QuestionAskedMsg{
+		ID:       "q_1",
+		Question: "Continue?",
+		Options:  []string{"yes", "no"},
+	})
+	p, _ = p.Update(tea.KeyMsg{Type: tea.KeyDown})
+	p, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if p.IsVisible() {
+		t.Fatal("expected prompt to close")
+	}
+	if cmd == nil {
+		t.Fatal("expected dismiss cmd")
+	}
+	msg := cmd()
+	dismissed, ok := msg.(QuestionDismissedMsg)
+	if !ok {
+		t.Fatalf("expected QuestionDismissedMsg, got %T", msg)
+	}
+	if dismissed.Answer != "no" {
+		t.Errorf("answer = %q, want no", dismissed.Answer)
+	}
+}
+
+func TestQuestionPrompt_EnterSubmitsTypedAnswer(t *testing.T) {
+	p := NewQuestionPrompt()
+	p.Show(QuestionAskedMsg{ID: "q_1", Question: "What is your name?"})
+	p, _ = p.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Ada")})
+	p, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected dismiss cmd")
+	}
+	msg := cmd()
+	dismissed, ok := msg.(QuestionDismissedMsg)
+	if !ok {
+		t.Fatalf("expected QuestionDismissedMsg, got %T", msg)
+	}
+	if dismissed.Answer != "Ada" {
+		t.Errorf("answer = %q, want Ada", dismissed.Answer)
+	}
+}
+
 func TestHandleDialogMsg_PermissionRequestedMsg_ShowsPrompt(t *testing.T) {
 	app := NewApp("")
 

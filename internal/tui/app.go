@@ -19,35 +19,36 @@ var helpCommandsText string
 
 // App is the root bubbletea model composing all TUI components.
 type App struct {
-	chat       ChatView
-	prompt     PromptInput
-	status     StatusBar
-	welcome    WelcomeView
-	dialog     SessionDialog
-	palette    CommandPalette
-	agentDlg   AgentDialog
-	modelDlg   ModelDialog
-	themeDlg   ThemeDialog
-	debugDlg   DebugDialog
-	privacyDlg DebugDialog
-	contextDlg ContextDialog
-	mcpDlg     MCPDialog
-	copyDlg    CodeBlockDialog
-	rewindDlg  RewindDialog
-	permPrompt PermissionPrompt
-	toast      Toast
-	sidebar    Sidebar
-	whichKey   WhichKeyPanel
-	leader     LeaderState
-	themes     *ThemeRegistry
-	frecStore  *frecency.Store
-	state      *AppState
-	focus      FocusTarget
-	width      int
-	height     int
-	serverURL  string
-	keys       KeyMap
-	ready      bool
+	chat           ChatView
+	prompt         PromptInput
+	status         StatusBar
+	welcome        WelcomeView
+	dialog         SessionDialog
+	palette        CommandPalette
+	agentDlg       AgentDialog
+	modelDlg       ModelDialog
+	themeDlg       ThemeDialog
+	debugDlg       DebugDialog
+	privacyDlg     DebugDialog
+	contextDlg     ContextDialog
+	mcpDlg         MCPDialog
+	copyDlg        CodeBlockDialog
+	rewindDlg      RewindDialog
+	permPrompt     PermissionPrompt
+	questionPrompt QuestionPrompt
+	toast          Toast
+	sidebar        Sidebar
+	whichKey       WhichKeyPanel
+	leader         LeaderState
+	themes         *ThemeRegistry
+	frecStore      *frecency.Store
+	state          *AppState
+	focus          FocusTarget
+	width          int
+	height         int
+	serverURL      string
+	keys           KeyMap
+	ready          bool
 }
 
 // NewApp creates a new App with the given server URL.
@@ -62,31 +63,32 @@ func NewApp(serverURL string) App {
 	_ = fs.Load() // ignore error on first run
 
 	return App{
-		chat:       NewChatView(80, 24),
-		prompt:     NewPromptInput(80),
-		status:     NewStatusBar(80),
-		welcome:    NewWelcomeView(),
-		dialog:     NewSessionDialog(),
-		palette:    NewCommandPalette(),
-		agentDlg:   NewAgentDialog(),
-		modelDlg:   NewModelDialog(),
-		themeDlg:   NewThemeDialog(),
-		debugDlg:   NewDebugDialog(),
-		privacyDlg: NewDebugDialog(),
-		contextDlg: NewContextDialog(),
-		mcpDlg:     NewMCPDialog(),
-		copyDlg:    NewCodeBlockDialog(),
-		rewindDlg:  NewRewindDialog(),
-		permPrompt: NewPermissionPrompt(),
-		toast:      NewToast(DefaultTheme()),
-		sidebar:    NewSidebar(),
-		leader:     NewLeaderState(keys),
-		themes:     themes,
-		frecStore:  fs,
-		state:      state,
-		focus:      FocusPrompt,
-		serverURL:  serverURL,
-		keys:       keys,
+		chat:           NewChatView(80, 24),
+		prompt:         NewPromptInput(80),
+		status:         NewStatusBar(80),
+		welcome:        NewWelcomeView(),
+		dialog:         NewSessionDialog(),
+		palette:        NewCommandPalette(),
+		agentDlg:       NewAgentDialog(),
+		modelDlg:       NewModelDialog(),
+		themeDlg:       NewThemeDialog(),
+		debugDlg:       NewDebugDialog(),
+		privacyDlg:     NewDebugDialog(),
+		contextDlg:     NewContextDialog(),
+		mcpDlg:         NewMCPDialog(),
+		copyDlg:        NewCodeBlockDialog(),
+		rewindDlg:      NewRewindDialog(),
+		permPrompt:     NewPermissionPrompt(),
+		questionPrompt: NewQuestionPrompt(),
+		toast:          NewToast(DefaultTheme()),
+		sidebar:        NewSidebar(),
+		leader:         NewLeaderState(keys),
+		themes:         themes,
+		frecStore:      fs,
+		state:          state,
+		focus:          FocusPrompt,
+		serverURL:      serverURL,
+		keys:           keys,
 	}
 }
 
@@ -164,6 +166,9 @@ func (a App) View() string {
 	// Render highest-priority overlay if one is visible.
 	if a.permPrompt.IsVisible() {
 		return a.permPrompt.View()
+	}
+	if a.questionPrompt.IsVisible() {
+		return a.questionPrompt.View()
 	}
 	if a.palette.IsVisible() {
 		return a.palette.View()
@@ -295,6 +300,7 @@ func (a *App) resize() {
 	a.copyDlg.SetSize(a.width, a.height)
 	a.rewindDlg.SetSize(a.width, a.height)
 	a.permPrompt.SetSize(a.width, a.height)
+	a.questionPrompt.SetSize(a.width, a.height)
 	a.toast.SetSize(a.width)
 	a.sidebar.SetSize(l.sidebarWidth, l.chatHeight)
 }

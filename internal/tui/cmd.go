@@ -113,6 +113,15 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 			},
 		}
 
+	case "question.asked":
+		question, options := parseAskedQuestion(props)
+		return QuestionAskedMsg{
+			ID:        stringProp(props, "id"),
+			SessionID: sessionID,
+			Question:  question,
+			Options:   options,
+		}
+
 	case "mcp.status":
 		srv := MCPServer{}
 		if server, ok := props["server"].(map[string]any); ok {
@@ -610,6 +619,14 @@ func replyPermission(client *api.Client, sessionID, permissionID, action string)
 	}
 }
 
+// replyQuestion answers a pending question via POST /question/{id}/reply.
+func replyQuestion(client *api.Client, questionID, answer string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.ReplyQuestion(questionID, answer)
+		return QuestionRepliedMsg{Err: err}
+	}
+}
+
 func sessionInfoFromAPI(s session.Info) SessionInfo {
 	si := SessionInfo{
 		ID:        s.ID,
@@ -670,6 +687,38 @@ func intFromAny(v any) (int, bool) {
 		return n, true
 	}
 	return 0, false
+}
+
+// parseAskedQuestion reads the SDK question.asked payload:
+// { questions: [{ question, options: [{ label }] }] }.
+func parseAskedQuestion(props map[string]any) (string, []string) {
+	raw, ok := props["questions"].([]any)
+	if !ok || len(raw) == 0 {
+		return stringProp(props, "question"), nil
+	}
+	first, ok := raw[0].(map[string]any)
+	if !ok {
+		return stringProp(props, "question"), nil
+	}
+	question, _ := first["question"].(string)
+	optRaw, ok := first["options"].([]any)
+	if !ok {
+		return question, nil
+	}
+	var options []string
+	for _, o := range optRaw {
+		switch v := o.(type) {
+		case string:
+			if v != "" {
+				options = append(options, v)
+			}
+		case map[string]any:
+			if label, ok := v["label"].(string); ok && label != "" {
+				options = append(options, label)
+			}
+		}
+	}
+	return question, options
 }
 
 func parseSessionInfo(props map[string]any) SessionInfo {

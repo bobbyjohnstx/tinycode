@@ -761,6 +761,42 @@ func TestMapSSEToMsg_PermissionAsked(t *testing.T) {
 	}
 }
 
+func TestMapSSEToMsg_QuestionAsked(t *testing.T) {
+	evt := api.ServerEvent{
+		Type: "question.asked",
+		Properties: map[string]any{
+			"id":        "q_1",
+			"sessionID": "ses_q",
+			"questions": []any{
+				map[string]any{
+					"question": "Continue?",
+					"options": []any{
+						map[string]any{"label": "yes"},
+						map[string]any{"label": "no"},
+					},
+				},
+			},
+		},
+	}
+	msg := mapSSEToMsg(evt)
+	asked, ok := msg.(QuestionAskedMsg)
+	if !ok {
+		t.Fatalf("expected QuestionAskedMsg, got %T", msg)
+	}
+	if asked.ID != "q_1" {
+		t.Errorf("expected ID 'q_1', got %q", asked.ID)
+	}
+	if asked.SessionID != "ses_q" {
+		t.Errorf("expected SessionID 'ses_q', got %q", asked.SessionID)
+	}
+	if asked.Question != "Continue?" {
+		t.Errorf("expected question 'Continue?', got %q", asked.Question)
+	}
+	if len(asked.Options) != 2 || asked.Options[0] != "yes" || asked.Options[1] != "no" {
+		t.Errorf("expected options [yes no], got %#v", asked.Options)
+	}
+}
+
 func TestMapSSEToMsg_MessagePartDelta(t *testing.T) {
 	evt := api.ServerEvent{
 		Type: "message.part.delta",
@@ -2200,6 +2236,41 @@ func TestReplyPermission_ReturnsErrorOnServerFailure(t *testing.T) {
 	}
 	if done.Err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestReplyQuestion_PostsAnswer(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"questionID": "q_1", "status": "replied"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := replyQuestion(client, "q_1", "yes")
+	msg := cmd()
+
+	done, ok := msg.(QuestionRepliedMsg)
+	if !ok {
+		t.Fatalf("expected QuestionRepliedMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Fatalf("unexpected error: %v", done.Err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/question/q_1/reply" {
+		t.Errorf("path = %q, want /question/q_1/reply", gotPath)
+	}
+	if gotBody["answer"] != "yes" {
+		t.Errorf("answer = %q, want yes", gotBody["answer"])
 	}
 }
 

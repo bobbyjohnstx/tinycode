@@ -69,6 +69,18 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		}
 		return c, tea.Batch(cmds...), true
 
+	case QuestionReplyMsg:
+		slog.Info("sending question reply", "id", msg.ID)
+		cmds = append(cmds, replyQuestion(c.client, msg.ID, msg.Answer))
+		return c, tea.Batch(cmds...), true
+
+	case QuestionRepliedMsg:
+		if msg.Err != nil {
+			slog.Error("question reply failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Question reply failed: %v", msg.Err)...)
+		}
+		return c, tea.Batch(cmds...), true
+
 	case AbortSentMsg:
 		if msg.Err != nil {
 			slog.Error("abort failed", "error", msg.Err)

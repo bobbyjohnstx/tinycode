@@ -112,6 +112,16 @@ type PermissionReplyMsg struct {
 	Action       string
 }
 
+type QuestionRepliedMsg struct {
+	Err error
+}
+
+// QuestionReplyMsg is a request to POST /question/{id}/reply.
+type QuestionReplyMsg struct {
+	ID     string
+	Answer string
+}
+
 // SessionErrorMsg is emitted when a session-scoped error arrives via SSE.
 // It carries both an error message (for toast) and session ID (to clear working state).
 type SessionErrorMsg struct {
