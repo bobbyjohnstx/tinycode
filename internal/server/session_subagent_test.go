@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -261,6 +262,95 @@ func TestSubagentLabel_NoCollision(t *testing.T) {
 			t.Fatalf("duplicate label on iteration %d: %s", i, label)
 		}
 		seen[label] = true
+	}
+}
+
+// scriptedLLMClient replays a fixed event list on every Stream call.
+type scriptedLLMClient struct {
+	events []llm.Event
+}
+
+func (c *scriptedLLMClient) Stream(_ context.Context, _ llm.Request, _ ...llm.StreamOption) (<-chan llm.Event, error) {
+	ch := make(chan llm.Event, len(c.events))
+	for _, ev := range c.events {
+		ch <- ev
+	}
+	close(ch)
+	return ch, nil
+}
+
+func TestRunSubagent_EmptyTextReturnsDiagnostic(t *testing.T) {
+	reasoning := "hidden chain of thought"
+	toolOnly := []llm.Event{
+		{Type: llm.EventToolCallBegin, ToolCallID: "call_1", ToolName: "read"},
+		{Type: llm.EventToolCallEnd, ToolCallID: "call_1", ToolName: "read", ToolCallArgs: `{"file_path":"a.go"}`},
+		{Type: llm.EventFinish, FinishReason: "tool_calls"},
+	}
+	reasoningOnly := []llm.Event{
+		{Type: llm.EventReasoningDelta, Text: reasoning},
+		{Type: llm.EventFinish, FinishReason: "stop"},
+	}
+	textReply := []llm.Event{
+		{Type: llm.EventTextDelta, Text: "subagent reply"},
+		{Type: llm.EventFinish, FinishReason: "stop"},
+	}
+
+	tests := []struct {
+		name       string
+		events     []llm.Event
+		want       string
+		wantPrefix string
+		absent     string
+	}{
+		{
+			name:   "text reply unchanged",
+			events: textReply,
+			want:   "subagent reply",
+		},
+		{
+			name:   "reasoning only",
+			events: reasoningOnly,
+			want:   subagentNoTextResponse,
+			absent: reasoning,
+		},
+		{
+			name:       "tool calls only",
+			events:     toolOnly,
+			wantPrefix: subagentNoTextResponse + ": ",
+			absent:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := bus.New()
+			defer b.Close()
+
+			sm := newSubagentTestSM(t, b, &config.Info{}, nil)
+			sm.clientFactory = func(_ *provider.Model) llm.Client {
+				return &scriptedLLMClient{events: tt.events}
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			got, err := sm.RunSubagent(ctx, "ses_parent", 0, "test prompt", "executor", "", false)
+			if err != nil {
+				t.Fatalf("RunSubagent returned error: %v", err)
+			}
+			if got == "" {
+				t.Fatal("response is empty, want diagnostic or text")
+			}
+			if tt.want != "" && got != tt.want {
+				t.Errorf("response = %q, want %q", got, tt.want)
+			}
+			if tt.wantPrefix != "" && !strings.HasPrefix(got, tt.wantPrefix) {
+				t.Errorf("response = %q, want prefix %q", got, tt.wantPrefix)
+			}
+			if tt.absent != "" && strings.Contains(got, tt.absent) {
+				t.Errorf("response = %q, contains reasoning %q", got, tt.absent)
+			}
+		})
 	}
 }
 

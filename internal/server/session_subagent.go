@@ -15,6 +15,9 @@ import (
 const (
 	subagentMaxIterations = 5
 	subagentTimeout       = 10 * time.Minute
+	// subagentNoTextResponse is returned when the assistant produced no text.
+	// A nil error keeps the task tool from marking the turn as a failure.
+	subagentNoTextResponse = "subagent produced no text response"
 )
 
 var subagentSeq atomic.Int64
@@ -172,6 +175,14 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 	}
 
 	response := strings.Join(texts, "\n\n")
+	// #743: empty text is a finished turn. Return a diagnostic and a nil error.
+	// Do not substitute reasoning parts, and do not return a Go error.
+	if response == "" {
+		response = subagentNoTextResponse
+		if result.Error != nil {
+			response = fmt.Sprintf("%s: %v", response, result.Error)
+		}
+	}
 	slog.Info("subagent completed", "label", label, "parent", parentSessionID, "agent", agent, "responseLen", len(response))
 	return response, nil
 }
