@@ -404,6 +404,9 @@ func (p *Processor) compact(ctx context.Context) (bool, error) {
 	}
 
 	summary := strings.Join(summaryParts, "")
+	if strings.TrimSpace(summary) == "" {
+		return false, fmt.Errorf("compaction summary is empty")
+	}
 
 	summaryMsgID, _ := id.Ascending("message")
 	summaryMsg := Message{

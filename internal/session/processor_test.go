@@ -1123,3 +1123,59 @@ func TestProcessor_Compact_SummaryIsUserRole(t *testing.T) {
 		t.Errorf("compaction summary role = %q, want %q", result[0].Role, RoleUser)
 	}
 }
+
+func TestProcessor_Compact_ReasoningOnlyKeepsMessages(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventReasoningDelta, Text: "thinking about the summary"},
+			}},
+		},
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_compact_reasoning",
+		Model:           &provider.Model{ID: "test-model", Limit: provider.ModelLimit{Context: 100000, Output: 4096}},
+		Compaction:      CompactionConfig{MaxPreserve: 500, MaskObservations: true},
+		AutoContinueMax: -1,
+	}, client, &stubToolExecutor{}, b)
+
+	now := time.Now()
+	var msgs []Message
+	for i := 0; i < 20; i++ {
+		role := RoleUser
+		if i%2 == 1 {
+			role = RoleAssistant
+		}
+		msgs = append(msgs, Message{
+			ID:        fmt.Sprintf("msg_%d", i),
+			SessionID: "ses_compact_reasoning",
+			Role:      role,
+			Parts:     []Part{TextPart(strings.Repeat("word ", 200))},
+			CreatedAt: now.Add(time.Duration(i) * time.Second),
+		})
+	}
+	p.SetMessages(msgs)
+	before := p.Messages()
+
+	compacted, err := p.Compact(context.Background())
+	if err == nil {
+		t.Fatal("expected error when compaction emits only reasoning")
+	}
+	if compacted {
+		t.Fatal("expected compaction not to replace history")
+	}
+
+	after := p.Messages()
+	if len(after) != len(before) {
+		t.Fatalf("message count = %d, want %d", len(after), len(before))
+	}
+	for i := range before {
+		if after[i].ID != before[i].ID || after[i].Role != before[i].Role {
+			t.Fatalf("message %d = %+v, want %+v", i, after[i], before[i])
+		}
+	}
+}
