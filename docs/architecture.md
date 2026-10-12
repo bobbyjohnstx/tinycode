@@ -74,7 +74,7 @@ Standard `net/http` server with middleware (CORS, error handling, logging). REST
 
 Persistence lives in `session.go` (`Store`) and `message.go` (`MessageStore`) — there is no `store.go`. `processor.go` runs the main agent loop: send prompt to LLM, stream response, execute tool calls, manage context overflow via compaction, handle retries, track token usage. Each prompt turn gets its own processor instance.
 
-Runtime orchestration (busy state, prompt dispatch, abort, revert stash) is `SessionManager` in `internal/server/`, not in `internal/session/`. Subagents are synthetic child runs (`sessionID:label`) via the task tool; `ProcessorConfig.MaxSubagents` is currently unused. Session share/unshare and PTY HTTP routes are deferred — see [spec/16-not-implemented.md](spec/16-not-implemented.md) §16.11–16.12.
+Runtime orchestration (busy state, prompt dispatch, abort, revert stash) is `SessionManager` in `internal/server/`, not in `internal/session/`. Subagents are synthetic child runs (`sessionID:label`) via the task tool; `ProcessorConfig.MaxSubagents` is currently unused. Session share/unshare and PTY HTTP routes are deferred — see [spec/16-not-implemented.md](spec/16-not-implemented.md) §16.11–16.12. Package boundaries: [internal/session/AGENTS.md](../internal/session/AGENTS.md) and [internal/server/AGENTS.md](../internal/server/AGENTS.md).
 
 ### `internal/llm/` -- LLM Client
 
