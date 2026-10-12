@@ -91,7 +91,6 @@
     "@ai-sdk/provider": "4.0.0",
     "@ai-sdk/provider-utils": "5.0.1",
     "@playwright/test": "^1.63.0",
-    "@tinycode/plugin": "workspace:*",
     "@tinycode/sdk": "workspace:*",
     "ai": "7.0.4",
     "diff": "9.0.0",

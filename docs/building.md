@@ -14,7 +14,7 @@
 | `cmd/plugin-*/` | Optional plugin binaries (30 plugins) |
 | `internal/` | Private application code |
 | `pkg/plugin/` | Public plugin SDK |
-| `packages/` | **Legacy TypeScript** for the optional web UI (`app`, `sdk`, `ui`, `tinycode`, `plugin`). Not the Go runtime. No Electron app or VS Code extension. |
+| `packages/` | **Legacy TypeScript** for the optional web UI (`app`, `sdk`, `ui`, `tinycode`). Not the Go runtime. No Electron app or VS Code extension. |
 
 Agent and contributor guidance for Go lives in the repo root: `AGENTS.md` and `CLAUDE.md`. See [spec/README.md](spec/README.md) for a full documentation index.
 

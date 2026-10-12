@@ -19,6 +19,8 @@ Each plugin is a standalone binary. Tinycode spawns it, communicates via JSON-RP
 
 ## TS Plugin API Audit
 
+`@tinycode/plugin` has been removed. The table is a historical audit.
+
 The TS SDK (`@tinycode/plugin` v1.20.0) has 27 hook types, but real-world usage concentrates on ~8:
 
 | Hook | Usage | Example |

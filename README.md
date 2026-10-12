@@ -322,7 +322,7 @@ make embed-webapp   # Embed SolidJS web app into the binary (builds from package
 make clean          # Remove build artifacts
 ```
 
-The runtime is Go only. `packages/` is legacy TypeScript kept so `make embed-webapp` can build the web UI (`app`, `sdk`, `ui`, `tinycode`, and `plugin`). See [docs/building.md](docs/building.md) and [docs/spec/README.md](docs/spec/README.md).
+The runtime is Go only. `packages/` is legacy TypeScript kept so `make embed-webapp` can build the web UI (`app`, `sdk`, `ui`, and `tinycode`). See [docs/building.md](docs/building.md) and [docs/spec/README.md](docs/spec/README.md).
 
 ## Documentation
 

@@ -33,7 +33,7 @@ Use this table as the current documentation index.
 | [../plugin-sdk-design.md](../plugin-sdk-design.md), [../bubbletea-tui-design.md](../bubbletea-tui-design.md) | Design notes for decisions that shipped. Keep unless you want the history gone. |
 | [../plugin-auth-audit.md](../plugin-auth-audit.md) | September 2026 auth snapshot. |
 
-**Repository layout:** The product is the Go tree (`cmd/`, `internal/`, `pkg/`). `packages/` is legacy TypeScript kept for `make embed-webapp` (`app`, `sdk`, `ui`, `tinycode`, `plugin`). It is not the runtime. The Electron app and VS Code extension are not in the repository.
+**Repository layout:** The product is the Go tree (`cmd/`, `internal/`, `pkg/`). `packages/` is legacy TypeScript kept for `make embed-webapp` (`app`, `sdk`, `ui`, `tinycode`). It is not the runtime. The Electron app and VS Code extension are not in the repository.
 
 **Authoritative HTTP surface:** Go route tables in [02-api-routes.md](02-api-routes.md) (and `internal/server/router.go`) are the source of truth for `tinycode serve`. `packages/sdk/openapi.json` is the historical TypeScript contract and overstates share/PTY/OAuth routes that are not implemented in Go.
 

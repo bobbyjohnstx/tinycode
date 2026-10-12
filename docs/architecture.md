@@ -43,7 +43,7 @@ internal/
   vcs/                Git operations
 pkg/
   plugin/             Public plugin SDK (protocol, hooks, tools)
-packages/             Legacy TypeScript for the web UI (app, sdk, ui, tinycode, plugin)
+packages/             Legacy TypeScript for the web UI (app, sdk, ui, tinycode)
 ```
 
 ---
