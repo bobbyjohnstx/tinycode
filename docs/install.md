@@ -82,6 +82,8 @@ make build
 sudo cp dist/tinycode /usr/local/bin/
 ```
 
+> **Fedora 44 note:** Fedora 44 ships Go 1.26.7 via `dnf`. tinycode requires Go 1.27.1+. Install Go from [go.dev/dl](https://go.dev/dl/) instead of the Fedora package. Fedora 45+ is expected to ship Go 1.27. This only affects building from source --- the binary install and Homebrew methods work without Go installed.
+
 ### Clipboard support (Linux)
 
 For `/copy` and `/paste-image` to work on Linux, install a clipboard utility:

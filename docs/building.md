@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Go 1.27+** (`go version` -- see `go.mod` for exact version)
+- **Go 1.27+** (`go version` -- see `go.mod` for exact version). Fedora 44 ships Go 1.26; install from [go.dev/dl](https://go.dev/dl/) instead.
 - **make**
 - **git**
 
