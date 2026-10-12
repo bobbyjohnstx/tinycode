@@ -131,9 +131,12 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 	tokens := 0
 	completed := false
 	var reasoning strings.Builder
+	think := &thinkSplitter{}
+	defer think.flush(ch)
 
 	stop := func(reason string) {
 		slog.Warn("SSE stream stopped", "reason", reason, "tokens", tokens, "limit", tokenLimit, "elapsed", time.Since(started))
+		think.flush(ch)
 		c.finalizeOpenAIToolCalls(toolCalls, ch)
 		ch <- Event{Type: EventError, Error: ErrStreamBudget}
 	}
@@ -147,14 +150,17 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 		select {
 		case <-ctx.Done():
 			slog.Warn("SSE stream context cancelled")
+			think.flush(ch)
 			ch <- Event{Type: EventError, Error: ctx.Err()}
 			return
 		case <-timer.C:
 			slog.Error("SSE chunk timeout", "timeout", chunkTimeout)
+			think.flush(ch)
 			ch <- Event{Type: EventError, Error: fmt.Errorf("chunk read timeout after %v with no data from model", chunkTimeout)}
 			return
 		case l, ok := <-lines:
 			if !ok {
+				think.flush(ch)
 				if err := <-scanDone; err != nil {
 					slog.Error("SSE stream read error", "error", err)
 					ch <- Event{Type: EventError, Error: fmt.Errorf("reading SSE stream: %w", err)}
@@ -176,6 +182,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 		}
 		data := line[6:]
 		if data == "[DONE]" {
+			think.flush(ch)
 			if len(toolCalls) > 0 {
 				c.finalizeOpenAIToolCalls(toolCalls, ch)
 			}
@@ -192,7 +199,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 			continue
 		}
 
-		n, finished := c.processOpenAIChunk(chunk, toolCalls, ch)
+		n, finished := c.processOpenAIChunk(chunk, toolCalls, think, ch)
 		tokens += n
 		if len(chunk.Choices) > 0 {
 			prev := reasoning.Len()
@@ -220,7 +227,8 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 
 // processOpenAIChunk handles a single parsed SSE chunk: emits text/reasoning
 // deltas, accumulates tool call arguments, and finalizes tool calls on finish.
-func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls map[int]*toolCallAccum, ch chan<- Event) (int, bool) {
+// think carries <think> split state across chunks for delta.Content only.
+func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls map[int]*toolCallAccum, think *thinkSplitter, ch chan<- Event) (int, bool) {
 	if len(chunk.Choices) == 0 {
 		if chunk.Usage != nil {
 			ch <- Event{
@@ -241,7 +249,7 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 
 	if delta.Content != "" {
 		tokens += ApproxTokens(delta.Content)
-		ch <- Event{Type: EventTextDelta, Text: delta.Content}
+		think.push(delta.Content, ch)
 	}
 	if delta.ReasoningContent != "" {
 		tokens += ApproxTokens(delta.ReasoningContent)
@@ -285,6 +293,7 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 	}
 
 	if choice.FinishReason != "" {
+		think.flush(ch)
 		c.finalizeOpenAIToolCalls(toolCalls, ch)
 		ch <- Event{
 			Type:         EventFinish,
@@ -293,6 +302,108 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 		return tokens, true
 	}
 	return tokens, false
+}
+
+const (
+	thinkOpen  = "<think>"
+	thinkClose = "</think>"
+)
+
+// thinkSplitter splits one well-formed <think>...</think> pair out of OpenAI
+// content deltas. Text outside the pair stays EventTextDelta. The interior of
+// a pair that closes without another <think> is EventReasoningDelta. A second
+// <think> before the close, or a missing close at flush, stays text with the
+// tags included. A partial "<think" or "</think" prefix is held until the next
+// content chunk or flush.
+type thinkSplitter struct {
+	inside  bool
+	pending string
+}
+
+func (s *thinkSplitter) push(chunk string, ch chan<- Event) {
+	if chunk == "" {
+		return
+	}
+	s.pending += chunk
+	s.drain(ch)
+}
+
+func (s *thinkSplitter) flush(ch chan<- Event) {
+	if s.pending == "" {
+		return
+	}
+	ch <- Event{Type: EventTextDelta, Text: s.pending}
+	s.pending = ""
+	s.inside = false
+}
+
+func (s *thinkSplitter) drain(ch chan<- Event) {
+	for {
+		if s.inside {
+			if !s.drainInside(ch) {
+				return
+			}
+			continue
+		}
+		if !s.drainOutside(ch) {
+			return
+		}
+	}
+}
+
+func (s *thinkSplitter) drainOutside(ch chan<- Event) bool {
+	data := s.pending
+	idx := strings.Index(data, thinkOpen)
+	if idx < 0 {
+		hold := thinkOpenHold(data)
+		if n := len(data) - len(hold); n > 0 {
+			ch <- Event{Type: EventTextDelta, Text: data[:n]}
+		}
+		s.pending = hold
+		return false
+	}
+	if idx > 0 {
+		ch <- Event{Type: EventTextDelta, Text: data[:idx]}
+	}
+	s.inside = true
+	s.pending = data[idx:]
+	return true
+}
+
+func (s *thinkSplitter) drainInside(ch chan<- Event) bool {
+	body := s.pending[len(thinkOpen):]
+	openIdx := strings.Index(body, thinkOpen)
+	closeIdx := strings.Index(body, thinkClose)
+	if openIdx >= 0 && (closeIdx < 0 || openIdx < closeIdx) {
+		end := len(thinkOpen) + openIdx + len(thinkOpen)
+		ch <- Event{Type: EventTextDelta, Text: s.pending[:end]}
+		s.pending = s.pending[end:]
+		s.inside = false
+		return s.pending != ""
+	}
+	if closeIdx >= 0 {
+		if interior := body[:closeIdx]; interior != "" {
+			ch <- Event{Type: EventReasoningDelta, Text: interior}
+		}
+		s.pending = body[closeIdx+len(thinkClose):]
+		s.inside = false
+		return s.pending != ""
+	}
+	return false
+}
+
+// thinkOpenHold is the longest suffix of s that is a strict prefix of "<think>".
+func thinkOpenHold(s string) string {
+	max := len(thinkOpen) - 1
+	if len(s) < max {
+		max = len(s)
+	}
+	for n := max; n > 0; n-- {
+		if strings.HasPrefix(thinkOpen, s[len(s)-n:]) {
+			return s[len(s)-n:]
+		}
+	}
+	return ""
 }
 
 // finalizeOpenAIToolCalls emits EventToolCallEnd for each accumulated tool call,

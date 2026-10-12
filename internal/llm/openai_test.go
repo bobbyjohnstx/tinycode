@@ -813,3 +813,107 @@ func TestOpenAIStream_StopsWhenReasoningExceedsBudget(t *testing.T) {
 		t.Fatalf("reasoning chunks = %d, want a stop before all %d", reasoning, len(lines))
 	}
 }
+
+func TestOpenAIStream_ThinkTagWellFormed(t *testing.T) {
+	server := httptest.NewServer(sseHandler([]string{
+		textChunk("<think>secret</think>answer"),
+		finishChunk("stop"),
+	}))
+	defer server.Close()
+
+	text, reasoning := streamTextAndReasoning(t, server.URL)
+	if reasoning != "secret" {
+		t.Errorf("reasoning = %q, want secret", reasoning)
+	}
+	if text != "answer" {
+		t.Errorf("text = %q, want answer", text)
+	}
+}
+
+func TestOpenAIStream_ThinkTagSplitAcrossTwoChunks(t *testing.T) {
+	server := httptest.NewServer(sseHandler([]string{
+		textChunk("<think>sec"),
+		textChunk("ret</think>answer"),
+		finishChunk("stop"),
+	}))
+	defer server.Close()
+
+	text, reasoning := streamTextAndReasoning(t, server.URL)
+	if reasoning != "secret" {
+		t.Errorf("reasoning = %q, want secret", reasoning)
+	}
+	if text != "answer" {
+		t.Errorf("text = %q, want answer", text)
+	}
+}
+
+func TestOpenAIStream_ThinkTagSplitAcrossChunks(t *testing.T) {
+	server := httptest.NewServer(sseHandler([]string{
+		textChunk("<thi"),
+		textChunk("nk>reason</thi"),
+		textChunk("nk>hello"),
+		finishChunk("stop"),
+	}))
+	defer server.Close()
+
+	text, reasoning := streamTextAndReasoning(t, server.URL)
+	if reasoning != "reason" {
+		t.Errorf("reasoning = %q, want reason", reasoning)
+	}
+	if text != "hello" {
+		t.Errorf("text = %q, want hello", text)
+	}
+}
+
+func TestOpenAIStream_ThinkTagUnclosedStaysText(t *testing.T) {
+	server := httptest.NewServer(sseHandler([]string{
+		textChunk("<think>reason"),
+		finishChunk("stop"),
+	}))
+	defer server.Close()
+
+	text, reasoning := streamTextAndReasoning(t, server.URL)
+	if reasoning != "" {
+		t.Errorf("reasoning = %q, want empty", reasoning)
+	}
+	if text != "<think>reason" {
+		t.Errorf("text = %q, want %q", text, "<think>reason")
+	}
+}
+
+func TestOpenAIStream_ThinkTagNestedStaysText(t *testing.T) {
+	server := httptest.NewServer(sseHandler([]string{
+		textChunk("<think>a<think>b</think>"),
+		finishChunk("stop"),
+	}))
+	defer server.Close()
+
+	text, reasoning := streamTextAndReasoning(t, server.URL)
+	if reasoning != "" {
+		t.Errorf("reasoning = %q, want empty", reasoning)
+	}
+	if text != "<think>a<think>b</think>" {
+		t.Errorf("text = %q, want %q", text, "<think>a<think>b</think>")
+	}
+}
+
+func streamTextAndReasoning(t *testing.T, serverURL string) (text, reasoning string) {
+	t.Helper()
+	client := NewOpenAIClient(serverURL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:    "gpt-4",
+		Messages: []Message{{Role: "user", Content: "Hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+	for _, ev := range collectEvents(t, ch, 5*time.Second) {
+		switch ev.Type {
+		case EventTextDelta:
+			text += ev.Text
+		case EventReasoningDelta:
+			reasoning += ev.Text
+		}
+	}
+	return text, reasoning
+}
