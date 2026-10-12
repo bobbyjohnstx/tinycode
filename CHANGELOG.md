@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [2.3.2] - 2026-10-12
+
+### Fixes
+- Split `<think>...</think>` tags in OpenAI text streams into reasoning parts (#741)
+- Blank compaction summary returns an error and leaves original messages in place (#742)
+- Subagent with no assistant text returns a diagnostic instead of empty string (#743)
+- Question tool overlay: `question.asked` opens an answer dialog and posts `/question/{id}/reply` (#740)
+- Split OSC rgb color tails filtered from prompt input (#744)
+
 ## [2.3.1] - 2026-10-12
 
 ### Fixes
