@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 // ToolExecutor defines the interface for executing tool calls.
@@ -79,12 +80,15 @@ launch:
 		case sem <- struct{}{}:
 		}
 		wg.Add(1)
-		go func(idx int, call Part) {
+		idx, call := i, tc
+		safego.Go(func() {
 			defer wg.Done()
 			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("tool panicked", "tool", call.ToolName, "panic", r)
+					// Domain recover must stay: safego.Go alone would swallow
+					// the panic without sending on ch and hang the collector.
+					safego.LogPanic(nil, "tool panicked", r, "tool", call.ToolName)
 					msg := fmt.Sprintf("tool panicked: %v", r)
 					p.publishToolResult(call, msg, true)
 					ch <- toolResult{
@@ -124,13 +128,13 @@ launch:
 				result: ToolResultPart(call.ToolCallID, call.ToolName, output, isErr),
 				failed: isErr,
 			}
-		}(i, tc)
+		})
 	}
 
-	go func() {
+	safego.Go(func() {
 		wg.Wait()
 		close(ch)
-	}()
+	})
 
 	allFailed := true
 	collected := 0
