@@ -205,7 +205,8 @@ type PluginListMsg struct {
 // ProvidersRefreshMsg signals that the provider list should be re-fetched.
 type ProvidersRefreshMsg struct{}
 
-// ProvidersRescanRequestMsg asks the server to probe providers, then reload the list.
+// ProvidersRescanRequestMsg forces an immediate provider rescan, bypassing
+// the healthy poll interval.
 type ProvidersRescanRequestMsg struct{}
 
 // AuthStoredMsg reports the result of storing provider credentials.
@@ -286,6 +287,11 @@ type ModelScopedDoneMsg struct {
 
 // SessionAgentPatchedMsg reports that PATCH /session/{id} agent completed.
 type SessionAgentPatchedMsg struct {
+	Err error
+}
+
+// SessionModelPatchedMsg reports that PATCH /session/{id} model completed.
+type SessionModelPatchedMsg struct {
 	Err error
 }
 

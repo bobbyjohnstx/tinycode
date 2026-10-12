@@ -674,6 +674,57 @@ func TestUpdateSessionAgent_ServerError(t *testing.T) {
 	}
 }
 
+func TestUpdateSessionModel_Success(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		data, _ := io.ReadAll(r.Body)
+		json.Unmarshal(data, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.UpdateSessionModel("ses_3", "ollama", "qwen3.5:9b")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != "PATCH" {
+		t.Errorf("method = %q, want PATCH", gotMethod)
+	}
+	if gotPath != "/session/ses_3" {
+		t.Errorf("path = %q, want /session/ses_3", gotPath)
+	}
+	model, ok := gotBody["model"].(map[string]any)
+	if !ok {
+		t.Fatalf("body missing model object, got %v", gotBody)
+	}
+	if model["id"] != "qwen3.5:9b" {
+		t.Errorf("model.id = %q, want qwen3.5:9b", model["id"])
+	}
+	if model["providerID"] != "ollama" {
+		t.Errorf("model.providerID = %q, want ollama", model["providerID"])
+	}
+}
+
+func TestUpdateSessionModel_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("fail"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	err := c.UpdateSessionModel("ses_3", "ollama", "qwen3.5:9b")
+	if err == nil {
+		t.Fatal("expected error for 500 response")
+	}
+}
+
 func TestSetProviderAuth_Success(t *testing.T) {
 	var gotMethod, gotPath string
 	var gotBody map[string]string

@@ -1064,3 +1064,62 @@ func TestRecoverStreamBudget_AsksOnceForTheReport(t *testing.T) {
 		t.Fatalf("calls = %d, want 1", client.callCount)
 	}
 }
+
+// --- Issue #728: Compaction summary must use user role ---
+
+func TestProcessor_Compact_SummaryIsUserRole(t *testing.T) {
+	// The compaction summary message must have RoleUser so providers
+	// that require a user-role first message don't reject it.
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "compacted summary"},
+				{Type: llm.EventFinish, FinishReason: "stop"},
+			}},
+		},
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_compact_role",
+		Model:           &provider.Model{ID: "test-model", Limit: provider.ModelLimit{Context: 100000, Output: 4096}},
+		Compaction:      CompactionConfig{MaxPreserve: 500, MaskObservations: true},
+		AutoContinueMax: -1,
+	}, client, &stubToolExecutor{}, b)
+
+	// Seed enough messages so FindPreserveBoundary returns > 1.
+	now := time.Now()
+	var msgs []Message
+	for i := 0; i < 20; i++ {
+		role := RoleUser
+		if i%2 == 1 {
+			role = RoleAssistant
+		}
+		msgs = append(msgs, Message{
+			ID:        fmt.Sprintf("msg_%d", i),
+			SessionID: "ses_compact_role",
+			Role:      role,
+			Parts:     []Part{TextPart(strings.Repeat("word ", 200))},
+			CreatedAt: now.Add(time.Duration(i) * time.Second),
+		})
+	}
+	p.SetMessages(msgs)
+
+	compacted, err := p.Compact(context.Background())
+	if err != nil {
+		t.Fatalf("Compact error: %v", err)
+	}
+	if !compacted {
+		t.Fatal("expected compaction to occur")
+	}
+
+	result := p.Messages()
+	if len(result) == 0 {
+		t.Fatal("expected at least 1 message after compaction")
+	}
+	if result[0].Role != RoleUser {
+		t.Errorf("compaction summary role = %q, want %q", result[0].Role, RoleUser)
+	}
+}

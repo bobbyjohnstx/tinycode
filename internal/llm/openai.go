@@ -194,9 +194,15 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 
 		n, finished := c.processOpenAIChunk(chunk, toolCalls, ch)
 		tokens += n
-		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.ReasoningContent != "" {
-			reasoning.WriteString(chunk.Choices[0].Delta.ReasoningContent)
-			if ReasoningLoop(reasoning.String()) {
+		if len(chunk.Choices) > 0 {
+			prev := reasoning.Len()
+			if rc := chunk.Choices[0].Delta.ReasoningContent; rc != "" {
+				reasoning.WriteString(rc)
+			}
+			if rc := chunk.Choices[0].Delta.Reasoning; rc != "" {
+				reasoning.WriteString(rc)
+			}
+			if reasoning.Len() > prev && ReasoningLoop(reasoning.String()) {
 				stop("reasoning loop")
 				return
 			}
@@ -240,6 +246,10 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 	if delta.ReasoningContent != "" {
 		tokens += ApproxTokens(delta.ReasoningContent)
 		ch <- Event{Type: EventReasoningDelta, Text: delta.ReasoningContent}
+	}
+	if delta.Reasoning != "" {
+		tokens += ApproxTokens(delta.Reasoning)
+		ch <- Event{Type: EventReasoningDelta, Text: delta.Reasoning}
 	}
 
 	for _, tc := range delta.ToolCalls {
@@ -352,6 +362,7 @@ type chatCompletionDelta struct {
 	Role             string                   `json:"role,omitempty"`
 	Content          string                   `json:"content,omitempty"`
 	ReasoningContent string                   `json:"reasoning_content,omitempty"`
+	Reasoning        string                   `json:"reasoning,omitempty"`
 	ToolCalls        []chatCompletionToolCall `json:"tool_calls,omitempty"`
 }
 

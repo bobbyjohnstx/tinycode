@@ -367,6 +367,45 @@ func TestOpenAIStream_ReasoningContent(t *testing.T) {
 	}
 }
 
+func TestOpenAIStream_OllamaReasoning(t *testing.T) {
+	lines := []string{
+		`{"choices":[{"delta":{"reasoning":"Step 1..."}}]}`,
+		`{"choices":[{"delta":{"reasoning":"Step 2..."}}]}`,
+		textChunk("Final answer"),
+		finishChunk("stop"),
+	}
+
+	server := httptest.NewServer(sseHandler(lines))
+	defer server.Close()
+
+	client := NewOpenAIClient(server.URL, "key")
+	ch, err := client.Stream(context.Background(), Request{
+		Model:    "qwen3:32b",
+		Messages: []Message{{Role: "user", Content: "Think step by step"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+
+	events := collectEvents(t, ch, 5*time.Second)
+
+	var reasoningTexts []string
+	for _, ev := range events {
+		if ev.Type == EventReasoningDelta {
+			reasoningTexts = append(reasoningTexts, ev.Text)
+		}
+	}
+	if len(reasoningTexts) != 2 {
+		t.Fatalf("got %d reasoning events, want 2", len(reasoningTexts))
+	}
+	if reasoningTexts[0] != "Step 1..." {
+		t.Errorf("reasoning[0] = %q, want %q", reasoningTexts[0], "Step 1...")
+	}
+	if reasoningTexts[1] != "Step 2..." {
+		t.Errorf("reasoning[1] = %q, want %q", reasoningTexts[1], "Step 2...")
+	}
+}
+
 func TestOpenAIStream_InvalidToolCallJSON_Repaired(t *testing.T) {
 	lines := []string{
 		`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"tc_02","type":"function","function":{"name":"write","arguments":""}}]}}]}`,

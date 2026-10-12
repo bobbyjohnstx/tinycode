@@ -703,7 +703,7 @@ func TestMessageStore_ReplaceAll(t *testing.T) {
 	}
 
 	compacted := []Message{
-		{ID: "summary", SessionID: ses.ID, Role: RoleSystem, Parts: []Part{TextPart("summary")}, CreatedAt: now},
+		{ID: "summary", SessionID: ses.ID, Role: RoleUser, Parts: []Part{TextPart("summary")}, CreatedAt: now},
 		{ID: "keep", SessionID: ses.ID, Role: RoleUser, Parts: []Part{TextPart("keep")}, CreatedAt: now.Add(time.Second)},
 		{ID: "new", SessionID: ses.ID, Role: RoleAssistant, Parts: []Part{TextPart("new")}, CreatedAt: now.Add(2 * time.Second)},
 	}

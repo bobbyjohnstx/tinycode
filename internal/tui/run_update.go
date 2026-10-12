@@ -42,6 +42,12 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		}
 		return c, nil, true
 
+	case SessionModelPatchedMsg:
+		if msg.Err != nil {
+			slog.Warn("session model patch failed", "error", msg.Err)
+		}
+		return c, nil, true
+
 	case PromptSentMsg:
 		if msg.Err != nil {
 			slog.Error("prompt send failed", "error", msg.Err)
@@ -420,6 +426,9 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		if c.app.state.CurrentModel.ProviderID != "" {
 			slog.Info("fetching provider balance", "provider", c.app.state.CurrentModel.ProviderID)
 			cmds = append(cmds, fetchProviderBalance(c.client, c.app.state.CurrentModel.ProviderID))
+		}
+		if sid := c.app.state.ActiveSession; sid != "" {
+			cmds = append(cmds, patchSessionModel(c.client, sid, msg.Selection.ProviderID, msg.Selection.ModelID))
 		}
 		return c, tea.Batch(cmds...), true
 

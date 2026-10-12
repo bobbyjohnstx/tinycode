@@ -409,7 +409,7 @@ func (p *Processor) compact(ctx context.Context) (bool, error) {
 	summaryMsg := Message{
 		ID:        summaryMsgID,
 		SessionID: p.config.SessionID,
-		Role:      RoleSystem,
+		Role:      RoleUser,
 		Parts:     []Part{TextPart(summary)},
 		CreatedAt: time.Now(),
 	}

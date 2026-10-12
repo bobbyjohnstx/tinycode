@@ -15,15 +15,8 @@ import (
 )
 
 const (
-	probeTimeout = 2 * time.Second
-	pollInterval = 30 * time.Second
-	// healthyPollInterval is the gap between probes after a successful discovery.
-	// A local daemon that is not running (LM Studio on 127.0.0.1:1234 when it
-	// is not installed) is not a warning: failures log at info and, after
-	// maxConsecutiveFailures, use dormant backoff instead of a probe every
-	// pollInterval. That covers the noise in GitHub #39 / #28 without skipping
-	// LM Studio on the startup scan.
-	healthyPollInterval    = 15 * time.Minute
+	probeTimeout           = 2 * time.Second
+	pollInterval           = 30 * time.Second
 	dormantPollInitial     = 2 * time.Minute
 	dormantPollMax         = 10 * time.Minute
 	maxConsecutiveFailures = 3
@@ -31,47 +24,38 @@ const (
 )
 
 type Discovery struct {
-	registry        *Registry
-	bus             *bus.Bus
-	client          *http.Client // short timeout for discovery probes
-	ollamaClient    *http.Client // longer timeout for Show/Create/Delete
-	cancel          context.CancelFunc
-	autoProfile     *AutoProfileConfig
-	detectGPU       func() (int64, error)
-	gpuMemory       int64
-	gpuOnce         sync.Once
-	warmedMu        sync.Mutex
-	warmedModels    map[string]bool
-	warmingModels   map[string]bool
-	warmupFails     map[string]int
-	dormantMu       sync.Mutex
-	dormant         map[string]bool // providers removed after consecutive failures
-	nextPoll        map[string]time.Time
-	backoff         map[string]time.Duration
-	healthy         map[string]bool // last probe succeeded
-	healthyNextPoll map[string]time.Time
-	probing         map[string]bool // in-flight discover, shared by ticker and Rescan
-	ollamaURL       string
-	vllmURL         string
-	lmStudioURL     string
-	now             func() time.Time
+	registry      *Registry
+	bus           *bus.Bus
+	client        *http.Client // short timeout for discovery probes
+	ollamaClient  *http.Client // longer timeout for Show/Create/Delete
+	cancel        context.CancelFunc
+	autoProfile   *AutoProfileConfig
+	detectGPU     func() (int64, error)
+	gpuMemory     int64
+	gpuOnce       sync.Once
+	warmedMu      sync.Mutex
+	warmedModels  map[string]bool
+	warmingModels map[string]bool
+	warmupFails   map[string]int
+	dormantMu     sync.Mutex
+	dormant       map[string]bool // providers removed after consecutive failures
+	nextPoll      map[string]time.Time
+	backoff       map[string]time.Duration
+	now           func() time.Time
 }
 
 func NewDiscovery(registry *Registry, b *bus.Bus) *Discovery {
 	return &Discovery{
-		registry:        registry,
-		bus:             b,
-		detectGPU:       DetectGPUMemory,
-		warmedModels:    make(map[string]bool),
-		warmingModels:   make(map[string]bool),
-		warmupFails:     make(map[string]int),
-		dormant:         make(map[string]bool),
-		nextPoll:        make(map[string]time.Time),
-		backoff:         make(map[string]time.Duration),
-		healthy:         make(map[string]bool),
-		healthyNextPoll: make(map[string]time.Time),
-		probing:         make(map[string]bool),
-		now:             time.Now,
+		registry:      registry,
+		bus:           b,
+		detectGPU:     DetectGPUMemory,
+		warmedModels:  make(map[string]bool),
+		warmingModels: make(map[string]bool),
+		warmupFails:   make(map[string]int),
+		dormant:       make(map[string]bool),
+		nextPoll:      make(map[string]time.Time),
+		backoff:       make(map[string]time.Duration),
+		now:           time.Now,
 		client: &http.Client{
 			Timeout: probeTimeout,
 		},
@@ -91,9 +75,6 @@ func (d *Discovery) SetAutoProfile(cfg *AutoProfileConfig) {
 // server starts accepting requests.
 func (d *Discovery) Start(ctx context.Context, ollamaURL, vllmURL, lmStudioURL string) {
 	ctx, d.cancel = context.WithCancel(ctx)
-	d.ollamaURL = ollamaURL
-	d.vllmURL = vllmURL
-	d.lmStudioURL = lmStudioURL
 
 	d.poll(ctx, ollamaURL, vllmURL, lmStudioURL)
 
@@ -131,56 +112,23 @@ func (d *Discovery) poll(ctx context.Context, ollamaURL, vllmURL, lmStudioURL st
 	}
 }
 
-// Rescan force-probes the URLs passed to Start, ignoring the healthy and
-// dormant schedules. An in-flight probe for the same provider is skipped.
-func (d *Discovery) Rescan(ctx context.Context) {
-	if d.ollamaURL != "" {
-		d.discoverOllama(ctx, d.ollamaURL)
-	}
-	if d.vllmURL != "" {
-		d.discoverVLLM(ctx, d.vllmURL)
-	}
-	if d.lmStudioURL != "" {
-		d.discoverLMStudio(ctx, d.lmStudioURL)
-	}
-}
-
 // shouldPoll reports whether a provider should be probed this tick.
-// Unconfirmed providers are probed every tick. Healthy providers wait
-// healthyPollInterval. Dormant providers wait until their backoff elapses.
+// Live providers are probed every tick. Dormant providers wait until their
+// backoff elapses so a late-start daemon can still reconnect.
 func (d *Discovery) shouldPoll(providerID string) bool {
-	d.dormantMu.Lock()
-	defer d.dormantMu.Unlock()
-	if d.dormant[providerID] {
-		next, ok := d.nextPoll[providerID]
-		if !ok {
-			return true
-		}
-		return !d.now().Before(next)
-	}
-	if d.healthy[providerID] {
-		next, ok := d.healthyNextPoll[providerID]
-		if ok && d.now().Before(next) {
-			return false
-		}
-	}
-	return true
-}
-
-func (d *Discovery) beginProbe(providerID string) bool {
-	d.dormantMu.Lock()
-	defer d.dormantMu.Unlock()
-	if d.probing[providerID] {
+	if d.registry.isFiltered(providerID) {
 		return false
 	}
-	d.probing[providerID] = true
-	return true
-}
-
-func (d *Discovery) endProbe(providerID string) {
 	d.dormantMu.Lock()
-	delete(d.probing, providerID)
-	d.dormantMu.Unlock()
+	defer d.dormantMu.Unlock()
+	if !d.dormant[providerID] {
+		return true
+	}
+	next, ok := d.nextPoll[providerID]
+	if !ok {
+		return true
+	}
+	return !d.now().Before(next)
 }
 
 // scheduleDormantPoll sets the next probe for a dormant provider.
@@ -227,13 +175,8 @@ type ollamaModelDetails struct {
 // handleDiscoveryFailure records a failure for a provider and removes it
 // after maxConsecutiveFailures consecutive failures.
 func (d *Discovery) handleDiscoveryFailure(providerID, providerName string, err error) {
-	d.dormantMu.Lock()
-	delete(d.healthy, providerID)
-	delete(d.healthyNextPoll, providerID)
-	d.dormantMu.Unlock()
-
 	count := d.registry.RecordFailure(providerID)
-	slog.Info("provider discovery failed",
+	slog.Warn("provider discovery failed",
 		"provider", providerID,
 		"error", err,
 		"consecutive_failures", count,
@@ -265,8 +208,6 @@ func (d *Discovery) handleDiscoverySuccess(providerID string) {
 	delete(d.dormant, providerID)
 	delete(d.nextPoll, providerID)
 	delete(d.backoff, providerID)
-	d.healthy[providerID] = true
-	d.healthyNextPoll[providerID] = d.now().Add(healthyPollInterval)
 	d.dormantMu.Unlock()
 
 	prev := d.registry.ResetFailures(providerID)
@@ -303,11 +244,6 @@ func (d *Discovery) diffModels(providerID string, newModels map[string]*Model) {
 }
 
 func (d *Discovery) discoverOllama(ctx context.Context, baseURL string) {
-	if !d.beginProbe("ollama") {
-		return
-	}
-	defer d.endProbe("ollama")
-
 	url := strings.TrimRight(baseURL, "/") + "/api/tags"
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -642,11 +578,6 @@ type vllmModel struct {
 }
 
 func (d *Discovery) discoverVLLM(ctx context.Context, baseURL string) {
-	if !d.beginProbe("vllm") {
-		return
-	}
-	defer d.endProbe("vllm")
-
 	url := strings.TrimRight(baseURL, "/") + "/v1/models"
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -769,11 +700,6 @@ func lmStudioToolCall(caps []string) bool {
 }
 
 func (d *Discovery) discoverLMStudio(ctx context.Context, baseURL string) {
-	if !d.beginProbe("lm-studio") {
-		return
-	}
-	defer d.endProbe("lm-studio")
-
 	base := strings.TrimRight(baseURL, "/")
 	models, err := d.fetchLMStudioNativeModels(ctx, base)
 	if err != nil {

@@ -423,6 +423,13 @@ func patchSessionAgent(client *api.Client, sessionID, agent string) tea.Cmd {
 	}
 }
 
+func patchSessionModel(client *api.Client, sessionID, providerID, modelID string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.UpdateSessionModel(sessionID, providerID, modelID)
+		return SessionModelPatchedMsg{Err: err}
+	}
+}
+
 // summarizeSession triggers manual context compaction via POST /session/{id}/summarize.
 func summarizeSession(client *api.Client, sessionID string) tea.Cmd {
 	return func() tea.Msg {
