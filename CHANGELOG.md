@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-10-12
+
+### Fixes
+- Compaction summary uses user role instead of system role, fixing HTTP 500 with providers that require user-role first messages (#728)
+- Capture Ollama's `"reasoning"` field alongside `"reasoning_content"` for qwen3 thinking tokens (#729)
+- Model selection syncs to the server so sub-agents inherit the correct model (#730)
+- `shouldPoll` checks `isFiltered` before probing disabled providers (#731)
+- `keep_alive: "30m"` sent with Ollama requests to prevent premature model unloading (#727)
+- Context pruning deduplicates on request (tool name + args), not response; a different command that prints nothing is no longer treated as a repeat (#713)
+- `safego.Go` wraps tool workers; `safego.LogPanic` captures stack traces (#713, #715)
+- Healthy providers probed every 15 minutes instead of 30 seconds; one failure returns to fast polling; `/connect` forces a rescan
+- `AppendBatch` wraps multi-message persistence in a transaction for atomicity (#724)
+- Hard-fail on message `List` and `ReplaceAll`/`Append` errors; soft-fail on `AddUsage` (#719, #720)
+- HTTP 401/403 error prefixes preserved in auth errors (#721)
+- Config `share` clamped to `"disabled"` on load (#722)
+- Doctor probes prefer `TINYCODE_OLLAMA_HOST` (#718)
+- Pilot unmarshal errors returned; mlflow `runId` typed (#723)
+- `waitUntil` test helper returns bool instead of calling `t.Fatal` from goroutine (#725)
+
+### Refactoring
+- Split 8 large files under 800-line limit: insights tools, rhoai-serving, rhoai-mlflow, provider discovery (#732-#735), plus TUI splits from v2.3.0
+- Removed `packages/plugin` (unused TypeScript plugin SDK) (#739)
+
+### Documentation
+- Package guides for `internal/session` and `internal/server` (AGENTS.md) documenting the Processor/SessionManager boundary (#736)
+- TUI screen ownership map (#737)
+- Plugin SDK boundary: external plugins use only `pkg/plugin` (#738)
+- Fedora 44 Go version caveat (ships 1.26.7, need 1.27.1+)
+- Updated docs sync: skills, agents, keys, queue, config help (#717)
+
 ## [2.3.0] - 2026-10-10
 
 ### Features
