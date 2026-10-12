@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 func makeTestThemes() []ColorTheme {
@@ -13,10 +12,6 @@ func makeTestThemes() []ColorTheme {
 		{ID: "light", Name: "Light"},
 		{ID: "solarized", Name: "Solarized"},
 	}
-}
-
-func makeAdaptiveColor(light, dark string) lipgloss.AdaptiveColor {
-	return lipgloss.AdaptiveColor{Light: light, Dark: dark}
 }
 
 func TestThemeDialog_InitiallyHidden(t *testing.T) {

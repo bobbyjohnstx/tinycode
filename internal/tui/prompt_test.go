@@ -330,7 +330,7 @@ func TestUpdate_EnterAddsToHistory(t *testing.T) {
 func TestUpdate_EnterEmptyDoesNotSubmit(t *testing.T) {
 	p := NewPromptInput(80)
 	// Empty textarea
-	p, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
 		t.Fatal("expected nil cmd for empty Enter")
 	}

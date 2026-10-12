@@ -472,7 +472,7 @@ func TestPermissionPrompt_Update_EscRejects(t *testing.T) {
 func TestPermissionPrompt_Update_IgnoresWhenNotVisible(t *testing.T) {
 	p := NewPermissionPrompt()
 	// Not visible
-	p, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
 		t.Error("expected no cmd when prompt not visible")
 	}
