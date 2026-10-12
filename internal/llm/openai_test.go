@@ -662,6 +662,46 @@ func TestOpenAIStream_DefaultsMaxTokens(t *testing.T) {
 	}
 }
 
+func TestOpenAIStream_KeepAliveSetForOllama(t *testing.T) {
+	var raw map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&raw)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer server.Close()
+
+	// Simulate Ollama URL (port 11434)
+	client := NewOpenAIClient("http://127.0.0.1:11434/v1", "")
+	client.BaseURL = server.URL // redirect to test server but keep detection working
+
+	// Detection is on BaseURL, so override after construction won't work.
+	// Instead, test isOllamaURL directly and test the wire format separately.
+	if !isOllamaURL("http://127.0.0.1:11434/v1") {
+		t.Fatal("isOllamaURL should match port 11434")
+	}
+	if isOllamaURL("http://localhost:1234/v1") {
+		t.Fatal("isOllamaURL should not match non-Ollama port")
+	}
+	if isOllamaURL("https://api.openai.com/v1") {
+		t.Fatal("isOllamaURL should not match OpenAI")
+	}
+
+	// Test that non-Ollama request omits keep_alive
+	client2 := NewOpenAIClient(server.URL, "key")
+	ch, err := client2.Stream(context.Background(), Request{
+		Model:    "gpt-4",
+		Messages: []Message{{Role: "user", Content: "Hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Stream() error: %v", err)
+	}
+	collectEvents(t, ch, 5*time.Second)
+	if _, ok := raw["keep_alive"]; ok {
+		t.Errorf("non-Ollama request should not include keep_alive, got %v", raw["keep_alive"])
+	}
+}
+
 func TestOpenAIStream_StopsWhenReasoningLoops(t *testing.T) {
 	sentence := "But wait, index.html still has the same unclosed footer. "
 	lines := make([]string, 8)

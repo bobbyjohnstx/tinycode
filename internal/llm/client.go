@@ -16,6 +16,7 @@ type Request struct {
 	TopP          *float64       `json:"top_p,omitempty"`
 	MaxTokens      *int           `json:"max_tokens,omitempty"`
 	ThinkingBudget *int           `json:"thinking_budget,omitempty"`
+	KeepAlive      string         `json:"keep_alive,omitempty"`
 }
 
 // UsesAnthropicProtocol reports whether requests should use the Anthropic

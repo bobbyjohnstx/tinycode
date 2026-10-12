@@ -172,7 +172,7 @@ ollama ps
 
 **How to keep a model loaded:**
 
-tinycode sends `keep_alive: "10m"` with all requests, keeping the model in memory for 10 minutes after the last request. If you're idle longer than that, the model unloads.
+tinycode sends `keep_alive: "30m"` with Ollama requests, keeping the model in memory for 30 minutes after the last request. If you're idle longer than that, the model unloads.
 
 For persistent loading, edit Ollama's config (platform-dependent):
 
@@ -206,7 +206,7 @@ curl -s --max-time 120 http://localhost:11434/api/chat \
       }
     }],
     "stream": false,
-    "keep_alive": "10m"
+    "keep_alive": "30m"
   }' | grep -o '"tool_calls"' || echo "NO TOOL CALLS"
 ```
 
@@ -644,7 +644,7 @@ These are baseline expectations for the first request (cold start).
 | 12B | 24GB | 40-80s | 3-6s | gemma4:12b, qwen3:14b |
 | 14B+ | 32GB+ | 60-120s | 4-8s | Large models, slower |
 
-**Why cold starts are slow:** The model must be loaded from disk into GPU/CPU memory. This is a one-time cost per model. After 10 minutes of idle time (configurable via `keep_alive`), the model unloads and the next request is slow again.
+**Why cold starts are slow:** The model must be loaded from disk into GPU/CPU memory. This is a one-time cost per model. After 30 minutes of idle time (configurable via `keep_alive`), the model unloads and the next request is slow again.
 
 ### Diagnosing Slow Responses
 

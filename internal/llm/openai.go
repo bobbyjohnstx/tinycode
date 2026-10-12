@@ -51,6 +51,9 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 	wire.Stream = true
 	wire.StreamOptions = &StreamOptions{IncludeUsage: true}
 	wire.ThinkingBudget = nil
+	if isOllamaURL(c.BaseURL) {
+		wire.KeepAlive = "30m"
+	}
 	tokenLimit := DefaultStreamTokens
 	if req.MaxTokens != nil && *req.MaxTokens > 0 {
 		tokenLimit = *req.MaxTokens
@@ -362,6 +365,10 @@ type chatCompletionToolCall struct {
 type chatCompletionFunction struct {
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
+}
+
+func isOllamaURL(baseURL string) bool {
+	return strings.Contains(baseURL, ":11434")
 }
 
 type chatCompletionUsage struct {
