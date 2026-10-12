@@ -769,11 +769,7 @@ func TestStdioTransport_HandleRequest(t *testing.T) {
 		t.Fatalf("HandleStdio error: %v", err)
 	}
 
-	// Concurrent dispatch may need a brief wait for the response write.
-	deadline := time.Now().Add(time.Second)
-	for output.Len() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 
 	var resp map[string]any
 	if err := json.Unmarshal(output.Bytes(), &resp); err != nil {
@@ -798,10 +794,7 @@ func TestStdioTransport_InvalidJSON(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	deadline := time.Now().Add(time.Second)
-	for output.Len() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 
 	var resp rpcResponse
 	json.Unmarshal(output.Bytes(), &resp)
@@ -828,10 +821,7 @@ func TestStdioTransport_WrongVersion(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	deadline := time.Now().Add(time.Second)
-	for output.Len() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 
 	var resp rpcResponse
 	json.Unmarshal(output.Bytes(), &resp)
@@ -905,17 +895,10 @@ func TestStdioTransport_MultipleRequests(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	deadline := time.Now().Add(time.Second)
-	for {
+	waitUntil(t, time.Second, func() bool {
 		lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-		if len(lines) >= 2 && lines[0] != "" {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("expected 2 responses, got: %s", output.String())
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+		return len(lines) >= 2 && lines[0] != ""
+	})
 
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
 	if len(lines) != 2 {
@@ -1178,10 +1161,7 @@ func TestStdioTransport_SendRequest(t *testing.T) {
 
 	// Client side: wait for outbound request, reply.
 	safego.Go(func() {
-		deadline := time.Now().Add(time.Second)
-		for output.Len() == 0 && time.Now().Before(deadline) {
-			time.Sleep(5 * time.Millisecond)
-		}
+		waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 		var req map[string]any
 		if err := json.Unmarshal(output.Bytes(), &req); err != nil {
 			t.Errorf("parse outbound: %v", err)
@@ -1758,10 +1738,7 @@ func TestStdioTransport_MissingMethod(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	deadline := time.Now().Add(time.Second)
-	for output.Len() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 
 	var resp rpcResponse
 	json.Unmarshal(output.Bytes(), &resp)
