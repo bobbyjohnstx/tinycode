@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/llm"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
@@ -482,5 +484,70 @@ func TestSwarmMaxIterations_AutoApproveFalse(t *testing.T) {
 	got := swarmMaxIterations(false)
 	if got != 0 {
 		t.Errorf("expected MaxIterations=0 (default) for autoApprove=false, got %d", got)
+	}
+}
+
+func TestProcessPrompt_ListError_PublishesSessionError(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	reg.Register(&provider.Info{
+		ID:   "test-provider",
+		Name: "Test",
+		Models: map[string]*provider.Model{
+			"test-model": {ID: "test-model", ProviderID: "test-provider", Name: "Test Model"},
+		},
+	})
+	agentReg := agent.NewRegistry()
+	if err := agentReg.LoadDefaults(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	toolReg := newToolRegistry(t, b)
+
+	store := session.NewStore(db)
+	info, err := store.Create(session.CreateInput{
+		ProjectID: "proj-list-fail",
+		Directory: t.TempDir(),
+		Title:     "list fail",
+		Agent:     "build",
+		Model:     &session.ModelRef{ProviderID: "test-provider", ModelID: "test-model"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, 1, 1, ?)`,
+		"msg_corrupt", info.ID, "not-json",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	mock := &mockLLMClient{}
+	sm := NewSessionManager(b, reg, db, t.TempDir(), toolReg, nil, agentReg, nil, nil, nil)
+	sm.SetClientFactory(func(_ *provider.Model) llm.Client { return mock })
+
+	errSub := b.Subscribe("session.error")
+	defer errSub.Unsubscribe()
+
+	done := make(chan struct{})
+	sm.processPrompt(context.Background(), PromptInput{
+		SessionID: info.ID,
+		Model:     &promptModel{ProviderID: "test-provider", ModelID: "test-model"},
+		Agent:     "build",
+		Parts:     []promptPart{{Type: "text", Text: "hello"}},
+	}, done)
+	<-done
+
+	if mock.callCount() != 0 {
+		t.Fatalf("expected LLM not called, got %d calls", mock.callCount())
+	}
+
+	select {
+	case evt := <-errSub.C:
+		props := evt.Properties.(map[string]any)
+		assertStructuredError(t, props, "UnknownError")
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for session.error")
 	}
 }

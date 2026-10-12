@@ -301,8 +301,12 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	ms := session.NewMessageStore(session.NewStore(sm.db))
 	existingMsgs, err := ms.List(sessionID)
 	if err != nil {
-		slog.Warn("failed to load existing messages, starting with empty history", "sessionID", sessionID, "error", err)
-		existingMsgs = nil
+		slog.Error("failed to load existing messages", "sessionID", sessionID, "error", err)
+		sm.bus.Publish("session.error", map[string]any{
+			"sessionID": sessionID,
+			"error":     sessionErrorPayload("UnknownError", err.Error()),
+		})
+		return
 	}
 
 	// On first prompt, fire session.start hook synchronously and inject

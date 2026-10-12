@@ -326,10 +326,10 @@ func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Reg
 }
 
 // resolveRunSession creates or continues a session. Returns session ID,
-// existing messages, and the message store. Exits on error.
+// existing messages, and the message store.
 // resumeFlag resolves like TUI --resume (ID, then title/slug). sessionIDFlag
 // requires an exact session ID (-s/--session).
-func resolveRunSession(db *storage.DB, sessionIDFlag, resumeFlag string, cont bool, title, dir, agentName, modelID, providerID string) (string, []session.Message, *session.MessageStore) {
+func resolveRunSession(db *storage.DB, sessionIDFlag, resumeFlag string, cont bool, title, dir, agentName, modelID, providerID string) (string, []session.Message, *session.MessageStore, error) {
 	store := session.NewStore(db.DB)
 	ms := session.NewMessageStore(store)
 	projectID := project.IDFromDirectory(dir)
@@ -337,27 +337,33 @@ func resolveRunSession(db *storage.DB, sessionIDFlag, resumeFlag string, cont bo
 	var sessionID string
 	var existingMsgs []session.Message
 
+	var err error
 	switch {
 	case resumeFlag != "":
 		sessionID = resolveResumeSessionID(store, projectID, resumeFlag)
 		if sessionID == "" {
-			fmt.Fprintf(os.Stderr, "error: session %q not found\n", resumeFlag)
-			os.Exit(1)
+			return "", nil, nil, fmt.Errorf("session %q not found", resumeFlag)
 		}
-		existingMsgs, _ = ms.List(sessionID)
+		existingMsgs, err = ms.List(sessionID)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("list messages for session %q: %w", sessionID, err)
+		}
 	case sessionIDFlag != "":
 		sessionID = sessionIDFlag
-		_, err := store.Get(sessionID)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: session %q not found: %v\n", sessionID, err)
-			os.Exit(1)
+		if _, err = store.Get(sessionID); err != nil {
+			return "", nil, nil, fmt.Errorf("session %q not found: %w", sessionID, err)
 		}
-		existingMsgs, _ = ms.List(sessionID)
+		existingMsgs, err = ms.List(sessionID)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("list messages for session %q: %w", sessionID, err)
+		}
 	case cont:
 		sessions, err := store.List(projectID, 1, 0, false)
-		if err != nil || len(sessions) == 0 {
-			fmt.Fprintf(os.Stderr, "error: no sessions to continue\n")
-			os.Exit(1)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("list sessions: %w", err)
+		}
+		if len(sessions) == 0 {
+			return "", nil, nil, fmt.Errorf("no sessions to continue")
 		}
 		sessionID = sessions[0].ID
 		if title != "" {
@@ -365,7 +371,10 @@ func resolveRunSession(db *storage.DB, sessionIDFlag, resumeFlag string, cont bo
 				slog.Warn("failed to update session title", "error", err)
 			}
 		}
-		existingMsgs, _ = ms.List(sessionID)
+		existingMsgs, err = ms.List(sessionID)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("list messages for session %q: %w", sessionID, err)
+		}
 	default:
 		info, err := store.Create(session.CreateInput{
 			ProjectID: projectID,
@@ -375,13 +384,12 @@ func resolveRunSession(db *storage.DB, sessionIDFlag, resumeFlag string, cont bo
 			Model:     &session.ModelRef{ModelID: modelID, ProviderID: providerID},
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error creating session: %v\n", err)
-			os.Exit(1)
+			return "", nil, nil, fmt.Errorf("creating session: %w", err)
 		}
 		sessionID = info.ID
 	}
 
-	return sessionID, existingMsgs, ms
+	return sessionID, existingMsgs, ms, nil
 }
 
 // resolveResumeSessionID tries session ID first, then title/slug match.
