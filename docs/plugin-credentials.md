@@ -2,10 +2,10 @@
 
 **Start here.** Each plugin reads an `options` object from the `plugins` list in config. The table under Quick Reference is the minimum that plugin needs. The sections after it are the full field list.
 
-Every tinycode plugin receives configuration via the `options` field in `config.json`. Options flow through the plugin SDK's `RunWithOptions` factory pattern: config file → plugin manager → JSON-RPC initialize → `parseOptions()` in the plugin.
+Every tinycode plugin receives configuration via the `options` field in your tinycode config file. Global config is loaded from `~/.config/tinycode/` using `tinycode.jsonc`, then `tinycode.json`, then `config.json`. Options flow through the plugin SDK's `RunWithOptions` factory pattern: config file → plugin manager → JSON-RPC initialize → `parseOptions()` in the plugin.
 
 ```jsonc
-// ~/.config/tinycode/config.json
+// ~/.config/tinycode/tinycode.jsonc (or tinycode.json / config.json)
 {
   "plugins": [
     {

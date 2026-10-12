@@ -131,7 +131,7 @@ See the [tinycode-operator repository](https://github.com/bobbyjohnstx/tinycode-
 
 ## Configuration
 
-tinycode reads configuration from `~/.config/tinycode/config.json` (JSONC format). Key settings for deployment:
+tinycode reads global configuration from `~/.config/tinycode/`, trying `tinycode.jsonc`, then `tinycode.json`, then `config.json` (JSONC supported). Key settings for deployment:
 
 | Setting | Description |
 |---------|-------------|
