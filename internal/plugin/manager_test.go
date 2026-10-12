@@ -137,7 +137,8 @@ func helperHandleToolCall(encoder *json.Encoder, req pkgplugin.JSONRPCRequest, b
 	_ = json.Unmarshal(req.Params, &params)
 
 	if behavior == "slow_then_ok" {
-		// First call is slow (exceeds short test timeout); later calls are fast.
+		// Timeout fixture: sleep must exceed the test's shortened toolCallTimeout
+		// (100ms). Not a synchronization wait.
 		flagPath := os.Getenv("GO_TEST_HELPER_SLOW_FLAG")
 		if flagPath != "" {
 			if _, err := os.Stat(flagPath); os.IsNotExist(err) {
@@ -467,7 +468,22 @@ func TestCallTool_TimeoutDoesNotKillProcess(t *testing.T) {
 	}
 
 	// Wait for the late response to drain so the next RPC can proceed.
-	time.Sleep(600 * time.Millisecond)
+	// Cannot rely on the next CallTool's waitForDrainIfNeeded: this test sets
+	// toolCallTimeout to 100ms while the helper delays 500ms.
+	mgr.mu.RLock()
+	proc := mgr.plugins[info.ID]
+	var drain chan struct{}
+	if proc != nil {
+		drain = proc.drainDone
+	}
+	mgr.mu.RUnlock()
+	if drain != nil {
+		select {
+		case <-drain:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for RPC drain")
+		}
+	}
 
 	content, _, err := mgr.CallTool(info.ID, "greet", json.RawMessage(`{"name":"world"}`), "sess1")
 	if err != nil {
