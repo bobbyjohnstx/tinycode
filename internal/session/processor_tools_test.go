@@ -324,6 +324,65 @@ func TestExecuteTools_ErrorPath_ReturnsErrorResult(t *testing.T) {
 	}
 }
 
+func TestExecuteTools_Panic_PublishesOneBusEvent(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	sub := b.Subscribe("session.tool.result")
+	defer sub.Unsubscribe()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses-panic-bus",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, &mockLLMClient{}, &panicToolExecutor{}, b)
+
+	toolCalls := []Part{
+		ToolCallPart("call-1", "read", `{"path":"a.go"}`),
+	}
+
+	results, allFailed := p.executeTools(context.Background(), toolCalls)
+	if !allFailed {
+		t.Error("expected allFailed=true for panicking tool")
+	}
+	if len(results) != 1 || !results[0].ToolError {
+		t.Fatalf("expected one failed tool result, got %+v", results)
+	}
+	if results[0].ToolResult != "tool panicked: unexpected nil pointer in read" {
+		t.Errorf("ToolResult = %q, want exact panic message", results[0].ToolResult)
+	}
+
+	var events int
+	deadline := time.After(2 * time.Second)
+collect:
+	for {
+		select {
+		case evt := <-sub.C:
+			events++
+			payload, ok := evt.Properties.(map[string]any)
+			if !ok {
+				t.Fatalf("unexpected payload type %T", evt.Properties)
+			}
+			if payload["isError"] != true {
+				t.Errorf("isError = %v, want true", payload["isError"])
+			}
+			// Drain any extras briefly; exactly one publish is required.
+			select {
+			case <-sub.C:
+				events++
+			case <-time.After(50 * time.Millisecond):
+				break collect
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for session.tool.result event")
+		}
+	}
+	if events != 1 {
+		t.Fatalf("session.tool.result events = %d, want 1", events)
+	}
+}
+
 func TestExecuteTools_SuccessPath_ReturnsOutput(t *testing.T) {
 	tools := &mockToolExecutor{
 		results: map[string]string{"read": "file contents here"},
