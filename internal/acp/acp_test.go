@@ -279,6 +279,44 @@ func (w *notifyBuffer) WaitWrite(t *testing.T, timeout time.Duration) {
 	}
 }
 
+// startRelaySession starts RunSession and waits until SubscribeAll has completed
+// so tests can Publish without a race.
+func startRelaySession(t *testing.T, relay *EventRelay, ctx context.Context, sid string) {
+	t.Helper()
+	ready := make(chan struct{})
+	safego.Go(func() { relay.runSession(ctx, sid, ready) })
+	select {
+	case <-ready:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for relay subscribe")
+	}
+}
+
+// startRelay starts Run and waits until SubscribeAll has completed.
+func startRelay(t *testing.T, relay *EventRelay, ctx context.Context) {
+	t.Helper()
+	ready := make(chan struct{})
+	safego.Go(func() { relay.run(ctx, ready) })
+	select {
+	case <-ready:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for relay subscribe")
+	}
+}
+
+// waitUntil polls ok until it returns true or timeout elapses.
+func waitUntil(t *testing.T, timeout time.Duration, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if ok() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("condition not met before deadline")
+}
+
 func testService(t *testing.T) (*Service, *bus.Bus, *mockSessionService) {
 	t.Helper()
 	b := bus.New()
@@ -731,11 +769,7 @@ func TestStdioTransport_HandleRequest(t *testing.T) {
 		t.Fatalf("HandleStdio error: %v", err)
 	}
 
-	// Concurrent dispatch may need a brief wait for the response write.
-	deadline := time.Now().Add(time.Second)
-	for output.Len() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 
 	var resp map[string]any
 	if err := json.Unmarshal(output.Bytes(), &resp); err != nil {
@@ -760,10 +794,7 @@ func TestStdioTransport_InvalidJSON(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	deadline := time.Now().Add(time.Second)
-	for output.Len() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 
 	var resp rpcResponse
 	json.Unmarshal(output.Bytes(), &resp)
@@ -790,10 +821,7 @@ func TestStdioTransport_WrongVersion(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	deadline := time.Now().Add(time.Second)
-	for output.Len() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 
 	var resp rpcResponse
 	json.Unmarshal(output.Bytes(), &resp)
@@ -867,17 +895,10 @@ func TestStdioTransport_MultipleRequests(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	deadline := time.Now().Add(time.Second)
-	for {
+	waitUntil(t, time.Second, func() bool {
 		lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-		if len(lines) >= 2 && lines[0] != "" {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("expected 2 responses, got: %s", output.String())
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+		return len(lines) >= 2 && lines[0] != ""
+	})
 
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
 	if len(lines) != 2 {
@@ -937,10 +958,7 @@ func TestEventRelay_TextMessage(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-
-	// Ensure subscription is active before publishing.
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("message.part.updated", map[string]any{
 		"sessionID": "ses_1",
@@ -976,8 +994,7 @@ func TestEventRelay_ReasoningMessage(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("message.part.updated", map[string]any{
 		"sessionID": "ses_1",
@@ -1006,8 +1023,7 @@ func TestEventRelay_IgnoresOtherSessions(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("message.part.updated", map[string]any{
 		"sessionID": "ses_other",
@@ -1017,12 +1033,13 @@ func TestEventRelay_IgnoresOtherSessions(t *testing.T) {
 		},
 	})
 
-	time.Sleep(30 * time.Millisecond)
-	cancel()
-
-	if output.Len() > 0 {
+	// Absence bound, not subscribe sync: filtered sessions must not write.
+	select {
+	case <-output.ch:
 		t.Errorf("expected no output for other session, got: %s", output.String())
+	case <-time.After(100 * time.Millisecond):
 	}
+	cancel()
 }
 
 func TestEventRelay_ToolEvents(t *testing.T) {
@@ -1036,8 +1053,7 @@ func TestEventRelay_ToolEvents(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("session.tool.begin", map[string]any{
 		"sessionID":  "ses_1",
@@ -1074,8 +1090,7 @@ func TestPrompt_E2E_InitializeNewPromptIdle(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.Run(ctx) })
-	time.Sleep(10 * time.Millisecond)
+	startRelay(t, relay, ctx)
 
 	if _, err := svc.HandleRequest(ctx, "initialize", nil); err != nil {
 		t.Fatalf("initialize: %s", err.Message)
@@ -1146,10 +1161,7 @@ func TestStdioTransport_SendRequest(t *testing.T) {
 
 	// Client side: wait for outbound request, reply.
 	safego.Go(func() {
-		deadline := time.Now().Add(time.Second)
-		for output.Len() == 0 && time.Now().Before(deadline) {
-			time.Sleep(5 * time.Millisecond)
-		}
+		waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 		var req map[string]any
 		if err := json.Unmarshal(output.Bytes(), &req); err != nil {
 			t.Errorf("parse outbound: %v", err)
@@ -1501,8 +1513,7 @@ func TestEventRelay_ToolEndEvent(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("session.tool.end", map[string]any{
 		"sessionID":  "ses_1",
@@ -1532,8 +1543,7 @@ func TestEventRelay_LegacyFlatMessagePart(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("message.part.updated", map[string]any{
 		"sessionID": "ses_1",
@@ -1564,8 +1574,7 @@ func TestEventRelay_LegacyFlatTextFallback(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("message.part.updated", map[string]any{
 		"sessionID": "ses_1",
@@ -1593,8 +1602,7 @@ func TestEventRelay_PartContentFallback(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("message.part.updated", map[string]any{
 		"sessionID": "ses_1",
@@ -1624,8 +1632,7 @@ func TestEventRelay_ToolBeginFallbackName(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("session.tool.begin", map[string]any{
 		"sessionID":  "ses_1",
@@ -1654,8 +1661,7 @@ func TestEventRelay_PermissionAskedMapForm(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("permission.asked", map[string]any{
 		"id":         "perm_1",
@@ -1663,8 +1669,12 @@ func TestEventRelay_PermissionAskedMapForm(t *testing.T) {
 		"permission": "bash",
 	})
 
-	// Give the goroutine time to process the event.
-	time.Sleep(50 * time.Millisecond)
+	// Absence bound, not subscribe sync: nil permSvc must not write or hang.
+	select {
+	case <-output.ch:
+		t.Errorf("expected no output with nil permSvc, got: %s", output.String())
+	case <-time.After(100 * time.Millisecond):
+	}
 	cancel()
 
 	// No panic or deadlock = success; handlePermissionAsked exits early with nil permSvc.
@@ -1681,8 +1691,7 @@ func TestEventRelay_PermissionAskedTypedRequest(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	safego.Go(func() { relay.RunSession(ctx, "ses_1") })
-	time.Sleep(10 * time.Millisecond)
+	startRelaySession(t, relay, ctx, "ses_1")
 
 	b.Publish("permission.asked", permission.Request{
 		ID:         "perm_1",
@@ -1690,7 +1699,12 @@ func TestEventRelay_PermissionAskedTypedRequest(t *testing.T) {
 		Permission: "bash",
 	})
 
-	time.Sleep(50 * time.Millisecond)
+	// Absence bound, not subscribe sync: nil permSvc must not write or hang.
+	select {
+	case <-output.ch:
+		t.Errorf("expected no output with nil permSvc, got: %s", output.String())
+	case <-time.After(100 * time.Millisecond):
+	}
 	cancel()
 }
 
@@ -1724,10 +1738,7 @@ func TestStdioTransport_MissingMethod(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	deadline := time.Now().Add(time.Second)
-	for output.Len() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
 
 	var resp rpcResponse
 	json.Unmarshal(output.Bytes(), &resp)
