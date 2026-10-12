@@ -80,6 +80,7 @@ These are not slash commands — they are tools the model can invoke during a co
 | Tool | What it does | When the model uses it |
 |------|-------------|----------------------|
 | `notepad` | Session-scoped scratch storage (read/write/list/delete, 50 entries max). Survives compaction. | To remember intermediate results, plans, or checklists across a long session. |
+| `question` | Ask the user a question. Shows a full-screen overlay with text input or option selection. Blocks until answered. | When the model needs clarification or a decision before continuing. |
 | `monitor` | Background process watcher with buffered event delivery (ring buffer, concurrent cap). | To watch a running process (e.g., build, test suite) and report output at turn boundaries. |
 | `report_findings` | Structured code review output — file, line, severity, summary per finding. | During code reviews to produce machine-readable, consistently formatted results. |
 | `notify` | Desktop notification with urgency levels. Supports WSL. Auto-fires on goal/subagent completion. | To alert you when a long-running task finishes or needs attention. |

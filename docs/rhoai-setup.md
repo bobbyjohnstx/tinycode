@@ -173,7 +173,7 @@ args:
 
 Supported parsers: `qwen3`, `deepseek_r1`, `granite`, `mistral`, `glm45`, `hunyuan_a13b`, `step3`.
 
-Without this flag, `<think>` tags appear as raw text in the assistant's response instead of being displayed as a collapsible thinking block.
+Without this flag, `<think>` tags are still handled — tinycode splits them into reasoning parts automatically — but the server-side parser is more efficient and avoids sending raw tags over the wire.
 
 **Note:** Qwen3-8B uses ~15.3 GB VRAM (vs 14.2 GB for Qwen 2.5 7B), which limits the context window to ~28,000 tokens on a 24GB GPU instead of 32,768.
 

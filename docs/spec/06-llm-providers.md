@@ -72,7 +72,8 @@ type Tool struct {
 3. Lines dispatched to event channel (capacity: 64)
 4. Timeout management: wall-clock cap (8 min) and per-completion token cap (8192)
 5. Reasoning loop detector: stops the stream when the model repeats "but wait" ≥4 times or the same sentence ≥3 times
-6. Context cancellation propagated to HTTP request
+6. Think tag splitter: `<think>...</think>` pairs in `delta.Content` are extracted into `EventReasoningDelta` events. Unclosed or nested tags are left as plain text.
+7. Context cancellation propagated to HTTP request
 
 ### JSON Repair
 

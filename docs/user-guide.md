@@ -493,6 +493,10 @@ Higher thinking levels give better results on complex tasks but use more tokens 
 
 Small models (9B–14B) sometimes enter reasoning loops — repeating "but wait" or restating the same sentence. tinycode detects this and stops the stream automatically. The default completion cap is 8192 tokens with an 8-minute wall clock. If a loop is detected earlier, the stream stops immediately and the model's partial answer is returned.
 
+### Think tag handling
+
+Models that emit `<think>...</think>` tags in their text output (such as Qwen3 without a server-side reasoning parser) have those tags automatically split into reasoning parts. The thinking content appears as a collapsible block in the TUI, the same as native `reasoning_content` fields. Unclosed or nested tags are left as plain text.
+
 ---
 
 ## Sessions

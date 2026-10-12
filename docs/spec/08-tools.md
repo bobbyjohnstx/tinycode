@@ -222,7 +222,7 @@ Ask the user a question. Source: `question.go`
 | `question` | string | yes | Question text |
 | `options` | string[] | no | Optional choices |
 
-Publishes `question.asked` event, subscribes to `question.reply`, and blocks until answer arrives (or context cancellation).
+Publishes `question.asked` event, subscribes to `question.replied`, and blocks until answer arrives (or context cancellation). The TUI displays a full-screen question overlay with text input (or option selection when choices are provided) and posts `POST /question/{id}/reply`. ACP and headless modes relay through their respective permission/event channels.
 
 **Permission:** `read`
 

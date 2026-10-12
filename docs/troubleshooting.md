@@ -269,6 +269,14 @@ When a loop is detected, the stream stops with a budget error and the model's pa
 2. Simplify the prompt — break the task into smaller steps
 3. Increase `experimental.doom_loop_threshold` in `tinycode.jsonc` if the model is making progress but hitting the identical-tool-call limit
 
+### Think tags showing as raw text
+
+**Problem:** The model's response shows `<think>...</think>` tags as plain text instead of a collapsible thinking block.
+
+**Solution:** tinycode now splits `<think>` tags from the text stream automatically. If you still see raw tags:
+1. Verify you're running v2.3.1+ (`tinycode version`)
+2. For vLLM, adding `--reasoning-parser` is still recommended for efficiency — it avoids sending raw tags over the wire
+
 ### Model doesn't support tool calling
 
 **Problem:** tinycode detects `capabilities.toolcall=false` for this model and skips tools entirely.

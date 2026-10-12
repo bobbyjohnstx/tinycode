@@ -130,7 +130,7 @@ type CompactionResult struct {
 }
 ```
 
-After compaction, the processor replaces old messages with the summary, preserving only the "preserve boundary" tail of recent messages. The prior summary is passed to subsequent compactions for incremental refinement.
+After compaction, the processor replaces old messages with the summary as a **user-role** message, preserving only the "preserve boundary" tail of recent messages. The prior summary is passed to subsequent compactions for incremental refinement. A blank summary (empty or whitespace-only) is treated as a compaction failure — the original messages are left in place.
 
 ## 5.7 Manual Summarize / Compact
 
