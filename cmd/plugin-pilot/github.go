@@ -61,7 +61,7 @@ func (g *githubProvider) handleStatus(status int) error {
 	}
 }
 
-func normalizeGitHubIssue(raw json.RawMessage) NormalizedIssue {
+func normalizeGitHubIssue(raw json.RawMessage) (NormalizedIssue, error) {
 	var data struct {
 		Number    int    `json:"number"`
 		Title     string `json:"title"`
@@ -74,7 +74,9 @@ func normalizeGitHubIssue(raw json.RawMessage) NormalizedIssue {
 			Name string `json:"name"`
 		} `json:"labels"`
 	}
-	_ = json.Unmarshal(raw, &data)
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return NormalizedIssue{}, fmt.Errorf("parsing GitHub issue: %w", err)
+	}
 
 	labels := make([]string, len(data.Labels))
 	for i, l := range data.Labels {
@@ -90,7 +92,7 @@ func normalizeGitHubIssue(raw json.RawMessage) NormalizedIssue {
 		URL:       data.HTMLURL,
 		CreatedAt: data.CreatedAt,
 		UpdatedAt: data.UpdatedAt,
-	}
+	}, nil
 }
 
 func (g *githubProvider) ListIssues(ctx context.Context, params ListIssuesParams) ([]NormalizedIssue, error) {
@@ -131,7 +133,11 @@ func (g *githubProvider) ListIssues(ctx context.Context, params ListIssuesParams
 
 	issues := make([]NormalizedIssue, len(rawIssues))
 	for i, raw := range rawIssues {
-		issues[i] = normalizeGitHubIssue(raw)
+		issue, err := normalizeGitHubIssue(raw)
+		if err != nil {
+			return nil, err
+		}
+		issues[i] = issue
 	}
 	return issues, nil
 }
@@ -159,7 +165,10 @@ func (g *githubProvider) CreateIssue(ctx context.Context, params CreateIssuePara
 		return nil, err
 	}
 
-	issue := normalizeGitHubIssue(body)
+	issue, err := normalizeGitHubIssue(body)
+	if err != nil {
+		return nil, err
+	}
 	return &issue, nil
 }
 
@@ -187,7 +196,10 @@ func (g *githubProvider) UpdateIssue(ctx context.Context, params UpdateIssuePara
 		return nil, err
 	}
 
-	issue := normalizeGitHubIssue(body)
+	issue, err := normalizeGitHubIssue(body)
+	if err != nil {
+		return nil, err
+	}
 	return &issue, nil
 }
 
@@ -211,7 +223,9 @@ func (g *githubProvider) CommentOnIssue(ctx context.Context, params CommentParam
 		HTMLURL   string `json:"html_url"`
 		CreatedAt string `json:"created_at"`
 	}
-	_ = json.Unmarshal(body, &data)
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("parsing GitHub comment: %w", err)
+	}
 
 	return &NormalizedComment{
 		ID:        data.ID,

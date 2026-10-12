@@ -13,6 +13,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/storage"
 )
@@ -675,6 +676,40 @@ func TestStreamRunOutput_TextToolProgressOnStderr(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "tool shell end (ok)") {
 		t.Errorf("stderr missing end: %q", stderr)
+	}
+}
+
+func TestResolveRunSession_ListError(t *testing.T) {
+	db, err := storage.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	dir := t.TempDir()
+	store := session.NewStore(db.DB)
+	info, err := store.Create(session.CreateInput{
+		ProjectID: project.IDFromDirectory(dir),
+		Directory: dir,
+		Title:     "test",
+		Model:     &session.ModelRef{ModelID: "m", ProviderID: "p"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, 1, 1, ?)`,
+		"msg_corrupt", info.ID, "not-json",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, _, err = resolveRunSession(db, info.ID, "", false, "", dir, "build", "m", "p")
+	if err == nil {
+		t.Fatal("expected error listing messages")
+	}
+	if !strings.Contains(err.Error(), "list messages") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 

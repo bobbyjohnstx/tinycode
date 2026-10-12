@@ -48,10 +48,12 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 | `/scoped-models` | Toggle model scoping (favorites). Only show preferred models in the picker. | When the provider has many models and you only use a few. |
 | `/diagnostics` | Show diagnostics info for bug reports. | When something isn't working and you need to report it. |
 | `/help` | Show this command reference and keybindings. | When you forget a command. |
+| `/clear-queue` | Clear all queued prompts waiting for the current turn. | When you queued prompts by mistake while the session was busy. |
+| `/queue clear` | Same as `/clear-queue`. | Alternate spelling. |
 
 ## Skills (AI-driven commands)
 
-Skills inject specialized instructions into the conversation. They're prompts, not code.
+Bundled skills (`doctor`, `mcp-setup`, `remember`, `deepinit`, `incident`, `change`, `host`) inject specialized instructions into the conversation. They're prompts, not code. Slash commands like `/review`, `/debug`, and `/plan` invoke **agents**, not bundled skills.
 
 | Command | What it does | When to use it |
 |---------|-------------|----------------|
@@ -92,10 +94,13 @@ These are not slash commands — they are tools the model can invoke during a co
 | `@` | File path completion |
 | `/` | Command completion |
 | `Ctrl+P` | Command palette |
+| `Ctrl+K` | Unified picker (sessions, models, agents) |
+| `Ctrl+F` | In-transcript search |
 | `Ctrl+R` | Open prompt history browser |
 | `Ctrl+S` | Stash current draft / restore stash (when empty) |
 | `Ctrl+C` | Clear prompt or quit |
 | `Ctrl+D` | Quit |
-| `Ctrl+X` | Leader key (then: `b` sidebar, `a` agents, `m` models, `o` sessions, `n` new session, `e` export, `y` copy, `u` undo, `r` redo, `d` diff, `t` theme) |
+| `Ctrl+X` | Leader key (then: `b` sidebar, `a` agents, `m` models, `o` sessions, `n` new session, `e` `$EDITOR`, `x` export, `i` MCP, `y` copy, `u` undo, `r` redo, `d` diff, `t` theme) |
+| `[Q:n]` | Status bar: `n` prompts queued while the session is working (cleared with `/clear-queue` or `/queue clear`) |
 | `Esc` | Dismiss dialog / interrupt active request |
 | `f` | Fork session at selected turn (in `/rewind` dialog) |

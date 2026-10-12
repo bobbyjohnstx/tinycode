@@ -1,21 +1,10 @@
-# AGENTS.md
+# AGENTS.md (TUI)
 
-Compact project instructions for AI agents. Prefer executable sources of truth over this file when they conflict.
-
-## Language / ecosystem
-
-- Primary: unknown (no go.mod / package.json / Cargo.toml / pyproject.toml / Makefile detected)
+Go terminal UI built with [bubbletea](https://github.com/charmbracelet/bubbletea) (Elm-style `Model` / `Update` / `View`).
 
 ## Commands
 
-- Build: `_(not detected — fill in)_`
-- Test: `_(not detected — fill in)_`
-- Lint: `_(not detected — fill in)_`
+- Test: `go test ./internal/tui/... -count=1`
+- Lint: `make lint` (from repo root)
 
-## Agent delegation
-
-- Use `build` for implementation and edits.
-- Use `plan` for design before large changes.
-- Use `architect` for read-only analysis.
-- Use `code-reviewer` for review of diffs and PRs.
-- Prefer `/ask <agent>` for specialists; keep Tab cycle for primary personas.
+Shared project rules, pitfalls, and commit conventions live in the repo root [AGENTS.md](../../AGENTS.md).

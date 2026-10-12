@@ -89,7 +89,7 @@ func stateEvent(state string) string {
 	return "reopen"
 }
 
-func normalizeGitLabIssue(raw json.RawMessage) NormalizedIssue {
+func normalizeGitLabIssue(raw json.RawMessage) (NormalizedIssue, error) {
 	var data struct {
 		IID         int      `json:"iid"`
 		Title       string   `json:"title"`
@@ -100,7 +100,9 @@ func normalizeGitLabIssue(raw json.RawMessage) NormalizedIssue {
 		CreatedAt   string   `json:"created_at"`
 		UpdatedAt   string   `json:"updated_at"`
 	}
-	_ = json.Unmarshal(raw, &data)
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return NormalizedIssue{}, fmt.Errorf("parsing GitLab issue: %w", err)
+	}
 
 	labels := data.Labels
 	if labels == nil {
@@ -116,7 +118,7 @@ func normalizeGitLabIssue(raw json.RawMessage) NormalizedIssue {
 		URL:       data.WebURL,
 		CreatedAt: data.CreatedAt,
 		UpdatedAt: data.UpdatedAt,
-	}
+	}, nil
 }
 
 func (g *gitlabProvider) ListIssues(ctx context.Context, params ListIssuesParams) ([]NormalizedIssue, error) {
@@ -158,7 +160,11 @@ func (g *gitlabProvider) ListIssues(ctx context.Context, params ListIssuesParams
 
 	issues := make([]NormalizedIssue, len(rawIssues))
 	for i, raw := range rawIssues {
-		issues[i] = normalizeGitLabIssue(raw)
+		issue, err := normalizeGitLabIssue(raw)
+		if err != nil {
+			return nil, err
+		}
+		issues[i] = issue
 	}
 	return issues, nil
 }
@@ -187,7 +193,10 @@ func (g *gitlabProvider) CreateIssue(ctx context.Context, params CreateIssuePara
 		return nil, err
 	}
 
-	issue := normalizeGitLabIssue(body)
+	issue, err := normalizeGitLabIssue(body)
+	if err != nil {
+		return nil, err
+	}
 	return &issue, nil
 }
 
@@ -216,7 +225,10 @@ func (g *gitlabProvider) UpdateIssue(ctx context.Context, params UpdateIssuePara
 		return nil, err
 	}
 
-	issue := normalizeGitLabIssue(body)
+	issue, err := normalizeGitLabIssue(body)
+	if err != nil {
+		return nil, err
+	}
 	return &issue, nil
 }
 
@@ -241,7 +253,9 @@ func (g *gitlabProvider) CommentOnIssue(ctx context.Context, params CommentParam
 		NoteableIID int    `json:"noteable_iid"`
 		CreatedAt   string `json:"created_at"`
 	}
-	_ = json.Unmarshal(body, &data)
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("parsing GitLab comment: %w", err)
+	}
 
 	commentURL := ""
 	if data.NoteableIID > 0 {

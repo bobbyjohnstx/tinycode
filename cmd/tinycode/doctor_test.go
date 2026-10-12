@@ -10,6 +10,37 @@ import (
 	"testing"
 )
 
+func TestOllamaURL(t *testing.T) {
+	const defaultURL = "http://127.0.0.1:11434"
+
+	tests := []struct {
+		name     string
+		tinycode string
+		ollama   string
+		want     string
+	}{
+		{name: "default when unset", want: defaultURL},
+		{name: "OLLAMA_HOST fallback", ollama: "http://ollama:11434", want: "http://ollama:11434"},
+		{name: "TINYCODE_OLLAMA_HOST preferred", tinycode: "http://tiny:11434", want: "http://tiny:11434"},
+		{
+			name:     "both set prefers TINYCODE_OLLAMA_HOST",
+			tinycode: "http://tiny:11434",
+			ollama:   "http://ollama:11434",
+			want:     "http://tiny:11434",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TINYCODE_OLLAMA_HOST", tt.tinycode)
+			t.Setenv("OLLAMA_HOST", tt.ollama)
+			if got := ollamaURL(); got != tt.want {
+				t.Errorf("ollamaURL() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestProviderPathUsable_Scenario(t *testing.T) {
 	tests := []struct {
 		name               string

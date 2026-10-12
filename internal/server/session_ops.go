@@ -301,8 +301,12 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	ms := session.NewMessageStore(session.NewStore(sm.db))
 	existingMsgs, err := ms.List(sessionID)
 	if err != nil {
-		slog.Warn("failed to load existing messages, starting with empty history", "sessionID", sessionID, "error", err)
-		existingMsgs = nil
+		slog.Error("failed to load existing messages", "sessionID", sessionID, "error", err)
+		sm.bus.Publish("session.error", map[string]any{
+			"sessionID": sessionID,
+			"error":     sessionErrorPayload("UnknownError", err.Error()),
+		})
+		return
 	}
 
 	// On first prompt, fire session.start hook synchronously and inject
@@ -401,7 +405,14 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		}
 	}
 
-	sm.persistPromptResult(result, existingMsgs, ms, sessionID)
+	if err := sm.persistPromptResult(result, existingMsgs, ms, sessionID); err != nil {
+		slog.Error("failed to persist prompt result", "error", err, "sessionID", sessionID)
+		sm.bus.Publish("session.error", map[string]any{
+			"sessionID": sessionID,
+			"error":     sessionErrorPayload("UnknownError", err.Error()),
+		})
+		return
+	}
 
 	// Drain buffered monitor output and inject as a follow-up prompt
 	// for the next turn. Published on the bus so the normal prompt

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/llm"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
@@ -301,7 +303,9 @@ func TestPersistPromptResult_NoopWhenResultIsNil(t *testing.T) {
 	ms := session.NewMessageStore(store)
 
 	// Should not panic when result is nil.
-	sm.persistPromptResult(nil, nil, ms, "ses_persist_1")
+	if err := sm.persistPromptResult(nil, nil, ms, "ses_persist_1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestPersistPromptResult_NoopWhenNoNewMessages(t *testing.T) {
@@ -323,7 +327,9 @@ func TestPersistPromptResult_NoopWhenNoNewMessages(t *testing.T) {
 	}
 
 	// Should not persist anything (no new messages).
-	sm.persistPromptResult(result, existing, ms, "ses_persist_2")
+	if err := sm.persistPromptResult(result, existing, ms, "ses_persist_2"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestPersistPromptResult_CompactedReplacesHistory(t *testing.T) {
@@ -364,7 +370,9 @@ func TestPersistPromptResult_CompactedReplacesHistory(t *testing.T) {
 		Compacted: true,
 		Usage:     session.TokenUsage{Input: 10, Output: 5},
 	}
-	sm.persistPromptResult(result, existing, ms, info.ID)
+	if err := sm.persistPromptResult(result, existing, ms, info.ID); err != nil {
+		t.Fatalf("persist: %v", err)
+	}
 
 	got, err := ms.List(info.ID)
 	if err != nil {
@@ -482,5 +490,200 @@ func TestSwarmMaxIterations_AutoApproveFalse(t *testing.T) {
 	got := swarmMaxIterations(false)
 	if got != 0 {
 		t.Errorf("expected MaxIterations=0 (default) for autoApprove=false, got %d", got)
+	}
+}
+
+func TestProcessPrompt_ListError_PublishesSessionError(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	reg.Register(&provider.Info{
+		ID:   "test-provider",
+		Name: "Test",
+		Models: map[string]*provider.Model{
+			"test-model": {ID: "test-model", ProviderID: "test-provider", Name: "Test Model"},
+		},
+	})
+	agentReg := agent.NewRegistry()
+	if err := agentReg.LoadDefaults(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	toolReg := newToolRegistry(t, b)
+
+	store := session.NewStore(db)
+	info, err := store.Create(session.CreateInput{
+		ProjectID: "proj-list-fail",
+		Directory: t.TempDir(),
+		Title:     "list fail",
+		Agent:     "build",
+		Model:     &session.ModelRef{ProviderID: "test-provider", ModelID: "test-model"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, 1, 1, ?)`,
+		"msg_corrupt", info.ID, "not-json",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	mock := &mockLLMClient{}
+	sm := NewSessionManager(b, reg, db, t.TempDir(), toolReg, nil, agentReg, nil, nil, nil)
+	sm.SetClientFactory(func(_ *provider.Model) llm.Client { return mock })
+
+	errSub := b.Subscribe("session.error")
+	defer errSub.Unsubscribe()
+
+	done := make(chan struct{})
+	sm.processPrompt(context.Background(), PromptInput{
+		SessionID: info.ID,
+		Model:     &promptModel{ProviderID: "test-provider", ModelID: "test-model"},
+		Agent:     "build",
+		Parts:     []promptPart{{Type: "text", Text: "hello"}},
+	}, done)
+	<-done
+
+	if mock.callCount() != 0 {
+		t.Fatalf("expected LLM not called, got %d calls", mock.callCount())
+	}
+
+	select {
+	case evt := <-errSub.C:
+		props := evt.Properties.(map[string]any)
+		assertStructuredError(t, props, "UnknownError")
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for session.error")
+	}
+}
+
+func TestPersistPromptResult_CompactReplaceAllFails(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
+
+	store := session.NewStore(db)
+	info, err := store.Create(session.CreateInput{ProjectID: "proj-1", Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms := session.NewMessageStore(store)
+
+	now := time.Now()
+	dupID := "dup_msg"
+	compacted := []session.Message{
+		{ID: dupID, SessionID: info.ID, Role: session.RoleUser, Parts: []session.Part{session.TextPart("a")}, CreatedAt: now},
+		{ID: dupID, SessionID: info.ID, Role: session.RoleAssistant, Parts: []session.Part{session.TextPart("b")}, CreatedAt: now.Add(time.Second)},
+	}
+	result := &session.ProcessResult{
+		Messages:  compacted,
+		Compacted: true,
+	}
+
+	err = sm.persistPromptResult(result, nil, ms, info.ID)
+	if err == nil {
+		t.Fatal("expected ReplaceAll error")
+	}
+}
+
+func TestPersistPromptResult_AppendFailsStopsFurtherAppends(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+	reg := provider.NewRegistry()
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
+
+	store := session.NewStore(db)
+	info, err := store.Create(session.CreateInput{ProjectID: "proj-1", Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms := session.NewMessageStore(store)
+
+	now := time.Now()
+	existing := []session.Message{
+		{ID: "msg_0", SessionID: info.ID, Role: session.RoleUser, Parts: []session.Part{session.TextPart("hi")}, CreatedAt: now},
+	}
+	if err := ms.Append(&existing[0]); err != nil {
+		t.Fatal(err)
+	}
+
+	dup := session.Message{
+		ID: "msg_dup", SessionID: info.ID, Role: session.RoleAssistant,
+		Parts: []session.Part{session.TextPart("first")}, CreatedAt: now.Add(time.Second),
+	}
+	if err := ms.Append(&dup); err != nil {
+		t.Fatal(err)
+	}
+
+	result := &session.ProcessResult{
+		Messages: []session.Message{
+			existing[0],
+			dup,
+			{ID: "msg_dup", SessionID: info.ID, Role: session.RoleAssistant, Parts: []session.Part{session.TextPart("second")}, CreatedAt: now.Add(2 * time.Second)},
+			{ID: "msg_never", SessionID: info.ID, Role: session.RoleAssistant, Parts: []session.Part{session.TextPart("never")}, CreatedAt: now.Add(3 * time.Second)},
+		},
+	}
+
+	err = sm.persistPromptResult(result, existing, ms, info.ID)
+	if err == nil {
+		t.Fatal("expected append error")
+	}
+
+	got, err := ms.List(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range got {
+		if m.ID == "msg_never" {
+			t.Fatal("msg_never should not be persisted after fail-fast")
+		}
+	}
+}
+
+func TestPersistPromptResult_AddUsageSoftFail(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	db := testDB(t)
+	if _, err := db.Exec(`CREATE TRIGGER block_session_usage BEFORE UPDATE ON session FOR EACH ROW BEGIN SELECT RAISE(ABORT, 'usage blocked'); END`); err != nil {
+		t.Fatal(err)
+	}
+
+	reg := provider.NewRegistry()
+	sm := NewSessionManager(b, reg, db, t.TempDir(), nil, nil, nil, nil, nil, nil)
+
+	store := session.NewStore(db)
+	info, err := store.Create(session.CreateInput{ProjectID: "proj-1", Directory: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms := session.NewMessageStore(store)
+
+	now := time.Now()
+	existing := []session.Message{
+		{ID: "msg_0", SessionID: info.ID, Role: session.RoleUser, Parts: []session.Part{session.TextPart("hi")}, CreatedAt: now},
+	}
+	newMsg := session.Message{
+		ID: "msg_1", SessionID: info.ID, Role: session.RoleAssistant,
+		Parts: []session.Part{session.TextPart("reply")}, CreatedAt: now.Add(time.Second),
+	}
+	result := &session.ProcessResult{
+		Messages: []session.Message{existing[0], newMsg},
+		Usage:    session.TokenUsage{Input: 5, Output: 3},
+	}
+
+	if err := sm.persistPromptResult(result, existing, ms, info.ID); err != nil {
+		t.Fatalf("AddUsage failure should be soft-fail, got: %v", err)
+	}
+
+	got, err := ms.List(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "msg_1" {
+		t.Fatalf("expected new message persisted despite AddUsage failure, got %+v", got)
 	}
 }

@@ -158,7 +158,11 @@ func runRun() {
 		}
 	}
 
-	sessionID, existingMsgs, ms := resolveRunSession(db, *sessionFlag, *resumeFlag, *continueFlag, *titleFlag, dir, agentName, modelID, providerID)
+	sessionID, existingMsgs, ms, err := resolveRunSession(db, *sessionFlag, *resumeFlag, *continueFlag, *titleFlag, dir, agentName, modelID, providerID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Create LLM client and processor
 	apiKey := ""

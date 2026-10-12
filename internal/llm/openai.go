@@ -97,7 +97,7 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 			logBody = logBody[:500] + "...(truncated)"
 		}
 		slog.Error("LLM HTTP error", "model", req.Model, "status", resp.StatusCode, "body", logBody, "elapsed", time.Since(start))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
+		return nil, httpStatusError(resp.StatusCode, string(respBody))
 	}
 
 	slog.Info("LLM stream started", "model", req.Model, "elapsed", time.Since(start))

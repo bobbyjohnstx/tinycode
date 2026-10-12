@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -334,6 +335,11 @@ func Load(directory string) (*Info, error) {
 
 	// Go does not implement session share; default hides web SPA share chrome.
 	if result.Share == "" {
+		result.Share = "disabled"
+	}
+	// Remove when session share routes exist.
+	if result.Share != "disabled" {
+		slog.Warn("share setting ignored; session share is not implemented", "share", result.Share)
 		result.Share = "disabled"
 	}
 
