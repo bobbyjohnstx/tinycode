@@ -1,16 +1,30 @@
 import { type ComponentProps } from "solid-js"
 
+// Compact v2 mark: the wordmark reduced to its slash and the "c" of code.
 export const Mark = (props: { class?: string }) => {
   return (
     <svg
       data-component="logo-mark"
       classList={{ [props.class ?? ""]: !!props.class }}
-      viewBox="0 0 16 20"
+      viewBox="0 0 40 40"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path data-slot="logo-logo-mark-shadow" d="M12 16H4V8H12V16Z" fill="var(--icon-weak-base)" />
-      <path data-slot="logo-logo-mark-o" d="M12 4H4V16H12V4ZM16 20H0V0H16V20Z" fill="var(--icon-strong-base)" />
+      <line
+        data-slot="logo-mark-slash"
+        x1="8"
+        y1="4"
+        x2="22"
+        y2="36"
+        stroke="var(--icon-strong-base)"
+        stroke-width="2.5"
+        stroke-linecap="round"
+      />
+      <g data-slot="logo-mark-c" fill="var(--icon-strong-base)">
+        <rect x="24" y="16" width="12" height="3" />
+        <rect x="24" y="16" width="3" height="14" />
+        <rect x="24" y="27" width="12" height="3" />
+      </g>
     </svg>
   )
 }

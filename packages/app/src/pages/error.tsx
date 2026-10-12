@@ -1,7 +1,7 @@
 import { TextField } from "@tinycode/ui/text-field"
 import { Logo } from "@tinycode/ui/logo"
 import { Button } from "@tinycode/ui/button"
-import { Component, onMount, Show } from "solid-js"
+import { Component, createSignal, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { usePlatform } from "@/context/platform"
 import { useLanguage } from "@/context/language"
@@ -213,6 +213,18 @@ function formatError(error: unknown, t: Translator): string {
   return formatErrorChain(error, t, 0)
 }
 
+const GITHUB_FEEDBACK_URL = "https://github.com/bobbyjohnstx/tinycode/issues/new"
+
+async function fetchServerVersion() {
+  const response = await fetch("/global/version", { credentials: "same-origin" })
+  if (!response.ok) return
+  const body = (await response.json()) as { version?: unknown }
+  if (typeof body.version !== "string") return
+  const version = body.version.trim()
+  if (!version || version === "dev") return
+  return version
+}
+
 interface ErrorPageProps {
   error: unknown
 }
@@ -240,8 +252,15 @@ export const ErrorPage: Component<ErrorPageProps> = (props) => {
     return recordedFatalError
   }
 
+  const [serverVersion, setServerVersion] = createSignal<string>()
+
   onMount(() => {
     void ensureFatalErrorRecorded().catch(() => undefined)
+    void fetchServerVersion()
+      .then((version) => {
+        if (version) setServerVersion(version)
+      })
+      .catch(() => undefined)
   })
 
   async function checkForUpdates() {
@@ -334,13 +353,13 @@ export const ErrorPage: Component<ErrorPageProps> = (props) => {
             <button
               type="button"
               class="flex items-center text-text-interactive-base gap-1"
-              onClick={() => platform.openLink("")}
+              onClick={() => platform.openLink(GITHUB_FEEDBACK_URL)}
             >
-              <div>{language.t("error.page.report.discord")}</div>
-              <Icon name="discord" class="text-text-interactive-base" />
+              <div>{language.t("error.page.report.github")}</div>
+              <Icon name="github" class="text-text-interactive-base" />
             </button>
           </div>
-          <Show when={platform.version}>
+          <Show when={serverVersion()}>
             {(version) => (
               <p class="text-xs text-text-weak">{language.t("error.page.version", { version: version() })}</p>
             )}

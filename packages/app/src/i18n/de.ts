@@ -417,7 +417,7 @@ export const dict = {
   "error.page.action.checkUpdates": "Nach Updates suchen",
   "error.page.action.updateTo": "Auf {{version}} aktualisieren",
   "error.page.report.prefix": "Bitte melden Sie diesen Fehler dem tinycode-Team",
-  "error.page.report.discord": "auf Discord",
+  "error.page.report.github": "auf GitHub",
   "error.page.version": "Version: {{version}}",
   "error.dev.rootNotFound":
     "Wurzelelement nicht gefunden. Haben Sie vergessen, es in Ihre index.html aufzunehmen? Oder wurde das id-Attribut falsch geschrieben?",

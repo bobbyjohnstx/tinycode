@@ -477,7 +477,7 @@ export const dict = {
   "error.page.action.updateTo": "Оновити до {{version}}",
   "error.page.circular": "[Циклічне]",
   "error.page.report.prefix": "Будь ласка, повідомте про цю помилку команді tinycode",
-  "error.page.report.discord": "на Discord",
+  "error.page.report.github": "на GitHub",
   "error.page.version": "Версія: {{version}}",
 
   "error.dev.rootNotFound":
