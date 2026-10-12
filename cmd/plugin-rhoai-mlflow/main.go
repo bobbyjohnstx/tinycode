@@ -99,6 +99,12 @@ type registeredModel struct {
 
 // --- experiment tracker types ---
 
+type runComparison struct {
+	RunID   string             `json:"runId"`
+	Metrics map[string]float64 `json:"metrics"`
+	Params  map[string]string  `json:"params"`
+}
+
 type lastRunInfo struct {
 	RunID    string             `json:"runId"`
 	Status   string             `json:"status"`
@@ -161,8 +167,8 @@ func (c *mlflowReadClient) listRuns(ctx context.Context, experimentID, filter st
 	return result.Runs, nil
 }
 
-func (c *mlflowReadClient) compareRuns(ctx context.Context, runIDs []string) ([]map[string]any, error) {
-	var comparisons []map[string]any
+func (c *mlflowReadClient) compareRuns(ctx context.Context, runIDs []string) ([]runComparison, error) {
+	var comparisons []runComparison
 	for _, id := range runIDs {
 		resp, err := c.api.Get(ctx, c.apiPrefix+"/runs/get", map[string]string{"run_id": id})
 		if err != nil {
@@ -182,10 +188,10 @@ func (c *mlflowReadClient) compareRuns(ctx context.Context, runIDs []string) ([]
 		for _, p := range result.Run.Data.Params {
 			params[p.Key] = p.Value
 		}
-		comparisons = append(comparisons, map[string]any{
-			"runId":   id,
-			"params":  params,
-			"metrics": metrics,
+		comparisons = append(comparisons, runComparison{
+			RunID:   id,
+			Params:  params,
+			Metrics: metrics,
 		})
 	}
 	return comparisons, nil
@@ -275,7 +281,7 @@ func formatRuns(runs []mlflowRun) string {
 	return strings.Join(lines, "\n")
 }
 
-func formatComparison(comparisons []map[string]any) string {
+func formatComparison(comparisons []runComparison) string {
 	if len(comparisons) == 0 {
 		return "No runs to compare."
 	}
@@ -284,15 +290,11 @@ func formatComparison(comparisons []map[string]any) string {
 	metricKeys := map[string]bool{}
 	paramKeys := map[string]bool{}
 	for _, c := range comparisons {
-		if m, ok := c["metrics"].(map[string]float64); ok {
-			for k := range m {
-				metricKeys[k] = true
-			}
+		for k := range c.Metrics {
+			metricKeys[k] = true
 		}
-		if p, ok := c["params"].(map[string]string); ok {
-			for k := range p {
-				paramKeys[k] = true
-			}
+		for k := range c.Params {
+			paramKeys[k] = true
 		}
 	}
 
@@ -302,7 +304,7 @@ func formatComparison(comparisons []map[string]any) string {
 	header := "| Key |"
 	sep := "| --- |"
 	for _, c := range comparisons {
-		runID := c["runId"].(string)
+		runID := c.RunID
 		short := runID
 		if len(short) > 8 {
 			short = short[:8]
@@ -317,10 +319,8 @@ func formatComparison(comparisons []map[string]any) string {
 		row := fmt.Sprintf("| %s |", key)
 		for _, c := range comparisons {
 			val := "-"
-			if p, ok := c["params"].(map[string]string); ok {
-				if v, ok := p[key]; ok {
-					val = v
-				}
+			if v, ok := c.Params[key]; ok {
+				val = v
 			}
 			row += fmt.Sprintf(" %s |", val)
 		}
@@ -332,10 +332,8 @@ func formatComparison(comparisons []map[string]any) string {
 		row := fmt.Sprintf("| %s |", key)
 		for _, c := range comparisons {
 			val := "-"
-			if m, ok := c["metrics"].(map[string]float64); ok {
-				if v, ok := m[key]; ok {
-					val = fmt.Sprintf("%.4f", v)
-				}
+			if v, ok := c.Metrics[key]; ok {
+				val = fmt.Sprintf("%.4f", v)
 			}
 			row += fmt.Sprintf(" %s |", val)
 		}

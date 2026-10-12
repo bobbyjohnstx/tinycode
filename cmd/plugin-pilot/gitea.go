@@ -60,7 +60,7 @@ func (g *giteaProvider) handleStatus(status int) error {
 	}
 }
 
-func normalizeGiteaIssue(raw json.RawMessage) NormalizedIssue {
+func normalizeGiteaIssue(raw json.RawMessage) (NormalizedIssue, error) {
 	var data struct {
 		Number    int    `json:"number"`
 		Title     string `json:"title"`
@@ -73,7 +73,9 @@ func normalizeGiteaIssue(raw json.RawMessage) NormalizedIssue {
 			Name string `json:"name"`
 		} `json:"labels"`
 	}
-	_ = json.Unmarshal(raw, &data)
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return NormalizedIssue{}, fmt.Errorf("parsing Gitea issue: %w", err)
+	}
 
 	labels := make([]string, len(data.Labels))
 	for i, l := range data.Labels {
@@ -89,7 +91,7 @@ func normalizeGiteaIssue(raw json.RawMessage) NormalizedIssue {
 		URL:       data.HTMLURL,
 		CreatedAt: data.CreatedAt,
 		UpdatedAt: data.UpdatedAt,
-	}
+	}, nil
 }
 
 func (g *giteaProvider) resolveLabels(ctx context.Context, owner, repo string, names []string) ([]int, error) {
@@ -176,7 +178,11 @@ func (g *giteaProvider) ListIssues(ctx context.Context, params ListIssuesParams)
 
 	issues := make([]NormalizedIssue, len(rawIssues))
 	for i, raw := range rawIssues {
-		issues[i] = normalizeGiteaIssue(raw)
+		issue, err := normalizeGiteaIssue(raw)
+		if err != nil {
+			return nil, err
+		}
+		issues[i] = issue
 	}
 	return issues, nil
 }
@@ -208,7 +214,10 @@ func (g *giteaProvider) CreateIssue(ctx context.Context, params CreateIssueParam
 		return nil, err
 	}
 
-	issue := normalizeGiteaIssue(body)
+	issue, err := normalizeGiteaIssue(body)
+	if err != nil {
+		return nil, err
+	}
 	return &issue, nil
 }
 
@@ -236,7 +245,10 @@ func (g *giteaProvider) UpdateIssue(ctx context.Context, params UpdateIssueParam
 		return nil, err
 	}
 
-	issue := normalizeGiteaIssue(body)
+	issue, err := normalizeGiteaIssue(body)
+	if err != nil {
+		return nil, err
+	}
 	return &issue, nil
 }
 
@@ -260,7 +272,9 @@ func (g *giteaProvider) CommentOnIssue(ctx context.Context, params CommentParams
 		HTMLURL   string `json:"html_url"`
 		CreatedAt string `json:"created_at"`
 	}
-	_ = json.Unmarshal(body, &data)
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("parsing Gitea comment: %w", err)
+	}
 
 	return &NormalizedComment{
 		ID:        data.ID,

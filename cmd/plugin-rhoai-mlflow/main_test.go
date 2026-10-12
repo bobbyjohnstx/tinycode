@@ -198,9 +198,9 @@ func TestFormatComparison(t *testing.T) {
 	})
 
 	t.Run("two runs", func(t *testing.T) {
-		comparisons := []map[string]any{
-			{"runId": "run-aaa", "metrics": map[string]float64{"loss": 0.5}, "params": map[string]string{"lr": "0.01"}},
-			{"runId": "run-bbb", "metrics": map[string]float64{"loss": 0.3}, "params": map[string]string{"lr": "0.001"}},
+		comparisons := []runComparison{
+			{RunID: "run-aaa", Metrics: map[string]float64{"loss": 0.5}, Params: map[string]string{"lr": "0.01"}},
+			{RunID: "run-bbb", Metrics: map[string]float64{"loss": 0.3}, Params: map[string]string{"lr": "0.001"}},
 		}
 		got := formatComparison(comparisons)
 		if !strings.Contains(got, "Comparison of 2 runs") {
