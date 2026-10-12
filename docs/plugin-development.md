@@ -28,7 +28,11 @@ The SDK provides three core types:
 - `plugin.ToolDef` -- a tool exposed to the LLM
 - `plugin.HookHandlers` -- optional lifecycle callbacks
 
----
+## Not this SDK
+
+External plugins use only `pkg/plugin`. The host registers each tool as `plugin__{pluginName}__{toolName}`; the plugin does not choose that id. Do not register builtins or MCP tools from a plugin.
+
+Shell hooks and `BuiltinHooks` are not this SDK. Shell hooks are in the [user guide](user-guide.md#shell-hooks). In-tree builtins are in [adding-a-tool.md](adding-a-tool.md).
 
 ## Quick start
 

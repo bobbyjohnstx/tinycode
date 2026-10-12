@@ -1,3 +1,9 @@
+// Package plugin is the SDK for external tinycode plugins. External plugins
+// use only this package. The host registers each tool as
+// plugin__{pluginName}__{toolName}; the plugin does not choose that id. Do not
+// register builtins or MCP tools from a plugin. Shell hooks and BuiltinHooks
+// are not this SDK. See docs/plugin-development.md ("Not this SDK"), the user
+// guide for shell hooks, and docs/adding-a-tool.md for in-tree builtins.
 package plugin
 
 import (
