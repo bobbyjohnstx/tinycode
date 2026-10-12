@@ -12,6 +12,9 @@ import (
 
 var (
 	oscHexFragment = regexp.MustCompile(`^[0-9a-fA-F]{1,4}(/[0-9a-fA-F]{1,4}){1,2}\\?$`)
+	// Split OSC rgb tail: optional r/g/b prefix (0–3), then : or /, then 1–3
+	// channels of exactly 4 hex digits. e.g. "b:0000/0000/0000", ":0000/0000/0000".
+	oscRGBTail = regexp.MustCompile(`^[rgb]{0,3}[:/][0-9a-fA-F]{4}(?:[:/][0-9a-fA-F]{4}){0,2}$`)
 	// Core CPR payload after optional mangled CSI/OSC prefixes are stripped.
 	cprCore        = regexp.MustCompile(`^\d{0,4};\d{1,4}R$`)
 	cprCorePartial = regexp.MustCompile(`^\d{0,4};?\d{0,4}$`)
@@ -119,7 +122,7 @@ func isTerminalEscape(s string) bool {
 	if strings.Contains(s, "rgb:") || strings.HasPrefix(s, "]10;") || strings.HasPrefix(s, "]11;") {
 		return true
 	}
-	if oscHexFragment.MatchString(s) {
+	if oscHexFragment.MatchString(s) || oscRGBTail.MatchString(s) {
 		return true
 	}
 	if cprCore.MatchString(stripCPRPrefix(s)) {
