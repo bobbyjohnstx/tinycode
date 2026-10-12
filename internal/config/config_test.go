@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -439,6 +440,35 @@ func TestLoad_ShareDefaultsDisabled(t *testing.T) {
 	}
 	if info.Share != "disabled" {
 		t.Errorf("Share = %q, want %q", info.Share, "disabled")
+	}
+}
+
+func TestLoad_ShareClamp(t *testing.T) {
+	tests := []struct {
+		name      string
+		shareJSON string
+		want      string
+	}{
+		{name: "manual clamped", shareJSON: `"manual"`, want: "disabled"},
+		{name: "auto clamped", shareJSON: `"auto"`, want: "disabled"},
+		{name: "disabled unchanged", shareJSON: `"disabled"`, want: "disabled"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("TINYCODE_CONFIG_DIR", dir)
+			path := filepath.Join(dir, "tinycode.jsonc")
+			if err := os.WriteFile(path, []byte(fmt.Sprintf(`{"share":%s}`, tt.shareJSON)), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			info, err := Load(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Share != tt.want {
+				t.Errorf("Share = %q, want %q", info.Share, tt.want)
+			}
+		})
 	}
 }
 
