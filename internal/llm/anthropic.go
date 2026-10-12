@@ -80,7 +80,7 @@ func (c *AnthropicClient) Stream(ctx context.Context, req Request, opts ...Strea
 		defer resp.Body.Close()
 		respBody, _ := io.ReadAll(resp.Body)
 		slog.Error("Anthropic HTTP error", "model", req.Model, "status", resp.StatusCode, "body", string(respBody), "elapsed", time.Since(start))
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
+		return nil, httpStatusError(resp.StatusCode, string(respBody))
 	}
 
 	slog.Info("Anthropic stream started", "model", req.Model, "elapsed", time.Since(start))

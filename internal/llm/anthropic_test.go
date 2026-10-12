@@ -153,6 +153,13 @@ func TestAnthropicStream_HTTPError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for 401 response")
 	}
+	msg := err.Error()
+	if !strings.HasPrefix(msg, "HTTP 401") {
+		t.Errorf("expected HTTP 401 prefix, got %q", msg)
+	}
+	if !strings.Contains(msg, "API key") {
+		t.Errorf("expected actionable API key hint, got %q", msg)
+	}
 }
 
 func TestAnthropicBuildRequest_SystemMessage(t *testing.T) {

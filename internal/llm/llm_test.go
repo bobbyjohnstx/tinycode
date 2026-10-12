@@ -258,8 +258,12 @@ func TestOpenAIClient_HTTPError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for 401")
 	}
-	if !strings.Contains(err.Error(), "401") {
-		t.Errorf("expected 401 in error, got %v", err)
+	msg := err.Error()
+	if !strings.HasPrefix(msg, "HTTP 401") {
+		t.Errorf("expected HTTP 401 prefix, got %v", err)
+	}
+	if !strings.Contains(msg, "API key") {
+		t.Errorf("expected actionable API key hint, got %v", err)
 	}
 }
 
