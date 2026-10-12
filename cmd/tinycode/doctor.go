@@ -227,7 +227,12 @@ func printProviderNextSteps() {
 	fmt.Println("    - or in the TUI: /connect")
 }
 
+// ollamaURL returns the Ollama base URL for doctor probes.
+// Keep in sync with startDiscovery in config.go.
 func ollamaURL() string {
+	if v := os.Getenv("TINYCODE_OLLAMA_HOST"); v != "" {
+		return v
+	}
 	if v := os.Getenv("OLLAMA_HOST"); v != "" {
 		return v
 	}
