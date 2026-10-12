@@ -405,7 +405,14 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		}
 	}
 
-	sm.persistPromptResult(result, existingMsgs, ms, sessionID)
+	if err := sm.persistPromptResult(result, existingMsgs, ms, sessionID); err != nil {
+		slog.Error("failed to persist prompt result", "error", err, "sessionID", sessionID)
+		sm.bus.Publish("session.error", map[string]any{
+			"sessionID": sessionID,
+			"error":     sessionErrorPayload("UnknownError", err.Error()),
+		})
+		return
+	}
 
 	// Drain buffered monitor output and inject as a follow-up prompt
 	// for the next turn. Published on the bus so the normal prompt

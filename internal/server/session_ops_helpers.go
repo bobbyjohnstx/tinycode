@@ -86,9 +86,10 @@ func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *prov
 
 // persistPromptResult saves new messages and token usage to the database.
 // When compaction occurred, the full compacted history replaces the prior rows.
-func (sm *SessionManager) persistPromptResult(result *session.ProcessResult, existingMsgs []session.Message, ms *session.MessageStore, sessionID string) {
+// ReplaceAll and Append failures are returned as errors; AddUsage failures are logged only.
+func (sm *SessionManager) persistPromptResult(result *session.ProcessResult, existingMsgs []session.Message, ms *session.MessageStore, sessionID string) error {
 	if result == nil {
-		return
+		return nil
 	}
 
 	sm.mu.Lock()
@@ -122,7 +123,7 @@ func (sm *SessionManager) persistPromptResult(result *session.ProcessResult, exi
 			applyIDMap(&msgs[i])
 		}
 		if err := ms.ReplaceAll(sessionID, msgs); err != nil {
-			slog.Error("failed to persist compacted messages", "error", err, "sessionID", sessionID)
+			return fmt.Errorf("persist compacted messages: %w", err)
 		}
 	} else if len(result.Messages) > len(existingMsgs) {
 		newMsgs := result.Messages[len(existingMsgs):]
@@ -130,18 +131,21 @@ func (sm *SessionManager) persistPromptResult(result *session.ProcessResult, exi
 			msg := newMsgs[i]
 			applyIDMap(&msg)
 			if err := ms.Append(&msg); err != nil {
-				slog.Error("failed to persist message", "error", err, "role", msg.Role, "sessionID", sessionID)
+				return fmt.Errorf("persist message: %w", err)
 			}
 		}
 	}
 
 	store := session.NewStore(sm.db)
-	_ = store.AddUsage(sessionID, 0, session.TokenUsage{
+	if err := store.AddUsage(sessionID, 0, session.TokenUsage{
 		Input:     result.Usage.Input,
 		Output:    result.Usage.Output,
 		Reasoning: result.Usage.Reasoning,
 		Cache:     result.Usage.Cache,
-	})
+	}); err != nil {
+		slog.Error("failed to add session usage", "error", err, "sessionID", sessionID)
+	}
+	return nil
 }
 
 // resolveAgentLLMParams returns Temperature/TopP preferring agent frontmatter
