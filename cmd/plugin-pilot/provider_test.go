@@ -13,15 +13,20 @@ import (
 
 func TestNormalizeIssues_InvalidJSON(t *testing.T) {
 	raw := json.RawMessage(`{not json`)
-	for _, fn := range []func(json.RawMessage) (NormalizedIssue, error){
-		normalizeGitHubIssue,
-		normalizeGitLabIssue,
-		normalizeGiteaIssue,
+	for _, tc := range []struct {
+		name string
+		fn   func(json.RawMessage) (NormalizedIssue, error)
+	}{
+		{"GitHub", normalizeGitHubIssue},
+		{"GitLab", normalizeGitLabIssue},
+		{"Gitea", normalizeGiteaIssue},
 	} {
-		_, err := fn(raw)
-		if err == nil {
-			t.Fatalf("%T: expected unmarshal error", fn)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tc.fn(raw)
+			if err == nil {
+				t.Fatal("expected unmarshal error")
+			}
+		})
 	}
 }
 

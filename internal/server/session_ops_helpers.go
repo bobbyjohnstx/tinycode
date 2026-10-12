@@ -127,12 +127,13 @@ func (sm *SessionManager) persistPromptResult(result *session.ProcessResult, exi
 		}
 	} else if len(result.Messages) > len(existingMsgs) {
 		newMsgs := result.Messages[len(existingMsgs):]
+		batch := make([]session.Message, len(newMsgs))
 		for i := range newMsgs {
-			msg := newMsgs[i]
-			applyIDMap(&msg)
-			if err := ms.Append(&msg); err != nil {
-				return fmt.Errorf("persist message: %w", err)
-			}
+			batch[i] = newMsgs[i]
+			applyIDMap(&batch[i])
+		}
+		if err := ms.AppendBatch(sessionID, batch); err != nil {
+			return fmt.Errorf("persist messages: %w", err)
 		}
 	}
 

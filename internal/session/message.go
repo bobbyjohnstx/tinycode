@@ -146,6 +146,43 @@ func (ms *MessageStore) Append(msg *Message) error {
 	return err
 }
 
+// AppendBatch atomically appends multiple messages in a single transaction.
+// If any insert fails, no messages are persisted.
+func (ms *MessageStore) AppendBatch(sessionID string, msgs []Message) error {
+	tx, err := ms.store.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for i := range msgs {
+		msg := msgs[i]
+		msg.SessionID = sessionID
+		data := messageData{
+			Role:   msg.Role,
+			Parts:  msg.Parts,
+			Model:  msg.Model,
+			Tokens: msg.Tokens,
+		}
+		dataJSON, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		nowMs := msg.CreatedAt.UnixMilli()
+		if nowMs == 0 {
+			nowMs = time.Now().UnixMilli()
+		}
+		if _, err := tx.Exec(
+			`INSERT INTO message (id, session_id, time_created, time_updated, data)
+			 VALUES (?, ?, ?, ?, ?)`,
+			msg.ID, sessionID, nowMs, nowMs, string(dataJSON),
+		); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // ReplaceAll atomically replaces all messages for a session with msgs.
 // Used after compaction so the durable history matches the in-memory compacted list.
 func (ms *MessageStore) ReplaceAll(sessionID string, msgs []Message) error {

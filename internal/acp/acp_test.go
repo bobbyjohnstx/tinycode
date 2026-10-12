@@ -305,16 +305,16 @@ func startRelay(t *testing.T, relay *EventRelay, ctx context.Context) {
 }
 
 // waitUntil polls ok until it returns true or timeout elapses.
-func waitUntil(t *testing.T, timeout time.Duration, ok func() bool) {
-	t.Helper()
+// Returns false if the deadline is exceeded (safe to call from any goroutine).
+func waitUntil(timeout time.Duration, ok func() bool) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if ok() {
-			return
+			return true
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatal("condition not met before deadline")
+	return false
 }
 
 func testService(t *testing.T) (*Service, *bus.Bus, *mockSessionService) {
@@ -769,7 +769,9 @@ func TestStdioTransport_HandleRequest(t *testing.T) {
 		t.Fatalf("HandleStdio error: %v", err)
 	}
 
-	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
+	if !waitUntil(time.Second, func() bool { return output.Len() > 0 }) {
+		t.Fatal("condition not met before deadline")
+	}
 
 	var resp map[string]any
 	if err := json.Unmarshal(output.Bytes(), &resp); err != nil {
@@ -794,7 +796,9 @@ func TestStdioTransport_InvalidJSON(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
+	if !waitUntil(time.Second, func() bool { return output.Len() > 0 }) {
+		t.Fatal("condition not met before deadline")
+	}
 
 	var resp rpcResponse
 	json.Unmarshal(output.Bytes(), &resp)
@@ -821,7 +825,9 @@ func TestStdioTransport_WrongVersion(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
+	if !waitUntil(time.Second, func() bool { return output.Len() > 0 }) {
+		t.Fatal("condition not met before deadline")
+	}
 
 	var resp rpcResponse
 	json.Unmarshal(output.Bytes(), &resp)
@@ -895,10 +901,12 @@ func TestStdioTransport_MultipleRequests(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	waitUntil(t, time.Second, func() bool {
+	if !waitUntil(time.Second, func() bool {
 		lines := strings.Split(strings.TrimSpace(output.String()), "\n")
 		return len(lines) >= 2 && lines[0] != ""
-	})
+	}) {
+		t.Fatal("condition not met before deadline")
+	}
 
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
 	if len(lines) != 2 {
@@ -1161,7 +1169,11 @@ func TestStdioTransport_SendRequest(t *testing.T) {
 
 	// Client side: wait for outbound request, reply.
 	safego.Go(func() {
-		waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
+		if !waitUntil(time.Second, func() bool { return output.Len() > 0 }) {
+			t.Errorf("condition not met before deadline")
+			cancel()
+			return
+		}
 		var req map[string]any
 		if err := json.Unmarshal(output.Bytes(), &req); err != nil {
 			t.Errorf("parse outbound: %v", err)
@@ -1738,7 +1750,9 @@ func TestStdioTransport_MissingMethod(t *testing.T) {
 
 	transport.HandleStdio(ctx, reader)
 
-	waitUntil(t, time.Second, func() bool { return output.Len() > 0 })
+	if !waitUntil(time.Second, func() bool { return output.Len() > 0 }) {
+		t.Fatal("condition not met before deadline")
+	}
 
 	var resp rpcResponse
 	json.Unmarshal(output.Bytes(), &resp)
