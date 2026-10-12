@@ -15,8 +15,14 @@ import (
 )
 
 const (
-	probeTimeout           = 2 * time.Second
-	pollInterval           = 30 * time.Second
+	probeTimeout = 2 * time.Second
+	pollInterval = 30 * time.Second
+	// healthyPollInterval is the gap between probes after a successful discovery.
+	// A local daemon that is not running (LM Studio on 127.0.0.1:1234 when it
+	// is not installed) is not a warning: failures log at info and, after
+	// maxConsecutiveFailures, use dormant backoff instead of a probe every
+	// pollInterval. That covers the noise in GitHub #39 / #28 without skipping
+	// LM Studio on the startup scan.
 	healthyPollInterval    = 15 * time.Minute
 	dormantPollInitial     = 2 * time.Minute
 	dormantPollMax         = 10 * time.Minute
