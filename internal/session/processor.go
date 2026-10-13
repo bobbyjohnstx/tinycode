@@ -206,7 +206,13 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 			"message":   *assistantMsg,
 		})
 
-		p.checkCompaction(ctx, *usage)
+		if err := p.checkCompaction(ctx, *usage); err != nil {
+			return &ProcessResult{
+				Messages: p.Messages(),
+				Usage:    totalUsage,
+				Error:    err,
+			}
+		}
 
 		toolCalls := extractToolCalls(assistantMsg)
 		hadToolCalls := len(toolCalls) > 0

@@ -220,18 +220,14 @@ func TestExecuteTools_CancelledContext_AbandonsPending(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(results))
 	}
-
-	// At least one should be "aborted".
-	abortedCount := 0
-	for _, r := range results {
-		if r.ToolResult == "aborted" {
-			abortedCount++
+	for i, r := range results {
+		if r.Type == "" {
+			t.Errorf("result %d has empty type; abort should wait for workers or fill aborted", i)
 		}
 	}
-	if abortedCount == 0 {
-		t.Error("expected at least one aborted tool result")
+	if !allFailed {
+		t.Error("expected allFailed=true when tools are cancelled")
 	}
-	_ = allFailed // may or may not be true depending on timing
 }
 
 func TestExecuteTools_CapsConcurrentCalls(t *testing.T) {

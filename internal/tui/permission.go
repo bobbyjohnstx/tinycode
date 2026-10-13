@@ -90,11 +90,16 @@ func (p *PermissionPrompt) ShowNext() bool {
 	return true
 }
 
-// DropQueued removes queued requests. When perm is shell or bash, only queued
-// shell requests are removed. An empty perm drops the whole queue.
+// DropQueued removes queued requests. An empty perm drops the whole queue
+// (Reject cascade). shell/bash drops only queued shell asks (Always on shell).
+// Any other permission leaves the queue unchanged so edit/read Always does not
+// hide prompts the server is still waiting on.
 func (p *PermissionPrompt) DropQueued(perm string) {
-	if perm == "" || !shellPermission(perm) {
+	if perm == "" {
 		p.queue = nil
+		return
+	}
+	if !shellPermission(perm) {
 		return
 	}
 	kept := p.queue[:0]

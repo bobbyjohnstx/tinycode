@@ -126,7 +126,7 @@ func (p *Processor) handleLLMError(ctx context.Context, err error, totalUsage To
 	slog.Error("callLLM failed", "sessionID", p.config.SessionID, "iteration", iteration, "error", err)
 	if provider.IsOverflow(err.Error()) {
 		beforeCount := len(p.Messages())
-		compacted, compactErr := p.compact(ctx, false)
+		compacted, compactErr := p.compact(ctx, true)
 		if compactErr != nil {
 			return &ProcessResult{
 				Messages: p.Messages(),
@@ -146,7 +146,8 @@ func (p *Processor) handleLLMError(ctx context.Context, err error, totalUsage To
 }
 
 // checkCompaction runs proactive overflow detection and message-count compaction.
-func (p *Processor) checkCompaction(ctx context.Context, usage TokenUsage) {
+// A trigger that cannot shrink the history stops the processor.
+func (p *Processor) checkCompaction(ctx context.Context, usage TokenUsage) error {
 	if p.config.Model != nil && p.config.Model.Limit.Context > 0 && usage.Input > 0 {
 		outputReserve := compactionOutputReserve(p.config.Model.Limit.Context, p.config.Model.Limit.Output)
 		threshold := p.config.Model.Limit.Context - outputReserve
@@ -159,8 +160,8 @@ func (p *Processor) checkCompaction(ctx context.Context, usage TokenUsage) {
 			}
 			if usage.Input >= threshold {
 				slog.Info("proactive compaction triggered", "sessionID", p.config.SessionID, "inputTokens", usage.Input, "threshold", threshold)
-				if _, compactErr := p.compact(ctx, false); compactErr != nil {
-					slog.Warn("proactive compaction failed", "sessionID", p.config.SessionID, "error", compactErr)
+				if err := p.compactOrStop(ctx, "proactive"); err != nil {
+					return err
 				}
 			}
 		}
@@ -168,10 +169,34 @@ func (p *Processor) checkCompaction(ctx context.Context, usage TokenUsage) {
 
 	if maxMsg := p.config.Compaction.MaxMessages; maxMsg > 0 && len(p.Messages()) >= maxMsg {
 		slog.Info("message-count compaction triggered", "sessionID", p.config.SessionID, "messages", len(p.Messages()), "maxMessages", maxMsg)
-		if _, compactErr := p.compact(ctx, false); compactErr != nil {
-			slog.Warn("message-count compaction failed", "sessionID", p.config.SessionID, "error", compactErr)
+		if err := p.compactOrStop(ctx, "message-count"); err != nil {
+			return err
 		}
 	}
+	return nil
+}
+
+// compactOrStop forces a summary when a limit is already exceeded. A no-op or
+// a failed summary is returned so the caller stops instead of calling the model again.
+func (p *Processor) compactOrStop(ctx context.Context, kind string) error {
+	before := len(p.Messages())
+	compacted, err := p.compact(ctx, true)
+	if err != nil {
+		slog.Warn("compaction failed", "sessionID", p.config.SessionID, "kind", kind, "error", err)
+		return fmt.Errorf("%s compaction failed: %w", kind, err)
+	}
+	if !compacted {
+		if before <= 2 {
+			return nil
+		}
+		slog.Warn("compaction made no progress", "sessionID", p.config.SessionID, "kind", kind, "messages", before)
+		return fmt.Errorf("%s compaction made no progress (%d messages)", kind, before)
+	}
+	if len(p.Messages()) >= before {
+		slog.Warn("compaction made no progress", "sessionID", p.config.SessionID, "kind", kind, "messages", len(p.Messages()))
+		return fmt.Errorf("%s compaction made no progress (%d messages)", kind, len(p.Messages()))
+	}
+	return nil
 }
 
 // tryAutoContinue checks if the processor should auto-continue after the LLM

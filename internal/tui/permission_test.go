@@ -365,6 +365,38 @@ func TestPermissionPrompt_ShowQueuesSecondRequest(t *testing.T) {
 	}
 }
 
+func TestPermissionPrompt_DropQueued_NonShellAlwaysKeepsQueue(t *testing.T) {
+	p := NewPermissionPrompt()
+	p.Show(PermissionRequest{ID: "perm-1", Permission: "edit"})
+	p.Show(PermissionRequest{ID: "perm-2", Permission: "read"})
+	p.Show(PermissionRequest{ID: "perm-3", Permission: "shell"})
+	p.Hide()
+
+	p.DropQueued("edit")
+	if !p.ShowNext() || p.request.ID != "perm-2" {
+		t.Fatalf("after edit Always, next = %#v, want perm-2 still queued", p.request)
+	}
+	if !p.ShowNext() || p.request.ID != "perm-3" {
+		t.Fatalf("shell ask should remain queued, got %#v", p.request)
+	}
+}
+
+func TestPermissionPrompt_DropQueued_ShellAlwaysDropsShellOnly(t *testing.T) {
+	p := NewPermissionPrompt()
+	p.Show(PermissionRequest{ID: "perm-1", Permission: "shell"})
+	p.Show(PermissionRequest{ID: "perm-2", Permission: "edit"})
+	p.Show(PermissionRequest{ID: "perm-3", Permission: "bash"})
+	p.Hide()
+
+	p.DropQueued("shell")
+	if !p.ShowNext() || p.request.ID != "perm-2" {
+		t.Fatalf("next = %#v, want perm-2 (edit)", p.request)
+	}
+	if p.ShowNext() {
+		t.Fatalf("unexpected queued request after shell Always: %#v", p.request)
+	}
+}
+
 func TestPermissionPrompt_ShowAndHide(t *testing.T) {
 	p := NewPermissionPrompt()
 	if p.IsVisible() {

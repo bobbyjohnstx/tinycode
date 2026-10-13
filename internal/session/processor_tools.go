@@ -149,26 +149,42 @@ launch:
 	collected := 0
 	for collected < len(toolCalls) {
 		select {
-		case tr := <-ch:
+		case tr, ok := <-ch:
+			if !ok {
+				goto fillAborted
+			}
 			results[tr.index] = tr.result
 			if !tr.failed {
 				allFailed = false
 			}
 			collected++
 		case <-ctx.Done():
-			// Context cancelled (abort). Fill uncollected slots with abort markers
-			// so the message has valid tool results. The next iteration's
-			// checkAbortAndContext will stop the processor.
-			for i := range results {
-				if results[i].Type == "" {
-					results[i] = ToolResultPart(toolCalls[i].ToolCallID, toolCalls[i].ToolName, "aborted", true)
-					p.publishToolResult(toolCalls[i], "aborted", true)
+			// Abort: wait for in-flight workers (bounded by toolExecuteTimeout)
+			// so we do not leak goroutines or double-publish results.
+			for tr := range ch {
+				if results[tr.index].Type == "" {
+					results[tr.index] = tr.result
+					if !tr.failed {
+						allFailed = false
+					}
 				}
 			}
-			return results, true
+			goto fillAborted
 		}
 	}
+	return results, allFailed
 
+fillAborted:
+	allFailed = true
+	for i := range results {
+		if results[i].Type == "" {
+			results[i] = ToolResultPart(toolCalls[i].ToolCallID, toolCalls[i].ToolName, "aborted", true)
+			p.publishToolResult(toolCalls[i], "aborted", true)
+		}
+		if !results[i].ToolError {
+			allFailed = false
+		}
+	}
 	return results, allFailed
 }
 

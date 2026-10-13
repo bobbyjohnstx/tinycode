@@ -298,11 +298,16 @@ func (p *Processor) recoverStreamBudget(ctx context.Context, iteration int, msg 
 	slog.Info("stream budget produced no answer", "sessionID", p.config.SessionID, "iteration", iteration)
 	p.addUserMessage(answerFollowUp, "")
 	msg2, usage2, err2 := p.runLLMStep(ctx, iteration)
-	usage.Input += usage2.Input
-	usage.Output += usage2.Output
-	usage.Reasoning += usage2.Reasoning
-	usage.Cache.Read += usage2.Cache.Read
-	usage.Cache.Write += usage2.Cache.Write
+	if usage == nil {
+		usage = &TokenUsage{}
+	}
+	if usage2 != nil {
+		usage.Input += usage2.Input
+		usage.Output += usage2.Output
+		usage.Reasoning += usage2.Reasoning
+		usage.Cache.Read += usage2.Cache.Read
+		usage.Cache.Write += usage2.Cache.Write
+	}
 	if errors.Is(err2, llm.ErrStreamBudget) && messageHasVisibleAnswer(msg2) {
 		return msg2, usage, nil
 	}
@@ -347,13 +352,12 @@ func (p *Processor) Compact(ctx context.Context) (bool, error) {
 
 func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	p.mu.Lock()
-	p.compactionCount++
 	compNum := p.compactionCount
 	messages := append([]Message(nil), p.messages...)
 	p.mu.Unlock()
 
-	if compNum > compactionCircuitBreakerThreshold {
-		return false, fmt.Errorf("compaction circuit breaker: %d attempts without progress", compNum)
+	if compNum >= compactionCircuitBreakerThreshold {
+		return false, fmt.Errorf("compaction circuit breaker: max %d attempts reached", compactionCircuitBreakerThreshold)
 	}
 
 	estimator := NewLazyEstimator(0.25)
@@ -379,6 +383,11 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 			return false, nil
 		}
 	}
+
+	p.mu.Lock()
+	p.compactionCount++
+	compNum = p.compactionCount
+	p.mu.Unlock()
 
 	toCompact := messages[:preserveIdx]
 	preserved := messages[preserveIdx:]
@@ -441,6 +450,7 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	p.messages = append([]Message{summaryMsg}, preserved...)
 	p.priorSummary = summary
 	p.compacted = true
+	p.compactionCount = 0
 	p.mu.Unlock()
 
 	p.bus.Publish("session.compacted", map[string]any{

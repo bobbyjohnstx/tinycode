@@ -1242,3 +1242,226 @@ func TestProcessor_Compact_ReasoningOnlyKeepsMessages(t *testing.T) {
 		}
 	}
 }
+
+func shortHistory(sessionID string, n int) []Message {
+	now := time.Now()
+	msgs := make([]Message, n)
+	for i := 0; i < n; i++ {
+		role := RoleUser
+		if i%2 == 1 {
+			role = RoleAssistant
+		}
+		msgs[i] = Message{
+			ID:        fmt.Sprintf("msg_%d", i),
+			SessionID: sessionID,
+			Role:      role,
+			Parts:     []Part{TextPart("hi")},
+			CreatedAt: now.Add(time.Duration(i) * time.Second),
+		}
+	}
+	return msgs
+}
+
+func TestCheckCompaction_UsesPerIterationTokens(t *testing.T) {
+	// Each step reports 50k input. Cumulative would be 100k (over the 80k
+	// threshold); per-iteration stays under and must not compact.
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventToolCallBegin, ToolCallID: "c1", ToolName: "read"},
+				{Type: llm.EventToolCallEnd, ToolCallID: "c1", ToolName: "read", ToolCallArgs: `{"path":"a.go"}`},
+				{Type: llm.EventFinish, FinishReason: "tool_calls", Usage: &llm.Usage{PromptTokens: 50000, CompletionTokens: 10}},
+			}},
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "done"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 50000, CompletionTokens: 5}},
+			}},
+		},
+	}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_per_iter",
+		Model:           &provider.Model{ID: "test-model", Limit: provider.ModelLimit{Context: 100000, Output: 4096}},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, client, &mockToolExecutor{results: map[string]string{"read": "ok"}}, b)
+
+	result := p.Process(context.Background(), "go")
+	if result.Error != nil {
+		t.Fatalf("Process: %v", result.Error)
+	}
+	if p.compactionCount != 0 {
+		t.Fatalf("compactionCount = %d, want 0 (cumulative would have tripped)", p.compactionCount)
+	}
+	if p.compacted {
+		t.Fatal("history was compacted from cumulative tokens")
+	}
+}
+
+func TestCheckCompaction_ForcesWhenEstimatorKeepsHistory(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "summary of earlier reads"},
+				{Type: llm.EventFinish, FinishReason: "stop"},
+			}},
+		},
+	}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses_force",
+		Model:     &provider.Model{ID: "test-model", Limit: provider.ModelLimit{Context: 10000, Output: 1024}},
+		Compaction: CompactionConfig{
+			MaxPreserve: MaxPreserveRecentTokens,
+			MaxMessages: 0,
+		},
+		AutoContinueMax: -1,
+	}, client, &stubToolExecutor{}, b)
+	p.SetMessages(shortHistory("ses_force", 6))
+
+	if err := p.checkCompaction(context.Background(), TokenUsage{Input: 9000}); err != nil {
+		t.Fatalf("checkCompaction: %v", err)
+	}
+	got := p.Messages()
+	if len(got) >= 6 {
+		t.Fatalf("message count = %d, want history shrunk", len(got))
+	}
+	if got[0].Role != RoleUser || !strings.Contains(got[0].Parts[0].Text, "summary of earlier reads") {
+		t.Fatalf("summary = %+v", got[0])
+	}
+	if p.compactionCount != 0 {
+		t.Fatalf("compactionCount = %d after success, want 0", p.compactionCount)
+	}
+}
+
+func TestCheckCompaction_StopsWhenForcedSummaryEmpty(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventReasoningDelta, Text: "only thinking"},
+			}},
+		},
+	}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses_force_empty",
+		Model:     &provider.Model{ID: "test-model", Limit: provider.ModelLimit{Context: 10000, Output: 1024}},
+		Compaction: CompactionConfig{
+			MaxPreserve: MaxPreserveRecentTokens,
+			MaxMessages: 0,
+		},
+		AutoContinueMax: -1,
+	}, client, &stubToolExecutor{}, b)
+	p.SetMessages(shortHistory("ses_force_empty", 6))
+
+	err := p.checkCompaction(context.Background(), TokenUsage{Input: 9000})
+	if err == nil {
+		t.Fatal("expected compaction failure to stop the processor")
+	}
+	if len(p.Messages()) != 6 {
+		t.Fatalf("message count = %d, want 6", len(p.Messages()))
+	}
+}
+
+func TestProcess_CompactionErrorKeepsAssistantMessage(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "visible answer"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 9000, CompletionTokens: 5}},
+			}},
+		},
+	}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses_keep_asst",
+		Model:     &provider.Model{ID: "test-model", Limit: provider.ModelLimit{Context: 10000, Output: 1024}},
+		Compaction: CompactionConfig{
+			MaxPreserve: MaxPreserveRecentTokens,
+			MaxMessages: 0,
+		},
+		AutoContinueMax: -1,
+	}, client, &stubToolExecutor{}, b)
+	p.SetMessages(shortHistory("ses_keep_asst", 6))
+	p.compactionCount = compactionCircuitBreakerThreshold
+
+	result := p.Process(context.Background(), "continue")
+	if result.Error == nil {
+		t.Fatal("expected compaction circuit breaker to stop Process")
+	}
+	found := false
+	for _, m := range result.Messages {
+		if m.Role == RoleAssistant {
+			for _, part := range m.Parts {
+				if strings.Contains(part.Text, "visible answer") {
+					found = true
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("assistant message missing from error result: %+v", result.Messages)
+	}
+}
+
+func TestHandleLLMError_NoProgressDoesNotRetry(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{events: []llm.Event{
+				{Type: llm.EventReasoningDelta, Text: "no text"},
+			}},
+		},
+	}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses_overflow_nop",
+		Model:           &provider.Model{ID: "test-model", Limit: provider.ModelLimit{Context: 10000, Output: 1024}},
+		Compaction:      CompactionConfig{MaxPreserve: MaxPreserveRecentTokens},
+		AutoContinueMax: -1,
+	}, client, &stubToolExecutor{}, b)
+	p.SetMessages(shortHistory("ses_overflow_nop", 6))
+
+	result := p.handleLLMError(context.Background(), errors.New("context_length_exceeded"), TokenUsage{}, 1)
+	if result == nil {
+		t.Fatal("expected stop (not retry) when forced compaction makes no progress")
+	}
+	if result.Error == nil {
+		t.Fatal("expected error when forced compaction fails")
+	}
+}
+
+func TestRecoverStreamBudget_NilUsageOnRecoveryFailure(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{
+			{err: errors.New("upstream unavailable")},
+		},
+	}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses_nil_usage",
+		Model:     &provider.Model{ID: "test-model"},
+	}, client, &stubToolExecutor{}, b)
+	p.SetMessages([]Message{{
+		Role:  RoleTool,
+		Parts: []Part{ToolResultPart("call", "read", "contents", false)},
+	}})
+
+	got, usage, err := p.recoverStreamBudget(context.Background(), 1, &Message{
+		Parts: []Part{ReasoningPart("thinking")},
+	}, nil, llm.ErrStreamBudget)
+	if err == nil {
+		t.Fatal("expected recovery error")
+	}
+	if usage == nil {
+		t.Fatal("expected non-nil usage even when both calls lack usage")
+	}
+	if got != nil && messageHasVisibleAnswer(got) {
+		t.Fatalf("unexpected answer: %#v", got)
+	}
+}
