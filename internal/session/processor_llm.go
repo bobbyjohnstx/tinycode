@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -448,6 +449,26 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 		"preMessages":   len(messages),
 		"postMessages":  len(preserved) + 1,
 	})
+
+	if len(readFiles) > 0 || len(modifiedFiles) > 0 {
+		seen := make(map[string]bool)
+		var paths []string
+		for _, f := range readFiles {
+			if !seen[f] {
+				seen[f] = true
+				paths = append(paths, f)
+			}
+		}
+		for _, f := range modifiedFiles {
+			if !seen[f] {
+				seen[f] = true
+				paths = append(paths, f)
+			}
+		}
+		sort.Strings(paths)
+		hint := "Files already read before compaction: " + strings.Join(paths, ", ") + ". Do not re-read unless their content has changed."
+		p.addUserMessage(hint, "")
+	}
 
 	return true, nil
 }

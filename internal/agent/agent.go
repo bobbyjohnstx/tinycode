@@ -245,13 +245,13 @@ func (r *Registry) ApplyConfigOverrides(overrides map[string]ConfigOverride, def
 	}
 }
 
-// Get retrieves an agent by name. If modelSizeB is provided and <= 8,
+// Get retrieves an agent by name. If modelSizeB is provided and <= 14,
 // the compact variant is returned if available. Disabled agents are never served.
 func (r *Registry) Get(name string, modelSizeB *float64) *Info {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	if modelSizeB != nil && *modelSizeB <= 8 {
+	if modelSizeB != nil && *modelSizeB <= 14 {
 		compact := r.agents[name+".compact"]
 		if compact != nil && !compact.Disabled {
 			result := *compact

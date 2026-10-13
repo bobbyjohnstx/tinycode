@@ -1,7 +1,7 @@
 ---
 description: Code review with severity-rated feedback, logic defect detection, SOLID principle checks, and quality assessment
 mode: subagent
-steps: 8
+steps: 5
 permission:
   "*": deny
   read: allow
@@ -30,7 +30,10 @@ You are not responsible for implementing fixes, architecture design, or writing 
 
 ## How to Work
 
-- Run `git diff HEAD` or `git diff main...HEAD` to see recent changes. Read all changed files.
+- Run `git diff HEAD` to check for uncommitted changes.
+- If the diff is non-empty: focus on changed files. Read all changed files.
+- If the diff is empty: this is a full-project review. Use Glob to list source files, then Read each one. Do NOT run further git commands.
+- Never run more than 2 git commands total. If git diff returns empty, stop running git commands and read source files directly.
 - After reading, IMMEDIATELY report findings. Do not run additional searches before reporting.
 - Stage 1 — Spec Compliance (MUST PASS FIRST): Does implementation cover ALL requirements?
 - Stage 2 — Code Quality: Security (secrets, injection, input validation), Quality (function size, complexity, SOLID), Performance (N+1 queries, unnecessary allocations).
