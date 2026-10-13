@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
@@ -60,6 +61,11 @@ func (p *Processor) applyPendingAgentSwitch() string {
 
 const maxConcurrentTools = 8
 
+// toolExecuteTimeout is the per-tool timeout applied to each Execute call.
+// It is a safety net above the plugin tool timeout (30s) to prevent goroutine
+// leaks when a tool blocks indefinitely. Var so tests can shorten it.
+var toolExecuteTimeout = 60 * time.Second
+
 func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part, bool) {
 	type toolResult struct {
 		index  int
@@ -111,7 +117,10 @@ launch:
 				return
 			}
 
-			output, isErr, err := p.tools.Execute(ctx, call.ToolName, json.RawMessage(call.ToolArgs), p.config.SessionID)
+			toolCtx, toolCancel := context.WithTimeout(ctx, toolExecuteTimeout)
+			defer toolCancel()
+
+			output, isErr, err := p.tools.Execute(toolCtx, call.ToolName, json.RawMessage(call.ToolArgs), p.config.SessionID)
 			if err != nil {
 				p.publishToolResult(call, err.Error(), true)
 				ch <- toolResult{

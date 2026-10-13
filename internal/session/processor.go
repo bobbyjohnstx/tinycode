@@ -197,8 +197,6 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 			},
 		}
 
-		p.checkCompaction(ctx, totalUsage)
-
 		p.mu.Lock()
 		p.messages = append(p.messages, *assistantMsg)
 		p.mu.Unlock()
@@ -207,6 +205,8 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 			"sessionID": p.config.SessionID,
 			"message":   *assistantMsg,
 		})
+
+		p.checkCompaction(ctx, *usage)
 
 		toolCalls := extractToolCalls(assistantMsg)
 		hadToolCalls := len(toolCalls) > 0

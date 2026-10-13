@@ -544,6 +544,51 @@ func TestPublishToolResult_ErrorResult(t *testing.T) {
 	}
 }
 
+func TestExecuteTools_ToolTimeout_PreventsGoroutineLeak(t *testing.T) {
+	// Shorten the per-tool timeout for the test.
+	orig := toolExecuteTimeout
+	toolExecuteTimeout = 100 * time.Millisecond
+	defer func() { toolExecuteTimeout = orig }()
+
+	// blockingToolExecutor respects ctx.Done — the per-tool timeout context
+	// will fire after 100ms, proving the safety-net timeout works.
+	tools := &blockingToolExecutor{block: make(chan struct{})}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses-timeout",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, &mockLLMClient{}, tools, b)
+
+	toolCalls := []Part{
+		ToolCallPart("call-1", "hang", `{}`),
+	}
+
+	// Parent context has a generous deadline — the per-tool timeout (100ms)
+	// should fire first.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	results, allFailed := p.executeTools(ctx, toolCalls)
+	elapsed := time.Since(start)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if !allFailed {
+		t.Error("expected allFailed=true for timed-out tool")
+	}
+	// Should finish in ~100ms (per-tool timeout), not 10s (parent).
+	if elapsed > 2*time.Second {
+		t.Errorf("executeTools took %v; expected it to finish via per-tool timeout", elapsed)
+	}
+}
+
 // --- Test helper types ---
 
 // countingToolExecutor records how many calls run at once and blocks until release is closed.

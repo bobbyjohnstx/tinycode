@@ -419,15 +419,27 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return m, cmd, true
 	case PermissionDismissedMsg:
 		a.permPrompt.Hide()
-		a.setFocus(FocusPrompt)
 		slog.Info("permission dismissed", "permission", msg.Request.Permission, "action", msg.Action.String())
-		return a, func() tea.Msg {
+		switch msg.Action {
+		case PermissionReject:
+			// The server rejects every other pending ask for this session.
+			a.permPrompt.DropQueued("")
+		case PermissionAlways:
+			// The server releases other shell asks that were already waiting.
+			a.permPrompt.DropQueued(msg.Request.Permission)
+		}
+		reply := func() tea.Msg {
 			return PermissionReplyMsg{
 				SessionID:    msg.Request.SessionID,
 				PermissionID: msg.Request.ID,
 				Action:       msg.Action.String(),
 			}
-		}, true
+		}
+		if a.permPrompt.ShowNext() {
+			return a, reply, true
+		}
+		a.setFocus(FocusPrompt)
+		return a, reply, true
 	case QuestionDismissedMsg:
 		a.questionPrompt.Hide()
 		a.setFocus(FocusPrompt)

@@ -350,6 +350,21 @@ func TestToolDescription_DefaultNoToolNoArgs(t *testing.T) {
 	}
 }
 
+func TestPermissionPrompt_ShowQueuesSecondRequest(t *testing.T) {
+	p := NewPermissionPrompt()
+	p.Show(PermissionRequest{ID: "perm-1", Permission: "shell"})
+	p.Show(PermissionRequest{ID: "perm-2", Permission: "shell"})
+	if p.request.ID != "perm-1" {
+		t.Fatalf("visible request = %q, want perm-1", p.request.ID)
+	}
+	if !p.ShowNext() {
+		t.Fatal("expected a queued request")
+	}
+	if p.request.ID != "perm-2" {
+		t.Fatalf("next request = %q, want perm-2", p.request.ID)
+	}
+}
+
 func TestPermissionPrompt_ShowAndHide(t *testing.T) {
 	p := NewPermissionPrompt()
 	if p.IsVisible() {

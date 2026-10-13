@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
@@ -30,6 +31,27 @@ func TestCompactionOutputReserve(t *testing.T) {
 				t.Errorf("compactionOutputReserve(%d, %d) = %d, want %d", tt.contextLen, tt.outputLimit, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCompact_CircuitBreakerReturnsError(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_breaker",
+		Model:      &provider.Model{ID: "local", Limit: provider.ModelLimit{Context: 100000, Output: 4096}},
+		Compaction: DefaultCompactionConfig(),
+	}, &mockLLMClient{}, &stubToolExecutor{}, b)
+
+	p.compactionCount = compactionCircuitBreakerThreshold
+
+	_, err := p.compact(context.Background(), false)
+	if err == nil {
+		t.Fatal("expected error from circuit breaker, got nil")
+	}
+	if !strings.Contains(err.Error(), "circuit breaker") {
+		t.Errorf("expected circuit breaker error, got: %v", err)
 	}
 }
 

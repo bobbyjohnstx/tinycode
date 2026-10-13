@@ -125,7 +125,8 @@ func (p *Processor) checkAbortAndContext(ctx context.Context, iteration int, tot
 func (p *Processor) handleLLMError(ctx context.Context, err error, totalUsage TokenUsage, iteration int) *ProcessResult {
 	slog.Error("callLLM failed", "sessionID", p.config.SessionID, "iteration", iteration, "error", err)
 	if provider.IsOverflow(err.Error()) {
-		compacted, compactErr := p.compact(ctx)
+		beforeCount := len(p.Messages())
+		compacted, compactErr := p.compact(ctx, false)
 		if compactErr != nil {
 			return &ProcessResult{
 				Messages: p.Messages(),
@@ -133,7 +134,7 @@ func (p *Processor) handleLLMError(ctx context.Context, err error, totalUsage To
 				Error:    fmt.Errorf("compaction failed after overflow: %w", compactErr),
 			}
 		}
-		if compacted {
+		if compacted && len(p.Messages()) < beforeCount {
 			return nil
 		}
 	}
@@ -145,20 +146,20 @@ func (p *Processor) handleLLMError(ctx context.Context, err error, totalUsage To
 }
 
 // checkCompaction runs proactive overflow detection and message-count compaction.
-func (p *Processor) checkCompaction(ctx context.Context, totalUsage TokenUsage) {
-	if p.config.Model != nil && p.config.Model.Limit.Context > 0 && totalUsage.Input > 0 {
+func (p *Processor) checkCompaction(ctx context.Context, usage TokenUsage) {
+	if p.config.Model != nil && p.config.Model.Limit.Context > 0 && usage.Input > 0 {
 		outputReserve := compactionOutputReserve(p.config.Model.Limit.Context, p.config.Model.Limit.Output)
 		threshold := p.config.Model.Limit.Context - outputReserve
 		if threshold > 0 {
 			softThreshold := int(float64(threshold) * 0.8)
-			if totalUsage.Input >= softThreshold && totalUsage.Input < threshold {
+			if usage.Input >= softThreshold && usage.Input < threshold {
 				slog.Info("elision triggered", "sessionID", p.config.SessionID,
-					"inputTokens", totalUsage.Input, "softThreshold", softThreshold)
+					"inputTokens", usage.Input, "softThreshold", softThreshold)
 				p.elideOldResults()
 			}
-			if totalUsage.Input >= threshold {
-				slog.Info("proactive compaction triggered", "sessionID", p.config.SessionID, "inputTokens", totalUsage.Input, "threshold", threshold)
-				if _, compactErr := p.compact(ctx); compactErr != nil {
+			if usage.Input >= threshold {
+				slog.Info("proactive compaction triggered", "sessionID", p.config.SessionID, "inputTokens", usage.Input, "threshold", threshold)
+				if _, compactErr := p.compact(ctx, false); compactErr != nil {
 					slog.Warn("proactive compaction failed", "sessionID", p.config.SessionID, "error", compactErr)
 				}
 			}
@@ -167,7 +168,7 @@ func (p *Processor) checkCompaction(ctx context.Context, totalUsage TokenUsage) 
 
 	if maxMsg := p.config.Compaction.MaxMessages; maxMsg > 0 && len(p.Messages()) >= maxMsg {
 		slog.Info("message-count compaction triggered", "sessionID", p.config.SessionID, "messages", len(p.Messages()), "maxMessages", maxMsg)
-		if _, compactErr := p.compact(ctx); compactErr != nil {
+		if _, compactErr := p.compact(ctx, false); compactErr != nil {
 			slog.Warn("message-count compaction failed", "sessionID", p.config.SessionID, "error", compactErr)
 		}
 	}

@@ -358,7 +358,9 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 				break
 			}
 		}
-		if !allAllowed {
+		// "always" on a shell command also releases other shell asks already
+		// waiting. Their command text is not stored, so a later command still asks.
+		if !allAllowed && !waitingShellSiblings(entry.info.Permission, other.info.Permission) {
 			continue
 		}
 		delete(s.pending, id)

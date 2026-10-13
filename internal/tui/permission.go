@@ -44,8 +44,10 @@ type PermissionDismissedMsg struct {
 }
 
 // PermissionPrompt shows a tool permission request with Allow/Always/Reject.
+// Requests that arrive while one is visible are queued and shown after it.
 type PermissionPrompt struct {
 	request  PermissionRequest
+	queue    []PermissionRequest
 	selected PermissionAction
 	visible  bool
 	width    int
@@ -59,14 +61,66 @@ func NewPermissionPrompt() PermissionPrompt {
 	}
 }
 
-// Show displays the permission prompt for the given request.
+// Show displays the permission prompt. A different request that arrives while
+// one is already visible is queued instead of replacing it.
 func (p *PermissionPrompt) Show(req PermissionRequest) {
+	if p.visible {
+		if req.ID == p.request.ID || p.queued(req.ID) {
+			return
+		}
+		p.queue = append(p.queue, req)
+		return
+	}
 	p.request = req
 	p.selected = PermissionAllow
 	p.visible = true
 }
 
-// Hide closes the permission prompt.
+// ShowNext displays the next queued request. It reports whether one was shown.
+func (p *PermissionPrompt) ShowNext() bool {
+	if len(p.queue) == 0 {
+		p.visible = false
+		return false
+	}
+	next := p.queue[0]
+	p.queue = p.queue[1:]
+	p.request = next
+	p.selected = PermissionAllow
+	p.visible = true
+	return true
+}
+
+// DropQueued removes queued requests. When perm is shell or bash, only queued
+// shell requests are removed. An empty perm drops the whole queue.
+func (p *PermissionPrompt) DropQueued(perm string) {
+	if perm == "" || !shellPermission(perm) {
+		p.queue = nil
+		return
+	}
+	kept := p.queue[:0]
+	for _, req := range p.queue {
+		if shellPermission(req.Permission) {
+			continue
+		}
+		kept = append(kept, req)
+	}
+	p.queue = kept
+}
+
+func (p *PermissionPrompt) queued(id string) bool {
+	for _, req := range p.queue {
+		if req.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func shellPermission(perm string) bool {
+	return perm == "shell" || perm == "bash"
+}
+
+// Hide closes the permission prompt without discarding queued requests.
 func (p *PermissionPrompt) Hide() {
 	p.visible = false
 }

@@ -66,6 +66,12 @@ func permissionAliases(perm string) []string {
 	}
 }
 
+// waitingShellSiblings reports whether both permissions are the shell tool
+// (bash and shell are aliases). destructive-shell and secret-shell are not.
+func waitingShellSiblings(a, b string) bool {
+	return (a == "shell" || a == "bash") && (b == "shell" || b == "bash")
+}
+
 // permissionsMatch reports whether an ask permission matches a rule permission,
 // expanding aliases on both sides before WildcardMatch.
 func permissionsMatch(permission, rulePermission string) bool {

@@ -446,6 +446,65 @@ func TestService_AlwaysAutoApprovesPending(t *testing.T) {
 	}
 }
 
+func TestService_AlwaysReleasesWaitingShellAsks(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	wg.Add(2)
+	commands := []string{"go vet ./...", "go build ./..."}
+	for i, cmd := range commands {
+		go func(idx int, command string) {
+			defer wg.Done()
+			errs[idx] = svc.Ask(context.Background(), AskInput{
+				SessionID:  "ses_001",
+				Permission: "shell",
+				Patterns:   []string{command},
+				Always:     []string{command},
+			})
+		}(i, cmd)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && len(svc.List()) < 2 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	pending := svc.List()
+	if len(pending) < 2 {
+		t.Fatalf("expected 2 pending, got %d", len(pending))
+	}
+	if err := svc.RespondToAsk(ReplyInput{RequestID: pending[0].ID, Reply: ReplyAlways}); err != nil {
+		t.Fatalf("always reply: %v", err)
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("ask %d: %v", i, err)
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	blocked := make(chan error, 1)
+	go func() {
+		blocked <- svc.Ask(ctx, AskInput{
+			SessionID:  "ses_001",
+			Permission: "shell",
+			Patterns:   []string{"go test ./..."},
+			Always:     []string{"go test ./..."},
+		})
+	}()
+	select {
+	case err := <-blocked:
+		t.Fatalf("later shell command was not asked: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	cancel()
+	<-blocked
+}
+
 func TestService_ReplyNotFound(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()

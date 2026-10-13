@@ -1065,6 +1065,69 @@ func TestRecoverStreamBudget_AsksOnceForTheReport(t *testing.T) {
 	}
 }
 
+// --- Issue #749: recoverStreamBudget accumulates token usage ---
+
+func TestRecoverStreamBudget_AccumulatesTokenUsage(t *testing.T) {
+	client := &mockLLMClient{
+		responses: []mockResponse{{
+			events: []llm.Event{
+				{Type: llm.EventTextDelta, Text: "here is the report"},
+				{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{
+					PromptTokens:        200,
+					CompletionTokens:    50,
+					CacheCreationTokens: 30,
+					CacheReadTokens:     20,
+				}},
+			},
+		}},
+	}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses_test",
+		Model:     &provider.Model{ID: "test-model"},
+	}, client, &stubToolExecutor{}, b)
+	p.SetMessages([]Message{{
+		Role:  RoleTool,
+		Parts: []Part{ToolResultPart("call", "read", "contents", false)},
+	}})
+
+	firstUsage := &TokenUsage{
+		Input:     100,
+		Output:    40,
+		Reasoning: 10,
+		Cache:     CacheUsage{Read: 5, Write: 15},
+	}
+
+	// No visible answer triggers the follow-up call.
+	got, usage, err := p.recoverStreamBudget(context.Background(), 1, &Message{
+		Parts: []Part{ReasoningPart("thinking")},
+	}, firstUsage, llm.ErrStreamBudget)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got == nil || !strings.Contains(got.Parts[0].Text, "here is the report") {
+		t.Fatalf("unexpected message: %#v", got)
+	}
+
+	// Verify both calls' tokens are accumulated.
+	if usage.Input != 300 {
+		t.Errorf("Input = %d, want 300 (100+200)", usage.Input)
+	}
+	if usage.Output != 90 {
+		t.Errorf("Output = %d, want 90 (40+50)", usage.Output)
+	}
+	if usage.Reasoning != 10 {
+		t.Errorf("Reasoning = %d, want 10 (10+0)", usage.Reasoning)
+	}
+	if usage.Cache.Read != 25 {
+		t.Errorf("Cache.Read = %d, want 25 (5+20)", usage.Cache.Read)
+	}
+	if usage.Cache.Write != 45 {
+		t.Errorf("Cache.Write = %d, want 45 (15+30)", usage.Cache.Write)
+	}
+}
+
 // --- Issue #728: Compaction summary must use user role ---
 
 func TestProcessor_Compact_SummaryIsUserRole(t *testing.T) {

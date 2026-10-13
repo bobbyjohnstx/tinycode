@@ -296,11 +296,16 @@ func (p *Processor) recoverStreamBudget(ctx context.Context, iteration int, msg 
 	p.answerFollowUpUsed = true
 	slog.Info("stream budget produced no answer", "sessionID", p.config.SessionID, "iteration", iteration)
 	p.addUserMessage(answerFollowUp, "")
-	msg, usage, err = p.runLLMStep(ctx, iteration)
-	if errors.Is(err, llm.ErrStreamBudget) && messageHasVisibleAnswer(msg) {
-		return msg, usage, nil
+	msg2, usage2, err2 := p.runLLMStep(ctx, iteration)
+	usage.Input += usage2.Input
+	usage.Output += usage2.Output
+	usage.Reasoning += usage2.Reasoning
+	usage.Cache.Read += usage2.Cache.Read
+	usage.Cache.Write += usage2.Cache.Write
+	if errors.Is(err2, llm.ErrStreamBudget) && messageHasVisibleAnswer(msg2) {
+		return msg2, usage, nil
 	}
-	return msg, usage, err
+	return msg2, usage, err2
 }
 
 func messageHasVisibleAnswer(msg *Message) bool {
@@ -336,10 +341,10 @@ func (p *Processor) hasToolResult() bool {
 // Compact runs a manual context compaction pass (same logic as proactive overflow compaction).
 // Returns (true, nil) when history was compacted, (false, nil) when there was nothing to compact.
 func (p *Processor) Compact(ctx context.Context) (bool, error) {
-	return p.compact(ctx)
+	return p.compact(ctx, false)
 }
 
-func (p *Processor) compact(ctx context.Context) (bool, error) {
+func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	p.mu.Lock()
 	p.compactionCount++
 	compNum := p.compactionCount
@@ -347,17 +352,31 @@ func (p *Processor) compact(ctx context.Context) (bool, error) {
 	p.mu.Unlock()
 
 	if compNum > compactionCircuitBreakerThreshold {
-		p.bus.Publish("session.warning", map[string]any{
-			"sessionID": p.config.SessionID,
-			"message":   fmt.Sprintf("Compaction #%d: consider starting a new session or using subagents.", compNum),
-		})
+		return false, fmt.Errorf("compaction circuit breaker: %d attempts without progress", compNum)
 	}
 
 	estimator := NewLazyEstimator(0.25)
 	preserveIdx := estimator.FindPreserveBoundary(messages, p.config.Compaction.MaxPreserve)
 
 	if preserveIdx <= 1 {
-		return false, nil
+		if force && len(messages) > 2 {
+			// The local estimate says the history fits, but the caller is
+			// already over the provider limit or the message cap. Summarize
+			// everything except the last turn.
+			preserveIdx = len(messages) - 2
+			if preserveIdx < 1 {
+				preserveIdx = 1
+			}
+			slog.Info("compaction forced; estimator kept the whole history",
+				"sessionID", p.config.SessionID,
+				"messages", len(messages),
+				"preserveFrom", preserveIdx)
+		} else {
+			slog.Info("compaction skipped; nothing older than the last turn",
+				"sessionID", p.config.SessionID,
+				"messages", len(messages))
+			return false, nil
+		}
 	}
 
 	toCompact := messages[:preserveIdx]
