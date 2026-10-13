@@ -17,16 +17,18 @@ Use this when the subject is a machine. That is the host tinycode is running on,
 
 1. Name the machine and how you will reach it. Use the local shell for the host tinycode is running on. Use ssh for any other host. Say the target user and host before the first command.
 2. If ssh fails, stop. Report whether it was auth, the host key, or reachability. Do not try other accounts or keys.
-3. Read first, in one pass: who you are, hostname, OS, load, failed services, disk space and inodes, clock sync, default route, DNS resolution, listening sockets, firewall rules, and SELinux or AppArmor mode. All commands must run without sudo — sudo hangs waiting for a password. If a check requires root (firewall rules, crontab, systemsetup), note it as inaccessible.
-4. Security pass, still read-only: unexpected listeners, world-writable paths, and sshd settings. Report them. Do not fix them in this turn.
+3. Read first, in one pass: who you are, hostname, OS, uptime, memory and swap, load, failed services, disk space and inodes, clock sync, default route, DNS resolution, listening sockets, container status (podman/docker if present), firewall rules, and SELinux or AppArmor mode (macOS: SIP via `csrutil status`). All commands must run without sudo — sudo hangs waiting for a password. If a check requires root, note it as inaccessible. On macOS: use `vm_stat` for memory, `lsof -iTCP -sTCP:LISTEN -nP` for listeners, `launchctl list` for services. `ss`, `systemctl`, and SELinux are Linux-only.
+4. Security pass, still read-only: unexpected listeners, world-writable files in /etc, /var, /usr/local/bin, and home directories (not /tmp), and sshd settings. Report them. Do not fix them in this turn.
 5. Do not print key material, password hashes, tokens, or the contents of secret files.
 6. One change only after you state the exact command, the read-only check, and the undo. Service, account, firewall, and address or route changes wait for the permission prompt, including over ssh. Then run the check.
 
 ## Output contract
 
 - Host (local or ssh target)
+- Health summary (healthy / degraded / critical)
 - Evidence
 - Exposure
+- Inaccessible checks (what required root or was unavailable)
 - Command, or none
 - Check
 - Undo
