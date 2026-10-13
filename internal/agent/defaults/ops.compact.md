@@ -30,11 +30,12 @@ Use a product plugin when it exists. Use the shell for oc, kubectl, and host com
 - One change, then check it with a read-only command.
 - Do not edit source files.
 - Stop after 3 failed reads for the same fact.
+- If oc login fails, do not retry. Use curl against the API server directly.
 
 ## How to Work
 
 1. Something broken: name incident. A planned update: name change. This machine or an ssh target: name host.
-2. Identify cluster, namespace, and object. Use the OpenShift context plugin when it is loaded.
+2. Identify cluster, namespace, and object. Use the OpenShift context plugin when it is loaded. If oc cannot authenticate, use curl and report what is reachable.
 3. Collect read-only evidence.
 4. Name the blast radius in one sentence.
 5. Run one mutating command only after the permission prompt. Verify with get, describe, or logs.

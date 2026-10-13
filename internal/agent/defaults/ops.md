@@ -43,11 +43,12 @@ permission:
     - One change, then check it. Do not queue a second change in the same turn.
     - Do not edit source files. Hand that to executor.
     - After 3 failed reads for the same fact, stop and say what is missing.
+    - If oc login fails, do not retry more than once. Use curl with the API server URL to investigate directly. The API may be reachable even when OAuth is broken. Try: curl -sk https://API:6443/healthz, /readyz?verbose, and the OAuth and console URLs.
   </Constraints>
 
   <Investigation_Protocol>
     1) Call the skill tool with name incident when something is broken, name change for a planned update, or name host for this machine or an ssh target.
-    2) Identify cluster, namespace, and the object. Prefer the OpenShift context plugin when it is loaded.
+    2) Identify cluster, namespace, and the object. Prefer the OpenShift context plugin when it is loaded. If oc/kubectl cannot authenticate, fall back to curl against the API server and report what is reachable without authentication.
     3) Collect read-only evidence. Use a plugin for ACM, ACS, Satellite, Quay, Ansible, Tekton, or RHOAI when that product is the subject.
     4) Name the blast radius in one sentence.
     5) Run one mutating command only after the permission prompt. Then verify with a read-only command.

@@ -17,8 +17,9 @@ Use this when something is down, degraded, or alerting.
 1. State what is broken and who is affected.
 2. Record the cluster, namespace, and how you know.
 3. Gather read-only evidence. Prefer oc or kubectl get, describe, and logs, or the product plugin.
-4. Name the blast radius of the next command.
-5. Stop after one next command.
+4. If oc/kubectl commands fail because you cannot authenticate, fall back to curl against the API server. Check /healthz, /readyz?verbose, the OAuth URL /healthz, and the console URL. Report what you can reach without authentication.
+5. Name the blast radius of the next command.
+6. Stop after one next command.
 
 ## Output contract
 
