@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [2.3.3] - 2026-10-13
+
+### Fixes
+- Processor loop hardening: per-iteration tokens for compaction check, assistant message preserved on compaction error, circuit breaker hard stop with proper counter, recoverStreamBudget nil guards, abort drains tool workers instead of leaking goroutines (#745-750)
+- Compaction uses force=true on overflow, proactive, and message-count paths; manual `/compact` stays soft
+- TUI DropQueued scoped: shell "always" drops only shell asks, not the whole queue
+
+### Agent Efficiency
+- Compact variant threshold raised from 8B to 14B — 9B models get simpler prompts (#751)
+- Code-reviewer: removed Phase 3 verification loop, added empty-diff discriminator, steps tuned to 7 (#752-755)
+- Security-reviewer: same Phase 3 removal, discriminator, git limit (#757)
+- Architect: Phase 3 removed, git commands limited to explicit requests (#758)
+- Read-only agents tightened: critic/tracer 7 steps, analyst/explore/verifier/document-specialist 6 steps (#759)
+- Files-already-read hint injected after compaction to prevent re-read spirals (#755)
+- Tested: code-reviewer on tinycode-demo reduced from 100-649k to 23k tokens with complete 12-bug report
+
+### Ops Persona
+- Fallback to curl when `oc login` fails (broken OAuth scenario) (#760)
+- Forbid sudo in ops and host skill — prevents hang on password prompt (#761)
+- Host skill: added memory/swap, uptime, container status, macOS command guidance
+- Host skill: scoped world-writable check, added health summary and inaccessible checks to output
+
 ## [2.3.2] - 2026-10-12
 
 ### Fixes
