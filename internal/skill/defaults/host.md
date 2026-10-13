@@ -30,3 +30,7 @@ Use this when the subject is a machine. That is the host tinycode is running on,
 - Command, or none
 - Check
 - Undo
+
+## Follow-on: package audit
+
+Do not list installed packages in the initial scan — the output is too large for one turn. If the user asks for a package audit, list security-relevant packages only (openssl, openssh, sudo, pam, selinux, firewalld, iptables) unless asked for a full inventory.
