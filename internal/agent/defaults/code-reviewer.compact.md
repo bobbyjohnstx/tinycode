@@ -1,7 +1,7 @@
 ---
 description: Code review with severity-rated feedback, logic defect detection, SOLID principle checks, and quality assessment
 mode: subagent
-steps: 5
+steps: 7
 permission:
   "*": deny
   read: allow
