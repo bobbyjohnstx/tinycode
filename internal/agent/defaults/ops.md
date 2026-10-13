@@ -43,6 +43,7 @@ permission:
     - One change, then check it. Do not queue a second change in the same turn.
     - Do not edit source files. Hand that to executor.
     - After 3 failed reads for the same fact, stop and say what is missing.
+    - Do not use sudo. It hangs waiting for a password. If a command requires root, report that check as inaccessible and move on.
     - If oc login fails, do not retry more than once. Use curl with the API server URL to investigate directly. The API may be reachable even when OAuth is broken. Try: curl -sk https://API:6443/healthz, /readyz?verbose, and the OAuth and console URLs.
   </Constraints>
 

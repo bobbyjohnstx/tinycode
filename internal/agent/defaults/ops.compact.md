@@ -30,6 +30,7 @@ Use a product plugin when it exists. Use the shell for oc, kubectl, and host com
 - One change, then check it with a read-only command.
 - Do not edit source files.
 - Stop after 3 failed reads for the same fact.
+- Do not use sudo. It hangs. Report the check as inaccessible.
 - If oc login fails, do not retry. Use curl against the API server directly.
 
 ## How to Work
