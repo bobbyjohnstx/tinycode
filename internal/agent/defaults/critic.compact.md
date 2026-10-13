@@ -1,7 +1,7 @@
 ---
 description: Quality gate — thorough multi-perspective review of plans and gaps (READ-ONLY)
 mode: subagent
-steps: 8
+steps: 7
 permission:
   "*": deny
   read: allow

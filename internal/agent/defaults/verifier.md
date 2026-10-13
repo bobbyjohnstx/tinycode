@@ -2,7 +2,7 @@
 name: verifier
 description: Verification strategy, evidence-based completion checks, test adequacy — no approval without fresh evidence
 mode: subagent
-steps: 8
+steps: 6
 permission:
   "*": deny
   read: allow

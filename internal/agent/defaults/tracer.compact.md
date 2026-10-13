@@ -1,7 +1,7 @@
 ---
 description: Evidence-driven causal tracing with competing hypotheses, evidence for/against, uncertainty tracking, and next-probe recommendations
 mode: subagent
-steps: 8
+steps: 7
 permission:
   read: allow
   glob: allow

@@ -1,7 +1,7 @@
 ---
 description: Strategic architecture advisor — analyze code and provide architectural guidance (READ-ONLY)
 mode: subagent
-steps: 8
+steps: 7
 permission:
   "*": deny
   read: allow

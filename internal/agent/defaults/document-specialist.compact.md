@@ -1,7 +1,7 @@
 ---
 description: External documentation and reference specialist — SDK docs, API references, library changelogs, and integration guides
 mode: subagent
-steps: 8
+steps: 6
 permission:
   edit: deny
   bash: ask

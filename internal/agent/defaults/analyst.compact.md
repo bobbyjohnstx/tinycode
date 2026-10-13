@@ -1,7 +1,7 @@
 ---
 description: Pre-planning requirements analyst — converts scope into implementable acceptance criteria, catches gaps before planning begins
 mode: subagent
-steps: 8
+steps: 6
 permission:
   edit: deny
   bash: deny
