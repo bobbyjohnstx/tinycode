@@ -86,12 +86,12 @@ sudo cp dist/tinycode /usr/local/bin/
 
 ### Clipboard support (Linux)
 
-For `/copy` and `/paste-image` on Linux, install an optional clipboard utility. tinycode does **not** use OSC 52 terminal clipboard sequences and does not hard-depend on a helper — the rest of the app works without one.
+Mouse reporting disables the terminal’s own selection, so a clipboard helper is needed for **mouse selection copy** and `/copy` (and for `/paste-image`) on Linux. Install one; tinycode does **not** use OSC 52 and does not hard-depend on a helper at install time — the rest of the app works without one.
 
 - **Wayland** (preferred when `WAYLAND_DISPLAY` is set): `sudo apt install wl-clipboard` (`wl-copy` / `wl-paste`)
 - **X11**: `sudo apt install xclip` (or `xsel`)
 
-If no helper is available, `/copy` shows an error toast (and logs a warning). `tinycode doctor` warns on Linux when none of `wl-copy` / `xclip` / `xsel` are on `PATH`, but does not fail the run for that alone.
+If no helper is available, copy (mouse or `/copy`) shows an error toast (and logs a warning). `tinycode doctor` warns on Linux when none of `wl-copy` / `xclip` / `xsel` are on `PATH`, but does not fail the run for that alone.
 
 ### Image paste (Linux)
 

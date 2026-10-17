@@ -337,7 +337,7 @@ func checkClipboard() {
 			return
 		}
 	}
-	fmt.Printf("%s Clipboard: no wl-copy/xclip/xsel in PATH ( /copy will show an error toast )\n", checkWarn)
+	fmt.Printf("%s Clipboard: no wl-copy/xclip/xsel in PATH (copy — mouse or /copy — will show an error toast)\n", checkWarn)
 }
 
 // checkIDEs reports IDEs found on PATH and points at ACP setup docs.
