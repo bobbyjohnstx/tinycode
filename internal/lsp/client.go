@@ -21,7 +21,38 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
-const defaultRequestTimeout = 30 * time.Second
+const (
+	defaultRequestTimeout = 30 * time.Second
+	maxOpenDocs           = 64
+	maxStderrSize         = 64 * 1024
+)
+
+// cappedBuffer is a thread-safe writer that retains the last max bytes.
+type cappedBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+	max int
+}
+
+func (b *cappedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(p) >= b.max {
+		b.buf = append(b.buf[:0], p[len(p)-b.max:]...)
+		return len(p), nil
+	}
+	b.buf = append(b.buf, p...)
+	if len(b.buf) > b.max {
+		b.buf = b.buf[len(b.buf)-b.max:]
+	}
+	return len(p), nil
+}
+
+func (b *cappedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(b.buf)
+}
 
 // Position in a text document (0-indexed, per LSP spec).
 type Position struct {
@@ -90,12 +121,15 @@ type Client struct {
 	pendingMu sync.Mutex
 	pending   map[int64]chan lspResponse
 
-	docMu    sync.Mutex
-	openDocs map[string]*docState
+	docMu     sync.Mutex
+	openDocs  map[string]*docState
+	openOrder []string // LRU: oldest at front
 
 	diagMu      sync.Mutex
 	diagStore   map[string][]Diagnostic
 	diagWaiters map[string][]chan struct{}
+
+	stderrBuf *cappedBuffer
 
 	done     chan struct{}
 	doneOnce sync.Once
@@ -114,8 +148,26 @@ func newClient(spec ServerSpec, rootDir string, env map[string]string, timeout t
 		openDocs:    make(map[string]*docState),
 		diagStore:   make(map[string][]Diagnostic),
 		diagWaiters: make(map[string][]chan struct{}),
+		stderrBuf:   &cappedBuffer{max: maxStderrSize},
 		done:        make(chan struct{}),
 	}
+}
+
+// Alive reports whether the client connection is still live.
+func (c *Client) Alive() bool {
+	select {
+	case <-c.done:
+		return false
+	default:
+		return true
+	}
+}
+
+func (c *Client) stderrSnippet() string {
+	if c.stderrBuf == nil {
+		return ""
+	}
+	return c.stderrBuf.String()
 }
 
 func (c *Client) connect(ctx context.Context) error {
@@ -131,9 +183,15 @@ func (c *Client) connect(ctx context.Context) error {
 		_ = stdin.Close()
 		return fmt.Errorf("creating stdout pipe: %w", err)
 	}
-	cmd.Stderr = io.Discard
+	if c.stderrBuf == nil {
+		c.stderrBuf = &cappedBuffer{max: maxStderrSize}
+	}
+	cmd.Stderr = c.stderrBuf
 
 	if err := cmd.Start(); err != nil {
+		if snippet := c.stderrSnippet(); snippet != "" {
+			slog.Warn("lsp: server start failed", "language", c.spec.Language, "command", c.spec.Command, "error", err, "stderr", snippet)
+		}
 		return fmt.Errorf("starting %s: %w", c.spec.Command, err)
 	}
 
@@ -148,11 +206,10 @@ func (c *Client) connect(ctx context.Context) error {
 		"rootUri":   fileURI(c.rootDir),
 		"capabilities": map[string]any{
 			"textDocument": map[string]any{
-				"synchronization": map[string]any{"didSave": true},
-				"hover":           map[string]any{"contentFormat": []string{"markdown", "plaintext"}},
-				"definition":      map[string]any{},
-				"references":      map[string]any{},
-				"documentSymbol":  map[string]any{},
+				"hover":          map[string]any{"contentFormat": []string{"markdown", "plaintext"}},
+				"definition":     map[string]any{},
+				"references":     map[string]any{},
+				"documentSymbol": map[string]any{},
 				"publishDiagnostics": map[string]any{
 					"relatedInformation": true,
 				},
@@ -163,11 +220,17 @@ func (c *Client) connect(ctx context.Context) error {
 		},
 	})
 	if err != nil {
+		if snippet := c.stderrSnippet(); snippet != "" {
+			slog.Warn("lsp: initialize failed", "language", c.spec.Language, "command", c.spec.Command, "error", err, "stderr", snippet)
+		}
 		_ = c.close()
 		return fmt.Errorf("LSP initialize: %w", err)
 	}
 
 	if err := c.notify(ctx, "initialized", map[string]any{}); err != nil {
+		if snippet := c.stderrSnippet(); snippet != "" {
+			slog.Warn("lsp: initialized notify failed", "language", c.spec.Language, "command", c.spec.Command, "error", err, "stderr", snippet)
+		}
 		_ = c.close()
 		return fmt.Errorf("sending initialized: %w", err)
 	}
@@ -197,11 +260,19 @@ func (c *Client) close() error {
 		}
 	}
 	c.doneOnce.Do(func() { close(c.done) })
+	if snippet := c.stderrSnippet(); snippet != "" {
+		slog.Warn("lsp: server closed with stderr", "language", c.spec.Language, "command", c.spec.Command, "stderr", snippet)
+	}
 	return nil
 }
 
 func (c *Client) readLoop() {
-	defer c.doneOnce.Do(func() { close(c.done) })
+	defer func() {
+		c.doneOnce.Do(func() { close(c.done) })
+		if snippet := c.stderrSnippet(); snippet != "" {
+			slog.Warn("lsp: server disconnected", "language", c.spec.Language, "command", c.spec.Command, "stderr", snippet)
+		}
+	}()
 
 	for {
 		msg, err := c.readMessage()
@@ -420,7 +491,9 @@ func (c *Client) syncFile(ctx context.Context, file string) (bool, error) {
 
 	doc, exists := c.openDocs[uri]
 	if !exists {
+		c.evictLRULocked(ctx)
 		c.openDocs[uri] = &docState{version: 1, content: text}
+		c.openOrder = append(c.openOrder, uri)
 		return true, c.notify(ctx, "textDocument/didOpen", map[string]any{
 			"textDocument": map[string]any{
 				"uri":        uri,
@@ -431,6 +504,7 @@ func (c *Client) syncFile(ctx context.Context, file string) (bool, error) {
 		})
 	}
 
+	c.touchOpenDocLocked(uri)
 	if doc.content == text {
 		return false, nil
 	}
@@ -446,6 +520,39 @@ func (c *Client) syncFile(ctx context.Context, file string) (bool, error) {
 			{"text": text},
 		},
 	})
+}
+
+// evictLRULocked closes the least-recently-used open document until under the cap.
+// Caller must hold docMu.
+func (c *Client) evictLRULocked(ctx context.Context) {
+	for len(c.openDocs) >= maxOpenDocs {
+		if len(c.openOrder) == 0 {
+			return
+		}
+		evictURI := c.openOrder[0]
+		c.openOrder = c.openOrder[1:]
+		delete(c.openDocs, evictURI)
+		_ = c.notify(ctx, "textDocument/didClose", map[string]any{
+			"textDocument": map[string]any{"uri": evictURI},
+		})
+		c.diagMu.Lock()
+		delete(c.diagStore, evictURI)
+		delete(c.diagWaiters, evictURI)
+		c.diagMu.Unlock()
+	}
+}
+
+// touchOpenDocLocked moves uri to the most-recently-used end of openOrder.
+// Caller must hold docMu.
+func (c *Client) touchOpenDocLocked(uri string) {
+	for i, u := range c.openOrder {
+		if u != uri {
+			continue
+		}
+		c.openOrder = append(append(c.openOrder[:i:i], c.openOrder[i+1:]...), uri)
+		return
+	}
+	c.openOrder = append(c.openOrder, uri)
 }
 
 // Hover returns hover information for a position (0-indexed line and column).
@@ -508,7 +615,9 @@ func (c *Client) References(ctx context.Context, file string, line, col int, inc
 	return parseLocations(result)
 }
 
-// Diagnostics returns diagnostics for a file, waiting for the server to produce them.
+// Diagnostics returns diagnostics for a file.
+// When file content is unchanged, cached diagnostics are returned immediately.
+// When content changed (or newly opened), waits up to 10s for publishDiagnostics.
 func (c *Client) Diagnostics(ctx context.Context, file string) ([]Diagnostic, error) {
 	uri := fileURI(file)
 
@@ -523,14 +632,18 @@ func (c *Client) Diagnostics(ctx context.Context, file string) ([]Diagnostic, er
 		return nil, err
 	}
 
-	timeout := 500 * time.Millisecond
-	if changed {
-		timeout = 10 * time.Second
+	if !changed {
+		c.diagMu.Lock()
+		diags := c.diagStore[uri]
+		c.diagMu.Unlock()
+		result := make([]Diagnostic, len(diags))
+		copy(result, diags)
+		return result, nil
 	}
 
 	select {
 	case <-ch:
-	case <-time.After(timeout):
+	case <-time.After(10 * time.Second):
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}

@@ -187,11 +187,23 @@ func (m *Manager) getOrConnect(lang string) *Client {
 		return nil
 	}
 
+	reconnecting := false
+
 	m.mu.Lock()
 	if client, ok := m.clients[lang]; ok {
+		if client.Alive() {
+			m.mu.Unlock()
+			return client
+		}
+		delete(m.clients, lang)
 		m.mu.Unlock()
-		return client
+		_ = client.close()
+		reconnecting = true
+	} else {
+		m.mu.Unlock()
 	}
+
+	m.mu.Lock()
 	langMu, ok := m.connecting[lang]
 	if !ok {
 		langMu = &sync.Mutex{}
@@ -205,10 +217,17 @@ func (m *Manager) getOrConnect(lang string) *Client {
 	// Double-check: another goroutine may have connected while we waited.
 	m.mu.Lock()
 	if client, ok := m.clients[lang]; ok {
+		if client.Alive() {
+			m.mu.Unlock()
+			return client
+		}
+		delete(m.clients, lang)
 		m.mu.Unlock()
-		return client
+		_ = client.close()
+		reconnecting = true
+	} else {
+		m.mu.Unlock()
 	}
-	m.mu.Unlock()
 
 	spec := specForLanguage(lang, m.overrides)
 	if spec == nil {
@@ -225,18 +244,33 @@ func (m *Manager) getOrConnect(lang string) *Client {
 		env = cfg.Env
 	}
 
-	slog.Info("lsp: connecting to server", "language", lang, "command", spec.Command)
+	if reconnecting {
+		slog.Info("lsp: reconnecting", "language", lang, "command", spec.Command)
+	} else {
+		slog.Info("lsp: connecting to server", "language", lang, "command", spec.Command)
+	}
 	client := newClient(*spec, m.dir, env, m.timeout)
 	if err := client.connect(m.ctx); err != nil {
-		slog.Warn("lsp: server failed to start", "language", lang, "command", spec.Command, "error", err)
+		snippet := client.stderrSnippet()
+		if snippet != "" {
+			slog.Warn("lsp: server failed to start", "language", lang, "command", spec.Command, "error", err, "stderr", snippet)
+		} else {
+			slog.Warn("lsp: server failed to start", "language", lang, "command", spec.Command, "error", err)
+		}
 		return nil
 	}
 
 	m.mu.Lock()
-	if existing, ok := m.clients[lang]; ok {
+	if existing, ok := m.clients[lang]; ok && existing.Alive() {
 		m.mu.Unlock()
 		_ = client.close()
 		return existing
+	}
+	if existing, ok := m.clients[lang]; ok {
+		delete(m.clients, lang)
+		m.mu.Unlock()
+		_ = existing.close()
+		m.mu.Lock()
 	}
 	m.clients[lang] = client
 	m.mu.Unlock()

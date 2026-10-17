@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -383,5 +384,234 @@ func main() {
 		t.Logf("diagnostic: %s:%d:%d %s: %s",
 			mainFile, d.Range.Start.Line+1, d.Range.Start.Character+1,
 			severityStr(d.Severity), d.Message)
+	}
+}
+
+func TestClient_Alive_FalseAfterDoneClosed(t *testing.T) {
+	c := newClient(ServerSpec{Language: "go", Command: "true"}, t.TempDir(), nil, time.Second)
+	if !c.Alive() {
+		t.Fatal("expected Alive() true before done closed")
+	}
+	c.doneOnce.Do(func() { close(c.done) })
+	if c.Alive() {
+		t.Fatal("expected Alive() false after done closed")
+	}
+}
+
+func TestSyncFile_LRUEvictsDidCloseAndClearsDiags(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	logPath := filepath.Join(t.TempDir(), "log.jsonl")
+	root := t.TempDir()
+	client := connectFakeClient(t, script, root, map[string]string{"FAKE_LSP_LOG": logPath})
+
+	ctx := context.Background()
+	files := make([]string, maxOpenDocs+1)
+	for i := 0; i < maxOpenDocs+1; i++ {
+		files[i] = writeGoFile(t, root, filepath.Join("f"+strconv.Itoa(i)+".go"), "package main\n")
+	}
+
+	for i := 0; i < maxOpenDocs; i++ {
+		changed, err := client.syncFile(ctx, files[i])
+		if err != nil {
+			t.Fatalf("syncFile[%d]: %v", i, err)
+		}
+		if !changed {
+			t.Fatalf("syncFile[%d]: expected changed=true on first open", i)
+		}
+	}
+
+	firstURI := fileURI(files[0])
+	client.diagMu.Lock()
+	client.diagStore[firstURI] = []Diagnostic{{Message: "stale"}}
+	client.diagWaiters[firstURI] = []chan struct{}{make(chan struct{}, 1)}
+	client.diagMu.Unlock()
+
+	changed, err := client.syncFile(ctx, files[maxOpenDocs])
+	if err != nil {
+		t.Fatalf("syncFile 65th: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected 65th open to change")
+	}
+
+	waitForFakeLogMethod(t, logPath, "textDocument/didClose", 2*time.Second)
+
+	client.docMu.Lock()
+	_, stillOpen := client.openDocs[firstURI]
+	nOpen := len(client.openDocs)
+	client.docMu.Unlock()
+	if stillOpen {
+		t.Fatal("LRU victim should leave openDocs")
+	}
+	if nOpen != maxOpenDocs {
+		t.Fatalf("openDocs len = %d, want %d", nOpen, maxOpenDocs)
+	}
+
+	client.diagMu.Lock()
+	_, hasDiag := client.diagStore[firstURI]
+	_, hasWaiter := client.diagWaiters[firstURI]
+	client.diagMu.Unlock()
+	if hasDiag {
+		t.Fatal("diagStore entry should be cleared on eviction")
+	}
+	if hasWaiter {
+		t.Fatal("diagWaiters entry should be cleared on eviction")
+	}
+
+	// Re-sync victim → fresh didOpen version 1
+	beforeOpens := countFakeLogMethod(t, logPath, "textDocument/didOpen")
+	changed, err = client.syncFile(ctx, files[0])
+	if err != nil {
+		t.Fatalf("re-sync victim: %v", err)
+	}
+	if !changed {
+		t.Fatal("re-sync of evicted URI should changed=true (fresh didOpen)")
+	}
+	client.docMu.Lock()
+	doc := client.openDocs[firstURI]
+	client.docMu.Unlock()
+	if doc == nil || doc.version != 1 {
+		t.Fatalf("re-opened doc version = %v, want 1", doc)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if countFakeLogMethod(t, logPath, "textDocument/didOpen") > beforeOpens {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("expected additional didOpen after re-sync")
+}
+
+func TestDiagnostics_UnchangedReturnsCacheImmediately(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	root := t.TempDir()
+	// Delay publish so a wait would be visible
+	client := connectFakeClient(t, script, root, map[string]string{
+		"FAKE_LSP_DIAG_DELAY": "2",
+	})
+	file := writeGoFile(t, root, "main.go", "package main\n")
+	ctx := context.Background()
+
+	start := time.Now()
+	diags, err := client.Diagnostics(ctx, file)
+	if err != nil {
+		t.Fatalf("first Diagnostics: %v", err)
+	}
+	if len(diags) == 0 {
+		t.Fatal("expected diagnostics from first call")
+	}
+	if time.Since(start) < time.Second {
+		t.Fatalf("first call returned too quickly (%v); diag delay not applied?", time.Since(start))
+	}
+
+	// Seed a distinct cache value and ensure second call returns it immediately.
+	uri := fileURI(file)
+	client.diagMu.Lock()
+	client.diagStore[uri] = []Diagnostic{{Message: "cached"}}
+	client.diagMu.Unlock()
+
+	start = time.Now()
+	diags, err = client.Diagnostics(ctx, file)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("second Diagnostics: %v", err)
+	}
+	if elapsed > 200*time.Millisecond {
+		t.Fatalf("unchanged Diagnostics took %v, want immediate cache return", elapsed)
+	}
+	if len(diags) != 1 || diags[0].Message != "cached" {
+		t.Fatalf("diags = %+v, want cached message", diags)
+	}
+}
+
+func TestDiagnostics_ChangedWaitsForPublish(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	root := t.TempDir()
+	client := connectFakeClient(t, script, root, map[string]string{
+		"FAKE_LSP_DIAG_DELAY": "0.3",
+	})
+	file := writeGoFile(t, root, "main.go", "package main\n")
+	ctx := context.Background()
+
+	if _, err := client.Diagnostics(ctx, file); err != nil {
+		t.Fatalf("initial Diagnostics: %v", err)
+	}
+
+	if err := os.WriteFile(file, []byte("package main\nfunc f() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	diags, err := client.Diagnostics(ctx, file)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("changed Diagnostics: %v", err)
+	}
+	if len(diags) == 0 {
+		t.Fatal("expected diagnostics after change")
+	}
+	if elapsed < 200*time.Millisecond {
+		t.Fatalf("changed path returned in %v; expected to wait for publish", elapsed)
+	}
+}
+
+func TestConnect_InitializeOmitsDidSaveTrue(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	logPath := filepath.Join(t.TempDir(), "log.jsonl")
+	_ = connectFakeClient(t, script, t.TempDir(), map[string]string{"FAKE_LSP_LOG": logPath})
+
+	initMsg := waitForFakeLogMethod(t, logPath, "initialize", 2*time.Second)
+	params, _ := initMsg["params"].(map[string]any)
+	caps, _ := params["capabilities"].(map[string]any)
+	td, _ := caps["textDocument"].(map[string]any)
+	sync, ok := td["synchronization"].(map[string]any)
+	if ok {
+		if v, has := sync["didSave"]; has && v == true {
+			t.Fatalf("initialize capabilities include didSave:true: %#v", sync)
+		}
+	}
+	raw, _ := json.Marshal(params)
+	if strings.Contains(string(raw), `"didSave":true`) || strings.Contains(string(raw), `"didSave": true`) {
+		t.Fatalf("initialize params contain didSave true: %s", raw)
+	}
+}
+
+func TestConnect_StderrBoundedOnFailure(t *testing.T) {
+	// Script writes >64KiB to stderr then exits without speaking LSP.
+	script := filepath.Join(t.TempDir(), "noisy.sh")
+	body := "#!/bin/sh\npython3 -c 'import sys; sys.stderr.write(\"x\"*" + strconv.Itoa(maxStderrSize+4096) + "); sys.stderr.flush()'\nexit 1\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	client := newClient(ServerSpec{
+		Language: "go",
+		Command:  script,
+	}, t.TempDir(), nil, time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := client.connect(ctx)
+	if err == nil {
+		_ = client.close()
+		t.Fatal("expected connect failure")
+	}
+	got := client.stderrSnippet()
+	if len(got) > maxStderrSize {
+		t.Fatalf("stderr len = %d, want <= %d", len(got), maxStderrSize)
+	}
+	if len(got) == 0 {
+		t.Fatal("expected non-empty stderr capture")
+	}
+}
+
+func TestCappedBuffer_RetainsLastBytes(t *testing.T) {
+	buf := &cappedBuffer{max: 10}
+	if _, err := buf.Write([]byte("abcdefghijXXXX")); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got != "efghijXXXX" {
+		t.Fatalf("String() = %q, want %q", got, "efghijXXXX")
 	}
 }

@@ -3,7 +3,9 @@ package lsp
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestNewManager_NilConfig(t *testing.T) {
@@ -289,4 +291,100 @@ func findStr(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+func TestGetOrConnect_EvictsDeadClientAndReconnects(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	dir := t.TempDir()
+	m := NewManager(dir, &Config{
+		Servers: map[string]ServerConfig{
+			"go": {Command: "python3", Args: []string{script}},
+		},
+	})
+	defer m.Close()
+
+	ctx := context.Background()
+	first := m.ClientForLanguage(ctx, "go")
+	if first == nil {
+		t.Fatal("expected initial client")
+	}
+
+	// Kill the underlying process so readLoop exits and Alive() becomes false.
+	if first.cmd == nil || first.cmd.Process == nil {
+		t.Fatal("missing process on client")
+	}
+	_ = first.cmd.Process.Kill()
+	deadline := time.Now().Add(3 * time.Second)
+	for first.Alive() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if first.Alive() {
+		t.Fatal("expected Alive() false after kill")
+	}
+
+	second := m.ClientForLanguage(ctx, "go")
+	if second == nil {
+		t.Fatal("expected reconnect client")
+	}
+	if second == first {
+		t.Fatal("expected a new client instance after reconnect")
+	}
+	if !second.Alive() {
+		t.Fatal("reconnected client should be alive")
+	}
+}
+
+func TestGetOrConnect_ConcurrentReconnectSingleConnect(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	dir := t.TempDir()
+	m := NewManager(dir, &Config{
+		Servers: map[string]ServerConfig{
+			"go": {Command: "python3", Args: []string{script}},
+		},
+	})
+	defer m.Close()
+
+	ctx := context.Background()
+	first := m.ClientForLanguage(ctx, "go")
+	if first == nil {
+		t.Fatal("expected initial client")
+	}
+	_ = first.cmd.Process.Kill()
+	deadline := time.Now().Add(3 * time.Second)
+	for first.Alive() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if first.Alive() {
+		t.Fatal("expected dead client before concurrent reconnect")
+	}
+
+	const n = 8
+	results := make([]*Client, n)
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			results[i] = m.ClientForLanguage(ctx, "go")
+		}()
+	}
+	wg.Wait()
+
+	var live *Client
+	for i, c := range results {
+		if c == nil {
+			t.Fatalf("goroutine %d got nil client", i)
+		}
+		if live == nil {
+			live = c
+			continue
+		}
+		if c != live {
+			t.Fatalf("goroutine produced distinct clients; want single connect via langMu")
+		}
+	}
+	if live == first {
+		t.Fatal("concurrent reconnect should not return the dead client")
+	}
 }
