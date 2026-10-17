@@ -19,6 +19,15 @@ func TestModelDialog_ViewProvidersEmpty_ShowsSetupGuidance(t *testing.T) {
 	if !strings.Contains(view, "ollama pull") {
 		t.Error("expected Ollama pull guidance in empty providers view")
 	}
+	if !strings.Contains(view, "LM Studio") {
+		t.Error("expected LM Studio guidance in empty providers view")
+	}
+	if !strings.Contains(view, "localhost:1234") {
+		t.Error("expected LM Studio localhost:1234 in empty providers view")
+	}
+	if !strings.Contains(view, "TINYCODE_LMSTUDIO_HOST") {
+		t.Error("expected TINYCODE_LMSTUDIO_HOST hint in empty providers view")
+	}
 	if !strings.Contains(view, "OpenRouter") {
 		t.Error("expected OpenRouter guidance in empty providers view")
 	}
