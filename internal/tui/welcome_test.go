@@ -144,6 +144,36 @@ func TestWelcomeView_TipsAfterBoot(t *testing.T) {
 	}
 }
 
+func TestWelcomeView_NoModelTipsOmitTabAgents(t *testing.T) {
+	w := NewWelcomeView()
+	for _, check := range bootChecks {
+		w.MarkDone(check.key)
+	}
+
+	view := w.View(120, 30, "", "", 0, 0, 0, 0)
+	if !strings.Contains(view, "/connect") {
+		t.Error("expected /connect tip when no provider/model")
+	}
+	if strings.Contains(view, "tab agents") {
+		t.Error("expected no-model tips to omit 'tab agents'")
+	}
+}
+
+func TestWelcomeView_WithModelTipsMayIncludeTabAgents(t *testing.T) {
+	w := NewWelcomeView()
+	for _, check := range bootChecks {
+		w.MarkDone(check.key)
+	}
+
+	view := w.View(120, 30, "ollama", "llama3", 0, 0, 0, 0)
+	if !strings.Contains(view, "tab agents") {
+		t.Error("expected 'tab agents' tip when provider/model selected")
+	}
+	if strings.Contains(view, "/connect") {
+		t.Error("expected /connect omitted when model selected")
+	}
+}
+
 func TestWelcomeView_ViewContainsLogo(t *testing.T) {
 	w := NewWelcomeView()
 	// Show all logo rows

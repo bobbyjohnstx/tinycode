@@ -834,6 +834,28 @@ func TestHandleDialogMsg_AgentSelectedMsg_UpdatesActiveSessionAgent(t *testing.T
 	}
 }
 
+func TestHandleDialogMsg_AgentSelectedMsg_ShowsAgentToast(t *testing.T) {
+	app := NewApp("")
+	app.state.CurrentModel = ModelSelection{ProviderID: "ollama", ModelID: "qwen"}
+
+	result, cmd, handled := app.handleDialogMsg(AgentSelectedMsg{Agent: "build"})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil toast cmd")
+	}
+	if !result.toast.IsVisible() {
+		t.Fatal("expected toast visible after agent selection")
+	}
+	if result.toast.current.Text != "Agent: build" {
+		t.Errorf("toast text = %q, want %q", result.toast.current.Text, "Agent: build")
+	}
+	if result.toast.current.IsError {
+		t.Error("expected non-error toast")
+	}
+}
+
 func TestHandleDialogMsg_ModelSelectedMsg_SetsCurrentModel(t *testing.T) {
 	app := NewApp("")
 	app.state.Providers = []ProviderInfo{

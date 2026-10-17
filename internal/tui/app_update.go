@@ -395,7 +395,8 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 			}
 		}
 		a.setFocus(FocusPrompt)
-		return a, nil, true
+		cmd := a.toast.Show("Agent: "+msg.Agent, false)
+		return a, cmd, true
 	case ThemePreviewMsg:
 		if theme := a.themes.Get(msg.ThemeID); theme != nil {
 			ApplyColorTheme(theme)

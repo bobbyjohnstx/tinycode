@@ -193,7 +193,6 @@ func (w WelcomeView) View(width, height int, providerName, modelName string, ses
 				"/connect",
 				"/ commands",
 				"@ files",
-				"tab agents",
 			}
 		}
 		tips2 := []string{
