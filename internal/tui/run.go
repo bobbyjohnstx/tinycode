@@ -92,6 +92,7 @@ type connectedApp struct {
 	goal            *goalTracker
 	startHead       string   // git HEAD at session start, for /changes
 	promptQueue     []string // queued prompts waiting for current run to finish
+	undoHintShown   bool     // once-per-process /undo discovery toast after first AI edit
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {

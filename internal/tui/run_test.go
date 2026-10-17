@@ -1170,3 +1170,88 @@ func TestConnectedApp_ForkDoneMsg_Error(t *testing.T) {
 		t.Errorf("expected no sessions added on error, got %+v", ca.app.state.Sessions)
 	}
 }
+
+func TestSessionStatusIdle_FirstEditShowsUndoHintOnce(t *testing.T) {
+	client, cleanup := newTestClient(t)
+	defer cleanup()
+
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "ses_123"
+	app.status.SetWorking(true)
+	app.chat.messages = []MessageView{
+		{
+			Parts: []PartView{
+				{Type: "tool", ToolName: "write", ToolArgs: `{"file_path": "/tmp/a.go"}`},
+			},
+		},
+	}
+
+	ca := &connectedApp{app: app, client: client}
+
+	result, _ := ca.Update(SessionStatusMsg{
+		SessionID: "ses_123",
+		Status:    SessionStatus{Working: false},
+	})
+	updated := result.(*connectedApp)
+
+	if !updated.undoHintShown {
+		t.Fatal("expected undoHintShown true after first edit idle")
+	}
+	if !updated.app.toast.IsVisible() {
+		t.Fatal("expected undo hint toast")
+	}
+	if updated.app.toast.current.Text != "/undo reverts AI file changes" {
+		t.Errorf("toast text = %q, want %q", updated.app.toast.current.Text, "/undo reverts AI file changes")
+	}
+
+	updated.app.toast.Dismiss()
+	updated.app.status.SetWorking(true)
+	result2, _ := updated.Update(SessionStatusMsg{
+		SessionID: "ses_123",
+		Status:    SessionStatus{Working: false},
+	})
+	updated2 := result2.(*connectedApp)
+	if !updated2.undoHintShown {
+		t.Error("undoHintShown should stay true")
+	}
+	if updated2.app.toast.IsVisible() {
+		t.Errorf("expected no second undo toast, got %q", updated2.app.toast.current.Text)
+	}
+}
+
+func TestSessionStatusIdle_ReadOnlyTurnNoUndoHint(t *testing.T) {
+	client, cleanup := newTestClient(t)
+	defer cleanup()
+
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "ses_123"
+	app.status.SetWorking(true)
+	app.chat.messages = []MessageView{
+		{
+			Parts: []PartView{
+				{Type: "tool", ToolName: "read", ToolArgs: `{"file_path": "/tmp/a.go"}`},
+			},
+		},
+	}
+
+	ca := &connectedApp{app: app, client: client}
+
+	result, _ := ca.Update(SessionStatusMsg{
+		SessionID: "ses_123",
+		Status:    SessionStatus{Working: false},
+	})
+	updated := result.(*connectedApp)
+
+	if updated.undoHintShown {
+		t.Error("expected undoHintShown false for read-only turn")
+	}
+	if updated.app.toast.IsVisible() {
+		t.Errorf("expected no undo toast on read-only turn, got %q", updated.app.toast.current.Text)
+	}
+}
