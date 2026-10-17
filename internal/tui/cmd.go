@@ -122,6 +122,12 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 			Options:   options,
 		}
 
+	case "question.rejected":
+		return QuestionRejectedMsg{
+			ID:        stringProp(props, "requestID"),
+			SessionID: sessionID,
+		}
+
 	case "mcp.status":
 		srv := MCPServer{}
 		if server, ok := props["server"].(map[string]any); ok {
@@ -623,6 +629,14 @@ func replyPermission(client *api.Client, sessionID, permissionID, action string)
 func replyQuestion(client *api.Client, questionID, answer string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.ReplyQuestion(questionID, answer)
+		return QuestionRepliedMsg{Err: err}
+	}
+}
+
+// rejectQuestion cancels a pending question via POST /question/{id}/reject.
+func rejectQuestion(client *api.Client, questionID string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.RejectQuestion(questionID)
 		return QuestionRepliedMsg{Err: err}
 	}
 }

@@ -67,6 +67,7 @@ func (s *Server) registerRoutes() {
 	// Question
 	s.mux.HandleFunc("GET /question", s.handleQuestionList)
 	s.mux.HandleFunc("POST /question/{id}/reply", s.handleQuestionReply)
+	s.mux.HandleFunc("POST /question/{id}/reject", s.handleQuestionReject)
 
 	// Auth
 	s.mux.HandleFunc("PUT /auth/{providerID}", s.handleAuthPut)

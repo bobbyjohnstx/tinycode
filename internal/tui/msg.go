@@ -122,6 +122,17 @@ type QuestionReplyMsg struct {
 	Answer string
 }
 
+// QuestionRejectMsg is a request to POST /question/{id}/reject.
+type QuestionRejectMsg struct {
+	ID string
+}
+
+// QuestionRejectedMsg is an SSE notification that a question was rejected/cancelled.
+type QuestionRejectedMsg struct {
+	ID        string
+	SessionID string
+}
+
 // SessionErrorMsg is emitted when a session-scoped error arrives via SSE.
 // It carries both an error message (for toast) and session ID (to clear working state).
 type SessionErrorMsg struct {

@@ -444,11 +444,29 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return a, reply, true
 	case QuestionDismissedMsg:
 		a.questionPrompt.Hide()
+		slog.Info("question answered", "id", msg.ID, "sessionID", msg.SessionID, "rejected", msg.Rejected)
+		var reply tea.Cmd
+		if msg.Rejected {
+			reply = func() tea.Msg { return QuestionRejectMsg{ID: msg.ID} }
+		} else {
+			reply = func() tea.Msg { return QuestionReplyMsg{ID: msg.ID, Answer: msg.Answer} }
+		}
+		if a.questionPrompt.ShowNext() {
+			return a, tea.Batch(reply, a.questionPrompt.FocusCmd()), true
+		}
 		a.setFocus(FocusPrompt)
-		slog.Info("question answered", "id", msg.ID, "sessionID", msg.SessionID)
-		return a, func() tea.Msg {
-			return QuestionReplyMsg{ID: msg.ID, Answer: msg.Answer}
-		}, true
+		return a, reply, true
+	case QuestionRejectedMsg:
+		if a.questionPrompt.VisibleID() == msg.ID {
+			a.questionPrompt.Hide()
+			if a.questionPrompt.ShowNext() {
+				return a, a.questionPrompt.FocusCmd(), true
+			}
+			a.setFocus(FocusPrompt)
+			return a, nil, true
+		}
+		a.questionPrompt.removeQueued(msg.ID)
+		return a, nil, true
 	case RewindSelectedMsg:
 		a.setFocus(FocusPrompt)
 		return a, func() tea.Msg { return msg }, true

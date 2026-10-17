@@ -540,6 +540,191 @@ func TestPublishToolResult_ErrorResult(t *testing.T) {
 	}
 }
 
+func TestExecuteTools_SerializesQuestionByCallIndex(t *testing.T) {
+	exec := &orderingToolExecutor{
+		block: map[string]chan struct{}{
+			"q0": make(chan struct{}),
+			"q2": make(chan struct{}),
+		},
+		started: make(map[string]chan struct{}),
+	}
+	for _, name := range []string{"q0", "bash1", "q2"} {
+		exec.started[name] = make(chan struct{}, 1)
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses-q-serial",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, &mockLLMClient{}, exec, b)
+
+	toolCalls := []Part{
+		ToolCallPart("call-0", "question", `{"question":"first","_tag":"q0"}`),
+		ToolCallPart("call-1", "bash", `{"command":"true","_tag":"bash1"}`),
+		ToolCallPart("call-2", "question", `{"question":"second","_tag":"q2"}`),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		p.executeTools(ctx, toolCalls)
+		close(done)
+	}()
+
+	// q0 and bash may start; q2 must not start until q0 finishes.
+	select {
+	case <-exec.started["q0"]:
+	case <-time.After(2 * time.Second):
+		t.Fatal("q0 did not start")
+	}
+	select {
+	case <-exec.started["bash1"]:
+	case <-time.After(2 * time.Second):
+		t.Fatal("bash should start while q0 is still running")
+	}
+	select {
+	case <-exec.started["q2"]:
+		t.Fatal("q2 started before q0 finished")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(exec.block["q0"])
+	select {
+	case <-exec.started["q2"]:
+	case <-time.After(2 * time.Second):
+		t.Fatal("q2 did not start after q0 finished")
+	}
+	close(exec.block["q2"])
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("executeTools did not finish")
+	}
+
+	if exec.startAt("q2").Before(exec.finishAt("q0")) {
+		t.Fatalf("q2 started at %v before q0 finished at %v", exec.startAt("q2"), exec.finishAt("q0"))
+	}
+}
+
+func TestExecuteTools_NonQuestionsRemainConcurrent(t *testing.T) {
+	exec := &countingToolExecutor{
+		started: make(chan struct{}, 8),
+		release: make(chan struct{}),
+	}
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses-nq-conc",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, &mockLLMClient{}, exec, b)
+
+	toolCalls := []Part{
+		ToolCallPart("call-a", "read", `{}`),
+		ToolCallPart("call-b", "bash", `{}`),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	go func() {
+		for i := 0; i < 2; i++ {
+			select {
+			case <-exec.started:
+			case <-ctx.Done():
+				return
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		exec.mu.Lock()
+		exec.observedMax = exec.maxSeen
+		exec.mu.Unlock()
+		close(exec.release)
+	}()
+
+	_, allFailed := p.executeTools(ctx, toolCalls)
+	if allFailed {
+		t.Fatal("expected non-question tools to finish")
+	}
+	if exec.observedMax < 2 {
+		t.Fatalf("max in flight = %d, want concurrent (>=2)", exec.observedMax)
+	}
+}
+
+// orderingToolExecutor records start/finish times keyed by a _tag in args JSON.
+type orderingToolExecutor struct {
+	mu       sync.Mutex
+	block    map[string]chan struct{}
+	started  map[string]chan struct{}
+	starts   map[string]time.Time
+	finishes map[string]time.Time
+}
+
+func (o *orderingToolExecutor) tag(args json.RawMessage) string {
+	var parsed struct {
+		Tag string `json:"_tag"`
+	}
+	_ = json.Unmarshal(args, &parsed)
+	return parsed.Tag
+}
+
+func (o *orderingToolExecutor) Execute(ctx context.Context, name string, args json.RawMessage, _ string) (string, bool, error) {
+	tag := o.tag(args)
+	if tag == "" {
+		tag = name
+	}
+	o.mu.Lock()
+	if o.starts == nil {
+		o.starts = make(map[string]time.Time)
+		o.finishes = make(map[string]time.Time)
+	}
+	o.starts[tag] = time.Now()
+	o.mu.Unlock()
+
+	if ch, ok := o.started[tag]; ok {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+
+	if block, ok := o.block[tag]; ok {
+		select {
+		case <-block:
+		case <-ctx.Done():
+			return "", true, ctx.Err()
+		}
+	}
+
+	o.mu.Lock()
+	o.finishes[tag] = time.Now()
+	o.mu.Unlock()
+	return "ok", false, nil
+}
+
+func (o *orderingToolExecutor) ToolDefs(_ []string) []llm.Tool { return nil }
+
+func (o *orderingToolExecutor) startAt(tag string) time.Time {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.starts[tag]
+}
+
+func (o *orderingToolExecutor) finishAt(tag string) time.Time {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.finishes[tag]
+}
+
 // --- Test helper types ---
 
 // countingToolExecutor records how many calls run at once and blocks until release is closed.

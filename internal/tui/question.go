@@ -21,9 +21,11 @@ type QuestionDismissedMsg struct {
 	ID        string
 	SessionID string
 	Answer    string
+	Rejected  bool
 }
 
 // QuestionPrompt shows a question and collects an answer.
+// Requests that arrive while one is visible are queued and shown after it.
 type QuestionPrompt struct {
 	id        string
 	sessionID string
@@ -34,6 +36,7 @@ type QuestionPrompt struct {
 	visible   bool
 	width     int
 	height    int
+	queue     []QuestionAskedMsg
 }
 
 // NewQuestionPrompt creates a QuestionPrompt.
@@ -44,8 +47,48 @@ func NewQuestionPrompt() QuestionPrompt {
 	return QuestionPrompt{input: ti}
 }
 
-// Show displays the question. Free-text questions focus the input.
+// Show displays the question. A different request that arrives while one is
+// already visible is queued. Free-text questions focus the input.
 func (p *QuestionPrompt) Show(msg QuestionAskedMsg) tea.Cmd {
+	if p.visible {
+		if msg.ID == p.id || p.queued(msg.ID) {
+			return nil
+		}
+		p.queue = append(p.queue, msg)
+		return nil
+	}
+	return p.apply(msg)
+}
+
+// ShowNext displays the next queued question. It reports whether one was shown.
+func (p *QuestionPrompt) ShowNext() bool {
+	if len(p.queue) == 0 {
+		p.visible = false
+		return false
+	}
+	next := p.queue[0]
+	p.queue = p.queue[1:]
+	_ = p.apply(next)
+	return true
+}
+
+// FocusCmd returns a focus command for free-text questions, or nil.
+func (p *QuestionPrompt) FocusCmd() tea.Cmd {
+	if !p.visible || len(p.options) > 0 {
+		return nil
+	}
+	return p.input.Focus()
+}
+
+// VisibleID returns the ID of the currently shown question, or "".
+func (p QuestionPrompt) VisibleID() string {
+	if !p.visible {
+		return ""
+	}
+	return p.id
+}
+
+func (p *QuestionPrompt) apply(msg QuestionAskedMsg) tea.Cmd {
 	p.id = msg.ID
 	p.sessionID = msg.SessionID
 	p.question = msg.Question
@@ -60,7 +103,31 @@ func (p *QuestionPrompt) Show(msg QuestionAskedMsg) tea.Cmd {
 	return p.input.Focus()
 }
 
-// Hide closes the question prompt.
+func (p *QuestionPrompt) queued(id string) bool {
+	for _, q := range p.queue {
+		if q.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// removeQueued drops a queued question by ID (SSE reject for a non-visible item).
+func (p *QuestionPrompt) removeQueued(id string) {
+	if len(p.queue) == 0 {
+		return
+	}
+	kept := p.queue[:0]
+	for _, q := range p.queue {
+		if q.ID == id {
+			continue
+		}
+		kept = append(kept, q)
+	}
+	p.queue = kept
+}
+
+// Hide closes the question prompt without discarding queued requests.
 func (p *QuestionPrompt) Hide() {
 	p.visible = false
 	p.input.Blur()
@@ -114,7 +181,7 @@ func (p QuestionPrompt) updateOptions(keyMsg tea.KeyMsg) (QuestionPrompt, tea.Cm
 			return p.dismiss(p.options[p.selected])
 		}
 	case "esc":
-		return p.dismiss("cancelled")
+		return p.dismissRejected()
 	}
 	return p, nil
 }
@@ -128,7 +195,7 @@ func (p QuestionPrompt) updateText(msg tea.Msg, keyMsg tea.KeyMsg) (QuestionProm
 		}
 		return p.dismiss(answer)
 	case "esc":
-		return p.dismiss("cancelled")
+		return p.dismissRejected()
 	}
 	var cmd tea.Cmd
 	p.input, cmd = p.input.Update(msg)
@@ -142,6 +209,16 @@ func (p QuestionPrompt) dismiss(answer string) (QuestionPrompt, tea.Cmd) {
 	p.input.Blur()
 	return p, func() tea.Msg {
 		return QuestionDismissedMsg{ID: id, SessionID: sessionID, Answer: answer}
+	}
+}
+
+func (p QuestionPrompt) dismissRejected() (QuestionPrompt, tea.Cmd) {
+	id := p.id
+	sessionID := p.sessionID
+	p.visible = false
+	p.input.Blur()
+	return p, func() tea.Msg {
+		return QuestionDismissedMsg{ID: id, SessionID: sessionID, Rejected: true}
 	}
 }
 

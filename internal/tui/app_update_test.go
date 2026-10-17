@@ -981,6 +981,86 @@ func TestHandleDialogMsg_QuestionDismissed_EmitsReply(t *testing.T) {
 	}
 }
 
+func TestHandleDialogMsg_QuestionDismissed_ShowNextBeforeFocusPrompt(t *testing.T) {
+	app := NewApp("")
+	app.questionPrompt.Show(QuestionAskedMsg{ID: "q_1", SessionID: "ses_q", Question: "First?"})
+	app.questionPrompt.Show(QuestionAskedMsg{ID: "q_2", SessionID: "ses_q", Question: "Second?"})
+
+	result, cmd, handled := app.handleDialogMsg(QuestionDismissedMsg{
+		ID:        "q_1",
+		SessionID: "ses_q",
+		Answer:    "yes",
+	})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if !result.questionPrompt.IsVisible() {
+		t.Fatal("expected next question still visible")
+	}
+	if result.questionPrompt.VisibleID() != "q_2" {
+		t.Fatalf("visible = %q, want q_2", result.questionPrompt.VisibleID())
+	}
+	// ShowNext keeps the overlay up — do not force FocusPrompt until the queue drains.
+	if cmd == nil {
+		t.Fatal("expected reply cmd")
+	}
+}
+
+func TestHandleDialogMsg_QuestionDismissed_RejectedEmitsReject(t *testing.T) {
+	app := NewApp("")
+	app.questionPrompt.Show(QuestionAskedMsg{ID: "q_1", SessionID: "ses_q", Question: "Continue?"})
+
+	_, cmd, handled := app.handleDialogMsg(QuestionDismissedMsg{
+		ID:       "q_1",
+		Rejected: true,
+	})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	msg := cmd()
+	rej, ok := msg.(QuestionRejectMsg)
+	if !ok {
+		t.Fatalf("expected QuestionRejectMsg, got %T", msg)
+	}
+	if rej.ID != "q_1" {
+		t.Errorf("id = %q, want q_1", rej.ID)
+	}
+}
+
+func TestHandleDialogMsg_QuestionRejectedMsg_AdvancesQueue(t *testing.T) {
+	app := NewApp("")
+	app.questionPrompt.Show(QuestionAskedMsg{ID: "q_1", SessionID: "ses_q", Question: "First?"})
+	app.questionPrompt.Show(QuestionAskedMsg{ID: "q_2", SessionID: "ses_q", Question: "Second?"})
+
+	result, _, handled := app.handleDialogMsg(QuestionRejectedMsg{ID: "q_1", SessionID: "ses_q"})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if !result.questionPrompt.IsVisible() {
+		t.Fatal("expected queued question shown")
+	}
+	if result.questionPrompt.VisibleID() != "q_2" {
+		t.Fatalf("visible = %q, want q_2", result.questionPrompt.VisibleID())
+	}
+}
+
+func TestHandleDialogMsg_QuestionRejectedMsg_RemovesQueued(t *testing.T) {
+	app := NewApp("")
+	app.questionPrompt.Show(QuestionAskedMsg{ID: "q_1", SessionID: "ses_q", Question: "First?"})
+	app.questionPrompt.Show(QuestionAskedMsg{ID: "q_2", SessionID: "ses_q", Question: "Second?"})
+
+	result, _, handled := app.handleDialogMsg(QuestionRejectedMsg{ID: "q_2", SessionID: "ses_q"})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if result.questionPrompt.VisibleID() != "q_1" {
+		t.Fatalf("visible = %q, want q_1", result.questionPrompt.VisibleID())
+	}
+	if result.questionPrompt.ShowNext() {
+		t.Fatal("q_2 should have been removed from queue")
+	}
+}
+
 func TestQuestionPrompt_EnterSubmitsOption(t *testing.T) {
 	p := NewQuestionPrompt()
 	p.Show(QuestionAskedMsg{

@@ -67,6 +67,25 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 		failed bool
 	}
 
+	type questionGate struct {
+		wait <-chan struct{}
+		done chan struct{}
+	}
+
+	// Serialize "question" tools by call-index order; other tools stay parallel.
+	gates := make(map[int]questionGate)
+	first := make(chan struct{})
+	close(first)
+	prevQuestionDone := (<-chan struct{})(first)
+	for i, tc := range toolCalls {
+		if tc.ToolName != "question" {
+			continue
+		}
+		done := make(chan struct{})
+		gates[i] = questionGate{wait: prevQuestionDone, done: done}
+		prevQuestionDone = done
+	}
+
 	results := make([]Part, len(toolCalls))
 	ch := make(chan toolResult, len(toolCalls))
 	sem := make(chan struct{}, maxConcurrentTools)
@@ -98,6 +117,22 @@ launch:
 					}
 				}
 			}()
+
+			if g, ok := gates[idx]; ok {
+				select {
+				case <-g.wait:
+				case <-ctx.Done():
+					p.publishToolResult(call, "aborted", true)
+					ch <- toolResult{
+						index:  idx,
+						result: ToolResultPart(call.ToolCallID, call.ToolName, "aborted", true),
+						failed: true,
+					}
+					close(g.done)
+					return
+				}
+				defer close(g.done)
+			}
 
 			// Permission check: if tool args reference paths outside the
 			// configured directory, ask the permission service.

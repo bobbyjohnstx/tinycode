@@ -314,6 +314,11 @@ func (c *Client) ReplyQuestion(questionID, answer string) error {
 	return c.postNoResp("/question/"+questionID+"/reply", body)
 }
 
+// RejectQuestion cancels a pending question via POST /question/{id}/reject.
+func (c *Client) RejectQuestion(questionID string) error {
+	return c.postNoResp("/question/"+questionID+"/reject", map[string]any{})
+}
+
 // BranchSession branches a session via POST /session/{id}/fork.
 // It creates a new session with ParentID set to the source session and copies all messages.
 func (c *Client) BranchSession(sessionID, title string) (*session.Info, error) {

@@ -24,8 +24,8 @@ func TestExecuteQuestion_ParentCancelPublishesRejected(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var (
-		mu     sync.Mutex
-		result *ExecuteResult
+		mu      sync.Mutex
+		result  *ExecuteResult
 		execErr error
 	)
 	done := make(chan struct{})
@@ -101,16 +101,23 @@ func TestExecuteQuestion_RejectedEventUnblocks(t *testing.T) {
 		t.Fatal("timed out waiting for question.asked")
 	}
 
-	b.Publish("question.rejected", map[string]any{
-		"sessionID": "ses-q-rej",
-		"requestID": questionID,
-	})
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("executeQuestion did not unblock on question.rejected")
+	// asked is published before rejected is subscribed; retry briefly so the
+	// wait loop is listening before we deliver the cancel event.
+	deadline := time.After(2 * time.Second)
+	for {
+		b.Publish("question.rejected", map[string]any{
+			"sessionID": "ses-q-rej",
+			"requestID": questionID,
+		})
+		select {
+		case <-done:
+			goto finished
+		case <-deadline:
+			t.Fatal("executeQuestion did not unblock on question.rejected")
+		case <-time.After(20 * time.Millisecond):
+		}
 	}
+finished:
 	if execErr != nil {
 		t.Fatalf("unexpected error: %v", execErr)
 	}

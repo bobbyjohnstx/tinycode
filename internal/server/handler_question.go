@@ -57,3 +57,20 @@ func (s *Server) handleQuestionReply(w http.ResponseWriter, r *http.Request) {
 		"status":     "replied",
 	})
 }
+
+func (s *Server) handleQuestionReject(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var sessionID string
+	if q, ok := s.questionStore.Get(id); ok {
+		sessionID = q.SessionID
+	}
+	s.questionStore.Remove(id)
+
+	s.deps.Bus.Publish("question.rejected", map[string]any{
+		"sessionID": sessionID,
+		"requestID": id,
+	})
+
+	respondJSON(w, http.StatusOK, true)
+}

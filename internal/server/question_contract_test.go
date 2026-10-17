@@ -250,6 +250,53 @@ func TestQuestionReply_RemovesFromStore(t *testing.T) {
 	}
 }
 
+func TestHandleQuestionReject_PublishesRejectedAndRemoves(t *testing.T) {
+	srv, b := testServer(t)
+
+	srv.questionStore.Add(PendingQuestion{
+		ID:        "q_rej_1",
+		SessionID: "ses_rej",
+		Question:  "cancel me?",
+	})
+
+	sub := b.Subscribe("question.rejected")
+	defer sub.Unsubscribe()
+
+	req := httptest.NewRequest("POST", "/question/q_rej_1/reject", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if strings.TrimSpace(w.Body.String()) != "true" {
+		t.Errorf("body = %q, want true", w.Body.String())
+	}
+	if len(srv.questionStore.List()) != 0 {
+		t.Error("expected question removed from store after reject")
+	}
+
+	select {
+	case evt := <-sub.C:
+		if evt.Type != "question.rejected" {
+			t.Errorf("event type = %s, want question.rejected", evt.Type)
+		}
+		props, ok := evt.Properties.(map[string]any)
+		if !ok {
+			t.Fatal("expected map properties")
+		}
+		if props["requestID"] != "q_rej_1" {
+			t.Errorf("requestID = %v, want q_rej_1", props["requestID"])
+		}
+		if props["sessionID"] != "ses_rej" {
+			t.Errorf("sessionID = %v, want ses_rej", props["sessionID"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for question.rejected")
+	}
+}
+
 func TestQuestionStore_Get(t *testing.T) {
 	qs := NewQuestionStore()
 	qs.Add(PendingQuestion{ID: "q1", SessionID: "s1", Question: "test?"})

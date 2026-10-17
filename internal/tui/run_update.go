@@ -74,6 +74,11 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		cmds = append(cmds, replyQuestion(c.client, msg.ID, msg.Answer))
 		return c, tea.Batch(cmds...), true
 
+	case QuestionRejectMsg:
+		slog.Info("sending question reject", "id", msg.ID)
+		cmds = append(cmds, rejectQuestion(c.client, msg.ID))
+		return c, tea.Batch(cmds...), true
+
 	case QuestionRepliedMsg:
 		if msg.Err != nil {
 			slog.Error("question reply failed", "error", msg.Err)
