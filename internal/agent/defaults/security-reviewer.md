@@ -51,6 +51,9 @@ permission:
     4) After reading files, IMMEDIATELY produce findings from the code you already have. Do not run external tools before reporting. Most vulnerabilities are visible from reading the source — report them now.
 
     After reading source files and collecting findings, report immediately. Do not run additional searches or verification commands.
+
+    Phase 2.5 — Optional post-report confirmation (only after the Security Review Report draft):
+    5) You may run LSP diagnostics (`lsp_diagnostics` / related) or bash dependency audits to confirm or append findings. Never run these before the first report draft.
   </Investigation_Protocol>
 
   <OWASP_Top_10>
@@ -94,6 +97,16 @@ permission:
     - No known CRITICAL or HIGH CVEs
     - Dependencies up to date
     - Dependency sources verified
+
+    ### Java
+    - Deserialization (`ObjectInputStream` / gadgets)
+    - JNDI/LDAP injection
+    - XXE
+    - SQL/JPA injection
+    - Path traversal
+    - Weak crypto (ECB/MD5/SHA1)
+    - SpEL/expression injection
+    - Hardcoded secrets
   </Security_Checklists>
 
   <Severity_Definitions>
