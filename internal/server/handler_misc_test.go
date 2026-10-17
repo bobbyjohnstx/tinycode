@@ -625,8 +625,8 @@ func TestResolveDefaultModelRef_ConfiguredDefaultStillWins(t *testing.T) {
 		ID:   "ollama",
 		Name: "Ollama",
 		Models: map[string]*provider.Model{
-			"phi3:3.8b":          {ID: "phi3:3.8b", Name: "phi3:3.8b", ProviderID: "ollama"},
-			"qwen2.5-coder:7b":   {ID: "qwen2.5-coder:7b", Name: "qwen2.5-coder:7b", ProviderID: "ollama"},
+			"phi3:3.8b":        {ID: "phi3:3.8b", Name: "phi3:3.8b", ProviderID: "ollama"},
+			"qwen2.5-coder:7b": {ID: "qwen2.5-coder:7b", Name: "qwen2.5-coder:7b", ProviderID: "ollama"},
 		},
 	})
 
@@ -657,6 +657,48 @@ func TestResolveDefaultModelRef_PrefersCoderOverTinyAscending(t *testing.T) {
 	}
 	if ref.ModelID != "qwen2.5-coder:7b" {
 		t.Errorf("expected coding model qwen2.5-coder:7b, got %q (ascending size would pick phi3)", ref.ModelID)
+	}
+}
+
+func TestIsCodingModelName_OnlyCoderMarkers(t *testing.T) {
+	tests := []struct {
+		id, name string
+		want     bool
+	}{
+		{"qwen2.5-coder:7b", "", true},
+		{"deepseek-coding", "", true},
+		{"gemma2:9b-instruct", "", false},
+		{"llama3.1:8b-instruct", "Meta Llama Instruct", false},
+		{"text-encode-v1", "", false},
+		{"audio-transcode", "", false},
+		{"phi3:3.8b", "", false},
+	}
+	for _, tt := range tests {
+		got := isCodingModelName(tt.id, tt.name)
+		if got != tt.want {
+			t.Errorf("isCodingModelName(%q, %q) = %v, want %v", tt.id, tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestResolveDefaultModelRef_InstructDoesNotBeatLargerGeneral(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(&provider.Info{
+		ID:   "ollama",
+		Name: "Ollama",
+		Models: map[string]*provider.Model{
+			// SizeB is parsed from Name (e.g. :9b / :70b).
+			"gemma2:9b-instruct": {ID: "gemma2:9b-instruct", Name: "gemma2:9b-instruct", ProviderID: "ollama"},
+			"llama3.1:70b":       {ID: "llama3.1:70b", Name: "llama3.1:70b", ProviderID: "ollama"},
+		},
+	})
+
+	ref := ResolveDefaultModelRef(reg, "")
+	if ref == nil {
+		t.Fatal("expected non-nil ModelRef")
+	}
+	if ref.ModelID != "llama3.1:70b" {
+		t.Errorf("expected larger general model, got %q (instruct must not get coding boost)", ref.ModelID)
 	}
 }
 

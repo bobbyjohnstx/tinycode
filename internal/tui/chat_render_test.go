@@ -295,6 +295,24 @@ func TestRenderAssistantMessage_EmptyTextNoReasoning_NoHonestyCue(t *testing.T) 
 	}
 }
 
+func TestRenderAssistantMessage_ExpandedThought_NoHonestyCue(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant"},
+		Parts: []PartView{
+			{Type: "text", Text: ""},
+			{Type: "reasoning", Text: "Expanded reasoning body.", ThoughtExpanded: true},
+		},
+	}
+	got := stripAnsi(renderMessage(msg, 80, md))
+	if strings.Contains(got, "(no text — expand Thought)") {
+		t.Fatalf("expanded Thought should not show expand cue, got %q", got)
+	}
+	if !strings.Contains(got, "Expanded reasoning body.") {
+		t.Fatalf("expected reasoning body, got %q", got)
+	}
+}
+
 // --- unified tool part rendering tests ---
 
 func TestRenderAssistantMessage_UnifiedToolPart(t *testing.T) {

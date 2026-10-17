@@ -82,7 +82,7 @@ func resolveDefaultModelRef(reg *provider.Registry, defaultModel string) *sessio
 
 func isCodingModelName(id, name string) bool {
 	lower := strings.ToLower(id + " " + name)
-	return strings.Contains(lower, "coder") ||
-		strings.Contains(lower, "code") ||
-		strings.Contains(lower, "instruct")
+	// Prefer explicit coding markers. Do not match bare "code" (encode/decode)
+	// or "instruct" (general instruction-tuned chat models).
+	return strings.Contains(lower, "coder") || strings.Contains(lower, "coding")
 }

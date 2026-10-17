@@ -16,14 +16,14 @@ import (
 
 var (
 	styleUserBorder = lipgloss.NewStyle().
-		BorderStyle(lipgloss.ThickBorder()).
-		BorderLeft(true).BorderTop(false).BorderRight(false).BorderBottom(false).
-		BorderForeground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"}).
-		PaddingLeft(1)
+			BorderStyle(lipgloss.ThickBorder()).
+			BorderLeft(true).BorderTop(false).BorderRight(false).BorderBottom(false).
+			BorderForeground(lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#CC4444"}).
+			PaddingLeft(1)
 	styleTimestamp = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#AAAAAA", Dark: "#666666"})
+			Foreground(lipgloss.AdaptiveColor{Light: "#AAAAAA", Dark: "#666666"})
 	styleAgentFooter = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
+				Foreground(lipgloss.AdaptiveColor{Light: "#999999", Dark: "#777777"})
 	styleCopyAffordance = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#AAAAAA"})
@@ -31,9 +31,9 @@ var (
 	// ⎘ glyph in terminals that support emoji.
 	copyAffordanceLabel = "📋"
 	styleReasoningLabel = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"})
+				Foreground(lipgloss.AdaptiveColor{Light: "#006600", Dark: "#66FF66"})
 	styleReasoningText = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#999999"})
+				Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#999999"})
 )
 
 // subagentHit records a subagent header line's offset within rendered output.
@@ -153,7 +153,8 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 				sb.WriteString("\n")
 				lineNum++
 				// Dim cue after Thought label when finished turn has reasoning but no text.
-				if showHonestyCue && !honestyCueShown {
+				// Skip once expanded — the instruction would be stale above the body.
+				if showHonestyCue && !honestyCueShown && !part.ThoughtExpanded {
 					sb.WriteString(styleMetadata.Render("(no text — expand Thought)"))
 					sb.WriteString("\n")
 					lineNum++
