@@ -15,7 +15,7 @@ func TestRegisterTools_AllToolsRegistered(t *testing.T) {
 	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
 	RegisterTools(reg, mgr)
 
-	expected := []string{"lsp_diagnostics", "lsp_hover", "lsp_definition", "lsp_references", "lsp_symbols"}
+	expected := []string{"lsp_diagnostics", "lsp_hover", "lsp_definition", "lsp_references", "lsp_symbols", "lsp_document_symbols"}
 	registered := reg.List()
 
 	regSet := make(map[string]bool, len(registered))
@@ -47,6 +47,7 @@ func TestRegisterTools_ToolDefsHaveCorrectSchema(t *testing.T) {
 		{"lsp_definition", "read", "file_path"},
 		{"lsp_references", "read", "file_path"},
 		{"lsp_symbols", "read", "query"},
+		{"lsp_document_symbols", "read", "file_path"},
 	}
 
 	for _, tt := range tests {
@@ -396,5 +397,77 @@ func TestSymbolsTool_WithExplicitLanguage_NoServer_ReturnsMessage(t *testing.T) 
 	}
 	if !containsStr(result.Output, "cobol") {
 		t.Errorf("output = %q, expected to mention 'cobol'", result.Output)
+	}
+}
+
+func TestRegisterTools_IncludesDocumentSymbols(t *testing.T) {
+	mgr := NewManager(t.TempDir(), nil)
+	defer mgr.Close()
+
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	RegisterTools(reg, mgr)
+
+	def := reg.Get("lsp_document_symbols")
+	if def == nil {
+		t.Fatal("lsp_document_symbols not registered")
+	}
+	if def.Permission != "read" {
+		t.Fatalf("permission = %q, want read", def.Permission)
+	}
+	required, ok := def.Parameters["required"].([]string)
+	if !ok {
+		t.Fatal("missing required")
+	}
+	found := false
+	for _, r := range required {
+		if r == "file_path" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("file_path not required: %v", required)
+	}
+}
+
+func TestDocumentSymbolsTool_DisabledAndNoServer(t *testing.T) {
+	enabled := false
+	mgr := NewManager(t.TempDir(), &Config{Enabled: &enabled})
+	defer mgr.Close()
+
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	RegisterTools(reg, mgr)
+
+	def := reg.Get("lsp_document_symbols")
+	if def == nil {
+		t.Fatal("lsp_document_symbols not found")
+	}
+
+	result, err := def.Execute(
+		context.Background(),
+		&tool.Context{Directory: t.TempDir()},
+		json.RawMessage(`{"file_path": "/tmp/test.go"}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsError || result.Output != "LSP is disabled" {
+		t.Fatalf("disabled result = %#v", result)
+	}
+
+	mgr2 := NewManager(t.TempDir(), nil)
+	defer mgr2.Close()
+	reg2 := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	RegisterTools(reg2, mgr2)
+	def2 := reg2.Get("lsp_document_symbols")
+	result, err = def2.Execute(
+		context.Background(),
+		&tool.Context{Directory: t.TempDir()},
+		json.RawMessage(`{"file_path": "/tmp/test.xyz"}`),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Output == "" {
+		t.Fatal("expected no-server message")
 	}
 }

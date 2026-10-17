@@ -615,3 +615,78 @@ func TestCappedBuffer_RetainsLastBytes(t *testing.T) {
 		t.Fatalf("String() = %q, want %q", got, "efghijXXXX")
 	}
 }
+
+func TestParseDocumentSymbols_Hierarchical(t *testing.T) {
+	raw := json.RawMessage(`[
+		{
+			"name": "Foo",
+			"kind": 5,
+			"range": {"start": {"line": 0, "character": 0}, "end": {"line": 10, "character": 0}},
+			"selectionRange": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 3}},
+			"children": [
+				{
+					"name": "bar",
+					"kind": 6,
+					"range": {"start": {"line": 2, "character": 0}, "end": {"line": 4, "character": 0}},
+					"selectionRange": {"start": {"line": 2, "character": 4}, "end": {"line": 2, "character": 7}},
+					"children": []
+				}
+			]
+		}
+	]`)
+	nodes, err := parseDocumentSymbols(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 1 {
+		t.Fatalf("len = %d, want 1", len(nodes))
+	}
+	if nodes[0].Name != "Foo" || nodes[0].Kind != 5 || nodes[0].Line != 0 {
+		t.Fatalf("root = %+v", nodes[0])
+	}
+	if len(nodes[0].Children) != 1 {
+		t.Fatalf("children len = %d, want 1", len(nodes[0].Children))
+	}
+	child := nodes[0].Children[0]
+	if child.Name != "bar" || child.Kind != 6 || child.Line != 2 {
+		t.Fatalf("child = %+v", child)
+	}
+	if child.Flat || nodes[0].Flat {
+		t.Fatal("hierarchical nodes should not be Flat")
+	}
+}
+
+func TestParseDocumentSymbols_SymbolInformation(t *testing.T) {
+	raw := json.RawMessage(`[
+		{
+			"name": "Println",
+			"kind": 12,
+			"location": {
+				"uri": "file:///fmt/print.go",
+				"range": {"start": {"line": 273, "character": 5}, "end": {"line": 273, "character": 12}}
+			},
+			"containerName": "fmt"
+		},
+		{
+			"name": "Writer",
+			"kind": 11,
+			"location": {
+				"uri": "file:///io/io.go",
+				"range": {"start": {"line": 99, "character": 5}, "end": {"line": 99, "character": 11}}
+			}
+		}
+	]`)
+	nodes, err := parseDocumentSymbols(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 2 {
+		t.Fatalf("len = %d, want 2", len(nodes))
+	}
+	if !nodes[0].Flat || nodes[0].Name != "Println" || nodes[0].ContainerName != "fmt" || nodes[0].Line != 273 {
+		t.Fatalf("nodes[0] = %+v", nodes[0])
+	}
+	if !nodes[1].Flat || nodes[1].Name != "Writer" || nodes[1].Line != 99 {
+		t.Fatalf("nodes[1] = %+v", nodes[1])
+	}
+}

@@ -16,6 +16,7 @@ func RegisterTools(r *tool.Registry, mgr *Manager) {
 	r.Register(definitionTool(mgr))
 	r.Register(referencesTool(mgr))
 	r.Register(symbolsTool(mgr))
+	r.Register(documentSymbolsTool(mgr))
 }
 
 func disabledResult() *tool.ExecuteResult {
@@ -307,6 +308,50 @@ func symbolsTool(mgr *Manager) *tool.Def {
 				return &tool.ExecuteResult{Output: fmt.Sprintf("LSP symbols failed: %v", err), IsError: true}, nil
 			}
 			return &tool.ExecuteResult{Output: formatSymbols(symbols)}, nil
+		},
+	}
+}
+
+func documentSymbolsTool(mgr *Manager) *tool.Def {
+	return &tool.Def{
+		ID:          "lsp_document_symbols",
+		Description: "List symbols (functions, types, variables) in a single file as an outline from the language server (LSP).",
+		Permission:  "read",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"file_path": map[string]any{
+					"type":        "string",
+					"description": "Absolute path to the file to outline",
+				},
+			},
+			"required": []string{"file_path"},
+		},
+		Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+			if mgr.Disabled() {
+				return disabledResult(), nil
+			}
+			var input struct {
+				FilePath string `json:"file_path"`
+			}
+			if err := json.Unmarshal(args, &input); err != nil {
+				return &tool.ExecuteResult{Output: fmt.Sprintf("Invalid arguments: %v", err), IsError: true}, nil
+			}
+
+			file := resolvePath(input.FilePath, tc.Directory)
+			client, lang, err := mgr.ClientForFile(ctx, file)
+			if err != nil {
+				return &tool.ExecuteResult{Output: fmt.Sprintf("LSP error: %v", err), IsError: true}, nil
+			}
+			if client == nil {
+				return &tool.ExecuteResult{Output: noServerMessage(lang, file)}, nil
+			}
+
+			symbols, err := client.DocumentSymbols(ctx, file)
+			if err != nil {
+				return &tool.ExecuteResult{Output: fmt.Sprintf("LSP document symbols failed: %v", err), IsError: true}, nil
+			}
+			return &tool.ExecuteResult{Output: formatDocumentSymbols(symbols)}, nil
 		},
 	}
 }

@@ -206,3 +206,48 @@ func TestReadLinePreview_ReturnsEmptyForLinePastEnd(t *testing.T) {
 		t.Errorf("readLinePreview(path, 100) = %q, want empty string", result)
 	}
 }
+
+func TestFormatDocumentSymbols_Outline(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		if got := formatDocumentSymbols(nil); got != "No symbols found." {
+			t.Fatalf("got %q", got)
+		}
+	})
+
+	t.Run("hierarchical", func(t *testing.T) {
+		symbols := []DocumentSymbolNode{
+			{
+				Name: "Foo",
+				Kind: 5,
+				Line: 0,
+				Children: []DocumentSymbolNode{
+					{Name: "bar", Kind: 6, Line: 2},
+				},
+			},
+		}
+		got := formatDocumentSymbols(symbols)
+		if !strings.Contains(got, "Class Foo — L1\n") {
+			t.Fatalf("missing root line: %q", got)
+		}
+		if !strings.Contains(got, "  Method bar — L3\n") {
+			t.Fatalf("missing indented child: %q", got)
+		}
+	})
+
+	t.Run("flat SymbolInformation", func(t *testing.T) {
+		symbols := []DocumentSymbolNode{
+			{Name: "Println", Kind: 12, Line: 273, ContainerName: "fmt", Flat: true},
+			{Name: "Writer", Kind: 11, Line: 99, Flat: true},
+		}
+		got := formatDocumentSymbols(symbols)
+		if !strings.Contains(got, "Function Println in fmt — L274\n") {
+			t.Fatalf("missing flat with container: %q", got)
+		}
+		if !strings.Contains(got, "Interface Writer — L100\n") {
+			t.Fatalf("missing flat without container: %q", got)
+		}
+		if strings.Contains(got, "  Interface") {
+			t.Fatalf("flat list should not use hierarchy indent: %q", got)
+		}
+	})
+}

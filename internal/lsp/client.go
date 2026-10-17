@@ -89,6 +89,16 @@ type SymbolInfo struct {
 	ContainerName string   `json:"containerName,omitempty"`
 }
 
+// DocumentSymbolNode is a hierarchical or flat document symbol for outlining.
+type DocumentSymbolNode struct {
+	Name          string
+	Kind          int
+	Line          int // 0-indexed selection/start line
+	ContainerName string
+	Children      []DocumentSymbolNode
+	Flat          bool // true when parsed from SymbolInformation[]
+}
+
 type lspResponse struct {
 	Result json.RawMessage
 	Error  *jsonrpcError
@@ -694,6 +704,113 @@ func (c *Client) Symbols(ctx context.Context, query string) ([]SymbolInfo, error
 		return nil, err
 	}
 	return symbols, nil
+}
+
+// DocumentSymbols returns document symbols for a file via textDocument/documentSymbol.
+func (c *Client) DocumentSymbols(ctx context.Context, file string) ([]DocumentSymbolNode, error) {
+	if _, err := c.syncFile(ctx, file); err != nil {
+		return nil, err
+	}
+
+	result, err := c.request(ctx, "textDocument/documentSymbol", map[string]any{
+		"textDocument": map[string]any{"uri": fileURI(file)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return parseDocumentSymbols(result)
+}
+
+func parseDocumentSymbols(raw json.RawMessage) ([]DocumentSymbolNode, error) {
+	if string(raw) == "null" || len(raw) == 0 {
+		return nil, nil
+	}
+
+	var items []json.RawMessage
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil, nil
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+
+	// SymbolInformation[] elements have "location" and lack hierarchical DocumentSymbol shape.
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(items[0], &probe); err != nil {
+		return nil, nil
+	}
+	_, hasLocation := probe["location"]
+	_, hasChildren := probe["children"]
+	if hasLocation && !hasChildren {
+		return parseSymbolInformationList(items)
+	}
+	return parseDocumentSymbolTree(items)
+}
+
+func parseSymbolInformationList(items []json.RawMessage) ([]DocumentSymbolNode, error) {
+	out := make([]DocumentSymbolNode, 0, len(items))
+	for _, item := range items {
+		var si struct {
+			Name          string   `json:"name"`
+			Kind          int      `json:"kind"`
+			Location      Location `json:"location"`
+			ContainerName string   `json:"containerName,omitempty"`
+		}
+		if err := json.Unmarshal(item, &si); err != nil {
+			continue
+		}
+		out = append(out, DocumentSymbolNode{
+			Name:          si.Name,
+			Kind:          si.Kind,
+			Line:          si.Location.Range.Start.Line,
+			ContainerName: si.ContainerName,
+			Flat:          true,
+		})
+	}
+	return out, nil
+}
+
+func parseDocumentSymbolTree(items []json.RawMessage) ([]DocumentSymbolNode, error) {
+	out := make([]DocumentSymbolNode, 0, len(items))
+	for _, item := range items {
+		node, ok := parseOneDocumentSymbol(item)
+		if !ok {
+			continue
+		}
+		out = append(out, node)
+	}
+	return out, nil
+}
+
+func parseOneDocumentSymbol(raw json.RawMessage) (DocumentSymbolNode, bool) {
+	var ds struct {
+		Name           string            `json:"name"`
+		Kind           int               `json:"kind"`
+		Range          *Range            `json:"range"`
+		SelectionRange *Range            `json:"selectionRange"`
+		Children       []json.RawMessage `json:"children"`
+	}
+	if err := json.Unmarshal(raw, &ds); err != nil || ds.Name == "" {
+		return DocumentSymbolNode{}, false
+	}
+	line := 0
+	switch {
+	case ds.SelectionRange != nil:
+		line = ds.SelectionRange.Start.Line
+	case ds.Range != nil:
+		line = ds.Range.Start.Line
+	}
+	node := DocumentSymbolNode{
+		Name: ds.Name,
+		Kind: ds.Kind,
+		Line: line,
+	}
+	for _, child := range ds.Children {
+		if cn, ok := parseOneDocumentSymbol(child); ok {
+			node.Children = append(node.Children, cn)
+		}
+	}
+	return node, true
 }
 
 func parseHoverContents(raw json.RawMessage) string {

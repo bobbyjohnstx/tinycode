@@ -87,6 +87,36 @@ func formatSymbols(symbols []SymbolInfo) string {
 	return sb.String()
 }
 
+func formatDocumentSymbols(symbols []DocumentSymbolNode) string {
+	if len(symbols) == 0 {
+		return "No symbols found."
+	}
+
+	var sb strings.Builder
+	for _, sym := range symbols {
+		formatDocumentSymbolNode(&sb, sym, 0)
+	}
+	return sb.String()
+}
+
+func formatDocumentSymbolNode(sb *strings.Builder, sym DocumentSymbolNode, depth int) {
+	indent := strings.Repeat("  ", depth)
+	kind := symbolKindStr(sym.Kind)
+	line := sym.Line + 1
+	if sym.Flat {
+		container := ""
+		if sym.ContainerName != "" {
+			container = fmt.Sprintf(" in %s", sym.ContainerName)
+		}
+		sb.WriteString(fmt.Sprintf("%s%s %s%s — L%d\n", indent, kind, sym.Name, container, line))
+		return
+	}
+	sb.WriteString(fmt.Sprintf("%s%s %s — L%d\n", indent, kind, sym.Name, line))
+	for _, child := range sym.Children {
+		formatDocumentSymbolNode(sb, child, depth+1)
+	}
+}
+
 func severityStr(severity int) string {
 	switch severity {
 	case 1:
