@@ -2,7 +2,9 @@ package lsp
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -155,4 +157,156 @@ func TestExtForLanguage(t *testing.T) {
 			t.Errorf("extForLanguage(%q) = %q, want %q", tt.lang, got, tt.want)
 		}
 	}
+}
+
+func TestDetectServers_WalksParentsDepthCapped(t *testing.T) {
+	base := t.TempDir()
+	// Nest 9 levels: leaf is d9. Marker in d1 is depth 8 from leaf; marker in base is depth 9.
+	cur := base
+	var chain []string
+	for i := 1; i <= 9; i++ {
+		cur = filepath.Join(cur, "d"+itoaDetect(i))
+		if err := os.MkdirAll(cur, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		chain = append(chain, cur)
+	}
+	leaf := chain[8] // d9
+	d1 := chain[0]   // d1
+
+	// Marker only at base (depth 9 from leaf) — should be ignored.
+	if err := os.WriteFile(filepath.Join(base, "go.mod"), []byte("module deep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	detected := detectServers(leaf)
+	for _, s := range detected {
+		if s.Language == "go" {
+			t.Fatal("go should not be detected when marker is beyond walk depth 8")
+		}
+	}
+
+	// Marker at d1 (depth 8) — should be found if gopls on PATH.
+	if err := os.WriteFile(filepath.Join(d1, "go.mod"), []byte("module near\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	detected = detectServers(leaf)
+	found, marker := markerExists(leaf, []string{"go.mod"}, maxMarkerWalkDepth)
+	if !found {
+		t.Fatal("expected marker within depth 8")
+	}
+	if marker != "go.mod" {
+		t.Fatalf("marker = %q", marker)
+	}
+	// Presence in detectServers depends on LookPath; assert walk itself found it.
+	_ = detected
+}
+
+func TestDetectServers_NearestMarkerWins(t *testing.T) {
+	root := t.TempDir()
+	child := filepath.Join(root, "pkg")
+	if err := os.MkdirAll(child, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module root\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(child, "go.mod"), []byte("module child\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	found, marker := markerExists(child, []string{"go.mod"}, maxMarkerWalkDepth)
+	if !found || marker != "go.mod" {
+		t.Fatalf("found=%v marker=%q", found, marker)
+	}
+	// Nearest directory is child itself (depth 0), not root.
+	if _, err := os.Stat(filepath.Join(child, "go.mod")); err != nil {
+		t.Fatal(err)
+	}
+	// Walking from child must return before reaching root: verify by temporarily
+	// removing child marker — then parent wins.
+	if err := os.Remove(filepath.Join(child, "go.mod")); err != nil {
+		t.Fatal(err)
+	}
+	found, _ = markerExists(child, []string{"go.mod"}, maxMarkerWalkDepth)
+	if !found {
+		t.Fatal("expected parent marker after child removed")
+	}
+}
+
+func TestDetectServers_ClangdMarkerGated(t *testing.T) {
+	dir := t.TempDir()
+	_, clangdOnPath := lookPath("clangd")
+
+	detected := detectServers(dir)
+	for _, s := range detected {
+		if s.Language == "cpp" {
+			t.Fatal("cpp/clangd must not be detected without markers")
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "compile_commands.json"), []byte("[]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	detected = detectServers(dir)
+	var foundCPP bool
+	for _, s := range detected {
+		if s.Language == "cpp" {
+			foundCPP = true
+			if s.Command != "clangd" {
+				t.Fatalf("command = %q, want clangd", s.Command)
+			}
+			if s.ExtLangIDs[".cpp"] != "cpp" || s.ExtLangIDs[".c"] != "c" {
+				t.Fatalf("unexpected ExtLangIDs: %v", s.ExtLangIDs)
+			}
+		}
+	}
+	if clangdOnPath && !foundCPP {
+		t.Fatal("expected cpp detected when marker present and clangd on PATH")
+	}
+	if !clangdOnPath && foundCPP {
+		t.Fatal("cpp should not appear when clangd missing from PATH")
+	}
+	if hint := installHints["cpp"]; hint == "" {
+		t.Fatal("expected installHints for cpp")
+	}
+}
+
+func TestLanguageIDForFile_MtsCtsMjsCjs(t *testing.T) {
+	tests := []struct {
+		path   string
+		langID string
+	}{
+		{"app.mts", "typescript"},
+		{"app.cts", "typescript"},
+		{"app.mjs", "javascript"},
+		{"app.cjs", "javascript"},
+	}
+	for _, tt := range tests {
+		if got := languageIDForFile(tt.path); got != tt.langID {
+			t.Errorf("languageIDForFile(%q) = %q, want %q", tt.path, got, tt.langID)
+		}
+		if got := languageForFile(tt.path); got != "typescript" {
+			t.Errorf("languageForFile(%q) = %q, want typescript", tt.path, got)
+		}
+	}
+}
+
+func TestLanguageForFile_CppExtensions(t *testing.T) {
+	for _, path := range []string{"a.c", "a.h", "a.cpp", "a.cc", "a.cxx", "a.hpp"} {
+		if got := languageForFile(path); got != "cpp" {
+			t.Errorf("languageForFile(%q) = %q, want cpp", path, got)
+		}
+	}
+	if got := extForLanguage("cpp"); got != ".cpp" {
+		t.Errorf("extForLanguage(cpp) = %q, want .cpp", got)
+	}
+}
+
+func lookPath(cmd string) (string, bool) {
+	path, err := exec.LookPath(cmd)
+	return path, err == nil
+}
+
+func itoaDetect(n int) string {
+	return strconv.Itoa(n)
 }

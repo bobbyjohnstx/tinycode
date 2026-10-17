@@ -33,6 +33,8 @@ var defaultServers = []ServerSpec{
 		ExtLangIDs: map[string]string{
 			".ts": "typescript", ".tsx": "typescriptreact",
 			".js": "javascript", ".jsx": "javascriptreact",
+			".mts": "typescript", ".cts": "typescript",
+			".mjs": "javascript", ".cjs": "javascript",
 		},
 	},
 	{
@@ -77,17 +79,49 @@ var defaultServers = []ServerSpec{
 		MarkerFiles: []string{"Dockerfile", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"},
 		ExtLangIDs:  map[string]string{".dockerfile": "dockerfile"},
 	},
+	{
+		Language:    "cpp",
+		Command:     "clangd",
+		Args:        []string{},
+		MarkerFiles: []string{"compile_commands.json", "compile_flags.txt", ".clangd"},
+		ExtLangIDs: map[string]string{
+			".c": "c", ".h": "c",
+			".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp",
+		},
+	},
 }
 
 var installHints = map[string]string{
-	"go":         "Install gopls: go install golang.org/x/tools/gopls@latest",
-	"typescript": "Install typescript-language-server: npm install -g typescript-language-server typescript",
-	"python":     "Install pyright: npm install -g pyright",
+	"go":          "Install gopls: go install golang.org/x/tools/gopls@latest",
+	"typescript":  "Install typescript-language-server: npm install -g typescript-language-server typescript",
+	"python":      "Install pyright: npm install -g pyright",
 	"rust":        "Install rust-analyzer: see https://rust-analyzer.github.io/manual.html#installation",
 	"shellscript": "Install bash-language-server: npm install -g bash-language-server",
 	"yaml":        "Install yaml-language-server: npm install -g yaml-language-server",
 	"json":        "Install vscode-json-language-server: npm install -g vscode-langservers-extracted",
 	"dockerfile":  "Install docker-langserver: npm install -g dockerfile-language-server-nodejs",
+	"cpp":         "Install clangd: https://clangd.llvm.org/installation.html",
+}
+
+const maxMarkerWalkDepth = 8
+
+// markerExists walks dir and up to maxDepth ancestors looking for any of markers.
+// Returns the first marker found and whether one was found. Stops at filesystem root.
+func markerExists(dir string, markers []string, maxDepth int) (found bool, marker string) {
+	cur := dir
+	for depth := 0; depth <= maxDepth; depth++ {
+		for _, m := range markers {
+			if _, err := os.Stat(filepath.Join(cur, m)); err == nil {
+				return true, m
+			}
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			break
+		}
+		cur = parent
+	}
+	return false, ""
 }
 
 // detectServers scans dir for marker files and checks if the corresponding
@@ -105,21 +139,16 @@ func detectServers(dir string) []ServerSpec {
 			}
 			continue
 		}
-		markerFound := false
-		for _, marker := range spec.MarkerFiles {
-			if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
-				markerFound = true
-				if _, err := exec.LookPath(spec.Command); err == nil {
-					slog.Info("lsp: detected server", "language", spec.Language, "command", spec.Command, "marker", marker)
-					detected = append(detected, spec)
-				} else {
-					slog.Warn("lsp: project detected but server not in PATH", "language", spec.Language, "command", spec.Command, "marker", marker, "hint", installHints[spec.Language])
-				}
-				break
-			}
-		}
+		markerFound, marker := markerExists(dir, spec.MarkerFiles, maxMarkerWalkDepth)
 		if !markerFound {
 			slog.Debug("lsp: no marker files found", "language", spec.Language, "markers", spec.MarkerFiles)
+			continue
+		}
+		if _, err := exec.LookPath(spec.Command); err == nil {
+			slog.Info("lsp: detected server", "language", spec.Language, "command", spec.Command, "marker", marker)
+			detected = append(detected, spec)
+		} else {
+			slog.Warn("lsp: project detected but server not in PATH", "language", spec.Language, "command", spec.Command, "marker", marker, "hint", installHints[spec.Language])
 		}
 	}
 	if len(detected) == 0 {
@@ -198,6 +227,7 @@ func extForLanguage(lang string) string {
 		"yaml":        ".yaml",
 		"json":        ".json",
 		"dockerfile":  ".dockerfile",
+		"cpp":         ".cpp",
 	}
 	if ext, ok := exts[lang]; ok {
 		return ext
