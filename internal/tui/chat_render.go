@@ -100,6 +100,8 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 	lineNum := 0
 
 	agentThoughtStyle := styleReasoningLabel
+	showHonestyCue := assistantNeedsThoughtHonesty(msg)
+	honestyCueShown := false
 
 	groups := groupSubagentParts(msg.Parts)
 
@@ -150,6 +152,13 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 				sb.WriteString(label)
 				sb.WriteString("\n")
 				lineNum++
+				// Dim cue after Thought label when finished turn has reasoning but no text.
+				if showHonestyCue && !honestyCueShown {
+					sb.WriteString(styleMetadata.Render("(no text — expand Thought)"))
+					sb.WriteString("\n")
+					lineNum++
+					honestyCueShown = true
+				}
 				if !part.ThoughtExpanded || part.Text == "" {
 					break
 				}
@@ -236,6 +245,25 @@ func assistantCopyText(msg MessageView) string {
 		}
 	}
 	return sb.String()
+}
+
+// assistantNeedsThoughtHonesty is true when a finished assistant turn has
+// reasoning but no non-empty text — so the UI should not render a silent blank.
+func assistantNeedsThoughtHonesty(msg MessageView) bool {
+	hasReasoning := false
+	hasText := false
+	for _, p := range msg.Parts {
+		if p.Streaming {
+			return false
+		}
+		if p.Type == "reasoning" && strings.TrimSpace(p.Text) != "" {
+			hasReasoning = true
+		}
+		if p.Type == "text" && strings.TrimSpace(p.Text) != "" {
+			hasText = true
+		}
+	}
+	return hasReasoning && !hasText
 }
 
 func renderAgentFooter(msg MessageView) string {

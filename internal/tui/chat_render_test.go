@@ -247,6 +247,54 @@ func TestRenderAssistantMessage_NoCopyWhileStreaming(t *testing.T) {
 	}
 }
 
+func TestRenderAssistantMessage_EmptyTextWithReasoning_ShowsHonestyCue(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant"},
+		Parts: []PartView{
+			{Type: "text", Text: ""},
+			{Type: "reasoning", Text: "I considered options but produced no reply.", ThoughtExpanded: false},
+		},
+	}
+	got := stripAnsi(renderMessage(msg, 80, md))
+	if !strings.Contains(got, "(no text — expand Thought)") {
+		t.Fatalf("expected honesty cue, got %q", got)
+	}
+	if !strings.Contains(got, "+ Thought") && !strings.Contains(got, "- Thought") {
+		t.Fatalf("expected Thought label, got %q", got)
+	}
+}
+
+func TestRenderAssistantMessage_WithText_NoHonestyCue(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant"},
+		Parts: []PartView{
+			{Type: "text", Text: "Here is the answer."},
+			{Type: "reasoning", Text: "Reasoning behind the answer."},
+		},
+	}
+	got := stripAnsi(renderMessage(msg, 80, md))
+	if strings.Contains(got, "(no text — expand Thought)") {
+		t.Fatalf("non-empty text should not show honesty cue, got %q", got)
+	}
+}
+
+func TestRenderAssistantMessage_EmptyTextNoReasoning_NoHonestyCue(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant"},
+		Parts: []PartView{
+			{Type: "text", Text: ""},
+			{Type: "tool", ToolName: "bash", ToolArgs: `{"command":"echo hi"}`, Time: map[string]any{"end": float64(1)}},
+		},
+	}
+	got := stripAnsi(renderMessage(msg, 80, md))
+	if strings.Contains(got, "(no text — expand Thought)") {
+		t.Fatalf("empty text without reasoning should not show honesty cue, got %q", got)
+	}
+}
+
 // --- unified tool part rendering tests ---
 
 func TestRenderAssistantMessage_UnifiedToolPart(t *testing.T) {
