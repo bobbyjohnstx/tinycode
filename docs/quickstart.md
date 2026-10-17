@@ -4,7 +4,7 @@ A hands-on walkthrough to get productive fast. You should have tinycode built al
 
 ## 1. First-run path (diagnose + connect)
 
-There is no `tinycode setup` wizard. First run is intentional and sufficient with two steps:
+There is no `tinycode setup` wizard. First run is two steps:
 
 1. **`tinycode doctor`** — diagnostic only (config, database, providers, agents, plugins). It does not configure models; it tells you what is missing.
 2. **`tinycode` (TUI)** — if no model was auto-discovered, the connect dialog opens automatically (same UI as `/connect`). Esc dismisses; run `/connect` anytime to reopen. Or set env vars / config before launch.
@@ -13,8 +13,6 @@ There is no `tinycode setup` wizard. First run is intentional and sufficient wit
 tinycode doctor          # diagnose; exit non-zero if critical checks fail
 tinycode                 # connect dialog opens when no model is available
 ```
-
-## 2. Start tinycode
 
 ```bash
 # From your project directory
@@ -29,7 +27,7 @@ tinycode ~/projects/my-app
 
 You see an animated boot sequence that checks each subsystem. Green check marks mean everything is ready. If a provider check fails (red X), tinycode still launches -- you can connect a provider next.
 
-## 3. Connect to a provider
+## 2. Connect to a provider
 
 If no model was auto-discovered, type `/connect` and press Enter. This opens a two-step dialog:
 
@@ -46,6 +44,8 @@ ollama serve
 
 Then `/connect` in tinycode and select Ollama.
 
+For [LM Studio](https://lmstudio.ai), start a local server (default `http://localhost:1234`), then `/connect` and select LM Studio.
+
 For cloud models via OpenRouter, set your API key before launching:
 
 ```bash
@@ -60,7 +60,7 @@ export TINYCODE_VLLM_HOST=http://localhost:8000
 export TINYCODE_LMSTUDIO_HOST=http://localhost:1234
 ```
 
-## 4. Send your first prompt
+## 3. Send your first prompt
 
 Type a question at the bottom and press Enter:
 
@@ -70,9 +70,43 @@ what does this project do?
 
 The model reads your project files using built-in tools (read, grep, glob, bash) and responds with a summary. Responses stream in real-time. Scroll up with PgUp or mouse wheel to review long answers.
 
+## 4. Interrupt with Escape
+
 Press **Escape** to interrupt if the model is taking too long. Press **Ctrl+C** to clear the prompt (or quit if the prompt is already empty).
 
-## 5. Try @ file references
+## 5. Undo AI file changes
+
+If the model edited files and you want to revert:
+
+```
+/undo
+```
+
+This restores files to their state before the last AI edit. Use `/redo` to bring the changes back. You can also use **Ctrl+X u** and **Ctrl+X r**.
+
+Review what changed before committing:
+
+```
+/diff
+```
+
+This opens an inline diff viewer showing all uncommitted changes in the working directory. Or use **Ctrl+X d**.
+
+## 6. Get help
+
+```
+/help
+```
+
+Opens the command palette showing every keybinding and slash command. You can also press **Ctrl+P**.
+
+For a list of all CLI subcommands:
+
+```bash
+tinycode help
+```
+
+## 7. Try @ file references
 
 Type `@` to trigger file autocomplete. A dropdown shows files in your project directory:
 
@@ -90,7 +124,7 @@ Reference multiple files in one prompt:
 compare @go.mod with @go.sum and check for issues
 ```
 
-## 6. Use an agent
+## 8. Use an agent
 
 Press **Tab** to cycle through agents. The current agent name appears in the status bar on the right. Each agent has a different specialty:
 
@@ -109,7 +143,11 @@ Or invoke an agent for a single question without switching:
 
 Press **Ctrl+X a** to open the full agent list.
 
-## 7. Run /swarm
+## Power features
+
+These are powerful but require explicit consent. Prefer the path above for your first session.
+
+### /swarm
 
 Swarm mode dispatches parallel subagents for independent tasks:
 
@@ -119,9 +157,19 @@ Swarm mode dispatches parallel subagents for independent tasks:
 
 The build agent splits the task into subtasks and runs them simultaneously. Each subagent works independently, and results are synthesized into a single report.
 
-Swarm auto-approves tool permissions so subagents can work unattended.
+**Consent caveat:** Swarm auto-approves tool permissions so subagents can work unattended. Only use it when you are comfortable with that.
 
-## 8. Explore keybindings
+### /goal
+
+```
+/goal all tests pass
+```
+
+`/goal` runs an autonomous multi-turn loop until a condition is met (e.g. fixing lint errors or getting a build working). It maps conditions to shell commands and can iterate (max 10 iterations).
+
+**Consent caveat:** Auto-continue is off by default (`defaultAutoContinueMax = 0`). Loops that burn tokens and run tools without your consent only happen if you opt in. Prefer reviewing each turn until you trust the setup.
+
+## Explore keybindings
 
 Press **Ctrl+X** to see the which-key panel -- a floating overlay showing all leader key follow-ups:
 
@@ -137,7 +185,7 @@ Press any follow-up key within 2 seconds. For example, **Ctrl+X d** opens the di
 
 Press **Ctrl+P** to open the command palette showing all keybindings and slash commands.
 
-## 9. Search the chat
+## Search the chat
 
 Press **Ctrl+F** to open the search bar at the top of the chat viewport. Type a query to find text in the conversation:
 
@@ -147,40 +195,19 @@ Press **Ctrl+F** to open the search bar at the top of the chat viewport. Type a 
 
 The search bar shows your position (e.g., "3/12") and auto-scrolls to the message containing the current match.
 
-## 10. Undo changes
-
-If the model edited files and you want to revert:
-
-```
-/undo
-```
-
-This restores files to their state before the last AI edit. Use `/redo` to bring the changes back. You can also use **Ctrl+X u** and **Ctrl+X r**.
-
-Review what changed before committing:
-
-```
-/diff
-```
-
-This opens an inline diff viewer showing all uncommitted changes in the working directory. Or use **Ctrl+X d**.
-
-## 11. Workflow commands
+## Workflow commands
 
 A few commands that change how tinycode works during a session:
 
 ```
 /effort high          # More thorough analysis, more tool calls
 /effort low           # Quick concise answers
-/goal all tests pass  # Autonomous loop — keeps working until the condition is met
 /branch experiment    # Fork this conversation to try a different approach
 /rewind               # Roll back to an earlier turn if something went wrong
 /context              # See what's filling up the context window
 ```
 
-`/goal` is especially useful for iterative tasks like fixing lint errors or getting a build working — it maps conditions to shell commands and loops automatically (max 10 iterations).
-
-## 12. Export your session
+## Export your session
 
 Save the conversation for reference:
 
@@ -196,21 +223,7 @@ For a formatted version with syntax highlighting:
 /export html
 ```
 
-This creates a self-contained HTML file you can open in any browser or share.
-
-## 13. Get help
-
-```
-/help
-```
-
-Opens the command palette showing every keybinding and slash command. You can also press **Ctrl+P**.
-
-For a list of all CLI subcommands:
-
-```bash
-tinycode help
-```
+This creates a self-contained HTML file you can open in any browser.
 
 ### Other useful commands
 
