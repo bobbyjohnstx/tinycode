@@ -68,7 +68,7 @@ Type a question at the bottom and press Enter:
 what does this project do?
 ```
 
-The model reads your project files using built-in tools (read, grep, glob, bash) and responds with a summary. Responses stream in real-time. Scroll up with PgUp or mouse wheel to review long answers.
+The model reads your project files using built-in tools (read, grep, glob, bash) and responds with a summary. Responses stream in real-time. Scroll up with PgUp or mouse wheel to review long answers. When a tool first needs approval, the UI offers **Allow once** / **Allow always** / **Reject**.
 
 ## 4. Interrupt with Escape
 
@@ -288,7 +288,7 @@ tinycode -r "my feature work"     # Resume by title substring
 tinycode run -m ollama/qwen3.5:9b "explain the main function"   # one prompt, then exit
 tinycode run --multi-turn --format json -m ollama/qwen3.5:9b    # loop on stdin, NDJSON events
 tinycode serve    # headless API and the thin ops console
-tinycode web      # browser chat UI
+tinycode web      # browser chat UI (no in-browser PTY; share disabled)
 tinycode acp      # IDE integration over stdio
 ```
 
