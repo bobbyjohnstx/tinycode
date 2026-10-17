@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [2.3.4] - 2026-10-17
+
+### Fixes
+- Stop glamour AutoStyle OSC/CPR queries that stalled the TUI on resize (#762, GitHub #42)
+- Tool body timeout starts after permission Ask/hooks, not before — questions and long bash no longer cancelled at 60s (#763, GitHub #43)
+- Queue and serialize parallel question prompts in model order — all answers reach the model (#764, GitHub #44)
+- Surface clipboard copy failures via toast with platform-aware install guidance (#765, GitHub #45)
+- Background task uses WithoutCancel so jobs outlive the tool body deadline
+- Question reject endpoint and SSE event for cancel/dismiss flow
+- Prefer wl-copy on Wayland; doctor warns when clipboard helper is missing
+
+### CI
+- Print checksums in release workflow for homebrew formula updates
+
 ## [2.3.3] - 2026-10-13
 
 ### Fixes
