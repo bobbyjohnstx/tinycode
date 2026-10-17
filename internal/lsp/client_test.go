@@ -556,6 +556,87 @@ func TestDiagnostics_ChangedWaitsForPublish(t *testing.T) {
 	}
 }
 
+func TestRequestWithTimeout_UsesProvidedDuration(t *testing.T) {
+	// Scaled: client timeout 200ms, ConnectTimeout 2s, init reply at ~400ms.
+	// Proves initialize uses ConnectTimeout, not c.timeout (AC: 30s/120s/~45s).
+	script := writeFakeLSPServer(t)
+	spec := fakeLSPSpec(script)
+	spec.ConnectTimeout = 2 * time.Second
+	client := newClient(spec, t.TempDir(), map[string]string{
+		"FAKE_LSP_INIT_DELAY":     "0.4",
+		"FAKE_LSP_HANG_AFTER_INIT": "1",
+	}, 200*time.Millisecond)
+	defer client.close()
+
+	ctx := context.Background()
+	start := time.Now()
+	if err := client.connect(ctx); err != nil {
+		t.Fatalf("connect with ConnectTimeout should succeed after delayed init: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed < 300*time.Millisecond {
+		t.Fatalf("expected to wait for delayed init, elapsed %v", elapsed)
+	}
+
+	// Later non-initialize RPC still uses client timeout (200ms), not ConnectTimeout.
+	rpcStart := time.Now()
+	_, err := client.request(ctx, "workspace/symbol", map[string]any{"query": "x"})
+	if err == nil || !strings.Contains(err.Error(), "request timeout") {
+		t.Fatalf("expected client-timeout on later RPC, got %v", err)
+	}
+	if elapsed := time.Since(rpcStart); elapsed > time.Second {
+		t.Fatalf("later RPC should time out at client timeout (~200ms), took %v", elapsed)
+	}
+}
+
+func TestRequestWithTimeout_ZeroFallsBackToClientTimeout(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	spec := fakeLSPSpec(script)
+	spec.ConnectTimeout = 0
+	client := newClient(spec, t.TempDir(), map[string]string{
+		"FAKE_LSP_INIT_DELAY": "0.3",
+	}, 100*time.Millisecond)
+	defer client.close()
+
+	err := client.connect(context.Background())
+	if err == nil {
+		t.Fatal("expected initialize to time out at client timeout when ConnectTimeout=0")
+	}
+	if !strings.Contains(err.Error(), "request timeout") {
+		t.Fatalf("expected request timeout, got %v", err)
+	}
+}
+
+func TestConnect_InitializeTimeoutDoesNotDeadlineCommandContext(t *testing.T) {
+	// Non-negotiable #799: ConnectTimeout must NOT be applied via context.WithTimeout
+	// on CommandContext / the connect ctx. Timeout is select-only on initialize.
+	script := writeFakeLSPServer(t)
+	spec := fakeLSPSpec(script)
+	spec.ConnectTimeout = 150 * time.Millisecond
+	client := newClient(spec, t.TempDir(), map[string]string{
+		"FAKE_LSP_INIT_HANG": "1",
+	}, 30*time.Second)
+
+	ctx := context.Background() // no deadline — must stay that way
+	err := client.connect(ctx)
+	if err == nil {
+		_ = client.close()
+		t.Fatal("expected initialize timeout")
+	}
+	if !strings.Contains(err.Error(), "request timeout") {
+		t.Fatalf("expected request timeout (select path), got %v", err)
+	}
+	if ctx.Err() != nil {
+		t.Fatalf("parent connect ctx must not be cancelled by ConnectTimeout: %v", ctx.Err())
+	}
+	if _, ok := ctx.Deadline(); ok {
+		t.Fatal("parent connect ctx must not gain a deadline from ConnectTimeout")
+	}
+	// Error must not be context.DeadlineExceeded from a WithTimeout wrapper.
+	if strings.Contains(err.Error(), "context deadline exceeded") {
+		t.Fatalf("initialize must not fail via CommandContext deadline: %v", err)
+	}
+}
+
 func TestConnect_InitializeOmitsDidSaveTrue(t *testing.T) {
 	script := writeFakeLSPServer(t)
 	logPath := filepath.Join(t.TempDir(), "log.jsonl")

@@ -50,6 +50,9 @@ def log(obj):
         f.write(json.dumps(obj) + "\n")
 
 diag_delay = float(os.environ.get("FAKE_LSP_DIAG_DELAY", "0") or "0")
+init_delay = float(os.environ.get("FAKE_LSP_INIT_DELAY", "0") or "0")
+init_hang = os.environ.get("FAKE_LSP_INIT_HANG", "") == "1"
+hang_after_init = os.environ.get("FAKE_LSP_HANG_AFTER_INIT", "") == "1"
 
 while True:
     msg = read_msg()
@@ -59,6 +62,11 @@ while True:
     method = msg.get("method")
     mid = msg.get("id")
     if method == "initialize":
+        if init_hang:
+            while True:
+                time.sleep(3600)
+        if init_delay:
+            time.sleep(init_delay)
         write_msg({
             "jsonrpc": "2.0",
             "id": mid,
@@ -115,6 +123,9 @@ while True:
             }],
         })
     elif mid is not None:
+        if hang_after_init:
+            while True:
+                time.sleep(3600)
         write_msg({"jsonrpc": "2.0", "id": mid, "result": None})
 `
 

@@ -211,7 +211,13 @@ func (c *Client) connect(ctx context.Context) error {
 
 	safego.Go(c.readLoop)
 
-	_, err = c.request(ctx, "initialize", map[string]any{
+	// ConnectTimeout overrides only the initialize RPC wait. Never wrap ctx with
+	// context.WithTimeout for the CommandContext/process lifetime.
+	initTO := c.timeout
+	if c.spec.ConnectTimeout > 0 {
+		initTO = c.spec.ConnectTimeout
+	}
+	_, err = c.requestWithTimeout(ctx, initTO, "initialize", map[string]any{
 		"processId": os.Getpid(),
 		"rootUri":   fileURI(c.rootDir),
 		"capabilities": map[string]any{
@@ -429,6 +435,19 @@ func (c *Client) writeMessage(msg any) error {
 }
 
 func (c *Client) request(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	return c.requestWithTimeout(ctx, c.timeout, method, params)
+}
+
+// requestWithTimeout waits for an LSP response using timeout instead of c.timeout.
+// If timeout <= 0, falls back to c.timeout, then defaultRequestTimeout.
+func (c *Client) requestWithTimeout(ctx context.Context, timeout time.Duration, method string, params any) (json.RawMessage, error) {
+	if timeout <= 0 {
+		timeout = c.timeout
+	}
+	if timeout <= 0 {
+		timeout = defaultRequestTimeout
+	}
+
 	id := c.nextID.Add(1)
 
 	ch := make(chan lspResponse, 1)
@@ -458,11 +477,11 @@ func (c *Client) request(ctx context.Context, method string, params any) (json.R
 			return nil, fmt.Errorf("LSP error %d: %s", resp.Error.Code, resp.Error.Message)
 		}
 		return resp.Result, nil
-	case <-time.After(c.timeout):
+	case <-time.After(timeout):
 		c.pendingMu.Lock()
 		delete(c.pending, id)
 		c.pendingMu.Unlock()
-		return nil, fmt.Errorf("request timeout after %v", c.timeout)
+		return nil, fmt.Errorf("request timeout after %v", timeout)
 	case <-c.done:
 		return nil, fmt.Errorf("server disconnected")
 	case <-ctx.Done():

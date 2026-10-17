@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
@@ -311,6 +313,83 @@ func checkDevTools(dir string) {
 			fmt.Printf("    install: %s\n", t.install)
 		}
 	}
+
+	// Java / jdtls — warn-only; never sets failed. Marker Glob is project dir only
+	// (shallower than LSP markerExists walk) — intentional.
+	checkJavaDevTools(dir)
+}
+
+var (
+	javaVersionModern = regexp.MustCompile(`version "(\d+)`)
+	javaVersionLegacy = regexp.MustCompile(`version "1\.(\d+)`)
+)
+
+// parseJavaMajorVersion extracts the Java major version from `java -version` stderr.
+func parseJavaMajorVersion(stderr string) (int, error) {
+	if m := javaVersionLegacy.FindStringSubmatch(stderr); len(m) == 2 {
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			return 0, fmt.Errorf("parse legacy java version: %w", err)
+		}
+		return n, nil
+	}
+	if m := javaVersionModern.FindStringSubmatch(stderr); len(m) == 2 {
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			return 0, fmt.Errorf("parse java version: %w", err)
+		}
+		return n, nil
+	}
+	return 0, fmt.Errorf("unrecognized java version output")
+}
+
+func javaProjectMarkersPresent(dir string) bool {
+	for _, m := range []string{"pom.xml", "build.gradle", "build.gradle.kts"} {
+		matches, _ := filepath.Glob(filepath.Join(dir, m))
+		if len(matches) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// checkJavaDevTools warns when jdtls is missing or Java is older than 21.
+// Never marks the doctor run as failed.
+func checkJavaDevTools(dir string) {
+	if !javaProjectMarkersPresent(dir) {
+		return
+	}
+
+	if _, err := exec.LookPath("jdtls"); err == nil {
+		fmt.Printf("%s Dev tool: jdtls (Java LSP)\n", checkPass)
+	} else {
+		fmt.Printf("%s Dev tool: jdtls (Java LSP) -- not found\n", checkWarn)
+		fmt.Printf("    install: Install jdtls (Eclipse JDT LS, e.g. brew install jdtls) and JDK 21+\n")
+	}
+
+	javaPath, err := exec.LookPath("java")
+	if err != nil {
+		fmt.Printf("%s Dev tool: java -- not found (JDT LS needs Java 21+)\n", checkWarn)
+		return
+	}
+
+	cmd := exec.Command(javaPath, "-version")
+	out, err := cmd.CombinedOutput()
+	// java -version writes to stderr; CombinedOutput captures both.
+	major, parseErr := parseJavaMajorVersion(string(out))
+	if err != nil && len(out) == 0 {
+		fmt.Printf("%s Dev tool: java -- could not run java -version\n", checkWarn)
+		return
+	}
+	if parseErr != nil {
+		fmt.Printf("%s Dev tool: java -- could not parse version (JDT LS needs Java 21+)\n", checkWarn)
+		return
+	}
+	if major >= 21 {
+		fmt.Printf("%s Dev tool: java %d\n", checkPass, major)
+		return
+	}
+	fmt.Printf("%s Dev tool: java %d -- JDT LS needs Java 21+\n", checkWarn, major)
 }
 
 func countConfigPlugins(cfg *config.Info) int {

@@ -250,3 +250,80 @@ func TestCheckClipboard_NonLinuxSkips(t *testing.T) {
 		t.Errorf("expected no clipboard output on %s, got %q", runtime.GOOS, out)
 	}
 }
+
+func TestParseJavaMajorVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		stderr  string
+		want    int
+		wantErr bool
+	}{
+		{name: "OpenJDK21", stderr: `openjdk version "21.0.2" 2024-01-16`, want: 21},
+		{name: "Temurin17", stderr: `openjdk version "17.0.1" 2021-10-19`, want: 17},
+		{name: "Legacy18", stderr: `java version "1.8.0_392"`, want: 8},
+		{name: "Empty", stderr: "", wantErr: true},
+		{name: "Garbage", stderr: "not a version string", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseJavaMajorVersion(tt.stderr)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got major %d", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("parseJavaMajorVersion() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestJavaProjectMarkersPresent(t *testing.T) {
+	dir := t.TempDir()
+	if javaProjectMarkersPresent(dir) {
+		t.Fatal("expected no markers")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "pom.xml"), []byte("<project/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !javaProjectMarkersPresent(dir) {
+		t.Fatal("expected pom.xml to gate Java checks")
+	}
+}
+
+func TestCheckJavaDevTools_SkipsWithoutMarkers(t *testing.T) {
+	dir := t.TempDir()
+	stubPATHBinaries(t) // empty PATH
+	cap := captureStdout(t)
+	checkJavaDevTools(dir)
+	out := cap.read()
+	if out != "" {
+		t.Errorf("expected no Java doctor output without markers, got %q", out)
+	}
+}
+
+func TestCheckJavaDevTools_WarnsNeverFails(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "build.gradle"), []byte(""), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Missing jdtls and java — warn only; checkJavaDevTools has no failed pointer.
+	stubPATHBinaries(t)
+	cap := captureStdout(t)
+	checkJavaDevTools(dir)
+	out := cap.read()
+	if !strings.Contains(out, checkWarn) {
+		t.Errorf("expected warn markers, got %q", out)
+	}
+	if strings.Contains(out, checkFail) {
+		t.Errorf("Java/jdtls warnings must never use checkFail, got %q", out)
+	}
+	if !strings.Contains(out, "jdtls") {
+		t.Errorf("expected jdtls warn, got %q", out)
+	}
+}

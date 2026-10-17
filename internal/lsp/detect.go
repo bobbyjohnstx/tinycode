@@ -6,15 +6,17 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ServerSpec describes how to find and launch a language server.
 type ServerSpec struct {
-	Language    string
-	Command     string
-	Args        []string
-	MarkerFiles []string
-	ExtLangIDs  map[string]string // file extension -> LSP languageId
+	Language       string
+	Command        string
+	Args           []string
+	MarkerFiles    []string
+	ExtLangIDs     map[string]string // file extension -> LSP languageId
+	ConnectTimeout time.Duration     // 0 = use client/request timeout for initialize only
 }
 
 var defaultServers = []ServerSpec{
@@ -89,6 +91,14 @@ var defaultServers = []ServerSpec{
 			".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp",
 		},
 	},
+	{
+		Language:       "java",
+		Command:        "jdtls",
+		Args:           nil,
+		MarkerFiles:    []string{"pom.xml", "build.gradle", "build.gradle.kts"},
+		ExtLangIDs:     map[string]string{".java": "java"},
+		ConnectTimeout: 120 * time.Second,
+	},
 }
 
 var installHints = map[string]string{
@@ -101,6 +111,7 @@ var installHints = map[string]string{
 	"json":        "Install vscode-json-language-server: npm install -g vscode-langservers-extracted",
 	"dockerfile":  "Install docker-langserver: npm install -g dockerfile-language-server-nodejs",
 	"cpp":         "Install clangd: https://clangd.llvm.org/installation.html",
+	"java":        "Install jdtls (Eclipse JDT LS, e.g. brew install jdtls) and JDK 21+",
 }
 
 const maxMarkerWalkDepth = 8
@@ -228,6 +239,7 @@ func extForLanguage(lang string) string {
 		"json":        ".json",
 		"dockerfile":  ".dockerfile",
 		"cpp":         ".cpp",
+		"java":        ".java",
 	}
 	if ext, ok := exts[lang]; ok {
 		return ext

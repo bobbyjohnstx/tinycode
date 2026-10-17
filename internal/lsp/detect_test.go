@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestLanguageForFile(t *testing.T) {
@@ -149,6 +150,7 @@ func TestExtForLanguage(t *testing.T) {
 		{"yaml", ".yaml"},
 		{"json", ".json"},
 		{"dockerfile", ".dockerfile"},
+		{"java", ".java"},
 		{"unknown", ""},
 	}
 	for _, tt := range tests {
@@ -156,6 +158,56 @@ func TestExtForLanguage(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("extForLanguage(%q) = %q, want %q", tt.lang, got, tt.want)
 		}
+	}
+}
+
+func TestExtForLanguage_Java(t *testing.T) {
+	if got := extForLanguage("java"); got != ".java" {
+		t.Errorf("extForLanguage(java) = %q, want .java", got)
+	}
+}
+
+func TestDetectServers_JavaMarkerGated(t *testing.T) {
+	dir := t.TempDir()
+	_, jdtlsOnPath := lookPath("jdtls")
+
+	detected := detectServers(dir)
+	for _, s := range detected {
+		if s.Language == "java" {
+			t.Fatal("java/jdtls must not be detected without markers")
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "pom.xml"), []byte("<project/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	detected = detectServers(dir)
+	var foundJava bool
+	for _, s := range detected {
+		if s.Language == "java" {
+			foundJava = true
+			if s.Command != "jdtls" {
+				t.Fatalf("command = %q, want jdtls", s.Command)
+			}
+			if len(s.Args) != 0 {
+				t.Fatalf("Args = %v, want empty", s.Args)
+			}
+			if s.ExtLangIDs[".java"] != "java" {
+				t.Fatalf("unexpected ExtLangIDs: %v", s.ExtLangIDs)
+			}
+			if s.ConnectTimeout != 120*time.Second {
+				t.Fatalf("ConnectTimeout = %v, want 120s", s.ConnectTimeout)
+			}
+		}
+	}
+	if jdtlsOnPath && !foundJava {
+		t.Fatal("expected java detected when marker present and jdtls on PATH")
+	}
+	if !jdtlsOnPath && foundJava {
+		t.Fatal("java should not appear when jdtls missing from PATH")
+	}
+	if hint := installHints["java"]; hint == "" {
+		t.Fatal("expected installHints for java")
 	}
 }
 
