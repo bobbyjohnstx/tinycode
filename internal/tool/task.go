@@ -152,7 +152,10 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		depth := tc.SubagentDepth
 		count := tc.SubagentCount
 		autoApprove := tc.AutoApprove
-		jobID := tc.JobManager.Start(ctx, func(jobCtx context.Context) (string, error) {
+		// Detach from the tool-call body deadline so background work can outlive
+		// Execute, while still inheriting context values (like monitor).
+		jobParent := context.WithoutCancel(ctx)
+		jobID := tc.JobManager.Start(jobParent, func(jobCtx context.Context) (string, error) {
 			defer func() {
 				if count != nil {
 					count.Add(-1)

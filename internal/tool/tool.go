@@ -310,9 +310,16 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		})
 	}
 
+	execCtx := ctx
+	var cancel context.CancelFunc
+	if d, ok := bodyTimeout(name, args); ok {
+		execCtx, cancel = context.WithTimeout(ctx, d)
+		defer cancel()
+	}
+
 	start := time.Now()
 	slog.Info("tool executing", "tool", name, "sessionID", sessionID)
-	result, err := def.Execute(ctx, toolCtx, args)
+	result, err := def.Execute(execCtx, toolCtx, args)
 	elapsed := time.Since(start)
 
 	if err != nil {

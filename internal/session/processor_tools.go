@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
@@ -61,11 +60,6 @@ func (p *Processor) applyPendingAgentSwitch() string {
 
 const maxConcurrentTools = 8
 
-// toolExecuteTimeout is the per-tool timeout applied to each Execute call.
-// It is a safety net above the plugin tool timeout (30s) to prevent goroutine
-// leaks when a tool blocks indefinitely. Var so tests can shorten it.
-var toolExecuteTimeout = 60 * time.Second
-
 func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part, bool) {
 	type toolResult struct {
 		index  int
@@ -117,10 +111,7 @@ launch:
 				return
 			}
 
-			toolCtx, toolCancel := context.WithTimeout(ctx, toolExecuteTimeout)
-			defer toolCancel()
-
-			output, isErr, err := p.tools.Execute(toolCtx, call.ToolName, json.RawMessage(call.ToolArgs), p.config.SessionID)
+			output, isErr, err := p.tools.Execute(ctx, call.ToolName, json.RawMessage(call.ToolArgs), p.config.SessionID)
 			if err != nil {
 				p.publishToolResult(call, err.Error(), true)
 				ch <- toolResult{
@@ -159,8 +150,8 @@ launch:
 			}
 			collected++
 		case <-ctx.Done():
-			// Abort: wait for in-flight workers (bounded by toolExecuteTimeout)
-			// so we do not leak goroutines or double-publish results.
+			// Abort: wait for in-flight workers (bounded by Registry body policy /
+			// parent cancel) so we do not leak goroutines or double-publish results.
 			for tr := range ch {
 				if results[tr.index].Type == "" {
 					results[tr.index] = tr.result

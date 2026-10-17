@@ -118,6 +118,62 @@ func TestTaskTool_Background_WithRunner(t *testing.T) {
 	}
 }
 
+func TestExecuteTask_BackgroundUsesWithoutCancel(t *testing.T) {
+	started := make(chan context.Context, 1)
+	release := make(chan struct{})
+
+	jm := session.NewJobManager()
+	tc := &Context{
+		Directory:  t.TempDir(),
+		SessionID:  "ses-bg-nocancel",
+		JobManager: jm,
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
+			started <- ctx
+			<-release
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			return "still running", nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result, err := executeTask(ctx, tc, json.RawMessage(`{"description":"bg","prompt":"work","background":true}`))
+	if err != nil {
+		t.Fatalf("executeTask error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got: %s", result.Output)
+	}
+
+	var jobCtx context.Context
+	select {
+	case jobCtx = <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("background runner did not start")
+	}
+
+	cancel()
+	time.Sleep(50 * time.Millisecond)
+	if jobCtx.Err() != nil {
+		t.Fatalf("job ctx cancelled after tool ctx cancel: %v", jobCtx.Err())
+	}
+	close(release)
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result.Output), &parsed); err != nil {
+		t.Fatalf("parse output: %v", err)
+	}
+	jobID, _ := parsed["job_id"].(string)
+	job, err := jm.Wait(jobID)
+	if err != nil {
+		t.Fatalf("wait: %v", err)
+	}
+	if job.Result != "still running" {
+		t.Fatalf("job result = %q, want still running (status=%s err=%s)", job.Result, job.Status, job.Error)
+	}
+}
+
 func TestTaskTool_Background_NoJobManager(t *testing.T) {
 	r := NewRegistry(&Context{
 		Directory: t.TempDir(),

@@ -931,3 +931,91 @@ func TestExecute_ReadEnvHitsAsk(t *testing.T) {
 		t.Fatal("timed out waiting for permission.asked")
 	}
 }
+
+func TestRegistryExecute_AskNotBoundedByBodyTimeout(t *testing.T) {
+	orig := defaultBodyTimeout
+	defaultBodyTimeout = 50 * time.Millisecond
+	defer func() { defaultBodyTimeout = orig }()
+
+	b := bus.New()
+	defer b.Close()
+	perms := permission.NewService(b)
+	defer perms.Close()
+
+	r := NewRegistry(&Context{
+		Directory: t.TempDir(),
+		Bus:       b,
+		Perms:     perms,
+		// Force Ask so the test can delay the reply past the body-timeout window.
+		Ruleset: permission.Ruleset{
+			{Permission: "read", Pattern: "*", Action: permission.ActionAsk},
+		},
+	})
+	r.Register(&Def{
+		ID:         "slow-ask",
+		Permission: "read",
+		Parameters: map[string]any{"type": "object", "properties": map[string]any{}},
+		Execute: func(ctx context.Context, tc *Context, args json.RawMessage) (*ExecuteResult, error) {
+			return &ExecuteResult{Output: "ok"}, nil
+		},
+	})
+
+	done := make(chan struct{})
+	var output string
+	var isErr bool
+	go func() {
+		output, isErr, _ = r.Execute(context.Background(), "slow-ask", json.RawMessage(`{}`), "ses-ask")
+		close(done)
+	}()
+
+	req := waitForPermission(t, perms, 2*time.Second)
+	time.Sleep(200 * time.Millisecond) // outlives body timeout window
+	if err := perms.RespondToAsk(permission.ReplyInput{
+		RequestID: req.ID,
+		Reply:     permission.ReplyOnce,
+	}); err != nil {
+		t.Fatalf("RespondToAsk: %v", err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Execute did not finish after Ask reply")
+	}
+	if isErr {
+		t.Fatalf("expected success after delayed Ask, got error: %s", output)
+	}
+	if output != "ok" {
+		t.Fatalf("output = %q, want ok", output)
+	}
+}
+
+func TestRegistryExecute_BodyTimeoutCancelsHungTool(t *testing.T) {
+	orig := defaultBodyTimeout
+	defaultBodyTimeout = 80 * time.Millisecond
+	defer func() { defaultBodyTimeout = orig }()
+
+	r := NewRegistry(&Context{Directory: t.TempDir()})
+	r.Register(&Def{
+		ID:         "hang",
+		Permission: "",
+		Parameters: map[string]any{"type": "object", "properties": map[string]any{}},
+		Execute: func(ctx context.Context, tc *Context, args json.RawMessage) (*ExecuteResult, error) {
+			<-ctx.Done()
+			return &ExecuteResult{Output: ctx.Err().Error(), IsError: true}, nil
+		},
+	})
+
+	start := time.Now()
+	output, isErr, err := r.Execute(context.Background(), "hang", json.RawMessage(`{}`), "ses-hang")
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !isErr {
+		t.Fatalf("expected error result from hung tool, got %q", output)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("Execute took %v; expected body timeout (~80ms)", elapsed)
+	}
+}

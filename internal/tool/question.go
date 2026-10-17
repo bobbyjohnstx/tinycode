@@ -71,12 +71,14 @@ func executeQuestion(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 		"questions": []map[string]any{questionItem},
 	})
 
-	sub := tc.Bus.Subscribe("question.replied")
-	defer sub.Unsubscribe()
+	replied := tc.Bus.Subscribe("question.replied")
+	defer replied.Unsubscribe()
+	rejected := tc.Bus.Subscribe("question.rejected")
+	defer rejected.Unsubscribe()
 
 	for {
 		select {
-		case evt := <-sub.C:
+		case evt := <-replied.C:
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
 				continue
@@ -87,7 +89,21 @@ func executeQuestion(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 			}
 			answer, _ := props["answer"].(string)
 			return &ExecuteResult{Output: answer}, nil
+		case evt := <-rejected.C:
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			rid, _ := props["requestID"].(string)
+			if rid != questionID {
+				continue
+			}
+			return &ExecuteResult{Output: "Question cancelled", IsError: true}, nil
 		case <-ctx.Done():
+			tc.Bus.Publish("question.rejected", map[string]any{
+				"sessionID": tc.SessionID,
+				"requestID": questionID,
+			})
 			return &ExecuteResult{Output: "Question cancelled", IsError: true}, nil
 		}
 	}
