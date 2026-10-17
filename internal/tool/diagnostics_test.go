@@ -51,6 +51,117 @@ func TestDiagnosticCommand_TypeScript(t *testing.T) {
 	}
 }
 
+func TestDiagnosticCommand_JavaPrefersCheckstyle(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "bin")
+	if err := os.Mkdir(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeStub(t, filepath.Join(bin, "checkstyle"))
+	writeStub(t, filepath.Join(bin, "javac"))
+	t.Setenv("PATH", bin)
+
+	path := filepath.Join(dir, "Foo.java")
+	cmd, gotDir := diagnosticCommand(".java", path)
+	if cmd == nil {
+		t.Fatal("expected checkstyle command")
+	}
+	if gotDir != dir {
+		t.Errorf("dir = %q, want %q", gotDir, dir)
+	}
+	base := filepath.Base(cmd.Args[0])
+	if base != "checkstyle" {
+		t.Fatalf("expected checkstyle, got %v", cmd.Args)
+	}
+	joined := strings.Join(cmd.Args, " ")
+	for _, bad := range []string{"javac", "mvn", "gradle", "gradlew"} {
+		if strings.Contains(joined, bad) {
+			t.Errorf("argv must not contain %q: %v", bad, cmd.Args)
+		}
+	}
+	if !containsArg(cmd.Args, "-f") || !containsArg(cmd.Args, "plain") {
+		t.Errorf("expected -f plain, got %v", cmd.Args)
+	}
+}
+
+func TestDiagnosticCommand_JavaFallsBackToJavac(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "bin")
+	if err := os.Mkdir(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeStub(t, filepath.Join(bin, "javac"))
+	t.Setenv("PATH", bin)
+
+	path := filepath.Join(dir, "Foo.java")
+	cmd, _ := diagnosticCommand(".java", path)
+	if cmd == nil {
+		t.Fatal("expected javac command")
+	}
+	base := filepath.Base(cmd.Args[0])
+	if base != "javac" {
+		t.Fatalf("expected javac, got %v", cmd.Args)
+	}
+	if len(cmd.Args) < 3 || cmd.Args[1] != "-Xlint" {
+		t.Errorf("expected javac -Xlint <path>, got %v", cmd.Args)
+	}
+}
+
+func TestDiagnosticCommand_JavaNeither(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir) // empty of tools
+
+	cmd, _ := diagnosticCommand(".java", filepath.Join(dir, "Foo.java"))
+	if cmd != nil {
+		t.Errorf("expected nil when neither checkstyle nor javac on PATH, got %v", cmd.Args)
+	}
+}
+
+func TestDiagnosticCommand_JavaNeverMaven(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "bin")
+	if err := os.Mkdir(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Prefer checkstyle when both present; also cover javac-only.
+	for _, tools := range [][]string{
+		{"checkstyle", "javac", "mvn", "gradle"},
+		{"javac", "mvn", "gradle"},
+	} {
+		for _, name := range tools {
+			writeStub(t, filepath.Join(bin, name))
+		}
+		t.Setenv("PATH", bin)
+		cmd, _ := diagnosticCommand(".java", filepath.Join(dir, "Foo.java"))
+		if cmd == nil {
+			t.Fatal("expected a diagnostic command")
+		}
+		for _, arg := range cmd.Args {
+			base := filepath.Base(arg)
+			if base == "mvn" || base == "gradle" || base == "gradlew" ||
+				arg == "mvn" || arg == "gradle" || arg == "gradlew" {
+				t.Errorf("argv must never contain maven/gradle: %v", cmd.Args)
+			}
+		}
+	}
+}
+
+func writeStub(t *testing.T, path string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func containsArg(args []string, want string) bool {
+	for _, a := range args {
+		if a == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestDiagnosticCommand_UnknownExtension(t *testing.T) {
 	cmd, _ := diagnosticCommand(".xyz", "/tmp/foo/data.xyz")
 	if cmd != nil {

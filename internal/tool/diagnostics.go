@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -22,7 +23,7 @@ type diagnosticsArgs struct {
 func DiagnosticsTool() *Def {
 	return &Def{
 		ID:          "diagnostics",
-		Description: "Check a file for errors after editing. Call this after completing a batch of edits to catch syntax errors, type mismatches, and lint issues before moving on. Runs go vet (Go), ruff (Python), or tsc (TypeScript/JavaScript). Use lsp_diagnostics instead if a language server is available.",
+		Description: "Check a file for errors after editing. Call this after completing a batch of edits to catch syntax errors, type mismatches, and lint issues before moving on. Runs go vet (Go), ruff (Python), tsc (TypeScript/JavaScript), or checkstyle/javac (Java). Use lsp_diagnostics instead if a language server is available.",
 		Permission:  "",
 		Parameters: map[string]any{
 			"type": "object",
@@ -99,6 +100,19 @@ func diagnosticCommand(ext, path string) (*exec.Cmd, string) {
 		}
 		if python, err := exec.LookPath("python3"); err == nil {
 			return exec.Command(python, "-m", "py_compile", path), dir
+		}
+		return nil, ""
+
+	case ".java":
+		if checkstyle, err := exec.LookPath("checkstyle"); err == nil {
+			args := []string{"-f", "plain", path}
+			if _, err := os.Stat(filepath.Join(dir, "checkstyle.xml")); err == nil {
+				args = []string{"-c", "checkstyle.xml", "-f", "plain", path}
+			}
+			return exec.Command(checkstyle, args...), dir
+		}
+		if javac, err := exec.LookPath("javac"); err == nil {
+			return exec.Command(javac, "-Xlint", path), dir
 		}
 		return nil, ""
 
