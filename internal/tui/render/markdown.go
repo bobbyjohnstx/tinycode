@@ -1,6 +1,7 @@
 package render
 
 import (
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
@@ -12,13 +13,34 @@ type MarkdownRenderer struct {
 	width    int
 }
 
+// glamourStyleName returns the style name we will apply. Empty/auto → "dark".
+func glamourStyleName() string {
+	style := os.Getenv("GLAMOUR_STYLE")
+	if style == "" || style == "auto" {
+		return "dark"
+	}
+	return style
+}
+
+func glamourStyleOption() glamour.TermRendererOption {
+	name := glamourStyleName()
+	// API caveat: never call WithEnvironmentConfig() alone — empty env becomes
+	// styles.AutoStyle and still probes the terminal (OSC 11 + CPR).
+	// Never pass "auto" to WithStandardStyle/WithStylePath either (same probe).
+	if name == "dark" || name == "light" || name == "notty" || name == "ascii" || name == "pink" {
+		return glamour.WithStandardStyle(name)
+	}
+	// Custom JSON path or other glamour-recognized name.
+	return glamour.WithStylePath(name)
+}
+
 // NewMarkdownRenderer creates a renderer for the given terminal width.
 func NewMarkdownRenderer(width int) *MarkdownRenderer {
 	if width < 20 {
 		width = 20
 	}
 	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamourStyleOption(),
 		glamour.WithWordWrap(width),
 	)
 	if r == nil || err != nil {

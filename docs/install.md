@@ -107,6 +107,11 @@ Use WSL2 instead:
 2. Open your WSL distribution (Ubuntu is the default)
 3. Follow the Linux instructions above (binary install or build from source)
 
+## TUI markdown
+
+Markdown in the TUI defaults to glamour’s dark style (avoids terminal color probes).
+For light terminals: `export GLAMOUR_STYLE=light`.
+
 ## Configuration
 
 Config files are loaded with a 3-name fallback in each directory:

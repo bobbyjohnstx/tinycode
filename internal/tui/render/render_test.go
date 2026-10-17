@@ -1,9 +1,17 @@
 package render
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
+
+// stripANSI removes CSI SGR sequences so content assertions survive glamour styling.
+var ansiSGR = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string {
+	return ansiSGR.ReplaceAllString(s, "")
+}
 
 // --- ToolIcon tests ---
 
@@ -109,6 +117,44 @@ func TestRenderToolBlock_SmallWidth(t *testing.T) {
 	}
 }
 
+// --- Glamour style selection (#762) ---
+
+func TestGlamourStyleOption_DefaultIsDark(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "")
+	got := glamourStyleName()
+	if got != "dark" {
+		t.Fatalf("got %q, want dark", got)
+	}
+}
+
+func TestGlamourStyleOption_AutoTreatedAsDark(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "auto")
+	got := glamourStyleName()
+	if got != "dark" {
+		t.Fatalf("got %q, want dark", got)
+	}
+}
+
+func TestGlamourStyleOption_HonorsLight(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "light")
+	got := glamourStyleName()
+	if got != "light" {
+		t.Fatalf("got %q, want light", got)
+	}
+}
+
+func TestNewMarkdownRenderer_BuildsWithoutPanic(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "")
+	r := NewMarkdownRenderer(80)
+	if r == nil {
+		t.Fatal("expected renderer")
+	}
+	out := r.RenderFinal("# hi")
+	if out == "" {
+		t.Fatal("expected non-empty render")
+	}
+}
+
 // --- Markdown streaming tests ---
 
 func TestMarkdownRenderer_RenderFinal_Empty(t *testing.T) {
@@ -121,7 +167,7 @@ func TestMarkdownRenderer_RenderFinal_Empty(t *testing.T) {
 
 func TestMarkdownRenderer_RenderFinal_SimpleText(t *testing.T) {
 	r := NewMarkdownRenderer(80)
-	got := r.RenderFinal("hello world")
+	got := stripANSI(r.RenderFinal("hello world"))
 	if !strings.Contains(got, "hello world") {
 		t.Errorf("RenderFinal should contain 'hello world', got %q", got)
 	}
@@ -138,7 +184,7 @@ func TestMarkdownRenderer_RenderStreaming_NoDoubleNewline(t *testing.T) {
 func TestMarkdownRenderer_RenderStreaming_SplitsOnDoubleNewline(t *testing.T) {
 	r := NewMarkdownRenderer(80)
 	input := "complete block\n\nincomplete"
-	got := r.RenderStreaming(input)
+	got := stripANSI(r.RenderStreaming(input))
 	// The complete part should be rendered (glamour may add formatting).
 	if !strings.Contains(got, "complete block") {
 		t.Errorf("streaming should contain rendered complete block, got %q", got)
@@ -160,7 +206,7 @@ func TestMarkdownRenderer_RenderStreaming_Empty(t *testing.T) {
 func TestMarkdownRenderer_RenderStreaming_MultipleBlocks(t *testing.T) {
 	r := NewMarkdownRenderer(80)
 	input := "first block\n\nsecond block\n\ntrailing"
-	got := r.RenderStreaming(input)
+	got := stripANSI(r.RenderStreaming(input))
 	if !strings.Contains(got, "first block") {
 		t.Error("should contain first block")
 	}

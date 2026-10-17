@@ -1,11 +1,19 @@
 package tui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/bobbyjohnstx/tinycode/internal/tui/render"
 )
+
+// stripANSI removes CSI SGR sequences so content assertions survive glamour styling.
+var ansiSGR = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string {
+	return ansiSGR.ReplaceAllString(s, "")
+}
 
 func testRenderer() *render.MarkdownRenderer {
 	return render.NewMarkdownRenderer(80)
@@ -25,7 +33,7 @@ func TestRenderTextPart_Empty(t *testing.T) {
 func TestRenderTextPart_Final(t *testing.T) {
 	md := testRenderer()
 	part := PartView{Type: "text", Text: "hello world", Streaming: false}
-	got := renderTextPart(part, 80, md)
+	got := stripANSI(renderTextPart(part, 80, md))
 	if !strings.Contains(got, "hello world") {
 		t.Errorf("final render should contain text, got %q", got)
 	}
@@ -47,7 +55,7 @@ func TestRenderTextPart_StreamingWithBlocks(t *testing.T) {
 		Text:      "complete block\n\nincomplete",
 		Streaming: true,
 	}
-	got := renderTextPart(part, 80, md)
+	got := stripANSI(renderTextPart(part, 80, md))
 	if !strings.Contains(got, "complete block") {
 		t.Error("streaming should contain rendered complete block")
 	}
