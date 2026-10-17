@@ -619,6 +619,105 @@ func TestResolveDefaultModelRef_ConfiguredDefault(t *testing.T) {
 	}
 }
 
+func TestResolveDefaultModelRef_ConfiguredDefaultStillWins(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(&provider.Info{
+		ID:   "ollama",
+		Name: "Ollama",
+		Models: map[string]*provider.Model{
+			"phi3:3.8b":          {ID: "phi3:3.8b", Name: "phi3:3.8b", ProviderID: "ollama"},
+			"qwen2.5-coder:7b":   {ID: "qwen2.5-coder:7b", Name: "qwen2.5-coder:7b", ProviderID: "ollama"},
+		},
+	})
+
+	// Explicit config.model must win even when ranking would prefer the coder.
+	ref := ResolveDefaultModelRef(reg, "ollama/phi3:3.8b")
+	if ref == nil {
+		t.Fatal("expected non-nil ModelRef")
+	}
+	if ref.ModelID != "phi3:3.8b" {
+		t.Errorf("expected configured phi3:3.8b, got %q", ref.ModelID)
+	}
+}
+
+func TestResolveDefaultModelRef_PrefersCoderOverTinyAscending(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(&provider.Info{
+		ID:   "ollama",
+		Name: "Ollama",
+		Models: map[string]*provider.Model{
+			"phi3:3.8b":        {ID: "phi3:3.8b", Name: "phi3:3.8b", ProviderID: "ollama"},
+			"qwen2.5-coder:7b": {ID: "qwen2.5-coder:7b", Name: "qwen2.5-coder:7b", ProviderID: "ollama"},
+		},
+	})
+
+	ref := ResolveDefaultModelRef(reg, "")
+	if ref == nil {
+		t.Fatal("expected non-nil ModelRef")
+	}
+	if ref.ModelID != "qwen2.5-coder:7b" {
+		t.Errorf("expected coding model qwen2.5-coder:7b, got %q (ascending size would pick phi3)", ref.ModelID)
+	}
+}
+
+func TestResolveDefaultModelRef_SkipsEmbed(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(&provider.Info{
+		ID:   "ollama",
+		Name: "Ollama",
+		Models: map[string]*provider.Model{
+			"nomic-embed-text": {ID: "nomic-embed-text", Name: "nomic-embed-text", ProviderID: "ollama"},
+			"llama3:8b":        {ID: "llama3:8b", Name: "llama3:8b", ProviderID: "ollama"},
+		},
+	})
+
+	ref := ResolveDefaultModelRef(reg, "")
+	if ref == nil {
+		t.Fatal("expected non-nil ModelRef")
+	}
+	if ref.ModelID != "llama3:8b" {
+		t.Errorf("expected chat model llama3:8b, got %q", ref.ModelID)
+	}
+
+	embedOnly := provider.NewRegistry()
+	embedOnly.Register(&provider.Info{
+		ID:   "ollama",
+		Name: "Ollama",
+		Models: map[string]*provider.Model{
+			"nomic-embed-text": {ID: "nomic-embed-text", Name: "nomic-embed-text", ProviderID: "ollama"},
+		},
+	})
+	if got := ResolveDefaultModelRef(embedOnly, ""); got != nil {
+		t.Errorf("expected nil when only embed models, got %+v", got)
+	}
+}
+
+func TestResolveDefaultModelRef_LocalBeforeCloud(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(&provider.Info{
+		ID:   "ollama",
+		Name: "Ollama",
+		Models: map[string]*provider.Model{
+			"llama3:8b": {ID: "llama3:8b", Name: "llama3:8b", ProviderID: "ollama"},
+		},
+	})
+	reg.Register(&provider.Info{
+		ID:   "openrouter",
+		Name: "OpenRouter",
+		Models: map[string]*provider.Model{
+			"llama3:8b": {ID: "llama3:8b", Name: "llama3:8b", ProviderID: "openrouter"},
+		},
+	})
+
+	ref := ResolveDefaultModelRef(reg, "")
+	if ref == nil {
+		t.Fatal("expected non-nil ModelRef")
+	}
+	if ref.ProviderID != "ollama" {
+		t.Errorf("expected local ollama before cloud, got %q", ref.ProviderID)
+	}
+}
+
 func TestResolveDefaultModelRef_FallsBackWhenDefaultNotFound(t *testing.T) {
 	reg := provider.NewRegistry()
 	reg.Register(&provider.Info{

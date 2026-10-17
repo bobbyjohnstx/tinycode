@@ -9,8 +9,8 @@ import (
 )
 
 // ResolveDefaultModelRef returns a ModelRef for the best available model,
-// checking the configured default first, then falling back to the smallest
-// chat-capable model prioritizing local providers.
+// checking the configured default first, then falling back to chat-capable
+// models preferring local providers, coding-named models, then larger sizeB.
 func ResolveDefaultModelRef(reg *provider.Registry, defaultModel string) *session.ModelRef {
 	return resolveDefaultModelRef(reg, defaultModel)
 }
@@ -26,7 +26,7 @@ func resolveDefaultModelRef(reg *provider.Registry, defaultModel string) *sessio
 		}
 	}
 
-	// 2. Pick the smallest chat-capable model from local providers first.
+	// 2. Prefer local → coding name → descending sizeB → providerID → modelID.
 	providers := reg.ListProviders()
 	sort.Slice(providers, func(i, j int) bool { return providers[i].ID < providers[j].ID })
 
@@ -36,6 +36,7 @@ func resolveDefaultModelRef(reg *provider.Registry, defaultModel string) *sessio
 		modelID    string
 		sizeB      float64
 		local      bool
+		coding     bool
 	}
 	var candidates []candidate
 
@@ -44,19 +45,28 @@ func resolveDefaultModelRef(reg *provider.Registry, defaultModel string) *sessio
 			if strings.Contains(strings.ToLower(id), "embed") {
 				continue
 			}
-			size := 999.0
+			size := 0.0
 			if s := m.SizeB(); s != nil {
 				size = *s
 			}
-			candidates = append(candidates, candidate{p.ID, id, size, localProviders[p.ID]})
+			candidates = append(candidates, candidate{
+				providerID: p.ID,
+				modelID:    id,
+				sizeB:      size,
+				local:      localProviders[p.ID],
+				coding:     isCodingModelName(id, m.Name),
+			})
 		}
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].local != candidates[j].local {
 			return candidates[i].local
 		}
+		if candidates[i].coding != candidates[j].coding {
+			return candidates[i].coding
+		}
 		if candidates[i].sizeB != candidates[j].sizeB {
-			return candidates[i].sizeB < candidates[j].sizeB
+			return candidates[i].sizeB > candidates[j].sizeB
 		}
 		if candidates[i].providerID != candidates[j].providerID {
 			return candidates[i].providerID < candidates[j].providerID
@@ -68,4 +78,11 @@ func resolveDefaultModelRef(reg *provider.Registry, defaultModel string) *sessio
 	}
 
 	return nil
+}
+
+func isCodingModelName(id, name string) bool {
+	lower := strings.ToLower(id + " " + name)
+	return strings.Contains(lower, "coder") ||
+		strings.Contains(lower, "code") ||
+		strings.Contains(lower, "instruct")
 }
