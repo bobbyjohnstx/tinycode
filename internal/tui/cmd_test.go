@@ -2075,6 +2075,56 @@ func TestReconnectMCP_ReturnsErrorOnServerFailure(t *testing.T) {
 	}
 }
 
+// --- patchDefaultModel tests ---
+
+func TestPatchDefaultModel_SendsProviderSlashModel(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.URL.Path != "/config" {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := patchDefaultModel(client, "ollama", "qwen2.5-coder")
+	msg := cmd()
+
+	done, ok := msg.(ModelDefaultPatchedMsg)
+	if !ok {
+		t.Fatalf("expected ModelDefaultPatchedMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+	if gotBody["model"] != "ollama/qwen2.5-coder" {
+		t.Errorf("model = %v, want %q", gotBody["model"], "ollama/qwen2.5-coder")
+	}
+}
+
+func TestPatchDefaultModel_ReturnsErrorOnServerFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "config error"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := patchDefaultModel(client, "ollama", "qwen2.5-coder")
+	msg := cmd()
+
+	done, ok := msg.(ModelDefaultPatchedMsg)
+	if !ok {
+		t.Fatalf("expected ModelDefaultPatchedMsg, got %T", msg)
+	}
+	if done.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 // --- patchScopedModels tests ---
 
 func TestPatchScopedModels_Success(t *testing.T) {

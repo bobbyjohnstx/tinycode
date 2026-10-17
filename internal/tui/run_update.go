@@ -122,6 +122,18 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		}
 		return c, tea.Batch(cmds...), true
 
+	case ModelDefaultPatchedMsg:
+		if msg.Err != nil {
+			slog.Warn("save default model failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Save default failed: %v", msg.Err)...)
+			return c, tea.Batch(cmds...), true
+		}
+		toastCmd := c.app.toast.Show("Saved as default", false)
+		if toastCmd != nil {
+			cmds = append(cmds, toastCmd)
+		}
+		return c, tea.Batch(cmds...), true
+
 	case AgentToggleMsg:
 		return c, toggleAgent(c.client, msg.Agent, msg.Disabled), true
 
@@ -450,6 +462,9 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		}
 		if sid := c.app.state.ActiveSession; sid != "" {
 			cmds = append(cmds, patchSessionModel(c.client, sid, msg.Selection.ProviderID, msg.Selection.ModelID))
+		}
+		if c.client != nil && msg.Selection.ProviderID != "" && msg.Selection.ModelID != "" {
+			cmds = append(cmds, patchDefaultModel(c.client, msg.Selection.ProviderID, msg.Selection.ModelID))
 		}
 		return c, tea.Batch(cmds...), true
 

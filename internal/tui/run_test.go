@@ -426,6 +426,82 @@ func TestModelSelectedMsg_RestoresFocusToPrompt(t *testing.T) {
 	}
 }
 
+func TestModelSelectedMsg_IssuesPatchDefaultModel(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/config" && r.Method == http.MethodPatch {
+			data, _ := io.ReadAll(r.Body)
+			json.Unmarshal(data, &gotBody)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	app := NewApp(srv.URL)
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	client := api.New(srv.URL, "/tmp", "")
+	ca := &connectedApp{app: app, client: client}
+
+	_, cmd := ca.Update(ModelSelectedMsg{
+		Selection: ModelSelection{ProviderID: "ollama", ModelID: "qwen2.5-coder"},
+	})
+
+	msgs := flattenCmd(cmd)
+	patched, ok := findMsg[ModelDefaultPatchedMsg](msgs)
+	if !ok {
+		t.Fatal("expected ModelDefaultPatchedMsg in batched cmds")
+	}
+	if patched.Err != nil {
+		t.Errorf("expected no error, got %v", patched.Err)
+	}
+	if gotBody["model"] != "ollama/qwen2.5-coder" {
+		t.Errorf("PatchConfig model = %v, want %q", gotBody["model"], "ollama/qwen2.5-coder")
+	}
+}
+
+func TestModelDefaultPatchedMsg_SuccessShowsSavedToast(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	_, cmd := ca.Update(ModelDefaultPatchedMsg{Err: nil})
+	_ = cmd
+
+	if !ca.app.toast.IsVisible() {
+		t.Fatal("expected toast visible after successful default save")
+	}
+	if ca.app.toast.current.Text != "Saved as default" {
+		t.Errorf("toast text = %q, want %q", ca.app.toast.current.Text, "Saved as default")
+	}
+	if ca.app.toast.current.IsError {
+		t.Error("expected success toast, got error toast")
+	}
+}
+
+func TestModelDefaultPatchedMsg_ErrorKeepsSelectionShowsErrorToast(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.CurrentModel = ModelSelection{ProviderID: "ollama", ModelID: "qwen2.5-coder"}
+	ca := &connectedApp{app: app}
+
+	_, cmd := ca.Update(ModelDefaultPatchedMsg{Err: errors.New("boom")})
+	_ = cmd
+
+	if ca.app.state.CurrentModel.ProviderID != "ollama" || ca.app.state.CurrentModel.ModelID != "qwen2.5-coder" {
+		t.Errorf("CurrentModel changed: %+v", ca.app.state.CurrentModel)
+	}
+	if !ca.app.toast.IsVisible() {
+		t.Fatal("expected error toast visible")
+	}
+	if !ca.app.toast.current.IsError {
+		t.Error("expected isError toast")
+	}
+	if !strings.Contains(ca.app.toast.current.Text, "Save default failed") {
+		t.Errorf("toast text = %q, want containing %q", ca.app.toast.current.Text, "Save default failed")
+	}
+}
+
 func TestModelDialog_CursorStartsOnCurrentModel(t *testing.T) {
 	d := NewModelDialog()
 	d.Show([]ProviderInfo{

@@ -430,6 +430,17 @@ func patchScopedModels(client *api.Client, models []string) tea.Cmd {
 	}
 }
 
+// patchDefaultModel persists the /connect selection as config.model.
+func patchDefaultModel(client *api.Client, providerID, modelID string) tea.Cmd {
+	return func() tea.Msg {
+		body := map[string]any{
+			"model": providerID + "/" + modelID,
+		}
+		err := client.PatchConfig(body)
+		return ModelDefaultPatchedMsg{Err: err}
+	}
+}
+
 // patchSessionAgent persists the Tab-selected agent on the server session.
 func patchSessionAgent(client *api.Client, sessionID, agent string) tea.Cmd {
 	return func() tea.Msg {

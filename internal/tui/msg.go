@@ -307,6 +307,11 @@ type ModelScopedDoneMsg struct {
 	Err error
 }
 
+// ModelDefaultPatchedMsg reports that the config.model default write completed.
+type ModelDefaultPatchedMsg struct {
+	Err error
+}
+
 // SessionAgentPatchedMsg reports that PATCH /session/{id} agent completed.
 type SessionAgentPatchedMsg struct {
 	Err error
