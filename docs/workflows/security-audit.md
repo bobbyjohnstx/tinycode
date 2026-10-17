@@ -73,8 +73,35 @@ Use lightwell_provenance to verify SLSA Level 3 build provenance for packages
 
 #### 2.2 Scan dependencies for vulnerabilities
 
+Prefer the lightwell plugin when configured (see [plugin-catalog.md](../plugin-catalog.md#lightwell)):
+
 ```
 Use lightwell_check_deps to scan pom.xml or requirements.txt for known issues
+```
+
+When lightwell is not available, use the Maven/Gradle CLI recipes below.
+
+##### Maven (CLI)
+
+```bash
+# Dependency tree
+mvn -q dependency:tree
+
+# Outdated / update candidates
+mvn -q versions:display-dependency-updates
+
+# OWASP Dependency-Check (if the plugin is installed in the project)
+mvn -q org.owasp:dependency-check-maven:check
+```
+
+##### Gradle (CLI)
+
+```bash
+# Dependency report
+./gradlew dependencies
+
+# Dependency updates (requires the com.github.ben-manes.versions plugin)
+./gradlew dependencyUpdates
 ```
 
 #### 2.3 Check individual packages
@@ -87,6 +114,22 @@ Use lightwell_check_package to check a specific package against Lightwell repos
 
 ```
 Use lightwell_osv to query the Open Source Vulnerability database for a package
+```
+
+#### 2.5 Semgrep static analysis (optional)
+
+Skip if Semgrep is not installed. Docs-only — there is no tinycode Semgrep plugin in this path.
+
+```bash
+# Install (example)
+pip install semgrep
+# or: brew install semgrep
+
+# Auto config (multi-language, including Java)
+semgrep --config=auto
+
+# Java-oriented ruleset example
+semgrep --config=p/java
 ```
 
 ### Phase 3: Runtime security posture

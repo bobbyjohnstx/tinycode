@@ -241,6 +241,8 @@ Image scanning, policy enforcement, supply chain verification, log sanitization.
 
 ### lightwell
 
+Maven/Gradle CLI dep-audit recipes and optional Semgrep usage: [security-audit.md](workflows/security-audit.md) Phase 2.
+
 | Tool | Description |
 |------|-------------|
 | `lightwell_check_package` | Check a package against Lightwell repos |
