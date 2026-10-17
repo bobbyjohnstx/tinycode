@@ -113,7 +113,8 @@ type PermissionReplyMsg struct {
 }
 
 type QuestionRepliedMsg struct {
-	Err error
+	Err      error
+	Rejected bool // true when the HTTP call was POST .../reject
 }
 
 // QuestionReplyMsg is a request to POST /question/{id}/reply.

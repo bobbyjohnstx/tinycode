@@ -96,13 +96,12 @@ launch:
 		select {
 		case <-ctx.Done():
 			break launch
-		case sem <- struct{}{}:
+		default:
 		}
 		wg.Add(1)
 		idx, call := i, tc
 		safego.Go(func() {
 			defer wg.Done()
-			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
 					// Domain recover must stay: safego.Go alone would swallow
@@ -118,6 +117,8 @@ launch:
 				}
 			}()
 
+			// Wait on prior questions before taking a concurrency slot so
+			// idle question waiters do not starve non-question tools.
 			if g, ok := gates[idx]; ok {
 				select {
 				case <-g.wait:
@@ -133,6 +134,19 @@ launch:
 				}
 				defer close(g.done)
 			}
+
+			select {
+			case <-ctx.Done():
+				p.publishToolResult(call, "aborted", true)
+				ch <- toolResult{
+					index:  idx,
+					result: ToolResultPart(call.ToolCallID, call.ToolName, "aborted", true),
+					failed: true,
+				}
+				return
+			case sem <- struct{}{}:
+			}
+			defer func() { <-sem }()
 
 			// Permission check: if tool args reference paths outside the
 			// configured directory, ask the permission service.

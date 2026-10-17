@@ -69,6 +69,8 @@ func (jm *JobManager) pruneCompleted() {
 // Start launches fn as a background goroutine and returns the job ID.
 // The context is derived from parentCtx so that cancelling the parent
 // (e.g. on session abort or server shutdown) also cancels running jobs.
+// Callers that need the job to outlive a tool body deadline should pass
+// context.WithoutCancel(toolCtx) as parentCtx (see background task / monitor).
 func (jm *JobManager) Start(parentCtx context.Context, fn func(ctx context.Context) (string, error)) string {
 	jm.mu.Lock()
 	jm.pruneCompleted()

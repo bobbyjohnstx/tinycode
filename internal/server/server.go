@@ -367,6 +367,15 @@ func (s *Server) wirePendingStores() {
 			s.questionStore.Remove(id)
 		}
 	})
+
+	// Bus-originated cancel (session abort / parent ctx) publishes rejected
+	// without going through handleQuestionReject — still clear the store.
+	s.wirePluginEventLoop("question.rejected", func(props map[string]any) {
+		id, _ := props["requestID"].(string)
+		if id != "" {
+			s.questionStore.Remove(id)
+		}
+	})
 }
 
 func (s *Server) wirePluginHooks() {

@@ -250,6 +250,41 @@ func TestQuestionReply_RemovesFromStore(t *testing.T) {
 	}
 }
 
+func TestQuestionRejected_BusEventClearsStore(t *testing.T) {
+	srv, b := testServer(t)
+
+	// Simulate question.asked populating the store via wirePendingStores.
+	b.Publish("question.asked", map[string]any{
+		"id":        "q_abort_1",
+		"sessionID": "ses_abort",
+		"questions": []map[string]any{{"question": "still there?"}},
+	})
+
+	deadline := time.After(2 * time.Second)
+	for len(srv.questionStore.List()) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for question.asked to populate store")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+
+	// Parent-cancel path publishes rejected without HTTP reject handler.
+	b.Publish("question.rejected", map[string]any{
+		"sessionID": "ses_abort",
+		"requestID": "q_abort_1",
+	})
+
+	deadline = time.After(2 * time.Second)
+	for len(srv.questionStore.List()) > 0 {
+		select {
+		case <-deadline:
+			t.Fatalf("store still has %d entries after question.rejected", len(srv.questionStore.List()))
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
 func TestHandleQuestionReject_PublishesRejectedAndRemoves(t *testing.T) {
 	srv, b := testServer(t)
 

@@ -81,8 +81,12 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 
 	case QuestionRepliedMsg:
 		if msg.Err != nil {
-			slog.Error("question reply failed", "error", msg.Err)
-			cmds = append(cmds, c.showErrorToast("Question reply failed: %v", msg.Err)...)
+			label := "Question reply failed"
+			if msg.Rejected {
+				label = "Question reject failed"
+			}
+			slog.Error(label, "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("%s: %v", label, msg.Err)...)
 		}
 		return c, tea.Batch(cmds...), true
 

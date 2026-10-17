@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -610,6 +611,82 @@ func TestExecuteTools_SerializesQuestionByCallIndex(t *testing.T) {
 
 	if exec.startAt("q2").Before(exec.finishAt("q0")) {
 		t.Fatalf("q2 started at %v before q0 finished at %v", exec.startAt("q2"), exec.finishAt("q0"))
+	}
+}
+
+func TestExecuteTools_QuestionGateDoesNotStarveNonQuestions(t *testing.T) {
+	// With gate-before-sem: many queued questions waiting on q0 must not
+	// occupy concurrency slots and block a parallel non-question tool.
+	const waitingQuestions = maxConcurrentTools // would fill the sem if held during gate wait
+
+	exec := &orderingToolExecutor{
+		block: map[string]chan struct{}{
+			"q0":   make(chan struct{}),
+			"bash": make(chan struct{}),
+		},
+		started: map[string]chan struct{}{
+			"q0":   make(chan struct{}, 1),
+			"bash": make(chan struct{}, 1),
+		},
+	}
+	for i := 1; i <= waitingQuestions; i++ {
+		tag := fmt.Sprintf("qw%d", i)
+		exec.block[tag] = make(chan struct{})
+		exec.started[tag] = make(chan struct{}, 1)
+	}
+
+	b := bus.New()
+	defer b.Close()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses-q-starve",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, &mockLLMClient{}, exec, b)
+
+	toolCalls := make([]Part, 0, waitingQuestions+2)
+	toolCalls = append(toolCalls, ToolCallPart("call-q0", "question", `{"question":"first","_tag":"q0"}`))
+	for i := 1; i <= waitingQuestions; i++ {
+		tag := fmt.Sprintf("qw%d", i)
+		toolCalls = append(toolCalls, ToolCallPart(
+			fmt.Sprintf("call-qw%d", i),
+			"question",
+			fmt.Sprintf(`{"question":"wait","_tag":"%s"}`, tag),
+		))
+	}
+	toolCalls = append(toolCalls, ToolCallPart("call-bash", "bash", `{"command":"true","_tag":"bash"}`))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		p.executeTools(ctx, toolCalls)
+		close(done)
+	}()
+
+	select {
+	case <-exec.started["q0"]:
+	case <-time.After(2 * time.Second):
+		t.Fatal("q0 did not start")
+	}
+	select {
+	case <-exec.started["bash"]:
+	case <-time.After(2 * time.Second):
+		t.Fatal("bash should start while later questions wait on q0 (gate before sem)")
+	}
+
+	close(exec.block["q0"])
+	close(exec.block["bash"])
+	for i := 1; i <= waitingQuestions; i++ {
+		close(exec.block[fmt.Sprintf("qw%d", i)])
+	}
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("executeTools did not finish")
 	}
 }
 

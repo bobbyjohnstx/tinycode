@@ -637,7 +637,7 @@ func replyQuestion(client *api.Client, questionID, answer string) tea.Cmd {
 func rejectQuestion(client *api.Client, questionID string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.RejectQuestion(questionID)
-		return QuestionRepliedMsg{Err: err}
+		return QuestionRepliedMsg{Err: err, Rejected: true}
 	}
 }
 
