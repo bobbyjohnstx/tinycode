@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Fixes
+- Persist /connect model selection as config.model default (#767)
+- Model auto-resolve prefers larger models; stop ascending-sizeB surprise (#769)
+- isCodingModelName: remove false-positive "instruct" and bare "code" matches
+- Honesty cue "(no text — expand Thought)" only shown when Thought is collapsed (#779)
+- extractModifiedFiles handles apply_patch paths via patch-body parsing (#780)
+
+### UX Polish
+- LM Studio mentioned in empty-provider guidance (#771)
+- vLLM added to empty-provider dialog with TINYCODE_VLLM_HOST hint (#782)
+- Tab agent toast confirms agent switch (#775)
+- /undo hint toast on first AI file edit, includes /diff (#777, #784)
+- "Model saved as default" toast replaces ambiguous "Saved as default" (#785)
+
+### Docs
+- Quickstart first-five-minutes rewrite (#773)
+- Permission prompt explanation in quickstart §3 (#781)
+- Web UI line caveats PTY/share limits (#783)
+
 ## [2.3.4] - 2026-10-17
 
 ### Fixes

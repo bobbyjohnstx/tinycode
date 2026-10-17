@@ -193,6 +193,15 @@ Note: TypeScript wiki/notepad MCP tools are not in the Go product. Session `note
 7. Check `ollama ps` to see if the model is loaded or re-loading between requests
 8. If model keeps re-loading, check `keep_alive` — tinycode sets `keep_alive: "30m"` by default
 
+### TUI stalls on "Loading…" or mouse bytes leak into the prompt
+
+**Problem:** UI freezes on "Loading…" after a resize, Enter does nothing until you click, or SGR mouse bytes (`;59;29M`) appear in the prompt. Common on Konsole/Wayland.
+
+**Solution:** Fixed in v2.3.4. Upgrade tinycode. The root cause was `glamour.WithAutoStyle()` querying the terminal (OSC 11 / CPR) on every markdown renderer rebuild. If you're on an older version, set `GLAMOUR_STYLE=dark` as a workaround:
+```bash
+export GLAMOUR_STYLE=dark
+```
+
 ### TUI is sluggish or unresponsive
 
 **Problem:** Input lag, slow rendering, or UI freeze.

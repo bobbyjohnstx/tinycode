@@ -9,7 +9,7 @@ This benchmark validates local LLM compatibility with tinycode's tool-calling sy
 - **Memory:** 32 GB
 - **Ollama:** 0.30.10
 
-> **Stale.** Last verified July 10, 2026. The 90-day window ended October 8, 2026. Treat the tables as a historical snapshot. Re-run [benchmark-guide.md](benchmark-guide.md) before relying on a tier.
+> **Stale — re-benchmark needed.** Last verified July 10, 2026 (90-day window expired). Treat the tables as a historical snapshot; newer model releases may have changed tiers. Re-run [benchmark-guide.md](benchmark-guide.md) before relying on a tier.
 
 ## Results
 

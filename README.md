@@ -65,7 +65,7 @@ Requires Go 1.27.1+. Other modes: `tinycode web` (browser UI), `tinycode serve` 
 ### Key features
 
 - **Multi-agent orchestration** --- build agent delegates to executor, architect, and critic subagents; `/swarm` dispatches parallel subagents as goroutines (not the legacy TypeScript tmux swarm — see [docs/spec/16-not-implemented.md](docs/spec/16-not-implemented.md)); `--plan` flag shows decomposition for review before dispatch
-- **20 built-in agents** --- architect, debugger, executor, code-reviewer, and more (Tab to cycle, `/ask` for one-shot); three more ship disabled (`code-simplifier`, `qa-tester`, `scientist`); `plan` is a native mode (`plan_enter`/`plan_exit`) for read-only research and planning
+- **23 built-in agents** --- architect, debugger, executor, code-reviewer, and more (Tab to cycle, `/ask` for one-shot); three ship disabled (`code-simplifier`, `qa-tester`, `scientist`); `plan` is a native mode (`plan_enter`/`plan_exit`) for read-only research and planning
 - **7 bundled skills** --- doctor, mcp-setup, remember, deepinit, incident, change, host (slash commands like `/review` and `/debug` invoke agents, not bundled skills)
 - **Workflow commands** --- `/effort` adjusts reasoning depth per session, `/goal` runs autonomous multi-turn loops until a condition is met, `/branch` forks conversations to try alternatives
 - **Context management** --- `/context` visualizes context window usage with per-category breakdown, `/btw` asks side questions without polluting history, `/changes` shows only files tinycode modified (not all uncommitted changes); automatic elision at 80% context, LLM summarization at the limit, `/compact` for manual compaction
@@ -238,8 +238,11 @@ Press **Tab** to cycle through agents, or use `<leader>a` to pick from a list. U
 | `tracer`            | Competing explanations and the next probe                                   |
 | `verifier`          | Proof a change works                                                        |
 | `writer`            | Technical documentation                                                     |
+| `code-simplifier`   | Simplify recently modified code (disabled by default)                       |
+| `qa-tester`         | Interactive CLI testing via tmux (disabled by default)                       |
+| `scientist`         | Hypothesis-driven data analysis (disabled by default)                       |
 
-Tab cycles `build`, `general`, `ops`, `plan`, `architect`, and `code-reviewer`. `code-simplifier`, `qa-tester`, and `scientist` ship disabled. Models at 8B parameters and under receive the compact prompt. `/incident`, `/change`, and `/host` are checklists for **ops**. `/debug`, `/trace`, `/plan`, `/verify`, `/test`, and `/review` ask the matching agent to do the job.
+Tab cycles `build`, `general`, `ops`, `plan`, `architect`, and `code-reviewer`. `code-simplifier`, `qa-tester`, and `scientist` ship disabled. Models at 14B parameters and under receive the compact prompt. `/incident`, `/change`, and `/host` are checklists for **ops**. `/debug`, `/trace`, `/plan`, `/verify`, `/test`, and `/review` ask the matching agent to do the job.
 
 ## Configuration
 
