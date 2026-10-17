@@ -472,8 +472,8 @@ func TestModelDefaultPatchedMsg_SuccessShowsSavedToast(t *testing.T) {
 	if !ca.app.toast.IsVisible() {
 		t.Fatal("expected toast visible after successful default save")
 	}
-	if ca.app.toast.current.Text != "Saved as default" {
-		t.Errorf("toast text = %q, want %q", ca.app.toast.current.Text, "Saved as default")
+	if ca.app.toast.current.Text != "Model saved as default" {
+		t.Errorf("toast text = %q, want %q", ca.app.toast.current.Text, "Model saved as default")
 	}
 	if ca.app.toast.current.IsError {
 		t.Error("expected success toast, got error toast")
@@ -1203,8 +1203,8 @@ func TestSessionStatusIdle_FirstEditShowsUndoHintOnce(t *testing.T) {
 	if !updated.app.toast.IsVisible() {
 		t.Fatal("expected undo hint toast")
 	}
-	if updated.app.toast.current.Text != "/undo reverts AI file changes" {
-		t.Errorf("toast text = %q, want %q", updated.app.toast.current.Text, "/undo reverts AI file changes")
+	if updated.app.toast.current.Text != "/undo reverts AI edits (/diff to review)" {
+		t.Errorf("toast text = %q, want %q", updated.app.toast.current.Text, "/undo reverts AI edits (/diff to review)")
 	}
 
 	updated.app.toast.Dismiss()

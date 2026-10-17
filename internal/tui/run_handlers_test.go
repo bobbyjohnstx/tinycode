@@ -116,6 +116,102 @@ func TestExtractModifiedFiles_CaseInsensitiveToolName(t *testing.T) {
 	}
 }
 
+func TestExtractModifiedFiles_ApplyPatchUnifiedDiff(t *testing.T) {
+	// Paths live only inside the patch body — a name-only allowlist would return [].
+	patch := "--- a/src/foo.go\n+++ b/src/foo.go\n@@ -1 +1 @@\n-old\n+new\n--- a/src/bar.go\n+++ b/src/bar.go\n@@ -1 +1 @@\n-a\n+b\n"
+	args, err := json.Marshal(map[string]string{"patch": patch})
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages := []MessageView{
+		{
+			Parts: []PartView{
+				{Type: "tool", ToolName: "apply_patch", ToolArgs: string(args)},
+			},
+		},
+	}
+	files := extractModifiedFiles(messages)
+	if len(files) != 2 {
+		t.Fatalf("expected 2 paths from unified diff patch body, got %d: %v", len(files), files)
+	}
+	if files[0] != "src/foo.go" {
+		t.Errorf("files[0] = %q, want src/foo.go", files[0])
+	}
+	if files[1] != "src/bar.go" {
+		t.Errorf("files[1] = %q, want src/bar.go", files[1])
+	}
+}
+
+func TestExtractModifiedFiles_ApplyPatchStarUpdateFile(t *testing.T) {
+	patch := "*** Update File: pkg/a.go\n*** Add File: pkg/b.go\n*** Delete File: pkg/c.go\n--- /dev/null\n+++ b/pkg/b.go\n"
+	args, err := json.Marshal(map[string]string{"patch": patch})
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages := []MessageView{
+		{
+			Parts: []PartView{
+				{Type: "tool", ToolName: "apply_patch", ToolArgs: string(args)},
+			},
+		},
+	}
+	files := extractModifiedFiles(messages)
+	want := map[string]bool{"pkg/a.go": true, "pkg/b.go": true, "pkg/c.go": true}
+	if len(files) != 3 {
+		t.Fatalf("expected 3 paths (skip /dev/null), got %d: %v", len(files), files)
+	}
+	for _, f := range files {
+		if !want[f] {
+			t.Errorf("unexpected path %q", f)
+		}
+		if f == "/dev/null" {
+			t.Error("should skip /dev/null")
+		}
+	}
+}
+
+func TestExtractModifiedFiles_DefensivePatchToolName(t *testing.T) {
+	patch := "--- a/lib/x.go\n+++ b/lib/x.go\n@@ -1 +1 @@\n-old\n+new\n"
+	args, err := json.Marshal(map[string]string{"patch": patch})
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages := []MessageView{
+		{
+			Parts: []PartView{
+				{Type: "tool", ToolName: "patch", ToolArgs: string(args)},
+			},
+		},
+	}
+	files := extractModifiedFiles(messages)
+	if len(files) != 1 || files[0] != "lib/x.go" {
+		t.Fatalf("expected [lib/x.go] from tool name patch, got %v", files)
+	}
+}
+
+func TestExtractModifiedFiles_ApplyPatchDedupWithWrite(t *testing.T) {
+	patch := "--- a/tmp/a.go\n+++ b/tmp/a.go\n@@ -1 +1 @@\n-old\n+new\n"
+	args, err := json.Marshal(map[string]string{"patch": patch})
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages := []MessageView{
+		{
+			Parts: []PartView{
+				{Type: "tool", ToolName: "write", ToolArgs: `{"file_path": "tmp/a.go"}`},
+				{Type: "tool", ToolName: "apply_patch", ToolArgs: string(args)},
+			},
+		},
+	}
+	files := extractModifiedFiles(messages)
+	if len(files) != 1 {
+		t.Fatalf("expected 1 deduped path, got %d: %v", len(files), files)
+	}
+	if files[0] != "tmp/a.go" {
+		t.Errorf("got %q, want tmp/a.go", files[0])
+	}
+}
+
 // --- handleThinkingCommand tests ---
 
 func TestHandleThinkingCommand_ShowsCurrentLevelWhenNoArg(t *testing.T) {

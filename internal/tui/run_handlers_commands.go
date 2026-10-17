@@ -255,27 +255,43 @@ func (c *connectedApp) handleDiffDone(msg DiffDoneMsg) (tea.Model, tea.Cmd) {
 }
 
 // extractModifiedFiles walks chat messages and returns deduplicated file paths
-// from write/edit tool calls.
+// from write/edit/apply_patch tool calls.
 func extractModifiedFiles(messages []MessageView) []string {
 	seen := make(map[string]bool)
 	var files []string
+	add := func(fp string) {
+		if fp == "" || seen[fp] {
+			return
+		}
+		seen[fp] = true
+		files = append(files, fp)
+	}
 	for _, msg := range messages {
 		for _, part := range msg.Parts {
 			name := strings.ToLower(part.ToolName)
-			if name != "write" && name != "edit" {
-				continue
-			}
-			var args map[string]any
-			if err := json.Unmarshal([]byte(part.ToolArgs), &args); err != nil {
-				continue
-			}
-			fp, ok := args["file_path"].(string)
-			if !ok || fp == "" {
-				continue
-			}
-			if !seen[fp] {
-				seen[fp] = true
-				files = append(files, fp)
+			switch name {
+			case "write", "edit":
+				var args map[string]any
+				if err := json.Unmarshal([]byte(part.ToolArgs), &args); err != nil {
+					continue
+				}
+				fp, ok := args["file_path"].(string)
+				if !ok {
+					continue
+				}
+				add(fp)
+			case "apply_patch", "patch":
+				var args map[string]any
+				if err := json.Unmarshal([]byte(part.ToolArgs), &args); err != nil {
+					continue
+				}
+				patch, ok := args["patch"].(string)
+				if !ok || patch == "" {
+					continue
+				}
+				for _, fp := range session.ExtractPathsFromPatch(patch) {
+					add(fp)
+				}
 			}
 		}
 	}

@@ -105,15 +105,15 @@ func extractPathsFromArgs(argsJSON string) []string {
 	if raw, ok := args["patch"]; ok {
 		var patch string
 		if json.Unmarshal(raw, &patch) == nil && patch != "" {
-			paths = append(paths, extractPathsFromPatch(patch)...)
+			paths = append(paths, ExtractPathsFromPatch(patch)...)
 		}
 	}
 	return paths
 }
 
-// extractPathsFromPatch pulls file paths out of unified-diff / apply_patch text
+// ExtractPathsFromPatch pulls file paths out of unified-diff / apply_patch text
 // (*** Update File:, ---, +++ lines).
-func extractPathsFromPatch(patch string) []string {
+func ExtractPathsFromPatch(patch string) []string {
 	var paths []string
 	seen := make(map[string]bool)
 	add := func(p string) {

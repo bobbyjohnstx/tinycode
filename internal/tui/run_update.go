@@ -128,7 +128,7 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 			cmds = append(cmds, c.showErrorToast("Save default failed: %v", msg.Err)...)
 			return c, tea.Batch(cmds...), true
 		}
-		toastCmd := c.app.toast.Show("Saved as default", false)
+		toastCmd := c.app.toast.Show("Model saved as default", false)
 		if toastCmd != nil {
 			cmds = append(cmds, toastCmd)
 		}
@@ -327,7 +327,7 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 			cmds = append(cmds, fetchLSPStatus(c.client))
 			if !c.undoHintShown && len(extractModifiedFiles(c.app.chat.Messages())) > 0 {
 				c.undoHintShown = true
-				cmds = append(cmds, c.app.toast.Show("/undo reverts AI file changes", false))
+				cmds = append(cmds, c.app.toast.Show("/undo reverts AI edits (/diff to review)", false))
 			}
 		}
 		// Drain prompt queue when the active session transitions to idle.

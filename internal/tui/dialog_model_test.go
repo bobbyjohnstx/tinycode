@@ -28,6 +28,15 @@ func TestModelDialog_ViewProvidersEmpty_ShowsSetupGuidance(t *testing.T) {
 	if !strings.Contains(view, "TINYCODE_LMSTUDIO_HOST") {
 		t.Error("expected TINYCODE_LMSTUDIO_HOST hint in empty providers view")
 	}
+	if !strings.Contains(view, "vLLM") {
+		t.Error("expected vLLM guidance in empty providers view")
+	}
+	if !strings.Contains(view, "localhost:8000") {
+		t.Error("expected vLLM localhost:8000 in empty providers view")
+	}
+	if !strings.Contains(view, "TINYCODE_VLLM_HOST") {
+		t.Error("expected TINYCODE_VLLM_HOST hint in empty providers view")
+	}
 	if !strings.Contains(view, "OpenRouter") {
 		t.Error("expected OpenRouter guidance in empty providers view")
 	}
