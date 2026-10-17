@@ -719,17 +719,23 @@ func TestHandleNotificationMsg_CopiedToClipboardMsg_ShowsCharCount(t *testing.T)
 	}
 }
 
-func TestHandleNotificationMsg_CopiedToClipboardMsg_ErrorDoesNotShowToast(t *testing.T) {
+func TestHandleNotificationMsg_CopiedToClipboardMsg_ErrorShowsErrorToast(t *testing.T) {
 	app := NewApp("")
 
-	result, _, handled := app.handleNotificationMsg(CopiedToClipboardMsg{
+	result, cmd, handled := app.handleNotificationMsg(CopiedToClipboardMsg{
 		Err: errors.New("fail"),
 	})
 	if !handled {
-		t.Fatal("expected handled even with error")
+		t.Fatal("expected handled")
 	}
-	if result.toast.IsVisible() {
-		t.Error("expected no toast on clipboard error")
+	if cmd == nil {
+		t.Fatal("expected toast cmd")
+	}
+	if !result.toast.IsVisible() {
+		t.Error("expected error toast after clipboard failure")
+	}
+	if !result.toast.current.IsError {
+		t.Error("expected IsError=true on clipboard error toast")
 	}
 }
 

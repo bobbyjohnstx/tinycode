@@ -100,51 +100,110 @@ close access fileRef
 }
 
 func getClipboardImageLinux() ([]byte, error) {
-	// Try xclip first, then xsel.
-	if _, err := exec.LookPath("xclip"); err == nil {
+	readXclip := func() ([]byte, error) {
 		cmd := exec.Command("xclip", "-selection", "clipboard", "-t", "image/png", "-o")
 		data, err := cmd.Output()
-		if err != nil {
-			return nil, fmt.Errorf("no image in clipboard")
-		}
-		if len(data) == 0 {
+		if err != nil || len(data) == 0 {
 			return nil, fmt.Errorf("no image in clipboard")
 		}
 		return data, nil
 	}
-	if _, err := exec.LookPath("wl-paste"); err == nil {
+	readWlPaste := func() ([]byte, error) {
 		cmd := exec.Command("wl-paste", "--type", "image/png")
 		data, err := cmd.Output()
-		if err != nil {
-			return nil, fmt.Errorf("no image in clipboard")
-		}
-		if len(data) == 0 {
+		if err != nil || len(data) == 0 {
 			return nil, fmt.Errorf("no image in clipboard")
 		}
 		return data, nil
+	}
+
+	_, xclipErr := exec.LookPath("xclip")
+	_, wlErr := exec.LookPath("wl-paste")
+
+	if os.Getenv("WAYLAND_DISPLAY") != "" {
+		if wlErr == nil {
+			return readWlPaste()
+		}
+		if xclipErr == nil {
+			return readXclip()
+		}
+		return nil, fmt.Errorf("no clipboard tool found (install wl-clipboard for Wayland, or xclip)")
+	}
+	if xclipErr == nil {
+		return readXclip()
+	}
+	if wlErr == nil {
+		return readWlPaste()
 	}
 	return nil, fmt.Errorf("no clipboard tool found (install xclip or wl-paste)")
 }
 
+func runClipboardWriter(cmd *exec.Cmd, text string) error {
+	cmd.Stdin = strings.NewReader(text)
+	return cmd.Run()
+}
+
+// linuxClipboardWriteTools returns clipboard write tool names in preference order
+// for the current PATH and WAYLAND_DISPLAY. Used by writeClipboard and tests.
+func linuxClipboardWriteTools() []string {
+	var tools []string
+	wayland := os.Getenv("WAYLAND_DISPLAY") != ""
+	if wayland {
+		if _, err := exec.LookPath("wl-copy"); err == nil {
+			tools = append(tools, "wl-copy")
+		}
+	}
+	if _, err := exec.LookPath("xclip"); err == nil {
+		tools = append(tools, "xclip")
+	}
+	if _, err := exec.LookPath("xsel"); err == nil {
+		tools = append(tools, "xsel")
+	}
+	if !wayland {
+		if _, err := exec.LookPath("wl-copy"); err == nil {
+			tools = append(tools, "wl-copy")
+		}
+	}
+	return tools
+}
+
+func linuxClipboardWriteCmds() []*exec.Cmd {
+	var candidates []*exec.Cmd
+	for _, name := range linuxClipboardWriteTools() {
+		switch name {
+		case "wl-copy":
+			candidates = append(candidates, exec.Command("wl-copy"))
+		case "xclip":
+			candidates = append(candidates, exec.Command("xclip", "-selection", "clipboard"))
+		case "xsel":
+			candidates = append(candidates, exec.Command("xsel", "--clipboard", "--input"))
+		}
+	}
+	return candidates
+}
+
 func writeClipboard(text string) error {
-	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("pbcopy")
+		return runClipboardWriter(exec.Command("pbcopy"), text)
 	case "linux":
-		if _, err := exec.LookPath("xclip"); err == nil {
-			cmd = exec.Command("xclip", "-selection", "clipboard")
-		} else if _, err := exec.LookPath("xsel"); err == nil {
-			cmd = exec.Command("xsel", "--clipboard", "--input")
-		} else if _, err := exec.LookPath("wl-copy"); err == nil {
-			cmd = exec.Command("wl-copy")
-		} else {
+		candidates := linuxClipboardWriteCmds()
+		if len(candidates) == 0 {
+			if os.Getenv("WAYLAND_DISPLAY") != "" {
+				return fmt.Errorf("no clipboard tool found (install wl-clipboard for Wayland, or xclip/xsel)")
+			}
 			return fmt.Errorf("no clipboard tool found (install xclip, xsel, or wl-copy)")
 		}
+		var last error
+		for _, cmd := range candidates {
+			if err := runClipboardWriter(cmd, text); err != nil {
+				last = err
+				continue
+			}
+			return nil
+		}
+		return fmt.Errorf("clipboard write failed: %w", last)
 	default:
 		return fmt.Errorf("clipboard not supported on %s", runtime.GOOS)
 	}
-
-	cmd.Stdin = strings.NewReader(text)
-	return cmd.Run()
 }

@@ -292,7 +292,9 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return a, tea.Batch(cmds...), true
 	case CopiedToClipboardMsg:
 		if msg.Err != nil {
-			return a, nil, true
+			slog.Warn("clipboard copy failed", "error", msg.Err)
+			cmd := a.toast.Show(fmt.Sprintf("Copy failed: %v", msg.Err), true)
+			return a, cmd, true
 		}
 		cmd := a.toast.Show(fmt.Sprintf("Copied %d chars", msg.Chars), false)
 		return a, cmd, true

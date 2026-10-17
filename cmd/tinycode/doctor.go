@@ -137,6 +137,9 @@ func runDoctor() {
 	// IDEs (ACP setup hints — detection only, no install)
 	checkIDEs()
 
+	// Clipboard helpers (warn only — never fail the doctor run)
+	checkClipboard()
+
 	// Log file
 	logPath := filepath.Join(dataDir, "tinycode.log")
 	if checkWritable(filepath.Dir(logPath)) {
@@ -319,6 +322,22 @@ func countConfigPlugins(cfg *config.Info) int {
 		return 0
 	}
 	return len(specs)
+}
+
+// checkClipboard reports Linux clipboard helpers. Warns when none are found;
+// never marks the doctor run as failed — the rest of the app works without them.
+func checkClipboard() {
+	if runtime.GOOS != "linux" {
+		// darwin pbcopy is standard — skip
+		return
+	}
+	for _, bin := range []string{"wl-copy", "xclip", "xsel"} {
+		if _, err := exec.LookPath(bin); err == nil {
+			fmt.Printf("%s Clipboard: %s found\n", checkPass, bin)
+			return
+		}
+	}
+	fmt.Printf("%s Clipboard: no wl-copy/xclip/xsel in PATH ( /copy will show an error toast )\n", checkWarn)
 }
 
 // checkIDEs reports IDEs found on PATH and points at ACP setup docs.

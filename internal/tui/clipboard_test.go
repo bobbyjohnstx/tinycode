@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -139,6 +142,72 @@ func TestWriteClipboard_CurrentPlatform(t *testing.T) {
 		if err == nil {
 			t.Errorf("expected unsupported platform error on %s", runtime.GOOS)
 		}
+	}
+}
+
+func stubClipboardBins(t *testing.T, names ...string) {
+	t.Helper()
+	dir := t.TempDir()
+	for _, name := range names {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir)
+}
+
+func TestLinuxClipboardWriteTools_WaylandPrefersWlCopy(t *testing.T) {
+	stubClipboardBins(t, "wl-copy", "xclip", "xsel")
+	t.Setenv("WAYLAND_DISPLAY", "wayland-0")
+
+	got := linuxClipboardWriteTools()
+	if len(got) == 0 || got[0] != "wl-copy" {
+		t.Fatalf("expected wl-copy first under Wayland, got %v", got)
+	}
+	want := []string{"wl-copy", "xclip", "xsel"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
+func TestLinuxClipboardWriteTools_X11PrefersXclip(t *testing.T) {
+	stubClipboardBins(t, "wl-copy", "xclip", "xsel")
+	t.Setenv("WAYLAND_DISPLAY", "")
+
+	got := linuxClipboardWriteTools()
+	if len(got) == 0 || got[0] != "xclip" {
+		t.Fatalf("expected xclip first without Wayland, got %v", got)
+	}
+	want := []string{"xclip", "xsel", "wl-copy"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
+func TestWriteClipboard_LinuxNoTool_WaylandError(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("linux-only error path")
+	}
+	stubClipboardBins(t) // empty PATH
+	t.Setenv("WAYLAND_DISPLAY", "wayland-0")
+
+	err := writeClipboard("hi")
+	if err == nil {
+		t.Fatal("expected error when no clipboard tool")
+	}
+	if !strings.Contains(err.Error(), "wl-clipboard") {
+		t.Errorf("expected Wayland-aware error, got %v", err)
 	}
 }
 

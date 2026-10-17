@@ -86,16 +86,16 @@ sudo cp dist/tinycode /usr/local/bin/
 
 ### Clipboard support (Linux)
 
-For `/copy` and `/paste-image` to work on Linux, install a clipboard utility:
+For `/copy` and `/paste-image` on Linux, install an optional clipboard utility. tinycode does **not** use OSC 52 terminal clipboard sequences and does not hard-depend on a helper — the rest of the app works without one.
 
-- **X11**: `sudo apt install xclip`
-- **Wayland**: `sudo apt install wl-clipboard`
+- **Wayland** (preferred when `WAYLAND_DISPLAY` is set): `sudo apt install wl-clipboard` (`wl-copy` / `wl-paste`)
+- **X11**: `sudo apt install xclip` (or `xsel`)
 
-Without a clipboard utility, clipboard commands will fail with an error message. The rest of tinycode works fine.
+If no helper is available, `/copy` shows an error toast (and logs a warning). `tinycode doctor` warns on Linux when none of `wl-copy` / `xclip` / `xsel` are on `PATH`, but does not fail the run for that alone.
 
 ### Image paste (Linux)
 
-For `/paste-image` with image support, `xclip` must be compiled with image format support (the default package includes it). On Wayland, `wl-paste` handles images natively.
+For `/paste-image` with image support, `xclip` must be compiled with image format support (the default package includes it). On Wayland, `wl-paste` is preferred when `WAYLAND_DISPLAY` is set.
 
 ### Windows (WSL)
 
@@ -152,7 +152,7 @@ This produces binaries in `dist/` for:
 |-------------|------|-------|
 | Go 1.27.1+ | Build only | Not needed at runtime; matches `go.mod` |
 | make | Build only | For the Makefile targets |
-| xclip / wl-clipboard | Runtime (optional) | Linux clipboard support |
+| wl-clipboard / xclip / xsel | Runtime (optional) | Linux clipboard; Wayland prefers wl-clipboard; missing helper → error toast, not a hard dep |
 
 The built binary is fully self-contained. No Node.js, no runtime dependencies, no separate server process. The web UI is embedded via `go:embed`.
 

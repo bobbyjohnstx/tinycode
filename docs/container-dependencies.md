@@ -17,7 +17,8 @@ External CLI tools that tinycode shells out to at runtime. Required for containe
 | `osascript` | macOS | `builtin_notify` | Desktop notifications |
 | `notify-send` | Linux | `builtin_notify` | Desktop notifications |
 | `pbcopy` | macOS | `internal/tui/clipboard.go` | Clipboard write |
-| `xclip` / `xsel` / `wl-copy` | Linux | `internal/tui/clipboard.go` | Clipboard write |
+| `wl-copy` / `xclip` / `xsel` | Linux | `internal/tui/clipboard.go` | Clipboard write (`wl-copy` first when `WAYLAND_DISPLAY` is set; optional — failures toast) |
+| `wl-paste` / `xclip` | Linux | `internal/tui/clipboard.go` | Clipboard image read (`wl-paste` first on Wayland) |
 | `sysctl` | macOS | `internal/provider/gpu_memory.go` | System memory detection |
 | `nvidia-smi` | Linux (NVIDIA) | `internal/provider/gpu_memory.go` | GPU memory detection |
 

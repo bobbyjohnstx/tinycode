@@ -192,3 +192,61 @@ func TestCheckIDEs_PartialDetection(t *testing.T) {
 		t.Errorf("did not expect standalone hint when nvim is present, got %q", out)
 	}
 }
+
+func TestCheckClipboard_LinuxMissingToolsWarns(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("clipboard doctor check is linux-only")
+	}
+	stubPATHBinaries(t) // empty PATH — no clipboard helpers
+	cap := captureStdout(t)
+	checkClipboard()
+	out := cap.read()
+
+	if !strings.Contains(out, checkWarn) {
+		t.Errorf("expected warning marker, got %q", out)
+	}
+	if !strings.Contains(out, "Clipboard:") {
+		t.Errorf("expected Clipboard line, got %q", out)
+	}
+	if !strings.Contains(out, "error toast") {
+		t.Errorf("expected error toast mention, got %q", out)
+	}
+	if strings.Contains(out, checkFail) {
+		t.Errorf("clipboard-only missing must not fail doctor, got %q", out)
+	}
+	if strings.Contains(out, checkPass) {
+		t.Errorf("did not expect pass when no helpers, got %q", out)
+	}
+}
+
+func TestCheckClipboard_LinuxFindsWlCopy(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("clipboard doctor check is linux-only")
+	}
+	stubPATHBinaries(t, "wl-copy")
+	cap := captureStdout(t)
+	checkClipboard()
+	out := cap.read()
+
+	if !strings.Contains(out, checkPass) {
+		t.Errorf("expected pass when wl-copy present, got %q", out)
+	}
+	if !strings.Contains(out, "wl-copy found") {
+		t.Errorf("expected wl-copy found, got %q", out)
+	}
+	if strings.Contains(out, checkWarn) {
+		t.Errorf("did not expect warn when helper present, got %q", out)
+	}
+}
+
+func TestCheckClipboard_NonLinuxSkips(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("non-linux skip path")
+	}
+	cap := captureStdout(t)
+	checkClipboard()
+	out := cap.read()
+	if out != "" {
+		t.Errorf("expected no clipboard output on %s, got %q", runtime.GOOS, out)
+	}
+}
