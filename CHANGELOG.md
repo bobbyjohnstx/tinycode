@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-17
+
 ### Fixes
 - Persist /connect model selection as config.model default (#767)
 - Model auto-resolve prefers larger models; stop ascending-sizeB surprise (#769)
@@ -13,8 +15,8 @@
 - LM Studio mentioned in empty-provider guidance (#771)
 - vLLM added to empty-provider dialog with TINYCODE_VLLM_HOST hint (#782)
 - Tab agent toast confirms agent switch (#775)
-- /undo hint toast on first AI file edit, includes /diff (#777, #784)
-- "Model saved as default" toast replaces ambiguous "Saved as default" (#785)
+- /undo hint toast on first AI file edit, includes /diff (#777, #785)
+- "Model saved as default" toast replaces ambiguous "Saved as default" (#784)
 
 ### LSP
 - Reconnect after language server crash; LRU `didClose` caps open docs at 64 (#787, #788)
