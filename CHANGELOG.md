@@ -16,10 +16,29 @@
 - /undo hint toast on first AI file edit, includes /diff (#777, #784)
 - "Model saved as default" toast replaces ambiguous "Saved as default" (#785)
 
+### LSP
+- Reconnect after language server crash; LRU `didClose` caps open docs at 64 (#787, #788)
+- Cached diagnostics returned immediately for unchanged files (#795)
+- Dropped `didSave` capability advertisement (#797)
+- Bounded stderr capture replaces `io.Discard` (#790)
+- C/C++ support via clangd with `compile_commands.json` / `.clangd` markers (#789)
+- Marker file detection walks up to 8 parent directories (#791)
+- `.mts`/`.cts`/`.mjs`/`.cjs` extensions added for TypeScript detection (#792)
+- `lsp_document_symbols` tool for per-file symbol outline (#793)
+- `ConnectTimeout` on `ServerSpec` — initialize-only, never on `CommandContext` (#799)
+- JDT-LS support for Java with 120s connect timeout; `jdtls` command, marker-gated (#799)
+- Doctor warns (never fails) when jdtls missing or Java < 21 (#799)
+
+### Java Security (epic #800)
+- Security-reviewer: Java OWASP patterns (deserialization, JNDI, XXE, SQL/JPA, SpEL, etc.) (#801)
+- Security-reviewer: Phase 2.5 post-report LSP/bash confirmation protocol (#801)
+- `.java` diagnostics via checkstyle (preferred) or javac fallback; never Maven/Gradle (#802)
+
 ### Docs
 - Quickstart first-five-minutes rewrite (#773)
 - Permission prompt explanation in quickstart §3 (#781)
 - Web UI line caveats PTY/share limits (#783)
+- Maven/Gradle dep-audit CLI recipes and Semgrep scan docs (#803, #804)
 
 ## [2.3.4] - 2026-10-17
 
