@@ -100,6 +100,36 @@ wait_for_regex() {
     return 1
 }
 
+# Wait until the TUI has rendered a ready marker (prompt, boot tips, or first-run connect).
+# Then settle so async first-run dialog open / noise-guard windows can finish.
+wait_for_tui_ready() {
+    local session="$1" timeout="${2:-15}"
+    if ! wait_for_regex "$session" 'Ask anything|Select Provider|ollama serve|ctrl\+p palette' "$timeout"; then
+        return 1
+    fi
+    sleep 1
+    return 0
+}
+
+# Dismiss first-run connect / other overlays that steal key focus.
+dismiss_overlays() {
+    local session="$1"
+    send_keys "$session" Escape
+    sleep 0.3
+    send_keys "$session" Escape
+    sleep 0.3
+    # After dismiss, wait for the prompt so slash commands land in the composer.
+    wait_for_text "$session" "Ask anything" 5 || true
+    sleep 0.5
+}
+
+dump_pane_on_failure() {
+    local session="$1" label="$2"
+    echo "    --- pane dump ($label) ---"
+    capture_pane "$session" 2>/dev/null | sed 's/^/      /' || echo "      (capture failed)"
+    echo "    --- end pane dump ---"
+}
+
 assert_contains() {
     local session="$1" pattern="$2" label="$3"
     TOTAL=$((TOTAL + 1))
@@ -182,7 +212,15 @@ test_T02() {
     # --- Part 1: Ctrl+D exits ---
     local session
     session=$(new_session "T02")
-    sleep 3
+    if ! wait_for_tui_ready "$session" 15; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready before Ctrl+D"
+        dump_pane_on_failure "$session" "T02 Ctrl+D ready wait"
+        FAIL=$((FAIL + 1))
+        TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
 
     send_keys "$session" C-d
 
@@ -195,6 +233,7 @@ test_T02() {
         PASS=$((PASS + 1))
     else
         echo -e "  ${RED}FAIL${NC}: tinycode did not exit on Ctrl+D"
+        dump_pane_on_failure "$session" "T02 Ctrl+D"
         FAIL=$((FAIL + 1))
     fi
 
@@ -203,7 +242,15 @@ test_T02() {
 
     # --- Part 2: /exit command exits ---
     session=$(new_session "T02b")
-    sleep 3
+    if ! wait_for_tui_ready "$session" 15; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready before /exit"
+        dump_pane_on_failure "$session" "T02 /exit ready wait"
+        FAIL=$((FAIL + 1))
+        TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
 
     send_text "$session" "/exit"
 
@@ -216,6 +263,7 @@ test_T02() {
         PASS=$((PASS + 1))
     else
         echo -e "  ${RED}FAIL${NC}: tinycode did not exit on /exit"
+        dump_pane_on_failure "$session" "T02 /exit"
         FAIL=$((FAIL + 1))
     fi
 
@@ -226,7 +274,15 @@ test_T03() {
     echo -e "${BOLD}T03: Ctrl+C clears prompt${NC}"
     local session
     session=$(new_session "T03")
-    sleep 3
+    if ! wait_for_tui_ready "$session" 15; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready before Ctrl+C"
+        dump_pane_on_failure "$session" "T03 ready wait"
+        FAIL=$((FAIL + 1))
+        TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
 
     send_keys "$session" "some text to clear"
     sleep 0.5
@@ -234,7 +290,9 @@ test_T03() {
     sleep 1
 
     # After Ctrl+C the typed text should be gone
-    assert_not_contains "$session" "some text to clear" "prompt cleared after Ctrl+C"
+    if ! assert_not_contains "$session" "some text to clear" "prompt cleared after Ctrl+C"; then
+        dump_pane_on_failure "$session" "T03 Ctrl+C"
+    fi
 
     kill_session "$session"
 }

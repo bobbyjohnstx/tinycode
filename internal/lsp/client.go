@@ -428,7 +428,7 @@ func (c *Client) handlePublishDiagnostics(params json.RawMessage) {
 		delete(c.diagStore, p.URI)
 	}
 	waiters := c.diagWaiters[p.URI]
-	c.diagWaiters[p.URI] = nil
+	delete(c.diagWaiters, p.URI)
 	c.diagMu.Unlock()
 
 	for _, ch := range waiters {

@@ -60,6 +60,21 @@ func TestModelDialog_EmptyProviders_OEntersAPIKeyPhase(t *testing.T) {
 	}
 }
 
+func TestModelDialog_EscHidesFromProviders(t *testing.T) {
+	d := NewModelDialog()
+	d.Show([]ProviderInfo{
+		{ID: "ollama", Name: "Ollama", Models: []ModelInfo{{ID: "qwen", ProviderID: "ollama", Name: "Qwen"}}},
+	})
+	if !d.IsVisible() {
+		t.Fatal("expected dialog visible after Show")
+	}
+
+	updated, _ := d.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if updated.IsVisible() {
+		t.Error("expected Escape to hide model dialog from providers phase")
+	}
+}
+
 func TestModelDialog_APIKeyEnter_EmitsStoreMsg(t *testing.T) {
 	d := NewModelDialog()
 	d.Show(nil)

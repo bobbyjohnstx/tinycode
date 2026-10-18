@@ -46,6 +46,11 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		}
 	}
 
+	// Ctrl+D always quits, even when an overlay (e.g. first-run model dialog) is open.
+	if msg.String() == "ctrl+d" {
+		return a, a.handleGlobalKey(msg)
+	}
+
 	// Route keys to visible overlay (priority order).
 	if a.permPrompt.IsVisible() {
 		var cmd tea.Cmd

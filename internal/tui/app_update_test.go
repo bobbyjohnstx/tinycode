@@ -1316,6 +1316,28 @@ func TestHandleKeyMsg_ModelDlgVisible_RoutesToModelDialog(t *testing.T) {
 	}
 }
 
+func TestHandleKeyMsg_CtrlDQuitsEvenWithModelDialog(t *testing.T) {
+	app := NewApp("")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.modelDlg.SetSize(100, 30)
+	app.modelDlg.Show([]ProviderInfo{
+		{ID: "ollama", Name: "Ollama", Models: []ModelInfo{
+			{ID: "qwen", ProviderID: "ollama", Name: "Qwen"},
+		}},
+	}, ModelSelection{})
+
+	_, cmd := app.handleKeyMsg(tea.KeyMsg{Type: tea.KeyCtrlD})
+	if cmd == nil {
+		t.Fatal("expected quit cmd for ctrl+d with model dialog open")
+	}
+	msg := cmd()
+	if _, ok := msg.(tea.QuitMsg); !ok {
+		t.Fatalf("expected tea.QuitMsg, got %T", msg)
+	}
+}
+
 func TestHandleKeyMsg_ThemeDlgVisible_RoutesToThemeDialog(t *testing.T) {
 	app := NewApp("")
 	app.width = 100
