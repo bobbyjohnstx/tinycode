@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 	"testing"
+
+	"github.com/yuin/goldmark"
 )
 
 func TestRenderSessionHTML_producesValidStructure(t *testing.T) {
@@ -131,7 +133,7 @@ func TestRenderSessionHTML_toolResultTruncation(t *testing.T) {
 
 	// Build a tool result with 60 lines
 	var lines []string
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		lines = append(lines, "line content")
 	}
 	longText := strings.Join(lines, "\n")
@@ -200,5 +202,95 @@ func TestRenderSessionHTML_codeBlock(t *testing.T) {
 	}
 	if !strings.Contains(html, "func main()") {
 		t.Error("expected code content in output")
+	}
+}
+
+func TestRenderPartHTML_Text(t *testing.T) {
+	md := goldmark.New()
+	got := renderPartHTML(PartView{Type: "text", Text: "hello"}, md)
+	if !strings.Contains(got, "hello") {
+		t.Errorf("expected hello, got %q", got)
+	}
+}
+
+func TestRenderPartHTML_EmptyText(t *testing.T) {
+	md := goldmark.New()
+	got := renderPartHTML(PartView{Type: "text", Text: ""}, md)
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestRenderPartHTML_Reasoning(t *testing.T) {
+	md := goldmark.New()
+	got := renderPartHTML(PartView{Type: "reasoning", Text: "internal thought"}, md)
+	if !strings.Contains(got, "Thinking") {
+		t.Errorf("expected Thinking summary, got %q", got)
+	}
+	if !strings.Contains(got, "internal thought") {
+		t.Errorf("expected reasoning text, got %q", got)
+	}
+}
+
+func TestRenderPartHTML_ReasoningEmpty(t *testing.T) {
+	md := goldmark.New()
+	got := renderPartHTML(PartView{Type: "reasoning", Text: ""}, md)
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestRenderPartHTML_ToolCall(t *testing.T) {
+	md := goldmark.New()
+	got := renderPartHTML(PartView{Type: "tool-call", ToolName: "bash", ToolArgs: `{"cmd":"ls"}`}, md)
+	if !strings.Contains(got, "bash") {
+		t.Errorf("expected tool name, got %q", got)
+	}
+	if !strings.Contains(got, "tool-call") {
+		t.Errorf("expected tool-call class, got %q", got)
+	}
+}
+
+func TestRenderPartHTML_ToolCallNoName(t *testing.T) {
+	md := goldmark.New()
+	got := renderPartHTML(PartView{Type: "tool-call", ToolName: ""}, md)
+	if !strings.Contains(got, "unknown") {
+		t.Errorf("expected unknown fallback, got %q", got)
+	}
+}
+
+func TestRenderPartHTML_ToolResult(t *testing.T) {
+	md := goldmark.New()
+	got := renderPartHTML(PartView{Type: "tool-result", Text: "output line"}, md)
+	if !strings.Contains(got, "output line") {
+		t.Errorf("expected output, got %q", got)
+	}
+}
+
+func TestRenderPartHTML_ToolResultEmpty(t *testing.T) {
+	md := goldmark.New()
+	got := renderPartHTML(PartView{Type: "tool-result", Text: ""}, md)
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestRenderPartHTML_ToolResultTruncatesLong(t *testing.T) {
+	md := goldmark.New()
+	lines := make([]string, 60)
+	for i := range lines {
+		lines[i] = "line"
+	}
+	got := renderPartHTML(PartView{Type: "tool-result", Text: strings.Join(lines, "\n")}, md)
+	if !strings.Contains(got, "more lines") {
+		t.Errorf("expected truncation, got %q", got)
+	}
+}
+
+func TestRenderPartHTML_UnknownType(t *testing.T) {
+	md := goldmark.New()
+	got := renderPartHTML(PartView{Type: "foobar", Text: "data"}, md)
+	if got != "" {
+		t.Errorf("unknown type should return empty, got %q", got)
 	}
 }

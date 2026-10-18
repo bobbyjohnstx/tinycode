@@ -126,10 +126,85 @@ func TestToastCustomDuration(t *testing.T) {
 		Duration: 1 * time.Second,
 	}
 	toast.current = &item
-	toast.id = 1
 
 	// Verify the item stores the custom duration.
 	if toast.current.Duration != 1*time.Second {
 		t.Fatalf("expected 1s duration, got %v", toast.current.Duration)
+	}
+}
+
+func TestShowWithDuration_FirstToast(t *testing.T) {
+	toast := NewToast(DefaultTheme())
+	cmd := toast.ShowWithDuration("persist", false, 10*time.Second)
+	if !toast.IsVisible() {
+		t.Fatal("expected visible")
+	}
+	if toast.current.Text != "persist" {
+		t.Errorf("text = %q", toast.current.Text)
+	}
+	if toast.current.Duration != 10*time.Second {
+		t.Errorf("duration = %v, want 10s", toast.current.Duration)
+	}
+	if cmd == nil {
+		t.Fatal("expected tick cmd")
+	}
+}
+
+func TestShowWithDuration_Queued(t *testing.T) {
+	toast := NewToast(DefaultTheme())
+	toast.Show("first", false)
+	cmd := toast.ShowWithDuration("second", true, 5*time.Second)
+	if cmd != nil {
+		t.Fatal("queued toast should return nil cmd")
+	}
+	if len(toast.queue) != 1 {
+		t.Fatalf("expected 1 queued, got %d", len(toast.queue))
+	}
+	if toast.queue[0].Duration != 5*time.Second {
+		t.Errorf("queued duration = %v", toast.queue[0].Duration)
+	}
+}
+
+func TestToastDismiss(t *testing.T) {
+	toast := NewToast(DefaultTheme())
+	toast.Show("hello", false)
+	toast.Dismiss()
+	if toast.IsVisible() {
+		t.Fatal("expected not visible after Dismiss")
+	}
+}
+
+func TestToastOverlay_Empty(t *testing.T) {
+	got := toastOverlay("", 80)
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestToastOverlay_Centers(t *testing.T) {
+	got := toastOverlay("message", 80)
+	if got == "" {
+		t.Error("expected non-empty")
+	}
+}
+
+func TestOverlayLastLine_Empty(t *testing.T) {
+	got := overlayLastLine("base\nline", "")
+	if got != "base\nline" {
+		t.Errorf("expected unchanged, got %q", got)
+	}
+}
+
+func TestOverlayLastLine_Replaces(t *testing.T) {
+	got := overlayLastLine("line1\nline2\nline3", "overlay")
+	if got != "line1\nline2\noverlay" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestOverlayLastLine_EmptyBase(t *testing.T) {
+	got := overlayLastLine("", "overlay")
+	if got != "overlay" {
+		t.Errorf("got %q", got)
 	}
 }

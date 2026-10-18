@@ -100,8 +100,9 @@ func renderSessionHTML(session SessionInfo, messages []MessageView) (string, err
 func renderMessageHTML(msg MessageView, md goldmark.Markdown) htmlMessageData {
 	role := msg.Info.Role
 
-	label := role
-	if role == "assistant" {
+	var label string
+	switch role {
+	case "assistant":
 		agent := msg.Info.Agent
 		if agent == "" {
 			agent = "Build"
@@ -113,8 +114,10 @@ func renderMessageHTML(msg MessageView, md goldmark.Markdown) htmlMessageData {
 			parts = append(parts, msg.Info.ModelID)
 		}
 		label = "Assistant (" + strings.Join(parts, " · ") + ")"
-	} else if role == "user" {
+	case "user":
 		label = "User"
+	default:
+		label = role
 	}
 
 	var sb strings.Builder

@@ -325,7 +325,7 @@ func renderParts(parts []PartView, width int, md *render.MarkdownRenderer) strin
 }
 
 // renderTextPart renders a text part through the markdown renderer.
-func renderTextPart(part PartView, width int, md *render.MarkdownRenderer) string {
+func renderTextPart(part PartView, _ int, md *render.MarkdownRenderer) string {
 	if part.Text == "" {
 		return ""
 	}

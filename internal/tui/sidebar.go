@@ -230,11 +230,14 @@ func (s Sidebar) View() string {
 		sb.WriteString(styleSidebarHeader.Render("MCP"))
 		sb.WriteString("\n")
 		for _, srv := range s.mcpServers {
-			indicator := styleSidebarMuted.Render("○")
-			if srv.Status == "connected" {
+			var indicator string
+			switch srv.Status {
+			case "connected":
 				indicator = styleSidebarSuccess.Render("●")
-			} else if srv.Status == "error" {
+			case "error":
 				indicator = styleSidebarError.Render("●")
+			default:
+				indicator = styleSidebarMuted.Render("○")
 			}
 			sb.WriteString(indicator + " " + srv.Name)
 			if srv.Status == "connected" && srv.ToolCount > 0 {

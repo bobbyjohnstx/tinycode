@@ -220,3 +220,15 @@ func TestRewindDialog_InvisibleIgnoresKeys(t *testing.T) {
 		t.Fatal("invisible dialog should not emit a command")
 	}
 }
+
+func TestRewindDialog_Hide(t *testing.T) {
+	d := NewRewindDialog()
+	d.Show(nil)
+	if !d.visible {
+		t.Fatal("expected visible after Show")
+	}
+	d.Hide()
+	if d.visible {
+		t.Error("expected hidden after Hide")
+	}
+}
