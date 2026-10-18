@@ -9,6 +9,14 @@ func TestRegistry_NonEmpty(t *testing.T) {
 	}
 }
 
+func TestRegistry_RepoNonEmpty(t *testing.T) {
+	for _, e := range Registry() {
+		if e.Repo == "" {
+			t.Errorf("plugin %q has empty Repo", e.Name)
+		}
+	}
+}
+
 func TestRegistry_ReturnsCopy(t *testing.T) {
 	a := Registry()
 	b := Registry()

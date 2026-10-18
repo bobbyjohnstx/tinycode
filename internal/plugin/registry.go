@@ -88,6 +88,12 @@ var registry = []RegistryEntry{
 	{Name: "telemetry", Description: "Usage telemetry and analytics", Binary: "tinycode-plugin-telemetry", Category: CategoryEssential},
 }
 
+func init() {
+	for i := range registry {
+		registry[i].Repo = "tinycode plugin install " + registry[i].Name
+	}
+}
+
 // Registry returns the full list of known plugins in the curated registry.
 func Registry() []RegistryEntry {
 	out := make([]RegistryEntry, len(registry))

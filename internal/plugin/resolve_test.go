@@ -26,6 +26,9 @@ func TestResolveBinary_RegistryPluginNotInstalled(t *testing.T) {
 	if !strings.Contains(err.Error(), "not installed") {
 		t.Errorf("expected 'not installed' in error for registry plugin, got: %v", err)
 	}
+	if !strings.Contains(err.Error(), "tinycode plugin install log-sanitizer") {
+		t.Errorf("expected non-empty install hint in error, got: %v", err)
+	}
 }
 
 func TestResolveBinary_FindsInPATH(t *testing.T) {
