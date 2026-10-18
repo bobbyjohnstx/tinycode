@@ -298,19 +298,94 @@ For plugins requiring credentials, extend the script with environment-variable-g
 - **rh-dev-content RSS**: The `/blog/feed/` endpoint returns HTTP 403 from Akamai WAF. The test verifies graceful error handling instead.
 - **web-search rate limiting**: DuckDuckGo may rate-limit frequent requests. Space test runs if you see "No results found" intermittently.
 
+## Fresh-env Smoke Tests
+
+**Script:** `script/test-fresh-env.sh`
+
+Validates the new-user install path in a clean container — no host config, no database, no prior sessions. This is the only test tier that catches issues invisible to developer-machine tests: missing PATH entries, binary format mismatches (Mach-O in Linux), protocol mismatches (SSE vs plain JSON), and first-run doctor guidance.
+
+### Prerequisites
+
+| Dependency | Required | Install |
+|---|---|---|
+| podman or docker | Yes | `brew install podman` or Docker Desktop |
+| Go 1.27.1+ | Yes | `brew install go` |
+| jq | Yes | `brew install jq` |
+
+### Usage
+
+```bash
+./script/test-fresh-env.sh                              # full (incl. TUI)
+./script/test-fresh-env.sh --skip-tui                   # headless only (CI default)
+./script/test-fresh-env.sh --skip-build                 # reuse dist/fresh-env/* if present
+./script/test-fresh-env.sh --skip-tui --release-install # + download from GitHub release
+```
+
+### Environment Variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `FRESH_ENV_ENGINE` | auto (podman > docker) | Container engine |
+| `FRESH_ENV_NETWORK` | bridge | Set to `host` for CI mock access |
+| `FRESH_ENV_HOST_GW` | auto per engine | Host gateway hostname |
+| `FRESH_ENV_PLUGIN` | `safety-net` | Plugin to install |
+| `FRESH_ENV_PLUGIN_RELEASE` | `v2.4.1` | Tag for `--release-install` |
+| `FRESH_ENV_IMAGE` | `tinycode-fresh-env` | Container image name |
+
+### Test Cases
+
+| ID | Check | Requires |
+|----|-------|----------|
+| TC1 | Doctor on empty HOME — plugin install tips | Container |
+| TC2 | Plugin install from local binary (`--from`) | Cross-compiled plugin |
+| TC3 | Doctor configured + gopls relevance with `go.mod` | Go fixture |
+| TC4 | Headless run — mock LLM forces `lsp_diagnostics` | Mock LLM + gopls |
+| TC5 | TUI prompt chrome + typed input | tmux (`--skip-tui` to omit) |
+| TC6 | Plugin install from GitHub release assets | Internet (`--release-install`) |
+| TC7 | GOPATH/bin PATH gap detection | Go installed |
+
+### How It Works
+
+1. **Cross-compile**: Builds Linux/`$arch` binaries into `dist/fresh-env/` (host macOS Mach-O cannot run in the container)
+2. **Build container**: `Containerfile.fresh-env` — golang base, installs gopls, empty HOME
+3. **Start mock LLM**: `script/mock-llm/main.go` on host port 18080, speaks SSE
+4. **Run checks**: Each TC runs in the container via `docker exec` / `podman exec`
+5. **Results**: `.fresh-env-results/summary.json` + doctor dumps + NDJSON captures
+
+### Mock LLM
+
+`script/mock-llm/main.go` serves OpenAI-compatible `/v1/chat/completions` with SSE streaming. Returns scripted tool_calls so silent no-ops fail the run. Must bind `0.0.0.0` for container access.
+
+### Design Decisions
+
+- **`bash -c` not `-lc`**: Login shells source `/etc/profile` which can wipe PATH and hide `/go/bin/gopls`
+- **Mounted script for TUI**: `docker exec` breaks on embedded quotes in `tmux send-keys`; mounting a script file avoids this
+- **SSE mandatory**: tinycode always streams; a mock returning plain JSON silently produces empty responses
+- **Release install isolation**: Runs in empty `/work/project` so install can't fall back to building from source
+
+### CI Wiring
+
+| Platform | Workflow | Trigger |
+|----------|----------|---------|
+| GitHub | `.github/workflows/fresh-env.yml` | PR/push (path-filtered) + weekly cron Sunday 06:00 UTC |
+| Gitea | `.gitea/workflows/ci.yml` (`fresh-env` job) | PR/push |
+
+Both run `--skip-tui --release-install` with `FRESH_ENV_ENGINE=docker` and `FRESH_ENV_NETWORK=host`.
+
 ## CI Integration
 
-All three suites exit non-zero on any failure and produce summary output suitable for CI logs.
+All four suites exit non-zero on any failure and produce summary output suitable for CI logs.
 
 ```bash
 # Full integration test run
 make build
+./script/test-fresh-env.sh    # new-user path in clean container (no Ollama needed)
 ./script/test-headless.sh     # headless run-mode tests (requires Ollama)
 ./script/tui-test.sh          # TUI tests via tmux (core tests work without Ollama)
 ./script/test-plugins.sh      # plugin functional tests (requires internet)
 ```
 
-For CI environments without Ollama, the headless suite will fail on prereq check (warns about missing Ollama). The TUI suite's core tests (T01-T26, T33) don't require a model, but T28-T30 will skip gracefully. Plugin tests require internet access but no credentials.
+For CI environments without Ollama, the headless suite will fail on prereq check (warns about missing Ollama). The TUI suite's core tests (T01-T26, T33) don't require a model, but T28-T30 will skip gracefully. Plugin tests require internet access but no credentials. Fresh-env uses its own mock LLM and needs only docker/podman.
 
 ## Troubleshooting
 
@@ -323,3 +398,7 @@ For CI environments without Ollama, the headless suite will fail on prereq check
 | T29 always skips | Model doesn't support reasoning/thinking | Expected — use a reasoning model to exercise this test |
 | TUI tests flaky | Timing sensitivity | Increase sleep values; check no other tmux sessions conflict |
 | "tinycode binary not found" | Wrong path | Set `TINYCODE_BIN=path/to/binary` or `TINYCODE=path/to/binary` |
+| Fresh-env "exec format error" | Mach-O binary in Linux container | `--skip-build` with stale `dist/fresh-env/`; delete and re-run |
+| Fresh-env mock LLM not reached | Container can't reach host port | Set `FRESH_ENV_NETWORK=host` or check `FRESH_ENV_HOST_GW` |
+| Fresh-env TC4 empty response | Mock returning plain JSON | Mock must speak SSE; check `script/mock-llm/main.go` |
+| Fresh-env gopls not found | `/go/bin` not on PATH in container | Container must use `bash -c`, not `bash -lc` |

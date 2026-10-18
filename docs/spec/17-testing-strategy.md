@@ -515,6 +515,49 @@ main() {
 main "$@"
 ```
 
+### Tier 4: Fresh-env Smoke (container)
+
+Validates the new-user install path in a clean container — no host config, no database, no prior sessions. Catches issues invisible to developer-machine tests: missing PATH entries, Mach-O binaries in Linux containers, mock LLM protocol mismatches.
+
+**Script:** `script/test-fresh-env.sh`
+
+**What it tests:**
+- `tinycode doctor` on empty HOME (plugin tips, GOPATH/bin hint, LSP summary)
+- Plugin install from local binary (`--from`) and from GitHub release assets
+- Doctor configured-vs-installed plugin resolve
+- Headless `tinycode run` against mock LLM with scripted tool_calls (lsp_diagnostics via gopls)
+- Optional TUI smoke via tmux (prompt chrome, typed input, history count)
+- Cross-compilation (Linux ELF binaries for container, not host Mach-O)
+
+**Mock LLM:** `script/mock-llm/main.go` — Go binary serving SSE on `0.0.0.0:18080`. Returns scripted tool_calls so silent no-ops fail the run.
+
+**Container engine:** podman or docker (`FRESH_ENV_ENGINE`). Uses host networking (`FRESH_ENV_NETWORK=host`) in CI for mock access.
+
+**Test cases:**
+
+| ID | Check | Requires |
+|----|-------|----------|
+| TC1 | Doctor empty HOME — plugin tips | Container only |
+| TC2 | Plugin install from local binary | Cross-compiled plugin |
+| TC3 | Doctor configured + gopls relevance | go.mod fixture |
+| TC4 | Headless run — mock LLM forces lsp_diagnostics | Mock LLM + gopls |
+| TC5 | TUI prompt chrome + typed input | tmux (skip with `--skip-tui`) |
+| TC6 | Plugin install from GitHub release | Internet (`--release-install`) |
+| TC7 | GOPATH/bin PATH gap detection | Go installed, gopls in GOPATH |
+
+**CI wiring:**
+- GitHub: `.github/workflows/fresh-env.yml` (PR/push path filters + weekly cron Sunday 06:00 UTC)
+- Gitea: `fresh-env` job in `.gitea/workflows/ci.yml`
+- Both run `--skip-tui --release-install` with `FRESH_ENV_ENGINE=docker`
+
+**Results:** `.fresh-env-results/summary.json` + doctor dumps + NDJSON captures
+
+**Key design decisions:**
+- Container uses `bash -c` (not `-lc`) so `/etc/profile` doesn't wipe PATH and hide `/go/bin/gopls`
+- TUI sends keys via a mounted script file (avoids quote-breaking in `docker exec`)
+- Mock LLM must speak SSE — tinycode always streams, plain JSON responses silently fail
+- Release install runs in an empty `/work/project` so install can't fall back to building from source
+
 ## 17.5 qa-tester Agent
 
 Port the TS `qa-tester` agent to Go as `internal/agent/defaults/qa-tester.md`. The agent is designed for tmux-based interactive testing and produces structured QA test reports.
@@ -546,46 +589,67 @@ Requires interactive terminal (not CI).
 
 ## 17.7 Test Coverage Targets
 
-| Package | Current | Target | Priority |
-|---------|---------|--------|----------|
-| `internal/permission` | ~60% | 90% | High |
-| `internal/config` | ~30% | 80% | High |
-| `internal/provider` | ~20% | 70% | High |
-| `internal/session` | ~25% | 70% | High |
-| `internal/tool` | ~15% | 60% | Medium |
-| `internal/agent` | ~10% | 60% | Medium |
-| `internal/mcp` | ~10% | 50% | Medium |
-| `internal/storage` | ~40% | 70% | Medium |
-| `internal/bus` | ~30% | 80% | Low |
-| `internal/tui` | ~5% | 30% | Low (visual) |
-| `cmd/tinycode` | ~40% | 60% | Medium |
+As of v2.4.1 (October 2026). 36 of 66 packages are at or above 80%.
+
+| Package | Actual | Target | Notes |
+|---------|--------|--------|-------|
+| `internal/agent` | 90.3% | 90% | At target |
+| `internal/lsp` | 84.8% | 80% | At target |
+| `internal/tool` | 82.3% | 80% | At target |
+| `internal/tui` | 80.5% | 80% | Crossed in Oct 2026 sprint (~1500 new test lines) |
+| `internal/session` | 80%+ | 80% | At target |
+| `internal/storage` | 77.8% | 80% | Near-miss, next candidate |
+| `cmd/tinycode` | 13.7% | — | CLI wiring + doctor output; 80% not a meaningful target |
+
+The 80% target applies to packages with real logic. CLI entry points (`cmd/tinycode`) and pure rendering code are exempt — testing exact print format has diminishing returns.
 
 ## 17.8 Test Data and Fixtures
 
 ### Mock LLM Server
 
-For unit and integration tests that need LLM responses without Ollama:
+`script/mock-llm/main.go` is a standalone Go binary that speaks the OpenAI-compatible `/v1/chat/completions` SSE protocol. It serves scripted responses including tool_calls, enabling deterministic integration tests without a real LLM or GPU.
 
-```go
-// testutil/mock_llm.go
-type MockLLMServer struct {
-    responses []string
-    calls     []Request
-}
+**Key design constraints:**
+- Must speak **SSE** — tinycode always streams; plain JSON responses silently fail
+- Must bind `0.0.0.0` — container tests access via host gateway or host networking
+- Tool_calls in responses must be syntactically valid — the model's tool-call JSON repair expects well-formed function_call objects
 
-func (s *MockLLMServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    // Return canned SSE responses for /v1/chat/completions
-}
+**Usage:**
+```bash
+go run ./script/mock-llm &   # starts on :18080
+# Point tinycode at it:
+TINYCODE_OPENROUTER_HOST=http://localhost:18080 tinycode run ...
 ```
 
-This enables:
-- Deterministic tool-call sequences
-- Error condition testing (timeouts, malformed responses)
-- CI without GPU hardware
+The mock is used by the fresh-env harness (Tier 4) and can be used for local development testing of tool-call flows without burning LLM tokens.
+
+### Fake LSP Server
+
+`internal/lsp/fake_server_test.go` contains a Python-based minimal LSP server for unit tests. It supports configurable delays (`FAKE_LSP_INIT_DELAY`, `FAKE_LSP_DIAG_DELAY`), init hang (`FAKE_LSP_INIT_HANG`), and post-init hang (`FAKE_LSP_HANG_AFTER_INIT`) for testing ConnectTimeout, diagnostics caching, and reconnection.
 
 ### Fixture Files
 
-Test fixtures for config parsing, permission rules, and agent definitions should live adjacent to their test files (not in a separate `testdata/` tree) to maintain locality.
+Test fixtures for config parsing, permission rules, and agent definitions live adjacent to their test files (not in a separate `testdata/` tree) to maintain locality.
+
+## 17.9 CI Pipeline Summary
+
+| Tier | Trigger | Script/Command | Requires | Time |
+|------|---------|---------------|----------|------|
+| 1 Unit | Every push/PR | `go test ./... -count=1` | Go | ~30s |
+| 1 Lint | Every push/PR | `make lint` | Go, staticcheck | ~15s |
+| 2 Headless | Pre-release / manual | `script/test-headless.sh` | Ollama + model | ~5min |
+| 3 TUI | Pre-release / manual | `script/tui-test.sh` | tmux, optionally Ollama | ~3min |
+| 4 Fresh-env | PR/push + weekly cron | `script/test-fresh-env.sh --skip-tui` | docker/podman, Go | ~5min |
+| — Plugins | Pre-release / manual | `script/test-plugins.sh` | Internet | ~2min |
+
+### Workflow Files
+
+| File | Platform | Runs |
+|------|----------|------|
+| `.github/workflows/go-ci.yml` | GitHub | Tier 1 on every push/PR |
+| `.github/workflows/go-release.yml` | GitHub | Build + release on tag push |
+| `.github/workflows/fresh-env.yml` | GitHub | Tier 4 on PR/push (path-filtered) + weekly cron |
+| `.gitea/workflows/ci.yml` | Gitea | Tier 1 + TUI + fresh-env |
 
 ---
 
