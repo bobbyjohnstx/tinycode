@@ -301,10 +301,11 @@ func runPlugin() {
 				os.Exit(1)
 			}
 			fmt.Printf("Installed plugin %s from %s\n", name, srcPath)
+			printPluginEnableHint(name)
 			return
 		}
 
-		// Default: build from source if cmd/plugin-<name> exists
+		// Local source build if cmd/plugin-<name> exists
 		pluginSrc := filepath.Join("cmd", "plugin-"+name)
 		if info, err := os.Stat(pluginSrc); err == nil && info.IsDir() {
 			fmt.Printf("Building plugin %s from source ...\n", name)
@@ -316,12 +317,19 @@ func runPlugin() {
 				os.Exit(1)
 			}
 			fmt.Printf("Installed plugin %s to %s\n", name, destPath)
+			printPluginEnableHint(name)
 			return
 		}
 
-		fmt.Fprintf(os.Stderr, "Plugin %s (%s) source not found locally.\n", name, entry.Description)
-		fmt.Fprintf(os.Stderr, "Use --from <path> to install from a pre-built binary.\n")
-		os.Exit(1)
+		// Download from release plugins bundle
+		fmt.Printf("Downloading plugin %s from release bundle ...\n", name)
+		if err := plugin.InstallFromRelease(name, plugin.InstallOptions{EmbeddedVersion: version}); err != nil {
+			fmt.Fprintf(os.Stderr, "Plugin %s (%s): %v\n", name, entry.Description, err)
+			fmt.Fprintf(os.Stderr, "Use --from <path> to install from a pre-built binary, or build from a source checkout.\n")
+			os.Exit(1)
+		}
+		fmt.Printf("Installed plugin %s to %s\n", name, destPath)
+		printPluginEnableHint(name)
 
 	case "uninstall":
 		if len(args) < 2 {
@@ -345,6 +353,10 @@ func runPlugin() {
 		fmt.Fprintf(os.Stderr, "Unknown plugin subcommand: %s\nUsage: tinycode plugin <list|install|uninstall> [args]\n", args[0])
 		os.Exit(1)
 	}
+}
+
+func printPluginEnableHint(name string) {
+	fmt.Printf("Enable by adding %q to \"plugins\" in %s\n", name, config.GlobalConfigFile())
 }
 
 func runAgent() {
