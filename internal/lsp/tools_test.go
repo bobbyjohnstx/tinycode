@@ -18,7 +18,7 @@ func TestRegisterTools_AllToolsRegistered(t *testing.T) {
 	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
 	RegisterTools(reg, mgr)
 
-	expected := []string{"lsp_diagnostics", "lsp_hover", "lsp_definition", "lsp_references", "lsp_symbols", "lsp_document_symbols", "lsp_code_actions"}
+	expected := []string{"lsp_diagnostics", "lsp_hover", "lsp_definition", "lsp_references", "lsp_symbols", "lsp_document_symbols", "lsp_code_actions", "lsp_rename"}
 	registered := reg.List()
 
 	regSet := make(map[string]bool, len(registered))
@@ -52,6 +52,7 @@ func TestRegisterTools_ToolDefsHaveCorrectSchema(t *testing.T) {
 		{"lsp_symbols", "read", "query"},
 		{"lsp_document_symbols", "read", "file_path"},
 		{"lsp_code_actions", "read", "file_path"},
+		{"lsp_rename", "edit", "new_name"},
 	}
 
 	for _, tt := range tests {
@@ -588,6 +589,72 @@ func TestCodeActionsTool_LineColumnMustBeTogether(t *testing.T) {
 	}
 	if !result.IsError || !strings.Contains(result.Output, "line and column") {
 		t.Fatalf("got %#v", result)
+	}
+}
+
+func TestRenameTool_SchemaAndPermission(t *testing.T) {
+	mgr := NewManager(t.TempDir(), nil)
+	defer mgr.Close()
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	RegisterTools(reg, mgr)
+
+	def := reg.Get("lsp_rename")
+	if def == nil {
+		t.Fatal("lsp_rename not registered")
+	}
+	if def.Permission != "edit" {
+		t.Fatalf("permission = %q, want edit", def.Permission)
+	}
+	required, ok := def.Parameters["required"].([]string)
+	if !ok {
+		t.Fatal("missing required")
+	}
+	need := map[string]bool{"file_path": true, "line": true, "column": true, "new_name": true}
+	for _, r := range required {
+		delete(need, r)
+	}
+	if len(need) > 0 {
+		t.Fatalf("missing required keys: %v (have %v)", need, required)
+	}
+}
+
+func TestRenameTool_FakeMultiFile(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	root := t.TempDir()
+	file := writeGoFile(t, root, "main.go", "package main\n\nfunc Foo() {}\n")
+	before, _ := os.ReadFile(file)
+
+	mgr := NewManager(root, &Config{
+		Servers: map[string]ServerConfig{
+			"go": {Command: "python3", Args: []string{script}},
+		},
+	})
+	defer mgr.Close()
+	reg := tool.NewRegistry(&tool.Context{Directory: root})
+	RegisterTools(reg, mgr)
+
+	args, _ := json.Marshal(map[string]any{
+		"file_path": file,
+		"line":      3,
+		"column":    6,
+		"new_name":  "Bar",
+	})
+	result, err := reg.Get("lsp_rename").Execute(context.Background(), &tool.Context{Directory: root}, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("error: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "WorkspaceEdit") || !strings.Contains(result.Output, "not applied") {
+		t.Fatalf("missing edit formatting: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "edit(s)") {
+		t.Fatalf("expected multi-file edit summary: %s", result.Output)
+	}
+	after, _ := os.ReadFile(file)
+	if string(before) != string(after) {
+		t.Fatal("rename tool wrote to disk")
 	}
 }
 

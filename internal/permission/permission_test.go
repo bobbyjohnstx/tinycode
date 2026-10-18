@@ -758,7 +758,7 @@ func TestMerge_PreservesOrder(t *testing.T) {
 
 func TestDisabled_EditAliases(t *testing.T) {
 	rules := Ruleset{{Permission: "edit", Pattern: "*", Action: ActionDeny}}
-	aliases := []string{"edit", "write", "apply_patch", "todowrite"}
+	aliases := []string{"edit", "write", "apply_patch", "todowrite", "lsp_rename"}
 	disabled := Disabled(aliases, rules)
 	for _, tool := range aliases {
 		if !disabled[tool] {

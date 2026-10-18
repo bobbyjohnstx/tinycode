@@ -772,6 +772,21 @@ func TestParseDocumentSymbols_SymbolInformation(t *testing.T) {
 	}
 }
 
+func TestClient_Rename_FakeServer(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	root := t.TempDir()
+	file := writeGoFile(t, root, "main.go", "package main\n")
+	client := connectFakeClient(t, script, root, nil)
+
+	edit, err := client.Rename(context.Background(), file, Position{Line: 0, Character: 0}, "Renamed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edit == nil || len(edit.Changes) < 2 {
+		t.Fatalf("expected multi-file WorkspaceEdit, got %#v", edit)
+	}
+}
+
 func TestClient_CodeActions_FakeServer(t *testing.T) {
 	script := writeFakeLSPServer(t)
 	root := t.TempDir()

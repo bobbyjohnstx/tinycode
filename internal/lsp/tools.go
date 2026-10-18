@@ -19,6 +19,7 @@ func RegisterTools(r *tool.Registry, mgr *Manager) {
 	r.Register(symbolsTool(mgr))
 	r.Register(documentSymbolsTool(mgr))
 	r.Register(codeActionsTool(mgr))
+	r.Register(renameTool(mgr))
 }
 
 func disabledResult() *tool.ExecuteResult {
@@ -449,6 +450,71 @@ func codeActionsTool(mgr *Manager) *tool.Def {
 				return &tool.ExecuteResult{Output: fmt.Sprintf("LSP code actions failed: %v", err), IsError: true}, nil
 			}
 			return &tool.ExecuteResult{Output: formatCodeActions(actions)}, nil
+		},
+	}
+}
+
+func renameTool(mgr *Manager) *tool.Def {
+	return &tool.Def{
+		ID:          "lsp_rename",
+		Description: "Compute a rename WorkspaceEdit for a symbol via the language server (LSP). Returns the edit summary only — does not write files. Apply with edit/write/apply_patch.",
+		Permission:  "edit",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"file_path": map[string]any{
+					"type":        "string",
+					"description": "Absolute path to the file",
+				},
+				"line": map[string]any{
+					"type":        "integer",
+					"description": "Line number (1-indexed)",
+				},
+				"column": map[string]any{
+					"type":        "integer",
+					"description": "Column number (1-indexed)",
+				},
+				"new_name": map[string]any{
+					"type":        "string",
+					"description": "New symbol name",
+				},
+			},
+			"required": []string{"file_path", "line", "column", "new_name"},
+		},
+		Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+			if mgr.Disabled() {
+				return disabledResult(), nil
+			}
+			var input struct {
+				FilePath string `json:"file_path"`
+				Line     int    `json:"line"`
+				Column   int    `json:"column"`
+				NewName  string `json:"new_name"`
+			}
+			if err := json.Unmarshal(args, &input); err != nil {
+				return &tool.ExecuteResult{Output: fmt.Sprintf("Invalid arguments: %v", err), IsError: true}, nil
+			}
+			if err := validateLineColumn(input.Line, input.Column); err != nil {
+				return &tool.ExecuteResult{Output: err.Error(), IsError: true}, nil
+			}
+			if input.NewName == "" {
+				return &tool.ExecuteResult{Output: "new_name is required", IsError: true}, nil
+			}
+
+			file := resolvePath(input.FilePath, tc.Directory)
+			client, lang, err := mgr.ClientForFile(ctx, file)
+			if err != nil {
+				return &tool.ExecuteResult{Output: fmt.Sprintf("LSP error: %v", err), IsError: true}, nil
+			}
+			if client == nil {
+				return &tool.ExecuteResult{Output: noServerMessage(lang, file)}, nil
+			}
+
+			edit, err := client.Rename(ctx, file, Position{Line: input.Line - 1, Character: input.Column - 1}, input.NewName)
+			if err != nil {
+				return &tool.ExecuteResult{Output: fmt.Sprintf("LSP rename failed: %v", err), IsError: true}, nil
+			}
+			return &tool.ExecuteResult{Output: formatWorkspaceEdit(edit)}, nil
 		},
 	}
 }

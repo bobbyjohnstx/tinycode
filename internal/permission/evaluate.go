@@ -21,6 +21,7 @@ var editTools = map[string]bool{
 	"write":       true,
 	"apply_patch": true,
 	"todowrite":   true,
+	"lsp_rename":  true,
 }
 
 // Evaluate finds the last matching rule across all rulesets (last-wins semantics).
