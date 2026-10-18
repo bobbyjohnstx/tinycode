@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-10-18
+
+### Plugin Management (epic #806)
+- Download and verify plugin release bundles with SHA-256 checksums (#808)
+- `tinycode init` installs configured plugins before writing config (#809)
+- Doctor warns on unresolved configured plugins (never fails) (#810)
+- Plugin stderr appended to `DataDir()/plugin-<name>.log` instead of discarded (#812)
+- Release workflow builds `tinycode-plugins` platform bundles (#807)
+- Registry entries populated with Repo install hints (#813)
+- Plugin catalog and install docs updated for honesty (#813)
+- PermissionAsk docs and permission category contract (#811)
+
+### Test Coverage
+- `internal/tui` coverage 78.2% → 80.5% (~1,500 new test lines, ~100 tests)
+- Lint fixes: unused param, tagged switch, range-over-int, unused write
+
 ## [2.4.0] - 2026-10-17
 
 ### Fixes

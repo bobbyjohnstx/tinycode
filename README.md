@@ -89,7 +89,7 @@ Requires Go 1.27.1+. Other modes: `tinycode web` (browser UI), `tinycode serve` 
 - **Terminal bell and desktop notifications** --- audible bell on task completion; `notify` tool for desktop alerts with WSL support
 - **Leader key system** --- Ctrl+X prefix for sidebar, sessions, editor, diff, themes, MCP, and more
 - **Session resume from CLI** --- `-c` continues the most recent session; `-r` resumes by ID or title
-- **tinycode doctor** --- headless diagnostics that verify config, database, providers, agents, and plugins; detects VS Code, Cursor, Neovim, and JetBrains and prints ACP setup hints
+- **tinycode doctor** --- headless diagnostics that verify config, database, providers, agents, plugins (warns on unresolved), Java/jdtls, and clipboard helpers; detects VS Code, Cursor, Neovim, and JetBrains and prints ACP setup hints
 - **Safe mode** --- `--safe-mode` skips plugins, MCP, and user agents; status bar shows bold indicator
 - **System prompt override** --- `--append-system-prompt` and `--append-system-prompt-file` inject custom instructions
 - **Token budget ceiling** --- `--max-tokens` sets a cumulative token limit; session aborts when exceeded
