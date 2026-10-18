@@ -2,8 +2,10 @@ package lsp
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -95,6 +97,100 @@ func formatDocumentSymbols(symbols []DocumentSymbolNode) string {
 	var sb strings.Builder
 	for _, sym := range symbols {
 		formatDocumentSymbolNode(&sb, sym, 0)
+	}
+	return sb.String()
+}
+
+func formatCodeActions(actions []CodeAction) string {
+	if len(actions) == 0 {
+		return "No code actions available."
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%d code actions:\n", len(actions)))
+	for i, a := range actions {
+		kind := ""
+		if a.Kind != "" {
+			kind = fmt.Sprintf(" [%s]", a.Kind)
+		}
+		sb.WriteString(fmt.Sprintf("%d. %s%s\n", i+1, a.Title, kind))
+		if a.Edit != nil {
+			sb.WriteString(formatWorkspaceEditSummary(a.Edit, "   "))
+		}
+	}
+	return sb.String()
+}
+
+func formatWorkspaceEdit(edit *WorkspaceEdit) string {
+	if edit == nil || workspaceEditEmpty(edit) {
+		return "No edits."
+	}
+	var sb strings.Builder
+	sb.WriteString("WorkspaceEdit (not applied — use edit/write/apply_patch):\n")
+	sb.WriteString(formatWorkspaceEditSummary(edit, "  "))
+	return sb.String()
+}
+
+func workspaceEditEmpty(edit *WorkspaceEdit) bool {
+	if edit == nil {
+		return true
+	}
+	if len(edit.Changes) > 0 {
+		return false
+	}
+	return len(edit.DocumentChanges) == 0
+}
+
+func formatWorkspaceEditSummary(edit *WorkspaceEdit, indent string) string {
+	if edit == nil {
+		return ""
+	}
+	var sb strings.Builder
+	uris := make([]string, 0, len(edit.Changes))
+	for uri := range edit.Changes {
+		uris = append(uris, uri)
+	}
+	sort.Strings(uris)
+	for _, uri := range uris {
+		edits := edit.Changes[uri]
+		path := fileFromURI(uri)
+		sb.WriteString(fmt.Sprintf("%s%s: %d edit(s)\n", indent, path, len(edits)))
+		for _, e := range edits {
+			preview := e.NewText
+			if len(preview) > 40 {
+				preview = preview[:40] + "…"
+			}
+			preview = strings.ReplaceAll(preview, "\n", "\\n")
+			sb.WriteString(fmt.Sprintf("%s  L%d:%d→L%d:%d %q\n",
+				indent,
+				e.Range.Start.Line+1, e.Range.Start.Character+1,
+				e.Range.End.Line+1, e.Range.End.Character+1,
+				preview,
+			))
+		}
+	}
+	for _, raw := range edit.DocumentChanges {
+		var tde TextDocumentEdit
+		if err := json.Unmarshal(raw, &tde); err != nil || tde.TextDocument.URI == "" {
+			// Create/Rename/DeleteFile or unknown shape
+			sb.WriteString(fmt.Sprintf("%sunsupported op (non-TextDocumentEdit in documentChanges)\n", indent))
+			continue
+		}
+		path := fileFromURI(tde.TextDocument.URI)
+		sb.WriteString(fmt.Sprintf("%s%s: %d edit(s)\n", indent, path, len(tde.Edits)))
+		for _, e := range tde.Edits {
+			preview := e.NewText
+			if len(preview) > 40 {
+				preview = preview[:40] + "…"
+			}
+			preview = strings.ReplaceAll(preview, "\n", "\\n")
+			sb.WriteString(fmt.Sprintf("%s  L%d:%d→L%d:%d %q\n",
+				indent,
+				e.Range.Start.Line+1, e.Range.Start.Character+1,
+				e.Range.End.Line+1, e.Range.End.Character+1,
+				preview,
+			))
+		}
 	}
 	return sb.String()
 }

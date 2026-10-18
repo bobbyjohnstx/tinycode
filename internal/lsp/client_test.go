@@ -772,6 +772,27 @@ func TestParseDocumentSymbols_SymbolInformation(t *testing.T) {
 	}
 }
 
+func TestClient_CodeActions_FakeServer(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	root := t.TempDir()
+	file := writeGoFile(t, root, "main.go", "package main\n")
+	client := connectFakeClient(t, script, root, nil)
+
+	actions, err := client.CodeActions(context.Background(), file, Range{
+		Start: Position{Line: 0, Character: 0},
+		End:   Position{Line: 0, Character: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(actions) < 1 {
+		t.Fatal("expected at least one code action")
+	}
+	if actions[0].Title == "" {
+		t.Fatal("empty title")
+	}
+}
+
 func TestWorkspaceEdit_JSONRoundTrip_ChangesAndDocumentChanges(t *testing.T) {
 	rawChanges := `{
 		"changes": {

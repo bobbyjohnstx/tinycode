@@ -251,3 +251,51 @@ func TestFormatDocumentSymbols_Outline(t *testing.T) {
 		}
 	})
 }
+
+func TestFormatCodeActions(t *testing.T) {
+	if got := formatCodeActions(nil); got != "No code actions available." {
+		t.Fatalf("empty = %q", got)
+	}
+	actions := []CodeAction{
+		{
+			Title: "Extract variable",
+			Kind:  "refactor.extract",
+			Edit: &WorkspaceEdit{
+				Changes: map[string][]TextEdit{
+					"file:///tmp/a.go": {{
+						Range:   Range{Start: Position{Line: 0, Character: 0}, End: Position{Line: 0, Character: 3}},
+						NewText: "x",
+					}},
+				},
+			},
+		},
+	}
+	got := formatCodeActions(actions)
+	if !strings.Contains(got, "Extract variable") || !strings.Contains(got, "refactor.extract") {
+		t.Fatalf("got %q", got)
+	}
+	if !strings.Contains(got, "1 edit(s)") {
+		t.Fatalf("missing edit summary: %q", got)
+	}
+}
+
+func TestFormatWorkspaceEdit(t *testing.T) {
+	if got := formatWorkspaceEdit(nil); got != "No edits." {
+		t.Fatalf("nil = %q", got)
+	}
+	edit := &WorkspaceEdit{
+		Changes: map[string][]TextEdit{
+			"file:///b.go": {{NewText: "B", Range: Range{Start: Position{Line: 1, Character: 0}, End: Position{Line: 1, Character: 1}}}},
+			"file:///a.go": {{NewText: "A", Range: Range{Start: Position{Line: 0, Character: 0}, End: Position{Line: 0, Character: 1}}}},
+		},
+	}
+	got := formatWorkspaceEdit(edit)
+	if !strings.Contains(got, "not applied") {
+		t.Fatalf("missing disclaimer: %q", got)
+	}
+	aIdx := strings.Index(got, "/a.go")
+	bIdx := strings.Index(got, "/b.go")
+	if aIdx < 0 || bIdx < 0 || aIdx > bIdx {
+		t.Fatalf("expected sorted paths a before b: %q", got)
+	}
+}

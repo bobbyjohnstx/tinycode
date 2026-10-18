@@ -780,6 +780,91 @@ func (c *Client) DocumentSymbols(ctx context.Context, file string) ([]DocumentSy
 	return parseDocumentSymbols(result)
 }
 
+// CodeActions returns code actions for a range (list-only; never applied).
+func (c *Client) CodeActions(ctx context.Context, path string, rng Range) ([]CodeAction, error) {
+	if _, err := c.syncFile(ctx, path); err != nil {
+		return nil, err
+	}
+
+	result, err := c.request(ctx, "textDocument/codeAction", map[string]any{
+		"textDocument": map[string]any{"uri": fileURI(path)},
+		"range":        rng,
+		"context":      map[string]any{"diagnostics": []any{}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return parseCodeActions(result)
+}
+
+// Rename returns a WorkspaceEdit for renaming a symbol (never applied to disk).
+func (c *Client) Rename(ctx context.Context, path string, pos Position, newName string) (*WorkspaceEdit, error) {
+	if _, err := c.syncFile(ctx, path); err != nil {
+		return nil, err
+	}
+
+	result, err := c.request(ctx, "textDocument/rename", map[string]any{
+		"textDocument": map[string]any{"uri": fileURI(path)},
+		"position":     pos,
+		"newName":      newName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if string(result) == "null" || len(result) == 0 {
+		return nil, nil
+	}
+	var edit WorkspaceEdit
+	if err := json.Unmarshal(result, &edit); err != nil {
+		return nil, err
+	}
+	return &edit, nil
+}
+
+func parseCodeActions(raw json.RawMessage) ([]CodeAction, error) {
+	if string(raw) == "null" || len(raw) == 0 {
+		return nil, nil
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil, nil
+	}
+	out := make([]CodeAction, 0, len(items))
+	for _, item := range items {
+		var action CodeAction
+		if err := json.Unmarshal(item, &action); err != nil {
+			continue
+		}
+		// Command-only entries may lack title in rare cases; skip empty.
+		if action.Title == "" {
+			var cmd struct {
+				Title string `json:"title"`
+			}
+			if err := json.Unmarshal(item, &cmd); err == nil {
+				action.Title = cmd.Title
+			}
+		}
+		if action.Title == "" {
+			continue
+		}
+		out = append(out, action)
+	}
+	return out, nil
+}
+
+// fullDocumentRange returns a range covering the entire file content.
+func fullDocumentRange(content string) Range {
+	if content == "" {
+		return Range{}
+	}
+	lines := strings.Split(content, "\n")
+	lastLine := len(lines) - 1
+	return Range{
+		Start: Position{Line: 0, Character: 0},
+		End:   Position{Line: lastLine, Character: len(lines[lastLine])},
+	}
+}
+
 func parseDocumentSymbols(raw json.RawMessage) ([]DocumentSymbolNode, error) {
 	if string(raw) == "null" || len(raw) == 0 {
 		return nil, nil

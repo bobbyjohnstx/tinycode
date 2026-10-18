@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
@@ -17,6 +18,7 @@ func RegisterTools(r *tool.Registry, mgr *Manager) {
 	r.Register(referencesTool(mgr))
 	r.Register(symbolsTool(mgr))
 	r.Register(documentSymbolsTool(mgr))
+	r.Register(codeActionsTool(mgr))
 }
 
 func disabledResult() *tool.ExecuteResult {
@@ -352,6 +354,101 @@ func documentSymbolsTool(mgr *Manager) *tool.Def {
 				return &tool.ExecuteResult{Output: fmt.Sprintf("LSP document symbols failed: %v", err), IsError: true}, nil
 			}
 			return &tool.ExecuteResult{Output: formatDocumentSymbols(symbols)}, nil
+		},
+	}
+}
+
+func codeActionsTool(mgr *Manager) *tool.Def {
+	return &tool.Def{
+		ID:          "lsp_code_actions",
+		Description: "List available code actions (quick fixes, refactors) for a file or range from the language server (LSP). Returns titles and edit summaries only — does not apply edits.",
+		Permission:  "read",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"file_path": map[string]any{
+					"type":        "string",
+					"description": "Absolute path to the file",
+				},
+				"line": map[string]any{
+					"type":        "integer",
+					"description": "Start line (1-indexed). Required with column when either is set; omit both for full document.",
+				},
+				"column": map[string]any{
+					"type":        "integer",
+					"description": "Start column (1-indexed). Required with line when either is set.",
+				},
+				"end_line": map[string]any{
+					"type":        "integer",
+					"description": "End line (1-indexed). Defaults to start line when omitted.",
+				},
+				"end_column": map[string]any{
+					"type":        "integer",
+					"description": "End column (1-indexed). Defaults to start column when omitted.",
+				},
+			},
+			"required": []string{"file_path"},
+		},
+		Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
+			if mgr.Disabled() {
+				return disabledResult(), nil
+			}
+			var input struct {
+				FilePath  string `json:"file_path"`
+				Line      *int   `json:"line"`
+				Column    *int   `json:"column"`
+				EndLine   *int   `json:"end_line"`
+				EndColumn *int   `json:"end_column"`
+			}
+			if err := json.Unmarshal(args, &input); err != nil {
+				return &tool.ExecuteResult{Output: fmt.Sprintf("Invalid arguments: %v", err), IsError: true}, nil
+			}
+
+			hasLine := input.Line != nil
+			hasCol := input.Column != nil
+			if hasLine != hasCol {
+				return &tool.ExecuteResult{Output: "line and column must both be set or both omitted", IsError: true}, nil
+			}
+
+			file := resolvePath(input.FilePath, tc.Directory)
+			client, lang, err := mgr.ClientForFile(ctx, file)
+			if err != nil {
+				return &tool.ExecuteResult{Output: fmt.Sprintf("LSP error: %v", err), IsError: true}, nil
+			}
+			if client == nil {
+				return &tool.ExecuteResult{Output: noServerMessage(lang, file)}, nil
+			}
+
+			var rng Range
+			if !hasLine {
+				content, err := os.ReadFile(file)
+				if err != nil {
+					return &tool.ExecuteResult{Output: fmt.Sprintf("reading %s: %v", file, err), IsError: true}, nil
+				}
+				rng = fullDocumentRange(string(content))
+			} else {
+				if err := validateLineColumn(*input.Line, *input.Column); err != nil {
+					return &tool.ExecuteResult{Output: err.Error(), IsError: true}, nil
+				}
+				start := Position{Line: *input.Line - 1, Character: *input.Column - 1}
+				end := start
+				if input.EndLine != nil || input.EndColumn != nil {
+					if input.EndLine == nil || input.EndColumn == nil {
+						return &tool.ExecuteResult{Output: "end_line and end_column must both be set or both omitted", IsError: true}, nil
+					}
+					if err := validateLineColumn(*input.EndLine, *input.EndColumn); err != nil {
+						return &tool.ExecuteResult{Output: err.Error(), IsError: true}, nil
+					}
+					end = Position{Line: *input.EndLine - 1, Character: *input.EndColumn - 1}
+				}
+				rng = Range{Start: start, End: end}
+			}
+
+			actions, err := client.CodeActions(ctx, file, rng)
+			if err != nil {
+				return &tool.ExecuteResult{Output: fmt.Sprintf("LSP code actions failed: %v", err), IsError: true}, nil
+			}
+			return &tool.ExecuteResult{Output: formatCodeActions(actions)}, nil
 		},
 	}
 }

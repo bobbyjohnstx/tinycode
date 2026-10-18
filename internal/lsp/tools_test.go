@@ -3,6 +3,9 @@ package lsp
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
@@ -15,7 +18,7 @@ func TestRegisterTools_AllToolsRegistered(t *testing.T) {
 	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
 	RegisterTools(reg, mgr)
 
-	expected := []string{"lsp_diagnostics", "lsp_hover", "lsp_definition", "lsp_references", "lsp_symbols", "lsp_document_symbols"}
+	expected := []string{"lsp_diagnostics", "lsp_hover", "lsp_definition", "lsp_references", "lsp_symbols", "lsp_document_symbols", "lsp_code_actions"}
 	registered := reg.List()
 
 	regSet := make(map[string]bool, len(registered))
@@ -48,6 +51,7 @@ func TestRegisterTools_ToolDefsHaveCorrectSchema(t *testing.T) {
 		{"lsp_references", "read", "file_path"},
 		{"lsp_symbols", "read", "query"},
 		{"lsp_document_symbols", "read", "file_path"},
+		{"lsp_code_actions", "read", "file_path"},
 	}
 
 	for _, tt := range tests {
@@ -469,5 +473,169 @@ func TestDocumentSymbolsTool_DisabledAndNoServer(t *testing.T) {
 	}
 	if result.Output == "" {
 		t.Fatal("expected no-server message")
+	}
+}
+
+func TestCodeActionsTool_SchemaAndPermission(t *testing.T) {
+	mgr := NewManager(t.TempDir(), nil)
+	defer mgr.Close()
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	RegisterTools(reg, mgr)
+
+	def := reg.Get("lsp_code_actions")
+	if def == nil {
+		t.Fatal("lsp_code_actions not registered")
+	}
+	if def.Permission != "read" {
+		t.Fatalf("permission = %q, want read", def.Permission)
+	}
+	required, ok := def.Parameters["required"].([]string)
+	if !ok {
+		t.Fatal("missing required")
+	}
+	found := false
+	for _, r := range required {
+		if r == "file_path" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("file_path not required: %v", required)
+	}
+}
+
+func TestCodeActionsTool_DisabledAndNoServer(t *testing.T) {
+	enabled := false
+	mgr := NewManager(t.TempDir(), &Config{Enabled: &enabled})
+	defer mgr.Close()
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	RegisterTools(reg, mgr)
+	def := reg.Get("lsp_code_actions")
+
+	result, err := def.Execute(context.Background(), &tool.Context{Directory: t.TempDir()},
+		json.RawMessage(`{"file_path": "/tmp/test.go"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError || result.Output != "LSP is disabled" {
+		t.Fatalf("disabled = %#v", result)
+	}
+
+	mgr2 := NewManager(t.TempDir(), nil)
+	defer mgr2.Close()
+	reg2 := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	RegisterTools(reg2, mgr2)
+	result, err = reg2.Get("lsp_code_actions").Execute(context.Background(), &tool.Context{Directory: t.TempDir()},
+		json.RawMessage(`{"file_path": "/tmp/test.xyz"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output == "" {
+		t.Fatal("expected no-server message")
+	}
+}
+
+func TestCodeActionsTool_FakeServerList(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	root := t.TempDir()
+	file := writeGoFile(t, root, "main.go", "package main\n\nfunc main() {}\n")
+
+	mgr := NewManager(root, &Config{
+		Servers: map[string]ServerConfig{
+			"go": {Command: "python3", Args: []string{script}},
+		},
+	})
+	defer mgr.Close()
+
+	reg := tool.NewRegistry(&tool.Context{Directory: root})
+	RegisterTools(reg, mgr)
+	def := reg.Get("lsp_code_actions")
+
+	args, _ := json.Marshal(map[string]any{
+		"file_path": file,
+		"line":      3,
+		"column":    6,
+	})
+	result, err := def.Execute(context.Background(), &tool.Context{Directory: root}, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error result: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "Extract variable") {
+		t.Fatalf("missing title: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "refactor.extract") {
+		t.Fatalf("missing kind: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "edit(s)") {
+		t.Fatalf("missing edit summary: %s", result.Output)
+	}
+}
+
+func TestCodeActionsTool_LineColumnMustBeTogether(t *testing.T) {
+	mgr := NewManager(t.TempDir(), nil)
+	defer mgr.Close()
+	reg := tool.NewRegistry(&tool.Context{Directory: t.TempDir()})
+	RegisterTools(reg, mgr)
+	def := reg.Get("lsp_code_actions")
+
+	result, err := def.Execute(context.Background(), &tool.Context{Directory: t.TempDir()},
+		json.RawMessage(`{"file_path": "/tmp/x.go", "line": 1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError || !strings.Contains(result.Output, "line and column") {
+		t.Fatalf("got %#v", result)
+	}
+}
+
+func TestCodeActionsTool_DoesNotWriteFiles(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	root := t.TempDir()
+	content := "package main\n\nfunc main() {}\n"
+	file := writeGoFile(t, root, "main.go", content)
+	before, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := NewManager(root, &Config{
+		Servers: map[string]ServerConfig{
+			"go": {Command: "python3", Args: []string{script}},
+		},
+	})
+	defer mgr.Close()
+	reg := tool.NewRegistry(&tool.Context{Directory: root})
+	RegisterTools(reg, mgr)
+
+	args, _ := json.Marshal(map[string]any{"file_path": file, "line": 1, "column": 1})
+	result, err := reg.Get("lsp_code_actions").Execute(context.Background(), &tool.Context{Directory: root}, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("error: %s", result.Output)
+	}
+	after, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("tool mutated file on disk")
+	}
+	// Ensure no sibling write artifacts.
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name() != "main.go" && !strings.HasSuffix(e.Name(), ".py") {
+			// only main.go expected in root (fake script is elsewhere)
+			if filepath.Ext(e.Name()) != "" && e.Name() != "main.go" {
+				t.Logf("extra entry: %s", e.Name())
+			}
+		}
 	}
 }
