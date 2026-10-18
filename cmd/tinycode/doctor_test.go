@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -129,8 +130,11 @@ func TestDoctor_ResolvedPluginNoWarn(t *testing.T) {
 	cap := captureStdout(t)
 	checkConfiguredPlugins(cfg)
 	out := cap.read()
-	if strings.Contains(out, "safety-net") {
-		t.Fatalf("expected no WARN for resolved plugin, got %q", out)
+	if strings.Contains(out, "configured but not installed") {
+		t.Fatalf("expected no missing WARN for resolved plugin, got %q", out)
+	}
+	if !strings.Contains(out, "1 configured, 1 installed") {
+		t.Fatalf("expected installed summary, got %q", out)
 	}
 }
 
@@ -149,8 +153,27 @@ func TestDoctor_BuiltinConfigNoWarn(t *testing.T) {
 	cap := captureStdout(t)
 	checkConfiguredPlugins(cfg)
 	out := cap.read()
-	if out != "" {
+	if strings.Contains(out, "configured but not installed") {
 		t.Fatalf("expected no WARN for builtins, got %q", out)
+	}
+	if !strings.Contains(out, "only builtins") {
+		t.Fatalf("expected builtins-only summary, got %q", out)
+	}
+}
+
+func TestDoctor_NoPluginsConfiguredTips(t *testing.T) {
+	t.Setenv("TINYCODE_CONFIG_DIR", t.TempDir())
+	cap := captureStdout(t)
+	hints := reportPlugins(&config.Info{}, t.TempDir())
+	out := cap.read()
+	if !strings.Contains(out, "none configured") {
+		t.Fatalf("expected none configured, got %q", out)
+	}
+	if !strings.Contains(out, "plugin install") {
+		t.Fatalf("expected install tip, got %q", out)
+	}
+	if len(hints) == 0 {
+		t.Fatal("expected next-step hints")
 	}
 }
 
@@ -482,6 +505,48 @@ func TestCheckDevTools_MarkerGatedAndAlwaysOn(t *testing.T) {
 	}
 	if strings.Contains(out, "typescript-language-server") {
 		t.Errorf("did not expect TS tooling without package.json/tsconfig, got %q", out)
+	}
+}
+
+func TestGoBinPathTip_MissingFromPATH(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go not on PATH")
+	}
+	out, err := exec.Command("go", "env", "GOPATH").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	goBin := filepath.Join(strings.TrimSpace(string(out)), "bin")
+	// Strip goBin from PATH so the tip fires.
+	var kept []string
+	for _, p := range filepath.SplitList(os.Getenv("PATH")) {
+		if p == goBin {
+			continue
+		}
+		kept = append(kept, p)
+	}
+	t.Setenv("PATH", strings.Join(kept, string(os.PathListSeparator)))
+	tip := goBinPathTip()
+	if tip == "" {
+		t.Fatal("expected PATH tip when GOPATH/bin is absent")
+	}
+	if !strings.Contains(tip, goBin) {
+		t.Fatalf("tip %q should mention %s", tip, goBin)
+	}
+}
+
+func TestGoBinPathTip_AlreadyOnPATH(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go not on PATH")
+	}
+	out, err := exec.Command("go", "env", "GOPATH").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	goBin := filepath.Join(strings.TrimSpace(string(out)), "bin")
+	t.Setenv("PATH", goBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if tip := goBinPathTip(); tip != "" {
+		t.Fatalf("expected empty tip when GOPATH/bin is on PATH, got %q", tip)
 	}
 }
 

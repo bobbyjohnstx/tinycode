@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
@@ -111,10 +112,8 @@ func runDoctor() {
 		fmt.Printf("%s MCP: none configured\n", checkPass)
 	}
 
-	// Plugins
-	pluginCount := countConfigPlugins(cfg)
-	fmt.Printf("%s Plugins: %d configured\n", checkPass, pluginCount)
-	checkConfiguredPlugins(cfg)
+	// Plugins — configured vs resolvable; new-user tips when empty/missing
+	pluginHints := reportPlugins(cfg, dataDir)
 
 	// Skills
 	var skillPaths []string
@@ -135,7 +134,7 @@ func runDoctor() {
 	fmt.Printf("%s Skills: %d bundled + %d user\n", checkPass, bundledSkills, userSkills)
 
 	// LSP and diagnostics tools
-	checkDevTools(dir)
+	lspHints := checkDevTools(dir)
 
 	// IDEs (ACP setup hints — detection only, no install)
 	checkIDEs()
@@ -151,6 +150,8 @@ func runDoctor() {
 		fmt.Printf("%s Log file: %s (not writable)\n", checkFail, logPath)
 		failed = true
 	}
+
+	printDoctorNextSteps(append(pluginHints, lspHints...))
 
 	if failed {
 		os.Exit(1)
@@ -276,7 +277,9 @@ func checkWritable(dir string) bool {
 	return true
 }
 
-func checkDevTools(dir string) {
+// checkDevTools reports language-server binaries for the current project.
+// Returns short next-step hints for printDoctorNextSteps (warn-only).
+func checkDevTools(dir string) []string {
 	type devTool struct {
 		name    string
 		command string
@@ -292,6 +295,9 @@ func checkDevTools(dir string) {
 		{name: "bash-language-server", command: "bash-language-server", install: "npm install -g bash-language-server", markers: nil},
 	}
 
+	var hints []string
+	relevantCount := 0
+	missingCount := 0
 	for _, t := range tools {
 		relevant := t.markers == nil
 		if !relevant {
@@ -306,18 +312,60 @@ func checkDevTools(dir string) {
 		if !relevant {
 			continue
 		}
+		relevantCount++
 
 		if _, err := exec.LookPath(t.command); err == nil {
 			fmt.Printf("%s Dev tool: %s\n", checkPass, t.name)
 		} else {
+			missingCount++
 			fmt.Printf("%s Dev tool: %s -- not found\n", checkWarn, t.name)
 			fmt.Printf("    install: %s\n", t.install)
+			hints = append(hints, t.install)
+		}
+	}
+
+	if relevantCount == 0 {
+		fmt.Printf("%s LSP: no project markers in this directory (go.mod, package.json, …)\n", checkPass)
+		fmt.Printf("    tip: open a project root, or LSP tools will report no server for that file type\n")
+	} else if missingCount == 0 {
+		fmt.Printf("%s LSP: %d language tool(s) ready for this project\n", checkPass, relevantCount)
+	} else {
+		fmt.Printf("%s LSP: %d of %d language tool(s) missing — lsp_* tools will fail until installed\n",
+			checkWarn, missingCount, relevantCount)
+		if tip := goBinPathTip(); tip != "" {
+			fmt.Printf("    tip: %s\n", tip)
+			hints = append(hints, tip)
 		}
 	}
 
 	// Java / jdtls — warn-only; never sets failed. Marker Glob is project dir only
 	// (shallower than LSP markerExists walk) — intentional.
 	checkJavaDevTools(dir)
+	return hints
+}
+
+// goBinPathTip returns a PATH fix hint when `go` is available but its bin dir
+// is not on PATH — the usual reason gopls is "installed" yet invisible to lsp_*.
+func goBinPathTip() string {
+	if _, err := exec.LookPath("go"); err != nil {
+		return ""
+	}
+	out, err := exec.Command("go", "env", "GOPATH").Output()
+	if err != nil {
+		return ""
+	}
+	gopath := strings.TrimSpace(string(out))
+	if gopath == "" {
+		return ""
+	}
+	goBin := filepath.Join(gopath, "bin")
+	pathEnv := os.Getenv("PATH")
+	for _, p := range filepath.SplitList(pathEnv) {
+		if p == goBin {
+			return ""
+		}
+	}
+	return fmt.Sprintf("go install puts binaries in %s — add it to PATH, then re-run doctor", goBin)
 }
 
 var (
@@ -404,23 +452,78 @@ func countConfigPlugins(cfg *config.Info) int {
 	return len(specs)
 }
 
-// checkConfiguredPlugins warns when a configured non-builtin plugin binary
-// cannot be resolved. Never marks the doctor run as failed (5A/A15).
-func checkConfiguredPlugins(cfg *config.Info) {
+// reportPlugins prints configured vs resolvable plugin status and returns
+// next-step hints for new users. Never marks the doctor run as failed.
+func reportPlugins(cfg *config.Info, dataDir string) []string {
+	var hints []string
 	if cfg == nil || len(cfg.Plugins) == 0 {
-		return
+		fmt.Printf("%s Plugins: none configured (builtins still work)\n", checkPass)
+		fmt.Printf("    tip: tinycode plugin install safety-net\n")
+		fmt.Printf("    tip: then add \"plugins\": [\"safety-net\"] to %s\n", config.GlobalConfigFile())
+		hints = append(hints, `tinycode plugin install safety-net`)
+		hints = append(hints, `add "plugins": ["safety-net"] to config, then re-run doctor`)
+		return hints
 	}
+
 	specs, err := plugin.ParsePluginConfig(cfg.Plugins)
 	if err != nil {
-		return
+		fmt.Printf("%s Plugins: config present but unreadable (%v)\n", checkWarn, err)
+		hints = append(hints, "fix plugins array in config (string or [name, options] entries)")
+		return hints
 	}
+
+	configured := 0
+	resolvable := 0
+	var missing []string
 	for _, s := range specs {
 		if plugin.IsBuiltin(s.Name) {
 			continue
 		}
+		configured++
 		if _, err := plugin.ResolveBinary(s.Name); err != nil {
+			missing = append(missing, s.Name)
 			fmt.Printf("%s Plugin %s configured but not installed\n", checkWarn, s.Name)
+			fmt.Printf("    install: tinycode plugin install %s\n", s.Name)
+		} else {
+			resolvable++
 		}
+	}
+
+	if configured == 0 {
+		fmt.Printf("%s Plugins: only builtins listed in config\n", checkPass)
+		return hints
+	}
+
+	if len(missing) == 0 {
+		fmt.Printf("%s Plugins: %d configured, %d installed\n", checkPass, configured, resolvable)
+		fmt.Printf("    logs: %s/plugin-<name>.log (stderr from plugin processes)\n", dataDir)
+	} else {
+		fmt.Printf("%s Plugins: %d configured, %d installed, %d missing\n",
+			checkWarn, configured, resolvable, len(missing))
+		for _, name := range missing {
+			hints = append(hints, "tinycode plugin install "+name)
+		}
+	}
+	return hints
+}
+
+// checkConfiguredPlugins is kept for unit tests; prefer reportPlugins in runDoctor.
+func checkConfiguredPlugins(cfg *config.Info) {
+	_ = reportPlugins(cfg, config.DataDir())
+}
+
+func printDoctorNextSteps(hints []string) {
+	if len(hints) == 0 {
+		return
+	}
+	seen := map[string]bool{}
+	fmt.Println("    next steps:")
+	for _, h := range hints {
+		if h == "" || seen[h] {
+			continue
+		}
+		seen[h] = true
+		fmt.Printf("    - %s\n", h)
 	}
 }
 
