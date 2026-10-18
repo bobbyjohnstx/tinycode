@@ -266,7 +266,7 @@ Hook-only plugin. Intercepts every tool output and applies regex-based redaction
 
 ### safety-net
 
-Hook-only plugin. Intercepts `permission.ask` for bash-type permissions and blocks: filesystem destructive (`rm -rf /`, `mkfs`, fork bombs), Kubernetes/OCP destructive (`kubectl delete namespace`, `helm uninstall` in kube-system), and git destructive (`git push --force main`). Scoped paths like `./build` are allowed.
+Hook-only plugin. Intercepts `permission.ask` for bash-type permissions and blocks: filesystem destructive (`rm -rf /`, `mkfs`, fork bombs), Kubernetes/OCP destructive (`kubectl delete namespace`, `helm uninstall` in kube-system), and git destructive (`git push --force main`). Scoped paths like `./build` are allowed. Fan-out is host-wide (deny-wins across all loaded plugins) — see [PermissionAsk](plugin-development.md#permissionask).
 
 ---
 

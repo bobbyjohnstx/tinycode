@@ -239,7 +239,7 @@ Hooks are dispatched to all loaded plugins that declared support during initiali
 |------|-----------|------------|-------------|----------|
 | `session.start` | Notify | `SessionStartEvent` | `SessionStartOutput` (`additionalContext`) | Notify all on `session.created`; log and continue on error; context cached for first-prompt injection |
 | `session.end` | Notify | `SessionEndEvent` | -- | Notify all; log and continue on error |
-| `permission.ask` | Query | `PermissionInput` | `PermissionOutput` | If ANY plugin denies, tool is blocked; allow must return `Allowed: true` |
+| `permission.ask` | Query | `PermissionInput` | `PermissionOutput` | Fan-out to **all** loaded plugins with the hook (deny-wins; fail-closed on hook error; no host auto-allow). Tool permission category defaults to `"plugin"` when the manifest omits `Permission` — that scopes permission **rules**, not hook fan-out. |
 | `shell.env` | Accumulate | `ShellEnvInput` | `ShellEnvOutput` | Each plugin adds/overrides env vars, chains through |
 | `tool.execute.before` | Gate | `ToolExecBeforeEvent` | `ToolExecBeforeOutput` (`additionalContext`) | Error aborts tool; context merged into hook context |
 | `tool.execute.after` | Transform | `ToolExecAfterEvent` | `ToolExecAfterOutput` | Chain through; may include `additionalContext` |

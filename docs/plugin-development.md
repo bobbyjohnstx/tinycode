@@ -279,7 +279,16 @@ SessionEnd: func(ctx context.Context, event plugin.SessionEndEvent) error {
 
 #### PermissionAsk
 
-Fires when a tool requests permission. Return a `PermissionOutput` to auto-allow or auto-deny:
+Fires when a tool requests permission. Host wiring: `permission.Service.AskInterceptor` → `DispatchPermissionAsk`, which fans out to **every** loaded plugin that declared `permission.ask` (not only the plugin that owns the tool). That is intentional — plugins like `safety-net` must see shell/edit asks from core tools.
+
+**Contract:**
+
+- **Deny-wins:** if any plugin returns `Allowed: false`, the tool is blocked with that reason.
+- **No host auto-allow:** a single plugin returning `Allowed: true` does not bypass other plugins or the default user prompt path when no interceptor decision is made.
+- **Fail-closed:** a hook transport/JSON error fails the ask (tool is not allowed).
+- Empty / no plugins with the hook → interceptor returns nil (host continues with its normal permission flow).
+
+**Permission category clamp:** when a plugin tool omits `Permission` in its manifest, `registerPluginTools` defaults the category to `"plugin"`. That scopes **permission rules** for the tool; it does **not** narrow `PermissionAsk` fan-out.
 
 ```go
 type PermissionInput struct {
@@ -297,12 +306,12 @@ type PermissionOutput struct {
 
 ```go
 PermissionAsk: func(ctx context.Context, input plugin.PermissionInput) (*plugin.PermissionOutput, error) {
-    // Auto-allow read operations
-    if input.ToolName == "read" {
-        return &plugin.PermissionOutput{Allowed: true}, nil
+    // Deny destructive shell; return Allowed:true only when this plugin
+    // has no objection (other plugins still run — deny-wins).
+    if input.ToolName == "bash" && looksDestructive(input.ToolArgs) {
+        return &plugin.PermissionOutput{Allowed: false, Reason: "blocked by policy"}, nil
     }
-    // Return nil to fall through to the default permission prompt
-    return nil, nil
+    return &plugin.PermissionOutput{Allowed: true}, nil
 },
 ```
 
