@@ -414,8 +414,19 @@ func (c *Client) handlePublishDiagnostics(params json.RawMessage) {
 		return
 	}
 
+	// Ignore (and clear) diagnostics for documents we already closed/evicted.
+	// Servers often emit a late publishDiagnostics after didClose; storing it
+	// would resurrect stale entries and flake LRU eviction tests under load.
+	c.docMu.Lock()
+	_, open := c.openDocs[p.URI]
+	c.docMu.Unlock()
+
 	c.diagMu.Lock()
-	c.diagStore[p.URI] = p.Diagnostics
+	if open {
+		c.diagStore[p.URI] = p.Diagnostics
+	} else {
+		delete(c.diagStore, p.URI)
+	}
 	waiters := c.diagWaiters[p.URI]
 	c.diagWaiters[p.URI] = nil
 	c.diagMu.Unlock()
