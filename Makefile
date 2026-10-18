@@ -21,7 +21,13 @@ PLATFORMS := \
 PLUGIN_DIRS := $(wildcard cmd/plugin-*)
 PLUGIN_NAMES := $(notdir $(PLUGIN_DIRS))
 
-.PHONY: build build-all build-plugins build-full clean test vet lint fmt check build-webapp embed-webapp package image image-full
+PLUGIN_PLATFORMS := \
+  linux/amd64 \
+  linux/arm64 \
+  darwin/amd64 \
+  darwin/arm64
+
+.PHONY: build build-all build-plugins build-full clean test vet lint fmt check build-webapp embed-webapp package package-plugins image image-full
 
 ## build: Build tinycode for the current platform
 build:
@@ -69,6 +75,7 @@ build-all-plugins:
 build-all-full: build-all build-all-plugins
 
 ## package: Create release archives with tinycode + all plugins for all platforms
+## (Local/optional fat archives — release CI uses thin CLI + package-plugins.)
 package: build-all-full
 	@mkdir -p dist/release
 	@for platform in $(PLATFORMS); do \
@@ -93,6 +100,27 @@ package: build-all-full
 			tar -czf "dist/release/$$archiveName.tar.gz" -C dist/release "$$archiveName"; \
 		fi; \
 		rm -rf "$$stageDir"; \
+	done
+
+## package-plugins: Build and pack tinycode-plugins-{os}-{arch}.tar.gz (4 platforms; no Windows)
+## Archive members use registry names (strip leading plugin- from cmd/plugin-<name>).
+package-plugins:
+	@mkdir -p dist/release
+	@for platform in $(PLUGIN_PLATFORMS); do \
+		os=$${platform%/*}; \
+		arch=$${platform#*/}; \
+		stageDir="dist/release/plugins-stage-$${os}-$${arch}"; \
+		rm -rf "$$stageDir"; \
+		mkdir -p "$$stageDir"; \
+		for dir in $(PLUGIN_DIRS); do \
+			cmdName=$$(basename $$dir); \
+			regName=$${cmdName#plugin-}; \
+			echo "Building plugin $$regName ($$os/$$arch) ..."; \
+			GOOS=$$os GOARCH=$$arch go build -ldflags "-s -w" -o "$$stageDir/$$regName" ./$$dir; \
+		done; \
+		tar -czf "dist/release/tinycode-plugins-$${os}-$${arch}.tar.gz" -C "$$stageDir" .; \
+		rm -rf "$$stageDir"; \
+		echo "Created dist/release/tinycode-plugins-$${os}-$${arch}.tar.gz"; \
 	done
 
 ## test: Run all tests

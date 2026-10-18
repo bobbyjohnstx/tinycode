@@ -66,6 +66,9 @@ jobs:
             rm -rf "dist/release/${archiveName}"
           done
 
+      - name: Package plugin release bundles
+        run: make package-plugins
+
       - name: Generate checksums
         run: |
           cd dist/release
