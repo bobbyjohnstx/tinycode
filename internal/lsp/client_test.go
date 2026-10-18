@@ -771,3 +771,143 @@ func TestParseDocumentSymbols_SymbolInformation(t *testing.T) {
 		t.Fatalf("nodes[1] = %+v", nodes[1])
 	}
 }
+
+func TestWorkspaceEdit_JSONRoundTrip_ChangesAndDocumentChanges(t *testing.T) {
+	rawChanges := `{
+		"changes": {
+			"file:///a.go": [
+				{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 3}}, "newText": "Foo"}
+			]
+		}
+	}`
+	var editChanges WorkspaceEdit
+	if err := json.Unmarshal([]byte(rawChanges), &editChanges); err != nil {
+		t.Fatal(err)
+	}
+	if len(editChanges.Changes["file:///a.go"]) != 1 {
+		t.Fatalf("changes len = %d", len(editChanges.Changes["file:///a.go"]))
+	}
+	if editChanges.Changes["file:///a.go"][0].NewText != "Foo" {
+		t.Fatalf("newText = %q", editChanges.Changes["file:///a.go"][0].NewText)
+	}
+	round, err := json.Marshal(editChanges)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var again WorkspaceEdit
+	if err := json.Unmarshal(round, &again); err != nil {
+		t.Fatal(err)
+	}
+	if again.Changes["file:///a.go"][0].NewText != "Foo" {
+		t.Fatal("changes round-trip failed")
+	}
+
+	rawDoc := `{
+		"documentChanges": [{
+			"textDocument": {"uri": "file:///b.go", "version": 2},
+			"edits": [{"range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 1}}, "newText": "x"}]
+		}]
+	}`
+	var editDoc WorkspaceEdit
+	if err := json.Unmarshal([]byte(rawDoc), &editDoc); err != nil {
+		t.Fatal(err)
+	}
+	if len(editDoc.DocumentChanges) != 1 {
+		t.Fatalf("documentChanges len = %d", len(editDoc.DocumentChanges))
+	}
+	var tde TextDocumentEdit
+	if err := json.Unmarshal(editDoc.DocumentChanges[0], &tde); err != nil {
+		t.Fatal(err)
+	}
+	if tde.TextDocument.URI != "file:///b.go" || len(tde.Edits) != 1 || tde.Edits[0].NewText != "x" {
+		t.Fatalf("TextDocumentEdit = %+v", tde)
+	}
+}
+
+func TestConnect_InitializeAdvertisesCodeActionRenameApplyEdit(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	logPath := filepath.Join(t.TempDir(), "log.jsonl")
+	_ = connectFakeClient(t, script, t.TempDir(), map[string]string{"FAKE_LSP_LOG": logPath})
+
+	initMsg := waitForFakeLogMethod(t, logPath, "initialize", 2*time.Second)
+	params, _ := initMsg["params"].(map[string]any)
+	caps, _ := params["capabilities"].(map[string]any)
+	td, _ := caps["textDocument"].(map[string]any)
+	ws, _ := caps["workspace"].(map[string]any)
+
+	for _, key := range []string{"hover", "definition", "references", "documentSymbol", "codeAction", "rename"} {
+		if _, ok := td[key]; !ok {
+			t.Errorf("textDocument.%s missing", key)
+		}
+	}
+	if _, ok := ws["symbol"]; !ok {
+		t.Error("workspace.symbol missing")
+	}
+	if v, ok := ws["applyEdit"].(bool); !ok || !v {
+		t.Fatalf("workspace.applyEdit = %#v, want true", ws["applyEdit"])
+	}
+	raw, _ := json.Marshal(params)
+	if strings.Contains(string(raw), `"didSave":true`) || strings.Contains(string(raw), `"didSave": true`) {
+		t.Fatalf("initialize params contain didSave true: %s", raw)
+	}
+}
+
+func TestReadLoop_ApplyEditReturnsAppliedFalse(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	logPath := filepath.Join(t.TempDir(), "log.jsonl")
+	_ = connectFakeClient(t, script, t.TempDir(), map[string]string{
+		"FAKE_LSP_LOG":            logPath,
+		"FAKE_LSP_SEND_APPLY_EDIT": "1",
+	})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, msg := range readFakeLSPLog(t, logPath) {
+			if msg["method"] != nil {
+				continue
+			}
+			id, hasID := msg["id"]
+			result, hasResult := msg["result"]
+			if !hasID || !hasResult || id == nil {
+				continue
+			}
+			resultMap, ok := result.(map[string]any)
+			if !ok {
+				continue
+			}
+			if applied, ok := resultMap["applied"].(bool); ok && !applied {
+				return
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for applyEdit response {applied:false}")
+}
+
+func TestReadLoop_OtherServerRequestStillNull(t *testing.T) {
+	script := writeFakeLSPServer(t)
+	logPath := filepath.Join(t.TempDir(), "log.jsonl")
+	_ = connectFakeClient(t, script, t.TempDir(), map[string]string{
+		"FAKE_LSP_LOG":               logPath,
+		"FAKE_LSP_SEND_OTHER_REQUEST": "1",
+	})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, msg := range readFakeLSPLog(t, logPath) {
+			if msg["method"] != nil {
+				continue
+			}
+			id, hasID := msg["id"]
+			if !hasID || id == nil {
+				continue
+			}
+			// JSON null unmarshals to nil interface
+			if result, ok := msg["result"]; ok && result == nil {
+				return
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for null result on non-applyEdit server request")
+}

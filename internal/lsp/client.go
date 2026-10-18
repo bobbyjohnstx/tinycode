@@ -72,6 +72,38 @@ type Location struct {
 	Range Range  `json:"range"`
 }
 
+// TextEdit is a textual edit applied to a document.
+type TextEdit struct {
+	Range   Range  `json:"range"`
+	NewText string `json:"newText"`
+}
+
+// WorkspaceEdit describes a set of changes across one or more documents.
+// Supports both the changes map and documentChanges array shapes from LSP.
+type WorkspaceEdit struct {
+	Changes         map[string][]TextEdit `json:"changes,omitempty"`
+	DocumentChanges []json.RawMessage     `json:"documentChanges,omitempty"`
+}
+
+// TextDocumentEdit is a documentChanges entry that edits an existing file.
+type TextDocumentEdit struct {
+	TextDocument VersionedTextDocumentIdentifier `json:"textDocument"`
+	Edits        []TextEdit                      `json:"edits"`
+}
+
+// VersionedTextDocumentIdentifier identifies a document (version optional).
+type VersionedTextDocumentIdentifier struct {
+	URI     string `json:"uri"`
+	Version *int   `json:"version,omitempty"`
+}
+
+// CodeAction is a language-server suggested edit or command (list-only; never applied).
+type CodeAction struct {
+	Title string         `json:"title"`
+	Kind  string         `json:"kind,omitempty"`
+	Edit  *WorkspaceEdit `json:"edit,omitempty"`
+}
+
 // Diagnostic represents a compiler error or warning.
 type Diagnostic struct {
 	Range    Range  `json:"range"`
@@ -226,12 +258,15 @@ func (c *Client) connect(ctx context.Context) error {
 				"definition":     map[string]any{},
 				"references":     map[string]any{},
 				"documentSymbol": map[string]any{},
+				"codeAction":     map[string]any{},
+				"rename":         map[string]any{},
 				"publishDiagnostics": map[string]any{
 					"relatedInformation": true,
 				},
 			},
 			"workspace": map[string]any{
-				"symbol": map[string]any{},
+				"symbol":    map[string]any{},
+				"applyEdit": true,
 			},
 		},
 	})
@@ -307,12 +342,17 @@ func (c *Client) readLoop() {
 			continue
 		}
 
-		// Server request (has both id and method) — respond to avoid blocking
+		// Server request (has both id and method) — respond to avoid blocking.
+		// workspace/applyEdit is always refused (no disk writes from LSP path).
 		if envelope.ID != nil && envelope.Method != "" {
+			var result any
+			if envelope.Method == "workspace/applyEdit" {
+				result = map[string]any{"applied": false}
+			}
 			_ = c.writeMessage(map[string]any{
 				"jsonrpc": "2.0",
 				"id":      json.RawMessage(*envelope.ID),
-				"result":  nil,
+				"result":  result,
 			})
 			continue
 		}

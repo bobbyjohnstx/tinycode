@@ -53,6 +53,17 @@ diag_delay = float(os.environ.get("FAKE_LSP_DIAG_DELAY", "0") or "0")
 init_delay = float(os.environ.get("FAKE_LSP_INIT_DELAY", "0") or "0")
 init_hang = os.environ.get("FAKE_LSP_INIT_HANG", "") == "1"
 hang_after_init = os.environ.get("FAKE_LSP_HANG_AFTER_INIT", "") == "1"
+send_apply_edit = os.environ.get("FAKE_LSP_SEND_APPLY_EDIT", "") == "1"
+send_other_request = os.environ.get("FAKE_LSP_SEND_OTHER_REQUEST", "") == "1"
+server_req_id = 9000
+
+def send_server_request(method, params=None):
+    global server_req_id
+    server_req_id += 1
+    req = {"jsonrpc": "2.0", "id": server_req_id, "method": method}
+    if params is not None:
+        req["params"] = params
+    write_msg(req)
 
 while True:
     msg = read_msg()
@@ -78,9 +89,17 @@ while True:
                     "referencesProvider": True,
                     "documentSymbolProvider": True,
                     "workspaceSymbolProvider": True,
+                    "codeActionProvider": True,
+                    "renameProvider": True,
                 }
             },
         })
+        if send_apply_edit:
+            send_server_request("workspace/applyEdit", {
+                "edit": {"changes": {"file:///tmp/x.go": [{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 1}}, "newText": "Y"}]}}
+            })
+        if send_other_request:
+            send_server_request("window/showMessageRequest", {"type": 1, "message": "hi"})
     elif method == "shutdown":
         write_msg({"jsonrpc": "2.0", "id": mid, "result": None})
     elif method == "exit":
@@ -121,6 +140,60 @@ while True:
                     "children": [],
                 }],
             }],
+        })
+    elif method == "textDocument/codeAction" and mid is not None:
+        params = msg.get("params") or {}
+        td = params.get("textDocument") or {}
+        uri = td.get("uri", "file:///tmp/x.go")
+        write_msg({
+            "jsonrpc": "2.0",
+            "id": mid,
+            "result": [{
+                "title": "Extract variable",
+                "kind": "refactor.extract",
+                "edit": {
+                    "changes": {
+                        uri: [{
+                            "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 3}},
+                            "newText": "x",
+                        }]
+                    }
+                },
+            }, {
+                "title": "Organize imports",
+                "kind": "source.organizeImports",
+                "edit": {
+                    "documentChanges": [{
+                        "textDocument": {"uri": uri, "version": 1},
+                        "edits": [{
+                            "range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 0}},
+                            "newText": "",
+                        }],
+                    }]
+                },
+            }],
+        })
+    elif method == "textDocument/rename" and mid is not None:
+        params = msg.get("params") or {}
+        td = params.get("textDocument") or {}
+        uri = td.get("uri", "file:///tmp/a.go")
+        new_name = params.get("newName", "Renamed")
+        other = uri.replace(".go", "_other.go") if uri.endswith(".go") else uri + "_other"
+        write_msg({
+            "jsonrpc": "2.0",
+            "id": mid,
+            "result": {
+                "changes": {
+                    uri: [{
+                        "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 3}},
+                        "newText": new_name,
+                    }],
+                    other: [{
+                        "range": {"start": {"line": 2, "character": 4}, "end": {"line": 2, "character": 7}},
+                        "newText": new_name,
+                    }],
+                }
+            },
         })
     elif mid is not None:
         if hang_after_init:
