@@ -2,7 +2,7 @@
 
 **Start here.** Look up a plugin by category below. Install with `tinycode plugin install <name>` (downloads from the release plugins bundle when available, or use `--from` / build from source), then enable it in `~/.config/tinycode/tinycode.json`. What each plugin needs for credentials is [plugin-credentials.md](plugin-credentials.md). How to write one is [plugin-development.md](plugin-development.md).
 
-Complete reference for the **30 curated external plugins** (available from `tinycode-plugins-{os}-{arch}.tar.gz` release bundles or source under `cmd/plugin-*`) and **4 core builtins** that run in-process. Installing a binary is not the same as enabling it — `plugin list` shows **INSTALLED** vs **IN_CONFIG** separately.
+Complete reference for the **31 curated external plugins** (available from `tinycode-plugins-{os}-{arch}.tar.gz` release bundles or source under `cmd/plugin-*`) and **4 core builtins** that run in-process. Installing a binary is not the same as enabling it — `plugin list` shows **INSTALLED** vs **IN_CONFIG** separately.
 
 ## Quick Start
 
@@ -215,9 +215,9 @@ OpenShift Data Foundation storage health.
 
 ---
 
-## Security — Security / Compliance (5 plugins)
+## Security — Security / Compliance (6 plugins)
 
-Image scanning, policy enforcement, supply chain verification, log sanitization.
+Image scanning, policy enforcement, supply chain verification, log sanitization, optional Semgrep.
 
 | Plugin | Tools | Description |
 |--------|-------|-------------|
@@ -226,6 +226,7 @@ Image scanning, policy enforcement, supply chain verification, log sanitization.
 | **container-linter** | 3 | Containerfile linting, bootc, UBI suggestions |
 | **log-sanitizer** | 0 (hook) | Redacts secrets from tool outputs |
 | **safety-net** | 0 (hook) | Blocks destructive shell commands |
+| **semgrep** | 1 | Opt-in Semgrep scan (default `p/java-security`; requires CLI) |
 
 ### rhacs
 
@@ -267,6 +268,14 @@ Hook-only plugin. Intercepts every tool output and applies regex-based redaction
 ### safety-net
 
 Hook-only plugin. Intercepts `permission.ask` for bash-type permissions and blocks: filesystem destructive (`rm -rf /`, `mkfs`, fork bombs), Kubernetes/OCP destructive (`kubectl delete namespace`, `helm uninstall` in kube-system), and git destructive (`git push --force main`). Scoped paths like `./build` are allowed. Fan-out is host-wide (deny-wins across all loaded plugins) — see [PermissionAsk](plugin-development.md#permissionask).
+
+### semgrep
+
+Opt-in only — not in default security role config. Install (`tinycode plugin install semgrep`), enable with `"plugins": ["semgrep"]`, and ensure the `semgrep` CLI is on PATH. Default ruleset is `p/java-security`. Workflow: [security-audit.md](workflows/security-audit.md) Phase 2.5.
+
+| Tool | Description |
+|------|-------------|
+| `scan` | Run Semgrep on a file or directory (`path` required; optional `config`) |
 
 ---
 

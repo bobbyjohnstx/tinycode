@@ -118,18 +118,21 @@ Use lightwell_osv to query the Open Source Vulnerability database for a package
 
 #### 2.5 Semgrep static analysis (optional)
 
-Skip if Semgrep is not installed. Docs-only — there is no tinycode Semgrep plugin in this path.
+Prefer the opt-in Semgrep plugin when enabled (`"plugins": ["semgrep"]` after `tinycode plugin install semgrep`). Requires the `semgrep` CLI on PATH (`pip install semgrep` or `brew install semgrep`). Default ruleset is `p/java-security`.
+
+```
+Use plugin__semgrep__scan with path set to the project root or a source directory
+# optional: config override (default p/java-security)
+```
+
+Bash fallback if the plugin is not installed/enabled:
 
 ```bash
-# Install (example)
 pip install semgrep
 # or: brew install semgrep
 
-# Auto config (multi-language, including Java)
-semgrep --config=auto
-
-# Java-oriented ruleset example
-semgrep --config=p/java
+semgrep --config=p/java-security
+# or multi-language: semgrep --config=auto
 ```
 
 ### Phase 3: Runtime security posture

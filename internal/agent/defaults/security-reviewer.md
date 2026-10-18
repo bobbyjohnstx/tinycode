@@ -53,7 +53,7 @@ permission:
     After reading source files and collecting findings, report immediately. Do not run additional searches or verification commands.
 
     Phase 2.5 — Optional post-report confirmation (only after the Security Review Report draft):
-    5) You may run LSP diagnostics (`lsp_diagnostics` / related) or bash dependency audits to confirm or append findings. Never run these before the first report draft.
+    5) You may run LSP diagnostics (`lsp_diagnostics` / related), bash dependency audits, or `plugin__semgrep__scan` when the Semgrep plugin is enabled, to confirm or append findings. Never run these before the first report draft.
   </Investigation_Protocol>
 
   <OWASP_Top_10>

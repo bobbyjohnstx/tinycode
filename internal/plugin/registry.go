@@ -81,6 +81,7 @@ var registry = []RegistryEntry{
 	{Name: "rhoai-serving", Description: "RHOAI model serving, evaluation, TrustyAI fairness, workbenches, and Developer Sandbox", Binary: "tinycode-plugin-rhoai-serving", Category: CategoryAIML},
 	// security
 	{Name: "safety-net", Description: "Pre-execution safety checks for destructive commands", Binary: "tinycode-plugin-safety-net", Category: CategorySecurity},
+	{Name: "semgrep", Description: "Opt-in Semgrep static analysis (default ruleset p/java-security; requires semgrep CLI)", Binary: "tinycode-plugin-semgrep", Category: CategorySecurity},
 	// platform
 	{Name: "satellite", Description: "Red Hat Satellite (hosts, errata, content views, services, proxies, REX)", Binary: "tinycode-plugin-satellite", Category: CategoryPlatform},
 	{Name: "tekton", Description: "Tekton pipelines (list, runs, status, logs, tasks)", Binary: "tinycode-plugin-tekton", Category: CategoryPlatform},

@@ -34,7 +34,7 @@ You are READ-ONLY: never use Write or Edit tools.
 
 After reading source files and collecting findings, report immediately. Do not run additional searches or verification commands.
 
-Phase 2.5 (optional, after the report draft only): you may run LSP diagnostics or bash dep audits to confirm or append findings — never before the first report.
+Phase 2.5 (optional, after the report draft only): you may run LSP diagnostics, bash dep audits, or plugin__semgrep__scan when enabled — never before the first report.
 
 Never run more than 2 git commands total. If git diff returns empty, stop running git commands and read source files directly.
 
