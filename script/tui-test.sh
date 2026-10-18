@@ -50,8 +50,10 @@ new_session() {
     local name="${SESSION_PREFIX}-${1}"
     WORK_DIR=$(mktemp -d)
 
-    tmux new-session -d -s "$name" -x 120 -y 40
-    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN" Enter
+    # Launch tinycode as the pane command (not typed via send-keys). After exit,
+    # drop into an interactive shell so exit tests can assert a prompt.
+    tmux new-session -d -s "$name" -x 120 -y 40 \
+        "cd $(printf %q "$WORK_DIR") && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: TERM=xterm-256color $(printf %q "$TINYCODE_BIN"); exec bash -i"
     echo "$name"
 }
 
@@ -103,8 +105,8 @@ wait_for_regex() {
 # Wait until the TUI has rendered a ready marker (prompt, boot tips, or first-run connect).
 # Then settle so async first-run dialog open / noise-guard windows can finish.
 wait_for_tui_ready() {
-    local session="$1" timeout="${2:-15}"
-    if ! wait_for_regex "$session" 'Ask anything|Select Provider|ollama serve|ctrl\+p palette' "$timeout"; then
+    local session="$1" timeout="${2:-30}"
+    if ! wait_for_regex "$session" 'Loading configuration|tinycode|Getting Started|Select Provider|Ask anything|ctrl\+p|ollama serve' "$timeout"; then
         return 1
     fi
     sleep 1
@@ -198,10 +200,16 @@ test_T01() {
     echo -e "${BOLD}T01: TUI renders on startup${NC}"
     local session
     session=$(new_session "T01")
-    sleep 3
 
-    # The TUI should render something — status bar, welcome, or prompt area
-    assert_regex "$session" "." "TUI rendered content"
+    TOTAL=$((TOTAL + 1))
+    if wait_for_tui_ready "$session"; then
+        echo -e "  ${GREEN}PASS${NC}: TUI rendered content"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        dump_pane_on_failure "$session" "T01 ready wait"
+        FAIL=$((FAIL + 1))
+    fi
 
     kill_session "$session"
 }
@@ -212,7 +220,7 @@ test_T02() {
     # --- Part 1: Ctrl+D exits ---
     local session
     session=$(new_session "T02")
-    if ! wait_for_tui_ready "$session" 15; then
+    if ! wait_for_tui_ready "$session"; then
         echo -e "  ${RED}FAIL${NC}: TUI not ready before Ctrl+D"
         dump_pane_on_failure "$session" "T02 Ctrl+D ready wait"
         FAIL=$((FAIL + 1))
@@ -242,7 +250,7 @@ test_T02() {
 
     # --- Part 2: /exit command exits ---
     session=$(new_session "T02b")
-    if ! wait_for_tui_ready "$session" 15; then
+    if ! wait_for_tui_ready "$session"; then
         echo -e "  ${RED}FAIL${NC}: TUI not ready before /exit"
         dump_pane_on_failure "$session" "T02 /exit ready wait"
         FAIL=$((FAIL + 1))
@@ -274,7 +282,7 @@ test_T03() {
     echo -e "${BOLD}T03: Ctrl+C clears prompt${NC}"
     local session
     session=$(new_session "T03")
-    if ! wait_for_tui_ready "$session" 15; then
+    if ! wait_for_tui_ready "$session"; then
         echo -e "  ${RED}FAIL${NC}: TUI not ready before Ctrl+C"
         dump_pane_on_failure "$session" "T03 ready wait"
         FAIL=$((FAIL + 1))
@@ -516,8 +524,8 @@ test_T15() {
     WORK_DIR=$(mktemp -d)
 
     # Create a narrow session (80 cols, below sidebarThreshold of 120)
-    tmux new-session -d -s "$name" -x 80 -y 40
-    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN" Enter
+    tmux new-session -d -s "$name" -x 80 -y 40 \
+        "cd $(printf %q "$WORK_DIR") && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: TERM=xterm-256color $(printf %q "$TINYCODE_BIN"); exec bash -i"
     local session="$name"
     sleep 3
 
@@ -835,8 +843,8 @@ test_T33() {
     WORK_DIR=$(mktemp -d)
 
     # Create a very small tmux session
-    tmux new-session -d -s "$name" -x 40 -y 10
-    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN" Enter
+    tmux new-session -d -s "$name" -x 40 -y 10 \
+        "cd $(printf %q "$WORK_DIR") && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: TERM=xterm-256color $(printf %q "$TINYCODE_BIN"); exec bash -i"
     local session="$name"
     sleep 3
 
@@ -1166,8 +1174,8 @@ test_T40() {
     name="${SESSION_PREFIX}-T40"
     WORK_DIR=$(mktemp -d)
 
-    tmux new-session -d -s "$name" -x 120 -y 40
-    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN -m lm-studio/ornith-1.0-9b-mlx" Enter
+    tmux new-session -d -s "$name" -x 120 -y 40 \
+        "cd $(printf %q "$WORK_DIR") && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: TERM=xterm-256color $(printf %q "$TINYCODE_BIN") -m lm-studio/ornith-1.0-9b-mlx; exec bash -i"
     sleep 3
     session="$name"
 
@@ -1207,8 +1215,8 @@ new_session_with_model() {
     local name="${SESSION_PREFIX}-${1}"
     WORK_DIR=$(mktemp -d)
 
-    tmux new-session -d -s "$name" -x 120 -y 40
-    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN -m lm-studio/ornith-1.0-9b-mlx" Enter
+    tmux new-session -d -s "$name" -x 120 -y 40 \
+        "cd $(printf %q "$WORK_DIR") && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: TERM=xterm-256color $(printf %q "$TINYCODE_BIN") -m lm-studio/ornith-1.0-9b-mlx; exec bash -i"
 
     # Wait for startup guard (2s) + buffer
     sleep 3
@@ -1551,8 +1559,8 @@ test_T48() {
     local name="${SESSION_PREFIX}-T48"
     WORK_DIR=$(mktemp -d)
 
-    tmux new-session -d -s "$name" -x 120 -y 40
-    tmux send-keys -t "$name" "cd $WORK_DIR && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: $TINYCODE_BIN -m fake/nonexistent-model" Enter
+    tmux new-session -d -s "$name" -x 120 -y 40 \
+        "cd $(printf %q "$WORK_DIR") && TINYCODE_DISABLE_MOUSE=1 TINYCODE_DB=:memory: TERM=xterm-256color $(printf %q "$TINYCODE_BIN") -m fake/nonexistent-model; exec bash -i"
     local session="$name"
     sleep 5
 

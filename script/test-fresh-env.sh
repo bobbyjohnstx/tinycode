@@ -183,20 +183,30 @@ log "==> Starting mock LLM (0.0.0.0 so container host-gateway can reach it)"
   go run ./script/mock-llm -addr 0.0.0.0:18080 -script "$SCENARIO"
 ) >"$MOCK_LOG" 2>&1 &
 MOCK_PID=$!
-sleep 0.5
+# go run parent stays alive during compile; give it a moment before early-exit check.
+sleep 2
 if ! kill -0 "$MOCK_PID" 2>/dev/null; then
+  log "mock-llm exited early; log:"
+  cat "$MOCK_LOG" 2>/dev/null || true
   record fail "mock-llm-start" "mock LLM exited early; see $MOCK_LOG"
   exit 1
 fi
-# Wait for listen line
-for _ in $(seq 1 20); do
-  if grep -q 'MOCK_LLM_URL=' "$MOCK_LOG" 2>/dev/null; then
+# Cold go run compile in CI can take tens of seconds — wait up to ~60s for URL.
+MOCK_URL=""
+for _ in $(seq 1 120); do
+  MOCK_URL=$(grep -oE 'MOCK_LLM_URL=http://[^[:space:]]+' "$MOCK_LOG" 2>/dev/null | head -1 | cut -d= -f2- || true)
+  if [ -n "$MOCK_URL" ]; then
     break
   fi
-  sleep 0.2
+  sleep 0.5
 done
-MOCK_URL=$(grep -oE 'MOCK_LLM_URL=http://[^[:space:]]+' "$MOCK_LOG" | head -1 | cut -d= -f2-)
 if [ -z "$MOCK_URL" ]; then
+  if ! kill -0 "$MOCK_PID" 2>/dev/null; then
+    log "mock-llm exited without MOCK_LLM_URL; log:"
+    cat "$MOCK_LOG" 2>/dev/null || true
+    record fail "mock-llm-start" "mock LLM exited without URL; see $MOCK_LOG"
+    exit 1
+  fi
   MOCK_URL="http://0.0.0.0:18080"
 fi
 log "    mock at $MOCK_URL"
