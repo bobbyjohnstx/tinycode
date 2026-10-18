@@ -114,6 +114,7 @@ func runDoctor() {
 	// Plugins
 	pluginCount := countConfigPlugins(cfg)
 	fmt.Printf("%s Plugins: %d configured\n", checkPass, pluginCount)
+	checkConfiguredPlugins(cfg)
 
 	// Skills
 	var skillPaths []string
@@ -401,6 +402,26 @@ func countConfigPlugins(cfg *config.Info) int {
 		return 0
 	}
 	return len(specs)
+}
+
+// checkConfiguredPlugins warns when a configured non-builtin plugin binary
+// cannot be resolved. Never marks the doctor run as failed (5A/A15).
+func checkConfiguredPlugins(cfg *config.Info) {
+	if cfg == nil || len(cfg.Plugins) == 0 {
+		return
+	}
+	specs, err := plugin.ParsePluginConfig(cfg.Plugins)
+	if err != nil {
+		return
+	}
+	for _, s := range specs {
+		if plugin.IsBuiltin(s.Name) {
+			continue
+		}
+		if _, err := plugin.ResolveBinary(s.Name); err != nil {
+			fmt.Printf("%s Plugin %s configured but not installed\n", checkWarn, s.Name)
+		}
+	}
 }
 
 // checkClipboard reports Linux clipboard helpers. Warns when none are found;

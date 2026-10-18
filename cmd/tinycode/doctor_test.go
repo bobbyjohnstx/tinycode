@@ -93,6 +93,67 @@ func TestCountConfigPlugins(t *testing.T) {
 	}
 }
 
+func TestDoctor_MissingConfiguredPluginWarns(t *testing.T) {
+	t.Setenv("TINYCODE_CONFIG_DIR", t.TempDir())
+	t.Setenv("PATH", t.TempDir()) // empty PATH so ResolveBinary misses
+
+	cfg := &config.Info{
+		Plugins: []json.RawMessage{json.RawMessage(`"safety-net"`)},
+	}
+	cap := captureStdout(t)
+	checkConfiguredPlugins(cfg)
+	out := cap.read()
+	if !strings.Contains(out, "Plugin safety-net configured but not installed") {
+		t.Fatalf("expected WARN for missing plugin, got %q", out)
+	}
+	if strings.Contains(out, checkFail) {
+		t.Fatalf("must not fail for plugins-only, got %q", out)
+	}
+}
+
+func TestDoctor_ResolvedPluginNoWarn(t *testing.T) {
+	cfgDir := t.TempDir()
+	t.Setenv("TINYCODE_CONFIG_DIR", cfgDir)
+	pluginDir := filepath.Join(cfgDir, "plugins")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(pluginDir, "safety-net")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Info{
+		Plugins: []json.RawMessage{json.RawMessage(`"safety-net"`)},
+	}
+	cap := captureStdout(t)
+	checkConfiguredPlugins(cfg)
+	out := cap.read()
+	if strings.Contains(out, "safety-net") {
+		t.Fatalf("expected no WARN for resolved plugin, got %q", out)
+	}
+}
+
+func TestDoctor_BuiltinConfigNoWarn(t *testing.T) {
+	t.Setenv("TINYCODE_CONFIG_DIR", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+
+	cfg := &config.Info{
+		Plugins: []json.RawMessage{
+			json.RawMessage(`"notify"`),
+			json.RawMessage(`"code-review"`),
+			json.RawMessage(`"handoff"`),
+			json.RawMessage(`"context-pruning"`),
+		},
+	}
+	cap := captureStdout(t)
+	checkConfiguredPlugins(cfg)
+	out := cap.read()
+	if out != "" {
+		t.Fatalf("expected no WARN for builtins, got %q", out)
+	}
+}
+
 func TestProviderPathUsable_Scenario(t *testing.T) {
 	tests := []struct {
 		name               string

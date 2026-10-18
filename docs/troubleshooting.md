@@ -312,11 +312,12 @@ When a loop is detected, the stream stops with a budget error and the model's pa
    tinycode plugin list
    ```
 2. Verify the binary is executable and was installed with `tinycode plugin install`
-3. Check tinycode logs for plugin init errors:
+3. Check plugin stderr (appended under the data dir) and tinycode logs for init errors:
    ```bash
+   tail -f ~/.local/share/tinycode/plugin-<name>.log
    tail -f ~/.local/share/tinycode/tinycode.log
    ```
-4. Try `tinycode doctor` or `/doctor` for configuration validation
+4. Try `tinycode doctor` or `/doctor` for configuration validation (WARN if a plugin is in config but not installed)
 
 ### Can't find agent or skill
 
