@@ -1,8 +1,8 @@
 # Plugin Catalog
 
-**Start here.** Look up a plugin by category below. Install with `tinycode plugin install <name>` and enable it in `~/.config/tinycode/tinycode.json`. What each plugin needs for credentials is [plugin-credentials.md](plugin-credentials.md). How to write one is [plugin-development.md](plugin-development.md).
+**Start here.** Look up a plugin by category below. Install with `tinycode plugin install <name>` (downloads from the release plugins bundle when available, or use `--from` / build from source), then enable it in `~/.config/tinycode/tinycode.json`. What each plugin needs for credentials is [plugin-credentials.md](plugin-credentials.md). How to write one is [plugin-development.md](plugin-development.md).
 
-Complete reference for the 30 plugins and 4 core builtins shipped with tinycode.
+Complete reference for the **30 curated external plugins** (available from `tinycode-plugins-{os}-{arch}.tar.gz` release bundles or source under `cmd/plugin-*`) and **4 core builtins** that run in-process. Installing a binary is not the same as enabling it — `plugin list` shows **INSTALLED** vs **IN_CONFIG** separately.
 
 ## Quick Start
 
@@ -10,16 +10,16 @@ Complete reference for the 30 plugins and 4 core builtins shipped with tinycode.
 # Optional Red Hat plugin/role setup (not first-run; models via /connect or Ollama)
 tinycode init
 
-# Or install plugins manually
+# Or install plugins manually (release bundle, --from, or local go build)
 tinycode plugin install safety-net
 tinycode plugin install ocp-context-injection
 
-# List plugins with category filter
+# List plugins with category filter (INSTALLED ≠ IN_CONFIG)
 tinycode plugin list
 tinycode plugin list --category sre
 ```
 
-Enable plugins in your tinycode config (`~/.config/tinycode/tinycode.json`):
+Enable plugins in your tinycode config (`~/.config/tinycode/tinycode.json`) after install:
 
 ```json
 {
@@ -27,7 +27,7 @@ Enable plugins in your tinycode config (`~/.config/tinycode/tinycode.json`):
 }
 ```
 
-Example configs for common roles are available in `configs/`.
+Example configs for common roles are available in `configs/`. Release tags that publish `tinycode-plugins-*` assets are required for download install without a checkout.
 
 ---
 

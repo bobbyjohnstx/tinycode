@@ -107,7 +107,7 @@ openshell sandbox create \
 
 ## Installing tinycode Plugins in a Sandbox
 
-OpenShell controls what the sandbox can access externally, not what runs inside the container. tinycode plugins (`tinycode plugin install <name>`) work inside a sandbox as long as the policy permits it.
+OpenShell controls what the sandbox can access externally, not what runs inside the container. Curated plugins are not inside the CLI archive — install with `tinycode plugin install <name>` (release plugins bundle, `--from`, or source) and enable in config. They work inside a sandbox as long as the policy permits it.
 
 **Option 1: Pre-bake plugins into the container image (recommended)**
 
@@ -115,7 +115,7 @@ Install plugins during the Docker build so no runtime network access is needed:
 
 ```dockerfile
 # In your Containerfile
-RUN tinycode plugin install tinycode-plugin-example
+RUN tinycode plugin install safety-net
 ```
 
 This is the most secure approach — the sandbox policy can block all network access except the inference endpoint.
@@ -144,7 +144,7 @@ process:
 Then install plugins inside the running sandbox:
 
 ```bash
-tinycode plugin install tinycode-plugin-example
+tinycode plugin install safety-net
 ```
 
 **MCP servers:** OpenShell sandboxes can connect to external MCP servers as clients using `protocol: mcp` in the network policy. You can also bundle MCP servers inside the container image — OpenShell does not interfere with processes running inside the container.
