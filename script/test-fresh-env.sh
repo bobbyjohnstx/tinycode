@@ -167,31 +167,57 @@ cat >"$SCENARIO" <<EOF
 EOF
 
 MOCK_LOG="$RESULTS_DIR/mock-llm.log"
+MOCK_BIN="$RESULTS_DIR/mock-llm"
 MOCK_PID=""
+kill_port_18080() {
+  local pids
+  pids=$(lsof -tiTCP:18080 -sTCP:LISTEN 2>/dev/null || true)
+  if [ -z "$pids" ]; then
+    return 0
+  fi
+  # shellcheck disable=SC2086
+  kill $pids 2>/dev/null || true
+  sleep 0.2
+  pids=$(lsof -tiTCP:18080 -sTCP:LISTEN 2>/dev/null || true)
+  if [ -n "$pids" ]; then
+    # shellcheck disable=SC2086
+    kill -9 $pids 2>/dev/null || true
+  fi
+}
 cleanup() {
   if [ -n "$MOCK_PID" ] && kill -0 "$MOCK_PID" 2>/dev/null; then
     kill "$MOCK_PID" 2>/dev/null || true
     wait "$MOCK_PID" 2>/dev/null || true
   fi
+  # Best-effort: orphaned listeners from a prior go-run child or crashed run.
+  kill_port_18080 || true
 }
 trap cleanup EXIT
 
+# Free stale listeners so a leftover mock-llm from a prior run cannot bind-fail us.
+STALE_PIDS=$(lsof -tiTCP:18080 -sTCP:LISTEN 2>/dev/null || true)
+if [ -n "$STALE_PIDS" ]; then
+  log "    warn: port 18080 in use (pids: $STALE_PIDS); killing before mock start"
+  kill_port_18080 || true
+fi
+
 log "==> Starting mock LLM (0.0.0.0 so container host-gateway can reach it)"
-(
-  cd "$ROOT"
-  # Bind all interfaces — 127.0.0.1 is unreachable from the container VM/network ns.
-  go run ./script/mock-llm -addr 0.0.0.0:18080 -script "$SCENARIO"
-) >"$MOCK_LOG" 2>&1 &
+# Build once per results dir so MOCK_PID is the real server (not a go-run parent
+# whose compiled child would be orphaned on cleanup).
+if [ ! -x "$MOCK_BIN" ]; then
+  (cd "$ROOT" && go build -o "$MOCK_BIN" ./script/mock-llm)
+fi
+# Bind all interfaces — 127.0.0.1 is unreachable from the container VM/network ns.
+"$MOCK_BIN" -addr 0.0.0.0:18080 -script "$SCENARIO" >"$MOCK_LOG" 2>&1 &
 MOCK_PID=$!
-# go run parent stays alive during compile; give it a moment before early-exit check.
-sleep 2
+sleep 1
 if ! kill -0 "$MOCK_PID" 2>/dev/null; then
   log "mock-llm exited early; log:"
   cat "$MOCK_LOG" 2>/dev/null || true
   record fail "mock-llm-start" "mock LLM exited early; see $MOCK_LOG"
   exit 1
 fi
-# Cold go run compile in CI can take tens of seconds — wait up to ~60s for URL.
+# Wait up to ~60s for URL (pipefail-safe: empty grep must not abort the loop).
 MOCK_URL=""
 for _ in $(seq 1 120); do
   MOCK_URL=$(grep -oE 'MOCK_LLM_URL=http://[^[:space:]]+' "$MOCK_LOG" 2>/dev/null | head -1 | cut -d= -f2- || true)
