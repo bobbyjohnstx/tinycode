@@ -305,25 +305,8 @@ func runPlugin() {
 			return
 		}
 
-		// Local source build if cmd/plugin-<name> exists
-		pluginSrc := filepath.Join("cmd", "plugin-"+name)
-		if info, err := os.Stat(pluginSrc); err == nil && info.IsDir() {
-			fmt.Printf("Building plugin %s from source ...\n", name)
-			cmd := exec.Command("go", "build", "-ldflags", "-s -w", "-o", destPath, "./"+pluginSrc)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				fmt.Fprintf(os.Stderr, "build failed: %v\n", err)
-				os.Exit(1)
-			}
-			fmt.Printf("Installed plugin %s to %s\n", name, destPath)
-			printPluginEnableHint(name)
-			return
-		}
-
-		// Download from release plugins bundle
-		fmt.Printf("Downloading plugin %s from release bundle ...\n", name)
-		if err := plugin.InstallFromRelease(name, plugin.InstallOptions{EmbeddedVersion: version}); err != nil {
+		fmt.Printf("Installing plugin %s ...\n", name)
+		if err := attemptPluginInstall(name); err != nil {
 			fmt.Fprintf(os.Stderr, "Plugin %s (%s): %v\n", name, entry.Description, err)
 			fmt.Fprintf(os.Stderr, "Use --from <path> to install from a pre-built binary, or build from a source checkout.\n")
 			os.Exit(1)
@@ -357,6 +340,52 @@ func runPlugin() {
 
 func printPluginEnableHint(name string) {
 	fmt.Printf("Enable by adding %q to \"plugins\" in %s\n", name, config.GlobalConfigFile())
+}
+
+// pluginInstallFunc installs a plugin binary by name. Injectable for tests.
+type pluginInstallFunc func(name string) error
+
+// pluginResolveFunc locates an installed plugin binary. Injectable for tests.
+type pluginResolveFunc func(name string) (string, error)
+
+// ensurePluginsInstalled returns names that are already resolved or newly
+// installed. Failures are listed separately; callers should warn and continue (3A).
+func ensurePluginsInstalled(names []string, resolve pluginResolveFunc, install pluginInstallFunc) (ok, failed []string) {
+	for _, name := range names {
+		if _, err := resolve(name); err == nil {
+			ok = append(ok, name)
+			continue
+		}
+		if err := install(name); err != nil {
+			failed = append(failed, name)
+			continue
+		}
+		ok = append(ok, name)
+	}
+	return ok, failed
+}
+
+// attemptPluginInstall builds from local source when available, otherwise
+// downloads from the release plugins bundle.
+func attemptPluginInstall(name string) error {
+	pluginDir := filepath.Join(config.ConfigDir(), "plugins")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		return fmt.Errorf("create plugins dir: %w", err)
+	}
+	destPath := filepath.Join(pluginDir, name)
+
+	pluginSrc := filepath.Join("cmd", "plugin-"+name)
+	if info, err := os.Stat(pluginSrc); err == nil && info.IsDir() {
+		cmd := exec.Command("go", "build", "-ldflags", "-s -w", "-o", destPath, "./"+pluginSrc)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("build: %w", err)
+		}
+		return nil
+	}
+
+	return plugin.InstallFromRelease(name, plugin.InstallOptions{EmbeddedVersion: version})
 }
 
 func runAgent() {
@@ -624,7 +653,6 @@ func runInit() {
 			fmt.Printf("  - %s\n", name)
 		}
 	}
-	result["plugins"] = selected
 
 	// --- Write config ---
 	fmt.Printf("\nWrite to %s? [Y/n] ", configFile)
@@ -634,6 +662,15 @@ func runInit() {
 		fmt.Println("Aborted.")
 		return
 	}
+
+	installed, failed := ensurePluginsInstalled(selected, plugin.ResolveBinary, attemptPluginInstall)
+	for _, name := range failed {
+		fmt.Fprintf(os.Stderr, "warning: failed to install plugin %s\n", name)
+	}
+	if installed == nil {
+		installed = []string{}
+	}
+	result["plugins"] = installed
 
 	configDir := filepath.Dir(configFile)
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
@@ -654,6 +691,9 @@ func runInit() {
 	}
 
 	fmt.Printf("\nWrote config to %s\n", configFile)
-	fmt.Println("Run 'tinycode plugin list' to see plugin installation status.")
+	fmt.Printf("Plugins enabled: %d installed, %d skipped\n", len(installed), len(failed))
+	if len(failed) > 0 {
+		fmt.Println("Skipped plugins were not written to config. Fix install errors and re-run init or plugin install.")
+	}
 }
 
