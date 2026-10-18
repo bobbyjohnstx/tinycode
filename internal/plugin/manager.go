@@ -9,11 +9,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/id"
 	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
@@ -47,6 +50,7 @@ type pluginProcess struct {
 	cmd                 *exec.Cmd
 	stdin               io.WriteCloser
 	stdout              io.ReadCloser
+	stderrCloser        io.Closer // data-dir plugin-<name>.log; may be nil
 	encoder             *json.Encoder
 	reader              *bufio.Reader   // line-oriented stdout reader (skips non-JSON pollution)
 	counter             *countingReader // per-response byte counter for stdout
@@ -187,6 +191,37 @@ var knownBuiltinIDs = map[string]struct{}{
 	"context-pruning": {},
 }
 
+// IsBuiltin reports whether name is an in-process builtin (no external binary).
+func IsBuiltin(name string) bool {
+	_, ok := knownBuiltinIDs[name]
+	return ok
+}
+
+// openPluginStderrLog opens DataDir()/plugin-<name>.log for append.
+// On failure: Warn and return io.Discard so stderr never inherits into the TUI (A4/6B).
+func openPluginStderrLog(name string, logger *slog.Logger) (io.Writer, io.Closer) {
+	dir := config.DataDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		if logger != nil {
+			logger.Warn("plugin stderr log unavailable", "name", name, "error", err)
+		}
+		return io.Discard, nopCloser{}
+	}
+	path := filepath.Join(dir, "plugin-"+name+".log")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		if logger != nil {
+			logger.Warn("plugin stderr log unavailable", "name", name, "path", path, "error", err)
+		}
+		return io.Discard, nopCloser{}
+	}
+	return f, f
+}
+
+type nopCloser struct{}
+
+func (nopCloser) Close() error { return nil }
+
 // Load resolves a plugin binary, starts it as a subprocess, performs the
 // JSON-RPC initialize handshake, and registers the plugin.
 // The name need not be in the curated registry when resolveFunc finds a binary
@@ -244,8 +279,11 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 	if err != nil {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
+	stderrWriter, stderrCloser := openPluginStderrLog(name, logger)
+	cmd.Stderr = stderrWriter
 
 	if err := cmd.Start(); err != nil {
+		_ = stderrCloser.Close()
 		return nil, fmt.Errorf("start plugin %s: %w", name, err)
 	}
 
@@ -253,14 +291,15 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 	doneCh := make(chan struct{})
 	cr := &countingReader{r: stdoutPipe, limit: maxOutputSize}
 	proc := &pluginProcess{
-		info:    info,
-		cmd:     cmd,
-		stdin:   stdinPipe,
-		stdout:  stdoutPipe,
-		encoder: json.NewEncoder(stdinPipe),
-		reader:  bufio.NewReader(cr),
-		counter: cr,
-		done:    doneCh,
+		info:         info,
+		cmd:          cmd,
+		stdin:        stdinPipe,
+		stdout:       stdoutPipe,
+		stderrCloser: stderrCloser,
+		encoder:      json.NewEncoder(stdinPipe),
+		reader:       bufio.NewReader(cr),
+		counter:      cr,
+		done:         doneCh,
 	}
 	proc.onRemove = func(reason string) {
 		m.removeProcess(pid, reason)
@@ -272,6 +311,10 @@ func (m *Manager) Load(name string, options map[string]any) (*PluginInfo, error)
 	safego.Go(func() {
 		_ = cmd.Wait()
 		proc.dead.Store(true)
+		if proc.stderrCloser != nil {
+			_ = proc.stderrCloser.Close()
+			proc.stderrCloser = nil
+		}
 		close(doneCh)
 		m.logger.Warn("plugin process exited", "id", pid, "name", name)
 		m.removeProcess(pid, "process exited")

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -65,6 +67,10 @@ func TestHelperProcess(t *testing.T) {
 	}
 
 	behavior := os.Getenv("GO_TEST_HELPER_BEHAVIOR")
+
+	if msg := os.Getenv("GO_TEST_HELPER_STDERR"); msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
+	}
 
 	decoder := json.NewDecoder(os.Stdin)
 	encoder := json.NewEncoder(os.Stdout)
@@ -994,5 +1000,65 @@ func TestWaitForDrainIfNeeded_ProcessDiesWhileDraining(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "dead") {
 		t.Errorf("expected 'dead' in error, got %v", err)
+	}
+}
+
+func TestLoad_StderrAppendsToDataDirLog(t *testing.T) {
+	dataDir := t.TempDir()
+	t.Setenv("TINYCODE_DATA_DIR", dataDir)
+
+	mgr := newTestManager("")
+	mgr.SetCommandFactory(func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		cmd := helperCommandFactory("")(ctx, name, args...)
+		cmd.Env = append(cmd.Env, "GO_TEST_HELPER_STDERR=stderr-from-plugin")
+		return cmd
+	})
+
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	mgr.Shutdown()
+	_ = info
+
+	logPath := filepath.Join(dataDir, "plugin-test-plugin.log")
+	// Allow health monitor to finish closing the log FD.
+	deadline := time.Now().Add(2 * time.Second)
+	var body []byte
+	for {
+		body, err = os.ReadFile(logPath)
+		if err == nil && strings.Contains(string(body), "stderr-from-plugin") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("log %s missing stderr content (err=%v body=%q)", logPath, err, body)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestLoad_StderrLogOpenFailDiscards(t *testing.T) {
+	// Point data dir at a regular file so MkdirAll/OpenFile fails.
+	parent := t.TempDir()
+	bad := filepath.Join(parent, "not-a-dir")
+	if err := os.WriteFile(bad, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TINYCODE_DATA_DIR", bad)
+
+	w, c := openPluginStderrLog("x", slog.Default())
+	defer c.Close()
+	if w != io.Discard {
+		t.Fatalf("expected io.Discard on open fail, got %T", w)
+	}
+
+	mgr := newTestManager("")
+	info, err := mgr.Load("test-plugin", nil)
+	if err != nil {
+		t.Fatalf("Load should succeed with Discard stderr: %v", err)
+	}
+	defer mgr.Shutdown()
+	if info == nil {
+		t.Fatal("expected plugin info")
 	}
 }
