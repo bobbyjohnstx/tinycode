@@ -1,0 +1,18 @@
+# Fresh-env smoke image: empty-home new-user simulation for pre-release refinement.
+# Build: podman build -f Containerfile.fresh-env -t tinycode-fresh-env .
+# Does NOT bake tinycode — the harness mounts dist/tinycode + plugins at runtime.
+
+FROM docker.io/library/golang:1.27-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tmux \
+    jq \
+    ca-certificates \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Language server for LSP smoke (Go fixture in the harness).
+RUN go install golang.org/x/tools/gopls@latest
+
+ENV PATH="/go/bin:/usr/local/go/bin:${PATH}"
+WORKDIR /work
