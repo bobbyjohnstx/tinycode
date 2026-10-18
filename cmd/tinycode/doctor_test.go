@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 )
 
 func TestOllamaURL(t *testing.T) {
@@ -38,6 +41,55 @@ func TestOllamaURL(t *testing.T) {
 				t.Errorf("ollamaURL() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLMStudioURL(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		want string
+	}{
+		{name: "default", want: "http://127.0.0.1:1234"},
+		{name: "override", env: "http://lm:1234", want: "http://lm:1234"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TINYCODE_LMSTUDIO_HOST", tt.env)
+			if got := lmStudioURL(); got != tt.want {
+				t.Errorf("lmStudioURL() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckWritable(t *testing.T) {
+	dir := t.TempDir()
+	if !checkWritable(dir) {
+		t.Fatal("expected writable temp dir")
+	}
+	missing := filepath.Join(dir, "nested", "more")
+	if !checkWritable(missing) {
+		t.Fatal("expected checkWritable to create nested dirs")
+	}
+}
+
+func TestCountConfigPlugins(t *testing.T) {
+	if got := countConfigPlugins(&config.Info{}); got != 0 {
+		t.Fatalf("empty = %d", got)
+	}
+	cfg := &config.Info{
+		Plugins: []json.RawMessage{
+			json.RawMessage(`"notify"`),
+			json.RawMessage(`["code-review", {"auto": true}]`),
+		},
+	}
+	if got := countConfigPlugins(cfg); got != 2 {
+		t.Fatalf("got %d, want 2", got)
+	}
+	bad := &config.Info{Plugins: []json.RawMessage{json.RawMessage(`not-json`)}}
+	if got := countConfigPlugins(bad); got != 0 {
+		t.Fatalf("invalid plugins = %d, want 0", got)
 	}
 }
 
@@ -325,5 +377,60 @@ func TestCheckJavaDevTools_WarnsNeverFails(t *testing.T) {
 	}
 	if !strings.Contains(out, "jdtls") {
 		t.Errorf("expected jdtls warn, got %q", out)
+	}
+}
+
+func TestCheckJavaDevTools_PassWithJava21AndJDTLS(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pom.xml"), []byte("<project/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	binDir := t.TempDir()
+	writeStubBin(t, binDir, "jdtls", "#!/bin/sh\n")
+	writeStubBin(t, binDir, "java", "#!/bin/sh\necho 'openjdk version \"21.0.2\" 2024-01-16' >&2\n")
+	t.Setenv("PATH", binDir)
+
+	cap := captureStdout(t)
+	checkJavaDevTools(dir)
+	out := cap.read()
+	if !strings.Contains(out, checkPass) || !strings.Contains(out, "jdtls") {
+		t.Errorf("expected jdtls pass, got %q", out)
+	}
+	if !strings.Contains(out, "java 21") {
+		t.Errorf("expected java 21 pass, got %q", out)
+	}
+	if strings.Contains(out, checkFail) {
+		t.Errorf("must not fail doctor, got %q", out)
+	}
+}
+
+func TestCheckDevTools_MarkerGatedAndAlwaysOn(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module m\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stubPATHBinaries(t, "gopls", "bash-language-server")
+	cap := captureStdout(t)
+	checkDevTools(dir)
+	out := cap.read()
+	if !strings.Contains(out, "gopls") {
+		t.Errorf("expected gopls check with go.mod, got %q", out)
+	}
+	if !strings.Contains(out, "bash-language-server") {
+		t.Errorf("expected always-on bash-language-server check, got %q", out)
+	}
+	if strings.Contains(out, "typescript-language-server") {
+		t.Errorf("did not expect TS tooling without package.json/tsconfig, got %q", out)
+	}
+}
+
+func writeStubBin(t *testing.T, dir, name, script string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if runtime.GOOS == "windows" {
+		path += ".exe"
+	}
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
 	}
 }

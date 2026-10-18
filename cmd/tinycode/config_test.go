@@ -218,6 +218,28 @@ func TestPermissionAskToolArgs_PrefersCommand(t *testing.T) {
 	}
 }
 
+func TestPermissionAskToolArgs_FallbackBranches(t *testing.T) {
+	if got := permissionAskToolArgs(permission.Request{
+		Metadata: map[string]any{"args": `{"path":"x"}`},
+	}); got != `{"path":"x"}` {
+		t.Fatalf("args metadata = %q", got)
+	}
+	if got := permissionAskToolArgs(permission.Request{
+		Patterns: []string{"pattern-a", "pattern-b"},
+	}); got != "pattern-a" {
+		t.Fatalf("patterns fallback = %q", got)
+	}
+	if got := permissionAskToolArgs(permission.Request{}); got != "" {
+		t.Fatalf("empty = %q", got)
+	}
+	if got := permissionAskToolArgs(permission.Request{
+		Metadata: map[string]any{"command": "", "args": ""},
+		Patterns: []string{"p"},
+	}); got != "p" {
+		t.Fatalf("empty command/args should fall through to patterns, got %q", got)
+	}
+}
+
 func TestPermissionAskToolName_FromMetadata(t *testing.T) {
 	got := permissionAskToolName(permission.Request{
 		Permission: "edit",

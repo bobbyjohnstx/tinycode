@@ -408,3 +408,150 @@ func TestStatusBar_SetGoalClearsDisplay(t *testing.T) {
 		t.Error("expected goalDisplay to be nil after SetGoal('')")
 	}
 }
+
+func TestFormatElapsed_Table(t *testing.T) {
+	tests := []struct {
+		d    time.Duration
+		want string
+	}{
+		{0, "0.0s"},
+		{500 * time.Millisecond, "0.5s"},
+		{2400 * time.Millisecond, "2.4s"},
+		{59*time.Second + 900*time.Millisecond, "59.9s"},
+		{60 * time.Second, "1m0s"},
+		{90 * time.Second, "1m30s"},
+		{-5 * time.Second, "0.0s"},
+		{5*time.Minute + 15*time.Second, "5m15s"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := formatElapsed(tt.d)
+			if got != tt.want {
+				t.Errorf("formatElapsed(%v) = %q, want %q", tt.d, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestShortenCwd_HomeDirReplaced(t *testing.T) {
+	got := shortenCwd("/tmp/not-home/project")
+	if strings.HasPrefix(got, "~") {
+		t.Errorf("non-home path should not be shortened: %q", got)
+	}
+}
+
+func TestShortenCwd_IdentityForNonHome(t *testing.T) {
+	got := shortenCwd("/usr/local/bin")
+	if got != "/usr/local/bin" {
+		t.Errorf("expected /usr/local/bin, got %q", got)
+	}
+}
+
+func TestClampStatusLine_SmallWidth(t *testing.T) {
+	got := clampStatusLine(0, "content")
+	if got == "" {
+		t.Error("expected non-empty even with 0 width (clamped to 1)")
+	}
+}
+
+func TestClampStatusLine_NormalWidth(t *testing.T) {
+	got := clampStatusLine(20, "hi")
+	if got == "" {
+		t.Error("expected non-empty for normal width")
+	}
+}
+
+func TestRenderHintsLine_EmptyRight(t *testing.T) {
+	got := renderHintsLine(40, "left side", "")
+	if got == "" {
+		t.Error("expected non-empty for empty right")
+	}
+}
+
+func TestRenderHintsLine_BothSides(t *testing.T) {
+	got := renderHintsLine(80, "left", "right")
+	if got == "" {
+		t.Error("expected non-empty with both sides")
+	}
+}
+
+func TestRenderHintsLine_NarrowWidth(t *testing.T) {
+	got := renderHintsLine(5, "very long left side", "right")
+	if got == "" {
+		t.Error("expected non-empty even when narrow")
+	}
+}
+
+func TestSetSafeMode(t *testing.T) {
+	sb := NewStatusBar(80)
+	sb.SetSafeMode(true)
+	if !sb.safeMode {
+		t.Error("expected safeMode true")
+	}
+	sb.SetSafeMode(false)
+	if sb.safeMode {
+		t.Error("expected safeMode false")
+	}
+}
+
+func TestSetCwd(t *testing.T) {
+	sb := NewStatusBar(80)
+	sb.SetCwd("/tmp/project")
+	if sb.Cwd() != "/tmp/project" {
+		t.Errorf("expected /tmp/project, got %q", sb.Cwd())
+	}
+}
+
+func TestSetGoal_ClearAndSet(t *testing.T) {
+	sb := NewStatusBar(80)
+	sb.SetGoal("implement feature")
+	if sb.goalDisplay == nil {
+		t.Fatal("expected goalDisplay set")
+	}
+	if sb.goalDisplay.text != "implement feature" {
+		t.Errorf("goal text = %q", sb.goalDisplay.text)
+	}
+	sb.SetGoal("")
+	if sb.goalDisplay != nil {
+		t.Error("expected goalDisplay cleared")
+	}
+}
+
+func TestSetGoal_AlreadySet(t *testing.T) {
+	sb := NewStatusBar(80)
+	sb.SetGoal("first")
+	sb.SetGoal("second")
+	if sb.goalDisplay.text != "first" {
+		t.Errorf("SetGoal on existing should not overwrite text, got %q", sb.goalDisplay.text)
+	}
+}
+
+func TestSetGoalState_Full(t *testing.T) {
+	sb := NewStatusBar(80)
+	sb.SetGoalState("fixing bug", 3, 5)
+	if sb.goalDisplay == nil {
+		t.Fatal("expected goalDisplay set")
+	}
+	if sb.goalDisplay.text != "fixing bug" {
+		t.Errorf("goal text = %q", sb.goalDisplay.text)
+	}
+	if sb.goalDisplay.iteration != 3 || sb.goalDisplay.maxIterations != 5 {
+		t.Errorf("iterations = %d/%d", sb.goalDisplay.iteration, sb.goalDisplay.maxIterations)
+	}
+}
+
+func TestSetGoalState_ClearOnEmpty(t *testing.T) {
+	sb := NewStatusBar(80)
+	sb.SetGoalState("first", 1, 3)
+	sb.SetGoalState("", 0, 0)
+	if sb.goalDisplay != nil {
+		t.Error("expected goalDisplay cleared when text is empty")
+	}
+}
+
+func TestAccent_ReturnsColor(t *testing.T) {
+	color := accent()
+	if color == nil {
+		t.Fatal("expected non-nil color")
+	}
+}

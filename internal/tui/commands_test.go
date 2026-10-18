@@ -676,3 +676,29 @@ func TestHandleGlobalKey_UnhandledKeyReturnsNil(t *testing.T) {
 		t.Error("expected nil cmd for unhandled key")
 	}
 }
+
+func TestIsLocalProvider_Table(t *testing.T) {
+	tests := []struct {
+		id   string
+		want bool
+	}{
+		{"ollama", true},
+		{"lmstudio", true},
+		{"vllm", true},
+		{"llamacpp", true},
+		{"localhost:8080", true},
+		{"127.0.0.1:4000", true},
+		{"openrouter", false},
+		{"anthropic", false},
+		{"openai", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.id, func(t *testing.T) {
+			got := isLocalProvider(tt.id)
+			if got != tt.want {
+				t.Errorf("isLocalProvider(%q) = %v, want %v", tt.id, got, tt.want)
+			}
+		})
+	}
+}

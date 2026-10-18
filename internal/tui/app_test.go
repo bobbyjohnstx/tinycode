@@ -173,3 +173,40 @@ func TestPromptInput(t *testing.T) {
 		t.Errorf("escape sequence leaked into output:\n%s", string(out))
 	}
 }
+
+func TestIsSessionWorking_NoActiveSession(t *testing.T) {
+	app := NewApp("")
+	if app.isSessionWorking() {
+		t.Error("expected false when no active session")
+	}
+}
+
+func TestIsSessionWorking_NotInMap(t *testing.T) {
+	app := NewApp("")
+	app.state.ActiveSession = "ses_1"
+	if app.isSessionWorking() {
+		t.Error("expected false when session not in status map")
+	}
+}
+
+func TestIsSessionWorking_Working(t *testing.T) {
+	app := NewApp("")
+	app.state.ActiveSession = "ses_1"
+	app.state.SessionStatus = map[string]SessionStatus{
+		"ses_1": {Working: true},
+	}
+	if !app.isSessionWorking() {
+		t.Error("expected true when Working=true")
+	}
+}
+
+func TestIsSessionWorking_Idle(t *testing.T) {
+	app := NewApp("")
+	app.state.ActiveSession = "ses_1"
+	app.state.SessionStatus = map[string]SessionStatus{
+		"ses_1": {Working: false},
+	}
+	if app.isSessionWorking() {
+		t.Error("expected false when Working=false")
+	}
+}

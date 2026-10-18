@@ -1468,3 +1468,49 @@ func TestNewestAssistantTokens_NoAssistantReturnsZero(t *testing.T) {
 		t.Errorf("expected 0, got %d", n)
 	}
 }
+
+func TestActivityFromMessages_Empty(t *testing.T) {
+	got := activityFromMessages(nil)
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestActivityFromMessages_StreamingReasoningReturnsImmediately(t *testing.T) {
+	msgs := []MessageView{
+		{Parts: []PartView{
+			{Type: "reasoning", Streaming: true},
+		}},
+	}
+	got := activityFromMessages(msgs)
+	if got != "thinking" {
+		t.Errorf("got %q, want thinking", got)
+	}
+}
+
+func TestActivityFromMessages_LastToolCall(t *testing.T) {
+	msgs := []MessageView{
+		{Parts: []PartView{
+			{Type: "tool", ToolName: "read", ToolArgs: `{"file_path":"/tmp/a.go"}`},
+		}},
+		{Parts: []PartView{
+			{Type: "tool", ToolName: "bash", ToolArgs: `{"command":"ls"}`},
+		}},
+	}
+	got := activityFromMessages(msgs)
+	if got != "bash ls" {
+		t.Errorf("got %q, want 'bash ls'", got)
+	}
+}
+
+func TestActivityFromMessages_SkipsTextParts(t *testing.T) {
+	msgs := []MessageView{
+		{Parts: []PartView{
+			{Type: "text", Text: "some assistant text"},
+		}},
+	}
+	got := activityFromMessages(msgs)
+	if got != "" {
+		t.Errorf("text parts should not generate activity, got %q", got)
+	}
+}

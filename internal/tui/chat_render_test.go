@@ -685,3 +685,214 @@ func TestGroupAllDone_OneRunning(t *testing.T) {
 		t.Error("expected not all done when one is running")
 	}
 }
+
+func TestFormatTimestamp_Valid(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"RFC3339Nano", "2024-06-15T14:30:45.123456789Z", ""},
+		{"RFC3339", "2024-06-15T14:30:45Z", ""},
+		{"empty", "", ""},
+		{"garbage", "not-a-date", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatTimestamp(tt.input)
+			if tt.input == "" || tt.input == "not-a-date" {
+				if got != "" {
+					t.Errorf("formatTimestamp(%q) = %q, want empty", tt.input, got)
+				}
+				return
+			}
+			if got == "" {
+				t.Errorf("formatTimestamp(%q) = empty, want non-empty time string", tt.input)
+			}
+			// Should contain AM or PM
+			if !strings.Contains(got, "AM") && !strings.Contains(got, "PM") {
+				t.Errorf("formatTimestamp(%q) = %q, want AM/PM format", tt.input, got)
+			}
+		})
+	}
+}
+
+func TestFormatTimestamp_FallsBackToRFC3339(t *testing.T) {
+	got := formatTimestamp("2024-06-15T14:30:45Z")
+	if got == "" {
+		t.Fatal("expected non-empty for RFC3339 without nano")
+	}
+}
+
+func TestPartDuration_Table(t *testing.T) {
+	tests := []struct {
+		name string
+		part PartView
+		want string
+	}{
+		{"nil time", PartView{}, ""},
+		{"missing keys", PartView{Time: map[string]any{}}, ""},
+		{"end <= start", PartView{Time: map[string]any{"start": float64(1000), "end": float64(500)}}, ""},
+		{"sub-second", PartView{Time: map[string]any{"start": float64(1000), "end": float64(1500)}}, "500ms"},
+		{"seconds", PartView{Time: map[string]any{"start": float64(1000), "end": float64(3500)}}, "2.5s"},
+		{"exact second", PartView{Time: map[string]any{"start": float64(0), "end": float64(1000)}}, "1.0s"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := partDuration(tt.part)
+			if got != tt.want {
+				t.Errorf("partDuration() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTruncateStr_Table(t *testing.T) {
+	tests := []struct {
+		s      string
+		maxLen int
+		want   string
+	}{
+		{"short", 10, "short"},
+		{"abcdefghij", 5, "abcd…"},
+		{"newline\nhere", 20, "newline here"},
+		{"tiny", 3, "tiny"},          // maxLen < 4 clamped to 4
+		{"abcde", 4, "abc…"},
+		{"exact", 5, "exact"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.s, func(t *testing.T) {
+			got := truncateStr(tt.s, tt.maxLen)
+			if got != tt.want {
+				t.Errorf("truncateStr(%q, %d) = %q, want %q", tt.s, tt.maxLen, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderParts_TextOnly(t *testing.T) {
+	md := testRenderer()
+	parts := []PartView{
+		{Type: "text", Text: "hello world"},
+	}
+	got := renderParts(parts, 80, md)
+	if !strings.Contains(stripANSI(got), "hello world") {
+		t.Errorf("expected text content, got %q", got)
+	}
+}
+
+func TestRenderParts_EmptyText(t *testing.T) {
+	md := testRenderer()
+	parts := []PartView{
+		{Type: "text", Text: ""},
+	}
+	got := renderParts(parts, 80, md)
+	if got != "" {
+		t.Errorf("expected empty for empty text, got %q", got)
+	}
+}
+
+func TestRenderParts_ToolCallAndResult(t *testing.T) {
+	md := testRenderer()
+	parts := []PartView{
+		{Type: "tool-call", ToolName: "bash", ToolArgs: `{"command":"ls"}`},
+		{Type: "tool-result", Text: "file.txt\ndir/", ToolName: "bash"},
+	}
+	got := stripANSI(renderParts(parts, 80, md))
+	if !strings.Contains(got, "ls") {
+		t.Errorf("expected tool call rendered, got %q", got)
+	}
+}
+
+func TestRenderParts_UnifiedToolType(t *testing.T) {
+	md := testRenderer()
+	parts := []PartView{
+		{Type: "tool", ToolName: "bash", ToolArgs: `{"command":"pwd"}`, Text: "/home/user", Time: map[string]any{"start": float64(1000), "end": float64(2000)}},
+	}
+	got := stripANSI(renderParts(parts, 80, md))
+	if !strings.Contains(got, "pwd") {
+		t.Errorf("expected unified tool content, got %q", got)
+	}
+}
+
+func TestRenderParts_DefaultTypeRendersAsText(t *testing.T) {
+	md := testRenderer()
+	parts := []PartView{
+		{Type: "unknown-type", Text: "fallback content"},
+	}
+	got := stripANSI(renderParts(parts, 80, md))
+	if !strings.Contains(got, "fallback content") {
+		t.Errorf("default type should render as text, got %q", got)
+	}
+}
+
+func TestRenderParts_NarrowWidth(t *testing.T) {
+	md := testRenderer()
+	parts := []PartView{
+		{Type: "text", Text: "hello"},
+	}
+	got := renderParts(parts, 5, md)
+	if got == "" {
+		t.Error("expected content even with small width (clamped to 10)")
+	}
+}
+
+func TestRenderToolResultPart_ErrorInline(t *testing.T) {
+	part := PartView{Type: "tool-result", ToolName: "bash", ToolError: true, Text: "fail"}
+	got := renderToolResultPart(part, 80)
+	if got == "" {
+		t.Error("error tool result should render")
+	}
+}
+
+func TestRenderToolResultPart_CollapsedExplicit(t *testing.T) {
+	part := PartView{Type: "tool-result", ToolName: "bash", Collapsed: true, Text: "output"}
+	got := renderToolResultPart(part, 80)
+	if got != "" {
+		t.Errorf("collapsed tool result should be empty, got %q", got)
+	}
+}
+
+func TestRenderToolResultPart_ReadCollapsed(t *testing.T) {
+	part := PartView{Type: "tool-result", ToolName: "read", Text: "file contents"}
+	got := renderToolResultPart(part, 80)
+	if got != "" {
+		t.Errorf("read tool results should be collapsed, got %q", got)
+	}
+}
+
+func TestRenderToolResultPart_TruncatesLongOutput(t *testing.T) {
+	lines := make([]string, 20)
+	for i := range lines {
+		lines[i] = "line"
+	}
+	part := PartView{Type: "tool-result", ToolName: "bash", Text: strings.Join(lines, "\n")}
+	got := stripANSI(renderToolResultPart(part, 80))
+	if !strings.Contains(got, "more lines") {
+		t.Errorf("expected truncation indicator, got %q", got)
+	}
+}
+
+func TestShouldSuppressBareTool(t *testing.T) {
+	tests := []struct {
+		name     string
+		part     PartView
+		suppress bool
+	}{
+		{"read with path", PartView{ToolName: "read", ToolArgs: `{"file_path":"/tmp/a"}`}, false},
+		{"read without path", PartView{ToolName: "read", ToolArgs: `{}`}, true},
+		{"read empty args", PartView{ToolName: "read", ToolArgs: ""}, true},
+		{"read with error", PartView{ToolName: "read", ToolArgs: "", ToolError: true}, false},
+		{"bash always shows", PartView{ToolName: "bash", ToolArgs: ""}, false},
+		{"write no path", PartView{ToolName: "write", ToolArgs: `{}`}, true},
+		{"edit no path", PartView{ToolName: "edit", ToolArgs: `{}`}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := shouldSuppressBareTool(tt.part)
+			if got != tt.suppress {
+				t.Errorf("shouldSuppressBareTool() = %v, want %v", got, tt.suppress)
+			}
+		})
+	}
+}

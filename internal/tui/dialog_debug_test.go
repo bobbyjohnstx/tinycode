@@ -133,3 +133,15 @@ func TestHelpCommands_SessionLeaderKeyIsO(t *testing.T) {
 		t.Error("help-commands.md should not list obsolete `s` sessions binding")
 	}
 }
+
+func TestDebugDialog_Hide(t *testing.T) {
+	d := NewDebugDialog()
+	d.Show("Title", "info text")
+	if !d.IsVisible() {
+		t.Fatal("expected visible")
+	}
+	d.Hide()
+	if d.IsVisible() {
+		t.Error("expected hidden after Hide")
+	}
+}

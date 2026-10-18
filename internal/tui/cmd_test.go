@@ -2501,3 +2501,94 @@ func TestSessionInfoFromAPI_NoModel(t *testing.T) {
 		t.Errorf("expected empty ProviderID, got %q", info.ProviderID)
 	}
 }
+
+func TestParseAskedQuestion_NoQuestions(t *testing.T) {
+	q, opts := parseAskedQuestion(map[string]any{})
+	if q != "" {
+		t.Errorf("question = %q, want empty", q)
+	}
+	if opts != nil {
+		t.Errorf("options = %v, want nil", opts)
+	}
+}
+
+func TestParseAskedQuestion_FallbackToQuestionProp(t *testing.T) {
+	q, opts := parseAskedQuestion(map[string]any{
+		"question": "What is your name?",
+	})
+	if q != "What is your name?" {
+		t.Errorf("question = %q", q)
+	}
+	if opts != nil {
+		t.Errorf("options = %v, want nil", opts)
+	}
+}
+
+func TestParseAskedQuestion_QuestionsArray(t *testing.T) {
+	q, opts := parseAskedQuestion(map[string]any{
+		"questions": []any{
+			map[string]any{
+				"question": "Pick a color",
+				"options": []any{
+					map[string]any{"label": "Red"},
+					map[string]any{"label": "Blue"},
+				},
+			},
+		},
+	})
+	if q != "Pick a color" {
+		t.Errorf("question = %q", q)
+	}
+	if len(opts) != 2 || opts[0] != "Red" || opts[1] != "Blue" {
+		t.Errorf("options = %v", opts)
+	}
+}
+
+func TestParseAskedQuestion_StringOptions(t *testing.T) {
+	q, opts := parseAskedQuestion(map[string]any{
+		"questions": []any{
+			map[string]any{
+				"question": "Which?",
+				"options":  []any{"A", "B", "C"},
+			},
+		},
+	})
+	if q != "Which?" {
+		t.Errorf("question = %q", q)
+	}
+	if len(opts) != 3 {
+		t.Errorf("options = %v", opts)
+	}
+}
+
+func TestParseAskedQuestion_EmptyOptionSkipped(t *testing.T) {
+	_, opts := parseAskedQuestion(map[string]any{
+		"questions": []any{
+			map[string]any{
+				"question": "Q",
+				"options":  []any{"A", "", "B"},
+			},
+		},
+	})
+	if len(opts) != 2 {
+		t.Errorf("expected empty options filtered, got %v", opts)
+	}
+}
+
+func TestParseAskedQuestion_MixedOptionTypes(t *testing.T) {
+	_, opts := parseAskedQuestion(map[string]any{
+		"questions": []any{
+			map[string]any{
+				"question": "Q",
+				"options": []any{
+					"plain",
+					map[string]any{"label": "labeled"},
+					map[string]any{"notlabel": "skip"},
+				},
+			},
+		},
+	})
+	if len(opts) != 2 || opts[0] != "plain" || opts[1] != "labeled" {
+		t.Errorf("options = %v", opts)
+	}
+}

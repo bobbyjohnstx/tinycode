@@ -171,3 +171,113 @@ func TestFormatTokenCount(t *testing.T) {
 		}
 	}
 }
+
+func TestAnalyzeContext_ToolCallCategorization(t *testing.T) {
+	msgs := []MessageView{
+		{
+			Info: MessageInfo{Role: "assistant"},
+			Parts: []PartView{
+				{Type: "text", Text: "I'll read the file"},
+				{Type: "tool_call", ToolName: "read", ToolArgs: `{"file_path":"/tmp/a.go"}`},
+			},
+		},
+		{
+			Info: MessageInfo{Role: "assistant"},
+			Parts: []PartView{
+				{Type: "tool_result", ToolName: "read", Text: "package main"},
+			},
+		},
+	}
+	b := AnalyzeContext(msgs, 1000, 0)
+	if b.ToolCallTokens == 0 {
+		t.Error("expected tool call tokens > 0")
+	}
+	if b.ToolResultTokens == 0 {
+		t.Error("expected tool result tokens > 0")
+	}
+}
+
+func TestAnalyzeContext_LargestItemTracking(t *testing.T) {
+	bigText := make([]byte, 200)
+	for i := range bigText {
+		bigText[i] = 'x'
+	}
+	msgs := []MessageView{
+		{
+			Info:  MessageInfo{Role: "user"},
+			Parts: []PartView{{Type: "text", Text: "short"}},
+		},
+		{
+			Info:  MessageInfo{Role: "assistant"},
+			Parts: []PartView{{Type: "text", Text: string(bigText)}},
+		},
+	}
+	b := AnalyzeContext(msgs, 1000, 0)
+	if b.LargestItem == "" {
+		t.Error("expected LargestItem to be set")
+	}
+	if b.LargestSize == 0 {
+		t.Error("expected LargestSize > 0")
+	}
+}
+
+func TestAnalyzeContext_SystemRole(t *testing.T) {
+	msgs := []MessageView{
+		{
+			Info:  MessageInfo{Role: "system"},
+			Parts: []PartView{{Type: "text", Text: "You are a helpful assistant"}},
+		},
+	}
+	b := AnalyzeContext(msgs, 1000, 0)
+	if b.SystemTokens == 0 {
+		t.Error("expected system tokens > 0")
+	}
+}
+
+func TestEstimateChars(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{"", 0},
+		{"a", 1},
+		{"abc", 1},
+		{"abcd", 1},
+		{"abcde", 2},
+		{"12345678", 2},
+	}
+	for _, tt := range tests {
+		got := estimateChars(tt.input)
+		if got != tt.want {
+			t.Errorf("estimateChars(%q) = %d, want %d", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestContextDialog_Hide(t *testing.T) {
+	d := NewContextDialog()
+	d.Show(ContextBreakdown{TotalTokens: 50})
+	if !d.IsVisible() {
+		t.Fatal("expected visible")
+	}
+	d.Hide()
+	if d.IsVisible() {
+		t.Error("expected hidden after Hide")
+	}
+}
+
+func TestContextDialog_View(t *testing.T) {
+	d := NewContextDialog()
+	d.Show(ContextBreakdown{
+		TotalTokens:  1000,
+		ContextLimit: 4000,
+		Percent:      25,
+		UserTokens:   500,
+		SystemTokens: 300,
+	})
+	d.SetSize(80, 24)
+	view := d.View()
+	if view == "" {
+		t.Error("expected non-empty view")
+	}
+}

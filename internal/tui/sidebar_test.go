@@ -586,3 +586,27 @@ func TestFilterTitledSessions_ShowsNewSession(t *testing.T) {
 		t.Errorf("expected Named, got %q", got[1].Title)
 	}
 }
+
+func TestSidebar_SetCwd(t *testing.T) {
+	s := NewSidebar()
+	s.SetCwd("/tmp/project")
+	if s.cwd != "/tmp/project" {
+		t.Errorf("expected /tmp/project, got %q", s.cwd)
+	}
+}
+
+func TestSidebar_SetModel(t *testing.T) {
+	s := NewSidebar()
+	s.SetModel("qwen3:8b")
+	if s.model != "qwen3:8b" {
+		t.Errorf("expected qwen3:8b, got %q", s.model)
+	}
+}
+
+func TestSidebar_SetContext(t *testing.T) {
+	s := NewSidebar()
+	s.SetContext(ContextStats{InputTokens: 100, OutputTokens: 50})
+	if s.context.InputTokens != 100 {
+		t.Errorf("expected 100 input tokens, got %d", s.context.InputTokens)
+	}
+}

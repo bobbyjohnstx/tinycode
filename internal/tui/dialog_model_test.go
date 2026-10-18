@@ -79,3 +79,83 @@ func TestModelDialog_APIKeyEnter_EmitsStoreMsg(t *testing.T) {
 		t.Errorf("expected sk-test-key, got %q", store.APIKey)
 	}
 }
+
+func TestEnsureScrollVisible_Table(t *testing.T) {
+	tests := []struct {
+		name                          string
+		selected, scroll, maxVis, total int
+		want                          int
+	}{
+		{"selected above scroll", 2, 5, 10, 20, 2},
+		{"selected below visible", 15, 0, 10, 20, 6},
+		{"already visible", 5, 3, 10, 20, 3},
+		{"scroll past end", 19, 19, 10, 20, 10},
+		{"negative scroll", 0, -5, 10, 20, 0},
+		{"zero total", 0, 0, 10, 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ensureScrollVisible(tt.selected, tt.scroll, tt.maxVis, tt.total)
+			if got != tt.want {
+				t.Errorf("ensureScrollVisible(%d,%d,%d,%d) = %d, want %d",
+					tt.selected, tt.scroll, tt.maxVis, tt.total, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWrapIndex_Table(t *testing.T) {
+	tests := []struct {
+		i, length, want int
+	}{
+		{0, 5, 0},
+		{4, 5, 4},
+		{5, 5, 0},
+		{-1, 5, 4},
+		{-5, 5, 0},
+		{7, 3, 1},
+		{0, 0, 0},
+	}
+	for _, tt := range tests {
+		got := wrapIndex(tt.i, tt.length)
+		if got != tt.want {
+			t.Errorf("wrapIndex(%d, %d) = %d, want %d", tt.i, tt.length, got, tt.want)
+		}
+	}
+}
+
+func TestMaxVisibleProviders_Small(t *testing.T) {
+	d := NewModelDialog()
+	d.height = 10
+	if got := d.maxVisibleProviders(); got != 3 {
+		t.Errorf("expected 3 (clamped), got %d", got)
+	}
+}
+
+func TestMaxVisibleProviders_Large(t *testing.T) {
+	d := NewModelDialog()
+	d.height = 30
+	got := d.maxVisibleProviders()
+	if got != 22 {
+		t.Errorf("expected 22, got %d", got)
+	}
+}
+
+func TestItoa_Table(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{42, "42"},
+		{100, "100"},
+		{9999, "9999"},
+	}
+	for _, tt := range tests {
+		got := itoa(tt.n)
+		if got != tt.want {
+			t.Errorf("itoa(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}

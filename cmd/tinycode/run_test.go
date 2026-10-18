@@ -597,6 +597,21 @@ func TestStdinMux_TextModeRoutesPermissionReply(t *testing.T) {
 	}
 }
 
+func TestCollectRunPrompt_PositionalOnly(t *testing.T) {
+	// Avoid Chdir/os.Exit paths: pass a non-directory positional prompt.
+	got := collectRunPrompt([]string{"fix", "the", "bug"}, true, false)
+	if got != "fix the bug" {
+		t.Fatalf("got %q", got)
+	}
+	// multi-turn + empty positionals is allowed (no os.Exit).
+	if got := collectRunPrompt(nil, true, false); got != "" {
+		t.Fatalf("empty multi-turn prompt = %q", got)
+	}
+	if got := collectRunPrompt(nil, false, true); got != "" {
+		t.Fatalf("empty permsJSON prompt = %q", got)
+	}
+}
+
 func TestExitCodeForRunError(t *testing.T) {
 	if got := exitCodeForRunError(context.Canceled); got != 130 {
 		t.Errorf("canceled = %d, want 130", got)

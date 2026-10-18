@@ -127,3 +127,28 @@ func TestComposeView_DoesNotInflateChromeHeight(t *testing.T) {
 		}
 	}
 }
+
+func TestFitTerminal_TruncatesLines(t *testing.T) {
+	view := "line1\nline2\nline3\nline4\nline5"
+	got := fitTerminal(view, 20, 3)
+	lines := strings.Split(got, "\n")
+	if len(lines) != 3 {
+		t.Errorf("expected 3 lines, got %d", len(lines))
+	}
+}
+
+func TestFitTerminal_PadsShortContent(t *testing.T) {
+	view := "line1"
+	got := fitTerminal(view, 20, 3)
+	lines := strings.Split(got, "\n")
+	if len(lines) != 3 {
+		t.Errorf("expected 3 lines after padding, got %d", len(lines))
+	}
+}
+
+func TestFitTerminal_ZeroSizes(t *testing.T) {
+	got := fitTerminal("hello", 0, 0)
+	if got == "" {
+		t.Error("expected non-empty even with zero sizes (clamped to 1)")
+	}
+}

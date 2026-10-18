@@ -87,3 +87,37 @@ func TestQuestionPrompt_removeQueued(t *testing.T) {
 		t.Fatalf("queue = %+v, want [q-3]", p.queue)
 	}
 }
+
+func TestQuestionPrompt_VisibleID_WhenHidden(t *testing.T) {
+	p := NewQuestionPrompt()
+	if id := p.VisibleID(); id != "" {
+		t.Errorf("expected empty VisibleID when hidden, got %q", id)
+	}
+}
+
+func TestQuestionPrompt_VisibleID_WhenShown(t *testing.T) {
+	p := NewQuestionPrompt()
+	p.Show(QuestionAskedMsg{ID: "q1", Question: "What?"})
+	if id := p.VisibleID(); id != "q1" {
+		t.Errorf("expected q1, got %q", id)
+	}
+}
+
+func TestQuestionPrompt_FocusCmd_WhenHidden(t *testing.T) {
+	p := NewQuestionPrompt()
+	if cmd := p.FocusCmd(); cmd != nil {
+		t.Error("expected nil cmd when hidden")
+	}
+}
+
+func TestQuestionPrompt_FocusCmd_WithOptions(t *testing.T) {
+	p := NewQuestionPrompt()
+	p.Show(QuestionAskedMsg{
+		ID:       "q2",
+		Question: "Pick one",
+		Options:  []string{"A", "B"},
+	})
+	if cmd := p.FocusCmd(); cmd != nil {
+		t.Error("expected nil cmd for options-based question (no text input to focus)")
+	}
+}

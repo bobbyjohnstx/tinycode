@@ -923,3 +923,46 @@ func TestUpdate_MessagePartUpdatedInsertsNewPart(t *testing.T) {
 		t.Errorf("expected text 'new part', got %q", result.messages[0].Parts[0].Text)
 	}
 }
+
+func TestHighlightLineRange_NoOp(t *testing.T) {
+	got := highlightLineRange("hello", 3, 3)
+	if got != "hello" {
+		t.Errorf("startCol == endCol should be identity, got %q", got)
+	}
+}
+
+func TestHighlightLineRange_Reversed(t *testing.T) {
+	got := highlightLineRange("hello", 5, 2)
+	if got != "hello" {
+		t.Errorf("startCol > endCol should be identity, got %q", got)
+	}
+}
+
+func TestHighlightLineRange_Basic(t *testing.T) {
+	got := highlightLineRange("abcdef", 1, 4)
+	if !strings.Contains(got, "\x1b[7m") {
+		t.Error("expected reverse video escape start")
+	}
+	if !strings.Contains(got, "\x1b[27m") {
+		t.Error("expected reverse video escape end")
+	}
+	// The content characters should still be present
+	if !strings.Contains(got, "a") || !strings.Contains(got, "f") {
+		t.Error("expected original characters preserved")
+	}
+}
+
+func TestHighlightLineRange_FullLine(t *testing.T) {
+	got := highlightLineRange("abc", 0, 3)
+	if !strings.Contains(got, "\x1b[7m") {
+		t.Error("expected highlight")
+	}
+}
+
+func TestHighlightLineRange_WithAnsiEscapes(t *testing.T) {
+	line := "\x1b[31mred\x1b[0m normal"
+	got := highlightLineRange(line, 0, 3)
+	if !strings.Contains(got, "\x1b[31m") {
+		t.Error("expected original ANSI to pass through")
+	}
+}
