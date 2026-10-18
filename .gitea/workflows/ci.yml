@@ -31,7 +31,9 @@ jobs:
 
   tui-e2e:
     name: TUI E2E
-    runs-on: ubuntu-latest
+    # Host label: tmux + bubbletea key handling is unreliable inside the
+    # thin node:20 job image; run on the Mac like local ./script/tui-test.sh.
+    runs-on: podman-host
     steps:
       - uses: actions/checkout@v4
 
@@ -39,13 +41,15 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install tmux
+      - name: Ensure tmux
         run: |
-          # Podman job images often run as root without sudo; GHA runners need sudo.
-          if [ "$(id -u)" -eq 0 ]; then
-            apt-get update && apt-get install -y tmux
+          if command -v tmux >/dev/null 2>&1; then
+            tmux -V
+          elif command -v brew >/dev/null 2>&1; then
+            brew install tmux
           else
-            sudo apt-get update && sudo apt-get install -y tmux
+            echo "tmux required on podman-host runner" >&2
+            exit 1
           fi
 
       - name: Build
@@ -56,8 +60,8 @@ jobs:
 
   fresh-env:
     name: Fresh-env smoke
-    # Host label: needs the Mac Podman engine (nested containers inside
-    # ubuntu-latest job images cannot reach the machine API cleanly).
+    # Host label: needs the Mac Podman engine. Do not set FRESH_ENV_NETWORK=host
+    # on macOS — Podman "host" is the VM, not the Mac where mock-llm listens.
     runs-on: podman-host
     steps:
       - uses: actions/checkout@v4
@@ -70,16 +74,14 @@ jobs:
         run: |
           if command -v jq >/dev/null 2>&1; then
             jq --version
-          elif [ "$(id -u)" -eq 0 ]; then
-            apt-get update && apt-get install -y jq
           elif command -v brew >/dev/null 2>&1; then
             brew install jq
           else
-            sudo apt-get update && sudo apt-get install -y jq
+            echo "jq required on podman-host runner" >&2
+            exit 1
           fi
 
       - name: Fresh-env smoke (--skip-tui)
         env:
           FRESH_ENV_ENGINE: podman
-          FRESH_ENV_NETWORK: host
         run: ./script/test-fresh-env.sh --skip-tui --release-install

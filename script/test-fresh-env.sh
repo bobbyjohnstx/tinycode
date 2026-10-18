@@ -202,17 +202,26 @@ fi
 log "    mock at $MOCK_URL"
 
 # Host gateway: podman uses host.containers.internal; docker prefers host.docker.internal.
-# FRESH_ENV_NETWORK=host makes the mock reachable at 127.0.0.1 (Linux CI).
+# FRESH_ENV_NETWORK=host makes the mock reachable at 127.0.0.1 (Linux CI only).
+# On macOS Podman, --network=host is the *VM* loopback — not the Mac where mock-llm
+# listens — so ignore host mode there and use the gateway hostname instead.
 USE_HOST_NET=0
 if [ "${FRESH_ENV_NETWORK:-}" = "host" ]; then
-  USE_HOST_NET=1
-  MOCK_IN_CONTAINER="http://127.0.0.1:18080"
-elif [ -n "${FRESH_ENV_HOST_GW:-}" ]; then
-  MOCK_IN_CONTAINER="http://${FRESH_ENV_HOST_GW}:18080"
-elif [ "$ENGINE" = docker ]; then
-  MOCK_IN_CONTAINER="http://host.docker.internal:18080"
-else
-  MOCK_IN_CONTAINER="http://host.containers.internal:18080"
+  if [ "$(uname -s)" = Darwin ] && [ "$ENGINE" = podman ]; then
+    log "    warn: FRESH_ENV_NETWORK=host ignored on macOS Podman (using host gateway)"
+  else
+    USE_HOST_NET=1
+    MOCK_IN_CONTAINER="http://127.0.0.1:18080"
+  fi
+fi
+if [ "$USE_HOST_NET" -eq 0 ]; then
+  if [ -n "${FRESH_ENV_HOST_GW:-}" ]; then
+    MOCK_IN_CONTAINER="http://${FRESH_ENV_HOST_GW}:18080"
+  elif [ "$ENGINE" = docker ]; then
+    MOCK_IN_CONTAINER="http://host.docker.internal:18080"
+  else
+    MOCK_IN_CONTAINER="http://host.containers.internal:18080"
+  fi
 fi
 
 # --- run inside clean container ---

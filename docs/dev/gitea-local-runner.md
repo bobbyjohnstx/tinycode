@@ -82,8 +82,9 @@ gitea-runner register --no-interactive \
   --labels "ubuntu-latest:docker://node:20-bookworm,ubuntu-22.04:docker://node:20-bookworm,podman-host:host" \
   -c /opt/homebrew/etc/gitea-runner/config.yaml
 
-# `podman-host:host` is for jobs that need the Mac Podman engine directly
-# (e.g. fresh-env nested containers). Other jobs keep ubuntu-latest.
+# `podman-host:host` is for jobs that need the Mac host directly:
+# fresh-env (Podman engine) and TUI e2e (tmux/bubbletea). Go tests stay on
+# ubuntu-latest (container image).
 brew services restart gitea-runner
 # Re-apply DOCKER_HOST in the LaunchAgent if brew overwrote the plist, then:
 launchctl bootout "gui/$(id -u)/sh.brew.gitea-runner" 2>/dev/null || true
