@@ -81,6 +81,18 @@ func PluginsArchiveURL(base, repo, tag, goos, goarch string) string {
 	return fmt.Sprintf("%s/%s/releases/download/%s/%s", base, repo, tag, filename)
 }
 
+// PluginArchiveURL builds the download URL for a single-plugin release tarball (#814).
+func PluginArchiveURL(base, repo, tag, name, goos, goarch string) string {
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	repo = strings.Trim(strings.TrimSpace(repo), "/")
+	filename := fmt.Sprintf("tinycode-plugin-%s-%s-%s.tar.gz", name, goos, goarch)
+	return fmt.Sprintf("%s/%s/releases/download/%s/%s", base, repo, tag, filename)
+}
+
+func isHTTPNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "404 not found")
+}
+
 func pluginsChecksumsURL(base, repo, tag string) string {
 	base = strings.TrimRight(strings.TrimSpace(base), "/")
 	repo = strings.Trim(strings.TrimSpace(repo), "/")
@@ -212,12 +224,29 @@ func InstallFromRelease(name string, opts InstallOptions) error {
 		client = &http.Client{Timeout: pluginHTTPTimeout}
 	}
 
-	archiveName := fmt.Sprintf("tinycode-plugins-%s-%s.tar.gz", goos, goarch)
-	cacheKey := tag + "|" + goos + "|" + goarch
-
-	archivePath, err := cachedOrDownloadArchive(client, cacheKey, cacheDir, archiveName, base, repo, tag)
+	checksumsURL := pluginsChecksumsURL(base, repo, tag)
+	checksumsBody, err := httpGetLimited(client, checksumsURL)
 	if err != nil {
-		return err
+		return fmt.Errorf("download checksums: %w", err)
+	}
+	checksums := string(checksumsBody)
+
+	// Prefer per-plugin archive; on HTTP 404 only, fall back to platform bundle.
+	pluginArchiveName := fmt.Sprintf("tinycode-plugin-%s-%s-%s.tar.gz", name, goos, goarch)
+	pluginCacheKey := tag + "|plugin|" + name + "|" + goos + "|" + goarch
+	pluginURL := PluginArchiveURL(base, repo, tag, name, goos, goarch)
+	archivePath, err := cachedOrDownloadArchive(client, pluginCacheKey, cacheDir, pluginArchiveName, pluginURL, checksums)
+	if err != nil {
+		if !isHTTPNotFound(err) {
+			return err
+		}
+		bundleName := fmt.Sprintf("tinycode-plugins-%s-%s.tar.gz", goos, goarch)
+		bundleKey := tag + "|bundle|" + goos + "|" + goarch
+		bundleURL := PluginsArchiveURL(base, repo, tag, goos, goarch)
+		archivePath, err = cachedOrDownloadArchive(client, bundleKey, cacheDir, bundleName, bundleURL, checksums)
+		if err != nil {
+			return err
+		}
 	}
 
 	if err := extractPluginMember(archivePath, name, destPath); err != nil {
@@ -227,7 +256,7 @@ func InstallFromRelease(name string, opts InstallOptions) error {
 	return nil
 }
 
-func cachedOrDownloadArchive(client *http.Client, cacheKey, cacheDir, archiveName, base, repo, tag string) (string, error) {
+func cachedOrDownloadArchive(client *http.Client, cacheKey, cacheDir, archiveName, archiveURL, checksumsBody string) (string, error) {
 	releaseCacheMu.Lock()
 	defer releaseCacheMu.Unlock()
 
@@ -237,15 +266,6 @@ func cachedOrDownloadArchive(client *http.Client, cacheKey, cacheDir, archiveNam
 		}
 		delete(releaseCache, cacheKey)
 	}
-
-	checksumsURL := pluginsChecksumsURL(base, repo, tag)
-	checksumsBody, err := httpGetLimited(client, checksumsURL)
-	if err != nil {
-		return "", fmt.Errorf("download checksums: %w", err)
-	}
-
-	parts := strings.Split(cacheKey, "|")
-	archiveURL := PluginsArchiveURL(base, repo, tag, parts[1], parts[2])
 
 	tmp, err := os.CreateTemp(cacheDir, "plugins-*.tar.gz")
 	if err != nil {
@@ -267,11 +287,11 @@ func cachedOrDownloadArchive(client *http.Client, cacheKey, cacheDir, archiveNam
 		return "", err
 	}
 
-	if err := VerifySHA256(tmpPath, string(checksumsBody), archiveName); err != nil {
+	if err := VerifySHA256(tmpPath, checksumsBody, archiveName); err != nil {
 		return "", err
 	}
 
-	finalPath := filepath.Join(cacheDir, archiveName+"."+tag)
+	finalPath := filepath.Join(cacheDir, archiveName+"."+strings.ReplaceAll(cacheKey, "|", "_"))
 	_ = os.Remove(finalPath)
 	if err := os.Rename(tmpPath, finalPath); err != nil {
 		// Cross-device: fall back to keeping temp path in cache map.

@@ -34,7 +34,7 @@ brew install bobbyjohnstx/tap/tinycode
 
 Download a platform archive from [GitHub Releases](https://github.com/bobbyjohnstx/tinycode/releases) (for example `tinycode-darwin-arm64.tar.gz`), extract the `tinycode` binary, and place it on your `PATH`.
 
-Curated plugins ship separately as `tinycode-plugins-{os}-{arch}.tar.gz` on the same release. Install with `tinycode plugin install <name>` (or `--from` / build from source), then add names to `"plugins"` in config — see [plugin-catalog.md](plugin-catalog.md).
+Curated plugins ship on the same release as a platform bundle (`tinycode-plugins-{os}-{arch}.tar.gz`) and as per-plugin archives (`tinycode-plugin-{name}-{os}-{arch}.tar.gz`). `tinycode plugin install <name>` prefers the per-plugin asset (SHA-256 verified) and falls back to the bundle only on HTTP 404. You can also use `--from` / build from source, then add names to `"plugins"` in config — see [plugin-catalog.md](plugin-catalog.md).
 
 ## Build from source
 

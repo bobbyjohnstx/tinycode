@@ -102,7 +102,8 @@ package: build-all-full
 		rm -rf "$$stageDir"; \
 	done
 
-## package-plugins: Build and pack tinycode-plugins-{os}-{arch}.tar.gz (4 platforms; no Windows)
+## package-plugins: Build platform bundles + per-plugin tarballs (4 platforms; no Windows)
+## Bundle: tinycode-plugins-{os}-{arch}.tar.gz; per-plugin: tinycode-plugin-{name}-{os}-{arch}.tar.gz
 ## Archive members use registry names (strip leading plugin- from cmd/plugin-<name>).
 package-plugins:
 	@mkdir -p dist/release
@@ -119,8 +120,14 @@ package-plugins:
 			GOOS=$$os GOARCH=$$arch go build -ldflags "-s -w" -o "$$stageDir/$$regName" ./$$dir; \
 		done; \
 		tar -czf "dist/release/tinycode-plugins-$${os}-$${arch}.tar.gz" -C "$$stageDir" .; \
-		rm -rf "$$stageDir"; \
 		echo "Created dist/release/tinycode-plugins-$${os}-$${arch}.tar.gz"; \
+		for bin in "$$stageDir"/*; do \
+			[ -f "$$bin" ] || continue; \
+			regName=$$(basename "$$bin"); \
+			tar -czf "dist/release/tinycode-plugin-$${regName}-$${os}-$${arch}.tar.gz" -C "$$stageDir" "$$regName"; \
+			echo "Created dist/release/tinycode-plugin-$${regName}-$${os}-$${arch}.tar.gz"; \
+		done; \
+		rm -rf "$$stageDir"; \
 	done
 
 ## test: Run all tests

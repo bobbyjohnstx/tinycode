@@ -1,8 +1,8 @@
 # Plugin Catalog
 
-**Start here.** Look up a plugin by category below. Install with `tinycode plugin install <name>` (downloads from the release plugins bundle when available, or use `--from` / build from source), then enable it in `~/.config/tinycode/tinycode.json`. What each plugin needs for credentials is [plugin-credentials.md](plugin-credentials.md). How to write one is [plugin-development.md](plugin-development.md).
+**Start here.** Look up a plugin by category below. Install with `tinycode plugin install <name>` (prefers `tinycode-plugin-{name}-{os}-{arch}.tar.gz`, then falls back to the platform bundle on 404; or use `--from` / build from source), then enable it in `~/.config/tinycode/tinycode.json`. What each plugin needs for credentials is [plugin-credentials.md](plugin-credentials.md). How to write one is [plugin-development.md](plugin-development.md).
 
-Complete reference for the **31 curated external plugins** (available from `tinycode-plugins-{os}-{arch}.tar.gz` release bundles or source under `cmd/plugin-*`) and **4 core builtins** that run in-process. Installing a binary is not the same as enabling it — `plugin list` shows **INSTALLED** vs **IN_CONFIG** separately.
+Complete reference for the **31 curated external plugins** (per-plugin release assets, `tinycode-plugins-{os}-{arch}.tar.gz` bundles, or source under `cmd/plugin-*`) and **4 core builtins** that run in-process. Installing a binary is not the same as enabling it — `plugin list` shows **INSTALLED** vs **IN_CONFIG** separately.
 
 ## Quick Start
 

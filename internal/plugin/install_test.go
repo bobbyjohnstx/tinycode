@@ -255,6 +255,156 @@ func TestInstallFromRelease_ExtractOnlyRequested(t *testing.T) {
 	}
 }
 
+func TestPluginArchiveURL_Shape(t *testing.T) {
+	got := PluginArchiveURL("https://github.com", "bobbyjohnstx/tinycode", "v1.2.3", "semgrep", "linux", "amd64")
+	want := "https://github.com/bobbyjohnstx/tinycode/releases/download/v1.2.3/tinycode-plugin-semgrep-linux-amd64.tar.gz"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestInstallFromRelease_PreferPerPlugin(t *testing.T) {
+	ClearReleaseCache()
+	destDir := t.TempDir()
+	cacheDir := t.TempDir()
+
+	pluginArch, pluginSum := mustPluginArchive(t, map[string][]byte{
+		"safety-net": []byte("#!/bin/sh\necho prefer\n"),
+	})
+	bundleArch, bundleSum := mustPluginArchive(t, map[string][]byte{
+		"safety-net": []byte("#!/bin/sh\necho bundle\n"),
+	})
+	var hitBundle bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/checksums-sha256.txt"):
+			fmt.Fprintf(w, "%s  tinycode-plugin-safety-net-linux-amd64.tar.gz\n%s  tinycode-plugins-linux-amd64.tar.gz\n", pluginSum, bundleSum)
+		case strings.HasSuffix(r.URL.Path, "/tinycode-plugin-safety-net-linux-amd64.tar.gz"):
+			_, _ = w.Write(pluginArch)
+		case strings.HasSuffix(r.URL.Path, "/tinycode-plugins-linux-amd64.tar.gz"):
+			hitBundle = true
+			_, _ = w.Write(bundleArch)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	err := InstallFromRelease("safety-net", InstallOptions{
+		EmbeddedVersion: "v1.0.0",
+		GOOS:            "linux",
+		GOARCH:          "amd64",
+		BaseURL:         srv.URL,
+		Repo:            "owner/repo",
+		DestDir:         destDir,
+		CacheDir:        cacheDir,
+		HTTPClient:      srv.Client(),
+	})
+	if err != nil {
+		t.Fatalf("InstallFromRelease: %v", err)
+	}
+	if hitBundle {
+		t.Fatal("bundle should not be downloaded when per-plugin is present")
+	}
+	body, err := os.ReadFile(filepath.Join(destDir, "safety-net"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "prefer") {
+		t.Fatalf("dest body = %q, want prefer archive", body)
+	}
+}
+
+func TestInstallFromRelease_Fallback404ToBundle(t *testing.T) {
+	ClearReleaseCache()
+	destDir := t.TempDir()
+	cacheDir := t.TempDir()
+
+	bundleArch, bundleSum := mustPluginArchive(t, map[string][]byte{
+		"safety-net": []byte("#!/bin/sh\necho from-bundle\n"),
+	})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/checksums-sha256.txt"):
+			fmt.Fprintf(w, "%s  tinycode-plugins-linux-amd64.tar.gz\n", bundleSum)
+		case strings.HasSuffix(r.URL.Path, "/tinycode-plugins-linux-amd64.tar.gz"):
+			_, _ = w.Write(bundleArch)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	err := InstallFromRelease("safety-net", InstallOptions{
+		EmbeddedVersion: "v1.0.0",
+		GOOS:            "linux",
+		GOARCH:          "amd64",
+		BaseURL:         srv.URL,
+		Repo:            "owner/repo",
+		DestDir:         destDir,
+		CacheDir:        cacheDir,
+		HTTPClient:      srv.Client(),
+	})
+	if err != nil {
+		t.Fatalf("InstallFromRelease: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(destDir, "safety-net"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "from-bundle") {
+		t.Fatalf("dest = %q", body)
+	}
+}
+
+func TestInstallFromRelease_PreferBadChecksumNoFallback(t *testing.T) {
+	ClearReleaseCache()
+	destDir := t.TempDir()
+	cacheDir := t.TempDir()
+
+	pluginArch, _ := mustPluginArchive(t, map[string][]byte{"safety-net": []byte("bin")})
+	bundleArch, bundleSum := mustPluginArchive(t, map[string][]byte{"safety-net": []byte("bundle")})
+	var hitBundle bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/checksums-sha256.txt"):
+			fmt.Fprintf(w, "%s  tinycode-plugin-safety-net-linux-amd64.tar.gz\n%s  tinycode-plugins-linux-amd64.tar.gz\n",
+				strings.Repeat("0", 64), bundleSum)
+		case strings.HasSuffix(r.URL.Path, "/tinycode-plugin-safety-net-linux-amd64.tar.gz"):
+			_, _ = w.Write(pluginArch)
+		case strings.HasSuffix(r.URL.Path, "/tinycode-plugins-linux-amd64.tar.gz"):
+			hitBundle = true
+			_, _ = w.Write(bundleArch)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	err := InstallFromRelease("safety-net", InstallOptions{
+		EmbeddedVersion: "v1.0.0",
+		GOOS:            "linux",
+		GOARCH:          "amd64",
+		BaseURL:         srv.URL,
+		Repo:            "owner/repo",
+		DestDir:         destDir,
+		CacheDir:        cacheDir,
+		HTTPClient:      srv.Client(),
+	})
+	if err == nil {
+		t.Fatal("expected checksum error")
+	}
+	if !strings.Contains(err.Error(), "checksum") {
+		t.Fatalf("expected checksum error, got %v", err)
+	}
+	if hitBundle {
+		t.Fatal("must not fall back to bundle on bad per-plugin checksum")
+	}
+	if _, err := os.Stat(filepath.Join(destDir, "safety-net")); !os.IsNotExist(err) {
+		t.Fatal("dest should be absent")
+	}
+}
+
 func mustPluginArchive(t *testing.T, files map[string][]byte) ([]byte, string) {
 	t.Helper()
 	var buf bytes.Buffer
