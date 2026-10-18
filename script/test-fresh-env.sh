@@ -7,17 +7,24 @@
 # Machine-readable results land in .fresh-env-results/ for a refinement loop.
 #
 # Prerequisites:
-#   - podman
+#   - podman or docker
 #   - go (cross-compiles linux binaries into dist/fresh-env/; also runs mock-llm)
+#   - jq (summary.json)
 #
 # Usage:
 #   ./script/test-fresh-env.sh
 #   ./script/test-fresh-env.sh --skip-tui
-#   ./script/test-fresh-env.sh --skip-build   # reuse existing dist/fresh-env/* if present
+#   ./script/test-fresh-env.sh --skip-build          # reuse dist/fresh-env/* if present
+#   ./script/test-fresh-env.sh --release-install     # also smoke GitHub release plugin download
 #
 # Environment:
-#   FRESH_ENV_IMAGE   Image name (default: tinycode-fresh-env)
-#   FRESH_ENV_PLUGIN  Plugin to install (default: safety-net)
+#   FRESH_ENV_IMAGE          Image name (default: tinycode-fresh-env)
+#   FRESH_ENV_PLUGIN         Plugin to install (default: safety-net)
+#   FRESH_ENV_ENGINE         podman|docker (default: first available)
+#   FRESH_ENV_HOST_GW        Host gateway hostname (default: host.containers.internal
+#                            for podman, host.docker.internal for docker)
+#   FRESH_ENV_NETWORK        Set to "host" to share host net (CI-friendly mock access)
+#   FRESH_ENV_PLUGIN_RELEASE Release tag for --release-install (default: v2.4.1)
 
 set -euo pipefail
 
@@ -29,22 +36,36 @@ PLUGIN="${FRESH_ENV_PLUGIN:-safety-net}"
 RESULTS_DIR="${ROOT}/.fresh-env-results"
 SKIP_BUILD=0
 SKIP_TUI=0
+RELEASE_INSTALL=0
 
 for arg in "$@"; do
   case "$arg" in
     --skip-build) SKIP_BUILD=1 ;;
     --skip-tui) SKIP_TUI=1 ;;
+    --release-install) RELEASE_INSTALL=1 ;;
     -h|--help)
-      sed -n '2,25p' "$0"
+      sed -n '2,30p' "$0"
       exit 0
       ;;
   esac
 done
 
-if ! command -v podman >/dev/null 2>&1; then
-  echo "podman not found — install podman to run fresh-env smoke" >&2
+if [ -n "${FRESH_ENV_ENGINE:-}" ]; then
+  ENGINE="$FRESH_ENV_ENGINE"
+elif command -v podman >/dev/null 2>&1; then
+  ENGINE=podman
+elif command -v docker >/dev/null 2>&1; then
+  ENGINE=docker
+else
+  echo "podman or docker required to run fresh-env smoke" >&2
   exit 1
 fi
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq not found — install jq to write summary.json" >&2
+  exit 1
+fi
+log_pre() { echo "$*"; }
+log_pre "==> Container engine: $ENGINE"
 
 mkdir -p "$RESULTS_DIR"
 SUMMARY_JSON="$RESULTS_DIR/summary.json"
@@ -67,9 +88,14 @@ record() {
 }
 
 # Container runs Linux; host may be darwin — always cross-compile for the
-# podman engine arch so mounted binaries are ELF, not Mach-O.
+# engine arch so mounted binaries are ELF, not Mach-O.
 TARGET_OS=linux
-TARGET_ARCH="$(podman info --format '{{.Host.Arch}}' 2>/dev/null || true)"
+TARGET_ARCH=""
+if [ "$ENGINE" = podman ]; then
+  TARGET_ARCH="$(podman info --format '{{.Host.Arch}}' 2>/dev/null || true)"
+elif [ "$ENGINE" = docker ]; then
+  TARGET_ARCH="$(docker info --format '{{.Architecture}}' 2>/dev/null || true)"
+fi
 case "$TARGET_ARCH" in
   amd64|arm64) ;;
   x86_64) TARGET_ARCH=amd64 ;;
@@ -79,7 +105,7 @@ case "$TARGET_ARCH" in
       x86_64|amd64) TARGET_ARCH=amd64 ;;
       *) TARGET_ARCH=arm64 ;;
     esac
-    log "    warn: could not read podman arch; assuming $TARGET_ARCH"
+    log "    warn: could not read $ENGINE arch; assuming $TARGET_ARCH"
     ;;
 esac
 
@@ -119,10 +145,10 @@ if command -v file >/dev/null 2>&1; then
   fi
 fi
 
-log "==> Building fresh-env image ($IMAGE)"
-podman build -f Containerfile.fresh-env -t "$IMAGE" . >>"$RESULTS_DIR/log.txt" 2>&1
+log "==> Building fresh-env image ($IMAGE) with $ENGINE"
+"$ENGINE" build -f Containerfile.fresh-env -t "$IMAGE" . >>"$RESULTS_DIR/log.txt" 2>&1
 
-# --- mock LLM on host (reachable via host.containers.internal / host gateway) ---
+# --- mock LLM on host (reachable via host gateway or --network=host) ---
 SCENARIO="$RESULTS_DIR/scenario.json"
 cat >"$SCENARIO" <<EOF
 [
@@ -150,7 +176,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-log "==> Starting mock LLM (0.0.0.0 so podman host-gateway can reach it)"
+log "==> Starting mock LLM (0.0.0.0 so container host-gateway can reach it)"
 (
   cd "$ROOT"
   # Bind all interfaces — 127.0.0.1 is unreachable from the container VM/network ns.
@@ -175,30 +201,58 @@ if [ -z "$MOCK_URL" ]; then
 fi
 log "    mock at $MOCK_URL"
 
-# Host gateway for containers (podman)
-HOST_GW="${FRESH_ENV_HOST_GW:-host.containers.internal}"
-MOCK_IN_CONTAINER="http://${HOST_GW}:18080"
+# Host gateway: podman uses host.containers.internal; docker prefers host.docker.internal.
+# FRESH_ENV_NETWORK=host makes the mock reachable at 127.0.0.1 (Linux CI).
+USE_HOST_NET=0
+if [ "${FRESH_ENV_NETWORK:-}" = "host" ]; then
+  USE_HOST_NET=1
+  MOCK_IN_CONTAINER="http://127.0.0.1:18080"
+elif [ -n "${FRESH_ENV_HOST_GW:-}" ]; then
+  MOCK_IN_CONTAINER="http://${FRESH_ENV_HOST_GW}:18080"
+elif [ "$ENGINE" = docker ]; then
+  MOCK_IN_CONTAINER="http://host.docker.internal:18080"
+else
+  MOCK_IN_CONTAINER="http://host.containers.internal:18080"
+fi
 
 # --- run inside clean container ---
 # Use bash -c (not -lc): login shells source /etc/profile and overwrite PATH,
 # which drops /go/bin where the image installs gopls — lsp_* then fails silently.
+# Scripts are written to a file and mounted — embedding in bash -c "..." breaks on
+# quotes (e.g. tmux send-keys -l -- "hello …").
 CONTAINER_PATH="/go/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin"
 run_in_container() {
-  podman run --rm \
-    --add-host=host.containers.internal:host-gateway \
-    -v "$TINYCODE_BIN:/usr/local/bin/tinycode:ro" \
-    -v "$PLUGIN_BIN:/opt/plugins/$PLUGIN:ro" \
-    -v "$RESULTS_DIR:/results:rw" \
-    -e HOME=/home/newuser \
-    -e TINYCODE_CONFIG_DIR=/home/newuser/.config/tinycode \
-    -e TINYCODE_DATA_DIR=/home/newuser/.local/share/tinycode \
-    -e TINYCODE_DB=/home/newuser/.local/share/tinycode/tinycode.db \
-    -e TINYCODE_DISABLE_MOUSE=1 \
-    -e TINYCODE_VLLM_HOST="$MOCK_IN_CONTAINER" \
-    -e OLLAMA_HOST=http://127.0.0.1:1 \
-    -e PATH="$CONTAINER_PATH" \
-    "$IMAGE" \
-    bash -c "export PATH=\"$CONTAINER_PATH\"; $*"
+  local script_file="$RESULTS_DIR/.container-script.sh"
+  # Write script literally (no host expansion of $HOME etc inside the body).
+  {
+    printf 'export PATH=%q\n' "$CONTAINER_PATH"
+    printf '%s\n' "$1"
+  } >"$script_file"
+  local -a run_args=(
+    run --rm
+    -v "$TINYCODE_BIN:/usr/local/bin/tinycode:ro"
+    -v "$PLUGIN_BIN:/opt/plugins/$PLUGIN:ro"
+    -v "$RESULTS_DIR:/results:rw"
+    -e HOME=/home/newuser
+    -e TINYCODE_CONFIG_DIR=/home/newuser/.config/tinycode
+    -e TINYCODE_DATA_DIR=/home/newuser/.local/share/tinycode
+    -e TINYCODE_DB=/home/newuser/.local/share/tinycode/tinycode.db
+    -e TINYCODE_DISABLE_MOUSE=1
+    -e TINYCODE_VLLM_HOST="$MOCK_IN_CONTAINER"
+    -e OLLAMA_HOST=http://127.0.0.1:1
+    -e PATH="$CONTAINER_PATH"
+    -e TERM=xterm-256color
+  )
+  if [ "$USE_HOST_NET" -eq 1 ]; then
+    run_args+=(--network=host)
+  else
+    run_args+=(--add-host=host.containers.internal:host-gateway)
+    run_args+=(--add-host=host.docker.internal:host-gateway)
+  fi
+  if [ -n "${FRESH_ENV_PLUGIN_RELEASE:-}" ] || [ "$RELEASE_INSTALL" -eq 1 ]; then
+    run_args+=(-e "TINYCODE_PLUGIN_RELEASE=${FRESH_ENV_PLUGIN_RELEASE:-v2.4.1}")
+  fi
+  "$ENGINE" "${run_args[@]}" "$IMAGE" bash /results/.container-script.sh
 }
 
 log "==> TC1: doctor on empty home (new-user tips)"
@@ -306,6 +360,7 @@ fi
 
 if [ "$SKIP_TUI" -eq 0 ]; then
   log "==> TC5: TUI smoke (tmux) — welcome + typed prompt"
+  # Poll for UI chrome before typing (fixed sleeps flake under load).
   TUI_OUT=$(run_in_container '
     mkdir -p "$HOME" "$TINYCODE_CONFIG_DIR" "$TINYCODE_DATA_DIR" /work/project
     cat > "$TINYCODE_CONFIG_DIR/config.json" <<JSON
@@ -322,29 +377,102 @@ JSON
     cd /work/project
     printf "module example.com/smoke\n\ngo 1.22\n" > go.mod
     SESSION=fresh-tui
-    tmux new-session -d -s "$SESSION" -x 120 -y 40 \
-      "TINYCODE_DISABLE_MOUSE=1 tinycode 2>/results/tui.stderr"
-    sleep 2
-    tmux capture-pane -t "$SESSION" -p > /results/tui-pane1.txt || true
-    tmux send-keys -t "$SESSION" "hello from fresh-env" Enter
-    sleep 3
-    tmux capture-pane -t "$SESSION" -p > /results/tui-pane2.txt || true
+    # Launch via shell (same pattern as script/tui-test.sh) so key events reach bubbletea.
+    # Styled input often does not show in capture-pane; assert placeholder clears, then
+    # history advances after Enter. Wait for prompt chrome — not the splash logo alone.
     tmux kill-session -t "$SESSION" 2>/dev/null || true
-    if grep -qE "hello from fresh-env|tinycode|Model|Agent" /results/tui-pane1.txt /results/tui-pane2.txt 2>/dev/null; then
+    tmux new-session -d -s "$SESSION" -x 120 -y 40
+    tmux send-keys -t "$SESSION" \
+      "cd /work/project && TINYCODE_DISABLE_MOUSE=1 tinycode 2>/results/tui.stderr" Enter
+    WELCOME_OK=0
+    for _ in $(seq 1 40); do
+      tmux capture-pane -t "$SESSION" -p > /results/tui-pane1.txt 2>/dev/null || true
+      if grep -qiE "Ask anything|build ·" /results/tui-pane1.txt 2>/dev/null; then
+        WELCOME_OK=1
+        break
+      fi
+      sleep 0.5
+    done
+    if [ "$WELCOME_OK" -ne 1 ]; then
+      echo TUI_FAIL_WELCOME
+      cat /results/tui-pane1.txt 2>/dev/null | tail -40
+      cat /results/tui.stderr 2>/dev/null | tail -20
+      tmux kill-session -t "$SESSION" 2>/dev/null || true
+      exit 0
+    fi
+    tmux send-keys -t "$SESSION" "hello from fresh-env"
+    TYPE_OK=0
+    for _ in $(seq 1 20); do
+      tmux capture-pane -t "$SESSION" -p > /results/tui-pane2.txt 2>/dev/null || true
+      # Placeholder gone => keys reached the editor (text itself may be invisible in capture).
+      if ! grep -q "Ask anything" /results/tui-pane2.txt 2>/dev/null; then
+        TYPE_OK=1
+        break
+      fi
+      # Or literal text visible
+      if grep -qF "hello from fresh-env" /results/tui-pane2.txt 2>/dev/null; then
+        TYPE_OK=1
+        break
+      fi
+      sleep 0.5
+    done
+    if [ "$TYPE_OK" -ne 1 ]; then
+      echo TUI_FAIL_TYPE
+      cat /results/tui-pane1.txt /results/tui-pane2.txt 2>/dev/null | tail -60
+      tmux kill-session -t "$SESSION" 2>/dev/null || true
+      exit 0
+    fi
+    tmux send-keys -t "$SESSION" Enter
+    SUBMIT_OK=0
+    for _ in $(seq 1 40); do
+      tmux capture-pane -t "$SESSION" -p > /results/tui-pane3.txt 2>/dev/null || true
+      if grep -qiE "history:|looked fine for the smoke|hello from fresh-env" /results/tui-pane3.txt 2>/dev/null; then
+        SUBMIT_OK=1
+        break
+      fi
+      sleep 0.5
+    done
+    tmux kill-session -t "$SESSION" 2>/dev/null || true
+    if [ "$SUBMIT_OK" -eq 1 ]; then
       echo TUI_OK
     else
-      echo TUI_FAIL
-      cat /results/tui-pane1.txt /results/tui-pane2.txt 2>/dev/null | tail -40
+      echo TUI_FAIL_SUBMIT
+      cat /results/tui-pane2.txt /results/tui-pane3.txt 2>/dev/null | tail -60
     fi
   ' || true)
   echo "$TUI_OUT" >"$RESULTS_DIR/tui.txt"
   if echo "$TUI_OUT" | grep -q TUI_OK; then
     record pass "tui-welcome-and-type"
+  elif echo "$TUI_OUT" | grep -q TUI_FAIL_WELCOME; then
+    record fail "tui-welcome-and-type" "UI chrome never appeared (see tui-pane1.txt / tui.stderr)"
+  elif echo "$TUI_OUT" | grep -q TUI_FAIL_TYPE; then
+    record fail "tui-welcome-and-type" "keys did not reach input (placeholder stayed; see tui-pane2.txt)"
   else
-    record fail "tui-welcome-and-type" "pane did not show expected UI/text"
+    record fail "tui-welcome-and-type" "submit did not advance conversation (see tui-pane3.txt)"
   fi
 else
   log "==> TC5: TUI skipped (--skip-tui)"
+fi
+
+if [ "$RELEASE_INSTALL" -eq 1 ]; then
+  RELEASE_TAG="${FRESH_ENV_PLUGIN_RELEASE:-v2.4.1}"
+  log "==> TC6: plugin install from GitHub release ($RELEASE_TAG)"
+  REL_OUT=$(run_in_container '
+    mkdir -p "$HOME" "$TINYCODE_CONFIG_DIR/plugins" "$TINYCODE_DATA_DIR" /work/project
+    # Empty project dir — no cmd/plugin-* source, so install must hit the release URL.
+    cd /work/project
+    export TINYCODE_PLUGIN_RELEASE='"$RELEASE_TAG"'
+    tinycode plugin install '"$PLUGIN"' 2>&1
+    test -x "$TINYCODE_CONFIG_DIR/plugins/'"$PLUGIN"'" && echo RELEASE_INSTALL_OK
+  ' || true)
+  echo "$REL_OUT" >"$RESULTS_DIR/plugin-release-install.txt"
+  if echo "$REL_OUT" | grep -q RELEASE_INSTALL_OK; then
+    record pass "plugin-release-install"
+  else
+    record fail "plugin-release-install" "$REL_OUT"
+  fi
+else
+  log "==> TC6: release-install skipped (pass --release-install)"
 fi
 
 # --- write summary ---

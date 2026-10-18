@@ -1,0 +1,60 @@
+name: Fresh-env smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - 'Containerfile.fresh-env'
+      - 'script/test-fresh-env.sh'
+      - 'script/mock-llm/**'
+      - '.github/workflows/fresh-env.yml'
+  push:
+    branches: [main]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Containerfile.fresh-env'
+      - 'script/test-fresh-env.sh'
+      - 'script/mock-llm/**'
+      - '.github/workflows/fresh-env.yml'
+  schedule:
+    # Weekly Sunday 06:00 UTC — catch quiet regressions
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fresh-env:
+    name: Fresh-env (headless)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Fresh-env smoke (--skip-tui)
+        env:
+          FRESH_ENV_ENGINE: docker
+          FRESH_ENV_NETWORK: host
+        run: ./script/test-fresh-env.sh --skip-tui --release-install
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-env-results
+          path: .fresh-env-results/
+          if-no-files-found: ignore
