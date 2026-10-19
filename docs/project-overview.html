@@ -1472,7 +1472,7 @@ section:last-of-type { border-bottom: none; }
       <div class="hero-content animate-in">
         <div class="hero-badge">
           <span class="dot"></span>
-          v2.3.4 &mdash; Single Binary
+          v2.5.0 &mdash; Single Binary
         </div>
         <h1>
           <span class="highlight">tinycode</span><br>
@@ -1497,7 +1497,7 @@ section:last-of-type { border-bottom: none; }
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
-            <span>30 plugins + 4 builtins</span>
+            <span>31 plugins + 4 builtins</span>
           </div>
           <div class="hero-feature">
             <span class="icon">&gt;</span>
@@ -1525,7 +1525,7 @@ section:last-of-type { border-bottom: none; }
         <div class="terminal-body">
           <div class="term-line"><span class="term-prompt">$ </span><span class="term-cmd">tinycode</span></div>
           <div class="term-line">&nbsp;</div>
-          <div class="term-line"><span class="term-success">tinycode</span> <span class="term-dim">v2.3.4</span> <span class="term-dim">&middot;</span> <span class="term-accent">ollama/qwen3:8b</span></div>
+          <div class="term-line"><span class="term-success">tinycode</span> <span class="term-dim">v2.5.0</span> <span class="term-dim">&middot;</span> <span class="term-accent">ollama/qwen3:8b</span></div>
           <div class="term-line"><span class="term-dim">session ses_01JAB &middot; ~/projects/myapp</span></div>
           <div class="term-line">&nbsp;</div>
           <div class="term-line"><span class="term-amber">you</span> <span class="term-dim">&gt;</span> <span class="term-output">add input validation to the user registration handler</span></div>
@@ -2198,7 +2198,7 @@ section:last-of-type { border-bottom: none; }
               <div class="pkg-card-detail-label">Key Types</div>
               <div class="pkg-card-detail-value"><code>Manager</code>, <code>Client</code>, language detection, 5 tools</div>
               <div class="pkg-card-detail-label">Pattern</div>
-              <div class="pkg-card-detail-value">Lazy-connects to language servers (gopls, pyright, rust-analyzer, typescript-language-server, clangd, jdtls). Exposes <code>lsp_diagnostics</code>, <code>lsp_hover</code>, <code>lsp_definition</code>, <code>lsp_references</code>, <code>lsp_symbols</code>, <code>lsp_document_symbols</code>. Auto-reconnects on server crash; LRU bounds open docs.</div>
+              <div class="pkg-card-detail-value">Lazy-connects to language servers (gopls, pyright, rust-analyzer, typescript-language-server, clangd, jdtls). Exposes 8 tools: <code>lsp_diagnostics</code>, <code>lsp_hover</code>, <code>lsp_definition</code>, <code>lsp_references</code>, <code>lsp_symbols</code>, <code>lsp_document_symbols</code>, <code>lsp_code_actions</code>, <code>lsp_rename</code>. Auto-reconnects on server crash; LRU bounds open docs.</div>
             </div>
           </div>
           <div class="pkg-card" data-pkg="redhat" data-search="redhat openshift oc api promql containerfile mlflow console auth">
@@ -2390,7 +2390,7 @@ section:last-of-type { border-bottom: none; }
 <section id="plugins">
   <div class="container">
     <div class="section-label animate-in">Plugin System</div>
-    <h2 class="section-title animate-in">30 plugins + 4 builtins</h2>
+    <h2 class="section-title animate-in">31 plugins + 4 builtins</h2>
     <p class="section-desc animate-in">
       Registry plugins are standalone binaries communicating over JSON-RPC via stdin/stdout. Four in-process builtins are always available. Tool IDs are namespaced as <code>plugin__{name}__{tool}</code>.
     </p>
@@ -3056,7 +3056,7 @@ tinycode run --max-iterations 20 \
     },
     lsp: {
       title: 'LSP Client (internal/lsp/)',
-      desc: 'Language Server Protocol client for code intelligence. Lazy-connects to language servers (gopls, pyright, rust-analyzer, typescript-language-server, clangd, jdtls) based on project language detection. Registers 6 tools: lsp_diagnostics, lsp_hover, lsp_definition, lsp_references, lsp_symbols, lsp_document_symbols. Auto-reconnects on crash; LRU caps open docs at 64.',
+      desc: 'Language Server Protocol client for code intelligence. Lazy-connects to language servers (gopls, pyright, rust-analyzer, typescript-language-server, clangd, jdtls) based on project language detection. Registers 8 tools: lsp_diagnostics, lsp_hover, lsp_definition, lsp_references, lsp_symbols, lsp_document_symbols, lsp_code_actions (list-only), lsp_rename (return-only). Auto-reconnects on crash; LRU caps open docs at 64. workspace/applyEdit always refused.',
       files: 'lsp/manager.go, lsp/client.go, lsp/tools.go, lsp/detect.go'
     },
     skill: {

@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-19
+
+### LSP
+- `lsp_code_actions` tool — list-only, read permission, shows available fixes (#794)
+- `lsp_rename` tool — return-only, computes WorkspaceEdit without writing files (#798)
+- WorkspaceEdit types; `workspace/applyEdit` always refused (no disk writes from LSP path)
+- `diagWaiters` cleared on late diagnostics to prevent stale waiter consumption
+
+### Plugins
+- Opt-in Semgrep Java security plugin (`cmd/plugin-semgrep`) (#803)
+- Per-plugin release assets with prefer→404→bundle fallback install (#814)
+
+### Doctor
+- New-user helpers: plugin tips when none configured, GOPATH/bin PATH detection, LSP marker summary with next-steps
+- Ctrl+D quits cleanly over the connect dialog
+
+### Testing
+- Fresh-env container smoke harness: 7 checks (doctor, plugin install, gopls, lsp_diagnostics, TUI, release-asset install)
+- Mock LLM (`script/mock-llm`) speaks SSE, built binary with port sweep, proper cleanup
+- CI wiring: `.github/workflows/fresh-env.yml` (PR/push + weekly cron), Gitea `fresh-env` job
+- TUI harness hardened: direct tmux exec, ready/dismiss polling, stale assert updates
+- Podman-host runner support; skip Darwin `--network host`
+
+### Docs
+- Testing methodology documented: Tier 4 fresh-env, updated coverage targets, mock LLM, fake LSP server, CI pipeline summary
+- Gitea local runner setup guide (`docs/dev/gitea-local-runner.md`)
+
 ## [2.4.1] - 2026-10-18
 
 ### Plugin Management (epic #806)
