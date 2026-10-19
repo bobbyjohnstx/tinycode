@@ -124,16 +124,35 @@ func TestHandleProvidersLoadedMsg_AutoOpensConnectWhenNoModel(t *testing.T) {
 		DefaultModel:    "",
 	}
 
-	result, _ := app.handleProvidersLoadedMsg(msg)
+	result, cmd := app.handleProvidersLoadedMsg(msg)
 
+	if result.modelDlg.IsVisible() {
+		t.Fatal("expected connect dialog not to open immediately")
+	}
+	if !result.state.PendingFirstRunConnect {
+		t.Fatal("expected PendingFirstRunConnect after providers load with no model")
+	}
+	if !result.state.FirstRunConnectOffered {
+		t.Error("expected FirstRunConnectOffered after scheduling first-run offer")
+	}
+	if cmd == nil {
+		t.Fatal("expected schedule cmd for deferred first-run connect")
+	}
+
+	result.welcome.bootDone = true
+	result.welcome.logoShow = logoRevealRows
+	result, _ = result.tryOfferFirstRunConnect()
 	if !result.modelDlg.IsVisible() {
-		t.Fatal("expected connect dialog to auto-open when no model")
+		t.Fatal("expected connect dialog after tips ready")
 	}
 	if result.focus != FocusDialog {
 		t.Errorf("focus = %v, want FocusDialog", result.focus)
 	}
-	if !result.state.FirstRunConnectOffered {
-		t.Error("expected FirstRunConnectOffered after auto-open")
+	if !result.modelDlg.firstRunHint {
+		t.Error("expected firstRunHint on deferred first-run open")
+	}
+	if result.state.PendingFirstRunConnect {
+		t.Error("expected PendingFirstRunConnect cleared after open")
 	}
 }
 
@@ -143,12 +162,18 @@ func TestHandleProvidersLoadedMsg_AutoOpenOnceOnly(t *testing.T) {
 		Providers: []ProviderInfo{{ID: "ollama", Name: "Ollama"}},
 	}
 	result, _ := app.handleProvidersLoadedMsg(msg)
+	result.welcome.bootDone = true
+	result.welcome.logoShow = logoRevealRows
+	result, _ = result.tryOfferFirstRunConnect()
 	result.modelDlg.Hide()
 	result.setFocus(FocusPrompt)
 
 	result, _ = result.handleProvidersLoadedMsg(msg)
 	if result.modelDlg.IsVisible() {
 		t.Fatal("expected connect dialog not to re-open after first offer")
+	}
+	if result.state.PendingFirstRunConnect {
+		t.Fatal("expected no pending first-run after first offer")
 	}
 }
 
@@ -169,13 +194,32 @@ func TestHandleProvidersLoadedMsg_NoAutoOpenWhenModelSet(t *testing.T) {
 	if result.state.FirstRunConnectOffered {
 		t.Error("FirstRunConnectOffered should stay false when model was set")
 	}
+	if result.state.PendingFirstRunConnect {
+		t.Error("PendingFirstRunConnect should stay false when model was set")
+	}
 }
 
 func TestHandleProvidersLoadedMsg_AutoOpensWithEmptyProviders(t *testing.T) {
 	app := NewApp("")
 	result, _ := app.handleProvidersLoadedMsg(ProvidersLoadedMsg{})
+	if result.modelDlg.IsVisible() {
+		t.Fatal("expected connect dialog deferred with empty provider list")
+	}
+	if !result.state.PendingFirstRunConnect {
+		t.Fatal("expected PendingFirstRunConnect with empty providers")
+	}
+	result.welcome.bootDone = true
+	result.welcome.logoShow = logoRevealRows
+	var handled bool
+	result, _, handled = result.handleStateMsg(offerFirstRunConnectMsg{})
+	if !handled {
+		t.Fatal("expected offerFirstRunConnectMsg handled")
+	}
 	if !result.modelDlg.IsVisible() {
-		t.Fatal("expected connect dialog even with empty provider list")
+		t.Fatal("expected connect dialog after offerFirstRunConnectMsg")
+	}
+	if !result.modelDlg.firstRunHint {
+		t.Error("expected firstRunHint for empty-providers first-run open")
 	}
 }
 

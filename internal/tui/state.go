@@ -145,21 +145,22 @@ type AppState struct {
 	SessionStatus map[string]SessionStatus
 
 	// Config-sourced data
-	ShellHooks    map[string][]config.HookConfig
+	ShellHooks map[string][]config.HookConfig
 
 	// Local UI state
-	CurrentAgent       string
-	CurrentModel       ModelSelection
-	CurrentTheme       string
-	ThinkingLevel      string
-	EffortLevel        string
-	ScopedModels       []string
-	CycleAgents        []string // preferred Tab cycle order from config (empty = defaults)
-	SidebarOpen        bool
-	Connected          bool
-	AutoApprove        bool
+	CurrentAgent           string
+	CurrentModel           ModelSelection
+	CurrentTheme           string
+	ThinkingLevel          string
+	EffortLevel            string
+	ScopedModels           []string
+	CycleAgents            []string // preferred Tab cycle order from config (empty = defaults)
+	SidebarOpen            bool
+	Connected              bool
+	AutoApprove            bool
 	PendingModelDialog     bool
 	PendingScopingMode     bool
+	PendingFirstRunConnect bool // soft first-run /connect waiting for welcome tips
 	FirstRunConnectOffered bool // auto-opened /connect once this session
 }
 

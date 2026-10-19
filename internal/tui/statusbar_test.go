@@ -138,6 +138,9 @@ func TestStatusBar_ViewShowsSpinnerWhenWorking(t *testing.T) {
 	if !strings.Contains(view, "thinking") {
 		t.Error("expected default activity 'thinking' while working")
 	}
+	if !strings.Contains(view, "interrupt") {
+		t.Error("expected interrupt hint while working")
+	}
 	// Elapsed telemetry (tokens omitted when zero).
 	if !strings.Contains(view, "s") {
 		t.Errorf("expected elapsed telemetry, got %q", view)
@@ -165,6 +168,9 @@ func TestStatusBar_WorkingShowsActivityAndTelemetry(t *testing.T) {
 	view := sb.View()
 	if !strings.Contains(view, "bash ls -la") {
 		t.Errorf("expected activity in working view, got %q", view)
+	}
+	if !strings.Contains(view, "interrupt") {
+		t.Error("expected interrupt hint alongside activity")
 	}
 	if !strings.Contains(view, "s · ") {
 		t.Errorf("expected elapsed pattern, got %q", view)
@@ -499,6 +505,10 @@ func TestSetCwd(t *testing.T) {
 	sb.SetCwd("/tmp/project")
 	if sb.Cwd() != "/tmp/project" {
 		t.Errorf("expected /tmp/project, got %q", sb.Cwd())
+	}
+	view := sb.View()
+	if !strings.Contains(view, "project") {
+		t.Errorf("expected cwd basename in idle view, got %q", view)
 	}
 }
 

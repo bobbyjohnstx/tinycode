@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -155,6 +156,10 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case bootTickMsg:
 		cmd := a.welcome.Tick()
+		a, offerCmd := a.tryOfferFirstRunConnect()
+		return a, tea.Batch(cmd, offerCmd), true
+	case offerFirstRunConnectMsg:
+		a, cmd := a.tryOfferFirstRunConnect()
 		return a, cmd, true
 	case AgentListMsg:
 		m, cmd := a.handleAgentListMsg(msg)
@@ -575,6 +580,7 @@ func (a App) handleProvidersLoadedMsg(msg ProvidersLoadedMsg) (App, tea.Cmd) {
 		a.prompt.SetMetadata(a.state.CurrentAgent, modelName, providerName)
 		a.status.SetModel(modelName, providerName)
 	}
+	var cmd tea.Cmd
 	if a.state.PendingModelDialog {
 		a.state.PendingModelDialog = false
 		a.modelDlg.SetScopedModels(a.state.ScopedModels)
@@ -582,6 +588,7 @@ func (a App) handleProvidersLoadedMsg(msg ProvidersLoadedMsg) (App, tea.Cmd) {
 			a.state.PendingScopingMode = false
 			a.modelDlg.ShowScoping(a.state.Providers)
 		} else {
+			// Explicit /connect opens immediately with normal copy (not first-run).
 			a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
 		}
 		a.setFocus(FocusDialog)
@@ -591,13 +598,34 @@ func (a App) handleProvidersLoadedMsg(msg ProvidersLoadedMsg) (App, tea.Cmd) {
 			a.state.FirstRunConnectOffered = true
 		}
 	} else if a.state.CurrentModel.ModelID == "" && !a.state.FirstRunConnectOffered {
-		// First boot with no usable model: open the same dialog as /connect (#635).
+		// First boot with no usable model: defer soft open until welcome tips are ready.
 		a.state.FirstRunConnectOffered = true
-		a.modelDlg.SetScopedModels(a.state.ScopedModels)
-		a.modelDlg.Show(a.state.Providers, a.state.CurrentModel)
-		a.setFocus(FocusDialog)
+		a.state.PendingFirstRunConnect = true
+		cmd = scheduleFirstRunConnect()
 	}
 	a.updateSidebarContext()
+	return a, cmd
+}
+
+// scheduleFirstRunConnect returns a short tick before offering first-run connect.
+func scheduleFirstRunConnect() tea.Cmd {
+	return tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg {
+		return offerFirstRunConnectMsg{}
+	})
+}
+
+// tryOfferFirstRunConnect opens ShowFirstRun when welcome tips are ready, or reschedules.
+func (a App) tryOfferFirstRunConnect() (App, tea.Cmd) {
+	if !a.state.PendingFirstRunConnect {
+		return a, nil
+	}
+	if !a.welcome.TipsReady() {
+		return a, scheduleFirstRunConnect()
+	}
+	a.state.PendingFirstRunConnect = false
+	a.modelDlg.SetScopedModels(a.state.ScopedModels)
+	a.modelDlg.ShowFirstRun(a.state.Providers, a.state.CurrentModel)
+	a.setFocus(FocusDialog)
 	return a, nil
 }
 

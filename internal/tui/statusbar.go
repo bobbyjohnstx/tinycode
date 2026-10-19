@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -275,13 +277,13 @@ func (s StatusBar) View() string {
 
 	var body string
 	if s.working {
-		// One row while busy: spinner + activity | elapsed · tokens (no shortcut hints).
-		var left string
-		if s.activity == "" {
-			left = s.spinner.View() + "  " + dim.Render("esc") + " " + accent.Render("interrupt")
-		} else {
-			left = s.spinner.View() + "  " + accent.Render(s.activity)
+		// One row while busy: spinner + activity + interrupt | elapsed · tokens (no shortcut hints).
+		activity := s.activity
+		if activity == "" {
+			activity = "thinking"
 		}
+		left := s.spinner.View() + "  " + accent.Render(activity) + "  " +
+			dim.Render("esc") + " " + accent.Render("interrupt")
 		if s.queueCount > 0 {
 			left += "  " + dim.Render(fmt.Sprintf("[Q:%d]", s.queueCount))
 		}
@@ -341,6 +343,9 @@ func (s StatusBar) renderStatusMeta(dim, accent lipgloss.Style, dot string) stri
 	if s.provider != "" {
 		leftParts = append(leftParts, dim.Render(s.provider))
 	}
+	if cwd := shortCwd(s.cwd); cwd != "" {
+		leftParts = append(leftParts, dim.Render(cwd))
+	}
 	if s.effort != "" && s.effort != "medium" {
 		leftParts = append(leftParts, dim.Render(s.effort))
 	}
@@ -348,6 +353,30 @@ func (s StatusBar) renderStatusMeta(dim, accent lipgloss.Style, dot string) stri
 		leftParts = append(leftParts, renderContextMeter(s.contextPct))
 	}
 	return strings.Join(leftParts, dot)
+}
+
+// shortCwd returns a compact cwd for the status bar: home → ~, long paths truncated.
+func shortCwd(path string) string {
+	if path == "" {
+		return ""
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		if path == home {
+			return "~"
+		}
+		sep := string(os.PathSeparator)
+		if strings.HasPrefix(path, home+sep) {
+			path = "~" + path[len(home):]
+		}
+	}
+	if utf8.RuneCountInString(path) <= 24 {
+		return path
+	}
+	base := filepath.Base(path)
+	if strings.HasPrefix(path, "~"+string(os.PathSeparator)) || strings.HasPrefix(path, "~/") {
+		return "~/…/" + base
+	}
+	return "…" + base
 }
 
 // formatElapsed formats a duration as a short elapsed string (e.g. "2.4s").

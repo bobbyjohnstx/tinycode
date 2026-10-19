@@ -93,7 +93,16 @@ func (w *WelcomeView) Tick() tea.Cmd {
 	})
 }
 
+// TipsReady reports whether boot checks finished and the logo reveal completed
+// so tip lines are visible before first-run connect opens.
+func (w WelcomeView) TipsReady() bool {
+	return w.bootDone && w.logoShow >= logoRevealRows
+}
+
 type bootTickMsg struct{}
+
+// offerFirstRunConnectMsg triggers a deferred soft open of the first-run connect dialog.
+type offerFirstRunConnectMsg struct{}
 
 func (w WelcomeView) View(width, height int, providerName, modelName string, sessionCount, agentCount, pluginCount, mcpCount int) string {
 	leftColor := lipgloss.AdaptiveColor{Light: "#4488CC", Dark: "#38bdf8"}

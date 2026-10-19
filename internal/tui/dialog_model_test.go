@@ -7,6 +7,37 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func TestModelDialog_ShowFirstRun_TitleAndFooter(t *testing.T) {
+	d := NewModelDialog()
+	d.ShowFirstRun([]ProviderInfo{
+		{ID: "ollama", Name: "Ollama", Models: []ModelInfo{{ID: "qwen", ProviderID: "ollama", Name: "Qwen"}}},
+	})
+	d.SetSize(80, 24)
+
+	view := d.View()
+	if !strings.Contains(view, "Select a model to start") {
+		t.Errorf("expected first-run title, got %q", view)
+	}
+	if strings.Contains(view, "Select Provider") {
+		t.Error("normal Select Provider title should not appear on first-run")
+	}
+	if !strings.Contains(view, "esc skip · /connect anytime") {
+		t.Errorf("expected first-run footer, got %q", view)
+	}
+
+	d.Hide()
+	d.Show([]ProviderInfo{
+		{ID: "ollama", Name: "Ollama", Models: []ModelInfo{{ID: "qwen", ProviderID: "ollama", Name: "Qwen"}}},
+	})
+	view = d.View()
+	if !strings.Contains(view, "Select Provider") {
+		t.Error("expected normal title after Show")
+	}
+	if d.firstRunHint {
+		t.Error("firstRunHint should be cleared by Show")
+	}
+}
+
 func TestModelDialog_ViewProvidersEmpty_ShowsSetupGuidance(t *testing.T) {
 	d := NewModelDialog()
 	d.Show(nil)
@@ -97,9 +128,9 @@ func TestModelDialog_APIKeyEnter_EmitsStoreMsg(t *testing.T) {
 
 func TestEnsureScrollVisible_Table(t *testing.T) {
 	tests := []struct {
-		name                          string
+		name                            string
 		selected, scroll, maxVis, total int
-		want                          int
+		want                            int
 	}{
 		{"selected above scroll", 2, 5, 10, 20, 2},
 		{"selected below visible", 15, 0, 10, 20, 6},

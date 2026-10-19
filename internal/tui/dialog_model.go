@@ -41,6 +41,7 @@ type ModelDialog struct {
 	pendingModelID string
 	scopedModels   map[string]bool
 	scopingMode    bool
+	firstRunHint   bool
 	visible        bool
 	width          int
 	height         int
@@ -64,6 +65,7 @@ func (d *ModelDialog) Show(providers []ProviderInfo, current ...ModelSelection) 
 	d.apiKey = ""
 	d.pendingModelID = ""
 	d.scopingMode = false
+	d.firstRunHint = false
 
 	if len(current) > 0 && current[0].ProviderID != "" {
 		for i, p := range providers {
@@ -74,6 +76,12 @@ func (d *ModelDialog) Show(providers []ProviderInfo, current ...ModelSelection) 
 			}
 		}
 	}
+}
+
+// ShowFirstRun opens the dialog with first-run copy (soft welcome connect).
+func (d *ModelDialog) ShowFirstRun(providers []ProviderInfo, current ...ModelSelection) {
+	d.Show(providers, current...)
+	d.firstRunHint = true
 }
 
 // ShowScoping opens the dialog in scoping mode where all models are shown
@@ -90,6 +98,7 @@ func (d *ModelDialog) ShowScoping(providers []ProviderInfo) {
 	d.apiKey = ""
 	d.pendingModelID = ""
 	d.scopingMode = true
+	d.firstRunHint = false
 }
 
 // SetScopedModels sets the current scoped models lookup.
@@ -117,6 +126,7 @@ func (d *ModelDialog) isModelScoped(providerID, modelID string) bool {
 // Hide closes the dialog.
 func (d *ModelDialog) Hide() {
 	d.visible = false
+	d.firstRunHint = false
 }
 
 // IsVisible reports whether the dialog is shown.
@@ -400,8 +410,15 @@ func (d ModelDialog) viewProviders() string {
 	var sb strings.Builder
 	if d.scopingMode {
 		sb.WriteString("Scope Models (favorites)\n")
+	} else if d.firstRunHint {
+		sb.WriteString("Select a model to start\n")
 	} else {
 		sb.WriteString("Select Provider\n")
+	}
+
+	footer := "  esc close"
+	if d.firstRunHint {
+		footer = "  esc skip · /connect anytime"
 	}
 
 	if len(d.providers) == 0 {
@@ -433,7 +450,7 @@ func (d ModelDialog) viewProviders() string {
 		sb.WriteString(styleSelected.Render("o"))
 		sb.WriteString(" to enter an OpenRouter API key\n")
 		sb.WriteString("\n")
-		sb.WriteString(styleMetadata.Render("  esc close"))
+		sb.WriteString(styleMetadata.Render(footer))
 		return sb.String()
 	}
 
@@ -465,6 +482,11 @@ func (d ModelDialog) viewProviders() string {
 	if end < len(d.providers) {
 		sb.WriteString("\n")
 		sb.WriteString(styleMetadata.Render("  ▼ more"))
+	}
+
+	if d.firstRunHint {
+		sb.WriteString("\n\n")
+		sb.WriteString(styleMetadata.Render(footer))
 	}
 
 	return sb.String()
@@ -534,6 +556,10 @@ func (d ModelDialog) viewModels() string {
 
 	sb.WriteString("\n\n")
 	sb.WriteString(styleMetadata.Render("  esc back  space scope"))
+	if d.firstRunHint {
+		sb.WriteString("\n")
+		sb.WriteString(styleMetadata.Render("  esc skip · /connect anytime"))
+	}
 
 	return sb.String()
 }
