@@ -1266,18 +1266,34 @@ new_session_with_model() {
     echo "$name"
 }
 
-# wait_response_complete waits for the spinner to appear ("interrupt" hint)
-# and then disappear (response finished).  Returns 1 on timeout.
+# Status-bar working-state markers: default activity "thinking", legacy empty-
+# activity "interrupt" hint, or tool activity verbs (bash/read/write/...).
+WORKING_STATE_RE='thinking|interrupt|\bbash\b|\bread\b|\bwrite\b|\bedit\b|webfetch'
+
+# wait_working_started waits until the status bar shows a working-state marker.
+wait_working_started() {
+    local session="$1" timeout="${2:-30}"
+    wait_for_regex "$session" "$WORKING_STATE_RE" "$timeout"
+}
+
+# wait_response_complete waits for a working-state marker to appear, then for
+# the turn to finish (idle shortcut hints return, or working markers clear).
+# Returns 1 on timeout.
 wait_response_complete() {
     local session="$1" timeout="${2:-120}"
 
-    # Wait for response to start (spinner hint appears)
-    wait_for_text "$session" "interrupt" 30 || return 1
+    wait_working_started "$session" 30 || return 1
 
-    # Wait for response to finish (spinner hint disappears)
+    # Idle status bar restores "ctrl+p" / "/help" hints; prefer that over
+    # absence of working markers (chat text may contain "thinking"/"read"/...).
     local deadline=$((SECONDS + timeout))
     while [ $SECONDS -lt $deadline ]; do
-        if ! capture_pane "$session" | grep -qF "interrupt"; then
+        local pane
+        pane=$(capture_pane "$session")
+        if echo "$pane" | grep -qE 'ctrl\+p|/help'; then
+            return 0
+        fi
+        if ! echo "$pane" | grep -qE "$WORKING_STATE_RE"; then
             return 0
         fi
         sleep 2
@@ -1304,7 +1320,7 @@ test_T28() {
     # Submit a prompt and wait for the full response
     send_text "$session" "What is the capital of France? Answer in one sentence."
 
-    if ! wait_response_complete "$session" 90; then
+    if ! wait_response_complete "$session" 180; then
         skip_test "Chat LLM response" "response did not complete within timeout"
         kill_session "$session"
         return
@@ -1336,7 +1352,7 @@ test_T29() {
     send_text "$session" "Think step by step: what is 347 times 28?"
 
     # Wait for the response to complete
-    if ! wait_response_complete "$session" 120; then
+    if ! wait_response_complete "$session" 180; then
         skip_test "Thought toggle" "response did not complete within timeout"
         kill_session "$session"
         return
@@ -1423,15 +1439,15 @@ test_T36() {
     # Type shell command with ! prefix
     send_text "$session" "!echo tui-shell-marker"
 
-    # Wait for the working state (spinner hint "interrupt" appears)
-    if ! wait_for_text "$session" "interrupt" 30; then
+    # Wait for the working state (status-bar activity / interrupt hint)
+    if ! wait_working_started "$session" 30; then
         skip_test "Shell ! prefix" "shell command did not trigger model response"
         kill_session "$session"
         return
     fi
 
     # Wait for response to complete
-    wait_response_complete "$session" 90 || true
+    wait_response_complete "$session" 180 || true
     sleep 2
 
     # The shell output "tui-shell-marker" should appear in the chat
@@ -1455,7 +1471,7 @@ test_T37() {
     send_text "$session" "!echo SHELL-FORMAT-CHECK"
 
     # Wait for response to complete
-    if ! wait_response_complete "$session" 90; then
+    if ! wait_response_complete "$session" 180; then
         skip_test "Shell output format" "response did not complete within timeout"
         kill_session "$session"
         return
@@ -1639,13 +1655,13 @@ test_T49() {
     # Send a prompt that will take a moment to process
     send_text "$session" "Write a detailed essay about software testing best practices"
 
-    # The "interrupt" hint should appear in the status bar while processing
+    # Working-state activity ("thinking") or legacy "interrupt" hint in status bar
     TOTAL=$((TOTAL + 1))
-    if wait_for_text "$session" "interrupt" 30; then
-        echo -e "  ${GREEN}PASS${NC}: interrupt hint visible during LLM processing"
+    if wait_working_started "$session" 30; then
+        echo -e "  ${GREEN}PASS${NC}: working/interrupt hint visible during LLM processing"
         PASS=$((PASS + 1))
     else
-        echo -e "  ${RED}FAIL${NC}: interrupt hint did not appear during processing"
+        echo -e "  ${RED}FAIL${NC}: working/interrupt hint did not appear during processing"
         local captured
         captured=$(capture_pane "$session")
         echo "    Last 5 lines of pane:"
@@ -1654,7 +1670,7 @@ test_T49() {
     fi
 
     # Wait for response to finish to clean up
-    wait_response_complete "$session" 90 || true
+    wait_response_complete "$session" 180 || true
 
     kill_session "$session"
 }
@@ -1727,7 +1743,7 @@ test_T51() {
     send_text "$session" "Say exactly: PERSISTENCE_MARKER_12345"
 
     # Wait for the response to complete
-    if ! wait_response_complete "$session" 90; then
+    if ! wait_response_complete "$session" 180; then
         skip_test "Session persistence" "response did not complete within timeout"
         kill_session "$session"
         return
