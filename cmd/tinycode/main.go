@@ -115,7 +115,7 @@ func printUsage() {
 	fmt.Println("  web        Start server and open web interface")
 	fmt.Println("  acp        Agent Client Protocol mode (stdio, for IDE integration)")
 	fmt.Println("  models     List available models")
-	fmt.Println("  providers  List discovered providers")
+	fmt.Println("  providers  List providers; login|logout persist API keys to auth.json")
 	fmt.Println("  session    Manage sessions (list, delete)")
 	fmt.Println("  status     Show server health and status")
 	fmt.Println("  export     Export session messages as JSON")

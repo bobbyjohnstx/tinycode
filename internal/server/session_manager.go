@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -142,12 +143,36 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 	}
 	sm.clientFactory = func(m *provider.Model) llm.Client {
 		sm.warmupModel(m)
-		apiKey, _ := m.Options["api_key"].(string)
+		// Precedence: env → config/options → auth.json (credentialLookup).
+		var envVars []string
+		opts := map[string]any{}
+		if info, err := reg.GetProvider(m.ProviderID); err == nil {
+			envVars = info.Env
+			for k, v := range info.Options {
+				opts[k] = v
+			}
+		}
+		for k, v := range m.Options {
+			opts[k] = v
+		}
+		apiKey := ""
+		for _, name := range envVars {
+			if name == "" {
+				continue
+			}
+			if v := os.Getenv(name); v != "" {
+				apiKey = v
+				break
+			}
+		}
 		if apiKey == "" {
-			if info, err := reg.GetProvider(m.ProviderID); err == nil {
-				if k, ok := info.Options["apiKey"].(string); ok {
-					apiKey = k
-				}
+			if k, ok := opts["apiKey"].(string); ok {
+				apiKey = k
+			}
+		}
+		if apiKey == "" {
+			if k, ok := opts["api_key"].(string); ok {
+				apiKey = k
 			}
 		}
 		if apiKey == "" && sm.credentialLookup != nil {

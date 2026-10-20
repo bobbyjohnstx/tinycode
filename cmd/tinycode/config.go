@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	authpkg "github.com/bobbyjohnstx/tinycode/internal/auth"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/formatter"
@@ -499,11 +500,18 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 
 	disc.Start(ctx, ollamaURL, vllmURL, lmStudioURL)
 
-	if apiKey := os.Getenv("OPENROUTER_API_KEY"); apiKey != "" {
+	apiKey := os.Getenv("OPENROUTER_API_KEY")
+	if apiKey == "" {
+		if store, err := authpkg.Open(authpkg.DefaultPath()); err == nil {
+			apiKey = store.APIKey("openrouter")
+		}
+	}
+	if apiKey != "" {
+		key := apiKey
 		safego.Go(func() {
 			var lastErr error
 			for attempt := 1; attempt <= 3; attempt++ {
-				if err := disc.DiscoverOpenRouter(ctx, apiKey); err != nil {
+				if err := disc.DiscoverOpenRouter(ctx, key); err != nil {
 					lastErr = err
 					slog.Warn("openrouter discovery failed", "attempt", attempt, "error", err)
 					select {

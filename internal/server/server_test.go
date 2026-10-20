@@ -101,7 +101,8 @@ func testServer(t *testing.T) (*Server, *bus.Bus) {
 
 	db := testDB(t)
 	reg := provider.NewRegistry()
-	srv := New(Config{}, Dependencies{Bus: b, DB: db, Registry: reg})
+	authPath := filepath.Join(t.TempDir(), "auth.json")
+	srv := New(Config{}, Dependencies{Bus: b, DB: db, Registry: reg, AuthPath: authPath})
 	return srv, b
 }
 

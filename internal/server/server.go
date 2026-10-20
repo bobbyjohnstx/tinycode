@@ -9,10 +9,14 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	"github.com/bobbyjohnstx/tinycode/internal/auth"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/lsp"
@@ -69,6 +73,8 @@ type Dependencies struct {
 	Config          *config.Info
 	JobManager      *session.JobManager
 	Discovery       *provider.Discovery
+	// AuthPath overrides auth.json location (tests). Empty uses auth.DefaultPath().
+	AuthPath string
 }
 
 type Server struct {
@@ -80,7 +86,7 @@ type Server struct {
 	sessionManager  *SessionManager
 	permissionStore *PermissionStore
 	questionStore   *QuestionStore
-	credentials     *credentialStore
+	credentials     *auth.Store
 	pluginSubs      []*bus.Subscription
 	pluginDone      chan struct{}
 	shutdownDone    chan struct{}
@@ -98,6 +104,8 @@ func New(cfg Config, deps Dependencies) *Server {
 	mux := http.NewServeMux()
 	logger := slog.Default()
 
+	credStore := openCredentialStore(deps.AuthPath)
+
 	s := &Server{
 		config:          cfg,
 		mux:             mux,
@@ -106,21 +114,15 @@ func New(cfg Config, deps Dependencies) *Server {
 		sessionManager:  NewSessionManager(deps.Bus, deps.Registry, deps.DB, cfg.Directory, deps.ToolRegistry, deps.PermService, deps.AgentRegistry, deps.MCPService, deps.Config, deps.JobManager),
 		permissionStore: NewPermissionStore(),
 		questionStore:   NewQuestionStore(),
-		credentials:     newCredentialStore(),
+		credentials:     credStore,
 	}
 
 	s.sessionManager.appendSystemPrompt = cfg.AppendSystemPrompt
 	s.sessionManager.tokenBudget = cfg.TokenBudget
 	s.sessionManager.SetCredentialLookup(func(providerID string) string {
-		creds, ok := s.credentials.Get(providerID)
-		if !ok {
-			return ""
-		}
-		if k := creds["apiKey"]; k != "" {
-			return k
-		}
-		return creds["api_key"]
+		return s.credentials.APIKey(providerID)
 	})
+	applyStoredCredentials(deps.Registry, credStore)
 	if deps.Discovery != nil {
 		disc := deps.Discovery
 		s.sessionManager.SetModelWarmup(func(ctx context.Context, m *provider.Model) {
@@ -506,6 +508,46 @@ func extractPendingTool(props map[string]any) string {
 		}
 	}
 	return ""
+}
+
+func openCredentialStore(path string) *auth.Store {
+	if path == "" {
+		if testing.Testing() {
+			path = filepath.Join(os.TempDir(), "tinycode-test-auth", fmt.Sprintf("%d", os.Getpid()), "auth.json")
+		} else {
+			path = auth.DefaultPath()
+		}
+	}
+	store, err := auth.Open(path)
+	if err != nil {
+		slog.Warn("failed to load auth store; starting empty", "path", path, "error", err)
+	}
+	return store
+}
+
+func applyStoredCredentials(reg *provider.Registry, store *auth.Store) {
+	if reg == nil || store == nil {
+		return
+	}
+	for id, creds := range store.All() {
+		key := auth.KeyFromCreds(creds)
+		if key == "" {
+			continue
+		}
+		if info, err := reg.GetProvider(id); err == nil {
+			if info.Options == nil {
+				info.Options = make(map[string]any)
+			}
+			// Do not overwrite a key already present (env/config applied earlier).
+			if existing, _ := info.Options["apiKey"].(string); existing != "" {
+				continue
+			}
+			if existing, _ := info.Options["api_key"].(string); existing != "" {
+				continue
+			}
+			info.Options["apiKey"] = key
+		}
+	}
 }
 
 // WaitForShutdown blocks until the server's background shutdown goroutine

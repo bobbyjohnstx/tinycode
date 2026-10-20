@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	authpkg "github.com/bobbyjohnstx/tinycode/internal/auth"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
 	"github.com/bobbyjohnstx/tinycode/internal/mcp"
@@ -164,13 +165,20 @@ func runRun() {
 		os.Exit(1)
 	}
 
-	// Create LLM client and processor
-	apiKey := ""
-	if model.Options != nil {
-		if key, ok := model.Options["api_key"].(string); ok {
-			apiKey = key
+	// Create LLM client and processor (env → options → auth.json).
+	var envVars []string
+	opts := map[string]any{}
+	if info, err := reg.GetProvider(providerID); err == nil {
+		envVars = info.Env
+		for k, v := range info.Options {
+			opts[k] = v
 		}
 	}
+	for k, v := range model.Options {
+		opts[k] = v
+	}
+	authStore, _ := authpkg.Open(authpkg.DefaultPath())
+	apiKey := authpkg.ResolveAPIKey(envVars, opts, authStore, providerID)
 	client := llm.NewClient(model.API.URL, apiKey, model.API.NPM, model.ProviderID)
 
 	autoContinueMax := 0

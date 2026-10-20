@@ -12,6 +12,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	authpkg "github.com/bobbyjohnstx/tinycode/internal/auth"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/project"
@@ -55,6 +56,27 @@ func runModels() {
 func runProviders() {
 	setupLogger()
 
+	args := os.Args[2:]
+	if len(args) > 0 {
+		switch args[0] {
+		case "login":
+			runProvidersLogin(args[1:])
+			return
+		case "logout":
+			runProvidersLogout(args[1:])
+			return
+		case "list", "ls":
+			args = args[1:]
+		case "help", "--help", "-h":
+			fmt.Println("Usage: tinycode providers [list|login|logout]")
+			fmt.Println()
+			fmt.Println("  list                         List discovered providers (default)")
+			fmt.Println("  login <provider> [--api-key] Persist API key to auth.json")
+			fmt.Println("  logout <provider>            Remove persisted credentials")
+			return
+		}
+	}
+
 	b, db, cfg := initDependencies()
 	defer b.Close()
 	defer db.Close()
@@ -78,6 +100,71 @@ func runProviders() {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%d\n", p.ID, p.Name, p.Source, len(p.Models))
 	}
 	w.Flush()
+}
+
+func runProvidersLogin(args []string) {
+	providerID, apiKey := parseProviderLoginArgs(args)
+	if providerID == "" {
+		fmt.Fprintf(os.Stderr, "Usage: tinycode providers login <providerID> [--api-key KEY]\n")
+		os.Exit(1)
+	}
+	if apiKey == "" {
+		fmt.Fprint(os.Stderr, "API key: ")
+		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading api key: %v\n", err)
+			os.Exit(1)
+		}
+		apiKey = strings.TrimSpace(line)
+	}
+	if apiKey == "" {
+		fmt.Fprintf(os.Stderr, "error: empty API key\n")
+		os.Exit(1)
+	}
+
+	store, err := authpkg.Open(authpkg.DefaultPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	}
+	if err := store.Set(providerID, map[string]string{"apiKey": apiKey}); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Stored credentials for %s in %s\n", providerID, store.Path())
+}
+
+func runProvidersLogout(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintf(os.Stderr, "Usage: tinycode providers logout <providerID>\n")
+		os.Exit(1)
+	}
+	providerID := args[0]
+	store, err := authpkg.Open(authpkg.DefaultPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+	}
+	if err := store.Delete(providerID); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Removed credentials for %s from %s\n", providerID, store.Path())
+}
+
+func parseProviderLoginArgs(args []string) (providerID, apiKey string) {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--api-key", "-k":
+			if i+1 < len(args) {
+				apiKey = args[i+1]
+				i++
+			}
+		default:
+			if !strings.HasPrefix(args[i], "-") && providerID == "" {
+				providerID = args[i]
+			}
+		}
+	}
+	return providerID, apiKey
 }
 
 func runSession() {

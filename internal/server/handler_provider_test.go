@@ -111,7 +111,9 @@ func TestHandleAuthDelete_ClearsOptionsAndOpenRouterEnv(t *testing.T) {
 		Options: map[string]any{"apiKey": "or-to-clear", "baseURL": "https://openrouter.ai/api"},
 		Models:  map[string]*provider.Model{},
 	})
-	srv.credentials.Set("openrouter", map[string]string{"apiKey": "or-to-clear"})
+	if err := srv.credentials.Set("openrouter", map[string]string{"apiKey": "or-to-clear"}); err != nil {
+		t.Fatalf("Set credentials: %v", err)
+	}
 
 	req := httptest.NewRequest("DELETE", "/auth/openrouter", nil)
 	w := httptest.NewRecorder()

@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/bobbyjohnstx/tinycode/internal/auth"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
@@ -80,7 +82,7 @@ func TestHandleAuthPut_OpenRouterTriggersDiscovery(t *testing.T) {
 	prev := provider.SetOpenRouterModelsURLForTest(ts.URL)
 	t.Cleanup(func() { provider.SetOpenRouterModelsURLForTest(prev) })
 
-	srv := New(Config{}, Dependencies{Bus: b, DB: db, Registry: reg, Discovery: disc})
+	srv := New(Config{}, Dependencies{Bus: b, DB: db, Registry: reg, Discovery: disc, AuthPath: filepath.Join(t.TempDir(), "auth.json")})
 	t.Setenv("OPENROUTER_API_KEY", "")
 
 	req := httptest.NewRequest("PUT", "/auth/OpenRouter", strings.NewReader(`{"api_key":"or-discover-key"}`))
@@ -103,6 +105,43 @@ func TestHandleAuthPut_OpenRouterTriggersDiscovery(t *testing.T) {
 	}
 }
 
+func TestHandleAuthPut_PersistsAcrossRestart(t *testing.T) {
+	authPath := filepath.Join(t.TempDir(), "auth.json")
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	db := testDB(t)
+	reg := provider.NewRegistry()
+
+	srv1 := New(Config{}, Dependencies{Bus: b, DB: db, Registry: reg, AuthPath: authPath})
+	req := httptest.NewRequest("PUT", "/auth/openai", strings.NewReader(`{"apiKey":"sk-persist"}`))
+	w := httptest.NewRecorder()
+	srv1.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	info, err := os.Stat(authPath)
+	if err != nil {
+		t.Fatalf("auth.json missing: %v", err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Fatalf("mode = %o, want 0600", mode)
+	}
+
+	store, err := auth.Open(authPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if got := store.APIKey("openai"); got != "sk-persist" {
+		t.Fatalf("APIKey = %q, want sk-persist", got)
+	}
+
+	srv2 := New(Config{}, Dependencies{Bus: b, DB: db, Registry: reg, AuthPath: authPath})
+	if got := srv2.credentials.APIKey("openai"); got != "sk-persist" {
+		t.Fatalf("reloaded APIKey = %q, want sk-persist", got)
+	}
+}
+
 func TestHandleAuthPut_OpenRouterDiscoveryFailure(t *testing.T) {
 	b := bus.New()
 	t.Cleanup(func() { b.Close() })
@@ -118,7 +157,7 @@ func TestHandleAuthPut_OpenRouterDiscoveryFailure(t *testing.T) {
 	prev := provider.SetOpenRouterModelsURLForTest(ts.URL)
 	t.Cleanup(func() { provider.SetOpenRouterModelsURLForTest(prev) })
 
-	srv := New(Config{}, Dependencies{Bus: b, DB: db, Registry: reg, Discovery: disc})
+	srv := New(Config{}, Dependencies{Bus: b, DB: db, Registry: reg, Discovery: disc, AuthPath: filepath.Join(t.TempDir(), "auth.json")})
 
 	req := httptest.NewRequest("PUT", "/auth/openrouter", strings.NewReader(`{"apiKey":"bad"}`))
 	w := httptest.NewRecorder()

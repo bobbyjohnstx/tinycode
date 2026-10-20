@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -27,6 +28,7 @@ func testServerWithPlugins(t *testing.T) *Server {
 		DB:            db,
 		Registry:      reg,
 		PluginManager: mgr,
+		AuthPath:      filepath.Join(t.TempDir(), "auth.json"),
 	})
 	return srv
 }
