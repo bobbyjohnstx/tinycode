@@ -36,11 +36,12 @@ func TestPromptQueue_QueuedWhenWorking(t *testing.T) {
 	result, _ := ca.Update(PromptSubmittedMsg{Content: "follow-up question"})
 	updated := result.(*connectedApp)
 
-	if len(updated.promptQueue) != 1 {
-		t.Fatalf("expected 1 queued prompt, got %d", len(updated.promptQueue))
+	q := updated.sessionQueues["ses_123"]
+	if len(q) != 1 {
+		t.Fatalf("expected 1 queued prompt, got %d", len(q))
 	}
-	if updated.promptQueue[0] != "follow-up question" {
-		t.Errorf("expected queued prompt 'follow-up question', got %q", updated.promptQueue[0])
+	if q[0] != "follow-up question" {
+		t.Errorf("expected queued prompt 'follow-up question', got %q", q[0])
 	}
 	if updated.app.status.queueCount != 1 {
 		t.Errorf("expected queueCount 1, got %d", updated.app.status.queueCount)
@@ -59,9 +60,11 @@ func TestPromptQueue_DrainOnIdle(t *testing.T) {
 	app.status.SetWorking(true)
 
 	ca := &connectedApp{
-		app:         app,
-		client:      client,
-		promptQueue: []string{"queued prompt 1", "queued prompt 2"},
+		app:    app,
+		client: client,
+		sessionQueues: map[string][]string{
+			"ses_123": {"queued prompt 1", "queued prompt 2"},
+		},
 	}
 	ca.app.status.SetQueueCount(2)
 
@@ -73,11 +76,12 @@ func TestPromptQueue_DrainOnIdle(t *testing.T) {
 	updated := result.(*connectedApp)
 
 	// One prompt should have been dequeued.
-	if len(updated.promptQueue) != 1 {
-		t.Fatalf("expected 1 remaining queued prompt, got %d", len(updated.promptQueue))
+	q := updated.sessionQueues["ses_123"]
+	if len(q) != 1 {
+		t.Fatalf("expected 1 remaining queued prompt, got %d", len(q))
 	}
-	if updated.promptQueue[0] != "queued prompt 2" {
-		t.Errorf("expected remaining prompt 'queued prompt 2', got %q", updated.promptQueue[0])
+	if q[0] != "queued prompt 2" {
+		t.Errorf("expected remaining prompt 'queued prompt 2', got %q", q[0])
 	}
 	if updated.app.status.queueCount != 1 {
 		t.Errorf("expected queueCount 1, got %d", updated.app.status.queueCount)
@@ -102,16 +106,18 @@ func TestPromptQueue_ClearQueue(t *testing.T) {
 	app.state.ActiveSession = "ses_123"
 
 	ca := &connectedApp{
-		app:         app,
-		promptQueue: []string{"p1", "p2", "p3"},
+		app: app,
+		sessionQueues: map[string][]string{
+			"ses_123": {"p1", "p2", "p3"},
+		},
 	}
 	ca.app.status.SetQueueCount(3)
 
 	result, _ := ca.Update(PromptSubmittedMsg{Content: "/clear-queue"})
 	updated := result.(*connectedApp)
 
-	if len(updated.promptQueue) != 0 {
-		t.Errorf("expected empty queue after /clear-queue, got %d", len(updated.promptQueue))
+	if len(updated.sessionQueues["ses_123"]) != 0 {
+		t.Errorf("expected empty queue after /clear-queue, got %d", len(updated.sessionQueues["ses_123"]))
 	}
 	if updated.app.status.queueCount != 0 {
 		t.Errorf("expected queueCount 0 after /clear-queue, got %d", updated.app.status.queueCount)
@@ -126,16 +132,18 @@ func TestPromptQueue_ClearQueueAlt(t *testing.T) {
 	app.state.ActiveSession = "ses_123"
 
 	ca := &connectedApp{
-		app:         app,
-		promptQueue: []string{"p1"},
+		app: app,
+		sessionQueues: map[string][]string{
+			"ses_123": {"p1"},
+		},
 	}
 	ca.app.status.SetQueueCount(1)
 
 	result, _ := ca.Update(PromptSubmittedMsg{Content: "/queue clear"})
 	updated := result.(*connectedApp)
 
-	if len(updated.promptQueue) != 0 {
-		t.Errorf("expected empty queue after /queue clear, got %d", len(updated.promptQueue))
+	if len(updated.sessionQueues["ses_123"]) != 0 {
+		t.Errorf("expected empty queue after /queue clear, got %d", len(updated.sessionQueues["ses_123"]))
 	}
 }
 
@@ -158,8 +166,8 @@ func TestPromptQueue_SlashCommandsBypassQueue(t *testing.T) {
 	result, _ := ca.Update(PromptSubmittedMsg{Content: "/btw this is a side note"})
 	updated := result.(*connectedApp)
 
-	if len(updated.promptQueue) != 0 {
-		t.Errorf("expected /btw to bypass queue, but got %d queued", len(updated.promptQueue))
+	if len(updated.sessionQueues["ses_123"]) != 0 {
+		t.Errorf("expected /btw to bypass queue, but got %d queued", len(updated.sessionQueues["ses_123"]))
 	}
 }
 
@@ -175,9 +183,11 @@ func TestPromptQueue_NoDrainWhenDifferentSession(t *testing.T) {
 	app.status.SetWorking(true)
 
 	ca := &connectedApp{
-		app:         app,
-		client:      client,
-		promptQueue: []string{"queued"},
+		app:    app,
+		client: client,
+		sessionQueues: map[string][]string{
+			"ses_123": {"queued"},
+		},
 	}
 	ca.app.status.SetQueueCount(1)
 
@@ -188,7 +198,43 @@ func TestPromptQueue_NoDrainWhenDifferentSession(t *testing.T) {
 	})
 	updated := result.(*connectedApp)
 
-	if len(updated.promptQueue) != 1 {
-		t.Errorf("expected queue unchanged for different session, got %d", len(updated.promptQueue))
+	if len(updated.sessionQueues["ses_123"]) != 1 {
+		t.Errorf("expected queue unchanged for different session, got %d", len(updated.sessionQueues["ses_123"]))
+	}
+}
+
+func TestPromptQueue_SessionSwitchRefreshesQueueCount(t *testing.T) {
+	client, cleanup := newTestClient(t)
+	defer cleanup()
+
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "ses_A"
+	app.status.SetQueueCount(2)
+
+	ca := &connectedApp{
+		app:    app,
+		client: client,
+		sessionQueues: map[string][]string{
+			"ses_A": {"a1", "a2"},
+			"ses_B": {"b1"},
+		},
+	}
+
+	result, _ := ca.Update(SessionSwitchedMsg{SessionID: "ses_B"})
+	updated := result.(*connectedApp)
+	if updated.app.status.queueCount != 1 {
+		t.Errorf("expected queueCount 1 for ses_B, got %d", updated.app.status.queueCount)
+	}
+	if len(updated.sessionQueues["ses_A"]) != 2 {
+		t.Errorf("expected ses_A queue preserved, got %d", len(updated.sessionQueues["ses_A"]))
+	}
+
+	result, _ = updated.Update(SessionSwitchedMsg{SessionID: "ses_empty"})
+	updated = result.(*connectedApp)
+	if updated.app.status.queueCount != 0 {
+		t.Errorf("expected queueCount 0 for empty session, got %d", updated.app.status.queueCount)
 	}
 }

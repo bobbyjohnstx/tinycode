@@ -502,6 +502,32 @@ func TestHandleStateMsg_SessionSwitchedMsg_SetsActiveSessionAndClearsMessages(t 
 	}
 }
 
+func TestHandleStateMsg_SessionSwitchedMsg_ResyncsWorkingChrome(t *testing.T) {
+	app := NewApp("")
+	app.state.SessionStatus = map[string]SessionStatus{
+		"sess-A": {Working: true},
+		"sess-B": {Working: false},
+	}
+	app.state.ActiveSession = "sess-A"
+	app.status.SetWorking(true)
+
+	result, _, handled := app.handleStateMsg(SessionSwitchedMsg{SessionID: "sess-B"})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if result.status.working {
+		t.Error("expected status not working after switch to idle sess-B")
+	}
+
+	result, _, handled = result.handleStateMsg(SessionSwitchedMsg{SessionID: "sess-A"})
+	if !handled {
+		t.Fatal("expected handled on switch back")
+	}
+	if !result.status.working {
+		t.Error("expected status working after switch back to working sess-A")
+	}
+}
+
 func TestHandleStateMsg_SessionStatusMsg_UpdatesSessionStatus(t *testing.T) {
 	app := NewApp("")
 	app.state.ActiveSession = "s1"
@@ -1184,6 +1210,42 @@ func TestHandleDialogMsg_PermissionRequestedMsg_ShowsPrompt(t *testing.T) {
 	}
 }
 
+func TestHandleDialogMsg_PermissionRequestedMsg_AutoApprove_RepliesWithoutOverlay(t *testing.T) {
+	app := NewApp("")
+	app.state.AutoApprove = true
+
+	result, cmd, handled := app.handleDialogMsg(PermissionRequestedMsg{
+		Request: PermissionRequest{
+			ID:         "perm-auto",
+			SessionID:  "ses_1",
+			Permission: "edit",
+		},
+	})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if result.permPrompt.IsVisible() {
+		t.Error("expected permission overlay not visible when auto-approve is on")
+	}
+	if cmd == nil {
+		t.Fatal("expected reply cmd when auto-approve is on")
+	}
+	msg := cmd()
+	reply, ok := msg.(PermissionReplyMsg)
+	if !ok {
+		t.Fatalf("expected PermissionReplyMsg, got %T", msg)
+	}
+	if reply.PermissionID != "perm-auto" {
+		t.Errorf("expected PermissionID 'perm-auto', got %q", reply.PermissionID)
+	}
+	if reply.SessionID != "ses_1" {
+		t.Errorf("expected SessionID 'ses_1', got %q", reply.SessionID)
+	}
+	if reply.Action != PermissionAllow.String() {
+		t.Errorf("expected Action %q, got %q", PermissionAllow.String(), reply.Action)
+	}
+}
+
 func TestHandleDialogMsg_PaletteClosedMsg_ReturnsFocusToPrompt(t *testing.T) {
 	app := NewApp("")
 	app.focus = FocusPalette
@@ -1306,6 +1368,69 @@ func TestHandleKeyMsg_PermPromptVisible_RoutesToPermPrompt(t *testing.T) {
 	_, cmd := app.handleKeyMsg(tea.KeyMsg{Type: tea.KeyRight})
 	// Should not panic and should be routed to permPrompt.
 	_ = cmd
+}
+
+func TestHandleKeyMsg_SessionDialogVisible_EscDismissesWithoutAbort(t *testing.T) {
+	app := NewApp("")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "sess-1"
+	app.state.SessionStatus["sess-1"] = SessionStatus{Working: true}
+	app.dialog.SetSize(100, 30)
+	app.dialog.Show([]SessionInfo{{ID: "sess-1", Title: "Working"}})
+	app.setFocus(FocusDialog)
+
+	result, cmd := app.handleKeyMsg(tea.KeyMsg{Type: tea.KeyEsc})
+	if result.dialog.IsVisible() {
+		t.Error("expected session dialog hidden on Esc")
+	}
+	if result.focus != FocusPrompt {
+		t.Errorf("expected focus returned to FocusPrompt, got %v", result.focus)
+	}
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			if _, ok := msg.(AbortRequestMsg); ok {
+				t.Fatal("expected no AbortRequestMsg when Esc dismisses session dialog")
+			}
+		}
+	}
+}
+
+func TestHandleKeyMsg_PgUp_ScrollsChatWithPromptFocused(t *testing.T) {
+	app := NewApp("")
+	app.width = 80
+	app.height = 24
+	app.ready = true
+	app.focus = FocusPrompt
+	app.resize()
+
+	var longText strings.Builder
+	for i := 0; i < 80; i++ {
+		longText.WriteString("line of chat content for scrolling\n")
+	}
+	app.chat.messages = []MessageView{
+		{
+			Info:  MessageInfo{ID: "msg1", Role: "assistant"},
+			Parts: []PartView{{ID: "p1", MessageID: "msg1", Type: "text", Text: longText.String()}},
+		},
+	}
+	app.chat.rebuildContent()
+	if app.chat.viewport.YOffset == 0 {
+		t.Fatal("expected non-zero YOffset after sticky bottom with tall content")
+	}
+	before := app.chat.viewport.YOffset
+
+	result, _ := app.handleKeyMsg(tea.KeyMsg{Type: tea.KeyPgUp})
+	if result.chat.viewport.YOffset >= before && !result.chat.viewport.AtTop() {
+		t.Errorf("expected YOffset to decrease on PgUp, before=%d after=%d", before, result.chat.viewport.YOffset)
+	}
+	if result.chat.stickyBottom {
+		t.Error("expected stickyBottom false after PageUp")
+	}
+	if result.focus != FocusPrompt {
+		t.Errorf("expected focus to remain FocusPrompt, got %v", result.focus)
+	}
 }
 
 func TestHandleKeyMsg_PaletteVisible_RoutesToPalette(t *testing.T) {

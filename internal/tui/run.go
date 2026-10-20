@@ -90,9 +90,9 @@ type connectedApp struct {
 	resumeSessionID string
 	btwHistory      []sideQA
 	goal            *goalTracker
-	startHead       string   // git HEAD at session start, for /changes
-	promptQueue     []string // queued prompts waiting for current run to finish
-	undoHintShown   bool     // once-per-process /undo discovery toast after first AI edit
+	startHead       string              // git HEAD at session start, for /changes
+	sessionQueues   map[string][]string // per-session prompts waiting for that run to finish
+	undoHintShown   bool                // once-per-process /undo discovery toast after first AI edit
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
@@ -115,9 +115,10 @@ func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, 
 		app.modelDlg.SetScopedModels(scopedModels)
 	}
 	return &connectedApp{
-		app:    app,
-		client: client,
-		ctx:    ctx,
+		app:           app,
+		client:        client,
+		ctx:           ctx,
+		sessionQueues: make(map[string][]string),
 	}
 }
 

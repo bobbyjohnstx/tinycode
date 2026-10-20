@@ -20,6 +20,7 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+		c.app.status.SetQueueCount(len(c.sessionQueues[msg.SessionID]))
 		if msg.SessionID != "" {
 			cmds = append(cmds, fetchMessages(c.client, msg.SessionID))
 		}
@@ -331,13 +332,15 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 			}
 		}
 		// Drain prompt queue when the active session transitions to idle.
-		if msg.SessionID == c.app.state.ActiveSession && wasWorking && !msg.Status.Working && len(c.promptQueue) > 0 {
-			next := c.promptQueue[0]
-			c.promptQueue = c.promptQueue[1:]
-			c.app.status.SetQueueCount(len(c.promptQueue))
-			cmds = append(cmds, func() tea.Msg {
-				return PromptSubmittedMsg{Content: next}
-			})
+		if msg.SessionID == c.app.state.ActiveSession && wasWorking && !msg.Status.Working {
+			if q := c.sessionQueues[msg.SessionID]; len(q) > 0 {
+				next := q[0]
+				c.sessionQueues[msg.SessionID] = q[1:]
+				c.app.status.SetQueueCount(len(c.sessionQueues[msg.SessionID]))
+				cmds = append(cmds, func() tea.Msg {
+					return PromptSubmittedMsg{Content: next}
+				})
+			}
 		}
 		// When the active session transitions from working to idle and a goal is active,
 		// trigger goal evaluation.

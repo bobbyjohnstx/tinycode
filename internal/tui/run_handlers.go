@@ -144,7 +144,9 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 	}
 
 	if trimmed == "/clear-queue" || trimmed == "/queue clear" {
-		c.promptQueue = nil
+		if sid := c.app.state.ActiveSession; sid != "" {
+			delete(c.sessionQueues, sid)
+		}
 		c.app.status.SetQueueCount(0)
 		model, cmd := c.app.Update(ToastMsg{Text: "Queue cleared", IsError: false})
 		c.updateApp(model)
@@ -161,8 +163,12 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 
 	// If session is working, queue the prompt instead of sending.
 	if c.app.status.working && c.app.state.ActiveSession != "" {
-		c.promptQueue = append(c.promptQueue, msg.Content)
-		queueCount := len(c.promptQueue)
+		sid := c.app.state.ActiveSession
+		if c.sessionQueues == nil {
+			c.sessionQueues = make(map[string][]string)
+		}
+		c.sessionQueues[sid] = append(c.sessionQueues[sid], msg.Content)
+		queueCount := len(c.sessionQueues[sid])
 		model, cmd := c.app.Update(ToastMsg{
 			Text:    fmt.Sprintf("Queued (%d pending)", queueCount),
 			IsError: false,

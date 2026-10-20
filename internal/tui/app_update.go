@@ -134,12 +134,30 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		}
 		return a, cmd
 	}
+	if a.dialog.IsVisible() {
+		var cmd tea.Cmd
+		a.dialog, cmd = a.dialog.Update(msg)
+		if !a.dialog.IsVisible() {
+			a.setFocus(FocusPrompt)
+		}
+		return a, cmd
+	}
 
 	// Route to chat search if active.
 	if a.chat.IsSearching() {
 		var cmd tea.Cmd
 		a.chat, cmd = a.chat.Update(msg)
 		return a, cmd
+	}
+
+	// Page keys scroll chat even when the prompt is focused.
+	switch msg.String() {
+	case "pgup":
+		a.chat.PageUp()
+		return a, nil
+	case "pgdown":
+		a.chat.PageDown()
+		return a, nil
 	}
 
 	// Global keys handled before component dispatch.
@@ -218,7 +236,21 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		a.state.ActiveSession = msg.SessionID
 		a.state.Messages[msg.SessionID] = nil
 		a.syncPromptMetadata()
-		return a, nil, true
+		working := false
+		if st, ok := a.state.SessionStatus[msg.SessionID]; ok {
+			working = st.Working
+		}
+		var cmds []tea.Cmd
+		wasWorking := a.status.working
+		if spinCmd := a.status.SetWorking(working); spinCmd != nil {
+			cmds = append(cmds, spinCmd)
+		}
+		if wasWorking && !working {
+			cmds = append(cmds, a.reflowChromeClear())
+		} else if !wasWorking && working {
+			cmds = append(cmds, a.reflowChrome())
+		}
+		return a, tea.Batch(cmds...), true
 	case SessionStatusMsg:
 		prev, hadPrev := a.state.SessionStatus[msg.SessionID]
 		a.state.SessionStatus[msg.SessionID] = msg.Status
@@ -350,6 +382,15 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case PermissionRequestedMsg:
+		if a.state.AutoApprove {
+			return a, func() tea.Msg {
+				return PermissionReplyMsg{
+					SessionID:    msg.Request.SessionID,
+					PermissionID: msg.Request.ID,
+					Action:       PermissionAllow.String(),
+				}
+			}, true
+		}
 		a.permPrompt.Show(msg.Request)
 		fmt.Print("\a")
 		return a, nil, true

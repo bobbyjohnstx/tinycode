@@ -979,11 +979,12 @@ func TestHandlePromptSubmission_QueuedWhenWorking(t *testing.T) {
 	result, _ := ca.handlePromptSubmission(PromptSubmittedMsg{Content: "queued prompt"})
 	updated := result.(*connectedApp)
 
-	if len(updated.promptQueue) != 1 {
-		t.Fatalf("expected 1 queued prompt, got %d", len(updated.promptQueue))
+	q := updated.sessionQueues["ses_123"]
+	if len(q) != 1 {
+		t.Fatalf("expected 1 queued prompt, got %d", len(q))
 	}
-	if updated.promptQueue[0] != "queued prompt" {
-		t.Errorf("expected queued prompt %q, got %q", "queued prompt", updated.promptQueue[0])
+	if q[0] != "queued prompt" {
+		t.Errorf("expected queued prompt %q, got %q", "queued prompt", q[0])
 	}
 }
 

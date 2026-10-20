@@ -188,6 +188,20 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 	return c, cmd
 }
 
+// PageUp scrolls the viewport up one page and unsticks from the bottom.
+func (c *ChatView) PageUp() {
+	c.viewport.ViewUp()
+	c.stickyBottom = false
+}
+
+// PageDown scrolls the viewport down one page; resticks if at bottom.
+func (c *ChatView) PageDown() {
+	c.viewport.ViewDown()
+	if c.viewport.AtBottom() {
+		c.stickyBottom = true
+	}
+}
+
 // HasMessages reports whether any messages have been loaded.
 func (c ChatView) HasMessages() bool {
 	return len(c.messages) > 0
