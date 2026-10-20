@@ -108,7 +108,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 | `tinycode setup` | Interactive setup wizard | **Superseded.** Use `tinycode doctor` (diagnose) + `/connect` in the TUI (configure models). No separate setup wizard is planned. |
 | `tinycode mcp` | MCP server management (list, auth, add, debug, logout) | **Implemented** as CLI (`list`/`add`/`auth`/`logout`/`debug`). Interactive OAuth still parked (see §16.28) |
 | `tinycode db` | Database management (query, path, migrate) | Not implemented |
-| `tinycode import` | Import session data | Not implemented |
+| `tinycode import` | Import session data | **Implemented** (`tinycode import <file.json>`; always mints new IDs; no share-URL import) |
 | `tinycode uninstall` | Remove tinycode | Not implemented |
 | `tinycode generate` | Generate OpenAPI spec JSON | Not implemented |
 | `tinycode plugin-init` | Scaffold a new plugin project | Not implemented |
@@ -243,7 +243,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - `--sanitize` flag: redacts file contents, tool outputs, paths using `[redacted:<type>:<id>]` format
 - Import: `tinycode import` to restore session data
 
-**Go status:** Implemented. Go supports JSON and HTML export.
+**Go status:** JSON export with `--sanitize` (`[redacted:<type>:<id>]`) and `tinycode import <file.json>` (always new session/message IDs; no share-URL import). HTML export remains as previously implemented where present.
 
 ---
 

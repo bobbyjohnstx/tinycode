@@ -259,8 +259,23 @@ func runExport() {
 	setupLogger()
 
 	args := os.Args[2:]
-	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "Usage: tinycode export <session-id>\n")
+	sanitize := false
+	var sessionID string
+	for _, a := range args {
+		switch a {
+		case "--sanitize":
+			sanitize = true
+		case "--help", "-h":
+			fmt.Println("Usage: tinycode export <session-id> [--sanitize]")
+			return
+		default:
+			if !strings.HasPrefix(a, "-") && sessionID == "" {
+				sessionID = a
+			}
+		}
+	}
+	if sessionID == "" {
+		fmt.Fprintf(os.Stderr, "Usage: tinycode export <session-id> [--sanitize]\n")
 		os.Exit(1)
 	}
 
@@ -270,7 +285,6 @@ func runExport() {
 	store := session.NewStore(db.DB)
 	ms := session.NewMessageStore(store)
 
-	sessionID := args[0]
 	info, err := store.Get(sessionID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: session %q not found: %v\n", sessionID, err)
@@ -283,16 +297,91 @@ func runExport() {
 		os.Exit(1)
 	}
 
-	export := map[string]any{
-		"session":  info,
-		"messages": messages,
+	payload := session.ExportPayload{Session: *info, Messages: messages}
+	if sanitize {
+		payload = session.SanitizeExport(payload)
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(export); err != nil {
+	if err := enc.Encode(payload); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func runImport() {
+	setupLogger()
+
+	args := os.Args[2:]
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		fmt.Println("Usage: tinycode import <file.json>")
+		fmt.Println("Always mints new session and message IDs. Share URLs are not supported.")
+		if len(args) == 0 {
+			os.Exit(1)
+		}
+		return
+	}
+	path := args[0]
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		fmt.Fprintf(os.Stderr, "error: share URL import is not supported\n")
+		os.Exit(1)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error reading %s: %v\n", path, err)
+		os.Exit(1)
+	}
+
+	var payload session.ExportPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		fmt.Fprintf(os.Stderr, "error parsing export JSON: %v\n", err)
+		os.Exit(1)
+	}
+	if payload.Session.ID == "" && len(payload.Messages) == 0 {
+		fmt.Fprintf(os.Stderr, "error: empty or unrecognized export (expected session + messages)\n")
+		os.Exit(1)
+	}
+
+	_, db, _ := initDependencies()
+	defer db.Close()
+
+	dir, _ := os.Getwd()
+	directory := payload.Session.Directory
+	if directory == "" || strings.HasPrefix(directory, "[redacted:") {
+		directory = dir
+	}
+	title := payload.Session.Title
+	if strings.HasPrefix(title, "[redacted:") {
+		title = "Imported session"
+	}
+	projectID := project.IDFromDirectory(directory)
+
+	store := session.NewStore(db.DB)
+	ms := session.NewMessageStore(store)
+	created, err := store.Create(session.CreateInput{
+		ProjectID: projectID,
+		Directory: directory,
+		Title:     title,
+		Agent:     payload.Session.Agent,
+		Model:     payload.Session.Model,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error creating session: %v\n", err)
+		os.Exit(1)
+	}
+
+	msgs, err := session.RemapImportMessages(created.ID, payload.Messages)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	if err := ms.AppendBatch(created.ID, msgs); err != nil {
+		fmt.Fprintf(os.Stderr, "error importing messages: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Imported session %s (%d messages)\n", created.ID, len(msgs))
 }
 
 func runPlugin() {

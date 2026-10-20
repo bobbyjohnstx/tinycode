@@ -75,6 +75,8 @@ func main() {
 		runStatus()
 	case "export":
 		runExport()
+	case "import":
+		runImport()
 	case "plugin":
 		runPlugin()
 	case "init":
@@ -121,7 +123,8 @@ func printUsage() {
 	fmt.Println("  providers  List providers; login|logout persist API keys to auth.json")
 	fmt.Println("  session    Manage sessions (list, delete)")
 	fmt.Println("  status     Show server health and status")
-	fmt.Println("  export     Export session messages as JSON")
+	fmt.Println("  export     Export session messages as JSON (--sanitize)")
+	fmt.Println("  import     Import session JSON (always new IDs)")
 	fmt.Println("  plugin     Manage plugins (list, install, uninstall)")
 	fmt.Println("  init       Red Hat plugin/role setup (optional; not first-run)")
 	fmt.Println("  agent      List available agents")
