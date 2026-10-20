@@ -338,6 +338,9 @@ type UnrevertSentMsg struct {
 	Err error
 }
 
+// ClearQueueRequestMsg requests clearing queued prompts for the active session.
+type ClearQueueRequestMsg struct{}
+
 // CompactRequestMsg requests manual context compaction of the active session.
 type CompactRequestMsg struct{}
 

@@ -40,14 +40,20 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 	case SessionAgentPatchedMsg:
 		if msg.Err != nil {
 			slog.Warn("session agent patch failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Agent update failed: %v", msg.Err)...)
 		}
-		return c, nil, true
+		return c, tea.Batch(cmds...), true
 
 	case SessionModelPatchedMsg:
 		if msg.Err != nil {
 			slog.Warn("session model patch failed", "error", msg.Err)
+			cmds = append(cmds, c.showErrorToast("Model update failed: %v", msg.Err)...)
 		}
-		return c, nil, true
+		return c, tea.Batch(cmds...), true
+
+	case ClearQueueRequestMsg:
+		model, cmd := c.clearActiveQueue()
+		return model, cmd, true
 
 	case PromptSentMsg:
 		if msg.Err != nil {

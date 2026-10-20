@@ -22,7 +22,7 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 | `/swarm [--plan] <task>` | Dispatch parallel subagents to work on a task. With `--plan`, shows a decomposition plan for your review before dispatching. | Large refactors, migrations, or multi-file changes that benefit from parallel execution. |
 | `/effort [low\|medium\|high\|max]` | Adjust response depth. Low = concise answers, fewer tool calls. Max = exhaustive analysis, many iterations. Default: medium. | `/effort low` for quick questions. `/effort high` before a thorough security review. |
 | `/thinking [off\|low\|medium\|high\|max]` | Control the model's extended thinking budget (reasoning tokens). | When you want the model to think harder about a complex problem, or faster on a simple one. |
-| `/auto-approve` | Toggle auto-approval of tool calls for this session. When on, the model runs tools without asking permission. | When you trust the task and don't want to approve every shell command or file edit. |
+| `/auto-approve` | Toggle auto-approval of tool calls for this process (until quit). When on, the model runs tools without asking permission. | When you trust the task and don't want to approve every shell command or file edit. |
 | `/shell` | Drop into an interactive shell session inside tinycode. Type `exit` to return. | Running a quick sequence of shell commands without tool-call overhead. |
 
 ## Context & Information
@@ -95,7 +95,7 @@ These are not slash commands — they are tools the model can invoke during a co
 | `@` | File path completion |
 | `/` | Command completion |
 | `Ctrl+P` | Command palette |
-| `Ctrl+K` | Unified picker (sessions, models, agents) |
+| `Ctrl+K` | Unified picker (commands, files, sessions) |
 | `Ctrl+F` | In-transcript search |
 | `Ctrl+R` | Open prompt history browser |
 | `Ctrl+S` | Stash current draft / restore stash (when empty) |

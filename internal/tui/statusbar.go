@@ -47,6 +47,8 @@ type StatusBar struct {
 	leaderPending bool
 	safeMode      bool
 	queueCount    int
+	connected     bool
+	reconnecting  bool
 	spinner       spinner.Model
 	agentColor    lipgloss.AdaptiveColor
 	width         int
@@ -202,6 +204,12 @@ func (s *StatusBar) SetTurnTokens(n int) {
 	s.turnTokens = n
 }
 
+// SetConnection updates SSE connection chrome (connected / reconnecting / offline).
+func (s *StatusBar) SetConnection(connected, reconnecting bool) {
+	s.connected = connected
+	s.reconnecting = reconnecting
+}
+
 // SetQueueCount updates the queued prompt count shown in the status bar.
 func (s *StatusBar) SetQueueCount(n int) {
 	s.queueCount = n
@@ -309,7 +317,8 @@ func (s StatusBar) View() string {
 		} else {
 			hintsRight = dim.Render("tab") + " agents  " +
 				dim.Render("ctrl+p") + " commands  " +
-				dim.Render("/help") + " reference"
+				dim.Render("ctrl+k") + " pick  " +
+				dim.Render("ctrl+f") + " find"
 		}
 		hintsLine := renderHintsLine(s.width, "", hintsRight)
 		// Avoid styleStatusBar Padding — it can push past width and wrap.
@@ -331,6 +340,13 @@ func (s StatusBar) renderStatusMeta(dim, accent lipgloss.Style, dot string) stri
 			Foreground(lipgloss.AdaptiveColor{Light: "#B35900", Dark: "#FFA500"}).
 			Bold(true)
 		leftParts = append(leftParts, warn.Render("SAFE MODE"))
+	}
+	if !s.connected {
+		if s.reconnecting {
+			leftParts = append(leftParts, dim.Render("reconnecting"))
+		} else {
+			leftParts = append(leftParts, dim.Render("offline"))
+		}
 	}
 	if s.agent != "" {
 		leftParts = append(leftParts, accent.Render(s.agent))

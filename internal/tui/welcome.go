@@ -205,7 +205,8 @@ func (w WelcomeView) View(width, height int, providerName, modelName string, ses
 			}
 		}
 		tips2 := []string{
-			"ctrl+x sidebar/sessions",
+			"ctrl+x o sessions",
+			"ctrl+k pick",
 			"shift+enter newline",
 			"/help reference",
 		}

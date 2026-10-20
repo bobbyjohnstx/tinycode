@@ -62,7 +62,9 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		if a.state.AutoApprove {
 			label = "enabled"
 		}
-		return a.toast.Show("Auto-approve "+label+" for this session", false), true
+		return a.toast.Show("Auto-approve "+label+" for this process (until quit)", false), true
+	case "clear-queue":
+		return func() tea.Msg { return ClearQueueRequestMsg{} }, true
 	case "help":
 		a.debugDlg.Show("Help", helpCommandsText)
 		a.setFocus(FocusDialog)

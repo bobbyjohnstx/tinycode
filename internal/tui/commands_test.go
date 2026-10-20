@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -275,10 +276,34 @@ func TestHandleClientCommand_AutoApproveToggles(t *testing.T) {
 	if !app.state.AutoApprove {
 		t.Error("expected auto-approve to be enabled after first toggle")
 	}
+	if app.toast.current == nil {
+		t.Fatal("expected toast after auto-approve toggle")
+	}
+	toastText := app.toast.current.Text
+	if !strings.Contains(toastText, "process") && !strings.Contains(toastText, "until quit") {
+		t.Errorf("expected process/until-quit wording, got %q", toastText)
+	}
+	if strings.Contains(toastText, "this session") {
+		t.Errorf("auto-approve toast should not say this session, got %q", toastText)
+	}
 
 	_, _ = app.handleClientCommand("auto-approve")
 	if app.state.AutoApprove {
 		t.Error("expected auto-approve to be disabled after second toggle")
+	}
+}
+
+func TestHandleClientCommand_ClearQueue_EmitsRequestMsg(t *testing.T) {
+	app := NewApp("")
+	cmd, handled := app.handleClientCommand("clear-queue")
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd")
+	}
+	if _, ok := cmd().(ClearQueueRequestMsg); !ok {
+		t.Fatalf("expected ClearQueueRequestMsg, got %T", cmd())
 	}
 }
 

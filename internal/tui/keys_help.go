@@ -41,6 +41,8 @@ func keybindingPaletteItems(keys KeyMap) []PaletteItem {
 
 		separator("Global"),
 		entry(keys.CommandPalette),
+		entry(keys.UnifiedPalette),
+		entry(keys.ChatSearch),
 		entry(keys.ClearOrQuit),
 		entry(keys.Quit),
 		entry(keys.Interrupt),

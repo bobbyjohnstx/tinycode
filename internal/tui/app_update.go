@@ -297,10 +297,12 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return a, nil, true
 	case SSEConnectedMsg:
 		a.state.Connected = true
+		a.status.SetConnection(true, false)
 		a.welcome.MarkDone("sse")
 		return a, nil, true
 	case SSEDisconnectedMsg:
 		a.state.Connected = false
+		a.status.SetConnection(false, true)
 		return a, nil, true
 	}
 	return a, nil, false

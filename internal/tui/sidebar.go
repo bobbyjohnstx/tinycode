@@ -268,24 +268,6 @@ func (s Sidebar) View() string {
 		sb.WriteString("\n")
 	}
 
-	// Session tree — skip sessions with empty titles.
-	titled := filterTitledSessions(s.sessions)
-	if len(titled) > 0 {
-		sb.WriteString("\n")
-		sb.WriteString(styleSidebarHeader.Render("Sessions"))
-		sb.WriteString("\n\n")
-		const maxSidebarSessions = 5
-		displaySessions := titled
-		if len(displaySessions) > maxSidebarSessions {
-			displaySessions = displaySessions[:maxSidebarSessions]
-		}
-		sb.WriteString(renderTree(displaySessions, s.active))
-		if len(titled) > maxSidebarSessions {
-			sb.WriteString(styleSidebarMuted.Render(fmt.Sprintf("  +%d more", len(titled)-maxSidebarSessions)))
-			sb.WriteString("\n")
-		}
-	}
-
 	// Metadata
 	if s.agent != "" || s.model != "" {
 		sb.WriteString("\n")

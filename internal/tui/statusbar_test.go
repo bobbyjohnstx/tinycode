@@ -102,8 +102,11 @@ func TestStatusBar_LeaderPendingHints(t *testing.T) {
 	if !strings.Contains(view, "commands") {
 		t.Error("expected 'commands' in normal hints")
 	}
-	if !strings.Contains(view, "/help") {
-		t.Error("expected '/help' in normal hints")
+	if !strings.Contains(view, "ctrl+k") {
+		t.Error("expected 'ctrl+k' in normal hints")
+	}
+	if !strings.Contains(view, "ctrl+f") {
+		t.Error("expected 'ctrl+f' in normal hints")
 	}
 
 	// Leader pending should show follow-up keys
@@ -127,6 +130,33 @@ func TestStatusBar_LeaderPendingHints(t *testing.T) {
 	view = sb.View()
 	if !strings.Contains(view, "commands") {
 		t.Error("expected 'commands' in hints after clearing leader pending")
+	}
+	if !strings.Contains(view, "ctrl+k") {
+		t.Error("expected 'ctrl+k' in hints after clearing leader pending")
+	}
+}
+
+func TestStatusBar_SetConnection_ShowsOfflineAndReconnecting(t *testing.T) {
+	sb := NewStatusBar(120)
+	sb.SetConnection(false, false)
+	view := sb.View()
+	if !strings.Contains(view, "offline") {
+		t.Errorf("expected offline when disconnected, got %q", view)
+	}
+
+	sb.SetConnection(false, true)
+	view = sb.View()
+	if !strings.Contains(view, "reconnecting") {
+		t.Errorf("expected reconnecting, got %q", view)
+	}
+	if strings.Contains(view, "offline") {
+		t.Errorf("expected no offline while reconnecting, got %q", view)
+	}
+
+	sb.SetConnection(true, false)
+	view = sb.View()
+	if strings.Contains(view, "offline") || strings.Contains(view, "reconnecting") {
+		t.Errorf("expected no connection chrome when connected, got %q", view)
 	}
 }
 

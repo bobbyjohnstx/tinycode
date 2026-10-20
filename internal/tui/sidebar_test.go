@@ -200,8 +200,8 @@ func TestSidebar_ViewShowsMetadata(t *testing.T) {
 	if !strings.Contains(view, "qwen3:8b") {
 		t.Errorf("sidebar should show model name, got:\n%s", view)
 	}
-	if !strings.Contains(view, "Sessions") {
-		t.Errorf("sidebar should show Sessions header, got:\n%s", view)
+	if strings.Contains(view, "Sessions") {
+		t.Errorf("sidebar should not show Sessions header, got:\n%s", view)
 	}
 }
 

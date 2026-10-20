@@ -147,6 +147,32 @@ func TestPromptQueue_ClearQueueAlt(t *testing.T) {
 	}
 }
 
+func TestPromptQueue_ClearQueueRequestMsg(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "ses_123"
+
+	ca := &connectedApp{
+		app: app,
+		sessionQueues: map[string][]string{
+			"ses_123": {"p1", "p2"},
+		},
+	}
+	ca.app.status.SetQueueCount(2)
+
+	result, _ := ca.Update(ClearQueueRequestMsg{})
+	updated := result.(*connectedApp)
+
+	if len(updated.sessionQueues["ses_123"]) != 0 {
+		t.Errorf("expected empty queue after ClearQueueRequestMsg, got %d", len(updated.sessionQueues["ses_123"]))
+	}
+	if updated.app.status.queueCount != 0 {
+		t.Errorf("expected queueCount 0 after ClearQueueRequestMsg, got %d", updated.app.status.queueCount)
+	}
+}
+
 func TestPromptQueue_SlashCommandsBypassQueue(t *testing.T) {
 	app := NewApp("http://localhost:4096")
 	app.width = 100

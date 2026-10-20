@@ -144,13 +144,7 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 	}
 
 	if trimmed == "/clear-queue" || trimmed == "/queue clear" {
-		if sid := c.app.state.ActiveSession; sid != "" {
-			delete(c.sessionQueues, sid)
-		}
-		c.app.status.SetQueueCount(0)
-		model, cmd := c.app.Update(ToastMsg{Text: "Queue cleared", IsError: false})
-		c.updateApp(model)
-		return c, cmd
+		return c.clearActiveQueue()
 	}
 
 	if strings.HasPrefix(trimmed, "/") {
@@ -328,4 +322,15 @@ func (c *connectedApp) handleShellResult(msg ShellResultMsg) (tea.Model, tea.Cmd
 		cmds = append(cmds, spinCmd)
 	}
 	return c, tea.Batch(cmds...)
+}
+
+// clearActiveQueue clears queued prompts for the active session and toasts.
+func (c *connectedApp) clearActiveQueue() (tea.Model, tea.Cmd) {
+	if sid := c.app.state.ActiveSession; sid != "" {
+		delete(c.sessionQueues, sid)
+	}
+	c.app.status.SetQueueCount(0)
+	model, cmd := c.app.Update(ToastMsg{Text: "Queue cleared", IsError: false})
+	c.updateApp(model)
+	return c, cmd
 }

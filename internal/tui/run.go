@@ -79,20 +79,21 @@ type sideQA struct {
 
 // connectedApp wraps App with an API client for server communication.
 type connectedApp struct {
-	app             App
-	client          *api.Client
-	ctx             context.Context
-	sseEvents       <-chan api.ServerEvent
-	pendingPrompt   string
-	pendingAgent    string
-	pendingImages   []pendingImage
-	initialTitle    string
-	resumeSessionID string
-	btwHistory      []sideQA
-	goal            *goalTracker
-	startHead       string              // git HEAD at session start, for /changes
-	sessionQueues   map[string][]string // per-session prompts waiting for that run to finish
-	undoHintShown   bool                // once-per-process /undo discovery toast after first AI edit
+	app                     App
+	client                  *api.Client
+	ctx                     context.Context
+	sseEvents               <-chan api.ServerEvent
+	pendingPrompt           string
+	pendingAgent            string
+	pendingImages           []pendingImage
+	initialTitle            string
+	resumeSessionID         string
+	btwHistory              []sideQA
+	goal                    *goalTracker
+	startHead               string              // git HEAD at session start, for /changes
+	sessionQueues           map[string][]string // per-session prompts waiting for that run to finish
+	undoHintShown           bool                // once-per-process /undo discovery toast after first AI edit
+	sseReconnectToastsMuted bool                // after 5 failures: mute reconnect toasts, keep 16s retries
 }
 
 func newConnectedApp(ctx context.Context, serverURL string, client *api.Client, directory, themeName, version string, scopedModels []string) *connectedApp {
@@ -134,9 +135,9 @@ func (c *connectedApp) Init() tea.Cmd {
 		return func() tea.Msg { return SSEDisconnectedMsg{Err: err} }
 	}
 	c.sseEvents = events
-	c.app.welcome.MarkDone("sse")
 	cmds := []tea.Cmd{
 		c.app.Init(),
+		func() tea.Msg { return SSEConnectedMsg{} },
 		waitForSSE(c.sseEvents),
 		fetchSessions(c.client, 50, 0),
 		fetchProviders(c.client),
@@ -187,32 +188,56 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SSEDisconnectedMsg:
 		slog.Warn("SSE disconnected", "error", msg.Err)
+		model, cmd := c.app.Update(msg)
+		c.updateApp(model)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 		events, err := c.client.Subscribe(c.ctx)
 		if err != nil {
-			// Start reconnection with exponential backoff.
-			model, cmd := c.app.Update(ToastMsg{Text: "Reconnecting...", IsError: false})
-			c.updateApp(model)
-			return c, tea.Batch(cmd, sseReconnectAfter(0))
+			if !c.sseReconnectToastsMuted {
+				toastModel, toastCmd := c.app.Update(ToastMsg{Text: "Reconnecting...", IsError: false})
+				c.updateApp(toastModel)
+				if toastCmd != nil {
+					cmds = append(cmds, toastCmd)
+				}
+			}
+			return c, tea.Batch(append(cmds, sseReconnectAfter(0))...)
 		}
 		c.sseEvents = events
-		return c, waitForSSE(c.sseEvents)
+		c.sseReconnectToastsMuted = false
+		cmds = append(cmds, func() tea.Msg { return SSEConnectedMsg{} }, waitForSSE(c.sseEvents))
+		return c, tea.Batch(cmds...)
 
 	case SSEReconnectMsg:
 		events, err := c.client.Subscribe(c.ctx)
 		if err != nil {
 			if msg.Attempt >= 4 {
 				slog.Error("SSE reconnection failed after 5 attempts", "error", err)
-				cmds = append(cmds, c.showErrorToast("Connection lost")...)
-				return c, tea.Batch(cmds...)
+				if !c.sseReconnectToastsMuted {
+					cmds = append(cmds, c.showErrorToast("Connection lost")...)
+					c.sseReconnectToastsMuted = true
+				}
+				c.app.status.SetConnection(false, false)
+				return c, tea.Batch(append(cmds, sseReconnectAfter(4))...)
 			}
 			slog.Warn("SSE reconnection attempt failed", "attempt", msg.Attempt+1, "error", err)
-			model, cmd := c.app.Update(ToastMsg{Text: "Reconnecting...", IsError: false})
-			c.updateApp(model)
-			return c, tea.Batch(cmd, sseReconnectAfter(msg.Attempt+1))
+			if !c.sseReconnectToastsMuted {
+				model, cmd := c.app.Update(ToastMsg{Text: "Reconnecting...", IsError: false})
+				c.updateApp(model)
+				if cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+			}
+			return c, tea.Batch(append(cmds, sseReconnectAfter(msg.Attempt+1))...)
 		}
 		slog.Info("SSE reconnected", "attempt", msg.Attempt+1)
 		c.sseEvents = events
-		return c, waitForSSE(c.sseEvents)
+		c.sseReconnectToastsMuted = false
+		return c, tea.Batch(
+			func() tea.Msg { return SSEConnectedMsg{} },
+			waitForSSE(c.sseEvents),
+		)
 
 	case PromptSubmittedMsg:
 		return c.handlePromptSubmission(msg)

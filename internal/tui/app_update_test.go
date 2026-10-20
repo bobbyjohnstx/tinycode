@@ -587,11 +587,15 @@ func TestHandleStateMsg_SSEConnectedMsg_SetsConnectedTrue(t *testing.T) {
 	if !result.state.Connected {
 		t.Error("expected Connected=true after SSEConnectedMsg")
 	}
+	if !result.status.connected || result.status.reconnecting {
+		t.Error("expected status connected=true, reconnecting=false after SSEConnectedMsg")
+	}
 }
 
 func TestHandleStateMsg_SSEDisconnectedMsg_SetsConnectedFalse(t *testing.T) {
 	app := NewApp("")
 	app.state.Connected = true
+	app.status.SetConnection(true, false)
 
 	result, _, handled := app.handleStateMsg(SSEDisconnectedMsg{})
 	if !handled {
@@ -599,6 +603,9 @@ func TestHandleStateMsg_SSEDisconnectedMsg_SetsConnectedFalse(t *testing.T) {
 	}
 	if result.state.Connected {
 		t.Error("expected Connected=false after SSEDisconnectedMsg")
+	}
+	if result.status.connected || !result.status.reconnecting {
+		t.Error("expected status connected=false, reconnecting=true after SSEDisconnectedMsg")
 	}
 }
 

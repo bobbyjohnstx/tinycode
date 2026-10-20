@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/bobbyjohnstx/tinycode/internal/session"
@@ -1168,4 +1169,50 @@ func TestShowErrorToast_ReturnsCmd(t *testing.T) {
 	if len(cmds) == 0 {
 		t.Error("expected at least one cmd from showErrorToast")
 	}
+}
+
+func TestSessionAgentPatchedMsg_ErrorShowsToast(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	_, cmd, handled := ca.handleSessionMsg(SessionAgentPatchedMsg{Err: errors.New("boom")})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if cmd == nil {
+		t.Fatal("expected toast cmd on agent patch error")
+	}
+	if ca.app.toast.current == nil || !strings.Contains(ca.app.toast.current.Text, "Agent update failed") {
+		t.Errorf("expected Agent update failed toast, got %+v", ca.app.toast.current)
+	}
+}
+
+func TestSessionModelPatchedMsg_ErrorShowsToast(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	_, cmd, handled := ca.handleSessionMsg(SessionModelPatchedMsg{Err: errors.New("boom")})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if cmd == nil {
+		t.Fatal("expected toast cmd on model patch error")
+	}
+	if ca.app.toast.current == nil || !strings.Contains(ca.app.toast.current.Text, "Model update failed") {
+		t.Errorf("expected Model update failed toast, got %+v", ca.app.toast.current)
+	}
+}
+
+func TestSessionAgentPatchedMsg_NilErrNoToast(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	_, cmd, handled := ca.handleSessionMsg(SessionAgentPatchedMsg{})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if ca.app.toast.current != nil {
+		t.Errorf("expected no toast on success, got %+v", ca.app.toast.current)
+	}
+	_ = cmd
 }

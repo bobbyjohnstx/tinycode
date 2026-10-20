@@ -13,10 +13,11 @@ type clientCommandDef struct {
 // Server-side commands are appended at runtime.
 var clientCommandDefs = []clientCommandDef{
 	{Name: "archive", Description: "Archive current session", InPalette: true},
-	{Name: "auto-approve", Description: "Toggle auto-approve for session", InPalette: true},
+	{Name: "auto-approve", Description: "Toggle auto-approve until quit", InPalette: true},
 	{Name: "branch", Description: "Branch conversation to try a different approach", InPalette: true},
 	{Name: "btw", Description: "Side question without polluting context", InPalette: true},
 	{Name: "changes", Description: "Show session-scoped diff of modified files", InPalette: true},
+	{Name: "clear-queue", Description: "Clear queued prompts for current turn", InPalette: true},
 	{Name: "compact", Description: "Compact context (summarize session)", InPalette: true},
 	{Name: "connect", Description: "Select provider and model", InPalette: true},
 	{Name: "context", Description: "Show context window usage breakdown", InPalette: true},

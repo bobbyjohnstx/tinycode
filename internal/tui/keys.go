@@ -7,6 +7,7 @@ type KeyMap struct {
 	// Global
 	CommandPalette key.Binding
 	UnifiedPalette key.Binding
+	ChatSearch     key.Binding
 	Quit           key.Binding
 	ClearOrQuit    key.Binding
 
@@ -53,6 +54,10 @@ func DefaultKeyMap() KeyMap {
 		UnifiedPalette: key.NewBinding(
 			key.WithKeys("ctrl+k"),
 			key.WithHelp("ctrl+k", "unified picker"),
+		),
+		ChatSearch: key.NewBinding(
+			key.WithKeys("ctrl+f"),
+			key.WithHelp("ctrl+f", "find in transcript"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+d"),

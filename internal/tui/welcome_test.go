@@ -130,8 +130,11 @@ func TestWelcomeView_TipsAfterBoot(t *testing.T) {
 	if !strings.Contains(view, "/ commands") {
 		t.Error("expected tips to appear after boot completes")
 	}
-	if !strings.Contains(view, "ctrl+x sidebar/sessions") {
-		t.Error("expected 'ctrl+x sidebar/sessions' in second tips line")
+	if !strings.Contains(view, "ctrl+x o sessions") {
+		t.Error("expected 'ctrl+x o sessions' in second tips line")
+	}
+	if !strings.Contains(view, "ctrl+k pick") {
+		t.Error("expected 'ctrl+k pick' in second tips line")
 	}
 	if !strings.Contains(view, "/help reference") {
 		t.Error("expected '/help reference' in second tips line")
