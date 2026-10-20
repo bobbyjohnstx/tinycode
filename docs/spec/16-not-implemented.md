@@ -82,7 +82,7 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 - Fallback chain: disk cache -> bundled snapshot -> local catalog file -> hardcoded fallback
 - Environment variables: `TINYCODE_MODELS_URL`, `TINYCODE_MODELS_PATH`, `TINYCODE_DISABLE_MODELS_FETCH`
 
-**Go status:** Not implemented. Go discovers models directly from provider APIs (Ollama `/api/tags`, vLLM `/v1/models`, OpenRouter `/api/v1/models`). Model capabilities are inferred from provider responses rather than a curated catalog.
+**Go status:** Implemented (fail-open). Fetches `${TINYCODE_MODELS_URL}/api.json` (plus `TINYCODE_MODELS_PATH` / `TINYCODE_DISABLE_MODELS_FETCH`), caches under DataDir, and merges Limit/Cost/Capabilities onto discovered models by exact ID. Discovery still owns existence.
 
 ---
 

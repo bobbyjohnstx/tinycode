@@ -65,6 +65,7 @@ func (r *Registry) Register(info *Info) {
 	if r.isFiltered(info.ID) {
 		return
 	}
+	applyRemoteCatalogToProvider(info)
 	r.providers[info.ID] = info
 }
 

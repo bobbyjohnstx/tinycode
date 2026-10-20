@@ -531,6 +531,9 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 
 	registerConfigProviders(reg, cfg)
 
+	// Fail-open remote catalog merge (${TINYCODE_MODELS_URL}/api.json).
+	provider.ApplyRemoteCatalog(ctx, reg)
+
 	return disc
 }
 
