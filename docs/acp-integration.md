@@ -9,6 +9,7 @@ The Agent Client Protocol is a standardized JSON-RPC 2.0 protocol for communicat
 - Session management (create, list, load, fork, close)
 - Prompt turns with streamed `session/update` notifications
 - Tool execution with `session/request_permission` requests
+- User questions via `elicitation/create` (form mode) when the client advertises elicitation
 - Multi-turn conversations with context preservation
 
 ACP enables tinycode to integrate with any editor that supports spawning a child process and communicating over stdin/stdout.
@@ -26,6 +27,7 @@ The process will:
 2. Listen on stdin for JSON-RPC requests using official ACP wire methods (`session/new`, `session/prompt`, …)
 3. Stream LLM responses and tool events as `session/update` notifications on stdout
 4. Ask the IDE for tool permissions via `session/request_permission` requests
+5. Ask the user questions via `elicitation/create` when the client supports form elicitation
 
 Flags:
 
@@ -101,7 +103,10 @@ const conn = new ClientSideConnection((agent) => ({
 
 const initResult = await conn.initialize({
   protocolVersion: 1,
-  clientCapabilities: {},
+  clientCapabilities: {
+    // Advertise form elicitation so the question tool can prompt the user.
+    elicitation: { form: {} },
+  },
   clientInfo: { name: 'my-editor', version: '1.0.0' }
 })
 
@@ -114,7 +119,7 @@ const result = await conn.prompt({
   sessionId: session.sessionId,
   prompt: [{ type: 'text', text: 'Explain this codebase' }]
 })
-console.log('stopReason:', result.stopReason) // "end_turn" | "cancelled"
+console.log('stopReason:', result.stopReason) // "end_turn" | "cancelled" | "refusal"
 ```
 
 ### Listening for Session Updates
@@ -139,11 +144,11 @@ Common `sessionUpdate` values:
 
 | Value | Meaning |
 |-------|---------|
-| `agent_message_chunk` | Assistant text |
-| `agent_thought_chunk` | Reasoning/thought text |
+| `agent_message_chunk` | Assistant text (including streamed deltas) |
+| `agent_thought_chunk` | Reasoning/thought text (including streamed deltas) |
 | `user_message_chunk` | Replayed user text (loadSession) |
-| `tool_call` | Tool invocation started |
-| `tool_call_update` | Tool status change |
+| `tool_call` | Tool invocation started (`pending`) |
+| `tool_call_update` | Tool status: `in_progress` after args stream; `completed`/`failed` after execution with `rawOutput` when available |
 
 ### Permission Handling
 
@@ -152,6 +157,15 @@ When a tool needs approval, the agent sends a **request** (not a notification):
 - Method: `session/request_permission`
 - Client must reply with `{ outcome: { outcome: "selected", optionId: "allow_once" | "allow_always" | "reject_once" } }`
 - On timeout (120s) or disconnect, tinycode auto-denies
+
+### Question Elicitation
+
+When the agent uses the `question` tool:
+
+- Method: `elicitation/create` with `mode: "form"` and a flat `requestedSchema` (`answer` string, optionally enum options)
+- Requires `clientCapabilities.elicitation.form` during `initialize`
+- Client replies with `{ action: "accept", content: { answer: "…" } }` or `decline` / `cancel`
+- Without form elicitation support, the question tool fails immediately (no hang)
 
 ## Supported Operations
 
@@ -188,7 +202,7 @@ During `initialize`, tinycode advertises:
 { "stopReason": "end_turn" }
 ```
 
-or `{ "stopReason": "cancelled" }` if the client sent `session/cancel`.
+or `{ "stopReason": "cancelled" }` if the client sent `session/cancel`, or `{ "stopReason": "refusal" }` if the turn failed with a `session.error` (the error text is also streamed as an `agent_message_chunk`).
 
 Prompt params accept either official `prompt: ContentBlock[]` or legacy `content: ContentBlock[]`.
 
@@ -242,6 +256,11 @@ All ACP methods return promises that reject on error. Handle JSON-RPC error code
 
 - Client must implement `requestPermission` and always respond (deny on cancel)
 - Auto-deny kicks in after 120s
+
+### Questions Hang or Fail Immediately
+
+- Advertise `clientCapabilities.elicitation.form` and implement `elicitation/create`
+- Without that capability, the question tool rejects immediately so the turn can continue
 
 ## Go implementation
 

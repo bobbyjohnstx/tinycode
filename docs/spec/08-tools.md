@@ -222,7 +222,7 @@ Ask the user a question. Source: `question.go`
 | `question` | string | yes | Question text |
 | `options` | string[] | no | Optional choices |
 
-Publishes `question.asked` event, subscribes to `question.replied`, and blocks until answer arrives (or context cancellation). The TUI displays a full-screen question overlay with text input (or option selection when choices are provided) and posts `POST /question/{id}/reply`. ACP and headless modes relay through their respective permission/event channels.
+Publishes `question.asked` event, subscribes to `question.replied` / `question.rejected`, and blocks until an answer arrives (or context cancellation). The TUI displays a full-screen question overlay with text input (or option selection when choices are provided) and posts `POST /question/{id}/reply`. ACP relays `question.asked` via `elicitation/create` (form mode) when the client advertises `clientCapabilities.elicitation.form`; otherwise the tool is rejected immediately so the turn does not hang. Headless/serve without a UI subscriber will also hang until cancel unless a client replies on the HTTP question routes.
 
 **Permission:** `read`
 
