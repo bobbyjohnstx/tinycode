@@ -57,6 +57,9 @@ type StdioTransport struct {
 	nextID  atomic.Int64
 	pending sync.Map // id (int64) -> *pendingRequest
 	closed  atomic.Bool
+
+	// formElicitation is set from clientCapabilities.elicitation.form during initialize.
+	formElicitation atomic.Bool
 }
 
 func NewStdioTransport(service *Service, writer io.Writer) *StdioTransport {
@@ -226,6 +229,16 @@ func (t *StdioTransport) SendNotification(method string, params any) {
 		Params:  params,
 	}
 	t.send(notif)
+}
+
+// SetFormElicitation records whether the client advertised form elicitation.
+func (t *StdioTransport) SetFormElicitation(supported bool) {
+	t.formElicitation.Store(supported)
+}
+
+// FormElicitation reports whether the client supports elicitation/create form mode.
+func (t *StdioTransport) FormElicitation() bool {
+	return t.formElicitation.Load()
 }
 
 func (t *StdioTransport) sendResult(id any, result any) {

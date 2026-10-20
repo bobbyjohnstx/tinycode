@@ -49,6 +49,7 @@ type Service struct {
 
 	mu        sync.Mutex
 	cancelled map[string]bool
+	failed    map[string]bool
 }
 
 type AgentInfo struct {
@@ -95,6 +96,7 @@ func NewServiceWithConfig(cfg Config) *Service {
 		defaultCWD:   cfg.DefaultCWD,
 		info:         info,
 		cancelled:    make(map[string]bool),
+		failed:       make(map[string]bool),
 	}
 }
 
@@ -138,7 +140,8 @@ func (s *Service) HandleRequest(ctx context.Context, method string, params json.
 	}
 }
 
-func (s *Service) handleInitialize(_ context.Context, _ json.RawMessage) (any, *RPCError) {
+func (s *Service) handleInitialize(_ context.Context, params json.RawMessage) (any, *RPCError) {
+	s.recordClientCapabilities(params)
 	return map[string]any{
 		"protocolVersion": protocolVersion,
 		"agentCapabilities": map[string]any{
@@ -157,6 +160,40 @@ func (s *Service) handleInitialize(_ context.Context, _ json.RawMessage) (any, *
 		"authMethods": []any{},
 		"agentInfo":   s.info,
 	}, nil
+}
+
+// recordClientCapabilities stores elicitation support advertised by the client.
+// Form mode is supported only when clientCapabilities.elicitation.form is present and non-null.
+func (s *Service) recordClientCapabilities(params json.RawMessage) {
+	form := false
+	if len(params) > 0 {
+		var req struct {
+			ClientCapabilities *struct {
+				Elicitation json.RawMessage `json:"elicitation"`
+			} `json:"clientCapabilities"`
+		}
+		if err := json.Unmarshal(params, &req); err == nil && req.ClientCapabilities != nil {
+			form = elicitationFormSupported(req.ClientCapabilities.Elicitation)
+		}
+	}
+	if s.transport != nil {
+		s.transport.SetFormElicitation(form)
+	}
+}
+
+func elicitationFormSupported(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return false
+	}
+	var elicitation map[string]any
+	if err := json.Unmarshal(raw, &elicitation); err != nil {
+		return false
+	}
+	form, ok := elicitation["form"]
+	if !ok || form == nil {
+		return false
+	}
+	return true
 }
 
 func (s *Service) handleAuthenticate(_ context.Context, _ json.RawMessage) (any, *RPCError) {
@@ -200,6 +237,7 @@ func (s *Service) handleNewSession(ctx context.Context, params json.RawMessage) 
 
 	s.bus.Publish("project.updated", project.FromDirectory(dir))
 	s.clearCancelled(info.ID)
+	s.clearFailed(info.ID)
 
 	return map[string]any{
 		"sessionId":     info.ID,
@@ -236,6 +274,7 @@ func (s *Service) handleLoadSession(ctx context.Context, params json.RawMessage)
 	}
 
 	s.clearCancelled(info.ID)
+	s.clearFailed(info.ID)
 	s.replayHistory(ctx, info.ID)
 
 	return map[string]any{
@@ -335,6 +374,7 @@ func (s *Service) handleResumeSession(ctx context.Context, params json.RawMessag
 	}
 
 	s.clearCancelled(req.SessionID)
+	s.clearFailed(req.SessionID)
 	return map[string]any{
 		"configOptions": []any{},
 	}, nil
@@ -355,6 +395,7 @@ func (s *Service) handleCloseSession(ctx context.Context, params json.RawMessage
 		slog.Warn("failed to close ACP session", "id", req.SessionID, "error", err)
 	}
 	s.clearCancelled(req.SessionID)
+	s.clearFailed(req.SessionID)
 
 	return map[string]any{}, nil
 }
@@ -419,6 +460,7 @@ func (s *Service) handlePrompt(ctx context.Context, params json.RawMessage) (any
 	}
 
 	s.clearCancelled(req.SessionID)
+	s.clearFailed(req.SessionID)
 
 	if s.runner == nil {
 		// Legacy bus-only path for unit tests without a runner.
@@ -432,6 +474,8 @@ func (s *Service) handlePrompt(ctx context.Context, params json.RawMessage) (any
 
 	sub := s.bus.Subscribe("session.status")
 	defer sub.Unsubscribe()
+	errSub := s.bus.Subscribe("session.error")
+	defer errSub.Unsubscribe()
 
 	if err := s.runner.StartTextPrompt(ctx, req.SessionID, text); err != nil {
 		return nil, &RPCError{Code: InternalError, Message: err.Error()}
@@ -439,17 +483,20 @@ func (s *Service) handlePrompt(ctx context.Context, params json.RawMessage) (any
 
 	// If the turn finished before we observed status events, avoid hanging.
 	if !s.runner.IsBusy(req.SessionID) {
-		if s.wasCancelled(req.SessionID) {
-			return map[string]any{"stopReason": "cancelled"}, nil
-		}
-		return map[string]any{"stopReason": "end_turn"}, nil
+		s.drainSessionErrors(errSub, req.SessionID)
+		return map[string]any{"stopReason": s.promptStopReason(req.SessionID)}, nil
 	}
 
 	for {
 		select {
+		case evt, ok := <-errSub.C:
+			if ok {
+				s.noteSessionError(evt, req.SessionID)
+			}
 		case evt, ok := <-sub.C:
 			if !ok {
-				return map[string]any{"stopReason": "end_turn"}, nil
+				s.drainSessionErrors(errSub, req.SessionID)
+				return map[string]any{"stopReason": s.promptStopReason(req.SessionID)}, nil
 			}
 			props, ok := evt.Properties.(map[string]any)
 			if !ok {
@@ -466,19 +513,15 @@ func (s *Service) handlePrompt(ctx context.Context, params json.RawMessage) (any
 			if statusType != "idle" {
 				continue
 			}
-			if s.wasCancelled(req.SessionID) {
-				return map[string]any{"stopReason": "cancelled"}, nil
-			}
-			return map[string]any{"stopReason": "end_turn"}, nil
+			s.drainSessionErrors(errSub, req.SessionID)
+			return map[string]any{"stopReason": s.promptStopReason(req.SessionID)}, nil
 		case <-ctx.Done():
 			s.runner.Abort(req.SessionID)
 			return map[string]any{"stopReason": "cancelled"}, nil
 		case <-time.After(100 * time.Millisecond):
 			if !s.runner.IsBusy(req.SessionID) {
-				if s.wasCancelled(req.SessionID) {
-					return map[string]any{"stopReason": "cancelled"}, nil
-				}
-				return map[string]any{"stopReason": "end_turn"}, nil
+				s.drainSessionErrors(errSub, req.SessionID)
+				return map[string]any{"stopReason": s.promptStopReason(req.SessionID)}, nil
 			}
 		}
 	}
@@ -577,4 +620,59 @@ func (s *Service) wasCancelled(sessionID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.cancelled[sessionID]
+}
+
+func (s *Service) markFailed(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failed[sessionID] = true
+}
+
+func (s *Service) clearFailed(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.failed, sessionID)
+}
+
+func (s *Service) wasFailed(sessionID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.failed[sessionID]
+}
+
+// promptStopReason prefers cancelled, then refusal on session.error, else end_turn.
+func (s *Service) promptStopReason(sessionID string) string {
+	if s.wasCancelled(sessionID) {
+		return "cancelled"
+	}
+	if s.wasFailed(sessionID) {
+		return "refusal"
+	}
+	return "end_turn"
+}
+
+func (s *Service) noteSessionError(evt bus.Event, sessionID string) {
+	props, ok := evt.Properties.(map[string]any)
+	if !ok {
+		return
+	}
+	sid, _ := props["sessionID"].(string)
+	if sid != sessionID {
+		return
+	}
+	s.markFailed(sessionID)
+}
+
+func (s *Service) drainSessionErrors(sub *bus.Subscription, sessionID string) {
+	for {
+		select {
+		case evt, ok := <-sub.C:
+			if !ok {
+				return
+			}
+			s.noteSessionError(evt, sessionID)
+		default:
+			return
+		}
+	}
 }

@@ -1441,7 +1441,7 @@ func TestPrompt_ContextCancelled(t *testing.T) {
 
 	created, _ := mock.Create(context.Background(), session.CreateInput{
 		ProjectID: "acp", Directory: "/tmp", Title: "Test",
-		Model:     &session.ModelRef{ProviderID: "ollama", ModelID: "llama"},
+		Model: &session.ModelRef{ProviderID: "ollama", ModelID: "llama"},
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
@@ -1476,7 +1476,7 @@ func TestPrompt_CancelledDuringExecution(t *testing.T) {
 
 	created, _ := mock.Create(context.Background(), session.CreateInput{
 		ProjectID: "acp", Directory: "/tmp", Title: "Test",
-		Model:     &session.ModelRef{ProviderID: "ollama", ModelID: "llama"},
+		Model: &session.ModelRef{ProviderID: "ollama", ModelID: "llama"},
 	})
 
 	type promptResult struct {
@@ -1539,8 +1539,11 @@ func TestEventRelay_ToolEndEvent(t *testing.T) {
 	if !strings.Contains(out, "tool_call_update") {
 		t.Errorf("expected tool_call_update notification, got: %s", out)
 	}
-	if !strings.Contains(out, "completed") {
-		t.Errorf("expected status 'completed', got: %s", out)
+	if !strings.Contains(out, "in_progress") {
+		t.Errorf("expected status 'in_progress' after arg stream, got: %s", out)
+	}
+	if strings.Contains(out, `"status":"completed"`) {
+		t.Errorf("tool.end must not mark completed, got: %s", out)
 	}
 }
 
@@ -1821,5 +1824,544 @@ func TestPendingKey_Variants(t *testing.T) {
 				t.Errorf("pendingKey(%v) = %v, want %v", tt.input, got, tt.expect)
 			}
 		})
+	}
+}
+
+func TestInitialize_RecordsFormElicitation(t *testing.T) {
+	svc, _, _ := testService(t)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+
+	params := json.RawMessage(`{"clientCapabilities":{"elicitation":{"form":{}}}}`)
+	if _, err := svc.HandleRequest(context.Background(), "initialize", params); err != nil {
+		t.Fatalf("initialize: %s", err.Message)
+	}
+	if !transport.FormElicitation() {
+		t.Fatal("expected form elicitation capability recorded")
+	}
+
+	paramsNone := json.RawMessage(`{"clientCapabilities":{}}`)
+	if _, err := svc.HandleRequest(context.Background(), "initialize", paramsNone); err != nil {
+		t.Fatalf("initialize reset: %s", err.Message)
+	}
+	if transport.FormElicitation() {
+		t.Fatal("expected form elicitation cleared when not advertised")
+	}
+}
+
+func TestEventRelay_QuestionAsked_NoElicitationRejects(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	rejected := b.Subscribe("question.rejected")
+	defer rejected.Unsubscribe()
+
+	b.Publish("question.asked", map[string]any{
+		"id":        "q_1",
+		"sessionID": "ses_1",
+		"questions": []map[string]any{{"question": "Continue?"}},
+	})
+
+	select {
+	case evt := <-rejected.C:
+		props := evt.Properties.(map[string]any)
+		if props["requestID"] != "q_1" {
+			t.Fatalf("expected requestID q_1, got %v", props["requestID"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for question.rejected")
+	}
+}
+
+func TestEventRelay_QuestionAsked_ElicitationAccept(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	pr, pw := io.Pipe()
+	var output syncBuffer
+	transport := NewStdioTransport(svc, &output)
+	transport.SetFormElicitation(true)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	safego.Go(func() {
+		defer close(done)
+		_ = transport.HandleStdio(ctx, pr)
+	})
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	replied := b.Subscribe("question.replied")
+	defer replied.Unsubscribe()
+
+	// Reply to elicitation/create from the client side.
+	safego.Go(func() {
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			data := output.Bytes()
+			if len(data) == 0 {
+				time.Sleep(5 * time.Millisecond)
+				continue
+			}
+			for _, line := range bytes.Split(data, []byte("\n")) {
+				if len(line) == 0 {
+					continue
+				}
+				var req map[string]any
+				if err := json.Unmarshal(line, &req); err != nil {
+					continue
+				}
+				if req["method"] != "elicitation/create" {
+					continue
+				}
+				resp, _ := json.Marshal(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      req["id"],
+					"result": map[string]any{
+						"action":  "accept",
+						"content": map[string]any{"answer": "yes please"},
+					},
+				})
+				_, _ = pw.Write(append(resp, '\n'))
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		t.Error("timed out waiting for elicitation/create")
+		cancel()
+	})
+
+	b.Publish("question.asked", map[string]any{
+		"id":        "q_2",
+		"sessionID": "ses_1",
+		"questions": []map[string]any{
+			{
+				"question": "Ship it?",
+				"options":  []map[string]any{{"label": "yes"}, {"label": "no"}},
+			},
+		},
+	})
+
+	select {
+	case evt := <-replied.C:
+		props := evt.Properties.(map[string]any)
+		if props["requestID"] != "q_2" {
+			t.Fatalf("requestID = %v, want q_2", props["requestID"])
+		}
+		if props["answer"] != "yes please" {
+			t.Fatalf("answer = %v, want yes please", props["answer"])
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for question.replied")
+	}
+
+	cancel()
+	pw.Close()
+	<-done
+}
+
+func TestEventRelay_QuestionAsked_ElicitationDecline(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	pr, pw := io.Pipe()
+	var output syncBuffer
+	transport := NewStdioTransport(svc, &output)
+	transport.SetFormElicitation(true)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	safego.Go(func() {
+		defer close(done)
+		_ = transport.HandleStdio(ctx, pr)
+	})
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	rejected := b.Subscribe("question.rejected")
+	defer rejected.Unsubscribe()
+
+	safego.Go(func() {
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			for _, line := range bytes.Split(output.Bytes(), []byte("\n")) {
+				if len(line) == 0 {
+					continue
+				}
+				var req map[string]any
+				if err := json.Unmarshal(line, &req); err != nil {
+					continue
+				}
+				if req["method"] != "elicitation/create" {
+					continue
+				}
+				resp, _ := json.Marshal(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      req["id"],
+					"result":  map[string]any{"action": "decline"},
+				})
+				_, _ = pw.Write(append(resp, '\n'))
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	})
+
+	b.Publish("question.asked", map[string]any{
+		"id":        "q_3",
+		"sessionID": "ses_1",
+		"questions": []any{map[string]any{"question": "Abort?"}},
+	})
+
+	select {
+	case evt := <-rejected.C:
+		props := evt.Properties.(map[string]any)
+		if props["requestID"] != "q_3" {
+			t.Fatalf("requestID = %v, want q_3", props["requestID"])
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for question.rejected")
+	}
+
+	cancel()
+	pw.Close()
+	<-done
+}
+
+func TestEventRelay_SessionError(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	b.Publish("session.error", map[string]any{
+		"sessionID": "ses_1",
+		"error": map[string]any{
+			"name": "ProviderAuthError",
+			"data": map[string]any{"message": "no model configured"},
+		},
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, "agent_message_chunk") {
+		t.Errorf("expected agent_message_chunk, got: %s", out)
+	}
+	if !strings.Contains(out, "no model configured") {
+		t.Errorf("expected error text, got: %s", out)
+	}
+}
+
+func TestPrompt_StopReasonRefusalOnSessionError(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	runner := &errorThenIdleRunner{Bus: b}
+	svc := NewServiceWithConfig(Config{
+		Sessions:   mock,
+		Bus:        b,
+		Runner:     runner,
+		DefaultCWD: "/tmp",
+	})
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: "/tmp", Title: "Test",
+	})
+
+	params, _ := json.Marshal(map[string]any{
+		"sessionId": created.ID,
+		"prompt":    []map[string]string{{"type": "text", "text": "hi"}},
+	})
+	result, rpcErr := svc.HandleRequest(context.Background(), "session/prompt", params)
+	if rpcErr != nil {
+		t.Fatalf("prompt error: %s", rpcErr.Message)
+	}
+	resp := result.(map[string]any)
+	if resp["stopReason"] != "refusal" {
+		t.Fatalf("expected stopReason refusal, got %v", resp["stopReason"])
+	}
+}
+
+// errorThenIdleRunner publishes session.error then idle, mimicking a failed turn.
+type errorThenIdleRunner struct {
+	Bus  *bus.Bus
+	mu   sync.Mutex
+	busy map[string]bool
+}
+
+func (r *errorThenIdleRunner) StartTextPrompt(_ context.Context, sessionID, _ string) error {
+	r.mu.Lock()
+	r.busy = map[string]bool{sessionID: true}
+	r.mu.Unlock()
+	r.Bus.Publish("session.status", map[string]any{
+		"sessionID": sessionID,
+		"status":    map[string]any{"type": "busy"},
+	})
+	r.Bus.Publish("session.error", map[string]any{
+		"sessionID": sessionID,
+		"error":     map[string]any{"name": "Error", "data": map[string]any{"message": "boom"}},
+	})
+	safego.Go(func() {
+		time.Sleep(20 * time.Millisecond)
+		r.mu.Lock()
+		r.busy[sessionID] = false
+		r.mu.Unlock()
+		r.Bus.Publish("session.status", map[string]any{
+			"sessionID": sessionID,
+			"status":    map[string]any{"type": "idle"},
+		})
+	})
+	return nil
+}
+
+func (r *errorThenIdleRunner) Abort(sessionID string) {
+	r.mu.Lock()
+	if r.busy != nil {
+		r.busy[sessionID] = false
+	}
+	r.mu.Unlock()
+}
+
+func (r *errorThenIdleRunner) IsBusy(sessionID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.busy[sessionID]
+}
+
+func TestEventRelay_ToolResultCompletedWithOutput(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"part": map[string]any{
+			"type":   "tool",
+			"callID": "tc_out",
+			"tool":   "bash",
+			"state": map[string]any{
+				"status": "completed",
+				"output": "hello from bash",
+			},
+		},
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, "tool_call_update") {
+		t.Errorf("expected tool_call_update, got: %s", out)
+	}
+	if !strings.Contains(out, `"status":"completed"`) {
+		t.Errorf("expected completed status, got: %s", out)
+	}
+	if !strings.Contains(out, "hello from bash") {
+		t.Errorf("expected rawOutput/content, got: %s", out)
+	}
+}
+
+func TestEventRelay_ToolResultFailed(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"part": map[string]any{
+			"type":   "tool",
+			"callID": "tc_err",
+			"state": map[string]any{
+				"status": "error",
+				"output": "permission denied",
+				"error":  "permission denied",
+			},
+		},
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, `"status":"failed"`) {
+		t.Errorf("expected failed status, got: %s", out)
+	}
+}
+
+func TestEventRelay_ToolDeclarationIgnoredForCompletion(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	// Tool-call declaration (no output) must not mark completed.
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"part": map[string]any{
+			"type":   "tool",
+			"callID": "tc_decl",
+			"state": map[string]any{
+				"status": "completed",
+				"input":  map[string]any{"args": `{"x":1}`},
+			},
+		},
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if strings.Contains(out, `"status":"completed"`) {
+		t.Errorf("declaration must not complete tool, got: %s", out)
+	}
+	if !strings.Contains(out, "rawInput") {
+		t.Errorf("expected rawInput update for declaration, got: %s", out)
+	}
+}
+
+func TestEventRelay_MessagePartDelta(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	// Empty initial part registers type; should not emit a chunk.
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"part": map[string]any{
+			"id":   "part_text",
+			"type": "text",
+			"text": "",
+		},
+	})
+	time.Sleep(30 * time.Millisecond)
+	if strings.Contains(output.String(), "agent_message_chunk") {
+		t.Fatalf("empty initial update should not stream, got: %s", output.String())
+	}
+
+	b.Publish("message.part.delta", map[string]any{
+		"sessionID": "ses_1",
+		"partID":    "part_text",
+		"delta":     "Hel",
+	})
+	output.WaitWrite(t, time.Second)
+
+	b.Publish("message.part.delta", map[string]any{
+		"sessionID": "ses_1",
+		"partID":    "part_text",
+		"delta":     "lo",
+	})
+	output.WaitWrite(t, time.Second)
+
+	// Final full dump should be skipped after deltas.
+	before := output.String()
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"part": map[string]any{
+			"id":   "part_text",
+			"type": "text",
+			"text": "Hello",
+		},
+	})
+	time.Sleep(40 * time.Millisecond)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, "Hel") || !strings.Contains(out, "lo") {
+		t.Errorf("expected delta chunks, got: %s", out)
+	}
+	// Full "Hello" as a single chunk should not appear beyond the deltas.
+	if strings.Count(out, `"text":"Hello"`) > 0 {
+		t.Errorf("expected no full dump after deltas, got: %s", out)
+	}
+	_ = before
+}
+
+func TestEventRelay_ReasoningDelta(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"part": map[string]any{
+			"id":   "part_r",
+			"type": "reasoning",
+			"text": "",
+		},
+	})
+	b.Publish("message.part.delta", map[string]any{
+		"sessionID": "ses_1",
+		"partID":    "part_r",
+		"delta":     "thinking",
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	if !strings.Contains(output.String(), "agent_thought_chunk") {
+		t.Errorf("expected agent_thought_chunk, got: %s", output.String())
 	}
 }
