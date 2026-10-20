@@ -2,12 +2,20 @@ import type { Event } from "@tinycode/sdk/v2/client"
 import { createSimpleContext } from "@tinycode/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { batch, onCleanup, onMount } from "solid-js"
+import { batch, createSignal, onCleanup, onMount } from "solid-js"
 import { createSdkForServer } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
 import { createRefCountMap } from "@/utils/refcount"
+import {
+  normalizeGlobalSseEvent,
+  resolveSseConnectionState,
+  SSE_HEALTHY_CLEAR_MS,
+  SSE_OFFLINE_FAIL_THRESHOLD,
+  SSE_RECONNECTING_DEBOUNCE_MS,
+  type SseConnectionState,
+} from "./sse-helpers"
 
 const isAbortError = (error: unknown) =>
   error !== null && typeof error === "object" && "name" in error && error.name === "AbortError"
@@ -103,6 +111,67 @@ function createServerSdkContext(server: ServerConnection.Any) {
   const HEARTBEAT_TIMEOUT_MS = 15_000
   let lastEventAt = Date.now()
   let heartbeat: ReturnType<typeof setTimeout> | undefined
+  // Hoisted across outer reconnects; cleared when this SDK context is disposed (URL switch / logout)
+  let lastEventId: string | undefined
+  const [connectionState, setConnectionState] = createSignal<SseConnectionState>("connected")
+  let failCount = 0
+  let disconnectStartedAt = 0
+  let reconnectingTimer: ReturnType<typeof setTimeout> | undefined
+  let healthyClearTimer: ReturnType<typeof setTimeout> | undefined
+
+  const clearConnectionTimers = () => {
+    if (reconnectingTimer) {
+      clearTimeout(reconnectingTimer)
+      reconnectingTimer = undefined
+    }
+    if (healthyClearTimer) {
+      clearTimeout(healthyClearTimer)
+      healthyClearTimer = undefined
+    }
+  }
+
+  const applyConnectionState = () => {
+    const elapsed = disconnectStartedAt === 0 ? 0 : Date.now() - disconnectStartedAt
+    setConnectionState(resolveSseConnectionState({ failCount, reconnectingElapsedMs: elapsed }))
+  }
+
+  const markStreamHealthy = () => {
+    failCount = 0
+    disconnectStartedAt = 0
+    if (reconnectingTimer) {
+      clearTimeout(reconnectingTimer)
+      reconnectingTimer = undefined
+    }
+    if (connectionState() === "connected") {
+      if (healthyClearTimer) {
+        clearTimeout(healthyClearTimer)
+        healthyClearTimer = undefined
+      }
+      return
+    }
+    if (healthyClearTimer) return
+    healthyClearTimer = setTimeout(() => {
+      healthyClearTimer = undefined
+      setConnectionState("connected")
+    }, SSE_HEALTHY_CLEAR_MS)
+  }
+
+  const markStreamUnhealthy = () => {
+    if (healthyClearTimer) {
+      clearTimeout(healthyClearTimer)
+      healthyClearTimer = undefined
+    }
+    if (failCount === 0) disconnectStartedAt = Date.now()
+    failCount += 1
+    applyConnectionState()
+    if (failCount >= SSE_OFFLINE_FAIL_THRESHOLD) return
+    if (reconnectingTimer) return
+    reconnectingTimer = setTimeout(() => {
+      reconnectingTimer = undefined
+      applyConnectionState()
+    }, SSE_RECONNECTING_DEBOUNCE_MS)
+  }
+
   const resetHeartbeat = () => {
     lastEventAt = Date.now()
     if (heartbeat) clearTimeout(heartbeat)
@@ -131,6 +200,20 @@ function createServerSdkContext(server: ServerConnection.Any) {
         try {
           const events = await eventSdk.global.event({
             signal: attempt.signal,
+            ...(lastEventId
+              ? {
+                  headers: {
+                    "Last-Event-ID": lastEventId,
+                  },
+                }
+              : {}),
+            // Comment frames (`: heartbeat`) invoke onSseEvent but are not yielded — keep idle timer alive
+            onSseEvent: (ev) => {
+              resetHeartbeat()
+              if (typeof ev.id === "string" && ev.id.length > 0) {
+                lastEventId = ev.id
+              }
+            },
             onSseError: (error) => {
               if (aborted(error)) return
               if (streamErrorLogged) return
@@ -144,15 +227,19 @@ function createServerSdkContext(server: ServerConnection.Any) {
           })
           let yielded = Date.now()
           resetHeartbeat()
-          for await (const event of events.stream) {
+          markStreamHealthy()
+          for await (const raw of events.stream) {
             resetHeartbeat()
             streamErrorLogged = false
-            const directory = event.directory ?? "global"
+            const event = normalizeGlobalSseEvent(raw)
+            if (!event) continue
+
+            const directory = event.directory
             if (event.payload.type === "sync") {
               continue
             }
 
-            const payload = event.payload as Event
+            const payload = event.payload
 
             const k = key(directory, payload)
             if (k) {
@@ -190,6 +277,8 @@ function createServerSdkContext(server: ServerConnection.Any) {
         }
 
         if (abort.signal.aborted || !started) return
+        // Any reconnect (idle abort, stream end, network error) feeds #818 banner state
+        markStreamUnhealthy()
         await wait(RECONNECT_DELAY_MS)
       }
     })().finally(() => {
@@ -203,6 +292,7 @@ function createServerSdkContext(server: ServerConnection.Any) {
     started = false
     attempt?.abort()
     clearHeartbeat()
+    clearConnectionTimers()
   }
 
   onMount(() => {
@@ -229,6 +319,7 @@ function createServerSdkContext(server: ServerConnection.Any) {
   return {
     url: server.http.url,
     client: sdk,
+    connectionState,
     event: {
       on: emitter.on.bind(emitter),
       listen: emitter.listen.bind(emitter),
@@ -243,6 +334,8 @@ function createServerSdkContext(server: ServerConnection.Any) {
     },
   }
 }
+
+export type { SseConnectionState }
 
 export const { use: useServerSDK, provider: ServerSDKProvider } = createSimpleContext({
   name: "ServerSDK",

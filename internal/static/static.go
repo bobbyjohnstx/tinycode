@@ -76,6 +76,7 @@ func serveIndex(w http.ResponseWriter, r *http.Request, fsys http.FileSystem) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
 	http.ServeContent(w, r, "index.html", stat.ModTime(), f.(readSeeker))
 }
 

@@ -88,3 +88,23 @@ jobs:
         env:
           FRESH_ENV_ENGINE: podman
         run: ./script/test-fresh-env.sh --skip-tui --release-install
+
+  embed-webapp:
+    name: Embed webapp dist drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Rebuild embedded webapp
+        run: make embed-webapp
+
+      - name: Fail if internal/static/dist drifted
+        run: |
+          if ! git diff --exit-code -- internal/static/dist; then
+            echo "::error::internal/static/dist is out of date. Run 'make embed-webapp' and commit the result."
+            exit 1
+          fi

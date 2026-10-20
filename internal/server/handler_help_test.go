@@ -67,4 +67,47 @@ func TestHelp(t *testing.T) {
 			t.Error("feature missing description")
 		}
 	}
+
+	hasTUILeader := false
+	for _, kb := range body.Keybindings {
+		if kb.Category == "TUI leader" {
+			hasTUILeader = true
+			break
+		}
+	}
+	if !hasTUILeader {
+		t.Error("default /help should include TUI leader keybindings")
+	}
+}
+
+func TestHelp_ClientWeb(t *testing.T) {
+	srv, _ := testServer(t)
+
+	req := httptest.NewRequest("GET", "/help?client=web", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var body HelpResponse
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding response: %v", err)
+	}
+
+	for _, kb := range body.Keybindings {
+		if kb.Category == "TUI leader" {
+			t.Fatalf("web help must not include TUI leader keybinding %q", kb.Key)
+		}
+	}
+	for _, feat := range body.Features {
+		switch feat.Name {
+		case "MCP Servers", "Which-Key Panel", "Terminal Bell":
+			t.Fatalf("web help must not include feature %q", feat.Name)
+		}
+	}
+	if len(body.Keybindings) == 0 || len(body.Features) == 0 {
+		t.Error("web help should still return keybindings and features")
+	}
 }

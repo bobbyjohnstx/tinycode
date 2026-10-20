@@ -29,6 +29,9 @@ func TestHandler_DevDir(t *testing.T) {
 		if ct := rec.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
 			t.Errorf("Content-Type = %q, want %q", ct, "text/html; charset=utf-8")
 		}
+		if cc := rec.Header().Get("Cache-Control"); cc != "no-cache" {
+			t.Errorf("Cache-Control = %q, want %q", cc, "no-cache")
+		}
 	})
 
 	t.Run("serves asset with correct content type", func(t *testing.T) {
@@ -64,6 +67,9 @@ func TestHandler_DevDir(t *testing.T) {
 		}
 		if ct := rec.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
 			t.Errorf("Content-Type = %q, want %q", ct, "text/html; charset=utf-8")
+		}
+		if cc := rec.Header().Get("Cache-Control"); cc != "no-cache" {
+			t.Errorf("Cache-Control = %q, want %q", cc, "no-cache")
 		}
 	})
 }

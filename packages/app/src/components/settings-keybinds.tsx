@@ -10,6 +10,7 @@ import fuzzysort from "fuzzysort"
 import { formatKeybind, parseKeybind, useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
+import { PTY_SUPPORTED } from "@/context/terminal"
 import { SettingsList } from "./settings-list"
 
 const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)
@@ -26,7 +27,9 @@ type KeybindMeta = {
 type KeybindMap = Record<string, string | undefined>
 type CommandContext = ReturnType<typeof useCommand>
 
-const GROUPS: KeybindGroup[] = ["General", "Session", "Navigation", "Model and agent", "Terminal", "Prompt"]
+const GROUPS: KeybindGroup[] = PTY_SUPPORTED
+  ? ["General", "Session", "Navigation", "Model and agent", "Terminal", "Prompt"]
+  : ["General", "Session", "Navigation", "Model and agent", "Prompt"]
 
 type GroupKey =
   | "settings.shortcuts.group.general"
@@ -121,21 +124,26 @@ function listFor(command: CommandContext, map: KeybindMap, palette: string) {
   const out = new Map<string, KeybindMeta>()
   out.set(PALETTE_ID, { title: palette, group: "General" })
 
+  const skipTerminal = (id: string) => !PTY_SUPPORTED && id.startsWith("terminal.")
+
   for (const opt of command.catalog) {
     if (opt.id.startsWith("suggested.")) continue
     if (opt.hidden) continue
+    if (skipTerminal(opt.id)) continue
     out.set(opt.id, { title: opt.title, group: groupFor(opt.id) })
   }
 
   for (const opt of command.options) {
     if (opt.id.startsWith("suggested.")) continue
     if (opt.hidden) continue
+    if (skipTerminal(opt.id)) continue
     out.set(opt.id, { title: opt.title, group: groupFor(opt.id) })
   }
 
   for (const [id, value] of Object.entries(map)) {
     if (typeof value !== "string") continue
     if (out.has(id)) continue
+    if (skipTerminal(id)) continue
     out.set(id, { title: id, group: groupFor(id) })
   }
 

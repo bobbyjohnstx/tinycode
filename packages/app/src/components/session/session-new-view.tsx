@@ -3,6 +3,9 @@ import { DateTime } from "luxon"
 import { useSync } from "@/context/sync"
 import { useSDK } from "@/context/sdk"
 import { useLanguage } from "@/context/language"
+import { useProviders } from "@/hooks/use-providers"
+import { useDialog } from "@tinycode/ui/context/dialog"
+import { Button } from "@tinycode/ui/button"
 import { Icon } from "@tinycode/ui/icon"
 import { Logo } from "@tinycode/ui/logo"
 import { getDirectory, getFilename } from "tinycode/core/util/path"
@@ -19,6 +22,9 @@ export function NewSessionView(props: NewSessionViewProps) {
   const sync = useSync()
   const sdk = useSDK()
   const language = useLanguage()
+  const providers = useProviders()
+  const dialog = useDialog()
+  const needsConnect = createMemo(() => providers.connected().length === 0)
 
   const sandboxes = createMemo(() => sync.project?.sandboxes ?? [])
   const options = createMemo(() => [MAIN_WORKTREE, ...sandboxes(), CREATE_WORKTREE])
@@ -82,6 +88,24 @@ export function NewSessionView(props: NewSessionViewProps) {
                   </div>
                 </div>
               )}
+            </Show>
+            <Show when={needsConnect()}>
+              <div class="flex flex-col items-center gap-3 mt-2" data-component="session-empty-connect">
+                <div class="text-14-regular text-text-base max-w-100">
+                  {language.t("session.empty.connect.description")}
+                </div>
+                <Button
+                  size="large"
+                  icon="plus-small"
+                  onClick={() => {
+                    void import("@/components/dialog-select-provider").then((x) => {
+                      dialog.show(() => <x.DialogSelectProvider />)
+                    })
+                  }}
+                >
+                  {language.t("session.empty.connect.action")}
+                </Button>
+              </div>
             </Show>
           </div>
         </div>

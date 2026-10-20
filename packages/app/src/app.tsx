@@ -48,6 +48,7 @@ import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 import { ServersProvider } from "./context/servers"
 import { UpdateNotificationBanner } from "@/components/update-notification-banner"
+import { SseConnectionBanner } from "@/components/sse-connection-banner"
 
 const HomeRoute = lazy(() => import("@/pages/home"))
 const Session = lazy(() => import("@/pages/session"))
@@ -149,6 +150,7 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
     <AppShellProviders>
       {/*<Suspense fallback={<Loading />}>*/}
       <UpdateNotificationBanner />
+      <SseConnectionBanner />
       {props.appChildren}
       {props.children}
       {/*</Suspense>*/}

@@ -23,6 +23,12 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { continueGoalOnIdle, exportSessionTranscript, goalPromptParts } from "@/utils/session-slash"
 import { getGoal, goalStatusText } from "@/utils/session-goal"
 
+/** Hard gate: Go serve has no share/publish routes. Ignore config.share for UI. */
+export const SHARE_SUPPORTED = false
+
+/** Hard gate: Go serve has no MCP mutate routes (connect/disconnect/auth). */
+export const MCP_MUTATE_SUPPORTED = false
+
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
   setActiveMessage: (message: UserMessage | undefined) => void
@@ -498,6 +504,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   }
 
   const shareCmds = () => {
+    if (!SHARE_SUPPORTED) return []
     if (sync.data.config.share === "disabled") return []
     return [
       sessionCommand({
@@ -780,16 +787,19 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }),
   ]
 
-  const mcpCmds = () => [
-    mcpCommand({
-      id: "mcp.toggle",
-      title: language.t("command.mcp.toggle"),
-      description: language.t("command.mcp.toggle.description"),
-      keybind: "mod+;",
-      slash: "mcp",
-      onSelect: chooseMcp,
-    }),
-  ]
+  const mcpCmds = () =>
+    MCP_MUTATE_SUPPORTED
+      ? [
+          mcpCommand({
+            id: "mcp.toggle",
+            title: language.t("command.mcp.toggle"),
+            description: language.t("command.mcp.toggle.description"),
+            keybind: "mod+;",
+            slash: "mcp",
+            onSelect: chooseMcp,
+          }),
+        ]
+      : []
 
   const agentCmds = () => [
     agentCommand({

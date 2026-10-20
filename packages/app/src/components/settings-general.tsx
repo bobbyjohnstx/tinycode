@@ -28,6 +28,7 @@ import {
 } from "@/context/settings"
 import { decode64 } from "@/utils/base64"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
+import { PTY_SUPPORTED } from "@/context/terminal"
 import { Link } from "./link"
 import { SettingsList } from "./settings-list"
 
@@ -330,27 +331,29 @@ export const SettingsGeneral: Component = () => {
           </div>
         </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.shell.title")}
-          description={language.t("settings.general.row.shell.description")}
-        >
-          <Select
-            data-action="settings-shell"
-            options={shellOptions()}
-            current={shellOptions().find((o) => o.value === currentShell()) ?? autoOption}
-            value={(o) => o.id}
-            label={(o) => o.label}
-            onSelect={(option) => {
-              if (!option) return
-              if (option.value === currentShell()) return
-              serverSync.updateConfig({ shell: option.value })
-            }}
-            variant="secondary"
-            size="small"
-            triggerVariant="settings"
-            triggerStyle={{ "min-width": "180px" }}
-          />
-        </SettingsRow>
+        <Show when={PTY_SUPPORTED}>
+          <SettingsRow
+            title={language.t("settings.general.row.shell.title")}
+            description={language.t("settings.general.row.shell.description")}
+          >
+            <Select
+              data-action="settings-shell"
+              options={shellOptions()}
+              current={shellOptions().find((o) => o.value === currentShell()) ?? autoOption}
+              value={(o) => o.id}
+              label={(o) => o.label}
+              onSelect={(option) => {
+                if (!option) return
+                if (option.value === currentShell()) return
+                serverSync.updateConfig({ shell: option.value })
+              }}
+              variant="secondary"
+              size="small"
+              triggerVariant="settings"
+              triggerStyle={{ "min-width": "180px" }}
+            />
+          </SettingsRow>
+        </Show>
 
         <SettingsRow
           title={language.t("settings.general.row.reasoningSummaries.title")}
@@ -602,28 +605,30 @@ export const SettingsGeneral: Component = () => {
           </div>
         </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.general.row.terminalFont.title")}
-          description={language.t("settings.general.row.terminalFont.description")}
-        >
-          <div class="w-full sm:w-[220px]">
-            <TextField
-              data-action="settings-terminal-font"
-              label={language.t("settings.general.row.terminalFont.title")}
-              hideLabel
-              type="text"
-              value={terminal()}
-              onChange={(value) => settings.appearance.setTerminalFont(value)}
-              placeholder={terminalDefault}
-              spellcheck={false}
-              autocorrect="off"
-              autocomplete="off"
-              autocapitalize="off"
-              class="text-12-regular"
-              style={{ "font-family": terminalFontFamily(settings.appearance.terminalFont()) }}
-            />
-          </div>
-        </SettingsRow>
+        <Show when={PTY_SUPPORTED}>
+          <SettingsRow
+            title={language.t("settings.general.row.terminalFont.title")}
+            description={language.t("settings.general.row.terminalFont.description")}
+          >
+            <div class="w-full sm:w-[220px]">
+              <TextField
+                data-action="settings-terminal-font"
+                label={language.t("settings.general.row.terminalFont.title")}
+                hideLabel
+                type="text"
+                value={terminal()}
+                onChange={(value) => settings.appearance.setTerminalFont(value)}
+                placeholder={terminalDefault}
+                spellcheck={false}
+                autocorrect="off"
+                autocomplete="off"
+                autocapitalize="off"
+                class="text-12-regular"
+                style={{ "font-family": terminalFontFamily(settings.appearance.terminalFont()) }}
+              />
+            </div>
+          </SettingsRow>
+        </Show>
       </SettingsList>
     </div>
   )
@@ -730,18 +735,19 @@ export const SettingsGeneral: Component = () => {
       <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.general.section.updates")}</h3>
 
       <SettingsList>
-        <SettingsRow
-          title={language.t("settings.updates.row.startup.title")}
-          description={language.t("settings.updates.row.startup.description")}
-        >
-          <div data-action="settings-updates-startup">
-            <Switch
-              checked={settings.updates.startup()}
-              disabled={!platform.checkUpdate}
-              onChange={(checked) => settings.updates.setStartup(checked)}
-            />
-          </div>
-        </SettingsRow>
+        <Show when={!!platform.checkUpdate}>
+          <SettingsRow
+            title={language.t("settings.updates.row.startup.title")}
+            description={language.t("settings.updates.row.startup.description")}
+          >
+            <div data-action="settings-updates-startup">
+              <Switch
+                checked={settings.updates.startup()}
+                onChange={(checked) => settings.updates.setStartup(checked)}
+              />
+            </div>
+          </SettingsRow>
+        </Show>
 
         <SettingsRow
           title={language.t("settings.general.row.releaseNotes.title")}
@@ -755,16 +761,18 @@ export const SettingsGeneral: Component = () => {
           </div>
         </SettingsRow>
 
-        <SettingsRow
-          title={language.t("settings.updates.row.check.title")}
-          description={language.t("settings.updates.row.check.description")}
-        >
-          <Button size="small" variant="secondary" disabled={store.checking || !platform.checkUpdate} onClick={check}>
-            {store.checking
-              ? language.t("settings.updates.action.checking")
-              : language.t("settings.updates.action.checkNow")}
-          </Button>
-        </SettingsRow>
+        <Show when={!!platform.checkUpdate}>
+          <SettingsRow
+            title={language.t("settings.updates.row.check.title")}
+            description={language.t("settings.updates.row.check.description")}
+          >
+            <Button size="small" variant="secondary" disabled={store.checking} onClick={check}>
+              {store.checking
+                ? language.t("settings.updates.action.checking")
+                : language.t("settings.updates.action.checkNow")}
+            </Button>
+          </SettingsRow>
+        </Show>
       </SettingsList>
     </div>
   )

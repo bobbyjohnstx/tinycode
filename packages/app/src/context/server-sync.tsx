@@ -363,6 +363,22 @@ export function createServerSyncContext() {
     const event = e.details
     const recent = bootingRoot || Date.now() - bootedAt < 1500
 
+    // Any server.connected / stream.gap / global.disposed triggers full child resync
+    // (Go tags connected with defaultDir, not "global"). Preserve first-boot 1500ms skip.
+    if (
+      event.type === "server.connected" ||
+      event.type === "global.disposed" ||
+      event.type === "stream.gap"
+    ) {
+      if (!recent) {
+        bootstrap.refetch()
+        for (const childDir of Object.keys(children.children)) {
+          queue.push(childDir)
+        }
+      }
+      return
+    }
+
     if (directory === "global") {
       applyGlobalEvent({
         event,
@@ -373,12 +389,6 @@ export function createServerSyncContext() {
         },
         setGlobalProject: setProjects,
       })
-      if (event.type === "server.connected" || event.type === "global.disposed") {
-        if (recent) return
-        for (const directory of Object.keys(children.children)) {
-          queue.push(directory)
-        }
-      }
       return
     }
 

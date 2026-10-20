@@ -1,9 +1,7 @@
 import { Button } from "@tinycode/ui/button"
 import { useDialog } from "@tinycode/ui/context/dialog"
 import { Icon } from "@tinycode/ui/icon"
-import { Switch } from "@tinycode/ui/switch"
 import { Tabs } from "@tinycode/ui/tabs"
-import { useMutation, useQueryClient } from "@tanstack/solid-query"
 import { showToast } from "@tinycode/ui/toast"
 import { useNavigate } from "@solidjs/router"
 import { type Accessor, createEffect, createMemo, For, type JSXElement, onCleanup, Show } from "solid-js"
@@ -11,12 +9,9 @@ import { createStore } from "solid-js/store"
 import { ServerHealthIndicator, ServerRow } from "@/components/server/server-row"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
-import { useSDK } from "@/context/sdk"
 import { normalizeServerUrl, ServerConnection, useServer } from "@/context/server"
 import { useSync } from "@/context/sync"
 import { type ServerHealth } from "@/utils/server-health"
-import { useQueryOptions } from "@/context/server-sync"
-import { pathKey } from "@/utils/path-key"
 import { useServers } from "@/context/servers"
 import { formatterView } from "@/components/formatter-status"
 
@@ -101,37 +96,6 @@ const useDefaultServerKey = (
     },
     refresh: () => setState("tick", (value) => value + 1),
   }
-}
-
-const useMcpToggleMutation = () => {
-  const sync = useSync()
-  const sdk = useSDK()
-  const language = useLanguage()
-  const queryClient = useQueryClient()
-  const queryOptions = useQueryOptions()
-
-  return useMutation(() => ({
-    mutationFn: async (name: string) => {
-      const status = sync.data.mcp[name]
-      if (status?.status === "connected") {
-        await sdk.client.mcp.disconnect({ name })
-        return
-      }
-      if (status?.status === "needs_auth") {
-        await sdk.client.mcp.auth.authenticate({ name })
-        return
-      }
-      await sdk.client.mcp.connect({ name })
-    },
-    onSuccess: () => queryClient.refetchQueries(queryOptions.mcp(pathKey(sync.directory))),
-    onError: (err) => {
-      showToast({
-        variant: "error",
-        title: language.t("common.requestFailed"),
-        description: err instanceof Error ? err.message : String(err),
-      })
-    },
-  }))
 }
 
 type ServerStatusState = {
@@ -315,7 +279,6 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
     dialogRun += 1
   })
   const sortedServers = createMemo(() => listServersByHealth(servers.list(), server.key, servers.health))
-  const toggleMcp = useMcpToggleMutation()
   const defaultServer = useDefaultServerKey(platform.getDefaultServer)
   const mcpNames = createMemo(() => Object.keys(sync.data.mcp ?? {}).sort((a, b) => a.localeCompare(b)))
   const mcpStatus = (name: string) => sync.data.mcp?.[name]?.status
@@ -437,17 +400,8 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                 <For each={mcpNames()}>
                   {(name) => {
                     const status = () => mcpStatus(name)
-                    const enabled = () => status() === "connected"
                     return (
-                      <button
-                        type="button"
-                        class="flex items-center gap-2 w-full min-h-8 pl-3 pr-2 py-1 rounded-md hover:bg-surface-raised-base-hover transition-colors text-left"
-                        onClick={() => {
-                          if (toggleMcp.isPending) return
-                          toggleMcp.mutate(name)
-                        }}
-                        disabled={toggleMcp.isPending && toggleMcp.variables === name}
-                      >
+                      <div class="flex items-center gap-2 w-full min-h-8 pl-3 pr-2 py-1 rounded-md text-left">
                         <div
                           classList={{
                             "size-1.5 rounded-full shrink-0": true,
@@ -464,21 +418,11 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                           </span>
                           <Show when={status() === "needs_auth"}>
                             <span class="text-11-regular text-text-weaker truncate">
-                              {language.t("mcp.auth.clickToAuthenticate")}
+                              {language.t("mcp.status.needs_auth")}
                             </span>
                           </Show>
                         </span>
-                        <div onClick={(event) => event.stopPropagation()}>
-                          <Switch
-                            checked={enabled()}
-                            disabled={toggleMcp.isPending && toggleMcp.variables === name}
-                            onChange={() => {
-                              if (toggleMcp.isPending) return
-                              toggleMcp.mutate(name)
-                            }}
-                          />
-                        </div>
-                      </button>
+                      </div>
                     )
                   }}
                 </For>

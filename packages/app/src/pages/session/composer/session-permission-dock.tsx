@@ -1,9 +1,10 @@
-import { For, Show } from "solid-js"
+import { For, Show, createMemo } from "solid-js"
 import type { PermissionRequest } from "@tinycode/sdk/v2"
 import { Button } from "@tinycode/ui/button"
 import { DockPrompt } from "@tinycode/ui/dock-prompt"
 import { Icon } from "@tinycode/ui/icon"
 import { useLanguage } from "@/context/language"
+import { permissionDockTitle, permissionToolKey } from "./permission-tool-label"
 
 export function SessionPermissionDock(props: {
   request: PermissionRequest
@@ -12,8 +13,19 @@ export function SessionPermissionDock(props: {
 }) {
   const language = useLanguage()
 
+  const toolKey = () => permissionToolKey(props.request.permission)
+
+  const headerTitle = createMemo(() =>
+    permissionDockTitle({
+      permission: props.request.permission,
+      patterns: props.request.patterns,
+      fallback: language.t("notification.permission.title"),
+      toolTitle: (key) => language.t(`settings.permissions.tool.${key}.title` as Parameters<typeof language.t>[0]),
+    }),
+  )
+
   const toolDescription = () => {
-    const key = `settings.permissions.tool.${props.request.permission}.description`
+    const key = `settings.permissions.tool.${toolKey()}.description`
     const value = language.t(key as Parameters<typeof language.t>[0])
     if (value === key) return ""
     return value
@@ -27,7 +39,7 @@ export function SessionPermissionDock(props: {
           <span data-slot="permission-icon">
             <Icon name="warning" size="normal" />
           </span>
-          <div data-slot="permission-header-title">{language.t("notification.permission.title")}</div>
+          <div data-slot="permission-header-title">{headerTitle()}</div>
         </div>
       }
       footer={

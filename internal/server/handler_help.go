@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/bobbyjohnstx/tinycode/internal/command"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
@@ -35,6 +36,8 @@ type HelpResponse struct {
 }
 
 func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
+	web := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("client")), "web")
+
 	// Keybindings: web UI defaults (these match the SPA's command palette keybinds).
 	keybindings := []HelpKeybinding{
 		{Key: "mod+shift+p", Description: "Open command palette", Category: "General"},
@@ -123,9 +126,51 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 		{Name: "Session Title", Description: "Use --title to set the session title from the command line."},
 	}
 
+	if web {
+		keybindings = filterHelpKeybindings(keybindings, func(kb HelpKeybinding) bool {
+			return kb.Category != "TUI leader"
+		})
+		features = filterHelpFeatures(features, func(f HelpFeature) bool {
+			switch f.Name {
+			case "MCP Servers", "Which-Key Panel", "Terminal Bell":
+				return false
+			default:
+				return true
+			}
+		})
+		for i := range features {
+			switch features[i].Name {
+			case "VCS Integration":
+				features[i].Description = "View git status, diffs, and changes directly in the interface. Use /diff to open the diff viewer."
+			case "Undo/Redo":
+				features[i].Description = "Use /undo and /redo to revert or restore AI file changes via snapshots."
+			}
+		}
+	}
+
 	respondJSON(w, http.StatusOK, HelpResponse{
 		Keybindings: keybindings,
 		Commands:    commands,
 		Features:    features,
 	})
+}
+
+func filterHelpKeybindings(in []HelpKeybinding, keep func(HelpKeybinding) bool) []HelpKeybinding {
+	out := make([]HelpKeybinding, 0, len(in))
+	for _, kb := range in {
+		if keep(kb) {
+			out = append(out, kb)
+		}
+	}
+	return out
+}
+
+func filterHelpFeatures(in []HelpFeature, keep func(HelpFeature) bool) []HelpFeature {
+	out := make([]HelpFeature, 0, len(in))
+	for _, f := range in {
+		if keep(f) {
+			out = append(out, f)
+		}
+	}
+	return out
 }

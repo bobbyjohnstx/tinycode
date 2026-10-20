@@ -1,9 +1,11 @@
 import { createEffect, createMemo, onCleanup } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "@tinycode/ui/context"
+import { showToast } from "@tinycode/ui/toast"
 import type { PermissionRequest } from "@tinycode/sdk/v2/client"
 import { Persist, persisted } from "@/utils/persist"
 import { useServerSDK } from "@/context/server-sdk"
+import { useLanguage } from "@/context/language"
 import { useServerSync } from "./server-sync"
 import { useParams } from "@solidjs/router"
 import { decode64 } from "@/utils/base64"
@@ -13,6 +15,8 @@ import {
   isDirectoryAutoAccepting,
   autoRespondsPermission,
 } from "./permission-auto-respond"
+
+const AUTO_RESPOND_TOAST_COALESCE_MS = 2_000
 
 type PermissionRespondFn = (input: {
   sessionID: string
@@ -50,6 +54,8 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     const params = useParams()
     const serverSDK = useServerSDK()
     const serverSync = useServerSync()
+    const language = useLanguage()
+    let lastAutoRespondToastAt = 0
 
     const permissionsEnabled = createMemo(() => {
       const directory = decode64(params.dir)
@@ -119,7 +125,16 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
 
     const respond: PermissionRespondFn = (input) => {
       serverSDK.client.permission.respond(input).catch(() => {
+        // Clear so the permission dock stays actionable after a failed auto-respond.
         responded.delete(input.permissionID)
+        const now = Date.now()
+        if (now - lastAutoRespondToastAt < AUTO_RESPOND_TOAST_COALESCE_MS) return
+        lastAutoRespondToastAt = now
+        showToast({
+          variant: "error",
+          title: language.t("toast.permission.autoRespond.failed.title"),
+          description: language.t("toast.permission.autoRespond.failed.description"),
+        })
       })
     }
 

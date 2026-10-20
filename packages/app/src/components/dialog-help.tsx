@@ -35,7 +35,7 @@ export const DialogHelp: Component = () => {
   const serverSDK = useServerSDK()
 
   const [data] = createResource(async () => {
-    const response = await fetch(`${serverSDK.url}/help`)
+    const response = await fetch(`${serverSDK.url}/help?client=web`)
     if (!response.ok) throw new Error(language.t("dialog.help.error"))
     return (await response.json()) as HelpResponse
   })

@@ -456,6 +456,11 @@ export const dict = {
   "updateBanner.action.restart": "Restart Now",
   "updateBanner.action.dismiss": "Dismiss",
 
+  "sseBanner.reconnecting.title": "Reconnecting to server…",
+  "sseBanner.reconnecting.description": "Live updates paused while the event stream reconnects.",
+  "sseBanner.offline.title": "Server connection lost",
+  "sseBanner.offline.description": "Live updates are unavailable. Retrying automatically.",
+
   "context.breakdown.title": "Context Breakdown",
   "context.breakdown.note": 'Approximate breakdown of input tokens. "Other" includes tool definitions and overhead.',
   "context.breakdown.system": "System",
@@ -603,6 +608,8 @@ export const dict = {
   "error.chain.configInvalidWithMessage": "Config file at {{path}} is invalid: {{message}}",
 
   "notification.permission.title": "Permission required",
+  "toast.permission.autoRespond.failed.title": "Could not auto-approve permission",
+  "toast.permission.autoRespond.failed.description": "Approve or deny the request in the permission dock.",
   "notification.permission.description": "{{sessionTitle}} in {{projectName}} needs permission",
   "notification.question.title": "Question",
   "notification.question.description": "{{sessionTitle}} in {{projectName}} has a question",
@@ -818,10 +825,16 @@ export const dict = {
   "debugBar.mem.tip": "Used JS heap vs heap limit. {{used}} of {{limit}}.",
 
   "app.name.desktop": "tinycode Desktop",
+  "app.name.app": "tinycode",
 
   "settings.section.desktop": "Desktop",
+  "settings.section.app": "App",
   "settings.section.server": "Server",
   "settings.tab.general": "General",
+
+  "session.empty.connect.title": "Connect a provider",
+  "session.empty.connect.description": "Add a model provider to start chatting in this session.",
+  "session.empty.connect.action": "Connect",
   "settings.tab.shortcuts": "Shortcuts",
   "settings.desktop.section.wsl": "WSL",
   "settings.desktop.wsl.title": "WSL integration",
