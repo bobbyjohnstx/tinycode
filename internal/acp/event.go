@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -281,14 +282,10 @@ func extractPart(props map[string]any) (partType, text, partID string) {
 }
 
 func (r *EventRelay) relaySessionStatus(sessionID string, props map[string]any) {
-	var status string
-	if statusMap, ok := props["status"].(map[string]any); ok {
-		status, _ = statusMap["type"].(string)
-	}
-	r.sendSessionUpdate(sessionID, map[string]any{
-		"sessionUpdate": "session_info_update",
-		"status":        status,
-	})
+	// Busy/idle is not a valid session_info_update field (title/updatedAt only).
+	// Do not emit bogus status patches that clients ignore or mis-handle.
+	_ = sessionID
+	_ = props
 }
 
 func (r *EventRelay) relaySessionError(sessionID string, props map[string]any) {
@@ -359,6 +356,10 @@ func (r *EventRelay) relayToolResult(sessionID string, part map[string]any) {
 	if toolCallID == "" {
 		toolCallID, _ = part["toolCallID"].(string)
 	}
+	toolName, _ := part["tool"].(string)
+	if toolName == "" {
+		toolName, _ = part["toolName"].(string)
+	}
 	state, _ := part["state"].(map[string]any)
 	if state == nil {
 		return
@@ -370,11 +371,13 @@ func (r *EventRelay) relayToolResult(sessionID string, part map[string]any) {
 	status, _ := state["status"].(string)
 	if !hasOutput && !hasErr && status != "error" {
 		if input, ok := state["input"]; ok && toolCallID != "" {
-			r.sendSessionUpdate(sessionID, map[string]any{
+			update := map[string]any{
 				"sessionUpdate": "tool_call_update",
 				"toolCallId":    toolCallID,
 				"rawInput":      input,
-			})
+			}
+			enrichEditToolFields(update, toolName, input)
+			r.sendSessionUpdate(sessionID, update)
 		}
 		return
 	}
@@ -389,17 +392,22 @@ func (r *EventRelay) relayToolResult(sessionID string, part map[string]any) {
 		"toolCallId":    toolCallID,
 		"status":        acpStatus,
 	}
+	if input, ok := state["input"]; ok {
+		enrichEditToolFields(update, toolName, input)
+	}
 	if hasOutput {
 		update["rawOutput"] = state["output"]
-		if out, ok := state["output"].(string); ok && out != "" {
-			update["content"] = []map[string]any{
-				{
-					"type": "content",
-					"content": map[string]any{
-						"type": "text",
-						"text": out,
+		if _, hasContent := update["content"]; !hasContent {
+			if out, ok := state["output"].(string); ok && out != "" {
+				update["content"] = []map[string]any{
+					{
+						"type": "content",
+						"content": map[string]any{
+							"type": "text",
+							"text": out,
+						},
 					},
-				},
+				}
 			}
 		}
 	} else if hasErr {
@@ -417,6 +425,152 @@ func (r *EventRelay) relayToolResult(sessionID string, part map[string]any) {
 		}
 	}
 	r.sendSessionUpdate(sessionID, update)
+}
+
+// enrichEditToolFields adds ACP locations + diff/content for file-modifying tools.
+func enrichEditToolFields(update map[string]any, toolName string, input any) {
+	if !isFileModifyingTool(toolName) {
+		return
+	}
+	args := parseToolArgs(input)
+	if len(args) == 0 {
+		return
+	}
+
+	switch toolName {
+	case "edit":
+		path := toolArgString(args, "file_path", "path")
+		oldText := toolArgString(args, "old_string")
+		newText := toolArgString(args, "new_string")
+		if path == "" {
+			return
+		}
+		update["locations"] = []map[string]any{{"path": path}}
+		if newText != "" || oldText != "" {
+			diff := map[string]any{
+				"type":    "diff",
+				"path":    path,
+				"newText": newText,
+			}
+			if oldText != "" {
+				diff["oldText"] = oldText
+			}
+			update["content"] = []map[string]any{diff}
+			update["title"] = "edit " + path
+		}
+	case "write":
+		path := toolArgString(args, "file_path", "path")
+		content := toolArgString(args, "content")
+		if path == "" {
+			return
+		}
+		update["locations"] = []map[string]any{{"path": path}}
+		if content != "" {
+			update["content"] = []map[string]any{
+				{
+					"type":    "diff",
+					"path":    path,
+					"oldText": nil,
+					"newText": content,
+				},
+			}
+			update["title"] = "write " + path
+		}
+	case "apply_patch":
+		patch := toolArgString(args, "patch")
+		paths := pathsFromUnifiedDiff(patch)
+		if len(paths) > 0 {
+			locs := make([]map[string]any, 0, len(paths))
+			for _, p := range paths {
+				locs = append(locs, map[string]any{"path": p})
+			}
+			update["locations"] = locs
+			update["title"] = "apply_patch " + paths[0]
+		}
+		if patch != "" {
+			summary := patch
+			if len(summary) > 500 {
+				summary = summary[:500] + "…"
+			}
+			update["content"] = []map[string]any{
+				{
+					"type": "content",
+					"content": map[string]any{
+						"type": "text",
+						"text": summary,
+					},
+				},
+			}
+		}
+	}
+}
+
+func isFileModifyingTool(name string) bool {
+	switch name {
+	case "edit", "write", "apply_patch":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseToolArgs(input any) map[string]any {
+	switch v := input.(type) {
+	case map[string]any:
+		if argsRaw, ok := v["args"]; ok {
+			switch a := argsRaw.(type) {
+			case string:
+				var nested map[string]any
+				if err := json.Unmarshal([]byte(a), &nested); err == nil {
+					return nested
+				}
+			case map[string]any:
+				return a
+			}
+		}
+		return v
+	case string:
+		var nested map[string]any
+		if err := json.Unmarshal([]byte(v), &nested); err == nil {
+			return nested
+		}
+	}
+	return nil
+}
+
+func toolArgString(args map[string]any, keys ...string) string {
+	for _, k := range keys {
+		if s, ok := args[k].(string); ok && s != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+func pathsFromUnifiedDiff(patch string) []string {
+	if patch == "" {
+		return nil
+	}
+	seen := map[string]bool{}
+	var paths []string
+	for _, line := range strings.Split(patch, "\n") {
+		if !strings.HasPrefix(line, "+++ ") && !strings.HasPrefix(line, "--- ") {
+			continue
+		}
+		field := strings.TrimSpace(line[4:])
+		if field == "/dev/null" {
+			continue
+		}
+		if strings.HasPrefix(field, "a/") || strings.HasPrefix(field, "b/") {
+			field = field[2:]
+		}
+		if field == "" || seen[field] {
+			continue
+		}
+		seen[field] = true
+		paths = append(paths, field)
+	}
+	return paths
 }
 
 func (r *EventRelay) sendSessionUpdate(sessionID string, update map[string]any) {

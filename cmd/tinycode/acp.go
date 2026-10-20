@@ -137,8 +137,10 @@ func runACP(args []string) {
 		Bus:          b,
 		Runner:       srv.SessionManager(),
 		Registry:     reg,
+		Agents:       agentReg,
 		DefaultModel: cfg.Model,
 		DefaultCWD:   dir,
+		DefaultTitle: flags.title,
 		AgentInfo: acp.AgentInfo{
 			Name:    "tinycode",
 			Version: version,
@@ -165,15 +167,12 @@ func parseACPFlags(args []string) (commonFlags, string) {
 	var cwd string
 	fs.StringVar(&f.model, "m", "", "model to use (provider/model)")
 	fs.StringVar(&f.model, "model", "", "model to use (provider/model)")
-	fs.StringVar(&f.title, "title", "", "set session title")
+	fs.StringVar(&f.title, "title", "", "default title for sessions created via session/new")
 	fs.StringVar(&f.appendSystemPrompt, "append-system-prompt", "", "append text to the system prompt")
 	fs.StringVar(&f.appendSystemPromptFile, "append-system-prompt-file", "", "append file contents to the system prompt")
 	fs.IntVar(&f.maxTokens, "max-tokens", 0, "cumulative token budget (input+output); abort when exceeded")
 	fs.BoolVar(&f.safeMode, "safe-mode", false, "skip plugins, MCP, and user agents")
-	fs.BoolVar(&f.continueSession, "c", false, "continue most recent session")
-	fs.BoolVar(&f.continueSession, "continue", false, "continue most recent session")
-	fs.StringVar(&f.resumeSession, "r", "", "resume session by ID or name")
-	fs.StringVar(&f.resumeSession, "resume", "", "resume session by ID or name")
+	// --continue/--resume belong to TUI/run; ACP clients use session/load|resume.
 	fs.StringVar(&cwd, "cwd", "", "working directory for ACP sessions")
 	_ = fs.Parse(args)
 

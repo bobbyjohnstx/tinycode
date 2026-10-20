@@ -11,9 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/project"
+	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
@@ -322,8 +324,12 @@ func testService(t *testing.T) (*Service, *bus.Bus, *mockSessionService) {
 	b := bus.New()
 	t.Cleanup(func() { b.Close() })
 	mock := newMockSessionService()
-	svc := NewService(mock, b)
-	svc.defaultCWD = "/tmp"
+	svc := NewServiceWithConfig(Config{
+		Sessions:     mock,
+		Bus:          b,
+		DefaultCWD:   "/tmp",
+		DefaultModel: "test/model",
+	})
 	return svc, b, mock
 }
 
@@ -738,17 +744,15 @@ func TestUnknownMethod(t *testing.T) {
 	}
 }
 
-func TestSetSessionConfigOption(t *testing.T) {
+func TestSetSessionConfigOption_EmptyParamsError(t *testing.T) {
 	svc, _, _ := testService(t)
 
-	result, rpcErr := svc.HandleRequest(context.Background(), "setSessionConfigOption", json.RawMessage(`{}`))
-	if rpcErr != nil {
-		t.Fatalf("error: %s", rpcErr.Message)
+	_, rpcErr := svc.HandleRequest(context.Background(), "setSessionConfigOption", json.RawMessage(`{}`))
+	if rpcErr == nil {
+		t.Fatal("expected error for empty set_config_option params")
 	}
-
-	data, _ := json.Marshal(result)
-	if string(data) != "{}" {
-		t.Errorf("expected empty object, got %s", data)
+	if rpcErr.Code != InvalidParams {
+		t.Errorf("expected InvalidParams, got %d", rpcErr.Code)
 	}
 }
 
@@ -1087,10 +1091,11 @@ func TestPrompt_E2E_InitializeNewPromptIdle(t *testing.T) {
 	mock := newMockSessionService()
 	runner := newMockRunner(b)
 	svc := NewServiceWithConfig(Config{
-		Sessions:   mock,
-		Bus:        b,
-		Runner:     runner,
-		DefaultCWD: "/tmp/e2e",
+		Sessions:     mock,
+		Bus:          b,
+		Runner:       runner,
+		DefaultCWD:   "/tmp/e2e",
+		DefaultModel: "test/model",
 	})
 	output := newNotifyBuffer()
 	transport := NewStdioTransport(svc, output)
@@ -1315,7 +1320,7 @@ func TestResolveDefaultModel_WithSlashFormat(t *testing.T) {
 	}
 }
 
-func TestResolveDefaultModel_InvalidFormatReturnsNil(t *testing.T) {
+func TestResolveDefaultModel_InvalidFormatFailsClosed(t *testing.T) {
 	b := bus.New()
 	t.Cleanup(func() { b.Close() })
 	mock := newMockSessionService()
@@ -1327,18 +1332,15 @@ func TestResolveDefaultModel_InvalidFormatReturnsNil(t *testing.T) {
 	})
 
 	params := json.RawMessage(`{"cwd": "/tmp/project"}`)
-	result, rpcErr := svc.HandleRequest(context.Background(), "session/new", params)
-	if rpcErr != nil {
-		t.Fatalf("session/new error: %s", rpcErr.Message)
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/new", params)
+	if rpcErr == nil {
+		t.Fatal("expected error for invalid model format with no discovery")
 	}
-
-	data, _ := json.Marshal(result)
-	var resp map[string]any
-	json.Unmarshal(data, &resp)
-	sessionID := resp["sessionId"].(string)
-
-	if mock.sessions[sessionID].Model != nil {
-		t.Error("expected nil model for invalid format")
+	if !strings.Contains(rpcErr.Message, "no model available") {
+		t.Errorf("expected actionable no-model error, got %q", rpcErr.Message)
+	}
+	if len(mock.sessions) != 0 {
+		t.Error("expected no session created without a model")
 	}
 }
 
@@ -2363,5 +2365,261 @@ func TestEventRelay_ReasoningDelta(t *testing.T) {
 
 	if !strings.Contains(output.String(), "agent_thought_chunk") {
 		t.Errorf("expected agent_thought_chunk, got: %s", output.String())
+	}
+}
+
+func TestNewSession_ModesAndModelConfigOptions(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	reg := provider.NewRegistry()
+	reg.Register(&provider.Info{
+		ID:   "ollama",
+		Name: "Ollama",
+		Models: map[string]*provider.Model{
+			"llama3": {ID: "llama3", ProviderID: "ollama", Name: "Llama 3"},
+		},
+	})
+	agents := agent.NewRegistry()
+	_ = agents.LoadDefaults(permission.Ruleset{
+		{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
+	}, nil)
+
+	svc := NewServiceWithConfig(Config{
+		Sessions:     mock,
+		Bus:          b,
+		Registry:     reg,
+		Agents:       agents,
+		DefaultModel: "ollama/llama3",
+		DefaultCWD:   "/tmp",
+	})
+
+	result, rpcErr := svc.HandleRequest(context.Background(), "session/new", json.RawMessage(`{"cwd":"/tmp"}`))
+	if rpcErr != nil {
+		t.Fatalf("session/new: %s", rpcErr.Message)
+	}
+	resp := result.(map[string]any)
+
+	modes, ok := resp["modes"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected modes object, got %T", resp["modes"])
+	}
+	if modes["currentModeId"] != "build" {
+		t.Errorf("currentModeId = %v, want build", modes["currentModeId"])
+	}
+	available, _ := modes["availableModes"].([]map[string]any)
+	if available == nil {
+		// JSON round-trip may produce []any
+		if raw, ok := modes["availableModes"].([]any); ok {
+			if len(raw) < 2 {
+				t.Fatalf("expected availableModes, got %#v", modes["availableModes"])
+			}
+		} else {
+			t.Fatalf("expected availableModes, got %#v", modes["availableModes"])
+		}
+	}
+
+	opts, ok := resp["configOptions"].([]map[string]any)
+	if !ok {
+		raw, _ := resp["configOptions"].([]any)
+		if len(raw) == 0 {
+			t.Fatal("expected configOptions")
+		}
+		opt := raw[0].(map[string]any)
+		if opt["id"] != "model" || opt["currentValue"] != "ollama/llama3" {
+			t.Fatalf("unexpected config option: %#v", opt)
+		}
+		return
+	}
+	if len(opts) == 0 || opts[0]["id"] != "model" {
+		t.Fatalf("expected model config option, got %#v", opts)
+	}
+}
+
+func TestSetSessionConfigOption_Model(t *testing.T) {
+	svc, _, mock := testService(t)
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: "/tmp", Title: "Test",
+		Model: &session.ModelRef{ProviderID: "test", ModelID: "model"},
+	})
+
+	params, _ := json.Marshal(map[string]any{
+		"sessionId": created.ID,
+		"configId":  "model",
+		"value":     "ollama/phi3",
+	})
+	result, rpcErr := svc.HandleRequest(context.Background(), "session/set_config_option", params)
+	if rpcErr != nil {
+		t.Fatalf("set_config_option: %s", rpcErr.Message)
+	}
+	if mock.sessions[created.ID].Model.ModelID != "phi3" {
+		t.Fatalf("model not updated: %#v", mock.sessions[created.ID].Model)
+	}
+	resp := result.(map[string]any)
+	if _, ok := resp["configOptions"]; !ok {
+		t.Fatal("expected configOptions in response")
+	}
+}
+
+func TestSetSessionConfigOption_UnknownErrors(t *testing.T) {
+	svc, _, mock := testService(t)
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: "/tmp", Title: "Test",
+	})
+	params, _ := json.Marshal(map[string]any{
+		"sessionId": created.ID,
+		"configId":  "thought_level",
+		"value":     "high",
+	})
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/set_config_option", params)
+	if rpcErr == nil {
+		t.Fatal("expected error for unsupported config option")
+	}
+	if !strings.Contains(rpcErr.Message, "unsupported config option") {
+		t.Errorf("unexpected error: %s", rpcErr.Message)
+	}
+}
+
+func TestNewSession_NoModelFailsClosed(t *testing.T) {
+	prev := discoveryWait
+	discoveryWait = 50 * time.Millisecond
+	t.Cleanup(func() { discoveryWait = prev })
+
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	svc := NewServiceWithConfig(Config{
+		Sessions:   mock,
+		Bus:        b,
+		Registry:   provider.NewRegistry(),
+		DefaultCWD: "/tmp",
+	})
+
+	start := time.Now()
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/new", json.RawMessage(`{"cwd":"/tmp"}`))
+	elapsed := time.Since(start)
+	if rpcErr == nil {
+		t.Fatal("expected no-model error")
+	}
+	if !strings.Contains(rpcErr.Message, "tinycode doctor") {
+		t.Errorf("expected doctor hint, got %q", rpcErr.Message)
+	}
+	if elapsed < 40*time.Millisecond {
+		t.Fatalf("expected discovery wait, finished in %v", elapsed)
+	}
+	if len(mock.sessions) != 0 {
+		t.Error("session must not be created without a model")
+	}
+}
+
+func TestEventRelay_EditToolDiffAndLocations(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	b.Publish("message.part.updated", map[string]any{
+		"sessionID": "ses_1",
+		"part": map[string]any{
+			"type":   "tool",
+			"callID": "tc_edit",
+			"tool":   "edit",
+			"state": map[string]any{
+				"status": "completed",
+				"input": map[string]any{
+					"args": `{"file_path":"/tmp/a.go","old_string":"old","new_string":"new"}`,
+				},
+				"output": "Replaced in /tmp/a.go",
+			},
+		},
+	})
+
+	output.WaitWrite(t, time.Second)
+	cancel()
+
+	out := output.String()
+	if !strings.Contains(out, `"type":"diff"`) {
+		t.Errorf("expected diff content, got: %s", out)
+	}
+	if !strings.Contains(out, `/tmp/a.go`) {
+		t.Errorf("expected path in locations/diff, got: %s", out)
+	}
+	if !strings.Contains(out, `"oldText":"old"`) || !strings.Contains(out, `"newText":"new"`) {
+		t.Errorf("expected old/new text in diff, got: %s", out)
+	}
+}
+
+func TestEventRelay_SessionStatusDoesNotEmitSessionInfoUpdate(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	b.Publish("session.status", map[string]any{
+		"sessionID": "ses_1",
+		"status":    map[string]any{"type": "busy"},
+	})
+
+	select {
+	case <-output.ch:
+		t.Fatalf("expected no session_info_update for busy/idle, got: %s", output.String())
+	case <-time.After(100 * time.Millisecond):
+	}
+	cancel()
+}
+
+func TestLoadSession_ReplaysToolHistory(t *testing.T) {
+	svc, _, mock := testService(t)
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "test", Directory: "/tmp", Title: "Test",
+		Model: &session.ModelRef{ProviderID: "test", ModelID: "model"},
+	})
+	mock.messages[created.ID] = []session.Message{
+		{
+			ID: "msg_a", SessionID: created.ID, Role: session.RoleAssistant,
+			Parts: []session.Part{
+				session.ToolCallPart("tc1", "edit", `{"file_path":"/tmp/x.go","old_string":"a","new_string":"b"}`),
+			},
+		},
+		{
+			ID: "msg_t", SessionID: created.ID, Role: session.RoleTool,
+			Parts: []session.Part{
+				session.ToolResultPart("tc1", "edit", "Replaced in /tmp/x.go", false),
+			},
+		},
+	}
+
+	output := newNotifyBuffer()
+	_ = NewStdioTransport(svc, output)
+
+	params, _ := json.Marshal(map[string]string{"sessionId": created.ID})
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/load", json.RawMessage(params))
+	if rpcErr != nil {
+		t.Fatalf("loadSession: %s", rpcErr.Message)
+	}
+
+	out := output.String()
+	if !strings.Contains(out, "tool_call") {
+		t.Errorf("expected tool_call replay, got: %s", out)
+	}
+	if !strings.Contains(out, "tool_call_update") {
+		t.Errorf("expected tool_call_update replay, got: %s", out)
+	}
+	if !strings.Contains(out, "/tmp/x.go") {
+		t.Errorf("expected edit path in replay, got: %s", out)
 	}
 }

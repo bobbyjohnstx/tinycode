@@ -34,9 +34,12 @@ Flags:
 | Flag | Description |
 |------|-------------|
 | `--cwd <dir>` | Working directory for new sessions (also accepts `-cwd`) |
-| `--model` / `-m` | Default model (`provider/model`) |
+| `--model` / `-m` | Default model (`provider/model`); required if discovery finds none |
+| `--title` | Default title for sessions created via `session/new` |
 | `--safe-mode` | Skip plugins, MCP, and user agents |
-| Common TUI flags | `--title`, `--append-system-prompt`, `--max-tokens`, etc. |
+| Prompt knobs | `--append-system-prompt`, `--max-tokens`, etc. |
+
+`--continue` / `--resume` are TUI/run flags; ACP clients use `session/load` or `session/resume`.
 
 ## Architecture
 
@@ -148,7 +151,7 @@ Common `sessionUpdate` values:
 | `agent_thought_chunk` | Reasoning/thought text (including streamed deltas) |
 | `user_message_chunk` | Replayed user text (loadSession) |
 | `tool_call` | Tool invocation started (`pending`) |
-| `tool_call_update` | Tool status: `in_progress` after args stream; `completed`/`failed` after execution with `rawOutput` when available |
+| `tool_call_update` | Tool status: `in_progress` after args stream; `completed`/`failed` after execution with `rawOutput` when available. File-modifying tools (`edit`/`write`/`apply_patch`) include `locations` and diff/summary `content`. |
 
 ### Permission Handling
 
@@ -174,7 +177,7 @@ When the agent uses the `question` tool:
 | `initialize` | — | Supported |
 | `authenticate` | — | Supported (no-op) |
 | `session/new` | `newSession` | Supported |
-| `session/load` | `loadSession` | Supported (replays text history) |
+| `session/load` | `loadSession` | Supported (replays text + tool history) |
 | `session/list` | `listSessions` | Supported |
 | `session/resume` | `resumeSession` | Supported (no history replay) |
 | `session/close` | `closeSession` | Supported |
@@ -183,7 +186,7 @@ When the agent uses the `question` tool:
 | `session/cancel` | `cancel` | Supported — aborts active run |
 | `session/set_mode` | `setSessionMode` | Supported — maps to agent name |
 | `session/set_model` | `setSessionModel` | Supported — `provider/model` |
-| `session/set_config_option` | `setSessionConfigOption` | Accepted (no-op) |
+| `session/set_config_option` | `setSessionConfigOption` | Supported for `model`; unknown IDs error |
 
 ### Capabilities (honest)
 
@@ -216,7 +219,7 @@ const session = await conn.newSession({
 })
 ```
 
-New sessions use agent `build` and the default model from config/discovery (same heuristics as TUI).
+New sessions use agent `build` and the default model from config/discovery (same heuristics as TUI). `session/new` returns `modes` (primary agents) and a model `configOptions` select. Creation fails closed with an actionable error if no model is available after a short discovery wait — run `tinycode doctor` or pass `--model provider/model`.
 
 ### Listing / Loading / Forking
 
