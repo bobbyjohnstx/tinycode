@@ -29,7 +29,6 @@ export function DialogEditProject(props: { project: LocalProject }) {
     name: defaultName(),
     color: props.project.icon?.color,
     iconOverride: props.project.icon?.override,
-    startup: props.project.commands?.start ?? "",
     dragOver: false,
     iconHover: false,
   })
@@ -75,7 +74,6 @@ export function DialogEditProject(props: { project: LocalProject }) {
   const saveMutation = useMutation(() => ({
     mutationFn: async () => {
       const name = store.name.trim() === folderName() ? "" : store.name.trim()
-      const start = store.startup.trim()
 
       if (props.project.id && props.project.id !== "global") {
         await serverSDK.client.project.update({
@@ -83,7 +81,6 @@ export function DialogEditProject(props: { project: LocalProject }) {
           directory: props.project.worktree,
           name,
           icon: { color: store.color || "", override: store.iconOverride || "" },
-          commands: { start },
         })
         serverSync.project.icon(props.project.worktree, store.iconOverride || undefined)
         dialog.close()
@@ -93,7 +90,6 @@ export function DialogEditProject(props: { project: LocalProject }) {
       serverSync.project.meta(props.project.worktree, {
         name,
         icon: { color: store.color || undefined, override: store.iconOverride || undefined },
-        commands: { start: start || undefined },
       })
       dialog.close()
     },
@@ -238,17 +234,6 @@ export function DialogEditProject(props: { project: LocalProject }) {
               </div>
             </div>
           </Show>
-
-          <TextField
-            multiline
-            label={language.t("dialog.project.edit.worktree.startup")}
-            description={language.t("dialog.project.edit.worktree.startup.description")}
-            placeholder={language.t("dialog.project.edit.worktree.startup.placeholder")}
-            value={store.startup}
-            onChange={(v) => setStore("startup", v)}
-            spellcheck={false}
-            class="max-h-14 w-full overflow-y-auto font-mono text-xs"
-          />
         </div>
 
         <div class="flex justify-end gap-2">

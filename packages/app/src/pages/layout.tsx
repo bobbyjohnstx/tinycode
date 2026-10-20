@@ -36,7 +36,6 @@ import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { useModels } from "@/context/models"
 import { showToast, Toast, toaster } from "@tinycode/ui/toast"
 import { useServerSDK } from "@/context/server-sdk"
-import { clearWorkspaceTerminals, getTerminalServerScope } from "@/context/terminal"
 import { dropSessionCaches, pickSessionCacheEvictions } from "@/context/global-sync/session-cache"
 import {
   clearSessionPrefetchInflight,
@@ -1106,23 +1105,12 @@ export default function Layout(props: ParentProps) {
         },
       },
       {
-        id: "workspace.new",
-        title: language.t("workspace.new"),
-        category: language.t("command.category.workspace"),
-        keybind: "mod+shift+w",
-        disabled: !workspaceSetting(),
-        onSelect: () => {
-          const project = currentProject()
-          if (!project) return
-          return createWorkspace(project)
-        },
-      },
-      {
         id: "workspace.toggle",
         title: language.t("command.workspace.toggle"),
         description: language.t("command.workspace.toggle.description"),
         category: language.t("command.category.workspace"),
         slash: "workspace",
+        // Worktree create/list/remove/reset unsupported; toggle only shows existing sandboxes read-only.
         disabled: !currentProject() || currentProject()?.vcs !== "git",
         onSelect: () => {
           const project = currentProject()
@@ -1304,13 +1292,9 @@ export default function Layout(props: ParentProps) {
       return dirs.some((item) => pathKey(item) === pathKey(value))
     }
     const refreshDirs = async (target?: string) => {
+      // Go serve has no /experimental/worktree* list API — use known sandboxes only.
       if (!target || target === root || canOpen(target)) return canOpen(target)
-      const listed = await serverSDK.client.worktree
-        .list({ directory: root })
-        .then((x) => Array.isArray(x.data) ? x.data : [])
-        .catch(() => [] as string[])
-      dirs = effectiveWorkspaceOrder(root, [root, ...listed], store.workspaceOrder[root])
-      return canOpen(target)
+      return false
     }
     const openSession = async (target: { directory: string; id: string }) => {
       if (!canOpen(target.directory)) return false
@@ -1500,143 +1484,14 @@ export default function Layout(props: ParentProps) {
     }
   }
 
-  const deleteWorkspace = async (root: string, directory: string, leaveDeletedWorkspace = false) => {
-    if (directory === root) return
-
-    const current = currentDir()
-    const currentKey = pathKey(current)
-    const deletedKey = pathKey(directory)
-    const shouldLeave = leaveDeletedWorkspace || (!!params.dir && currentKey === deletedKey)
-    if (!leaveDeletedWorkspace && shouldLeave) {
-      navigateWithSidebarReset(`/${base64Encode(root)}/session`)
-    }
-
-    setBusy(directory, true)
-
-    const result = await serverSDK.client.worktree
-      .remove({ directory: root, worktreeRemoveInput: { directory } })
-      .then((x) => x.data)
-      .catch((err) => {
-        showToast({
-          title: language.t("workspace.delete.failed.title"),
-          description: errorMessage(err, language.t("common.requestFailed")),
-        })
-        return false
-      })
-
-    setBusy(directory, false)
-
-    if (!result) return
-
-    if (pathKey(store.lastProjectSession[root]?.directory ?? "") === pathKey(directory)) {
-      clearLastProjectSession(root)
-    }
-
-    serverSync.set(
-      "project",
-      produce((draft) => {
-        const project = draft.find((item) => item.worktree === root)
-        if (!project) return
-        project.sandboxes = (project.sandboxes ?? []).filter((sandbox) => sandbox !== directory)
-      }),
-    )
-    setStore("workspaceOrder", root, (order) => (order ?? []).filter((workspace) => workspace !== directory))
-
-    layout.projects.close(directory)
-    layout.projects.open(root)
-
-    if (shouldLeave) return
-
-    const nextCurrent = currentDir()
-    const nextKey = pathKey(nextCurrent)
-    const project = layout.projects.list().find((item) => item.worktree === root)
-    const dirs = project
-      ? effectiveWorkspaceOrder(root, [root, ...(project.sandboxes ?? [])], store.workspaceOrder[root])
-      : [root]
-    const valid = dirs.some((item) => pathKey(item) === nextKey)
-
-    if (params.dir && projectRoot(nextCurrent) === root && !valid) {
-      navigateWithSidebarReset(`/${base64Encode(root)}/session`)
-    }
+  const deleteWorkspace = async (_root: string, _directory: string, _leaveDeletedWorkspace = false) => {
+    // Unsupported: Go serve has no worktree remove API.
+    return
   }
 
-  const resetWorkspace = async (root: string, directory: string) => {
-    if (directory === root) return
-    setBusy(directory, true)
-
-    const progress = showToast({
-      persistent: true,
-      title: language.t("workspace.resetting.title"),
-      description: language.t("workspace.resetting.description"),
-    })
-    const dismiss = () => toaster.dismiss(progress)
-
-    const sessions: Session[] = await serverSDK.client.session
-      .list({ directory })
-      .then((x) => Array.isArray(x.data) ? x.data : [])
-      .catch(() => [])
-
-    clearWorkspaceTerminals(
-      directory,
-      sessions.map((s) => s.id),
-      platform,
-      getTerminalServerScope(server.current, server.key),
-    )
-    await serverSDK.client.instance.dispose({ directory }).catch(() => undefined)
-
-    const result = await serverSDK.client.worktree
-      .reset({ directory: root, worktreeResetInput: { directory } })
-      .then((x) => x.data)
-      .catch((err) => {
-        showToast({
-          title: language.t("workspace.reset.failed.title"),
-          description: errorMessage(err, language.t("common.requestFailed")),
-        })
-        return false
-      })
-
-    if (!result) {
-      setBusy(directory, false)
-      dismiss()
-      return
-    }
-
-    const archivedAt = Date.now()
-    await Promise.all(
-      sessions
-        .filter((session) => session.time.archived === undefined)
-        .map((session) =>
-          serverSDK.client.session
-            .update({
-              sessionID: session.id,
-              directory: session.directory,
-              time: { archived: archivedAt },
-            })
-            .catch(() => undefined),
-        ),
-    )
-
-    setBusy(directory, false)
-    dismiss()
-
-    showToast({
-      title: language.t("workspace.reset.success.title"),
-      description: language.t("workspace.reset.success.description"),
-      actions: [
-        {
-          label: language.t("command.session.new"),
-          onClick: () => {
-            const href = `/${base64Encode(directory)}/session`
-            navigate(href)
-            layout.mobileSidebar.hide()
-          },
-        },
-        {
-          label: language.t("common.dismiss"),
-          onClick: "dismiss",
-        },
-      ],
-    })
+  const resetWorkspace = async (_root: string, _directory: string) => {
+    // Unsupported: Go serve has no worktree reset API.
+    return
   }
 
   function DialogDeleteWorkspace(props: { root: string; directory: string }) {
@@ -1945,43 +1800,9 @@ export default function Layout(props: ParentProps) {
   }
 
   const createWorkspace = async (project: LocalProject) => {
+    // Unsupported: Go serve has no worktree create API — open a new session on the project root.
     clearSidebarHoverState()
-    const created = await serverSDK.client.worktree
-      .create({ directory: project.worktree })
-      .then((x) => x.data)
-      .catch((err) => {
-        showToast({
-          title: language.t("workspace.create.failed.title"),
-          description: errorMessage(err, language.t("common.requestFailed")),
-        })
-        return undefined
-      })
-
-    if (!created?.directory) return
-
-    setWorkspaceName(created.directory, created.branch ?? getFilename(created.directory), project.id, created.branch)
-
-    const local = project.worktree
-    const key = pathKey(created.directory)
-    const root = pathKey(local)
-
-    setBusy(created.directory, true)
-    WorktreeState.pending(created.directory)
-    setStore("workspaceExpanded", key, true)
-    if (key !== created.directory) {
-      setStore("workspaceExpanded", created.directory, true)
-    }
-    setStore("workspaceOrder", project.worktree, (prev) => {
-      const existing = prev ?? []
-      const next = existing.filter((item) => {
-        const id = pathKey(item)
-        return id !== root && id !== key
-      })
-      return [created.directory, ...next]
-    })
-
-    serverSync.child(created.directory)
-    navigateWithSidebarReset(`/${base64Encode(created.directory)}/session`)
+    navigateWithSidebarReset(`/${base64Encode(project.worktree)}/session`)
   }
 
   const workspaceSidebarCtx: WorkspaceSidebarContext = {
@@ -2255,13 +2076,13 @@ export default function Layout(props: ParentProps) {
                     <div class="shrink-0 py-4">
                       <Button
                         size="large"
-                        icon="plus-small"
+                        icon="new-session"
                         class="w-full"
                         onClick={() => {
                           void createWorkspace(project)
                         }}
                       >
-                        {language.t("workspace.new")}
+                        {language.t("command.session.new")}
                       </Button>
                     </div>
                     <div class="relative flex-1 min-h-0">

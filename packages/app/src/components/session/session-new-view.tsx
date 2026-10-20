@@ -11,7 +11,6 @@ import { Logo } from "@tinycode/ui/logo"
 import { getDirectory, getFilename } from "tinycode/core/util/path"
 
 const MAIN_WORKTREE = "main"
-const CREATE_WORKTREE = "create"
 const ROOT_CLASS = "size-full flex flex-col"
 
 interface NewSessionViewProps {
@@ -27,7 +26,7 @@ export function NewSessionView(props: NewSessionViewProps) {
   const needsConnect = createMemo(() => providers.connected().length === 0)
 
   const sandboxes = createMemo(() => sync.project?.sandboxes ?? [])
-  const options = createMemo(() => [MAIN_WORKTREE, ...sandboxes(), CREATE_WORKTREE])
+  const options = createMemo(() => [MAIN_WORKTREE, ...sandboxes()])
   const current = createMemo(() => {
     const selection = props.worktree
     if (options().includes(selection)) return selection
@@ -47,8 +46,6 @@ export function NewSessionView(props: NewSessionViewProps) {
       if (branch) return language.t("session.new.worktree.mainWithBranch", { branch })
       return language.t("session.new.worktree.main")
     }
-
-    if (value === CREATE_WORKTREE) return language.t("session.new.worktree.create")
 
     return getFilename(value)
   }

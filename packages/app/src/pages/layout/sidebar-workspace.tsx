@@ -148,9 +148,6 @@ const WorkspaceActions = (props: {
   language: ReturnType<typeof useLanguage>
   workspaceValue: Accessor<string>
   openEditor: WorkspaceSidebarContext["openEditor"]
-  showResetWorkspaceDialog: WorkspaceSidebarContext["showResetWorkspaceDialog"]
-  showDeleteWorkspaceDialog: WorkspaceSidebarContext["showDeleteWorkspaceDialog"]
-  root: string
   clearHoverProjectSoon: WorkspaceSidebarContext["clearHoverProjectSoon"]
   navigateToNewSession: () => void
 }): JSX.Element => (
@@ -197,18 +194,7 @@ const WorkspaceActions = (props: {
           >
             <DropdownMenu.ItemLabel>{props.language.t("common.rename")}</DropdownMenu.ItemLabel>
           </DropdownMenu.Item>
-          <DropdownMenu.Item
-            disabled={props.local() || props.busy()}
-            onSelect={() => props.showResetWorkspaceDialog(props.root, props.directory)}
-          >
-            <DropdownMenu.ItemLabel>{props.language.t("common.reset")}</DropdownMenu.ItemLabel>
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            disabled={props.local() || props.busy()}
-            onSelect={() => props.showDeleteWorkspaceDialog(props.root, props.directory)}
-          >
-            <DropdownMenu.ItemLabel>{props.language.t("common.delete")}</DropdownMenu.ItemLabel>
-          </DropdownMenu.Item>
+          {/* Reset/delete require unsupported Go /experimental/worktree* APIs */}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu>
@@ -412,9 +398,6 @@ export const SortableWorkspace = (props: {
                 language={language}
                 workspaceValue={workspaceValue}
                 openEditor={props.ctx.openEditor}
-                showResetWorkspaceDialog={props.ctx.showResetWorkspaceDialog}
-                showDeleteWorkspaceDialog={props.ctx.showDeleteWorkspaceDialog}
-                root={props.project.worktree}
                 clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
                 navigateToNewSession={() => navigate(`/${slug()}/session`)}
               />
