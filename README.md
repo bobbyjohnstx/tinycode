@@ -153,7 +153,7 @@ Protocol definitions, hook interfaces, and tool registration for building plugin
 
 ## Plugins
 
-31 built-in plugins, each a standalone Go binary communicating over JSON-RPC via stdin/stdout.
+32 built-in plugins, each a standalone Go binary communicating over JSON-RPC via stdin/stdout.
 
 | Plugin               | Description                                                             |
 | -------------------- | ----------------------------------------------------------------------- |
