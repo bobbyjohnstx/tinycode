@@ -55,6 +55,8 @@ func main() {
 	switch cmd {
 	case "tui":
 		runTUI(os.Args[2:])
+	case "attach":
+		runAttach(os.Args[2:])
 	case "serve":
 		runServe()
 	case "web":
@@ -110,6 +112,7 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  tui        Start terminal UI (default)")
+	fmt.Println("  attach     Attach TUI to a remote tinycode serve URL (no local server)")
 	fmt.Println("  run        Run a prompt non-interactively and exit")
 	fmt.Println("  serve      Start headless API server (port 4096)")
 	fmt.Println("  web        Start server and open web interface")
