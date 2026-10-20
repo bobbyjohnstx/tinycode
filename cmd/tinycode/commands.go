@@ -389,11 +389,54 @@ func runPlugin() {
 
 	args := os.Args[2:]
 	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "Usage: tinycode plugin <list|install|uninstall> [args]\n")
+		fmt.Fprintf(os.Stderr, "Usage: tinycode plugin <list|search|init|install|uninstall> [args]\n")
 		os.Exit(1)
 	}
 
 	switch args[0] {
+	case "search":
+		query := ""
+		if len(args) > 1 {
+			query = strings.Join(args[1:], " ")
+		}
+		entries := plugin.SearchRegistry(query)
+		if len(entries) == 0 {
+			fmt.Println("No plugins matched.")
+			return
+		}
+		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tCATEGORY\tDESCRIPTION")
+		for _, e := range entries {
+			fmt.Fprintf(w, "%s\t%s\t%s\n", e.Name, e.Category, e.Description)
+		}
+		w.Flush()
+		fmt.Println()
+		fmt.Println("Install with: tinycode plugin install <name>")
+
+	case "init":
+		name := "hello"
+		dir := ""
+		if len(args) > 1 {
+			name = args[1]
+		}
+		for i := 2; i < len(args); i++ {
+			if args[i] == "--dir" && i+1 < len(args) {
+				dir = args[i+1]
+				i++
+			}
+		}
+		if dir == "" {
+			dir = "plugin-" + name
+		}
+		if err := plugin.InitScaffold(dir, name); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Scaffolded plugin %q in %s\n", name, dir)
+		fmt.Println("Important: tool call params use JSON field \"args\", not \"arguments\".")
+		fmt.Printf("Build: cd %s && go build -o tinycode-plugin-%s .\n", dir, name)
+		fmt.Printf("Install: tinycode plugin install %s --from ./tinycode-plugin-%s\n", name, name)
+
 	case "list":
 		var catFilter string
 		for i := 1; i < len(args); i++ {
@@ -509,7 +552,7 @@ func runPlugin() {
 		fmt.Printf("Uninstalled plugin %s\n", name)
 
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown plugin subcommand: %s\nUsage: tinycode plugin <list|install|uninstall> [args]\n", args[0])
+		fmt.Fprintf(os.Stderr, "Unknown plugin subcommand: %s\nUsage: tinycode plugin <list|search|init|install|uninstall> [args]\n", args[0])
 		os.Exit(1)
 	}
 }

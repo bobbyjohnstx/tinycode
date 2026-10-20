@@ -1,5 +1,7 @@
 package plugin
 
+import "strings"
+
 // RegistryEntry describes a plugin available in the curated registry.
 type RegistryEntry struct {
 	Name        string `json:"name"`
@@ -124,4 +126,21 @@ func LookupRegistry(name string) (RegistryEntry, bool) {
 		}
 	}
 	return RegistryEntry{}, false
+}
+
+// SearchRegistry filters the curated registry by substring match on name,
+// description, or category (case-insensitive). Empty query returns all entries.
+func SearchRegistry(query string) []RegistryEntry {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return Registry()
+	}
+	var out []RegistryEntry
+	for _, e := range registry {
+		hay := strings.ToLower(e.Name + " " + e.Description + " " + e.Category)
+		if strings.Contains(hay, q) {
+			out = append(out, e)
+		}
+	}
+	return out
 }

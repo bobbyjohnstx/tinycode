@@ -111,8 +111,8 @@ Features present in the TypeScript tinycode that are not implemented in tinycode
 | `tinycode import` | Import session data | **Implemented** (`tinycode import <file.json>`; always mints new IDs; no share-URL import) |
 | `tinycode uninstall` | Remove tinycode | Not implemented |
 | `tinycode generate` | Generate OpenAPI spec JSON | Not implemented |
-| `tinycode plugin-init` | Scaffold a new plugin project | Not implemented |
-| `tinycode plugin-search` | Search plugin marketplace | Not implemented |
+| `tinycode plugin-init` | Scaffold a new plugin project | **Implemented** as `tinycode plugin init [name]` |
+| `tinycode plugin-search` | Search plugin marketplace | **Implemented** as `tinycode plugin search [query]` (curated registry filter) |
 
 **Go status:** Go has `models`, `providers`, `session`, `status`, `export`, `plugin`, `agent`, `doctor`, `mcp`, `debug`. Remaining rows above are still missing (`setup` is intentionally replaced by doctor + `/connect`).
 
