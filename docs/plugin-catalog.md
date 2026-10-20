@@ -2,7 +2,7 @@
 
 **Start here.** Look up a plugin by category below. Install with `tinycode plugin install <name>` (prefers `tinycode-plugin-{name}-{os}-{arch}.tar.gz`, then falls back to the platform bundle on 404; or use `--from` / build from source), then enable it in `~/.config/tinycode/tinycode.json`. What each plugin needs for credentials is [plugin-credentials.md](plugin-credentials.md). How to write one is [plugin-development.md](plugin-development.md).
 
-Complete reference for the **31 curated external plugins** (per-plugin release assets, `tinycode-plugins-{os}-{arch}.tar.gz` bundles, or source under `cmd/plugin-*`) and **4 core builtins** that run in-process. Installing a binary is not the same as enabling it — `plugin list` shows **INSTALLED** vs **IN_CONFIG** separately.
+Complete reference for the **32 curated external plugins** (per-plugin release assets, `tinycode-plugins-{os}-{arch}.tar.gz` bundles, or source under `cmd/plugin-*`) and **4 core builtins** that run in-process. Installing a binary is not the same as enabling it — `plugin list` shows **INSTALLED** vs **IN_CONFIG** separately.
 
 ## Quick Start
 
@@ -410,17 +410,29 @@ Fleet management, CI/CD, automation, and infrastructure management.
 
 ---
 
-## Developer (5 plugins)
+## Developer (6 plugins)
 
-Registry, API discovery, content, and developer hub integration.
+Registry, API discovery, content, developer hub, and project knowledge.
 
 | Plugin | Tools | Description |
 |--------|-------|-------------|
+| **wiki** | 4 | Project wiki — persistent AI-writable knowledge pages across sessions |
 | **quay** | 6 | Quay container registry |
 | **rhdh** | 5 | Red Hat Developer Hub catalog |
 | **rh-api-catalog** | 3 | Red Hat API catalog |
 | **rh-dev-content** | 3 | Developer content (articles, RSS) |
 | **rh-ecosystem-catalog** | 3 | Certified containers and operators (Pyxis) |
+
+### wiki
+
+Project-scoped persistent knowledge pages stored in `.tinycode/wiki/`. The AI can write and retrieve structured knowledge across sessions — architecture decisions, troubleshooting runbooks, conventions. No external dependencies. Install: `tinycode plugin install wiki`.
+
+| Tool | Description |
+|------|-------------|
+| `wiki_write` | Create or update a wiki page (title, body, category, tags) |
+| `wiki_read` | Read a wiki page by title or filename |
+| `wiki_search` | Search pages by keyword in title, body, tags, or category |
+| `wiki_list` | List all pages with title, category, tags, and last updated |
 
 ### quay
 
