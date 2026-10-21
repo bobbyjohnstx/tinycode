@@ -34,37 +34,63 @@ func TestPermission_SkipPerms_AllowsExecution(t *testing.T) {
 	}
 }
 
-func TestPermission_DefaultDeny_BlocksExecution(t *testing.T) {
+func TestPermission_BuildAllowsOrdinaryShell(t *testing.T) {
+	// Default build agent allows ordinary shell without --dangerously-skip-permissions.
 	h := testutil.NewTestHarness(t)
 
 	h.MockServer.AddResponse(testutil.MockResponse{
 		ToolCalls: []testutil.MockToolCall{{
 			Name:      "shell",
-			Arguments: `{"command":"printf PERM_DENY_MARKER"}`,
+			Arguments: `{"command":"echo ordinary-shell-ok"}`,
 		}},
 	})
-	h.MockServer.AddResponse(testutil.MockResponse{Content: "no tools used"})
+	h.MockServer.AddResponse(testutil.MockResponse{Content: "command ran"})
 
-	args := []string{
+	result := h.Run(
 		"run",
 		"--format", "json",
 		"-m", h.MockModelName(),
-		"run blocked shell",
-	}
-	result := h.Run(args...)
+		"run echo ordinary-shell-ok",
+	)
 
 	if result.ExitCode != 0 {
 		t.Fatalf("exit %d, stderr: %s", result.ExitCode, result.Stderr)
 	}
-	for _, e := range result.Events {
-		if e.Type != "text" {
-			continue
-		}
-		text, _ := e.Data["text"].(string)
-		if strings.Contains(text, "PERM_DENY_MARKER") {
-			t.Error("shell output should not appear in assistant text when permissions are auto-denied")
+	if !result.HasEvent("tool_end") {
+		t.Error("expected tool_end for ordinary shell under build agent without skip-perms")
+	}
+}
+
+func TestPermission_ResidualAsk_WebfetchRejected(t *testing.T) {
+	// Residual Ask classes (webfetch, .env*, destructive/secret-shell, external_directory)
+	// are auto-rejected in headless mode without skip-perms or -i / --permissions json.
+	h := testutil.NewTestHarness(t)
+
+	h.MockServer.AddResponse(testutil.MockResponse{
+		ToolCalls: []testutil.MockToolCall{{
+			Name:      "webfetch",
+			Arguments: `{"url":"https://example.com"}`,
+		}},
+	})
+	h.MockServer.AddResponse(testutil.MockResponse{Content: "fetch blocked"})
+
+	result := h.Run(
+		"run",
+		"--format", "json",
+		"-m", h.MockModelName(),
+		"fetch example.com",
+	)
+
+	if result.ExitCode != 0 {
+		t.Fatalf("exit %d, stderr: %s", result.ExitCode, result.Stderr)
+	}
+	for _, e := range result.EventsOfType("tool_end") {
+		isError, _ := e.Data["isError"].(bool)
+		if isError {
+			return
 		}
 	}
+	t.Error("expected webfetch tool_end with isError when residual Ask is auto-rejected")
 }
 
 func TestPermission_ConfigAllow(t *testing.T) {

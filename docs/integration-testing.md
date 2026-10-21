@@ -97,16 +97,16 @@ The `--format json` output emits one JSON object per line with these `type` valu
 
 | Type | When | Key fields |
 |---|---|---|
-| `step_start` | LLM call begins | `stepIndex` |
-| `step_finish` | LLM call ends | `stepIndex` |
+| `step_start` | LLM call begins | `stepID`, `iteration`, `model` |
+| `step_finish` | LLM call ends | `stepID`, `iteration`, `usage`, `error` |
 | `text` | Text delta from LLM | `text` |
-| `reasoning` | Reasoning/thinking delta | `text` |
+| `reasoning` | Reasoning/thinking block | `sessionID`, `text` |
 | `tool_begin` | Tool call starts | `toolName`, `toolCallID` |
 | `tool_call_end` | LLM finished tool-call args | `toolName`, `toolCallID`, `toolArgs` |
 | `tool_end` | Tool execution finishes | `toolName`, `toolCallID`, `output`, `isError` |
 | `ready` | Multi-turn: ready for next input | — |
-| `permission` | Permission request (with `--permissions json`) | `id`, `permission`, `metadata` |
-| `compacted` | Context compaction occurred | — |
+| `permission` | Permission request (with `--permissions json`) | `id`, `permission`, `patterns`, `metadata?` |
+| `compacted` | Context compaction occurred | `compactionNum`, `preMessages`, `postMessages` |
 
 ## TUI Tests
 

@@ -49,15 +49,17 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
+          # Default build agent already allows ordinary shell/edit/read.
+          # Add --dangerously-skip-permissions only if the job must auto-approve
+          # residual Ask classes (webfetch, .env*, destructive/secret-shell, external_directory).
           tinycode run --format json \
-            --dangerously-skip-permissions \
             -m "${{ secrets.MODEL }}" \
             "Review this PR for issues. Summarize findings clearly." \
             < /dev/null \
             | tee tinycode-out.ndjson
 ```
 
-Without `--dangerously-skip-permissions`, Ask-level tools (shell, edit, and similar) are auto-rejected in headless mode — fine for read-only prompts, insufficient if the agent must change files or run commands.
+Ordinary `shell` / `edit` / `read` work under the default **build** agent without `--dangerously-skip-permissions`. Headless auto-reject applies only to residual Ask classes: `webfetch`, `read .env*`, `destructive-shell`, `secret-shell`, and `external_directory`.
 
 The `question` tool is fail-closed in `tinycode run`: asks are rejected immediately as unsupported in non-interactive mode (no stdin wait).
 
@@ -106,7 +108,6 @@ jobs:
           fi
 
           tinycode run --format json \
-            --dangerously-skip-permissions \
             -m "${{ secrets.MODEL }}" \
             "$PROMPT_TEXT" \
             < /dev/null \
@@ -161,24 +162,24 @@ Or pin a literal model in the workflow if it is not sensitive (prefer a secret w
 
 ## `--dangerously-skip-permissions` caveats
 
-In CI, `--dangerously-skip-permissions` auto-approves every tool permission (shell, write, network, and so on). Use it only when you intentionally want unattended tool execution.
+The default **build** agent already allows ordinary `shell`, `edit`, and `read` without this flag. Use `--dangerously-skip-permissions` when you intentionally want unattended auto-approval of residual Ask-class permissions (and anything else that would prompt): `webfetch`, `.env*` reads, destructive/secret shell, and paths outside the project.
 
-Risks:
+Risks with the flag:
 
-- The model can edit the workspace and run shell commands without a human gate
-- Compromised prompts (for example from untrusted PR content or comments) can drive destructive tool use
+- Ask-class tools (network fetch, secret-file shell, destructive shell, external dirs) run without a human gate
+- Compromised prompts (for example from untrusted PR content or comments) can drive those higher-risk tools
 - Secrets available to the job process may be readable by tools the agent invokes
 
 Mitigations:
 
-- Prefer read-only prompts without the flag when tools are unnecessary
+- Omit the flag for ordinary edit/shell CI work; add it only when Ask-class tools must succeed unattended
 - Scope `permissions:` tightly (`contents: read` unless the job must push)
 - Restrict which events and actors can trigger agent jobs (for example require a collaborator comment)
 - Prefer `--safe-mode` when plugins/MCP/user agents are not needed
 - Cap cost with `--max-tokens` and `--max-iterations`
 - Run on `pull_request` from forks only with secrets policies you understand (fork PRs often cannot access repository secrets)
 
-Default headless behavior without the flag: allowed rules such as `read *` still pass; Ask requests are rejected. Interactive (`-i`) and JSON permission protocols are a poor fit for most Actions jobs.
+Default headless behavior without the flag: build allows ordinary shell/edit/read; residual Ask requests are auto-rejected. Interactive (`-i`) and JSON permission protocols are a poor fit for most Actions jobs.
 
 ## JSON output parsing
 
@@ -196,7 +197,6 @@ Example: collect the reply and fail the job if the run did not finish cleanly:
 
 ```bash
 tinycode run --format json \
-  --dangerously-skip-permissions \
   -m "${{ secrets.MODEL }}" \
   "Summarize the diff risk in this checkout." \
   < /dev/null \

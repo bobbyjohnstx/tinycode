@@ -1205,12 +1205,12 @@ tinycode run -c -m ollama/qwen3:8b "now add tests for that"
 
 The `question` tool is unsupported in `tinycode run` and is rejected immediately (fail-closed) so the turn does not hang waiting for a UI reply.
 
-Default rules allow `read *`. Asks (shell/edit/etc.) are auto-rejected in headless mode unless you opt in:
+The default **build** agent allows ordinary `shell`, `edit`, and `read` without any permission flag. Headless auto-reject applies only to residual Ask classes: `webfetch`, `read .env*`, `destructive-shell`, `secret-shell`, and `external_directory`. Use a mode below when those Ask requests must succeed (or to change the reply path):
 
 | Mode | Flag | Behavior |
 |------|------|----------|
-| Auto-reject asks | *(default)* | Allowed rules (e.g. `read *`) pass; Ask requests are rejected |
-| Auto-approve | `--dangerously-skip-permissions` | All permissions approved |
+| Auto-reject residual asks | *(default)* | Build allows ordinary shell/edit/read; residual Ask requests are rejected |
+| Auto-approve asks | `--dangerously-skip-permissions` | Auto-approve Ask-class (and all) permissions |
 | Interactive | `-i` | Prompts on stderr, reads yes/no from stdin |
 | JSON | `--permissions json` | NDJSON permission protocol via stdin/stdout |
 | Config | `permission.allow` / `deny` | Pre-approve or deny patterns |

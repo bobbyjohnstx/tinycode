@@ -165,13 +165,13 @@ A headless mode for scripting, CI/CD, and programmatic interaction. Three permis
 
 ### Permission Modes
 
-Default rules allow `read *`. Headless ask handling is separate: when a tool needs an Ask (e.g. shell/edit), the reply is auto-rejected unless one of the modes below applies.
+The default **build** agent allows ordinary `shell`, `edit`, and `read` without a permission flag. Headless auto-reject applies to residual Ask classes only: `webfetch`, `read .env*`, `destructive-shell`, `secret-shell`, and `external_directory`. Modes below change how those Ask requests (and any other Ask) are answered:
 
 | Mode | Behavior |
 |------|----------|
-| Default (no flags) | Auto-reject Ask requests (allowed rules like `read *` still pass without Ask) |
+| Default (no flags) | Build allows ordinary shell/edit/read; residual Ask requests are auto-rejected |
 | `--interactive` / `-i` | Show terminal prompts for each Ask |
-| `--dangerously-skip-permissions` | Auto-approve everything |
+| `--dangerously-skip-permissions` | Auto-approve Ask-class and all other permissions |
 | `--permissions json` | Programmatic JSON protocol over stdin/stdout |
 | Config `permission.allow` / `deny` | Pre-approve or deny patterns without prompting |
 
@@ -191,7 +191,7 @@ Each line is a JSON object with a `type` field:
 | `step_finish` | `stepID`, `iteration`, `usage`, `error` | Processor loop iteration completed |
 | `warning` | `message` | Warning from the processor (e.g., doom loop detection) |
 | `compacted` | `compactionNum`, `preMessages`, `postMessages` | Context compaction occurred |
-| `permission` | `id`, `permission`, `patterns` | Ask request (`--permissions json`) |
+| `permission` | `id`, `permission`, `patterns`, `metadata?` | Ask request (`--permissions json`) |
 | `ready` | — | Multi-turn: ready for next prompt |
 | `done` | `sessionID`, `ok` | Run finished successfully |
 | `error` | `sessionID`, `message` | Run or turn failed |
