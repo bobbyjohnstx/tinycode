@@ -26,6 +26,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
+	"github.com/bobbyjohnstx/tinycode/internal/server"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
@@ -88,6 +89,17 @@ func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, int
 	}
 	safego.Go(func() { handlePermissionEvents(permSub, permSvc, skipPerms, interactive) })
 	return nil
+}
+
+// wireRunSubagentRunner attaches Server.RunSubagent to the shared tool context
+// so the task tool works in headless run (same path as ACP/TUI, without Listen).
+func wireRunSubagentRunner(toolCtx *tool.Context, srv *server.Server) {
+	if toolCtx == nil || srv == nil {
+		return
+	}
+	toolCtx.SubagentRunner = func(subCtx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
+		return srv.RunSubagent(subCtx, parentSessionID, parentDepth, prompt, agent, directory, autoApprove)
+	}
 }
 
 // setupRunQuestionReject fail-closes the question tool in headless run mode.

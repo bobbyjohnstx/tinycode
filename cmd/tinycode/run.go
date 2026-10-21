@@ -24,6 +24,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
+	"github.com/bobbyjohnstx/tinycode/internal/server"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
@@ -175,6 +176,29 @@ func runRun() {
 			toolReg.Register(def)
 		}
 	}
+
+	// Wire task/subagent execution like ACP/TUI, without Listen (headless).
+	srvCfg := serverConfig(cfg, false)
+	srvCfg.Port = 0
+	srvCfg.AppendSystemPrompt = appendSP
+	srvCfg.TokenBudget = *maxTokensFlag
+	srv := server.New(srvCfg, server.Dependencies{
+		Bus:             b,
+		DB:              db.DB,
+		Registry:        reg,
+		AgentRegistry:   agentReg,
+		PluginManager:   pluginMgr,
+		BuiltinManager:  builtinMgr,
+		ShellHookRunner: shellRunner,
+		ToolRegistry:    toolReg,
+		PermService:     permSvc,
+		MCPService:      mcpSvc,
+		LSPManager:      lspMgr,
+		Config:          cfg,
+		JobManager:      toolCtx.JobManager,
+		Discovery:       disc,
+	})
+	wireRunSubagentRunner(toolCtx, srv)
 
 	sessionID, existingMsgs, ms, err := resolveRunSession(db, *sessionFlag, *resumeFlag, *continueFlag, *titleFlag, dir, agentName, modelID, providerID)
 	if err != nil {

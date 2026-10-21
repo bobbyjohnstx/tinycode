@@ -1158,7 +1158,7 @@ Response structure:
 
 ## Run Mode
 
-The `run` subcommand runs tinycode non-interactively -- process a prompt and exit. Same agents, tools, and permissions as the TUI.
+The `run` subcommand runs tinycode non-interactively -- process a prompt and exit. Same agents, tools, and permissions as the TUI, including the `task` tool (foreground subagents via the same SubagentRunner path as ACP). It does not provide the TUI swarm UI or nested subagent NDJSON.
 
 ### Basic usage
 

@@ -14,6 +14,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/project"
+	"github.com/bobbyjohnstx/tinycode/internal/server"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/storage"
 	"github.com/bobbyjohnstx/tinycode/internal/tool"
@@ -927,6 +928,26 @@ func TestReadMuxPrompt_CancelDuringWait(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("readMuxPrompt did not return on cancel")
+	}
+}
+
+func TestWireRunSubagentRunner_SetsFunc(t *testing.T) {
+	toolCtx := &tool.Context{}
+	if toolCtx.SubagentRunner != nil {
+		t.Fatal("expected nil before wire")
+	}
+	// server.New with minimal deps is enough to attach a non-nil runner closure.
+	b := bus.New()
+	defer b.Close()
+	srv := server.New(server.Config{Directory: t.TempDir()}, server.Dependencies{
+		Bus:          b,
+		Registry:     nil,
+		ToolRegistry: tool.NewRegistry(&tool.Context{Directory: t.TempDir()}),
+		PermService:  permission.NewService(b),
+	})
+	wireRunSubagentRunner(toolCtx, srv)
+	if toolCtx.SubagentRunner == nil {
+		t.Fatal("expected SubagentRunner to be set")
 	}
 }
 
