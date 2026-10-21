@@ -87,6 +87,7 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `tinycode run --max-iterations N` | Cap processor iterations per prompt |
 | `tinycode run --permissions json` | Programmatic permission handling via stdin/stdout |
 | `tinycode run --dangerously-skip-permissions` | Auto-approve all tool permissions |
+| `tinycode run --no-fail-on-tool-error` | Exit 0 even when tools return errors (default: exit 1) |
 | `tinycode doctor` | Headless health check (config, DB, providers, agents, plugins, skills) |
 | `tinycode mcp list` | List configured MCP servers + connection status |
 | `tinycode mcp add NAME -- CMD…` | Add stdio MCP server (use `--project` for project config) |

@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Run Mode (headless)
+- Fail-closed question tool — auto-rejects in non-interactive mode instead of hanging (#852)
+- JSON permission hardening — reject empty/unknown replies, force-reject on retry exhaustion (#854)
+- SIGINT during multi-turn stdin wait exits 130 promptly (#855)
+- `--fail-on-tool-error` (default on) — exit 1 with `done.ok:false` on any tool error; opt out with `--no-fail-on-tool-error` (#856)
+- Forbid conflicting stdin flag combos (`-i` + multi-turn, `--permissions json` without `--format json`) (#857)
+- SubagentRunner wired for headless task tool (#858)
+- NDJSON polish: serialized stdout, reasoning deltas, truncated tool_end flag, JSON errors (#859)
+- Permission docs corrected for build agent's default allow (#853)
+
+### Testing
+- TUI E2E: T60-T78 (19 new tests) — autocomplete, hints, first-run connect, cwd, Ctrl+K/F, F2 cycle, /help, stash, history, diagnostics, leader keys, queue toast, escape abort
+- Web E2E: WEB-E02-E10 (9 new tests) — Connect CTA, help filter, settings tabs, command palette, home page, connect dialog
+- Fresh-env: TC8 wiki plugin round-trip
+- Mock LLM: `chunk_delay_ms` for slow-streaming SSE (T77/T78 queue and abort tests)
+- Stale TUI tests updated for sidebar removal and status bar changes
+
 ## [2.5.1] - 2026-10-20
 
 ### CLI

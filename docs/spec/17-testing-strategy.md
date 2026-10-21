@@ -529,7 +529,7 @@ Validates the new-user install path in a clean container — no host config, no 
 - Optional TUI smoke via tmux (prompt chrome, typed input, history count)
 - Cross-compilation (Linux ELF binaries for container, not host Mach-O)
 
-**Mock LLM:** `script/mock-llm/main.go` — Go binary serving SSE on `0.0.0.0:18080`. Returns scripted tool_calls so silent no-ops fail the run.
+**Mock LLM:** `script/mock-llm/main.go` — Go binary serving SSE on `0.0.0.0:18080`. Returns scripted tool_calls so silent no-ops fail the run. Supports `chunk_delay_ms` per response for slow-streaming (used by T77/T78 queue and abort tests).
 
 **Container engine:** podman or docker (`FRESH_ENV_ENGINE`). Uses host networking (`FRESH_ENV_NETWORK=host`) in CI for mock access.
 
@@ -544,6 +544,7 @@ Validates the new-user install path in a clean container — no host config, no 
 | TC5 | TUI prompt chrome + typed input | tmux (skip with `--skip-tui`) |
 | TC6 | Plugin install from GitHub release | Internet (`--release-install`) |
 | TC7 | GOPATH/bin PATH gap detection | Go installed, gopls in GOPATH |
+| TC8 | Wiki plugin install + write/read round-trip | Cross-compiled wiki plugin |
 
 **CI wiring:**
 - GitHub: `.github/workflows/fresh-env.yml` (PR/push path filters + weekly cron Sunday 06:00 UTC)
@@ -613,6 +614,7 @@ The 80% target applies to packages with real logic. CLI entry points (`cmd/tinyc
 - Must speak **SSE** — tinycode always streams; plain JSON responses silently fail
 - Must bind `0.0.0.0` — container tests access via host gateway or host networking
 - Tool_calls in responses must be syntactically valid — the model's tool-call JSON repair expects well-formed function_call objects
+- `chunk_delay_ms` per response enables slow-streaming for queue (T77) and abort (T78) tests
 
 **Usage:**
 ```bash

@@ -117,7 +117,7 @@ Exercises the Bubbletea TUI via tmux sessions — starts tinycode in a virtual t
 ### Usage
 
 ```bash
-./script/tui-test.sh               # all 30 tests
+./script/tui-test.sh               # all 78 tests
 ./script/tui-test.sh T01           # single test
 ./script/tui-test.sh T01 T05 T10   # multiple specific tests
 ```
