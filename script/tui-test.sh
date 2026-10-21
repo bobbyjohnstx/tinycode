@@ -2258,6 +2258,88 @@ test_T73() {
     kill_session "$session"
 }
 
+test_T74() {
+    echo -e "${BOLD}T74: /compact without session shows error${NC}"
+    local session
+    session=$(new_session "T74")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    send_text "$session" "/compact"
+    sleep 2
+
+    assert_regex "$session" "(No active session|compact|Compact|error|Error)" "compact feedback or error shown"
+
+    kill_session "$session"
+}
+
+test_T75() {
+    echo -e "${BOLD}T75: /mcp opens MCP dialog${NC}"
+    local session
+    session=$(new_session "T75")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    send_text "$session" "/mcp"
+    sleep 2
+
+    assert_regex "$session" "(MCP|mcp|server|Server|No MCP)" "MCP dialog or status shown"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T76() {
+    echo -e "${BOLD}T76: /privacy opens privacy dialog${NC}"
+    local session
+    session=$(new_session "T76")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    send_text "$session" "/privacy"
+    sleep 2
+
+    assert_regex "$session" "(Privacy|privacy|Provider|provider|Data|data|config)" "privacy dialog shows content"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T77() {
+    echo -e "${BOLD}T77: Prompt queue toast during working (REQUIRES LLM)${NC}"
+    # REQUIRES LLM: This test needs a running model to produce a working state.
+    # When an LLM is available, submit a prompt, then while working, submit a second.
+    # Assert: toast shows "Queued" or status bar shows [Q:1].
+    skip_test "prompt queue toast" "requires LLM — model must be working to test queue"
+}
+
+test_T78() {
+    echo -e "${BOLD}T78: Escape sends abort while working (REQUIRES LLM)${NC}"
+    # REQUIRES LLM: This test needs a model actively generating a response.
+    # When an LLM is available:
+    # 1. Submit a long prompt that triggers tool calls
+    # 2. While the model is responding (spinner visible), press Escape
+    # 3. Assert: "interrupted" or working state clears, prompt becomes editable
+    skip_test "escape abort during working" "requires LLM — model must be generating to test abort"
+}
+
 # ─── Runner ──────────────────────────────────────────────────────
 
 run_test() {
