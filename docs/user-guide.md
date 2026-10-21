@@ -1196,6 +1196,7 @@ tinycode run -c -m ollama/qwen3:8b "now add tests for that"
 | `--max-iterations` | Max processor iterations (default: 200) |
 | `--multi-turn` | Loop on stdin after initial prompt |
 | `--fail-fast` | Multi-turn: exit on first turn error |
+| `--no-fail-on-tool-error` | Do not fail when a tool returns `isError` (default: fail the run) |
 | `--append-system-prompt` | Append text to the system prompt |
 | `--append-system-prompt-file` | Append file contents to the system prompt |
 | `--max-tokens` | Cumulative token budget (input+output) |
@@ -1233,7 +1234,7 @@ All output is emitted as newline-delimited JSON events:
 | `compacted` | Context compaction occurred |
 | `permission` | Ask request (`--permissions json`) |
 | `ready` | Multi-turn ready for next prompt |
-| `done` | Run finished (`ok: true`) |
+| `done` | Run finished (`ok: true` unless a tool error failed the run) |
 | `error` | Run/turn failed (`message`) |
 
 In text format, tool progress goes to stderr (`tool <name> begin` / `tool <name> end (...)`).

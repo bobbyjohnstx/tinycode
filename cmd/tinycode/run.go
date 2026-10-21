@@ -48,6 +48,7 @@ func runRun() {
 	maxIterFlag := fs.Int("max-iterations", 0, "maximum processor iterations (0 = default 200)")
 	multiTurnFlag := fs.Bool("multi-turn", false, "multi-turn mode: loop on stdin after initial prompt")
 	failFastFlag := fs.Bool("fail-fast", false, "in multi-turn mode, exit immediately on first turn error")
+	noFailOnToolErrorFlag := fs.Bool("no-fail-on-tool-error", false, "do not fail the run when a tool returns isError (default: fail)")
 	appendSPFlag := fs.String("append-system-prompt", "", "append text to the system prompt")
 	appendSPFileFlag := fs.String("append-system-prompt-file", "", "append file contents to the system prompt")
 	maxTokensFlag := fs.Int("max-tokens", 0, "cumulative token budget (input+output); abort when exceeded")
@@ -210,8 +211,10 @@ func runRun() {
 	proc.SetMessages(existingMsgs)
 
 	isJSON := *formatFlag == "json"
+	failOnToolError := !*noFailOnToolErrorFlag
+	toolErrs := &runToolErrorTracker{}
 	emitRunSession(sessionID, isJSON)
-	streamRunOutput(b, isJSON)
+	streamRunOutput(b, isJSON, toolErrs)
 
 	// When --permissions json with no positional prompt, read from the mux.
 	if prompt == "" && !*multiTurnFlag && mux != nil {
@@ -245,7 +248,7 @@ func runRun() {
 	result := proc.Process(ctx, prompt)
 
 	if !*multiTurnFlag {
-		finishRun(result, existingMsgs, ms, db, sessionID, isJSON)
+		finishRun(result, existingMsgs, ms, db, sessionID, isJSON, failOnToolError, toolErrs)
 		return
 	}
 
@@ -264,6 +267,10 @@ func runRun() {
 		if *failFastFlag {
 			os.Exit(1)
 		}
+	}
+	if failOnToolError && toolErrs.seen() && *failFastFlag {
+		emitRunDone(sessionID, isJSON, false)
+		os.Exit(1)
 	}
 
 	var scanner *bufio.Scanner
@@ -304,10 +311,18 @@ func runRun() {
 				os.Exit(1)
 			}
 		}
+		if failOnToolError && toolErrs.seen() && *failFastFlag {
+			emitRunDone(sessionID, isJSON, false)
+			os.Exit(1)
+		}
 	}
 
 	if hadError {
 		os.Exit(1)
 	}
-	emitRunDone(sessionID, isJSON)
+	ok := !(failOnToolError && toolErrs.seen())
+	emitRunDone(sessionID, isJSON, ok)
+	if !ok {
+		os.Exit(1)
+	}
 }

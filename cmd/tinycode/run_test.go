@@ -231,7 +231,7 @@ func TestStreamRunOutput_AllEventTypes(t *testing.T) {
 	oldStdout := captureStdout(t)
 	defer oldStdout.restore()
 
-	streamRunOutput(b, true)
+	streamRunOutput(b, true, nil)
 
 	// Publish events for each new type
 	b.Publish("session.step.start", map[string]any{
@@ -381,7 +381,7 @@ func TestStreamRunOutput_ToolCallFlow(t *testing.T) {
 	defer b.Close()
 
 	cap := captureStdout(t)
-	streamRunOutput(b, true)
+	streamRunOutput(b, true, nil)
 
 	// Simulate a complete tool call sequence as the processor emits it
 	b.Publish("session.step.start", map[string]any{
@@ -628,7 +628,7 @@ func TestExitCodeForRunError(t *testing.T) {
 func TestEmitRunSessionAndDone(t *testing.T) {
 	cap := captureStdout(t)
 	emitRunSession("ses_abc", true)
-	emitRunDone("ses_abc", true)
+	emitRunDone("ses_abc", true, true)
 	emitRunError("ses_abc", errors.New("fail"), true)
 	out := cap.read()
 
@@ -657,6 +657,61 @@ func TestEmitRunSessionAndDone(t *testing.T) {
 	}
 }
 
+func TestEmitRunDone_OkFalse(t *testing.T) {
+	cap := captureStdout(t)
+	emitRunDone("ses_x", true, false)
+	out := strings.TrimSpace(cap.read())
+	var evt map[string]any
+	if err := json.Unmarshal([]byte(out), &evt); err != nil {
+		t.Fatal(err)
+	}
+	if evt["ok"] != false {
+		t.Errorf("done.ok = %v, want false", evt["ok"])
+	}
+}
+
+func TestStreamRunOutput_ToolErrorTracked(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	tracker := &runToolErrorTracker{}
+	_ = captureStdout(t)
+	streamRunOutput(b, true, tracker)
+
+	b.Publish("session.tool.result", map[string]any{
+		"toolName":   "shell",
+		"toolCallID": "c1",
+		"output":     "denied",
+		"isError":    true,
+	})
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if tracker.seen() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("tool error not tracked")
+}
+
+func TestStreamRunOutput_ToolOKNotTracked(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	tracker := &runToolErrorTracker{}
+	_ = captureStdout(t)
+	streamRunOutput(b, true, tracker)
+
+	b.Publish("session.tool.result", map[string]any{
+		"toolName":   "shell",
+		"toolCallID": "c1",
+		"output":     "ok",
+		"isError":    false,
+	})
+	time.Sleep(50 * time.Millisecond)
+	if tracker.seen() {
+		t.Fatal("ok tool_end should not mark tool error")
+	}
+}
+
 func TestStreamRunOutput_TextToolProgressOnStderr(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
@@ -672,7 +727,7 @@ func TestStreamRunOutput_TextToolProgressOnStderr(t *testing.T) {
 		_ = r.Close()
 	}()
 
-	streamRunOutput(b, false)
+	streamRunOutput(b, false, nil)
 	b.Publish("session.tool.begin", map[string]any{
 		"toolName": "shell", "toolCallID": "c1",
 	})

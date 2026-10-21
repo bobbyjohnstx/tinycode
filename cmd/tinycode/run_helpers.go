@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/term"
@@ -515,9 +516,34 @@ func resolveResumeSessionID(store *session.Store, projectID, resume string) stri
 	return ""
 }
 
+// runToolErrorTracker records whether any tool_end event had isError:true.
+type runToolErrorTracker struct {
+	mu  sync.Mutex
+	saw bool
+}
+
+func (t *runToolErrorTracker) mark() {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	t.saw = true
+	t.mu.Unlock()
+}
+
+func (t *runToolErrorTracker) seen() bool {
+	if t == nil {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.saw
+}
+
 // streamRunOutput subscribes to session events and streams text/tool output
 // to stdout. Goroutines run until the bus subscriptions are closed.
-func streamRunOutput(b *bus.Bus, isJSON bool) {
+// When toolErrs is non-nil, tool_end events with isError:true call mark().
+func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 	deltaSub := b.Subscribe("session.text.delta")
 	toolBeginSub := b.Subscribe("session.tool.begin")
 	toolCallEndSub := b.Subscribe("session.tool.end")
@@ -592,6 +618,9 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 			toolCallID, _ := props["toolCallID"].(string)
 			output, _ := props["output"].(string)
 			isError, _ := props["isError"].(bool)
+			if isError {
+				toolErrs.mark()
+			}
 			if isJSON {
 				line, _ := json.Marshal(map[string]any{
 					"type":       "tool_end",
@@ -826,7 +855,7 @@ func persistRunResult(result *session.ProcessResult, existingMsgs []session.Mess
 }
 
 // finishRun persists processor results and handles errors.
-func finishRun(result *session.ProcessResult, existingMsgs []session.Message, ms *session.MessageStore, db *storage.DB, sessionID string, isJSON bool) {
+func finishRun(result *session.ProcessResult, existingMsgs []session.Message, ms *session.MessageStore, db *storage.DB, sessionID string, isJSON bool, failOnToolError bool, toolErrs *runToolErrorTracker) {
 	persistRunResult(result, existingMsgs, ms, db, sessionID)
 
 	if !isJSON {
@@ -837,7 +866,11 @@ func finishRun(result *session.ProcessResult, existingMsgs []session.Message, ms
 		emitRunError(sessionID, result.Error, isJSON)
 		os.Exit(exitCodeForRunError(result.Error))
 	}
-	emitRunDone(sessionID, isJSON)
+	ok := !(failOnToolError && toolErrs.seen())
+	emitRunDone(sessionID, isJSON, ok)
+	if !ok {
+		os.Exit(1)
+	}
 }
 
 func emitRunSession(sessionID string, isJSON bool) {
@@ -849,11 +882,11 @@ func emitRunSession(sessionID string, isJSON bool) {
 	fmt.Fprintf(os.Stderr, "session: %s\n", sessionID)
 }
 
-func emitRunDone(sessionID string, isJSON bool) {
+func emitRunDone(sessionID string, isJSON bool, ok bool) {
 	if !isJSON {
 		return
 	}
-	line, _ := json.Marshal(map[string]any{"type": "done", "sessionID": sessionID, "ok": true})
+	line, _ := json.Marshal(map[string]any{"type": "done", "sessionID": sessionID, "ok": ok})
 	fmt.Println(string(line))
 }
 

@@ -158,6 +158,7 @@ A headless mode for scripting, CI/CD, and programmatic interaction. Three permis
 | `--max-iterations` | Maximum processor iterations per prompt (0 = default 200) |
 | `--multi-turn` | Multi-turn mode: loop on stdin after initial prompt |
 | `--fail-fast` | Multi-turn: exit immediately on the first turn error |
+| `--no-fail-on-tool-error` | Do not fail when a tool returns `isError` (default: fail) |
 | `--append-system-prompt` | Append text to the system prompt |
 | `--append-system-prompt-file` | Append file contents to the system prompt |
 | `--max-tokens` | Cumulative token budget (input+output) |
@@ -193,7 +194,7 @@ Each line is a JSON object with a `type` field:
 | `compacted` | `compactionNum`, `preMessages`, `postMessages` | Context compaction occurred |
 | `permission` | `id`, `permission`, `patterns`, `metadata?` | Ask request (`--permissions json`) |
 | `ready` | — | Multi-turn: ready for next prompt |
-| `done` | `sessionID`, `ok` | Run finished successfully |
+| `done` | `sessionID`, `ok` | Run finished; `ok:false` when a tool `isError` failed the run |
 | `error` | `sessionID`, `message` | Run or turn failed |
 
 Example stream:

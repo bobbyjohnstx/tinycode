@@ -190,8 +190,8 @@ Default headless behavior without the flag: build allows ordinary shell/edit/rea
 | `session` | Capture `sessionID` for logs or follow-up runs |
 | `text` | Append `text` deltas to build the assistant reply |
 | `tool_begin` / `tool_end` | Optional progress / failure diagnostics |
-| `done` | Success when `ok` is true |
-| `error` | Failure message |
+| `done` | Success when `ok` is true; `ok: false` means a tool returned `isError` (exit 1). Use `--no-fail-on-tool-error` to keep exit 0 / `ok: true` |
+| `error` | Failure message (processor/turn failure; cancel is exit 130) |
 
 Example: collect the reply and fail the job if the run did not finish cleanly:
 
