@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,8 +32,9 @@ type toolCall struct {
 }
 
 type scriptedResponse struct {
-	Content   string     `json:"content"`
-	ToolCalls []toolCall `json:"tool_calls"`
+	Content      string     `json:"content"`
+	ToolCalls    []toolCall `json:"tool_calls"`
+	ChunkDelayMs int        `json:"chunk_delay_ms"` // delay between SSE chunks (0 = instant)
 }
 
 func main() {
@@ -106,10 +108,26 @@ func (s *server) handleCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// tinycode always streams; also honour explicit stream=true.
 	if req.Stream || r.Header.Get("Accept") == "text/event-stream" {
-		writeSSE(w, resp)
+		writeSSE(w, resp, time.Duration(resp.ChunkDelayMs)*time.Millisecond)
 		return
 	}
 	writeJSON(w, resp)
+}
+
+func splitIntoChunks(s string) []string {
+	words := strings.Fields(s)
+	if len(words) == 0 {
+		return []string{s}
+	}
+	chunks := make([]string, len(words))
+	for i, w := range words {
+		if i < len(words)-1 {
+			chunks[i] = w + " "
+		} else {
+			chunks[i] = w
+		}
+	}
+	return chunks
 }
 
 func writeJSON(w http.ResponseWriter, resp scriptedResponse) {
@@ -148,7 +166,7 @@ func writeJSON(w http.ResponseWriter, resp scriptedResponse) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-func writeSSE(w http.ResponseWriter, resp scriptedResponse) {
+func writeSSE(w http.ResponseWriter, resp scriptedResponse, chunkDelay time.Duration) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -212,14 +230,29 @@ func writeSSE(w http.ResponseWriter, resp scriptedResponse) {
 		if content == "" {
 			content = "ok"
 		}
-		write(map[string]any{
-			"id": "mock-1", "object": "chat.completion.chunk", "model": "test-model",
-			"choices": []map[string]any{{
-				"index": 0,
-				"delta": map[string]any{"role": "assistant", "content": content},
-				"finish_reason": nil,
-			}},
-		})
+		// Stream content in chunks. With chunkDelay > 0, split into words
+		// so the TUI stays in "working" state long enough for interaction tests.
+		chunks := []string{content}
+		if chunkDelay > 0 {
+			chunks = splitIntoChunks(content)
+		}
+		for i, chunk := range chunks {
+			delta := map[string]any{"content": chunk}
+			if i == 0 {
+				delta["role"] = "assistant"
+			}
+			write(map[string]any{
+				"id": "mock-1", "object": "chat.completion.chunk", "model": "test-model",
+				"choices": []map[string]any{{
+					"index": 0,
+					"delta": delta,
+					"finish_reason": nil,
+				}},
+			})
+			if chunkDelay > 0 && i < len(chunks)-1 {
+				time.Sleep(chunkDelay)
+			}
+		}
 		write(map[string]any{
 			"id": "mock-1", "object": "chat.completion.chunk", "model": "test-model",
 			"choices": []map[string]any{{
