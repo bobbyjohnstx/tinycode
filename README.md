@@ -115,7 +115,7 @@ Standard Go layout: `cmd/` for binaries, `internal/` for private packages, `pkg/
 
 ### `cmd/tinycode/` --- Main binary
 
-Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `run`, `models`, `providers`, `session`, `status`, `export`, `plugin`, `mcp`, `init`, `agent`, `doctor`, `debug`, `version`.
+Single entry point. Subcommands: `tui` (default), `serve`, `web`, `acp`, `attach`, `run`, `models`, `providers`, `session`, `status`, `export`, `import`, `plugin`, `mcp`, `init`, `agent`, `doctor`, `debug`, `version`.
 
 ### `internal/` --- Core packages
 

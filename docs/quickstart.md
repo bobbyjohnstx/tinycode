@@ -290,6 +290,7 @@ tinycode run --multi-turn --format json -m ollama/qwen3.5:9b    # loop on stdin,
 tinycode serve    # headless API and the thin ops console
 tinycode web      # browser chat UI (no in-browser PTY; share disabled)
 tinycode acp      # IDE integration over stdio
+tinycode attach <url>  # connect TUI to a remote tinycode serve
 ```
 
 Flags, NDJSON events, and permission handling are in the [user guide](user-guide.md#run-mode).

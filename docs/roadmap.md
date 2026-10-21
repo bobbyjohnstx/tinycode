@@ -64,7 +64,7 @@ Near-term work under consideration:
 
 These items are on the radar but not actively planned:
 
-- **Wiki / oh-my-tiny** -- The TypeScript wiki and oh-my-tiny plugin system. May be revisited once the Go core stabilizes.
+- ~~**Wiki / oh-my-tiny**~~ -- Done. Wiki shipped as an opt-in plugin (`cmd/plugin-wiki`, #815). oh-my-tiny is legacy TypeScript and will not be ported.
 
 ---
 

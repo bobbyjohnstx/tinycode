@@ -75,6 +75,7 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `/mcp-setup` | Configure MCP servers |
 | `/remember` | Triage findings to memory surfaces |
 | `/deepinit` | Generate per-directory `AGENTS.md` files |
+| `/clear-queue` | Clear queued prompts for the current turn |
 
 **CLI commands:**
 
@@ -96,6 +97,11 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `tinycode plugin list` | List registry plugins (INSTALLED vs IN_CONFIG) |
 | `tinycode plugin install <name>` | Install binary (prefer per-plugin asset, else bundle), `--from`, or local source (does not enable) |
 | `tinycode plugin uninstall <name>` | Remove an installed plugin |
+| `tinycode plugin search <query>` | Fuzzy search plugin registry by name or description |
+| `tinycode plugin init <name>` | Scaffold a new plugin binary |
+| `tinycode attach <url>` | Connect TUI to a remote `tinycode serve` (no local server) |
+| `tinycode import <file>` | Import a session from JSON export |
+| `tinycode export --sanitize <id>` | Export with paths, secrets, and tool args redacted |
 
 ## Common Workflows
 

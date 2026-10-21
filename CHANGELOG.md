@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-10-20
+
+### CLI
+- `tinycode attach <url>` — remote TUI client for headless `tinycode serve` instances (#830)
+- `tinycode import` — import session from JSON export (#833)
+- `tinycode export --sanitize` — redact paths, secrets, tool args from exports (#833)
+- `tinycode plugin search` — fuzzy search across plugin registry (#835)
+- `tinycode plugin init` — scaffold a new plugin binary (#835)
+
+### Providers
+- Persistent credentials in `DataDir()/auth.json` (mode 0600) (#832A)
+- Remote model catalog from `TINYCODE_MODELS_URL` with local cache (#834)
+
+### ACP (IDE Integration)
+- P0: question relay via elicitation, error surfacing, tool status, streaming deltas (#840-#845)
+- P1: session modes/config, model gate with discovery wait, edit tool diffs (#848-#851)
+- Docs honesty for elicitation and question relay (#847)
+
+### Web UI
+- Honesty pass: hide PTY/terminal, MCP mutate, share, worktree features not in Go (#818-#828, #831)
+- SSE connection banner (connected/reconnecting/offline) (#818)
+- Permission dock shows tool name (#823); auto-respond failures toast (#824)
+- Empty session Connect CTA (#821); Cache-Control no-cache on index.html (#819)
+- Help endpoint filters TUI-only content for `?client=web` (#826)
+- CI embed-webapp drift guard (#828)
+
+### TUI
+- Busy bar always shows "thinking" + interrupt hint
+- First-run connect: "Select a model to start" with deferred open after welcome tips
+- Cwd shown in idle status bar
+- Auto-approve, overlay Esc ordering, per-session queues, PgUp/PgDn scroll
+- `/clear-queue` in palette + autocomplete; SSE chrome (connected/reconnecting/offline)
+- Honest sidebar (sessions tree removed), honest auto-approve copy
+
+### Plugins
+- Wiki plugin (`cmd/plugin-wiki`) — persistent AI-writable knowledge pages (#815)
+
 ## [2.5.0] - 2026-10-19
 
 ### LSP
