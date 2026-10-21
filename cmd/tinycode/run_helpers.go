@@ -32,6 +32,26 @@ import (
 
 const maxNDJSONToolOutput = 16 * 1024
 
+// stdoutMu serializes NDJSON lines so concurrent emitters never interleave bytes.
+var stdoutMu sync.Mutex
+
+func writeNDJSON(v map[string]any) {
+	line, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	stdoutMu.Lock()
+	fmt.Println(string(line))
+	stdoutMu.Unlock()
+}
+
+func truncateNDJSONOutput(s string, max int) (string, bool) {
+	if len(s) <= max {
+		return s, false
+	}
+	return s[:max], true
+}
+
 // collectRunPrompt handles directory changes from positional args and collects
 // the prompt text from remaining args and/or stdin. When multiTurn is true,
 // stdin is not consumed (it will be read line-by-line in the multi-turn loop)
@@ -329,8 +349,7 @@ func handleJSONPermissionEvents(permSub *bus.Subscription, permSvc *permission.S
 		if len(req.Metadata) > 0 {
 			payload["metadata"] = req.Metadata
 		}
-		line, _ := json.Marshal(payload)
-		fmt.Println(string(line))
+		writeNDJSON(payload)
 	}
 }
 
@@ -390,10 +409,17 @@ func handlePermissionEvents(permSub *bus.Subscription, permSvc *permission.Servi
 
 // resolveRunModel resolves the model from flags or config and returns the
 // provider ID, model ID, and model object. Exits on error.
-func resolveRunModel(reg *provider.Registry, modelStr string) (string, string, *provider.Model) {
-	if modelStr == "" {
-		fmt.Fprintf(os.Stderr, "error: no model specified (use --model or set model in config)\n")
+func resolveRunModel(reg *provider.Registry, modelStr string, isJSON bool) (string, string, *provider.Model) {
+	fail := func(msg string) {
+		if isJSON {
+			writeNDJSON(map[string]any{"type": "error", "message": msg})
+		} else {
+			fmt.Fprintf(os.Stderr, "error: %s\n", msg)
+		}
 		os.Exit(1)
+	}
+	if modelStr == "" {
+		fail("no model specified (use --model, set model in config, or run tinycode doctor)")
 	}
 
 	providerID, modelID := provider.ParseModel(modelStr)
@@ -408,14 +434,12 @@ func resolveRunModel(reg *provider.Registry, modelStr string) (string, string, *
 		}
 	}
 	if providerID == "" {
-		fmt.Fprintf(os.Stderr, "error: could not find model %q — specify as provider/model\n", modelStr)
-		os.Exit(1)
+		fail(fmt.Sprintf("could not find model %q — specify as provider/model (or run tinycode doctor)", modelStr))
 	}
 
 	model, err := reg.GetModel(providerID, modelID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		fail(err.Error())
 	}
 	return providerID, modelID, model
 }
@@ -578,6 +602,7 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 	toolCallEndSub := b.Subscribe("session.tool.end")
 	toolResultSub := b.Subscribe("session.tool.result")
 	msgSub := b.Subscribe("session.message")
+	reasoningSub := b.Subscribe("session.reasoning.delta")
 	stepStartSub := b.Subscribe("session.step.start")
 	stepFinishSub := b.Subscribe("session.step.finish")
 	warnSub := b.Subscribe("session.warning")
@@ -591,10 +616,11 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 			}
 			text, _ := props["text"].(string)
 			if isJSON {
-				line, _ := json.Marshal(map[string]any{"type": "text", "text": text})
-				fmt.Println(string(line))
+				writeNDJSON(map[string]any{"type": "text", "text": text})
 			} else {
+				stdoutMu.Lock()
 				fmt.Print(text)
+				stdoutMu.Unlock()
 			}
 		}
 	})
@@ -607,12 +633,11 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 			toolName, _ := props["toolName"].(string)
 			toolCallID, _ := props["toolCallID"].(string)
 			if isJSON {
-				line, _ := json.Marshal(map[string]any{
+				writeNDJSON(map[string]any{
 					"type":       "tool_begin",
 					"toolName":   toolName,
 					"toolCallID": toolCallID,
 				})
-				fmt.Println(string(line))
 			} else {
 				fmt.Fprintf(os.Stderr, "tool %s begin\n", toolName)
 			}
@@ -627,14 +652,12 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 			if !isJSON {
 				continue
 			}
-			// LLM finished streaming the tool call args (not execution result).
-			line, _ := json.Marshal(map[string]any{
+			writeNDJSON(map[string]any{
 				"type":       "tool_call_end",
 				"toolName":   props["toolName"],
 				"toolCallID": props["toolCallID"],
 				"toolArgs":   props["toolArgs"],
 			})
-			fmt.Println(string(line))
 		}
 	})
 	safego.Go(func() {
@@ -651,14 +674,18 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 				toolErrs.mark()
 			}
 			if isJSON {
-				line, _ := json.Marshal(map[string]any{
+				out, truncated := truncateNDJSONOutput(output, maxNDJSONToolOutput)
+				payload := map[string]any{
 					"type":       "tool_end",
 					"toolName":   toolName,
 					"toolCallID": toolCallID,
-					"output":     truncateStr(output, maxNDJSONToolOutput),
+					"output":     out,
 					"isError":    isError,
-				})
-				fmt.Println(string(line))
+				}
+				if truncated {
+					payload["truncated"] = true
+				}
+				writeNDJSON(payload)
 			} else {
 				status := "ok"
 				if isError {
@@ -666,6 +693,22 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 				}
 				fmt.Fprintf(os.Stderr, "tool %s end (%s)\n", toolName, status)
 			}
+		}
+	})
+	safego.Go(func() {
+		for evt := range reasoningSub.C {
+			if !isJSON {
+				continue
+			}
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			writeNDJSON(map[string]any{
+				"type":      "reasoning",
+				"sessionID": props["sessionID"],
+				"text":      props["text"],
+			})
 		}
 	})
 	safego.Go(func() {
@@ -683,12 +726,11 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 			}
 			for _, part := range msg.Parts {
 				if part.Type == session.PartReasoning {
-					line, _ := json.Marshal(map[string]any{
+					writeNDJSON(map[string]any{
 						"type":      "reasoning",
 						"sessionID": msg.SessionID,
 						"text":      part.Text,
 					})
-					fmt.Println(string(line))
 				}
 			}
 		}
@@ -702,13 +744,12 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 			if !ok {
 				continue
 			}
-			line, _ := json.Marshal(map[string]any{
+			writeNDJSON(map[string]any{
 				"type":      "step_start",
 				"stepID":    props["stepID"],
 				"iteration": props["iteration"],
 				"model":     props["model"],
 			})
-			fmt.Println(string(line))
 		}
 	})
 	safego.Go(func() {
@@ -720,14 +761,13 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 			if !ok {
 				continue
 			}
-			line, _ := json.Marshal(map[string]any{
+			writeNDJSON(map[string]any{
 				"type":      "step_finish",
 				"stepID":    props["stepID"],
 				"iteration": props["iteration"],
 				"usage":     props["usage"],
 				"error":     props["error"],
 			})
-			fmt.Println(string(line))
 		}
 	})
 	safego.Go(func() {
@@ -739,11 +779,10 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 			if !ok {
 				continue
 			}
-			line, _ := json.Marshal(map[string]any{
+			writeNDJSON(map[string]any{
 				"type":    "warning",
 				"message": props["message"],
 			})
-			fmt.Println(string(line))
 		}
 	})
 	safego.Go(func() {
@@ -755,13 +794,12 @@ func streamRunOutput(b *bus.Bus, isJSON bool, toolErrs *runToolErrorTracker) {
 			if !ok {
 				continue
 			}
-			line, _ := json.Marshal(map[string]any{
+			writeNDJSON(map[string]any{
 				"type":          "compacted",
 				"compactionNum": props["compactionNum"],
 				"preMessages":   props["preMessages"],
 				"postMessages":  props["postMessages"],
 			})
-			fmt.Println(string(line))
 		}
 	})
 }
@@ -904,8 +942,7 @@ func finishRun(result *session.ProcessResult, existingMsgs []session.Message, ms
 
 func emitRunSession(sessionID string, isJSON bool) {
 	if isJSON {
-		line, _ := json.Marshal(map[string]any{"type": "session", "sessionID": sessionID})
-		fmt.Println(string(line))
+		writeNDJSON(map[string]any{"type": "session", "sessionID": sessionID})
 		return
 	}
 	fmt.Fprintf(os.Stderr, "session: %s\n", sessionID)
@@ -915,18 +952,19 @@ func emitRunDone(sessionID string, isJSON bool, ok bool) {
 	if !isJSON {
 		return
 	}
-	line, _ := json.Marshal(map[string]any{"type": "done", "sessionID": sessionID, "ok": ok})
-	fmt.Println(string(line))
+	writeNDJSON(map[string]any{"type": "done", "sessionID": sessionID, "ok": ok})
 }
 
 func emitRunError(sessionID string, err error, isJSON bool) {
 	if isJSON {
-		line, _ := json.Marshal(map[string]any{
-			"type":      "error",
-			"sessionID": sessionID,
-			"message":   err.Error(),
-		})
-		fmt.Println(string(line))
+		payload := map[string]any{
+			"type":    "error",
+			"message": err.Error(),
+		}
+		if sessionID != "" {
+			payload["sessionID"] = sessionID
+		}
+		writeNDJSON(payload)
 		return
 	}
 	fmt.Fprintf(os.Stderr, "error: %v\n", err)

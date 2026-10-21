@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -655,6 +656,101 @@ func TestEmitRunSessionAndDone(t *testing.T) {
 	}
 	if strings.Join(types, ",") != "session,done,error" {
 		t.Errorf("types = %v", types)
+	}
+}
+
+func TestTruncateNDJSONOutput(t *testing.T) {
+	out, trunc := truncateNDJSONOutput("hi", 10)
+	if out != "hi" || trunc {
+		t.Fatalf("got %q trunc=%v", out, trunc)
+	}
+	long := strings.Repeat("a", maxNDJSONToolOutput+10)
+	out, trunc = truncateNDJSONOutput(long, maxNDJSONToolOutput)
+	if !trunc || len(out) != maxNDJSONToolOutput {
+		t.Fatalf("len=%d trunc=%v", len(out), trunc)
+	}
+}
+
+func TestStreamRunOutput_ToolEndTruncatedFlag(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	cap := captureStdout(t)
+	streamRunOutput(b, true, nil)
+
+	b.Publish("session.tool.result", map[string]any{
+		"toolName":   "shell",
+		"toolCallID": "c1",
+		"output":     strings.Repeat("x", maxNDJSONToolOutput+5),
+		"isError":    false,
+	})
+	time.Sleep(50 * time.Millisecond)
+	out := cap.read()
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if line == "" {
+			continue
+		}
+		var evt map[string]any
+		if err := json.Unmarshal([]byte(line), &evt); err != nil {
+			continue
+		}
+		if evt["type"] == "tool_end" {
+			if evt["truncated"] != true {
+				t.Fatalf("truncated = %v, want true", evt["truncated"])
+			}
+			outStr, _ := evt["output"].(string)
+			if len(outStr) != maxNDJSONToolOutput {
+				t.Fatalf("output len = %d", len(outStr))
+			}
+			return
+		}
+	}
+	t.Fatalf("tool_end not seen in %q", out)
+}
+
+func TestStreamRunOutput_ReasoningDelta(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	cap := captureStdout(t)
+	streamRunOutput(b, true, nil)
+
+	b.Publish("session.reasoning.delta", map[string]any{
+		"sessionID": "ses_r",
+		"text":      "thinking",
+	})
+	time.Sleep(50 * time.Millisecond)
+	out := cap.read()
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if line == "" {
+			continue
+		}
+		var evt map[string]any
+		if err := json.Unmarshal([]byte(line), &evt); err != nil {
+			continue
+		}
+		if evt["type"] == "reasoning" && evt["text"] == "thinking" {
+			return
+		}
+	}
+	t.Fatalf("reasoning delta not streamed in %q", out)
+}
+
+func TestWriteNDJSON_SerializesLines(t *testing.T) {
+	cap := captureStdout(t)
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			writeNDJSON(map[string]any{"type": "text", "text": fmt.Sprintf("%d", n)})
+		}(i)
+	}
+	wg.Wait()
+	out := strings.TrimSpace(cap.read())
+	for _, line := range strings.Split(out, "\n") {
+		var evt map[string]any
+		if err := json.Unmarshal([]byte(line), &evt); err != nil {
+			t.Fatalf("interleaved/invalid JSON line %q: %v", line, err)
+		}
 	}
 }
 

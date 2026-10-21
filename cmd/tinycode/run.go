@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -160,7 +159,8 @@ func runRun() {
 	if modelStr == "" {
 		modelStr = cfg.Model
 	}
-	providerID, modelID, model := resolveRunModel(reg, modelStr)
+	isJSONEarly := *formatFlag == "json"
+	providerID, modelID, model := resolveRunModel(reg, modelStr, isJSONEarly)
 	disc.Warmup(ctx, model)
 
 	agentName, agentPerms, agentRuleset, systemPrompt := buildRunAgentPrompt(*agentFlag, cfg, agentReg, model, dir, toolReg, appendSP)
@@ -276,7 +276,8 @@ func runRun() {
 			exitOnRunCancel(ctx, sessionID, isJSON)
 		}
 		if !ok || p == "" {
-			return
+			emitRunError(sessionID, errors.New("no prompt provided"), isJSON)
+			os.Exit(1)
 		}
 		prompt = p
 	}
@@ -315,8 +316,7 @@ func runRun() {
 	}
 	for {
 		if isJSON {
-			line, _ := json.Marshal(map[string]string{"type": "ready"})
-			fmt.Println(string(line))
+			writeNDJSON(map[string]any{"type": "ready"})
 		} else {
 			fmt.Println()
 		}
