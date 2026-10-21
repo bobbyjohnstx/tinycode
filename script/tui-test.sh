@@ -2000,7 +2000,7 @@ test_T63() {
         captured=$(capture_pane "$session")
         if echo "$captured" | grep -qF "Select Provider"; then
             skip_test "first-run connect title" "provider already found — normal Select Provider shown"
-        elif echo "$captured" | grep -qE "(ollama|qwen|llama)"; then
+        elif echo "$captured" | grep -qiE "(ollama|qwen|llama|lm studio|vllm|openrouter|bonsai|prism)"; then
             skip_test "first-run connect title" "model already connected — first-run skipped"
         else
             TOTAL=$((TOTAL + 1))
@@ -2127,7 +2127,7 @@ test_T68() {
     send_text "$session" "/help"
     sleep 2
 
-    assert_regex "$session" "(Keybindings|Commands|Features|keybinding)" "help overlay shows content"
+    assert_regex "$session" "(Keyboard Shortcuts|Commands|Features|keybinding|Keybindings)" "help overlay shows content"
 
     send_keys "$session" Escape
     sleep 0.5
