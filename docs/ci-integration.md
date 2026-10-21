@@ -59,6 +59,8 @@ jobs:
 
 Without `--dangerously-skip-permissions`, Ask-level tools (shell, edit, and similar) are auto-rejected in headless mode — fine for read-only prompts, insufficient if the agent must change files or run commands.
 
+The `question` tool is fail-closed in `tinycode run`: asks are rejected immediately as unsupported in non-interactive mode (no stdin wait).
+
 ## Comment-triggered `/tinycode`
 
 Respond when someone posts a PR comment that starts with `/tinycode`:

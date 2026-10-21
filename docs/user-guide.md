@@ -1203,6 +1203,8 @@ tinycode run -c -m ollama/qwen3:8b "now add tests for that"
 
 ### Permission modes
 
+The `question` tool is unsupported in `tinycode run` and is rejected immediately (fail-closed) so the turn does not hang waiting for a UI reply.
+
 Default rules allow `read *`. Asks (shell/edit/etc.) are auto-rejected in headless mode unless you opt in:
 
 | Mode | Flag | Behavior |

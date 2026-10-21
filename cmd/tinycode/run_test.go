@@ -16,6 +16,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/storage"
+	"github.com/bobbyjohnstx/tinycode/internal/tool"
 )
 
 func TestReadNextPrompt_TextMode(t *testing.T) {
@@ -829,6 +830,56 @@ func TestStdinMux_PermissionReplyDuringAsk(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("prompt not delivered")
+	}
+}
+
+func TestFailClosedQuestion_HeadlessRejects(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	setupRunQuestionReject(b)
+
+	rejected := b.Subscribe("question.rejected")
+	defer rejected.Unsubscribe()
+
+	tc := &tool.Context{SessionID: "ses_run_q", Bus: b}
+	def := tool.QuestionTool()
+	done := make(chan *tool.ExecuteResult, 1)
+	go func() {
+		result, err := def.Execute(context.Background(), tc, json.RawMessage(`{"question":"Continue?"}`))
+		if err != nil {
+			t.Errorf("Execute error: %v", err)
+		}
+		done <- result
+	}()
+
+	select {
+	case evt := <-rejected.C:
+		props, ok := evt.Properties.(map[string]any)
+		if !ok {
+			t.Fatal("question.rejected properties not a map")
+		}
+		if props["requestID"] == "" {
+			t.Error("requestID empty")
+		}
+		if props["sessionID"] != "ses_run_q" {
+			t.Errorf("sessionID = %v, want ses_run_q", props["sessionID"])
+		}
+		reason, _ := props["reason"].(string)
+		if !strings.Contains(reason, "non-interactive") {
+			t.Errorf("reason = %q, want mention of non-interactive", reason)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for question.rejected")
+	}
+
+	select {
+	case result := <-done:
+		if result == nil || !result.IsError {
+			t.Fatalf("result = %+v, want IsError=true", result)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("question tool did not return within 2s")
 	}
 }
 

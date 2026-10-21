@@ -78,6 +78,7 @@ func collectRunPrompt(positional []string, multiTurn, permsJSON bool) string {
 // and replies are expected via the returned channel. Returns a channel for
 // routing permission replies (nil when not in JSON mode).
 func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, interactive bool, permsMode string) chan<- permission.ReplyInput {
+	setupRunQuestionReject(b)
 	permSub := b.Subscribe("permission.asked")
 	if permsMode == "json" {
 		permReplyCh := make(chan permission.ReplyInput, 16)
@@ -86,6 +87,36 @@ func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, int
 	}
 	safego.Go(func() { handlePermissionEvents(permSub, permSvc, skipPerms, interactive) })
 	return nil
+}
+
+// setupRunQuestionReject fail-closes the question tool in headless run mode.
+// Mirrors ACP: publish question.rejected so executeQuestion returns IsError
+// immediately instead of hanging on stdin.
+func setupRunQuestionReject(b *bus.Bus) {
+	asked := b.Subscribe("question.asked")
+	safego.Go(func() {
+		for evt := range asked.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			questionID, _ := props["id"].(string)
+			sessionID, _ := props["sessionID"].(string)
+			if questionID == "" || sessionID == "" {
+				continue
+			}
+			// Defer reject so executeQuestion can subscribe to question.rejected
+			// after publishing asked (same race ACP avoids via safego.Go).
+			id, sid := questionID, sessionID
+			safego.Go(func() {
+				b.Publish("question.rejected", map[string]any{
+					"sessionID": sid,
+					"requestID": id,
+					"reason":    "question tool is unsupported in non-interactive run mode",
+				})
+			})
+		}
+	})
 }
 
 // stdinMux multiplexes stdin when --permissions json is active. A single
