@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
 	authpkg "github.com/bobbyjohnstx/tinycode/internal/auth"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
@@ -62,6 +64,16 @@ func runRun() {
 		os.Exit(1)
 	}
 	if err := validatePermissionsFlag(*permsFlag); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	if err := validateRunStdinFlags(
+		*interactiveFlag,
+		*multiTurnFlag,
+		*permsFlag == "json",
+		*formatFlag == "json",
+		term.IsTerminal(int(os.Stdin.Fd())),
+	); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

@@ -210,6 +210,23 @@ func validatePermissionsFlag(mode string) error {
 	}
 }
 
+// validateRunStdinFlags rejects unsafe stdin ownership combinations before Process.
+func validateRunStdinFlags(interactive, multiTurn, permsJSON, formatJSON, stdinIsTTY bool) error {
+	if interactive && multiTurn {
+		return fmt.Errorf("-i/--interactive cannot be combined with --multi-turn")
+	}
+	if interactive && permsJSON {
+		return fmt.Errorf("-i/--interactive cannot be combined with --permissions json")
+	}
+	if interactive && !stdinIsTTY {
+		return fmt.Errorf("-i/--interactive requires a TTY stdin (not a pipe)")
+	}
+	if permsJSON && !formatJSON {
+		return fmt.Errorf("--permissions json requires --format json")
+	}
+	return nil
+}
+
 func parsePermissionReply(line string) (id, reply string, ok bool) {
 	var msg struct {
 		Type  string `json:"type"`

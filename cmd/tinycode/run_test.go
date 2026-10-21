@@ -930,6 +930,43 @@ func TestReadMuxPrompt_CancelDuringWait(t *testing.T) {
 	}
 }
 
+func TestValidateRunStdinFlags(t *testing.T) {
+	tests := []struct {
+		name        string
+		interactive bool
+		multiTurn   bool
+		permsJSON   bool
+		formatJSON  bool
+		stdinIsTTY  bool
+		wantErr     string
+	}{
+		{name: "ok default", stdinIsTTY: true},
+		{name: "ok json perms", permsJSON: true, formatJSON: true, stdinIsTTY: true},
+		{name: "ok interactive tty", interactive: true, stdinIsTTY: true},
+		{name: "i+multi-turn", interactive: true, multiTurn: true, stdinIsTTY: true, wantErr: "multi-turn"},
+		{name: "i+perms json", interactive: true, permsJSON: true, formatJSON: true, stdinIsTTY: true, wantErr: "permissions json"},
+		{name: "i+non-tty", interactive: true, stdinIsTTY: false, wantErr: "TTY"},
+		{name: "perms without format json", permsJSON: true, formatJSON: false, stdinIsTTY: true, wantErr: "--format json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateRunStdinFlags(tt.interactive, tt.multiTurn, tt.permsJSON, tt.formatJSON, tt.stdinIsTTY)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error = %q, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestValidatePermissionsFlag(t *testing.T) {
 	if err := validatePermissionsFlag("default"); err != nil {
 		t.Errorf("default: %v", err)
