@@ -713,17 +713,36 @@ func streamRunOutput(b *bus.Bus, isJSON bool) {
 // Otherwise it reads directly from the scanner using the original line-by-line
 // protocol. In JSON mode it expects {"type":"prompt","text":"..."} and returns
 // false on {"type":"exit"} or EOF. In text mode it returns the trimmed line
-// and false on EOF.
-func readNextPrompt(scanner *bufio.Scanner, isJSON bool, permReplyCh chan<- permission.ReplyInput, mux *stdinMux) (string, bool) {
+// and false on EOF. When ctx is canceled (SIGINT), returns ("", false) promptly
+// so the caller can exit 130 without waiting for stdin EOF.
+func readNextPrompt(ctx context.Context, scanner *bufio.Scanner, isJSON bool, permReplyCh chan<- permission.ReplyInput, mux *stdinMux) (string, bool) {
 	if mux != nil {
-		p, ok := <-mux.prompts
-		return p, ok
+		return readMuxPrompt(ctx, mux)
 	}
 
-	if !scanner.Scan() {
-		return "", false
+	type scanResult struct {
+		line string
+		ok   bool
 	}
-	line := scanner.Text()
+	ch := make(chan scanResult, 1)
+	safego.Go(func() {
+		if scanner.Scan() {
+			ch <- scanResult{scanner.Text(), true}
+			return
+		}
+		ch <- scanResult{"", false}
+	})
+
+	var line string
+	select {
+	case <-ctx.Done():
+		return "", false
+	case r := <-ch:
+		if !r.ok {
+			return "", false
+		}
+		line = r.line
+	}
 
 	if !isJSON {
 		trimmed := strings.TrimSpace(line)
@@ -764,6 +783,24 @@ func readNextPrompt(scanner *bufio.Scanner, isJSON bool, permReplyCh chan<- perm
 	default:
 		return "", true
 	}
+}
+
+func readMuxPrompt(ctx context.Context, mux *stdinMux) (string, bool) {
+	select {
+	case <-ctx.Done():
+		return "", false
+	case p, ok := <-mux.prompts:
+		return p, ok
+	}
+}
+
+// exitOnRunCancel emits a best-effort error event and exits 130 when ctx was canceled.
+func exitOnRunCancel(ctx context.Context, sessionID string, isJSON bool) {
+	if ctx.Err() == nil {
+		return
+	}
+	emitRunError(sessionID, ctx.Err(), isJSON)
+	os.Exit(130)
 }
 
 // persistRunResult saves processor results to the message store and updates

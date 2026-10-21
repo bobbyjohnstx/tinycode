@@ -215,7 +215,10 @@ func runRun() {
 
 	// When --permissions json with no positional prompt, read from the mux.
 	if prompt == "" && !*multiTurnFlag && mux != nil {
-		p, ok := <-mux.prompts
+		p, ok := readMuxPrompt(ctx, mux)
+		if ctx.Err() != nil {
+			exitOnRunCancel(ctx, sessionID, isJSON)
+		}
 		if !ok || p == "" {
 			fmt.Fprintf(os.Stderr, "error: no prompt provided\n")
 			os.Exit(1)
@@ -229,7 +232,10 @@ func runRun() {
 		if mux == nil {
 			scanner = bufio.NewScanner(os.Stdin)
 		}
-		p, ok := readNextPrompt(scanner, isJSON, permReplyCh, mux)
+		p, ok := readNextPrompt(ctx, scanner, isJSON, permReplyCh, mux)
+		if ctx.Err() != nil {
+			exitOnRunCancel(ctx, sessionID, isJSON)
+		}
 		if !ok || p == "" {
 			return
 		}
@@ -272,8 +278,11 @@ func runRun() {
 			fmt.Println()
 		}
 
-		prompt, ok := readNextPrompt(scanner, isJSON, permReplyCh, mux)
+		prompt, ok := readNextPrompt(ctx, scanner, isJSON, permReplyCh, mux)
 		if !ok {
+			if ctx.Err() != nil {
+				exitOnRunCancel(ctx, sessionID, isJSON)
+			}
 			break
 		}
 		if prompt == "" {
