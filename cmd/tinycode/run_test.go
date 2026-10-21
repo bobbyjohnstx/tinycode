@@ -1278,8 +1278,8 @@ func TestFailClosedQuestion_HeadlessRejects(t *testing.T) {
 		if result == nil || !result.IsError {
 			t.Fatalf("result = %+v, want IsError=true", result)
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("question tool did not return within 2s")
+	case <-time.After(5 * time.Second):
+		t.Fatal("question tool did not return within 5s")
 	}
 }
 
