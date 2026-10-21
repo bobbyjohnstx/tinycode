@@ -2086,6 +2086,178 @@ test_T66() {
     kill_session "$session"
 }
 
+test_T67() {
+    echo -e "${BOLD}T67: F2 model cycle does not crash${NC}"
+    local session
+    session=$(new_session "T67")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    # Capture status bar before F2
+    local before
+    before=$(tmux capture-pane -t "$session" -p 2>/dev/null)
+
+    send_keys "$session" F2
+    sleep 1
+
+    # F2 may be a no-op if no models are loaded — assert no crash
+    assert_not_contains "$session" "panic" "F2 does not crash"
+    assert_not_contains "$session" "goroutine" "F2 does not panic"
+
+    kill_session "$session"
+}
+
+test_T68() {
+    echo -e "${BOLD}T68: /help opens help overlay${NC}"
+    local session
+    session=$(new_session "T68")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    send_text "$session" "/help"
+    sleep 2
+
+    assert_regex "$session" "(Keybindings|Commands|Features|keybinding)" "help overlay shows content"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T69() {
+    echo -e "${BOLD}T69: Ctrl+S stash and restore draft${NC}"
+    local session
+    session=$(new_session "T69")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    # Type a draft
+    send_keys "$session" "stash draft test"
+    sleep 0.5
+    assert_contains "$session" "stash draft test" "draft text is visible before stash"
+
+    # Stash it (Ctrl+S)
+    send_keys "$session" C-s
+    sleep 0.5
+    assert_not_contains "$session" "stash draft test" "draft cleared after Ctrl+S stash"
+
+    # Restore it (Ctrl+S again with empty prompt)
+    send_keys "$session" C-s
+    sleep 0.5
+    assert_contains "$session" "stash draft test" "draft restored after second Ctrl+S"
+
+    kill_session "$session"
+}
+
+test_T70() {
+    echo -e "${BOLD}T70: Ctrl+R history browser does not crash${NC}"
+    local session
+    session=$(new_session "T70")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    # Ctrl+R with no history should be a safe no-op
+    send_keys "$session" C-r
+    sleep 1
+
+    assert_not_contains "$session" "panic" "Ctrl+R does not crash"
+    assert_not_contains "$session" "goroutine" "Ctrl+R does not panic"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T71() {
+    echo -e "${BOLD}T71: /diagnostics opens debug dialog${NC}"
+    local session
+    session=$(new_session "T71")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    send_text "$session" "/diagnostics"
+    sleep 2
+
+    assert_regex "$session" "(Debug|Diagnostic|Session|Token|Context|diagnostic)" "diagnostics dialog shows content"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T72() {
+    echo -e "${BOLD}T72: Leader+x export with no session shows error${NC}"
+    local session
+    session=$(new_session "T72")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    # Leader+x (Ctrl+X then x)
+    send_keys "$session" C-x
+    sleep 0.3
+    send_keys "$session" x
+    sleep 1
+
+    assert_regex "$session" "(No active session|export|Export)" "leader+x shows export feedback"
+
+    kill_session "$session"
+}
+
+test_T73() {
+    echo -e "${BOLD}T73: Leader+t opens theme picker${NC}"
+    local session
+    session=$(new_session "T73")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    # Leader+t (Ctrl+X then t)
+    send_keys "$session" C-x
+    sleep 0.3
+    send_keys "$session" t
+    sleep 1
+
+    assert_contains "$session" "Select Theme" "theme picker visible after leader+t"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
 # ─── Runner ──────────────────────────────────────────────────────
 
 run_test() {
