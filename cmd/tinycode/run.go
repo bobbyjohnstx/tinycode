@@ -60,6 +60,10 @@ func runRun() {
 		fmt.Fprintf(os.Stderr, "error: unknown --format %q (want default or json)\n", *formatFlag)
 		os.Exit(1)
 	}
+	if err := validatePermissionsFlag(*permsFlag); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 
 	appendSP := *appendSPFlag
 	if *appendSPFileFlag != "" {

@@ -1158,3 +1158,94 @@ func TestService_Ask_ReadEnvWithDefaultRules(t *testing.T) {
 		cancel()
 	}
 }
+
+func TestService_RespondToAsk_EmptyReplyRejects(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	askDone := make(chan error, 1)
+	go func() {
+		askDone <- svc.Ask(context.Background(), AskInput{
+			ID:         "perm_empty_reply",
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"echo"},
+			Always:     []string{"echo"},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if len(svc.List()) == 0 {
+		t.Fatal("expected pending ask")
+	}
+
+	if err := svc.RespondToAsk(ReplyInput{RequestID: "perm_empty_reply", Reply: ""}); err != nil {
+		t.Fatalf("RespondToAsk: %v", err)
+	}
+
+	select {
+	case err := <-askDone:
+		if !errors.Is(err, ErrRejected) {
+			t.Fatalf("got %v, want ErrRejected", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not resolve")
+	}
+
+	// Must not have persisted an always-allow from the empty reply.
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	err := svc.Ask(ctx, AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"echo"},
+	})
+	if err == nil {
+		t.Fatal("empty reply must not always-allow subsequent asks")
+	}
+}
+
+func TestService_RespondToAsk_UnknownReplyRejects(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+
+	askDone := make(chan error, 1)
+	go func() {
+		askDone <- svc.Ask(context.Background(), AskInput{
+			ID:         "perm_unknown_reply",
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"ls"},
+			Always:     []string{"ls"},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if err := svc.RespondToAsk(ReplyInput{RequestID: "perm_unknown_reply", Reply: "allow"}); err != nil {
+		t.Fatalf("RespondToAsk: %v", err)
+	}
+
+	select {
+	case err := <-askDone:
+		if !errors.Is(err, ErrRejected) {
+			t.Fatalf("got %v, want ErrRejected", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not resolve")
+	}
+}

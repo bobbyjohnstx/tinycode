@@ -334,6 +334,27 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 		return nil
 	}
 
+	if input.Reply != ReplyAlways {
+		// Empty/unknown reply: fail closed (do not treat as always-allow).
+		var err error
+		if input.Message != "" {
+			err = &CorrectedError{Feedback: input.Message}
+		} else {
+			err = ErrRejected
+		}
+		publishes[0].err = err
+		publishes[0].reply = string(ReplyReject)
+		s.mu.Unlock()
+		p := publishes[0]
+		s.bus.Publish("permission.replied", map[string]any{
+			"sessionID": p.sessionID,
+			"requestID": p.requestID,
+			"reply":     p.reply,
+		})
+		p.entry.replyCh <- replyResult{err: p.err}
+		return nil
+	}
+
 	// "always" — persist the approval rules and auto-resolve matching pending asks
 	for _, pattern := range entry.info.Always {
 		s.approved = append(s.approved, Rule{

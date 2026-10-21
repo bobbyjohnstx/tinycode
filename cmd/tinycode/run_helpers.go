@@ -154,14 +154,15 @@ func (m *stdinMux) run() {
 func (m *stdinMux) dispatch(line string) bool {
 	if id, reply, ok := parsePermissionReply(line); ok {
 		if m.permReplyCh != nil {
-			select {
-			case m.permReplyCh <- permission.ReplyInput{
-				RequestID: id,
-				Reply:     permission.Reply(reply),
-			}:
-			default:
-				slog.Warn("permission reply channel full, dropping reply", "id", id)
+			normalized, valid := normalizePermissionReply(reply)
+			if !valid {
+				fmt.Fprintf(os.Stderr, "error: invalid permission reply %q for %s (want once, always, or reject); rejecting\n", reply, id)
+				normalized = permission.ReplyReject
 			}
+			deliverPermissionReply(m.permReplyCh, permission.ReplyInput{
+				RequestID: id,
+				Reply:     normalized,
+			})
 		}
 		return false
 	}
@@ -199,6 +200,15 @@ func (m *stdinMux) sendPrompt(text string) {
 	}
 }
 
+func validatePermissionsFlag(mode string) error {
+	switch mode {
+	case "default", "json", "":
+		return nil
+	default:
+		return fmt.Errorf("unknown --permissions %q (want default or json)", mode)
+	}
+}
+
 func parsePermissionReply(line string) (id, reply string, ok bool) {
 	var msg struct {
 		Type  string `json:"type"`
@@ -214,21 +224,65 @@ func parsePermissionReply(line string) (id, reply string, ok bool) {
 	return msg.ID, msg.Reply, true
 }
 
+func normalizePermissionReply(reply string) (permission.Reply, bool) {
+	switch permission.Reply(reply) {
+	case permission.ReplyOnce, permission.ReplyAlways, permission.ReplyReject:
+		return permission.Reply(reply), true
+	default:
+		return permission.ReplyReject, false
+	}
+}
+
+// deliverPermissionReply sends a reply without silently dropping. Blocks up to
+// 5s for channel space; on timeout force-sends a reject if possible.
+func deliverPermissionReply(ch chan<- permission.ReplyInput, reply permission.ReplyInput) {
+	select {
+	case ch <- reply:
+		return
+	case <-time.After(5 * time.Second):
+		slog.Error("permission reply channel blocked; forcing reject", "id", reply.RequestID)
+		fmt.Fprintf(os.Stderr, "error: permission reply channel blocked for %s; rejecting\n", reply.RequestID)
+		reject := permission.ReplyInput{RequestID: reply.RequestID, Reply: permission.ReplyReject}
+		select {
+		case ch <- reject:
+		case <-time.After(time.Second):
+			slog.Error("permission reply channel still blocked after reject attempt", "id", reply.RequestID)
+		}
+	}
+}
+
 // handleJSONPermissionEvents emits permission requests as NDJSON on stdout and
 // reads replies from the permReplyCh channel.
 func handleJSONPermissionEvents(permSub *bus.Subscription, permSvc *permission.Service, permReplyCh <-chan permission.ReplyInput) {
 	safego.Go(func() {
 		for reply := range permReplyCh {
-			for attempt := 0; attempt < 200; attempt++ {
-				err := permSvc.RespondToAsk(reply)
-				if err == nil {
-					break
-				}
-				if !errors.Is(err, permission.ErrNotFound) {
-					break
-				}
-				time.Sleep(10 * time.Millisecond)
+			if _, valid := normalizePermissionReply(string(reply.Reply)); !valid {
+				fmt.Fprintf(os.Stderr, "error: invalid permission reply %q for %s; rejecting\n", reply.Reply, reply.RequestID)
+				reply.Reply = permission.ReplyReject
 			}
+			if applyPermissionReply(permSvc, reply) {
+				continue
+			}
+			force := permission.ReplyInput{
+				RequestID: reply.RequestID,
+				Reply:     permission.ReplyReject,
+				Message:   "permission reply timed out waiting for pending ask",
+			}
+			fmt.Fprintf(os.Stderr, "error: permission reply for %s exhausted retries; rejecting\n", reply.RequestID)
+			if applyPermissionReply(permSvc, force) {
+				continue
+			}
+			// Ask may register after the reply window — keep force-rejecting briefly
+			// so a late Ask is not left pending forever.
+			reqID := reply.RequestID
+			safego.Go(func() {
+				force := permission.ReplyInput{
+					RequestID: reqID,
+					Reply:     permission.ReplyReject,
+					Message:   "permission reply timed out waiting for pending ask",
+				}
+				_ = applyPermissionReply(permSvc, force)
+			})
 		}
 	})
 	for evt := range permSub.C {
@@ -236,14 +290,35 @@ func handleJSONPermissionEvents(permSub *bus.Subscription, permSvc *permission.S
 		if !ok {
 			continue
 		}
-		line, _ := json.Marshal(map[string]any{
+		payload := map[string]any{
 			"type":       "permission",
 			"id":         req.ID,
 			"permission": req.Permission,
 			"patterns":   req.Patterns,
-		})
+		}
+		if len(req.Metadata) > 0 {
+			payload["metadata"] = req.Metadata
+		}
+		line, _ := json.Marshal(payload)
 		fmt.Println(string(line))
 	}
+}
+
+// applyPermissionReply retries RespondToAsk for up to 200×10ms on ErrNotFound.
+// Returns true when the reply was applied.
+func applyPermissionReply(permSvc *permission.Service, reply permission.ReplyInput) bool {
+	for attempt := 0; attempt < 200; attempt++ {
+		err := permSvc.RespondToAsk(reply)
+		if err == nil {
+			return true
+		}
+		if !errors.Is(err, permission.ErrNotFound) {
+			fmt.Fprintf(os.Stderr, "error: permission reply for %s: %v\n", reply.RequestID, err)
+			return false
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
 }
 
 // handlePermissionEvents processes permission requests from the event bus.
@@ -675,10 +750,15 @@ func readNextPrompt(scanner *bufio.Scanner, isJSON bool, permReplyCh chan<- perm
 		return "", false
 	case "permission_reply":
 		if permReplyCh != nil {
-			permReplyCh <- permission.ReplyInput{
-				RequestID: msg.ID,
-				Reply:     permission.Reply(msg.Reply),
+			normalized, valid := normalizePermissionReply(msg.Reply)
+			if !valid {
+				fmt.Fprintf(os.Stderr, "error: invalid permission reply %q for %s (want once, always, or reject); rejecting\n", msg.Reply, msg.ID)
+				normalized = permission.ReplyReject
 			}
+			deliverPermissionReply(permReplyCh, permission.ReplyInput{
+				RequestID: msg.ID,
+				Reply:     normalized,
+			})
 		}
 		return "", true
 	default:

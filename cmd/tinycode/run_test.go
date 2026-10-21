@@ -833,6 +833,155 @@ func TestStdinMux_PermissionReplyDuringAsk(t *testing.T) {
 	}
 }
 
+func TestValidatePermissionsFlag(t *testing.T) {
+	if err := validatePermissionsFlag("default"); err != nil {
+		t.Errorf("default: %v", err)
+	}
+	if err := validatePermissionsFlag("json"); err != nil {
+		t.Errorf("json: %v", err)
+	}
+	err := validatePermissionsFlag("always")
+	if err == nil {
+		t.Fatal("expected error for unknown permissions mode")
+	}
+	if !strings.Contains(err.Error(), "default or json") {
+		t.Errorf("error = %q, want valid values listed", err)
+	}
+}
+
+func TestNormalizePermissionReply(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    permission.Reply
+		wantOK  bool
+	}{
+		{"once", permission.ReplyOnce, true},
+		{"always", permission.ReplyAlways, true},
+		{"reject", permission.ReplyReject, true},
+		{"", permission.ReplyReject, false},
+		{"yes", permission.ReplyReject, false},
+		{"allow", permission.ReplyReject, false},
+	}
+	for _, tt := range tests {
+		got, ok := normalizePermissionReply(tt.in)
+		if got != tt.want || ok != tt.wantOK {
+			t.Errorf("normalizePermissionReply(%q) = (%q, %v), want (%q, %v)", tt.in, got, ok, tt.want, tt.wantOK)
+		}
+	}
+}
+
+func TestJSONPermissionProtocol_EmptyReplyRejects(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	permSvc := permission.NewService(b)
+	_ = captureStdout(t)
+	permReplyCh := setupRunPermissions(b, permSvc, false, false, "json")
+
+	askDone := make(chan error, 1)
+	go func() {
+		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+			ID:         "perm_empty",
+			SessionID:  "ses_1",
+			Permission: "shell",
+			Patterns:   []string{"echo"},
+		})
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	permReplyCh <- permission.ReplyInput{RequestID: "perm_empty", Reply: ""}
+
+	select {
+	case err := <-askDone:
+		if err == nil {
+			t.Fatal("expected rejection for empty reply, got nil")
+		}
+		if !errors.Is(err, permission.ErrRejected) {
+			t.Errorf("err = %v, want ErrRejected", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not resolve")
+	}
+}
+
+func TestJSONPermissionProtocol_RetryExhaustionForceRejects(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	permSvc := permission.NewService(b)
+	_ = captureStdout(t)
+	permReplyCh := setupRunPermissions(b, permSvc, false, false, "json")
+
+	// Reply arrives before Ask is registered. Retries + force-reject must
+	// resolve the Ask once it appears (no hang).
+	permReplyCh <- permission.ReplyInput{RequestID: "late_ask", Reply: permission.ReplyOnce}
+
+	time.Sleep(50 * time.Millisecond)
+	askDone := make(chan error, 1)
+	go func() {
+		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+			ID:         "late_ask",
+			SessionID:  "ses_1",
+			Permission: "shell",
+			Patterns:   []string{"echo"},
+		})
+	}()
+
+	select {
+	case err := <-askDone:
+		// once may win if Ask registers during retry; otherwise force-reject.
+		if err != nil && !errors.Is(err, permission.ErrRejected) {
+			t.Errorf("unexpected error: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Ask hung after reply exhaustion — force-reject failed")
+	}
+}
+
+func TestJSONPermissionProtocol_EmitsMetadata(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	permSvc := permission.NewService(b)
+	cap := captureStdout(t)
+	permReplyCh := setupRunPermissions(b, permSvc, false, false, "json")
+
+	askDone := make(chan error, 1)
+	go func() {
+		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+			ID:         "perm_meta",
+			SessionID:  "ses_1",
+			Permission: "shell",
+			Patterns:   []string{"ls"},
+			Metadata:   map[string]any{"command": "ls"},
+		})
+	}()
+	time.Sleep(50 * time.Millisecond)
+	permReplyCh <- permission.ReplyInput{RequestID: "perm_meta", Reply: permission.ReplyReject}
+
+	select {
+	case <-askDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not resolve")
+	}
+
+	output := cap.read()
+	found := false
+	for _, l := range strings.Split(strings.TrimSpace(output), "\n") {
+		var evt map[string]any
+		if err := json.Unmarshal([]byte(l), &evt); err != nil {
+			continue
+		}
+		if evt["type"] == "permission" && evt["id"] == "perm_meta" {
+			found = true
+			meta, ok := evt["metadata"].(map[string]any)
+			if !ok || meta["command"] != "ls" {
+				t.Errorf("metadata = %v, want command=ls", evt["metadata"])
+			}
+		}
+	}
+	if !found {
+		t.Errorf("permission event not found in %q", output)
+	}
+}
+
 func TestFailClosedQuestion_HeadlessRejects(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
