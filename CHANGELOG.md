@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-10-21
+
 ### Run Mode (headless)
 - Fail-closed question tool — auto-rejects in non-interactive mode instead of hanging (#852)
 - JSON permission hardening — reject empty/unknown replies, force-reject on retry exhaustion (#854)
