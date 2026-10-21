@@ -114,6 +114,7 @@ mkdir -p "$FRESH_DIST"
 TINYCODE_BIN="$FRESH_DIST/tinycode-linux-${TARGET_ARCH}"
 PLUGIN_SRC="cmd/plugin-${PLUGIN}"
 PLUGIN_BIN="$FRESH_DIST/plugin-${PLUGIN}-linux-${TARGET_ARCH}"
+WIKI_PLUGIN_BIN="$FRESH_DIST/plugin-wiki-linux-${TARGET_ARCH}"
 
 if [ ! -d "$ROOT/$PLUGIN_SRC" ]; then
   echo "missing $PLUGIN_SRC — unknown plugin $PLUGIN" >&2
@@ -122,11 +123,15 @@ fi
 
 # --- host build (linux binaries for the container) ---
 if [ "$SKIP_BUILD" -eq 0 ] || [ ! -x "$TINYCODE_BIN" ] || [ ! -x "$PLUGIN_BIN" ]; then
-  log "==> Cross-compiling tinycode + $PLUGIN for ${TARGET_OS}/${TARGET_ARCH}"
+  log "==> Cross-compiling tinycode + $PLUGIN + wiki for ${TARGET_OS}/${TARGET_ARCH}"
   CGO_ENABLED=0 GOOS="$TARGET_OS" GOARCH="$TARGET_ARCH" \
     go build -ldflags "-s -w" -o "$TINYCODE_BIN" ./cmd/tinycode
   CGO_ENABLED=0 GOOS="$TARGET_OS" GOARCH="$TARGET_ARCH" \
     go build -ldflags "-s -w" -o "$PLUGIN_BIN" "./$PLUGIN_SRC"
+  if [ -d "$ROOT/cmd/plugin-wiki" ]; then
+    CGO_ENABLED=0 GOOS="$TARGET_OS" GOARCH="$TARGET_ARCH" \
+      go build -ldflags "-s -w" -o "$WIKI_PLUGIN_BIN" ./cmd/plugin-wiki
+  fi
 fi
 
 if [ ! -x "$TINYCODE_BIN" ]; then
@@ -288,6 +293,9 @@ run_in_container() {
     -e PATH="$CONTAINER_PATH"
     -e TERM=xterm-256color
   )
+  if [ -n "$WIKI_PLUGIN_BIN" ] && [ -x "$WIKI_PLUGIN_BIN" ]; then
+    run_args+=(-v "$WIKI_PLUGIN_BIN:/mounted-plugins/plugin-wiki:ro")
+  fi
   if [ "$USE_HOST_NET" -eq 1 ]; then
     run_args+=(--network=host)
   else
@@ -518,6 +526,52 @@ if [ "$RELEASE_INSTALL" -eq 1 ]; then
   fi
 else
   log "==> TC6: release-install skipped (pass --release-install)"
+fi
+
+# TC8: Wiki plugin install + write/read round-trip
+if [ -x "$WIKI_PLUGIN_BIN" ]; then
+  log "==> TC8: Wiki plugin install + write/read"
+  WIKI_OUT=$(run_in_container '
+    mkdir -p "$HOME" "$TINYCODE_CONFIG_DIR" "$TINYCODE_DATA_DIR" /work/project/.tinycode
+    # Install wiki plugin from mounted binary
+    cp /mounted-plugins/plugin-wiki /usr/local/bin/tinycode-plugin-wiki
+    chmod +x /usr/local/bin/tinycode-plugin-wiki
+    # Verify the plugin binary responds to JSON-RPC initialize
+    INIT_REQ='"'"'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"options":{}}}'"'"'
+    INIT_RESP=$(echo "$INIT_REQ" | timeout 5 tinycode-plugin-wiki 2>/dev/null | head -1)
+    if echo "$INIT_RESP" | grep -q '"result"'; then
+      echo WIKI_INIT_OK
+    else
+      echo WIKI_INIT_FAIL
+      echo "$INIT_RESP"
+      exit 0
+    fi
+    # Write a wiki page via JSON-RPC tool call
+    WRITE_REQ='"'"'{"jsonrpc":"2.0","id":2,"method":"tool/call","params":{"name":"write","args":{"title":"smoke test","body":"Fresh env wiki test","category":"reference"},"context":{"sessionId":"test","directory":"/work/project"}}}'"'"'
+    WRITE_RESP=$(echo -e "$INIT_REQ\n$WRITE_REQ" | timeout 5 tinycode-plugin-wiki 2>/dev/null | tail -1)
+    if echo "$WRITE_RESP" | grep -q "Wiki page written"; then
+      echo WIKI_WRITE_OK
+    else
+      echo WIKI_WRITE_FAIL
+      echo "$WRITE_RESP"
+      exit 0
+    fi
+    # Verify the file exists
+    if [ -f /work/project/.tinycode/wiki/smoke-test.md ]; then
+      echo WIKI_FILE_OK
+    else
+      echo WIKI_FILE_MISSING
+      ls -la /work/project/.tinycode/wiki/ 2>/dev/null
+    fi
+  ' || true)
+  echo "$WIKI_OUT" >"$RESULTS_DIR/wiki-plugin.txt"
+  if echo "$WIKI_OUT" | grep -q WIKI_INIT_OK && echo "$WIKI_OUT" | grep -q WIKI_WRITE_OK && echo "$WIKI_OUT" | grep -q WIKI_FILE_OK; then
+    record pass "wiki-plugin-roundtrip"
+  else
+    record fail "wiki-plugin-roundtrip" "$(echo "$WIKI_OUT" | grep -E 'FAIL|MISSING' | head -1)"
+  fi
+else
+  log "==> TC8: wiki plugin skipped (binary not built)"
 fi
 
 # --- write summary ---

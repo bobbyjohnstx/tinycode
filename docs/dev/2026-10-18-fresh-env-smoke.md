@@ -11,6 +11,7 @@ Automated new-user path for plugins + LSP before a release.
 5. Optional TUI smoke via tmux (`--skip-tui` to omit) — shell-launched like `tui-test.sh`,
    polls for prompt chrome, asserts placeholder clears on type + `history:` after Enter
 6. Optional GitHub release plugin install (`--release-install`) — no `--from`, hits real assets
+7. Wiki plugin install + JSON-RPC write/read round-trip (if `cmd/plugin-wiki` exists)
 
 ## Run
 

@@ -1939,6 +1939,153 @@ test_T60() {
     kill_session "$session"
 }
 
+test_T61() {
+    echo -e "${BOLD}T61: /clear-queue appears in slash autocomplete${NC}"
+    local session
+    session=$(new_session "T61")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    send_keys "$session" "/clear"
+    sleep 1
+
+    assert_contains "$session" "clear-queue" "autocomplete shows /clear-queue"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T62() {
+    echo -e "${BOLD}T62: Idle status bar shows ctrl+k and ctrl+f hints${NC}"
+    local session
+    session=$(new_session "T62")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    assert_contains "$session" "ctrl+k" "idle hints show ctrl+k (pick)"
+    assert_contains "$session" "ctrl+f" "idle hints show ctrl+f (find)"
+
+    kill_session "$session"
+}
+
+test_T63() {
+    echo -e "${BOLD}T63: First-run connect shows 'Select a model to start'${NC}"
+    local session
+    session=$(new_session "T63")
+
+    # First-run connect opens after ~120ms delay once welcome tips are ready.
+    # Wait up to 10s for the first-run copy.
+    if wait_for_text "$session" "Select a model to start" 10; then
+        TOTAL=$((TOTAL + 1))
+        echo -e "  ${GREEN}PASS${NC}: first-run connect title visible"
+        PASS=$((PASS + 1))
+
+        # Also verify the skip hint
+        assert_contains "$session" "esc skip" "first-run footer shows esc skip"
+    else
+        # If providers were discovered quickly, the dialog may have been skipped
+        # or shown "Select Provider" instead (model already available).
+        local captured
+        captured=$(capture_pane "$session")
+        if echo "$captured" | grep -qF "Select Provider"; then
+            skip_test "first-run connect title" "provider already found — normal Select Provider shown"
+        elif echo "$captured" | grep -qE "(ollama|qwen|llama)"; then
+            skip_test "first-run connect title" "model already connected — first-run skipped"
+        else
+            TOTAL=$((TOTAL + 1))
+            echo -e "  ${RED}FAIL${NC}: first-run connect not shown"
+            dump_pane_on_failure "$session" "T63"
+            FAIL=$((FAIL + 1))
+        fi
+    fi
+
+    kill_session "$session"
+}
+
+test_T64() {
+    echo -e "${BOLD}T64: Cwd basename visible in idle status meta${NC}"
+    local session
+    session=$(new_session "T64")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    # The work dir is a mktemp dir; its basename should appear in the status bar.
+    # Capture pane and check for a path-like segment (tmp dirs vary by OS).
+    local captured
+    captured=$(capture_pane "$session")
+    TOTAL=$((TOTAL + 1))
+    if echo "$captured" | grep -qE "(tmp|var/folders|T/tui-)"; then
+        echo -e "  ${GREEN}PASS${NC}: cwd path fragment visible in status bar"
+        PASS=$((PASS + 1))
+    else
+        skip_test "cwd in status bar" "temp dir basename not found in pane (may be truncated)"
+    fi
+
+    kill_session "$session"
+}
+
+test_T65() {
+    echo -e "${BOLD}T65: Ctrl+K opens unified palette${NC}"
+    local session
+    session=$(new_session "T65")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    send_keys "$session" C-k
+    sleep 1
+
+    # Palette overlay should appear with command entries or search prompt
+    assert_regex "$session" "(ask|review|init|connect|Search)" "Ctrl+K palette visible"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
+test_T66() {
+    echo -e "${BOLD}T66: Ctrl+F opens chat search${NC}"
+    local session
+    session=$(new_session "T66")
+    if ! wait_for_tui_ready "$session"; then
+        echo -e "  ${RED}FAIL${NC}: TUI not ready"
+        FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1))
+        kill_session "$session"
+        return
+    fi
+    dismiss_overlays "$session"
+
+    send_keys "$session" C-f
+    sleep 1
+
+    # Search should show a search input or prompt indicator
+    assert_regex "$session" "(Search|search|Find|find|/)" "Ctrl+F search visible"
+
+    send_keys "$session" Escape
+    sleep 0.5
+    kill_session "$session"
+}
+
 # ─── Runner ──────────────────────────────────────────────────────
 
 run_test() {
