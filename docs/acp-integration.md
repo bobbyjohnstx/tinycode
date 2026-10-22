@@ -247,6 +247,25 @@ All ACP methods return promises that reject on error. Handle JSON-RPC error code
 | Zed | Use official ACP agent spawn pointing at `tinycode acp --cwd …` |
 | JetBrains | Not packaged yet; same stdio protocol applies |
 
+## Dogfood matrix (elicitation + permission)
+
+Manual checklist when verifying ACP clients. Not automated.
+
+| Client | Spawn | Permission UI | Form elicitation | Notes |
+|--------|-------|---------------|------------------|-------|
+| Zed | Official ACP agent → `tinycode acp --cwd <proj>` | `session/request_permission` shows Allow once / Always / Reject; `toolCallId` correlates with tool card | Advertise `clientCapabilities.elicitation.form`; answer `elicitation/create` | Confirm cancel dismisses modal without 120s hang |
+| VS Code | Spawn `tinycode acp --cwd …` from the editor (no in-repo extension) | Same three options; Always scope is tool-side | Same capability + handler | Confirm `session/cancel` clears pending permission modal |
+| JetBrains | Same stdio protocol; not packaged here yet | Same | Same | Track client variance; reject without form elicitation must not hang the turn |
+
+**Smoke steps (each client):**
+
+1. Tool that needs permission → modal appears with non-empty `toolCallId` when the call has an id
+2. Allow once → tool continues; Always → matching asks auto-approve this turn
+3. `session/cancel` while permission modal open → modal closes promptly (no AskTimeout orphan)
+4. `question` tool with form elicitation → prompt appears; decline/cancel rejects without hanging
+5. Client without form elicitation → question tool fails immediately
+6. `session/load` replays history; `session/resume` does not
+
 ## Troubleshooting
 
 ### Connection Failed
