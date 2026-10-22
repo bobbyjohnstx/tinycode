@@ -3187,14 +3187,15 @@
             }
           }
         },
-        "description": "Start OAuth authentication flow for a Model Context Protocol (MCP) server.",
+        "description": "Start OAuth authentication flow for a Model Context Protocol (MCP) server. NOT IMPLEMENTED in Go runtime \u2014 use POST /mcp/{name}/reconnect or CLI `tinycode mcp auth`.",
         "summary": "Start MCP OAuth",
         "x-codeSamples": [
           {
             "lang": "js",
             "source": "import { createTinycodeClient } from \"@tinycode/sdk\n\nconst client = createTinycodeClient()\nawait client.mcp.auth.start({\n  ...\n})"
           }
-        ]
+        ],
+        "deprecated": true
       },
       "delete": {
         "tags": [
@@ -3272,14 +3273,15 @@
             }
           }
         },
-        "description": "Remove OAuth credentials for an MCP server.",
+        "description": "Remove OAuth credentials for an MCP server. NOT IMPLEMENTED in Go runtime \u2014 use POST /mcp/{name}/reconnect or CLI `tinycode mcp auth`.",
         "summary": "Remove MCP OAuth",
         "x-codeSamples": [
           {
             "lang": "js",
             "source": "import { createTinycodeClient } from \"@tinycode/sdk\n\nconst client = createTinycodeClient()\nawait client.mcp.auth.remove({\n  ...\n})"
           }
-        ]
+        ],
+        "deprecated": true
       }
     },
     "/mcp/{name}/auth/callback": {
@@ -3353,7 +3355,7 @@
             }
           }
         },
-        "description": "Complete OAuth authentication for a Model Context Protocol (MCP) server using the authorization code.",
+        "description": "Complete OAuth authentication for a Model Context Protocol (MCP) server using the authorization code. NOT IMPLEMENTED in Go runtime \u2014 use POST /mcp/{name}/reconnect or CLI `tinycode mcp auth`.",
         "summary": "Complete MCP OAuth",
         "requestBody": {
           "content": {
@@ -3378,7 +3380,8 @@
             "lang": "js",
             "source": "import { createTinycodeClient } from \"@tinycode/sdk\n\nconst client = createTinycodeClient()\nawait client.mcp.auth.callback({\n  ...\n})"
           }
-        ]
+        ],
+        "deprecated": true
       }
     },
     "/mcp/{name}/auth/authenticate": {
@@ -3452,14 +3455,15 @@
             }
           }
         },
-        "description": "Start OAuth flow and wait for callback (opens browser).",
+        "description": "Start OAuth flow and wait for callback (opens browser). NOT IMPLEMENTED in Go runtime \u2014 use POST /mcp/{name}/reconnect or CLI `tinycode mcp auth`.",
         "summary": "Authenticate MCP OAuth",
         "x-codeSamples": [
           {
             "lang": "js",
             "source": "import { createTinycodeClient } from \"@tinycode/sdk\n\nconst client = createTinycodeClient()\nawait client.mcp.auth.authenticate({\n  ...\n})"
           }
-        ]
+        ],
+        "deprecated": true
       }
     },
     "/mcp/{name}/connect": {
@@ -3527,13 +3531,14 @@
             }
           }
         },
-        "description": "Connect an MCP server.",
+        "description": "Connect an MCP server. NOT IMPLEMENTED in Go runtime \u2014 use POST /mcp/{name}/reconnect or CLI `tinycode mcp auth`.",
         "x-codeSamples": [
           {
             "lang": "js",
             "source": "import { createTinycodeClient } from \"@tinycode/sdk\n\nconst client = createTinycodeClient()\nawait client.mcp.connect({\n  ...\n})"
           }
-        ]
+        ],
+        "deprecated": true
       }
     },
     "/mcp/{name}/disconnect": {
@@ -3601,13 +3606,14 @@
             }
           }
         },
-        "description": "Disconnect an MCP server.",
+        "description": "Disconnect an MCP server. NOT IMPLEMENTED in Go runtime \u2014 use POST /mcp/{name}/reconnect or CLI `tinycode mcp auth`.",
         "x-codeSamples": [
           {
             "lang": "js",
             "source": "import { createTinycodeClient } from \"@tinycode/sdk\n\nconst client = createTinycodeClient()\nawait client.mcp.disconnect({\n  ...\n})"
           }
-        ]
+        ],
+        "deprecated": true
       }
     },
     "/project": {
@@ -9388,6 +9394,62 @@
           }
         ]
       }
+    },
+    "/mcp/{name}/reconnect": {
+      "post": {
+        "tags": [
+          "mcp"
+        ],
+        "operationId": "mcp.reconnect",
+        "summary": "Reconnect MCP server",
+        "description": "Restart/reconnect a named MCP server (implemented). Detached from HTTP request cancel.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reconnecting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown MCP server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerNotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createTinycodeClient } from \"@tinycode/sdk\"\n\nconst client = createTinycodeClient()\nawait client.mcp.reconnect({ path: { name: \"my-server\" } })"
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -14778,10 +14840,22 @@
             "$ref": "#/components/schemas/MCPStatusConnected"
           },
           {
-            "$ref": "#/components/schemas/MCPStatusDisabled"
+            "$ref": "#/components/schemas/MCPStatusDisconnected"
+          },
+          {
+            "$ref": "#/components/schemas/MCPStatusConnecting"
+          },
+          {
+            "$ref": "#/components/schemas/MCPStatusReconnecting"
+          },
+          {
+            "$ref": "#/components/schemas/MCPStatusError"
           },
           {
             "$ref": "#/components/schemas/MCPStatusFailed"
+          },
+          {
+            "$ref": "#/components/schemas/MCPStatusDisabled"
           },
           {
             "$ref": "#/components/schemas/MCPStatusNeedsAuth"
@@ -18323,6 +18397,70 @@
             }
           }
         }
+      },
+      "MCPStatusError": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "error"
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "MCPStatusDisconnected": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "disconnected"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "MCPStatusConnecting": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "connecting"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "MCPStatusReconnecting": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "reconnecting"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
       }
     }
   },
