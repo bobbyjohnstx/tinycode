@@ -644,6 +644,7 @@ func TestHandleSessionPermissionReply_MapsOnceAlwaysReject(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			srv, b := testServer(t)
+			srv.permissionStore.Add(PendingPermission{ID: "perm_test", SessionID: "ses_perm"})
 			sub := b.Subscribe("permission.replied")
 			defer sub.Unsubscribe()
 
@@ -668,6 +669,27 @@ func TestHandleSessionPermissionReply_MapsOnceAlwaysReject(t *testing.T) {
 				t.Fatal("timeout waiting for permission.replied event")
 			}
 		})
+	}
+}
+
+func TestHandleSessionPermissionReply_UnknownIDReturns404(t *testing.T) {
+	srv, b := testServer(t)
+	sub := b.Subscribe("permission.replied")
+	defer sub.Unsubscribe()
+
+	req := httptest.NewRequest("POST", "/session/ses_perm/permissions/perm_missing",
+		strings.NewReader(`{"action":"once"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+	select {
+	case <-sub.C:
+		t.Fatal("unknown ID must not publish permission.replied")
+	case <-time.After(50 * time.Millisecond):
 	}
 }
 

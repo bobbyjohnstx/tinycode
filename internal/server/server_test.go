@@ -471,6 +471,7 @@ func TestProviderGet_NotFound(t *testing.T) {
 
 func TestPermissionReply(t *testing.T) {
 	srv, _ := testServer(t)
+	srv.permissionStore.Add(PendingPermission{ID: "per_test", SessionID: "ses_test"})
 
 	req := httptest.NewRequest("POST", "/permission/per_test/reply", strings.NewReader(`{"action": "allow"}`))
 	w := httptest.NewRecorder()
@@ -478,6 +479,25 @@ func TestPermissionReply(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestPermissionReply_UnknownIDReturns404(t *testing.T) {
+	srv, b := testServer(t)
+	sub := b.Subscribe("permission.replied")
+	defer sub.Unsubscribe()
+
+	req := httptest.NewRequest("POST", "/permission/per_missing/reply", strings.NewReader(`{"action":"once"}`))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+	select {
+	case <-sub.C:
+		t.Fatal("unknown ID must not publish permission.replied")
+	case <-time.After(50 * time.Millisecond):
 	}
 }
 
@@ -1271,6 +1291,14 @@ func TestPermissionReply_SDKFieldNames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Seed store so the reply ID is known (no ghost-200 on unknown IDs).
+			id := tt.path[strings.LastIndex(tt.path, "/")+1:]
+			if strings.HasSuffix(tt.path, "/reply") {
+				parts := strings.Split(tt.path, "/")
+				id = parts[len(parts)-2]
+			}
+			srv.permissionStore.Add(PendingPermission{ID: id, SessionID: "ses_test"})
+
 			req := httptest.NewRequest("POST", tt.path, strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
@@ -1312,6 +1340,7 @@ func TestSessionPermissionReply_UnknownReturns400(t *testing.T) {
 
 func TestSessionPermissionReply_ForwardsMessage(t *testing.T) {
 	srv, b := testServer(t)
+	srv.permissionStore.Add(PendingPermission{ID: "perm_msg", SessionID: "ses_test"})
 	sub := b.Subscribe("permission.replied")
 
 	req := httptest.NewRequest("POST", "/session/ses_test/permissions/perm_msg",

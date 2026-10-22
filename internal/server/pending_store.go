@@ -41,6 +41,13 @@ func (ps *PermissionStore) Add(p PendingPermission) {
 	ps.cleanupLocked()
 }
 
+func (ps *PermissionStore) Get(id string) (PendingPermission, bool) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	p, ok := ps.pending[id]
+	return p, ok
+}
+
 func (ps *PermissionStore) Remove(id string) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()

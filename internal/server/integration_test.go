@@ -799,6 +799,8 @@ func TestE2E_PermissionReplyPropagates(t *testing.T) {
 	sub := h.bus.Subscribe("permission.replied")
 	defer sub.Unsubscribe()
 
+	h.server.permissionStore.Add(PendingPermission{ID: "per_test123", SessionID: "ses_e2e"})
+
 	// POST a permission reply — the handler should publish to the bus
 	body := `{"action":"allow"}`
 	resp, err := http.Post(h.baseURL()+"/permission/per_test123/reply", "application/json", strings.NewReader(body))

@@ -306,7 +306,10 @@ func (s *Server) handleSessionPermissionReply(w http.ResponseWriter, r *http.Req
 	}
 
 	sessionID := r.PathValue("sessionID")
-	s.publishPermissionReply(permissionID, sessionID, reply, body.Message)
+	if err := s.publishPermissionReply(permissionID, sessionID, reply, body.Message); err != nil {
+		respondError(w, http.StatusNotFound, "permission request not found")
+		return
+	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"permissionID": permissionID,

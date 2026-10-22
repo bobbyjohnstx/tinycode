@@ -39,15 +39,15 @@ func (s *Server) handleQuestionReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up sessionID before removing from store.
-	var sessionID string
-	if q, ok := s.questionStore.Get(id); ok {
-		sessionID = q.SessionID
+	q, ok := s.questionStore.Get(id)
+	if !ok {
+		respondError(w, http.StatusNotFound, "question request not found")
+		return
 	}
 	s.questionStore.Remove(id)
 
 	s.deps.Bus.Publish("question.replied", map[string]any{
-		"sessionID": sessionID,
+		"sessionID": q.SessionID,
 		"requestID": id,
 		"answer":    body.Answer,
 	})
@@ -61,14 +61,15 @@ func (s *Server) handleQuestionReply(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleQuestionReject(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
-	var sessionID string
-	if q, ok := s.questionStore.Get(id); ok {
-		sessionID = q.SessionID
+	q, ok := s.questionStore.Get(id)
+	if !ok {
+		respondError(w, http.StatusNotFound, "question request not found")
+		return
 	}
 	s.questionStore.Remove(id)
 
 	s.deps.Bus.Publish("question.rejected", map[string]any{
-		"sessionID": sessionID,
+		"sessionID": q.SessionID,
 		"requestID": id,
 	})
 

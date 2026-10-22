@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
@@ -53,7 +54,10 @@ func (s *Server) handlePermissionReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.publishPermissionReply(id, body.SessionID, reply, body.Message)
+	if err := s.publishPermissionReply(id, body.SessionID, reply, body.Message); err != nil {
+		respondError(w, http.StatusNotFound, "permission request not found")
+		return
+	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"permissionID": id,
@@ -62,9 +66,9 @@ func (s *Server) handlePermissionReply(w http.ResponseWriter, r *http.Request) {
 }
 
 // publishPermissionReply resolves a pending ask via PermService when possible
-// (single permission.replied publish from RespondToAsk). Falls back to a direct
-// bus publish for store-only replies with no matching pending ask.
-func (s *Server) publishPermissionReply(requestID, sessionID, reply, message string) {
+// (single permission.replied publish from RespondToAsk). Store-only known IDs
+// still publish once. Unknown IDs return ErrNotFound — no ghost bus publish.
+func (s *Server) publishPermissionReply(requestID, sessionID, reply, message string) error {
 	if s.deps.PermService != nil {
 		err := s.deps.PermService.RespondToAsk(permission.ReplyInput{
 			RequestID: requestID,
@@ -73,12 +77,22 @@ func (s *Server) publishPermissionReply(requestID, sessionID, reply, message str
 		})
 		if err == nil {
 			s.permissionStore.Remove(requestID)
-			return
+			return nil
+		}
+		if !errors.Is(err, permission.ErrNotFound) {
+			return err
 		}
 	}
 
+	p, ok := s.permissionStore.Get(requestID)
+	if !ok {
+		return permission.ErrNotFound
+	}
 	s.permissionStore.Remove(requestID)
 
+	if sessionID == "" {
+		sessionID = p.SessionID
+	}
 	evt := map[string]any{
 		"requestID": requestID,
 		"reply":     reply,
@@ -90,4 +104,5 @@ func (s *Server) publishPermissionReply(requestID, sessionID, reply, message str
 		evt["message"] = message
 	}
 	s.deps.Bus.Publish("permission.replied", evt)
+	return nil
 }

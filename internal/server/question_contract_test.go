@@ -285,6 +285,46 @@ func TestQuestionRejected_BusEventClearsStore(t *testing.T) {
 	}
 }
 
+func TestQuestionReply_UnknownIDReturns404(t *testing.T) {
+	srv, b := testServer(t)
+	sub := b.Subscribe("question.replied")
+	defer sub.Unsubscribe()
+
+	req := httptest.NewRequest("POST", "/question/q_missing/reply", strings.NewReader(`{"answer":"yes"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+	select {
+	case <-sub.C:
+		t.Fatal("unknown ID must not publish question.replied")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestQuestionReject_UnknownIDReturns404(t *testing.T) {
+	srv, b := testServer(t)
+	sub := b.Subscribe("question.rejected")
+	defer sub.Unsubscribe()
+
+	req := httptest.NewRequest("POST", "/question/q_missing/reject", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+	select {
+	case <-sub.C:
+		t.Fatal("unknown ID must not publish question.rejected")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func TestHandleQuestionReject_PublishesRejectedAndRemoves(t *testing.T) {
 	srv, b := testServer(t)
 
