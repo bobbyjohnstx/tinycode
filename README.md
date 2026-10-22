@@ -20,6 +20,8 @@ curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.
 brew install bobbyjohnstx/tap/tinycode
 ```
 
+Homebrew and the one-liner install the CLI binary only — curated plugins are separate (`tinycode plugin install <name>` then `tinycode plugin enable <name>`). Stuffing plugins into the Homebrew formula is parked.
+
 See [docs/install.md](docs/install.md) for platform notes, PATH setup, and verifying the install.
 
 ### First prompt

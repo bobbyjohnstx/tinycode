@@ -229,6 +229,7 @@ verify_installation() {
   success "tinycode $INSTALLED_VERSION installed successfully!"
   echo ""
   echo "Run 'tinycode' to get started."
+  echo "Optional plugins (separate from this CLI install): tinycode plugin install <name> && tinycode plugin enable <name>"
   echo ""
 
   print_path_instructions

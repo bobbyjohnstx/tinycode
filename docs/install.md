@@ -30,11 +30,13 @@ If `~/.local/bin` is not on your `PATH`, the script prints shell-specific instru
 brew install bobbyjohnstx/tap/tinycode
 ```
 
+The Homebrew formula installs the CLI only — it does **not** include curated plugins. Install plugins from release assets (`tinycode plugin install <name>`) and enable them (`tinycode plugin enable <name>`). Stuffing plugin binaries into the formula remains parked.
+
 ### Manual download
 
 Download a platform archive from [GitHub Releases](https://github.com/bobbyjohnstx/tinycode/releases) (for example `tinycode-darwin-arm64.tar.gz`), extract the `tinycode` binary, and place it on your `PATH`.
 
-Curated plugins ship on the same release as a platform bundle (`tinycode-plugins-{os}-{arch}.tar.gz`) and as per-plugin archives (`tinycode-plugin-{name}-{os}-{arch}.tar.gz`). `tinycode plugin install <name>` prefers the per-plugin asset (SHA-256 verified) and falls back to the bundle only on HTTP 404. You can also use `--from` / build from source, then add names to `"plugins"` in config — see [plugin-catalog.md](plugin-catalog.md).
+Curated plugins ship on the same release as a platform bundle (`tinycode-plugins-{os}-{arch}.tar.gz`) and as per-plugin archives (`tinycode-plugin-{name}-{os}-{arch}.tar.gz`). `tinycode plugin install <name>` prefers the per-plugin asset (SHA-256 verified) and falls back to the bundle only on HTTP 404. You can also use `--from` / build from source, then `tinycode plugin enable <name>` (or `install --enable`) — see [plugin-catalog.md](plugin-catalog.md).
 
 ## Build from source
 
