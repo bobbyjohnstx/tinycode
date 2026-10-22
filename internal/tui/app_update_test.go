@@ -10,6 +10,21 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
+func TestHandleProvidersLoadedMsg_ErrorToasts(t *testing.T) {
+	app := NewApp("")
+	app.state.Providers = []ProviderInfo{{ID: "keep", Name: "Keep"}}
+	result, cmd := app.handleProvidersLoadedMsg(ProvidersLoadedMsg{Err: errors.New("refresh failed")})
+	if cmd == nil {
+		t.Fatal("expected toast cmd on ProvidersLoadedMsg error")
+	}
+	if !result.toast.IsVisible() {
+		t.Fatal("expected error toast visible")
+	}
+	if len(result.state.Providers) != 1 || result.state.Providers[0].ID != "keep" {
+		t.Errorf("providers wiped on error: %+v", result.state.Providers)
+	}
+}
+
 func TestHandleProvidersLoadedMsg_SetsCurrentModel(t *testing.T) {
 	app := NewApp("")
 

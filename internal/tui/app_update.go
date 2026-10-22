@@ -642,12 +642,15 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 
 // handleProvidersLoadedMsg processes the providers/models discovery response.
 func (a App) handleProvidersLoadedMsg(msg ProvidersLoadedMsg) (App, tea.Cmd) {
-	if msg.Err == nil {
-		a.state.Providers = msg.Providers
-		if a.modelDlg.IsVisible() {
-			// In-place rescan while /connect is open — no restart required.
-			a.modelDlg.RefreshProviders(msg.Providers)
-		}
+	if msg.Err != nil {
+		cmd := a.toast.Show(fmt.Sprintf("Providers refresh failed: %v", msg.Err), true)
+		a.updateSidebarContext()
+		return a, cmd
+	}
+	a.state.Providers = msg.Providers
+	if a.modelDlg.IsVisible() {
+		// In-place rescan while /connect is open — no restart required.
+		a.modelDlg.RefreshProviders(msg.Providers)
 	}
 	if a.state.CurrentModel.ModelID == "" && msg.DefaultProvider != "" && msg.DefaultModel != "" {
 		a.state.CurrentModel = ModelSelection{
