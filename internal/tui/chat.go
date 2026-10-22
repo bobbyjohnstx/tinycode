@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"fmt"
 	"log/slog"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -210,6 +212,24 @@ func (c ChatView) HasMessages() bool {
 // Messages returns the current message list.
 func (c ChatView) Messages() []MessageView {
 	return c.messages
+}
+
+// AppendNotice adds a durable local system line to the transcript (not persisted).
+func (c *ChatView) AppendNotice(text string) {
+	if text == "" {
+		return
+	}
+	id := fmt.Sprintf("notice-%d", time.Now().UnixNano())
+	c.messages = append(c.messages, MessageView{
+		Info: MessageInfo{ID: id, Role: "system"},
+		Parts: []PartView{{
+			ID:        id + "-p",
+			MessageID: id,
+			Type:      "text",
+			Text:      text,
+		}},
+	})
+	c.rebuildContent()
 }
 
 // View implements tea.Model.

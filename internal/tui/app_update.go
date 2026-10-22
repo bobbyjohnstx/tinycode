@@ -332,6 +332,8 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 			cmds = append(cmds, cmd)
 		}
 		if msg.SessionID == a.state.ActiveSession || msg.SessionID == "" {
+			// Durable transcript line (toast alone is easy to miss).
+			a.chat.AppendNotice("Error: " + msg.Error)
 			if a.status.working {
 				a.status.SetWorking(false)
 				cmds = append(cmds, a.reflowChromeClear())

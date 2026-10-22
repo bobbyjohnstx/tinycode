@@ -707,6 +707,17 @@ func TestHandleNotificationMsg_SessionErrorMsg_ShowsToastAndStopsWorking(t *test
 	if status.Working {
 		t.Error("expected session status Working=false after error")
 	}
+	found := false
+	for _, m := range result.chat.Messages() {
+		for _, p := range m.Parts {
+			if strings.Contains(p.Text, "something went wrong") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("expected session.error text in chat transcript")
+	}
 }
 
 func TestHandleNotificationMsg_SessionErrorMsg_NoModelTriggersRefresh(t *testing.T) {
