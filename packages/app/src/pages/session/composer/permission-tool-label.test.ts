@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { permissionDockTitle, permissionToolKey } from "./permission-tool-label"
+import {
+  isShellPermission,
+  permissionAllowAlwaysScope,
+  permissionDockTitle,
+  permissionToolKey,
+} from "./permission-tool-label"
 
 describe("permissionToolKey", () => {
   test("aliases shell family to bash", () => {
@@ -34,5 +39,28 @@ describe("permissionDockTitle", () => {
         fallback: "Permission required",
       }),
     ).toBe("custom-tool")
+  })
+})
+
+describe("permissionAllowAlwaysScope", () => {
+  test("prefers always over patterns", () => {
+    expect(permissionAllowAlwaysScope(["/tmp/a"], ["/tmp/b"])).toBe("/tmp/a")
+  })
+
+  test("falls back to patterns", () => {
+    expect(permissionAllowAlwaysScope([], ["echo hi", "ls"])).toBe("echo hi, ls")
+  })
+
+  test("returns undefined when empty", () => {
+    expect(permissionAllowAlwaysScope([], [])).toBeUndefined()
+    expect(permissionAllowAlwaysScope(undefined, undefined)).toBeUndefined()
+  })
+})
+
+describe("isShellPermission", () => {
+  test("matches shell and bash only", () => {
+    expect(isShellPermission("shell")).toBe(true)
+    expect(isShellPermission("bash")).toBe(true)
+    expect(isShellPermission("destructive-shell")).toBe(false)
   })
 })

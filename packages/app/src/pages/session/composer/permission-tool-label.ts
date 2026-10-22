@@ -9,6 +9,19 @@ export function permissionToolKey(permission: string): string {
   return TOOL_ALIASES[permission] ?? permission
 }
 
+/** TUI parity: shell/bash Always releases waiting shell siblings this turn. */
+export function isShellPermission(permission: string): boolean {
+  return permission === "shell" || permission === "bash"
+}
+
+/** Prefer Always patterns, else request patterns — for Allow-always button scope. */
+export function permissionAllowAlwaysScope(always: string[] | undefined, patterns: string[] | undefined): string | undefined {
+  const scope = (always?.length ? always : patterns) ?? []
+  const trimmed = scope.map((s) => s.trim()).filter(Boolean)
+  if (trimmed.length === 0) return undefined
+  return trimmed.join(", ")
+}
+
 export function permissionDockTitle(input: {
   permission: string
   patterns: string[]

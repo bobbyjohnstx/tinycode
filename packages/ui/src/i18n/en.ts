@@ -146,7 +146,10 @@ export const dict: Record<string, string> = {
 
   "ui.permission.deny": "Deny",
   "ui.permission.allowAlways": "Allow always",
+  "ui.permission.allowAlwaysScoped": "Allow always ({{scope}})",
   "ui.permission.allowOnce": "Allow once",
+  "ui.permission.shellAlwaysSibling":
+    "Always also releases other waiting shell asks this turn (command text not stored).",
 
   "ui.message.expand": "Expand message",
   "ui.message.collapse": "Collapse message",

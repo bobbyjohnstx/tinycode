@@ -4,7 +4,12 @@ import { Button } from "@tinycode/ui/button"
 import { DockPrompt } from "@tinycode/ui/dock-prompt"
 import { Icon } from "@tinycode/ui/icon"
 import { useLanguage } from "@/context/language"
-import { permissionDockTitle, permissionToolKey } from "./permission-tool-label"
+import {
+  isShellPermission,
+  permissionAllowAlwaysScope,
+  permissionDockTitle,
+  permissionToolKey,
+} from "./permission-tool-label"
 
 export function SessionPermissionDock(props: {
   request: PermissionRequest
@@ -23,6 +28,12 @@ export function SessionPermissionDock(props: {
       toolTitle: (key) => language.t(`settings.permissions.tool.${key}.title` as Parameters<typeof language.t>[0]),
     }),
   )
+
+  const allowAlwaysLabel = createMemo(() => {
+    const scope = permissionAllowAlwaysScope(props.request.always, props.request.patterns)
+    if (!scope) return language.t("ui.permission.allowAlways")
+    return language.t("ui.permission.allowAlwaysScoped", { scope })
+  })
 
   const toolDescription = () => {
     const key = `settings.permissions.tool.${toolKey()}.description`
@@ -55,7 +66,7 @@ export function SessionPermissionDock(props: {
               onClick={() => props.onDecide("always")}
               disabled={props.responding}
             >
-              {language.t("ui.permission.allowAlways")}
+              {allowAlwaysLabel()}
             </Button>
             <Button variant="primary" size="normal" onClick={() => props.onDecide("once")} disabled={props.responding}>
               {language.t("ui.permission.allowOnce")}
@@ -79,6 +90,13 @@ export function SessionPermissionDock(props: {
               {(pattern) => <code class="text-12-regular text-text-base break-all">{pattern}</code>}
             </For>
           </div>
+        </div>
+      </Show>
+
+      <Show when={isShellPermission(props.request.permission)}>
+        <div data-slot="permission-row">
+          <span data-slot="permission-spacer" aria-hidden="true" />
+          <div data-slot="permission-hint">{language.t("ui.permission.shellAlwaysSibling")}</div>
         </div>
       </Show>
     </DockPrompt>
