@@ -27,8 +27,11 @@ type ProcessorConfig struct {
 	Compaction      CompactionConfig
 	AgentPerms      []string
 	DoomThreshold   int
+	GoalActive      bool // when true, doomThreshold uses GoalDoomThreshold(base)
 	AutoContinueMax int
 	Directory       string
+	// CompactionFailures seeds the durable compact breaker across prompts.
+	CompactionFailures int
 	CompactionModel string
 	SmallModel      string
 	Temperature     *float64
@@ -53,7 +56,7 @@ type Processor struct {
 	elisionDone        bool
 	aborted            bool
 	compacted          bool
-	recentToolCalls    []toolCallSignature
+	recentToolCalls    []ToolCallSignature
 	autoContinueCount  int
 	answerFollowUpUsed bool
 	userExtraParts     []Part
@@ -62,11 +65,33 @@ type Processor struct {
 
 func NewProcessor(config ProcessorConfig, client llm.Client, tools ToolExecutor, eventBus *bus.Bus) *Processor {
 	return &Processor{
-		config: config,
-		client: client,
-		tools:  tools,
-		bus:    eventBus,
+		config:          config,
+		client:          client,
+		tools:           tools,
+		bus:             eventBus,
+		compactionCount: config.CompactionFailures,
 	}
+}
+
+// CompactionFailures returns consecutive compact failures (for durable budget).
+func (p *Processor) CompactionFailures() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.compactionCount
+}
+
+// RecentToolCalls returns the doom-loop window (for carry across prompts).
+func (p *Processor) RecentToolCalls() []ToolCallSignature {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]ToolCallSignature(nil), p.recentToolCalls...)
+}
+
+// SetRecentToolCalls seeds the doom-loop window from a prior prompt.
+func (p *Processor) SetRecentToolCalls(sigs []ToolCallSignature) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.recentToolCalls = append([]ToolCallSignature(nil), sigs...)
 }
 
 func (p *Processor) SetMessages(messages []Message) {

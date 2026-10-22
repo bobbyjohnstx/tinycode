@@ -230,9 +230,9 @@ func (p *Processor) tryAutoContinue(hadPriorToolCalls bool) bool {
 // doom loop is detected.
 func (p *Processor) checkDoomLoop(toolCalls []Part, totalUsage TokenUsage) *ProcessResult {
 	for _, tc := range toolCalls {
-		p.recentToolCalls = append(p.recentToolCalls, toolCallSignature{
+		p.recentToolCalls = append(p.recentToolCalls, ToolCallSignature{
 			Name: tc.ToolName,
-			Args: tc.ToolArgs,
+			Args: canonicalToolArgs(tc.ToolArgs),
 		})
 	}
 	threshold := p.doomThreshold()

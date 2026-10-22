@@ -46,6 +46,12 @@ If there is a prior summary, incorporate it into the new summary while emphasizi
 </task>`
 )
 
+// CompactBreakerTripped reports whether consecutive compact failures have
+// reached the circuit-breaker threshold (exported for SessionManager).
+func CompactBreakerTripped(failures int) bool {
+	return failures >= compactionCircuitBreakerThreshold
+}
+
 var (
 	readFileRe  = regexp.MustCompile(`(?:read|cat|head|tail)\s+["']?([^\s"']+)["']?`)
 	writeFileRe = regexp.MustCompile(`(?:write|edit|patch)\s+["']?([^\s"']+)["']?`)

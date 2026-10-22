@@ -398,7 +398,7 @@ func TestBuildRequest_TemperatureTopPMaxTokens(t *testing.T) {
 // --- Issue #111: Doom-loop detection ---
 
 func TestIsDoomLoop_Detected(t *testing.T) {
-	sigs := []toolCallSignature{
+	sigs := []ToolCallSignature{
 		{Name: "read", Args: `{"path":"a.go"}`},
 		{Name: "read", Args: `{"path":"a.go"}`},
 		{Name: "read", Args: `{"path":"a.go"}`},
@@ -409,7 +409,7 @@ func TestIsDoomLoop_Detected(t *testing.T) {
 }
 
 func TestIsDoomLoop_NotDetected_DifferentCalls(t *testing.T) {
-	sigs := []toolCallSignature{
+	sigs := []ToolCallSignature{
 		{Name: "read", Args: `{"path":"a.go"}`},
 		{Name: "read", Args: `{"path":"b.go"}`},
 		{Name: "read", Args: `{"path":"a.go"}`},
@@ -420,7 +420,7 @@ func TestIsDoomLoop_NotDetected_DifferentCalls(t *testing.T) {
 }
 
 func TestIsDoomLoop_NotDetected_TooFew(t *testing.T) {
-	sigs := []toolCallSignature{
+	sigs := []ToolCallSignature{
 		{Name: "read", Args: `{"path":"a.go"}`},
 		{Name: "read", Args: `{"path":"a.go"}`},
 	}
@@ -430,7 +430,7 @@ func TestIsDoomLoop_NotDetected_TooFew(t *testing.T) {
 }
 
 func TestIsDoomLoop_DifferentNames(t *testing.T) {
-	sigs := []toolCallSignature{
+	sigs := []ToolCallSignature{
 		{Name: "read", Args: `{"path":"a.go"}`},
 		{Name: "write", Args: `{"path":"a.go"}`},
 		{Name: "read", Args: `{"path":"a.go"}`},

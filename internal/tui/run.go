@@ -381,6 +381,9 @@ func (c *connectedApp) buildPromptInput(text string) api.PromptInput {
 			input.MaxIterations = &settings.MaxIterations
 		}
 	}
+	if c.goal != nil && c.goal.state != nil && c.goal.state.Text != "" {
+		input.GoalActive = true
+	}
 	return input
 }
 

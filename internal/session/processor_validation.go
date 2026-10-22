@@ -16,17 +16,39 @@ const (
 	defaultAutoContinueMax = 0
 )
 
-// toolCallSignature captures the identity of a tool call for doom-loop detection.
-type toolCallSignature struct {
+// ToolCallSignature captures the identity of a tool call for doom-loop detection.
+type ToolCallSignature struct {
 	Name string
 	Args string
 }
 
-func (p *Processor) doomThreshold() int {
-	if p.config.DoomThreshold > 0 {
-		return p.config.DoomThreshold
+// canonicalToolArgs normalizes JSON tool args for doom-loop compare
+// (whitespace / key-order insensitive). Non-JSON args are returned trimmed.
+func canonicalToolArgs(args string) string {
+	args = strings.TrimSpace(args)
+	if args == "" {
+		return ""
 	}
-	return defaultDoomThreshold
+	var v any
+	if err := json.Unmarshal([]byte(args), &v); err != nil {
+		return args
+	}
+	out, err := json.Marshal(v)
+	if err != nil {
+		return args
+	}
+	return string(out)
+}
+
+func (p *Processor) doomThreshold() int {
+	base := defaultDoomThreshold
+	if p.config.DoomThreshold > 0 {
+		base = p.config.DoomThreshold
+	}
+	if p.config.GoalActive {
+		return GoalDoomThreshold(base)
+	}
+	return base
 }
 
 func (p *Processor) autoContinueLimit() int {
@@ -40,7 +62,7 @@ func (p *Processor) autoContinueLimit() int {
 }
 
 // isDoomLoop checks if the last N tool call signatures are all identical.
-func isDoomLoop(recent []toolCallSignature, threshold int) bool {
+func isDoomLoop(recent []ToolCallSignature, threshold int) bool {
 	if len(recent) < threshold {
 		return false
 	}

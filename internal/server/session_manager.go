@@ -38,6 +38,12 @@ type activeSession struct {
 	deltaBatcher     *deltaBatcher     // 16ms debounce for text deltas
 	reasoningBatcher *deltaBatcher     // 16ms debounce for reasoning deltas
 	toolPartIDs      map[string]string // toolCallID → partID mapping for begin/end pairing
+
+	// Durable across prompts (Processor is recreated each turn).
+	compactionFailures int
+	recentToolCalls    []session.ToolCallSignature
+	goalActive         bool
+	compactBreakerTripped bool
 }
 
 const deltaBatchInterval = 16 * time.Millisecond

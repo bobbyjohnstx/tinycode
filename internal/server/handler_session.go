@@ -275,6 +275,7 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 		MaxTokens      *int         `json:"maxTokens,omitempty"`
 		SystemPrefix   string       `json:"systemPrefix,omitempty"`
 		MaxIterations  *int         `json:"maxIterations,omitempty"`
+		GoalActive     bool         `json:"goalActive,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -318,6 +319,7 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 		MaxTokens:      body.MaxTokens,
 		SystemPrefix:   body.SystemPrefix,
 		MaxIterations:  body.MaxIterations,
+		GoalActive:     body.GoalActive,
 	})
 
 	if err := s.waitUntilSessionIdle(r.Context(), sessionID); err != nil {
@@ -366,6 +368,7 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 		MaxTokens      *int         `json:"maxTokens,omitempty"`
 		SystemPrefix   string       `json:"systemPrefix,omitempty"`
 		MaxIterations  *int         `json:"maxIterations,omitempty"`
+		GoalActive     bool         `json:"goalActive,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -402,6 +405,7 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 		MaxTokens:      body.MaxTokens,
 		SystemPrefix:   body.SystemPrefix,
 		MaxIterations:  body.MaxIterations,
+		GoalActive:     body.GoalActive,
 	})
 
 	w.WriteHeader(http.StatusNoContent)

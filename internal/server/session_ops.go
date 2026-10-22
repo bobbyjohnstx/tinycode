@@ -26,6 +26,7 @@ type PromptInput struct {
 	MaxTokens      *int
 	SystemPrefix   string
 	MaxIterations  *int
+	GoalActive     bool // raise doom threshold via GoalDoomThreshold
 }
 
 type promptModel struct {
@@ -339,27 +340,47 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		agentInfo = sm.agentRegistry.Get(input.Agent, model.SizeB())
 	}
 	temp, topP := sm.resolveAgentLLMParams(agentInfo)
+
+	sm.mu.Lock()
+	var compactFails int
+	var recentDoom []session.ToolCallSignature
+	goalActive := input.GoalActive
+	wasTripped := false
+	if active, ok := sm.sessions[sessionID]; ok {
+		compactFails = active.compactionFailures
+		recentDoom = append([]session.ToolCallSignature(nil), active.recentToolCalls...)
+		if active.goalActive {
+			goalActive = true
+		}
+		active.goalActive = goalActive
+		wasTripped = active.compactBreakerTripped
+	}
+	sm.mu.Unlock()
+
 	proc := session.NewProcessor(session.ProcessorConfig{
-		SessionID:       sessionID,
-		Agent:           input.Agent,
-		Model:           model,
-		SystemPrompt:    systemPrompt,
-		Compaction:      sm.buildCompactionConfig(),
-		AgentPerms:      agentPerms,
-		Ruleset:         agentRuleset,
-		Perms:           sm.perms,
-		Directory:       sessionDir,
-		UserDisplayText: displayText,
-		MaxIterations:   maxIter,
-		MaxTokens:       input.MaxTokens,
-		ThinkingBudget:  input.ThinkingBudget,
-		TokenBudget:     sm.tokenBudget,
-		SmallModel:      smallModel,
-		DoomThreshold:   config.DoomLoopThreshold(sm.cfg),
-		Temperature:     temp,
-		TopP:            topP,
+		SessionID:          sessionID,
+		Agent:              input.Agent,
+		Model:              model,
+		SystemPrompt:       systemPrompt,
+		Compaction:         sm.buildCompactionConfig(),
+		AgentPerms:         agentPerms,
+		Ruleset:            agentRuleset,
+		Perms:              sm.perms,
+		Directory:          sessionDir,
+		UserDisplayText:    displayText,
+		MaxIterations:      maxIter,
+		MaxTokens:          input.MaxTokens,
+		ThinkingBudget:     input.ThinkingBudget,
+		TokenBudget:        sm.tokenBudget,
+		SmallModel:         smallModel,
+		DoomThreshold:      config.DoomLoopThreshold(sm.cfg),
+		GoalActive:         goalActive,
+		CompactionFailures: compactFails,
+		Temperature:        temp,
+		TopP:               topP,
 	}, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
+	proc.SetRecentToolCalls(recentDoom)
 	if len(imageParts) > 0 {
 		proc.SetUserExtraParts(imageParts)
 	}
@@ -374,6 +395,25 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	sm.mu.Unlock()
 
 	result := proc.Process(ctx, llmText)
+
+	fails := proc.CompactionFailures()
+	sm.mu.Lock()
+	if active, ok := sm.sessions[sessionID]; ok {
+		active.compactionFailures = fails
+		active.recentToolCalls = proc.RecentToolCalls()
+		if fails == 0 {
+			active.compactBreakerTripped = false
+		} else if session.CompactBreakerTripped(fails) {
+			active.compactBreakerTripped = true
+		}
+	}
+	sm.mu.Unlock()
+	if session.CompactBreakerTripped(fails) && !wasTripped {
+		sm.bus.Publish("session.error", map[string]any{
+			"sessionID": sessionID,
+			"error":     "compaction circuit breaker: consecutive failures exceeded",
+		})
+	}
 
 	// plan_enter/plan_exit may have switched the active agent mid-turn
 	// (approved via permission.Ask). Persist it so the next turn resolves

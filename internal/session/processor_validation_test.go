@@ -23,6 +23,55 @@ func TestDoomThreshold_UsesConfiguredValue(t *testing.T) {
 	}
 }
 
+func TestDoomThreshold_GoalActiveRaises(t *testing.T) {
+	p := &Processor{config: ProcessorConfig{DoomThreshold: 3, GoalActive: true}}
+	if got := p.doomThreshold(); got != GoalDoomThreshold(3) {
+		t.Errorf("doomThreshold() = %d, want %d", got, GoalDoomThreshold(3))
+	}
+}
+
+func TestCanonicalToolArgs_WhitespaceAndKeyOrder(t *testing.T) {
+	a := canonicalToolArgs(`{"b":1,"a":2}`)
+	b := canonicalToolArgs(`{ "a" : 2 , "b" : 1 }`)
+	if a != b {
+		t.Fatalf("canonical mismatch: %q vs %q", a, b)
+	}
+	if !isDoomLoop([]ToolCallSignature{
+		{Name: "read", Args: a},
+		{Name: "read", Args: b},
+		{Name: "read", Args: a},
+	}, 3) {
+		t.Fatal("expected doom after canonical compare")
+	}
+}
+
+func TestMessageHasVisibleAnswer_TextOnly(t *testing.T) {
+	if messageHasVisibleAnswer(&Message{Parts: []Part{
+		ToolCallPart("c1", "read", `{"path":"a.go"}`),
+	}}) {
+		t.Fatal("tool-call-only must not count as visible answer")
+	}
+	if !messageHasVisibleAnswer(&Message{Parts: []Part{TextPart("hello")}}) {
+		t.Fatal("text should count as visible answer")
+	}
+}
+
+func TestCompactBreakerTripped(t *testing.T) {
+	if CompactBreakerTripped(2) {
+		t.Fatal("2 should not trip")
+	}
+	if !CompactBreakerTripped(3) {
+		t.Fatal("3 should trip")
+	}
+}
+
+func TestNewProcessor_SeedsCompactionFailures(t *testing.T) {
+	p := NewProcessor(ProcessorConfig{CompactionFailures: 2}, nil, nil, nil)
+	if p.CompactionFailures() != 2 {
+		t.Fatalf("got %d, want 2", p.CompactionFailures())
+	}
+}
+
 func TestCheckDoomLoop_DefaultStopsAtThree(t *testing.T) {
 	p := &Processor{}
 	call := ToolCallPart("call", "read", `{"path":"a.go"}`)

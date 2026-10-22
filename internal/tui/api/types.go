@@ -13,6 +13,7 @@ type PromptInput struct {
 	MaxTokens      *int         `json:"maxTokens,omitempty"`
 	SystemPrefix   string       `json:"systemPrefix,omitempty"`
 	MaxIterations  *int         `json:"maxIterations,omitempty"`
+	GoalActive     bool         `json:"goalActive,omitempty"`
 }
 
 // PromptModel identifies a model for the prompt request.
