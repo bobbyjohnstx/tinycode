@@ -2037,6 +2037,49 @@ func TestInitialize_RecordsFormElicitation(t *testing.T) {
 	}
 }
 
+func TestEventRelay_QuestionAsked_MalformedRejectsImmediately(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	transport.SetFormElicitation(true)
+	relay := NewEventRelay(b, transport)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	rejected := b.Subscribe("question.rejected")
+	defer rejected.Unsubscribe()
+
+	start := time.Now()
+	b.Publish("question.asked", map[string]any{
+		"id":        "q_bad",
+		"sessionID": "ses_1",
+		"questions": []map[string]any{{"question": ""}},
+	})
+
+	select {
+	case evt := <-rejected.C:
+		props := evt.Properties.(map[string]any)
+		if props["requestID"] != "q_bad" {
+			t.Fatalf("requestID = %v, want q_bad", props["requestID"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for question.rejected")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("malformed reject took %v; expected immediate (not AskTimeout)", elapsed)
+	}
+	select {
+	case <-output.ch:
+		t.Fatalf("expected no elicitation/create for malformed question, got %s", output.String())
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func TestEventRelay_QuestionAsked_NoElicitationRejects(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

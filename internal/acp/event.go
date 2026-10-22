@@ -719,25 +719,33 @@ func (r *EventRelay) handlePermissionAsked(ctx context.Context, req permission.R
 func (r *EventRelay) handleQuestionAsked(ctx context.Context, props map[string]any) {
 	questionID, _ := props["id"].(string)
 	sessionID, _ := props["sessionID"].(string)
-	if questionID == "" || sessionID == "" {
-		return
-	}
 
 	reject := func() {
+		if questionID == "" || sessionID == "" {
+			return
+		}
 		r.bus.Publish("question.rejected", map[string]any{
 			"sessionID": sessionID,
 			"requestID": questionID,
 		})
 	}
 
-	if r.transport == nil || !r.transport.FormElicitation() {
-		slog.Info("ACP client lacks form elicitation; rejecting question", "id", questionID)
+	// Reject malformed payloads immediately (do not wait AskTimeout / SendRequest).
+	if questionID == "" || sessionID == "" {
+		slog.Warn("ACP question.asked missing id or sessionID; rejecting")
 		reject()
 		return
 	}
 
 	question, options := parseAskedQuestion(props)
 	if question == "" {
+		slog.Warn("ACP question.asked malformed or empty question; rejecting", "id", questionID)
+		reject()
+		return
+	}
+
+	if r.transport == nil || !r.transport.FormElicitation() {
+		slog.Info("ACP client lacks form elicitation; rejecting question", "id", questionID)
 		reject()
 		return
 	}
