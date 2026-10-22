@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/auth"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/skill"
@@ -160,29 +162,34 @@ func runDoctor() {
 
 func checkProviders(cfg *config.Info, failed *bool) {
 	type providerProbe struct {
-		name string
-		url  string
+		name     string
+		url      string
+		endpoint string // "ollama" (/api/tags) or "openai" (/v1/models)
 	}
 
 	probes := []providerProbe{
-		{name: "ollama", url: ollamaURL()},
-		{name: "lm-studio", url: lmStudioURL()},
+		{name: "ollama", url: ollamaURL(), endpoint: "ollama"},
+		{name: "lm-studio", url: lmStudioURL(), endpoint: "openai"},
 	}
 
-	// Check vLLM if configured
 	if v := os.Getenv("TINYCODE_VLLM_HOST"); v != "" {
-		probes = append(probes, providerProbe{name: "vllm", url: v})
+		probes = append(probes, providerProbe{name: "vllm", url: v, endpoint: "openai"})
 	}
 
 	anyLocal := false
 	for _, p := range probes {
-		if probeHTTP(p.url) {
-			fmt.Printf("%s Provider: %s -- connected (%s)\n", checkPass, p.name, p.url)
+		n, err := probeModelCount(p.url, p.endpoint)
+		switch {
+		case err != nil:
+			// Local refusal is a warning — fail only if no usable provider path remains.
+			fmt.Printf("%s Provider: %s -- connection refused (%s)\n", checkWarn, p.name, p.url)
+		case n == 0:
+			fmt.Printf("%s Provider: %s -- reachable but 0 models (%s)\n", checkWarn, p.name, p.url)
+			printPullHint(p.name)
+		default:
+			fmt.Printf("%s Provider: %s -- %d models (%s)\n", checkPass, p.name, n, p.url)
 			anyLocal = true
-			continue
 		}
-		// Local refusal is a warning — fail only if no usable provider path remains.
-		fmt.Printf("%s Provider: %s -- connection refused (%s)\n", checkWarn, p.name, p.url)
 	}
 
 	hasCloudKey := false
@@ -191,7 +198,7 @@ func checkProviders(cfg *config.Info, failed *bool) {
 		hasCloudKey = true
 	}
 
-	// Config-defined providers
+	// Config-defined providers: require usable models via /v1/models (not bare base URL).
 	anyConfig := false
 	knownProbe := map[string]bool{"ollama": true, "vllm": true, "lm-studio": true, "openrouter": true}
 	for id, pc := range cfg.Provider {
@@ -200,11 +207,15 @@ func checkProviders(cfg *config.Info, failed *bool) {
 		}
 		if pc.Options != nil {
 			if baseURL, ok := pc.Options["baseURL"].(string); ok && baseURL != "" {
-				if probeHTTP(baseURL) {
-					fmt.Printf("%s Provider: %s -- connected (%s)\n", checkPass, id, baseURL)
-					anyConfig = true
-				} else {
+				n, err := probeModelCount(baseURL, "openai")
+				switch {
+				case err != nil:
 					fmt.Printf("%s Provider: %s -- connection refused (%s)\n", checkWarn, id, baseURL)
+				case n == 0:
+					fmt.Printf("%s Provider: %s -- reachable but 0 models (%s)\n", checkWarn, id, baseURL)
+				default:
+					fmt.Printf("%s Provider: %s -- %d models (%s)\n", checkPass, id, n, baseURL)
+					anyConfig = true
 				}
 				continue
 			}
@@ -216,22 +227,73 @@ func checkProviders(cfg *config.Info, failed *bool) {
 		return
 	}
 
-	fmt.Printf("%s Provider: no usable provider path (no local provider connected and no cloud API key)\n", checkWarn)
+	fmt.Printf("%s Provider: no usable provider path (no local provider with models and no cloud API key)\n", checkWarn)
 	printProviderNextSteps()
 	*failed = true
 }
 
 // providerPathUsable reports whether doctor found at least one way to reach a model.
-func providerPathUsable(anyLocalConnected, hasCloudAPIKey, anyConfigConnected bool) bool {
-	return anyLocalConnected || hasCloudAPIKey || anyConfigConnected
+func providerPathUsable(anyLocalUsable, hasCloudAPIKey, anyConfigUsable bool) bool {
+	return anyLocalUsable || hasCloudAPIKey || anyConfigUsable
+}
+
+func printPullHint(name string) {
+	switch name {
+	case "ollama":
+		fmt.Println("    hint: pull a model — ollama pull llama3.2")
+	default:
+		fmt.Println("    hint: load or download a model in the provider UI, then re-run doctor")
+	}
 }
 
 func printProviderNextSteps() {
 	fmt.Println("    next steps:")
-	fmt.Println("    - start Ollama: ollama serve")
+	fmt.Println("    - start Ollama: ollama serve && ollama pull <model>")
 	fmt.Println("    - or set OPENROUTER_API_KEY for cloud models")
 	fmt.Println("    - then run: tinycode  (connect dialog opens if no model)")
 	fmt.Println("    - or in the TUI: /connect")
+}
+
+// probeModelCount hits the same discovery endpoints as provider.Discovery.
+// endpoint is "ollama" (/api/tags) or "openai" (/v1/models).
+func probeModelCount(baseURL, endpoint string) (int, error) {
+	base := strings.TrimRight(baseURL, "/")
+	var url string
+	switch endpoint {
+	case "ollama":
+		url = base + "/api/tags"
+	default:
+		url = base + "/v1/models"
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("status %d", resp.StatusCode)
+	}
+
+	switch endpoint {
+	case "ollama":
+		var body struct {
+			Models []json.RawMessage `json:"models"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			return 0, err
+		}
+		return len(body.Models), nil
+	default:
+		var body struct {
+			Data []json.RawMessage `json:"data"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			return 0, err
+		}
+		return len(body.Data), nil
+	}
 }
 
 // ollamaURL returns the Ollama base URL for doctor probes.

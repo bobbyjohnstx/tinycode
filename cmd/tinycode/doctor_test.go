@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -224,6 +226,70 @@ func TestProviderPathUsable_Scenario(t *testing.T) {
 					tt.anyLocalConnected, tt.hasCloudAPIKey, tt.anyConfigConnected, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestProbeModelCount_OllamaTags(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"models": []map[string]any{{"name": "llama3.2"}, {"name": "qwen2.5"}},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	n, err := probeModelCount(srv.URL, "ollama")
+	if err != nil {
+		t.Fatalf("probeModelCount: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("n = %d, want 2", n)
+	}
+}
+
+func TestProbeModelCount_OllamaEmptyTags(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"models": []any{}})
+	}))
+	t.Cleanup(srv.Close)
+
+	n, err := probeModelCount(srv.URL, "ollama")
+	if err != nil {
+		t.Fatalf("probeModelCount: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("n = %d, want 0", n)
+	}
+}
+
+func TestProbeModelCount_OpenAIModels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{{"id": "model-a"}},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	n, err := probeModelCount(srv.URL, "openai")
+	if err != nil {
+		t.Fatalf("probeModelCount: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("n = %d, want 1", n)
+	}
+}
+
+func TestProbeModelCount_Refused(t *testing.T) {
+	_, err := probeModelCount("http://127.0.0.1:1", "ollama")
+	if err == nil {
+		t.Fatal("expected error for refused port")
 	}
 }
 
