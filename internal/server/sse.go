@@ -124,6 +124,8 @@ func StreamEvents(ctx context.Context, w http.ResponseWriter, eventBus *bus.Bus,
 	sub := eventBus.SubscribeAll()
 	defer sub.Unsubscribe()
 
+	// Heartbeats are SSE comment lines (": heartbeat") so idle proxies keep the
+	// connection open without delivering a named event to clients.
 	heartbeat := time.NewTicker(sseHeartbeatInterval)
 	defer heartbeat.Stop()
 

@@ -1090,6 +1090,22 @@ This starts the API server and opens the embedded web interface in your browser 
 
 `tinycode serve` exposes the JSON API plus a thin **ops console** (status, doctor, models, providers, agents, sessions, plugins) — not the full chat SPA. Use `tinycode web` for the Solid chat UI. If you open the serve URL without auth, you get a short HTML recovery page. The one-shot `?auth_token=…` URL is printed to the terminal when `tinycode serve` starts.
 
+### Serve-only SSE clients
+
+External clients (not the embedded SPA) can subscribe to bus events over SSE:
+
+```bash
+# Global event stream (resume with Last-Event-ID after disconnect)
+curl -N -H "Authorization: Bearer $TINYCODE_AUTH_TOKEN" \
+  -H "Last-Event-ID: <optional-id>" \
+  http://127.0.0.1:4096/global/event
+```
+
+- **Auth:** Bearer token (same as other serve APIs).
+- **Resume:** send `Last-Event-ID` with the last seen event id; a `stream.gap` event means history was truncated and you should refetch state.
+- **CORS:** `Allow-Headers` includes `Last-Event-ID` for browser clients on the serve origin.
+- **Heartbeats:** comment lines (`: heartbeat`) every ~10s keep proxies from closing idle streams.
+
 ### Authentication
 
 By default, `tinycode serve` / `tinycode web` generates an auth token. The log records Bearer usage, the server URL, and the first 8 characters of the token. `tinycode web` opens a URL with `?auth_token=…` that sets a cookie (`SameSite=Lax`), then redirects to a clean path. `tinycode serve` prints that URL to the terminal (it does not open a browser, and it does not write the URL to the log). Set a custom token:

@@ -29,7 +29,7 @@ func TestDefaultCORSConfig(t *testing.T) {
 		}
 	}
 
-	expectedHeaders := []string{"Content-Type", "Authorization", "X-Request-ID"}
+	expectedHeaders := []string{"Content-Type", "Authorization", "X-Request-ID", "Last-Event-ID"}
 	if len(cfg.AllowHeaders) != len(expectedHeaders) {
 		t.Fatalf("AllowHeaders length = %d, want %d", len(cfg.AllowHeaders), len(expectedHeaders))
 	}

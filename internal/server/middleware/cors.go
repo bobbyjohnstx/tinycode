@@ -39,7 +39,7 @@ func DefaultCORSConfig(listenAddr string) CORSConfig {
 	return CORSConfig{
 		AllowOrigins: serverOrigins(listenAddr),
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders: []string{"Content-Type", "Authorization", "X-Request-ID"},
+		AllowHeaders: []string{"Content-Type", "Authorization", "X-Request-ID", "Last-Event-ID"},
 		MaxAge:       86400,
 	}
 }
