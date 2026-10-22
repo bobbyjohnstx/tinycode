@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/bobbyjohnstx/tinycode/internal/id"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 )
 
 type questionArgs struct {
@@ -76,6 +77,16 @@ func executeQuestion(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 	rejected := tc.Bus.Subscribe("question.rejected")
 	defer rejected.Unsubscribe()
 
+	askCtx, cancel := context.WithTimeout(ctx, permission.AskTimeout)
+	defer cancel()
+
+	publishReject := func() {
+		tc.Bus.Publish("question.rejected", map[string]any{
+			"sessionID": tc.SessionID,
+			"requestID": questionID,
+		})
+	}
+
 	for {
 		select {
 		case evt := <-replied.C:
@@ -99,11 +110,8 @@ func executeQuestion(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 				continue
 			}
 			return &ExecuteResult{Output: "Question cancelled", IsError: true}, nil
-		case <-ctx.Done():
-			tc.Bus.Publish("question.rejected", map[string]any{
-				"sessionID": tc.SessionID,
-				"requestID": questionID,
-			})
+		case <-askCtx.Done():
+			publishReject()
 			return &ExecuteResult{Output: "Question cancelled", IsError: true}, nil
 		}
 	}

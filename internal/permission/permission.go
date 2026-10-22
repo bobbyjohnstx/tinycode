@@ -8,10 +8,15 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/id"
 )
+
+// AskTimeout is the maximum wait for a user permission/question reply
+// (TUI, serve/web, ACP). Headless `tinycode run` rejects questions immediately.
+const AskTimeout = 120 * time.Second
 
 // sameSessionFamily returns true if two session IDs belong to the same
 // session family — either identical, or one is a subagent of the other's
@@ -245,14 +250,30 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 
 	s.bus.Publish("permission.asked", info)
 
+	askCtx, cancel := context.WithTimeout(ctx, AskTimeout)
+	defer cancel()
+
 	select {
 	case result := <-entry.replyCh:
 		return result.err
-	case <-ctx.Done():
-		s.mu.Lock()
-		delete(s.pending, reqID)
-		s.mu.Unlock()
-		return ctx.Err()
+	case <-askCtx.Done():
+		// Resolve-or-reject: never leave the ask pending or the UI overlay stuck.
+		_ = s.RespondToAsk(ReplyInput{RequestID: reqID, Reply: ReplyReject})
+		select {
+		case result := <-entry.replyCh:
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if result.err != nil {
+				return result.err
+			}
+			return ErrRejected
+		default:
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return ErrRejected
+		}
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -1666,7 +1667,7 @@ func TestEventRelay_ToolBeginFallbackName(t *testing.T) {
 	}
 }
 
-func TestEventRelay_PermissionAskedMapForm(t *testing.T) {
+func TestEventRelay_PermissionAskedNilPermSvcRejects(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
@@ -1674,7 +1675,10 @@ func TestEventRelay_PermissionAskedMapForm(t *testing.T) {
 	output := newNotifyBuffer()
 	transport := NewStdioTransport(svc, output)
 	relay := NewEventRelay(b, transport)
-	// permSvc is nil — handlePermissionAsked returns early
+	// permSvc is nil — must fail-closed via permission.replied reject
+
+	replied := b.Subscribe("permission.replied")
+	defer replied.Unsubscribe()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1686,15 +1690,77 @@ func TestEventRelay_PermissionAskedMapForm(t *testing.T) {
 		"permission": "bash",
 	})
 
-	// Absence bound, not subscribe sync: nil permSvc must not write or hang.
+	select {
+	case evt := <-replied.C:
+		props, _ := evt.Properties.(map[string]any)
+		if props["reply"] != "reject" {
+			t.Errorf("expected reject, got %v", props["reply"])
+		}
+		if props["requestID"] != "perm_1" {
+			t.Errorf("requestID = %v, want perm_1", props["requestID"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected permission.replied reject with nil permSvc")
+	}
 	select {
 	case <-output.ch:
-		t.Errorf("expected no output with nil permSvc, got: %s", output.String())
-	case <-time.After(100 * time.Millisecond):
+		t.Errorf("expected no ACP transport write with nil permSvc, got: %s", output.String())
+	case <-time.After(50 * time.Millisecond):
 	}
 	cancel()
+}
 
-	// No panic or deadlock = success; handlePermissionAsked exits early with nil permSvc.
+func TestEventRelay_PermissionAskedNilTransportRejects(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	permSvc := permission.NewService(b)
+	relay := NewEventRelay(b, nil) // nil transport
+	relay.SetPermissionService(permSvc)
+
+	// Seed a pending ask so RespondToAsk can resolve it.
+	var askErr error
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		askErr = permSvc.Ask(context.Background(), permission.AskInput{
+			ID:         "perm_nil_transport",
+			SessionID:  "ses_1",
+			Permission: "bash",
+			Patterns:   []string{"*"},
+			Ruleset:    permission.Ruleset{},
+		})
+	}()
+
+	deadline := time.After(2 * time.Second)
+	for len(permSvc.List()) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for pending ask")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	b.Publish("permission.asked", permission.Request{
+		ID:         "perm_nil_transport",
+		SessionID:  "ses_1",
+		Permission: "bash",
+		Patterns:   []string{"*"},
+	})
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not unblock after nil-transport reject")
+	}
+	if !errors.Is(askErr, permission.ErrRejected) {
+		t.Fatalf("askErr = %v, want ErrRejected", askErr)
+	}
+	cancel()
 }
 
 func TestEventRelay_PermissionAskedTypedRequest(t *testing.T) {
@@ -1706,6 +1772,9 @@ func TestEventRelay_PermissionAskedTypedRequest(t *testing.T) {
 	transport := NewStdioTransport(svc, output)
 	relay := NewEventRelay(b, transport)
 
+	replied := b.Subscribe("permission.replied")
+	defer replied.Unsubscribe()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	startRelaySession(t, relay, ctx, "ses_1")
@@ -1716,11 +1785,20 @@ func TestEventRelay_PermissionAskedTypedRequest(t *testing.T) {
 		Permission: "bash",
 	})
 
-	// Absence bound, not subscribe sync: nil permSvc must not write or hang.
+	// nil permSvc: fail-closed reject on bus, no transport write.
+	select {
+	case evt := <-replied.C:
+		props, _ := evt.Properties.(map[string]any)
+		if props["reply"] != "reject" {
+			t.Errorf("expected reject, got %v", props["reply"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected permission.replied reject with nil permSvc")
+	}
 	select {
 	case <-output.ch:
 		t.Errorf("expected no output with nil permSvc, got: %s", output.String())
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(50 * time.Millisecond):
 	}
 	cancel()
 }

@@ -290,6 +290,28 @@ func (s *Server) wirePendingStores() {
 		s.pluginDone = make(chan struct{})
 	}
 
+	// TTL expiry must reject — never silently drop a pending ask/question.
+	s.permissionStore.SetOnExpire(func(p PendingPermission) {
+		if s.deps.PermService != nil {
+			_ = s.deps.PermService.RespondToAsk(permission.ReplyInput{
+				RequestID: p.ID,
+				Reply:     permission.ReplyReject,
+			})
+			return
+		}
+		s.deps.Bus.Publish("permission.replied", map[string]any{
+			"sessionID": p.SessionID,
+			"requestID": p.ID,
+			"reply":     string(permission.ReplyReject),
+		})
+	})
+	s.questionStore.SetOnExpire(func(q PendingQuestion) {
+		s.deps.Bus.Publish("question.rejected", map[string]any{
+			"sessionID": q.SessionID,
+			"requestID": q.ID,
+		})
+	})
+
 	s.wirePluginEventLoop("permission.asked", func(props map[string]any) {
 		id, _ := props["id"].(string)
 		if id == "" {

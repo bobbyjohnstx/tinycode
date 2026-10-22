@@ -224,6 +224,39 @@ func TestPermissionStore_CleanupRemovesExpiredEntries(t *testing.T) {
 	}
 }
 
+func TestPermissionStore_TTLExpireCallsOnExpire(t *testing.T) {
+	ps := NewPermissionStore()
+	var got PendingPermission
+	called := make(chan struct{}, 1)
+	ps.SetOnExpire(func(p PendingPermission) {
+		got = p
+		called <- struct{}{}
+	})
+
+	ps.mu.Lock()
+	ps.pending["old"] = PendingPermission{
+		ID:        "old",
+		SessionID: "ses_ttl",
+		Tool:      "shell",
+		createdAt: time.Now().Add(-11 * time.Minute),
+	}
+	ps.mu.Unlock()
+
+	ps.ExpireNow()
+
+	select {
+	case <-called:
+	case <-time.After(time.Second):
+		t.Fatal("expected onExpire callback for TTL expiry")
+	}
+	if got.ID != "old" || got.SessionID != "ses_ttl" {
+		t.Fatalf("onExpire got %+v", got)
+	}
+	if len(ps.List()) != 0 {
+		t.Fatal("expected expired entry removed")
+	}
+}
+
 func TestQuestionStore_CleanupRemovesExpiredEntries(t *testing.T) {
 	qs := NewQuestionStore()
 
@@ -254,6 +287,36 @@ func TestQuestionStore_CleanupRemovesExpiredEntries(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected 'new' entry to remain after cleanup")
+	}
+}
+
+func TestQuestionStore_TTLExpireCallsOnExpire(t *testing.T) {
+	qs := NewQuestionStore()
+	var got PendingQuestion
+	called := make(chan struct{}, 1)
+	qs.SetOnExpire(func(q PendingQuestion) {
+		got = q
+		called <- struct{}{}
+	})
+
+	qs.mu.Lock()
+	qs.pending["old"] = PendingQuestion{
+		ID:        "old",
+		SessionID: "ses_q",
+		Question:  "expired?",
+		createdAt: time.Now().Add(-11 * time.Minute),
+	}
+	qs.mu.Unlock()
+
+	qs.ExpireNow()
+
+	select {
+	case <-called:
+	case <-time.After(time.Second):
+		t.Fatal("expected onExpire callback for TTL expiry")
+	}
+	if got.ID != "old" || got.SessionID != "ses_q" {
+		t.Fatalf("onExpire got %+v", got)
 	}
 }
 

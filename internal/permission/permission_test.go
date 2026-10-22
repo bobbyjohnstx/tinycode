@@ -573,6 +573,9 @@ func TestService_ContextCancellation(t *testing.T) {
 	defer b.Close()
 	svc := NewService(b)
 
+	replied := b.Subscribe("permission.replied")
+	defer replied.Unsubscribe()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
@@ -585,6 +588,25 @@ func TestService_ContextCancellation(t *testing.T) {
 	})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("expected DeadlineExceeded, got %v", err)
+	}
+	// Resolve-or-reject: timeout must publish permission.replied (reject).
+	select {
+	case evt := <-replied.C:
+		props, _ := evt.Properties.(map[string]any)
+		if props["reply"] != "reject" {
+			t.Errorf("expected reject reply on timeout, got %v", props["reply"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected permission.replied on ask timeout")
+	}
+	if len(svc.List()) != 0 {
+		t.Error("expected pending ask cleared after timeout reject")
+	}
+}
+
+func TestService_AskTimeoutConstant(t *testing.T) {
+	if AskTimeout != 120*time.Second {
+		t.Fatalf("AskTimeout = %v, want 120s", AskTimeout)
 	}
 }
 

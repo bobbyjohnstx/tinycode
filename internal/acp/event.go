@@ -6,15 +6,15 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
-const permissionTimeout = 120 * time.Second
-const questionTimeout = 120 * time.Second
+// permissionTimeout / questionTimeout reuse the shared ask wait (permission.AskTimeout).
+const permissionTimeout = permission.AskTimeout
+const questionTimeout = permission.AskTimeout
 
 type EventRelay struct {
 	bus       *bus.Bus
@@ -581,7 +581,32 @@ func (r *EventRelay) sendSessionUpdate(sessionID string, update map[string]any) 
 }
 
 func (r *EventRelay) handlePermissionAsked(ctx context.Context, req permission.Request) {
-	if r.transport == nil || r.permSvc == nil {
+	reject := func(reason string) {
+		slog.Warn("ACP permission asked rejected", "id", req.ID, "reason", reason)
+		if r.permSvc != nil {
+			_ = r.permSvc.RespondToAsk(permission.ReplyInput{
+				RequestID: req.ID,
+				Reply:     permission.ReplyReject,
+			})
+			return
+		}
+		// No service to resolve the pending ask — fail closed on the bus so
+		// waiters that only watch permission.replied still unblock.
+		if r.bus != nil && req.ID != "" {
+			r.bus.Publish("permission.replied", map[string]any{
+				"sessionID": req.SessionID,
+				"requestID": req.ID,
+				"reply":     string(permission.ReplyReject),
+			})
+		}
+	}
+
+	if r.permSvc == nil {
+		reject("nil permission service")
+		return
+	}
+	if r.transport == nil {
+		reject("nil transport")
 		return
 	}
 
