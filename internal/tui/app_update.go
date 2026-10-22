@@ -642,6 +642,10 @@ func (a App) handleCommandListMsg(msg CommandListMsg) (App, tea.Cmd) {
 func (a App) handleProvidersLoadedMsg(msg ProvidersLoadedMsg) (App, tea.Cmd) {
 	if msg.Err == nil {
 		a.state.Providers = msg.Providers
+		if a.modelDlg.IsVisible() {
+			// In-place rescan while /connect is open — no restart required.
+			a.modelDlg.RefreshProviders(msg.Providers)
+		}
 	}
 	if a.state.CurrentModel.ModelID == "" && msg.DefaultProvider != "" && msg.DefaultModel != "" {
 		a.state.CurrentModel = ModelSelection{

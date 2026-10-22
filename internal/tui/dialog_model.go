@@ -207,9 +207,12 @@ func (d ModelDialog) Update(msg tea.Msg) (ModelDialog, tea.Cmd) {
 
 func (d ModelDialog) updateProviders(keyMsg tea.KeyMsg) (ModelDialog, tea.Cmd) {
 	if len(d.providers) == 0 {
-		if keyMsg.String() == "o" {
+		switch keyMsg.String() {
+		case "o":
 			d.phase = phaseAPIKey
 			d.apiKey = ""
+		case "r":
+			return d, func() tea.Msg { return ProvidersRefreshMsg{} }
 		}
 		return d, nil
 	}
@@ -255,6 +258,8 @@ func (d ModelDialog) updateModels(keyMsg tea.KeyMsg) (ModelDialog, tea.Cmd) {
 				d.selectedModel = 0
 				d.scrollModel = 0
 			}
+		case "r":
+			return d, func() tea.Msg { return ProvidersRefreshMsg{} }
 		}
 		return d, nil
 	}
@@ -429,26 +434,23 @@ func (d ModelDialog) viewProviders() string {
 		sb.WriteString(styleMetadata.Render("    ollama serve"))
 		sb.WriteString("\n")
 		sb.WriteString(styleMetadata.Render("    ollama pull <model>"))
-		sb.WriteString("\n")
-		sb.WriteString(styleMetadata.Render("  then reopen /connect"))
 		sb.WriteString("\n\n")
 		sb.WriteString("  Or start LM Studio with a server at:\n")
 		sb.WriteString(styleMetadata.Render("    http://localhost:1234"))
 		sb.WriteString("\n")
 		sb.WriteString(styleMetadata.Render("  (override with TINYCODE_LMSTUDIO_HOST)"))
-		sb.WriteString("\n")
-		sb.WriteString(styleMetadata.Render("  then reopen /connect"))
 		sb.WriteString("\n\n")
 		sb.WriteString("  Or start vLLM with a server at:\n")
 		sb.WriteString(styleMetadata.Render("    http://localhost:8000"))
 		sb.WriteString("\n")
 		sb.WriteString(styleMetadata.Render("  (override with TINYCODE_VLLM_HOST)"))
-		sb.WriteString("\n")
-		sb.WriteString(styleMetadata.Render("  then reopen /connect"))
 		sb.WriteString("\n\n")
 		sb.WriteString("  Or press ")
 		sb.WriteString(styleSelected.Render("o"))
 		sb.WriteString(" to enter an OpenRouter API key\n")
+		sb.WriteString("  Press ")
+		sb.WriteString(styleSelected.Render("r"))
+		sb.WriteString(" to rescan providers (no restart)\n")
 		sb.WriteString("\n")
 		sb.WriteString(styleMetadata.Render(footer))
 		return sb.String()
@@ -514,6 +516,26 @@ func (d ModelDialog) viewModels() string {
 	sb.WriteString(styleToolName.Render(prov.Name))
 	sb.WriteString("\n")
 
+	if len(models) == 0 {
+		sb.WriteString("\n")
+		sb.WriteString(styleMetadata.Render("  No models available."))
+		sb.WriteString("\n\n")
+		switch prov.ID {
+		case "ollama":
+			sb.WriteString("  Pull a model, then rescan:\n")
+			sb.WriteString(styleMetadata.Render("    ollama pull <model>"))
+		default:
+			sb.WriteString("  Start or load a model in the provider, then rescan.\n")
+		}
+		sb.WriteString("\n")
+		sb.WriteString("  Press ")
+		sb.WriteString(styleSelected.Render("r"))
+		sb.WriteString(" to rescan (no restart)\n")
+		sb.WriteString("\n")
+		sb.WriteString(styleMetadata.Render("  esc back"))
+		return sb.String()
+	}
+
 	if d.filter != "" {
 		sb.WriteString("\n")
 		sb.WriteString("  " + styleMetadata.Render("Search:") + " " + styleToolName.Render(d.filter))
@@ -562,6 +584,19 @@ func (d ModelDialog) viewModels() string {
 	}
 
 	return sb.String()
+}
+
+// RefreshProviders updates the dialog's provider list in place (rescan).
+func (d *ModelDialog) RefreshProviders(providers []ProviderInfo) {
+	d.providers = providers
+	if d.selectedProv >= len(d.providers) {
+		d.selectedProv = 0
+		d.scrollProv = 0
+	}
+	if d.phase == phaseModels && (len(d.providers) == 0 || d.selectedProv >= len(d.providers)) {
+		d.phase = phaseProviders
+		d.filter = ""
+	}
 }
 
 func itoa(n int) string {

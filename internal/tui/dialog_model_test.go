@@ -71,8 +71,51 @@ func TestModelDialog_ViewProvidersEmpty_ShowsSetupGuidance(t *testing.T) {
 	if !strings.Contains(view, "OpenRouter") {
 		t.Error("expected OpenRouter guidance in empty providers view")
 	}
-	if !strings.Contains(view, "/connect") {
-		t.Error("expected /connect reopen hint in empty providers view")
+	if !strings.Contains(view, "rescan") {
+		t.Error("expected rescan hint in empty providers view")
+	}
+}
+
+func TestModelDialog_EmptyProviders_RTriggersRescan(t *testing.T) {
+	d := NewModelDialog()
+	d.Show(nil)
+
+	_, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if cmd == nil {
+		t.Fatal("expected ProvidersRefreshMsg cmd from r")
+	}
+	msg := cmd()
+	if _, ok := msg.(ProvidersRefreshMsg); !ok {
+		t.Fatalf("expected ProvidersRefreshMsg, got %T", msg)
+	}
+}
+
+func TestModelDialog_EmptyModels_ShowsPullAndRescan(t *testing.T) {
+	d := NewModelDialog()
+	d.Show([]ProviderInfo{{ID: "ollama", Name: "Ollama", Models: nil}})
+	d.phase = phaseModels
+	d.SetSize(80, 24)
+
+	view := d.View()
+	if !strings.Contains(view, "No models") {
+		t.Error("expected empty models copy")
+	}
+	if !strings.Contains(view, "ollama pull") {
+		t.Error("expected ollama pull hint")
+	}
+	if !strings.Contains(view, "rescan") {
+		t.Error("expected rescan hint")
+	}
+}
+
+func TestModelDialog_RefreshProviders_UpdatesInPlace(t *testing.T) {
+	d := NewModelDialog()
+	d.Show(nil)
+	d.RefreshProviders([]ProviderInfo{
+		{ID: "ollama", Name: "Ollama", Models: []ModelInfo{{ID: "qwen", Name: "Qwen"}}},
+	})
+	if len(d.providers) != 1 {
+		t.Fatalf("providers = %d, want 1 after refresh", len(d.providers))
 	}
 }
 
