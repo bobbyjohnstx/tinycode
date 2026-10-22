@@ -13,9 +13,9 @@ Quick reference for the most common keyboard shortcuts, agents, and commands.
 | `Ctrl+P` | Command palette (commands, agents, sessions, skills) |
 | `Enter` | Submit prompt |
 | `Shift+Enter` / `Alt+Enter` | Insert newline in prompt |
-| `Escape` | Interrupt current session |
+| `Escape` | Interrupt current turn (queued prompts keep running after idle) |
+| `/clear-queue` | Drop queued prompts (`[Q:n]`) |
 | `Tab` / `Shift+Tab` | Cycle to next/previous agent |
-| `F2` / `Shift+F2` | Cycle to next/previous recent model |
 | `PgUp` / `PgDown` | Scroll chat history |
 | `↑` / `↓` | Navigate prompt history (in composer) |
 | `Ctrl+R` | Open prompt history browser (pick a past prompt) |

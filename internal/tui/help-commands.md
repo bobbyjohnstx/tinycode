@@ -103,5 +103,7 @@ These are not slash commands — they are tools the model can invoke during a co
 | `Ctrl+D` | Quit |
 | `Ctrl+X` | Leader key (then: `b` sidebar, `a` agents, `m` models, `o` sessions, `n` new session, `e` `$EDITOR`, `x` export, `i` MCP, `y` copy, `u` undo, `r` redo, `d` diff, `t` theme) |
 | `[Q:n]` | Status bar: `n` prompts queued while the session is working (cleared with `/clear-queue` or `/queue clear`) |
-| `Esc` | Dismiss dialog / interrupt active request |
+| `Esc` | Interrupt the current turn (does **not** clear `[Q:n]` queued prompts — use `/clear-queue`) / dismiss dialog |
+| `PgUp` / `PgDn` | Scroll chat history |
+| `Alt+Enter` | Insert newline in prompt |
 | `f` | Fork session at selected turn (in `/rewind` dialog) |

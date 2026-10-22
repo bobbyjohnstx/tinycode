@@ -168,7 +168,7 @@ The shell command runs in the working directory and its output is included as co
 | Ctrl+F | Open in-transcript search |
 | Ctrl+C | Clear prompt input, or quit if empty |
 | Ctrl+D | Quit |
-| Escape | Interrupt the current model operation. On a permission prompt, reject the request |
+| Escape | Interrupt the current turn only. Queued prompts (`[Q:n]` in the status bar) stay and run after idle. Use `/clear-queue` to drop the queue. On a permission prompt, reject the request |
 
 ### Prompt input
 
@@ -179,8 +179,6 @@ The shell command runs in the working directory and its output is included as co
 | Alt+Enter | Insert newline (alternative) |
 | Tab | Cycle to next agent |
 | Shift+Tab | Cycle to previous agent |
-| F2 | Cycle to next recent model |
-| Shift+F2 | Cycle to previous recent model |
 | Ctrl+S | Stash current draft / restore stash (when empty) |
 | Ctrl+R | Open prompt history browser |
 
