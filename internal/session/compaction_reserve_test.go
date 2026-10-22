@@ -98,3 +98,32 @@ func TestCheckCompaction_SmallContextElides(t *testing.T) {
 		t.Errorf("expected compactionCount=0, got %d", p.compactionCount)
 	}
 }
+
+func TestCompactBreakerTripped_Threshold(t *testing.T) {
+	if CompactBreakerTripped(compactionCircuitBreakerThreshold - 1) {
+		t.Fatal("below threshold must not trip")
+	}
+	if !CompactBreakerTripped(compactionCircuitBreakerThreshold) {
+		t.Fatal("at threshold must trip")
+	}
+}
+
+func TestCompact_DurableFailureBudgetAcrossProcessors(t *testing.T) {
+	// Simulate SessionManager seeding the next prompt from prior failures.
+	p1 := NewProcessor(ProcessorConfig{
+		SessionID:          "ses-durable",
+		Model:              &provider.Model{ID: "m", Limit: provider.ModelLimit{Context: 8192}},
+		Compaction:         DefaultCompactionConfig(),
+		CompactionFailures: compactionCircuitBreakerThreshold,
+	}, &mockLLMClient{}, &stubToolExecutor{}, bus.New())
+	ok, err := p1.Compact(context.Background())
+	if err == nil || ok {
+		t.Fatal("expected circuit breaker on seeded failures")
+	}
+	if !strings.Contains(err.Error(), "circuit breaker") {
+		t.Fatalf("got %v", err)
+	}
+	if !CompactBreakerTripped(p1.CompactionFailures()) {
+		t.Fatal("failures should remain tripped for next prompt")
+	}
+}

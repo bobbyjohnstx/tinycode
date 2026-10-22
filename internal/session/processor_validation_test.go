@@ -56,15 +56,6 @@ func TestMessageHasVisibleAnswer_TextOnly(t *testing.T) {
 	}
 }
 
-func TestCompactBreakerTripped(t *testing.T) {
-	if CompactBreakerTripped(2) {
-		t.Fatal("2 should not trip")
-	}
-	if !CompactBreakerTripped(3) {
-		t.Fatal("3 should trip")
-	}
-}
-
 func TestNewProcessor_SeedsCompactionFailures(t *testing.T) {
 	p := NewProcessor(ProcessorConfig{CompactionFailures: 2}, nil, nil, nil)
 	if p.CompactionFailures() != 2 {
