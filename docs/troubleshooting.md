@@ -309,7 +309,7 @@ When a loop is detected, the stream stops with a budget error and the model's pa
 
 **Problem:** Pressing Escape to abort doesn't stop a long-running tool. The TUI appears stuck.
 
-**Solution:** Fixed in v2.6.1+. The abort drain now has a hard timeout — tools that ignore context cancellation are force-reaped after the deadline. If you're on an older version, the tool will eventually time out at its individual limit (60s for most tools, 120s for bash). Upgrade to get the hard-timeout behavior.
+**Solution:** Fixed on main after v2.6.0 (#886; Unreleased until the next tag). The abort drain now has a hard timeout — tools that ignore context cancellation are force-reaped after the deadline. On v2.6.0 and earlier, the tool will eventually time out at its individual limit (60s for most tools, 120s for bash).
 
 ## Plugin & Configuration Issues
 
@@ -330,6 +330,20 @@ When a loop is detected, the stream stops with a budget error and the model's pa
    tail -f ~/.local/share/tinycode/tinycode.log
    ```
 4. Try `tinycode doctor` or `/doctor` for configuration validation (WARN if a plugin is in config but not installed)
+
+### Plugin installed but not enabled
+
+**Problem:** `tinycode plugin list` shows **INSTALLED** but not **IN_CONFIG**, so tools never load.
+
+**Solution:** Install does not enable. Add the plugin to config:
+
+```bash
+tinycode plugin enable <name>
+# or on install:
+tinycode plugin install <name> --enable
+```
+
+`tinycode doctor` / `/doctor` tips when binaries exist under `~/.config/tinycode/plugins/` but are missing from the `"plugins"` list.
 
 ### Can't find agent or skill
 

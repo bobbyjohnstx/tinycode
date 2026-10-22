@@ -68,11 +68,11 @@ Type a question at the bottom and press Enter:
 what does this project do?
 ```
 
-The model reads your project files using built-in tools (read, grep, glob, bash) and responds with a summary. Responses stream in real-time. Scroll up with PgUp or mouse wheel to review long answers. When a tool first needs approval, the UI offers **Allow once** / **Allow always** / **Reject**.
+The model reads your project files using built-in tools (read, grep, glob, bash) and responds with a summary. Responses stream in real-time. Scroll up with PgUp or mouse wheel to review long answers. When a tool first needs approval, the UI offers **Allow once** / **Allow always** / **Reject**. Allow always remembers the patterns shown in the prompt (not every future tool); for shell, it also clears sibling shell asks this turn.
 
 ## 4. Interrupt with Escape
 
-Press **Escape** to interrupt if the model is taking too long. Press **Ctrl+C** to clear the prompt (or quit if the prompt is already empty).
+Press **Escape** to interrupt if the model is taking too long. Typed text stays in the prompt so you can edit and send a steering follow-up after the abort. Press **Ctrl+C** to clear the prompt (or quit if the prompt is already empty).
 
 ## 5. Undo AI file changes
 

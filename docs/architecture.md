@@ -114,7 +114,7 @@ Shared library for the in-tree Red Hat and OpenShift plugins. Provides common he
 
 ### `internal/mcp/` -- Model Context Protocol
 
-Client for MCP servers (stdio transport). Configured via `config.json`. Discovers and registers MCP-provided tools into the tool registry at startup.
+Client for MCP servers (stdio / SSE / streamable-http). Configured via `tinycode.json(c)`. Static Bearer / `{env:VAR}` auth; interactive OAuth is parked. Discovers and registers MCP-provided tools into the tool registry at startup. Runtime mutate is reconnect-only (no connect/disconnect/auth HTTP routes).
 
 ### `internal/acp/` -- Agent Client Protocol
 

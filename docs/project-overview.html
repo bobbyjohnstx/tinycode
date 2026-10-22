@@ -2177,7 +2177,7 @@ section:last-of-type { border-bottom: none; }
               <div class="pkg-card-detail-value">Spawns plugin binaries as child processes, JSON-RPC initialize handshake, registers tools, dispatches hooks. Shell hooks (settings.json lifecycle hooks), additionalContext injection (hooks inject text into model context)</div>
             </div>
           </div>
-          <div class="pkg-card" data-pkg="mcp" data-search="mcp model context protocol client stdio">
+          <div class="pkg-card" data-pkg="mcp" data-search="mcp model context protocol client stdio sse streamable-http reconnect">
             <div class="pkg-card-header">
               <span class="pkg-card-name">mcp/</span>
               <span class="pkg-card-arrow">&rsaquo;</span>
@@ -2185,7 +2185,7 @@ section:last-of-type { border-bottom: none; }
             <div class="pkg-card-desc">Model Context Protocol client</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Purpose</div>
-              <div class="pkg-card-detail-value">Client for MCP servers (stdio transport). Discovers and registers MCP-provided tools at startup.</div>
+              <div class="pkg-card-detail-value">Client for MCP servers (stdio / SSE / streamable-http). Discovers and registers MCP tools at startup. Runtime mutate is reconnect-only; interactive OAuth is parked.</div>
             </div>
           </div>
           <div class="pkg-card" data-pkg="lsp" data-search="lsp language server protocol gopls pyright diagnostics hover definition references symbols">
@@ -2196,7 +2196,7 @@ section:last-of-type { border-bottom: none; }
             <div class="pkg-card-desc">LSP client for code intelligence</div>
             <div class="pkg-card-details">
               <div class="pkg-card-detail-label">Key Types</div>
-              <div class="pkg-card-detail-value"><code>Manager</code>, <code>Client</code>, language detection, 5 tools</div>
+              <div class="pkg-card-detail-value"><code>Manager</code>, <code>Client</code>, language detection, 8 tools</div>
               <div class="pkg-card-detail-label">Pattern</div>
               <div class="pkg-card-detail-value">Lazy-connects to language servers (gopls, pyright, rust-analyzer, typescript-language-server, clangd, jdtls). Exposes 8 tools: <code>lsp_diagnostics</code>, <code>lsp_hover</code>, <code>lsp_definition</code>, <code>lsp_references</code>, <code>lsp_symbols</code>, <code>lsp_document_symbols</code>, <code>lsp_code_actions</code>, <code>lsp_rename</code>. Auto-reconnects on server crash; LRU bounds open docs.</div>
             </div>
@@ -2839,8 +2839,9 @@ section:last-of-type { border-bottom: none; }
             <div class="code-body"><span class="comment"># One-liner (macOS / Linux)</span>
 curl -fsSL https://raw.githubusercontent.com/bobbyjohnstx/tinycode/main/install.sh | sh
 
-<span class="comment"># Or Homebrew</span>
+<span class="comment"># Or Homebrew (CLI only — plugins via release install)</span>
 brew install bobbyjohnstx/tap/tinycode
+tinycode plugin install safety-net --enable
 
 <span class="comment"># Or build from source</span>
 git clone https://github.com/bobbyjohnstx/tinycode.git

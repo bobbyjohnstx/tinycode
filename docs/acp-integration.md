@@ -158,8 +158,10 @@ Common `sessionUpdate` values:
 When a tool needs approval, the agent sends a **request** (not a notification):
 
 - Method: `session/request_permission`
+- Includes `toolCallId` when the ask is tied to a tool call (IDE sheets can correlate to the tool card)
 - Client must reply with `{ outcome: { outcome: "selected", optionId: "allow_once" | "allow_always" | "reject_once" } }`
 - On timeout (120s) or disconnect, tinycode auto-denies
+- `session/cancel` cancels in-flight permission and elicitation RPCs (clears orphaned IDE modals)
 
 ### Question Elicitation
 

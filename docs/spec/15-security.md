@@ -35,7 +35,7 @@ Source: `internal/server/middleware/cors.go`
 |---------|-------|
 | Allowed origins | Exact origins matching the server listen address (`DefaultCORSConfig`): e.g. `http://127.0.0.1:4096` and `http://localhost:4096` |
 | Allowed methods | GET, POST, PUT, PATCH, DELETE, OPTIONS |
-| Allowed headers | Content-Type, Authorization, X-Request-ID |
+| Allowed headers | Content-Type, Authorization, X-Request-ID, Last-Event-ID |
 | Max-Age | 86400 seconds (24 hours) |
 | Credentials | Allowed |
 

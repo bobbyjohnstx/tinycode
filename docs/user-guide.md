@@ -255,7 +255,7 @@ When a dialog is open (agents, models, sessions, themes):
 | Esc / q | Close dialog |
 | d | Toggle enable/disable (agent dialog only, non-native agents) |
 
-On a permission prompt, Left/Right or h/l move between Allow once, Allow always, and Reject. Enter confirms the highlighted choice. Esc rejects the request.
+On a permission prompt, Left/Right or h/l move between Allow once, Allow always, and Reject. Enter confirms the highlighted choice. Esc rejects the request. **Allow always** is scoped: the UI shows the patterns that will be remembered (not a blanket allow for every tool). For shell asks, Always also releases sibling pending shell asks for this turn — the command text itself is not stored as a permanent rule.
 
 ---
 

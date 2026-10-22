@@ -3,11 +3,23 @@
 ## [Unreleased]
 
 ### TUI
+- Dismiss permission overlay when ask cancels on abort (#861)
+- Empty-model provider state in `/connect` (#865)
 - Session errors surfaced in chat transcript (#867)
 - Honest first-run connect Esc copy + doctor hint (#868)
 - Permission "Allow always" scope accurately described in UI and NDJSON (#869)
 - Keys help synced with actual KeyMap (#874)
 - Provider discovery errors toasted (#876)
+
+### Doctor / first-run
+- Usable models counted as provider health (#864)
+- Actionable LLM errors for refused/wrong endpoint (#866)
+- Count `auth.json` OpenRouter as cloud path (#870)
+
+### Permissions / question
+- Resolve-or-reject on timeout, TTL, and ACP nil (#862)
+- 404 unknown permission/question reply IDs (#863)
+- Question fail-closed when Bus is nil (#875)
 
 ### Plugins
 - `tinycode plugin enable <name>` and `install --enable` flag (#878)
@@ -42,7 +54,7 @@
 ### Docs
 - Esc interrupt vs prompt queue steering documented (#873)
 - Serve-only SSE client contract + CORS Last-Event-ID (#872)
-- Question fail-closed when Bus is nil (#875)
+- Engagement docs follow-up: Allow-always scope, plugin enable/orphan tips, abort version accuracy, overview MCP/LSP/brew honesty (#861–#899)
 
 ## [2.6.0] - 2026-10-21
 

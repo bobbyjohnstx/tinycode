@@ -1,8 +1,8 @@
 # Plugin Catalog
 
-**Start here.** Look up a plugin by category below. Install with `tinycode plugin install <name>` (prefers `tinycode-plugin-{name}-{os}-{arch}.tar.gz`, then falls back to the platform bundle on 404; or use `--from` / build from source), then enable it in `~/.config/tinycode/tinycode.json`. What each plugin needs for credentials is [plugin-credentials.md](plugin-credentials.md). How to write one is [plugin-development.md](plugin-development.md).
+**Start here.** Look up a plugin by category below. Install and enable with `tinycode plugin install <name> --enable` (prefers `tinycode-plugin-{name}-{os}-{arch}.tar.gz`, then falls back to the platform bundle on 404; or use `--from` / build from source). Or install then `tinycode plugin enable <name>`. What each plugin needs for credentials is [plugin-credentials.md](plugin-credentials.md). How to write one is [plugin-development.md](plugin-development.md).
 
-Complete reference for the **32 curated external plugins** (per-plugin release assets, `tinycode-plugins-{os}-{arch}.tar.gz` bundles, or source under `cmd/plugin-*`) and **4 core builtins** that run in-process. Installing a binary is not the same as enabling it — `plugin list` shows **INSTALLED** vs **IN_CONFIG** separately.
+Complete reference for the **32 curated external plugins** (per-plugin release assets, `tinycode-plugins-{os}-{arch}.tar.gz` bundles, or source under `cmd/plugin-*`) and **4 core builtins** that run in-process. Installing a binary is not the same as enabling it — `plugin list` shows **INSTALLED** vs **IN_CONFIG** separately. Homebrew / binary installs are CLI-only; curated plugins come from release assets (or a source checkout).
 
 ## Quick Start
 
@@ -10,16 +10,20 @@ Complete reference for the **32 curated external plugins** (per-plugin release a
 # Optional Red Hat plugin/role setup (not first-run; models via /connect or Ollama)
 tinycode init
 
-# Or install plugins manually (release bundle, --from, or local go build)
-tinycode plugin install safety-net
-tinycode plugin install ocp-context-injection
+# Install + enable (recommended)
+tinycode plugin install safety-net --enable
+tinycode plugin install ocp-context-injection --enable
+
+# Or install then enable separately
+tinycode plugin install audit-logs
+tinycode plugin enable audit-logs
 
 # List plugins with category filter (INSTALLED ≠ IN_CONFIG)
 tinycode plugin list
 tinycode plugin list --category sre
 ```
 
-Enable plugins in your tinycode config (`~/.config/tinycode/tinycode.json`) after install:
+Prefer `tinycode plugin enable <name>` (idempotent; writes global config with the usual 3-name fallback). Or add names manually to `~/.config/tinycode/tinycode.json`:
 
 ```json
 {

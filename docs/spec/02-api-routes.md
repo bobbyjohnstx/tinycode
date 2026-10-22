@@ -10,7 +10,7 @@ Applied in order (outermost wraps innermost):
 CORS → TokenAuth → SecurityHeaders → Handler
 ```
 
-1. **CORS** (`middleware/cors.go`) — Allows origins matching `localhost` or `127.0.0.1` on any port (`isLocalhostOrigin()`). Methods: `GET, POST, PUT, PATCH, DELETE, OPTIONS`. Headers: `Content-Type, Authorization, X-Request-ID`. Max-Age: `86400s`. Credentials allowed.
+1. **CORS** (`middleware/cors.go`) — Exact origins matching the server listen address (`DefaultCORSConfig`). Methods: `GET, POST, PUT, PATCH, DELETE, OPTIONS`. Headers: `Content-Type, Authorization, X-Request-ID, Last-Event-ID`. Max-Age: `86400s`. Credentials allowed.
 2. **TokenAuth** (`middleware/auth.go`) — If a token is configured, validates `Authorization: Bearer <token>`. Disabled (pass-through) when token is empty. `OPTIONS` requests always pass through for CORS preflight.
 3. **SecurityHeaders** (`middleware/security.go`) — Sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'`.
 
