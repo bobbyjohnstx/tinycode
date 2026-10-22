@@ -2,6 +2,48 @@
 
 ## [Unreleased]
 
+### TUI
+- Session errors surfaced in chat transcript (#867)
+- Honest first-run connect Esc copy + doctor hint (#868)
+- Permission "Allow always" scope accurately described in UI and NDJSON (#869)
+- Keys help synced with actual KeyMap (#874)
+- Provider discovery errors toasted (#876)
+
+### Plugins
+- `tinycode plugin enable <name>` and `install --enable` flag (#878)
+- Doctor tips when plugins installed but not in config (#879)
+- Actionable guidance when version can't resolve release tag (#881)
+- Docs: Homebrew/binary are CLI-only; plugins via release install (#880)
+
+### MCP
+- Reconnect detached from HTTP request context (#882)
+- Go MCP statuses (error/reconnecting) correctly mapped in web UI (#883)
+- Dialog shows reconnect only — no connect/disconnect/auth 404s (#871, #884)
+- OpenAPI MCP routes and MCPStatus honesty pass (#885)
+- Stop false-green MCP header during reconnect (#893)
+
+### Session
+- Hard-timeout abort drain when tools ignore cancel (#886)
+- Doom-loop args canonicalized; GoalDoomThreshold wired (#887)
+- Compaction failure budget durable across prompts (#888)
+- Flush incomplete tool calls on stream end/budget (#889)
+
+### ACP (IDE Integration)
+- Pass `toolCallId` on `session/request_permission` (#894)
+- Cancel in-flight permission RPCs on `session/cancel` (#895)
+- Reject malformed `question.asked` without hanging on AskTimeout (#897)
+- Docs: `resumeSession` does not replay history (#898)
+- Dogfood matrix notes for editors (#896)
+
+### Web UI
+- Embed rebuilt after MCP and permission honesty fixes (#891, #892)
+- Permission dock "Allow always" scope honest (#892)
+
+### Docs
+- Esc interrupt vs prompt queue steering documented (#873)
+- Serve-only SSE client contract + CORS Last-Event-ID (#872)
+- Question fail-closed when Bus is nil (#875)
+
 ## [2.6.0] - 2026-10-21
 
 ### Run Mode (headless)

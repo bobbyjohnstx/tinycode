@@ -2392,7 +2392,7 @@ section:last-of-type { border-bottom: none; }
     <div class="section-label animate-in">Plugin System</div>
     <h2 class="section-title animate-in">32 plugins + 4 builtins</h2>
     <p class="section-desc animate-in">
-      Registry plugins are standalone binaries communicating over JSON-RPC via stdin/stdout. Four in-process builtins are always available. Tool IDs are namespaced as <code>plugin__{name}__{tool}</code>.
+      Registry plugins are standalone binaries communicating over JSON-RPC via stdin/stdout. Four in-process builtins are always available. Tool IDs are namespaced as <code>plugin__{name}__{tool}</code>. Install with <code>tinycode plugin install &lt;name&gt; --enable</code> (downloads binary + adds to config). <code>tinycode plugin search</code> finds plugins by name or description.
     </p>
 
     <!-- Builtins -->
@@ -2899,7 +2899,11 @@ tinycode run --multi-turn --format json
 
 <span class="comment"># Cap iterations, skip permissions</span>
 tinycode run --max-iterations 20 \
-  --dangerously-skip-permissions <span class="string">"summarize"</span></div>
+  --dangerously-skip-permissions <span class="string">"summarize"</span>
+
+<span class="comment"># CI: fail on tool errors (default), attach to remote</span>
+tinycode run --format json <span class="string">"fix lint errors"</span>
+tinycode attach https://tinycode.internal:4096</div>
           </div>
         </div>
       </div>
@@ -3001,7 +3005,7 @@ tinycode run --max-iterations 20 \
     },
     cli: {
       title: 'CLI Non-interactive (cmd/tinycode/)',
-      desc: 'The "tinycode run" subcommand processes prompts non-interactively. Supports single-shot and multi-turn modes, NDJSON structured output (--format json), programmatic permission handling (--permissions json), config-based permission rules, and iteration budgets (--max-iterations). Designed for scripts, CI pipelines, and programmatic integration.',
+      desc: 'The "tinycode run" subcommand processes prompts non-interactively. Supports single-shot and multi-turn modes, NDJSON structured output (--format json), programmatic permission handling (--permissions json), config-based permission rules, iteration budgets (--max-iterations), and fail-on-tool-error (exit 1 with done.ok:false, opt out with --no-fail-on-tool-error). "tinycode attach" connects the TUI to a remote serve. Designed for scripts, CI pipelines, and programmatic integration.',
       files: 'cmd/tinycode/run.go, cmd/tinycode/run_helpers.go, cmd/tinycode/run_test.go'
     },
     server: {

@@ -299,6 +299,18 @@ When a loop is detected, the stream stops with a budget error and the model's pa
 6. Run `tinycode doctor` or `/doctor` to see your model's tool-call status
 7. To switch, select a model with tool-call support via `<leader>m`
 
+### MCP shows "reconnecting" but never connects
+
+**Problem:** MCP server status stays on "reconnecting" in the web UI or TUI sidebar.
+
+**Solution:** In Go, MCP only supports reconnect — there are no connect/disconnect/auth routes. The MCP server must already be configured in settings.json and reachable. The web UI shows reconnect-only controls (connect/disconnect buttons were removed). If the server is genuinely unreachable, check the server process and network, then restart tinycode.
+
+### Tool hangs after Escape / abort
+
+**Problem:** Pressing Escape to abort doesn't stop a long-running tool. The TUI appears stuck.
+
+**Solution:** Fixed in v2.6.1+. The abort drain now has a hard timeout — tools that ignore context cancellation are force-reaped after the deadline. If you're on an older version, the tool will eventually time out at its individual limit (60s for most tools, 120s for bash). Upgrade to get the hard-timeout behavior.
+
 ## Plugin & Configuration Issues
 
 ### Plugin won't load
