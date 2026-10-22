@@ -1820,6 +1820,55 @@ func TestEventRelay_SetPermissionService(t *testing.T) {
 	// handlePermissionAsked handles that error path).
 }
 
+func TestEventRelay_PermissionAsked_EmitsToolCallID(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+	permSvc := permission.NewService(b)
+	relay.SetPermissionService(permSvc)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// HandleStdio so cancel() → rejectPending unblocks the outbound SendRequest.
+	pr, pw := io.Pipe()
+	defer pr.Close()
+	defer pw.Close()
+	done := make(chan struct{})
+	safego.Go(func() {
+		defer close(done)
+		_ = transport.HandleStdio(ctx, pr)
+	})
+	startRelaySession(t, relay, ctx, "ses_1")
+
+	b.Publish("permission.asked", permission.Request{
+		ID:         "perm_tc",
+		SessionID:  "ses_1",
+		Permission: "bash",
+		Patterns:   []string{"ls"},
+		Tool:       &permission.ToolRef{CallID: "call_abc"},
+	})
+
+	select {
+	case <-output.ch:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session/request_permission write")
+	}
+	body := output.String()
+	if !strings.Contains(body, `"method":"session/request_permission"`) {
+		t.Fatalf("expected request_permission, got %s", body)
+	}
+	if !strings.Contains(body, `"toolCallId":"call_abc"`) {
+		t.Fatalf("expected toolCallId call_abc, got %s", body)
+	}
+	cancel()
+	_ = pw.Close() // unblock HandleStdio Scan so rejectPending can run
+	<-done
+}
+
 func TestStdioTransport_MissingMethod(t *testing.T) {
 	svc, _, _ := testService(t)
 

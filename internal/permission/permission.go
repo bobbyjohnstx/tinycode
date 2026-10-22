@@ -18,6 +18,23 @@ import (
 // (TUI, serve/web, ACP). Headless `tinycode run` rejects questions immediately.
 const AskTimeout = 120 * time.Second
 
+type toolCallIDCtxKey struct{}
+
+// WithToolCallID attaches the executing tool-call id so Ask can populate Tool.CallID
+// (ACP session/request_permission toolCallId).
+func WithToolCallID(ctx context.Context, toolCallID string) context.Context {
+	if toolCallID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, toolCallIDCtxKey{}, toolCallID)
+}
+
+// ToolCallIDFrom returns the tool-call id previously attached with WithToolCallID.
+func ToolCallIDFrom(ctx context.Context) string {
+	id, _ := ctx.Value(toolCallIDCtxKey{}).(string)
+	return id
+}
+
 // sameSessionFamily returns true if two session IDs belong to the same
 // session family — either identical, or one is a subagent of the other's
 // parent (e.g., "ses_1:executor-1" and "ses_1:executor-2" share parent "ses_1").

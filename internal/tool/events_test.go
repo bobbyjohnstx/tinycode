@@ -226,6 +226,7 @@ func TestShellTool_DestructiveRoutesPermission(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx = permission.WithToolCallID(ctx, "call_shell_1")
 
 	done := make(chan struct{})
 	var output string
@@ -240,6 +241,9 @@ func TestShellTool_DestructiveRoutesPermission(t *testing.T) {
 	req := waitForPermission(t, perms, 2*time.Second)
 	if req.Permission != "shell" {
 		t.Errorf("expected first permission 'shell', got %q", req.Permission)
+	}
+	if req.Tool == nil || req.Tool.CallID != "call_shell_1" {
+		t.Errorf("expected Tool.CallID call_shell_1, got %#v", req.Tool)
 	}
 	perms.RespondToAsk(permission.ReplyInput{
 		RequestID: req.ID,

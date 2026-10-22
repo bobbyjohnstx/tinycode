@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
@@ -166,7 +167,8 @@ launch:
 				return
 			}
 
-			output, isErr, err := p.tools.Execute(ctx, call.ToolName, json.RawMessage(call.ToolArgs), p.config.SessionID)
+			execCtx := permission.WithToolCallID(ctx, call.ToolCallID)
+			output, isErr, err := p.tools.Execute(execCtx, call.ToolName, json.RawMessage(call.ToolArgs), p.config.SessionID)
 			if err != nil {
 				part := ToolResultPart(call.ToolCallID, call.ToolName, err.Error(), true)
 				record(idx, call, part, err.Error(), true)

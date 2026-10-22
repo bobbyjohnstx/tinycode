@@ -610,6 +610,20 @@ func TestService_AskTimeoutConstant(t *testing.T) {
 	}
 }
 
+func TestWithToolCallID(t *testing.T) {
+	ctx := context.Background()
+	if ToolCallIDFrom(ctx) != "" {
+		t.Fatal("expected empty tool call id")
+	}
+	ctx = WithToolCallID(ctx, "call_1")
+	if got := ToolCallIDFrom(ctx); got != "call_1" {
+		t.Fatalf("ToolCallIDFrom = %q, want call_1", got)
+	}
+	if WithToolCallID(ctx, "") != ctx {
+		t.Fatal("empty id should leave context unchanged")
+	}
+}
+
 func TestService_Close(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()

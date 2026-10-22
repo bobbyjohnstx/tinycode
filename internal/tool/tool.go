@@ -162,9 +162,18 @@ type Context struct {
 	Notepad        *SafeNotepad     // session scratch notes (shared across copies)
 	MonitorManager *MonitorManager  // background process watcher (shared across copies)
 	AgentSwitch    *SafeAgentSwitch // pending plan_enter/plan_exit agent switch (shared across copies)
+	// ToolCallID is the in-flight LLM tool call id (ACP session/request_permission toolCallId).
+	ToolCallID string
 	// FormatFile runs after a successful write or edit. name is the formatter
 	// that matched the file. changed is true when the file bytes differ.
 	FormatFile func(ctx context.Context, path string) (name string, changed bool, err error)
+}
+
+func askToolRef(tc *Context) *permission.ToolRef {
+	if tc == nil || tc.ToolCallID == "" {
+		return nil
+	}
+	return &permission.ToolRef{CallID: tc.ToolCallID}
 }
 
 // clone returns a shallow copy of the Context. Pointer/interface fields
@@ -274,6 +283,9 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 
 	cp := r.ctx.clone()
 	cp.SessionID = sessionID
+	if id := permission.ToolCallIDFrom(ctx); id != "" {
+		cp.ToolCallID = id
+	}
 	toolCtx := &cp
 
 	// Check permissions if service is available and tool has a permission requirement
@@ -284,6 +296,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 			Patterns:   askPatterns(name, args),
 			Metadata:   map[string]any{"tool": name, "args": string(args)},
 			Ruleset:    toolCtx.Ruleset,
+			Tool:       askToolRef(toolCtx),
 		})
 		if askErr != nil {
 			slog.Warn("tool permission denied", "tool", name, "sessionID", sessionID, "error", askErr)

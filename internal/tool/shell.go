@@ -121,6 +121,7 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 				Patterns:   []string{args.Command},
 				Metadata:   map[string]any{"command": args.Command},
 				Ruleset:    tc.Ruleset,
+				Tool:       askToolRef(tc),
 			})
 			if askErr != nil {
 				return &ExecuteResult{Output: askErr.Error(), IsError: true}, nil
@@ -223,6 +224,7 @@ func gateSecretAccess(ctx context.Context, tc *Context, command string) *Execute
 		Patterns:   []string{command},
 		Metadata:   map[string]any{"command": command},
 		Ruleset:    tc.Ruleset,
+		Tool:       askToolRef(tc),
 	})
 	if askErr != nil {
 		return &ExecuteResult{Output: askErr.Error(), IsError: true}

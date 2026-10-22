@@ -398,6 +398,7 @@ func executeMonitor(ctx context.Context, tc *Context, rawArgs json.RawMessage) (
 					Patterns:   []string{args.Command},
 					Metadata:   map[string]any{"command": args.Command},
 					Ruleset:    tc.Ruleset,
+					Tool:       askToolRef(tc),
 				})
 				if askErr != nil {
 					return &ExecuteResult{Output: askErr.Error(), IsError: true}, nil

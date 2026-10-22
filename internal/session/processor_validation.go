@@ -88,6 +88,10 @@ func (p *Processor) checkExternalDirectory(ctx context.Context, call Part) strin
 	for _, path := range paths {
 		if !isInsideDirectory(path, p.config.Directory) {
 			askID, _ := id.Ascending("perm")
+			var toolRef *permission.ToolRef
+			if call.ToolCallID != "" {
+				toolRef = &permission.ToolRef{CallID: call.ToolCallID}
+			}
 			err := p.config.Perms.Ask(ctx, permission.AskInput{
 				ID:         askID,
 				SessionID:  p.config.SessionID,
@@ -98,6 +102,7 @@ func (p *Processor) checkExternalDirectory(ctx context.Context, call Part) strin
 					"path": path,
 				},
 				Ruleset: p.config.Ruleset,
+				Tool:    toolRef,
 			})
 			if err != nil {
 				return fmt.Sprintf("permission denied: tool %q targets path %q outside project directory %q", call.ToolName, path, p.config.Directory)
