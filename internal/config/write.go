@@ -35,6 +35,51 @@ func ResolveMCPConfigPath(project bool, directory string) string {
 	return filepath.Join(dir, "tinycode.json")
 }
 
+// EnablePlugin appends name to the "plugins" array in the global config file
+// (3-name fallback via ResolveMCPConfigPath). Idempotent: if already listed
+// (string or [name, options] entry), returns (path, false, nil).
+func EnablePlugin(name string) (path string, added bool, err error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", false, fmt.Errorf("plugin name is required")
+	}
+	path = ResolveMCPConfigPath(false, "")
+	root, err := loadConfigMap(path)
+	if err != nil {
+		return path, false, err
+	}
+
+	plugins, _ := root["plugins"].([]any)
+	if plugins == nil {
+		plugins = []any{}
+	}
+	for _, entry := range plugins {
+		if pluginEntryName(entry) == name {
+			return path, false, nil
+		}
+	}
+	plugins = append(plugins, name)
+	root["plugins"] = plugins
+	if err := writeConfigMap(path, root); err != nil {
+		return path, false, err
+	}
+	return path, true, nil
+}
+
+func pluginEntryName(entry any) string {
+	switch v := entry.(type) {
+	case string:
+		return v
+	case []any:
+		if len(v) > 0 {
+			if s, ok := v[0].(string); ok {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
 // WriteMCPServer loads path (creating an empty object if missing), sets
 // mcp[name] to cfg, and writes indented JSON. Comments in JSONC files are not
 // preserved on write.

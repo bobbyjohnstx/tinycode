@@ -96,7 +96,8 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `tinycode mcp logout NAME` | Clear Authorization header |
 | `tinycode mcp debug NAME` | Handshake / tools diagnostics |
 | `tinycode plugin list` | List registry plugins (INSTALLED vs IN_CONFIG) |
-| `tinycode plugin install <name>` | Install binary (prefer per-plugin asset, else bundle), `--from`, or local source (does not enable) |
+| `tinycode plugin install <name>` | Install binary (prefer per-plugin asset, else bundle), `--from`, or local source; optional `--enable` |
+| `tinycode plugin enable <name>` | Add name to global config `"plugins"` (idempotent; 3-name fallback) |
 | `tinycode plugin uninstall <name>` | Remove an installed plugin |
 | `tinycode plugin search <query>` | Fuzzy search plugin registry by name or description |
 | `tinycode plugin init <name>` | Scaffold a new plugin binary |

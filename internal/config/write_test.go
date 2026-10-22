@@ -125,6 +125,60 @@ func TestWriteMCPServer_CreatesAndRoundTrips(t *testing.T) {
 	}
 }
 
+func TestEnablePlugin_IdempotentAndCreatesFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TINYCODE_CONFIG_DIR", dir)
+
+	path, added, err := EnablePlugin("safety-net")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !added {
+		t.Fatal("expected first enable to add")
+	}
+	if filepath.Base(path) != "tinycode.json" {
+		t.Fatalf("path = %q, want tinycode.json default", path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, []byte(`"safety-net"`)) {
+		t.Fatalf("plugins missing in %s", raw)
+	}
+
+	_, added, err = EnablePlugin("safety-net")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added {
+		t.Fatal("expected second enable to be idempotent")
+	}
+
+	// Prefer existing jsonc over creating json.
+	jsonc := filepath.Join(dir, "tinycode.jsonc")
+	if err := os.WriteFile(jsonc, []byte(`{"plugins":[["wiki",{}]]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path, added, err = EnablePlugin("wiki")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != jsonc {
+		t.Fatalf("path = %q, want jsonc", path)
+	}
+	if added {
+		t.Fatal("wiki already in [name, options] form should be idempotent")
+	}
+	path, added, err = EnablePlugin("notify")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !added || path != jsonc {
+		t.Fatalf("added=%v path=%q", added, path)
+	}
+}
+
 func TestWriteMCPServer_PreservesOtherFields(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tinycode.json")

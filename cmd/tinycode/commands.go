@@ -492,12 +492,23 @@ func runPlugin() {
 		}
 		w.Flush()
 
+	case "enable":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: tinycode plugin enable <name>\n")
+			os.Exit(1)
+		}
+		if err := enablePluginCLI(args[1]); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
 	case "install":
 		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "Usage: tinycode plugin install <name> [--from <path>]\n")
+			fmt.Fprintf(os.Stderr, "Usage: tinycode plugin install <name> [--from <path>] [--enable]\n")
 			os.Exit(1)
 		}
 		name := args[1]
+		fromPath, doEnable := parsePluginInstallFlags(args[2:])
 
 		entry, ok := plugin.LookupRegistry(name)
 		if !ok {
@@ -513,24 +524,28 @@ func runPlugin() {
 		destPath := filepath.Join(pluginDir, name)
 
 		// --from flag: copy from a local path (e.g. dist/plugins/plugin-notify)
-		if len(args) >= 4 && args[2] == "--from" {
-			srcPath := args[3]
-			if err := copyFile(srcPath, destPath); err != nil {
+		if fromPath != "" {
+			if err := copyFile(fromPath, destPath); err != nil {
 				fmt.Fprintf(os.Stderr, "error installing plugin: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Printf("Installed plugin %s from %s\n", name, srcPath)
-			printPluginEnableHint(name)
+			fmt.Printf("Installed plugin %s from %s\n", name, fromPath)
+		} else {
+			fmt.Printf("Installing plugin %s ...\n", name)
+			if err := attemptPluginInstall(name); err != nil {
+				fmt.Fprintf(os.Stderr, "Plugin %s (%s): %v\n", name, entry.Description, err)
+				fmt.Fprintf(os.Stderr, "Use --from <path> to install from a pre-built binary, or build from a source checkout.\n")
+				os.Exit(1)
+			}
+			fmt.Printf("Installed plugin %s to %s\n", name, destPath)
+		}
+		if doEnable {
+			if err := enablePluginCLI(name); err != nil {
+				fmt.Fprintf(os.Stderr, "error enabling plugin: %v\n", err)
+				os.Exit(1)
+			}
 			return
 		}
-
-		fmt.Printf("Installing plugin %s ...\n", name)
-		if err := attemptPluginInstall(name); err != nil {
-			fmt.Fprintf(os.Stderr, "Plugin %s (%s): %v\n", name, entry.Description, err)
-			fmt.Fprintf(os.Stderr, "Use --from <path> to install from a pre-built binary, or build from a source checkout.\n")
-			os.Exit(1)
-		}
-		fmt.Printf("Installed plugin %s to %s\n", name, destPath)
 		printPluginEnableHint(name)
 
 	case "uninstall":
@@ -552,13 +567,42 @@ func runPlugin() {
 		fmt.Printf("Uninstalled plugin %s\n", name)
 
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown plugin subcommand: %s\nUsage: tinycode plugin <list|search|init|install|uninstall> [args]\n", args[0])
+		fmt.Fprintf(os.Stderr, "Unknown plugin subcommand: %s\nUsage: tinycode plugin <list|search|init|install|enable|uninstall> [args]\n", args[0])
 		os.Exit(1)
 	}
 }
 
+func parsePluginInstallFlags(args []string) (fromPath string, enable bool) {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--enable":
+			enable = true
+		case "--from":
+			if i+1 < len(args) {
+				fromPath = args[i+1]
+				i++
+			}
+		}
+	}
+	return fromPath, enable
+}
+
+func enablePluginCLI(name string) error {
+	path, added, err := config.EnablePlugin(name)
+	if err != nil {
+		return err
+	}
+	if added {
+		fmt.Printf("Enabled plugin %q in %s\n", name, path)
+	} else {
+		fmt.Printf("Plugin %q already enabled in %s\n", name, path)
+	}
+	return nil
+}
+
 func printPluginEnableHint(name string) {
-	fmt.Printf("Enable by adding %q to \"plugins\" in %s\n", name, config.GlobalConfigFile())
+	fmt.Printf("Enable with: tinycode plugin enable %s\n", name)
+	fmt.Printf("Or add %q to \"plugins\" in %s\n", name, config.GlobalConfigFile())
 }
 
 // pluginInstallFunc installs a plugin binary by name. Injectable for tests.

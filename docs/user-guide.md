@@ -1011,6 +1011,8 @@ These run in-process and are always available — do not add them to `"plugins"`
 
 ### Installing plugins
 
+Homebrew / binary installs are CLI-only. Curated plugins come from release assets (or a source checkout), not the formula.
+
 ```bash
 # List curated registry plugins (INSTALLED + IN_CONFIG columns)
 tinycode plugin list
@@ -1018,11 +1020,17 @@ tinycode plugin list
 # List by category (sre, security, ai-ml, platform, developer, essential)
 tinycode plugin list --category sre
 
-# Install from source (if cmd/plugin-<name> exists in the repo)
+# Install from release assets (or local source under cmd/plugin-<name>)
 tinycode plugin install safety-net
+
+# Install and enable in one step
+tinycode plugin install safety-net --enable
 
 # Install from a pre-built binary
 tinycode plugin install safety-net --from dist/plugins/plugin-safety-net
+
+# Enable an already-installed binary (writes global config)
+tinycode plugin enable safety-net
 ```
 
 Binary resolution order when a plugin is loaded:
@@ -1035,7 +1043,7 @@ From a tinycode checkout, `make build-plugins` writes binaries to `dist/plugins/
 
 ### Configuring plugins
 
-Add external plugin names to your config:
+Prefer `tinycode plugin enable <name>`. Or add names to global config manually:
 
 ```json
 {
