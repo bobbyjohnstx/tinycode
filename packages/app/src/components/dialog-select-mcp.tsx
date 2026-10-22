@@ -4,7 +4,7 @@ import { useSync } from "@/context/sync"
 import { useSDK } from "@/context/sdk"
 import { Dialog } from "@tinycode/ui/dialog"
 import { List } from "@tinycode/ui/list"
-import { Switch } from "@tinycode/ui/switch"
+import { Button } from "@tinycode/ui/button"
 import { useLanguage } from "@/context/language"
 import { useQueryOptions } from "@/context/server-sync"
 import { pathKey } from "@/utils/path-key"
@@ -23,13 +23,11 @@ export const DialogSelectMcp: Component = () => {
       .sort((a, b) => a.name.localeCompare(b.name)),
   )
 
-  // Mutate path is reconnect-only. Interactive MCP OAuth / connect / disconnect
-  // HTTP routes are not used from the SPA — auth remains CLI: `tinycode mcp auth`.
-  const toggle = useMutation(() => ({
+  // Reconnect-only (TUI parity). No connect/disconnect Switch; auth stays CLI.
+  const reconnect = useMutation(() => ({
     mutationFn: async (name: string) => {
       const status = sync.data.mcp[name]
       if (status?.status === "needs_auth") {
-        // Honest disabled: browser OAuth is not supported here.
         return
       }
       const base = sdk.url.replace(/\/$/, "")
@@ -45,13 +43,13 @@ export const DialogSelectMcp: Component = () => {
     onSuccess: () => queryClient.refetchQueries(queryOptions.mcp(pathKey(sync.directory))),
   }))
 
-  const enabledCount = createMemo(() => items().filter((i) => i.status === "connected").length)
+  const connectedCount = createMemo(() => items().filter((i) => i.status === "connected").length)
   const totalCount = createMemo(() => items().length)
 
   return (
     <Dialog
       title={language.t("dialog.mcp.title")}
-      description={language.t("dialog.mcp.description", { enabled: enabledCount(), total: totalCount() })}
+      description={language.t("dialog.mcp.description", { enabled: connectedCount(), total: totalCount() })}
     >
       <List
         search={{ placeholder: language.t("common.search.placeholder"), autofocus: true }}
@@ -61,9 +59,9 @@ export const DialogSelectMcp: Component = () => {
         filterKeys={["name", "status"]}
         sortBy={(a, b) => a.name.localeCompare(b.name)}
         onSelect={(x) => {
-          if (!x || toggle.isPending) return
+          if (!x || reconnect.isPending) return
           if (x.status === "needs_auth") return
-          toggle.mutate(x.name)
+          reconnect.mutate(x.name)
         }}
       >
         {(i) => {
@@ -81,8 +79,7 @@ export const DialogSelectMcp: Component = () => {
               return "Authenticate via CLI: tinycode mcp auth " + i.name
             }
           }
-          const enabled = () => status() === "connected"
-          const canToggle = () => status() !== "needs_auth"
+          const canReconnect = () => status() !== "needs_auth"
           return (
             <div class="w-full flex items-center justify-between gap-x-3">
               <div class="flex flex-col gap-0.5 min-w-0">
@@ -97,14 +94,17 @@ export const DialogSelectMcp: Component = () => {
                 </Show>
               </div>
               <div onClick={(e) => e.stopPropagation()}>
-                <Switch
-                  checked={enabled()}
-                  disabled={!canToggle() || (toggle.isPending && toggle.variables === i.name)}
-                  onChange={() => {
-                    if (!canToggle() || toggle.isPending) return
-                    toggle.mutate(i.name)
+                <Button
+                  size="small"
+                  variant="ghost"
+                  disabled={!canReconnect() || (reconnect.isPending && reconnect.variables === i.name)}
+                  onClick={() => {
+                    if (!canReconnect() || reconnect.isPending) return
+                    reconnect.mutate(i.name)
                   }}
-                />
+                >
+                  {language.t("dialog.mcp.reconnect")}
+                </Button>
               </div>
             </div>
           )

@@ -378,8 +378,9 @@ export const dict = {
   "prompt.toast.promptSendFailed.description": "Unable to retrieve session",
 
   "dialog.mcp.title": "MCPs",
-  "dialog.mcp.description": "{{enabled}} of {{total}} enabled",
+  "dialog.mcp.description": "{{enabled}} of {{total}} connected",
   "dialog.mcp.empty": "No MCPs configured",
+  "dialog.mcp.reconnect": "Reconnect",
 
   "dialog.lsp.empty": "LSPs auto-detected from file types",
   "dialog.formatter.heading": "Formatters",

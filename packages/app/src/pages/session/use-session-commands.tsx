@@ -27,7 +27,9 @@ import { getGoal, goalStatusText } from "@/utils/session-goal"
 export const SHARE_SUPPORTED = false
 
 /** Hard gate: Go serve has no MCP mutate routes (connect/disconnect/auth). */
-export const MCP_MUTATE_SUPPORTED = false
+// Reconnect-only SPA dialog (no connect/disconnect/auth HTTP). Keep true so
+// the MCP status dialog stays reachable; mutate paths call reconnect only.
+export const MCP_MUTATE_SUPPORTED = true
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
