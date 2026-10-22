@@ -314,6 +314,35 @@ func TestPrintProviderNextSteps_MentionsConnect(t *testing.T) {
 	if !strings.Contains(out, "tinycode") {
 		t.Errorf("expected tinycode launch hint in next steps, got %q", out)
 	}
+	if !strings.Contains(out, "providers login") {
+		t.Errorf("expected providers login hint in next steps, got %q", out)
+	}
+}
+
+func TestOpenRouterCloudUsable_AuthJSON(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "")
+	dataDir := t.TempDir()
+	t.Setenv("TINYCODE_DATA_DIR", dataDir)
+
+	if openRouterCloudUsable() {
+		t.Fatal("expected false with empty env and no auth.json")
+	}
+
+	authPath := filepath.Join(dataDir, "auth.json")
+	if err := os.WriteFile(authPath, []byte(`{"openrouter":{"apiKey":"sk-from-auth"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !openRouterCloudUsable() {
+		t.Fatal("expected true when auth.json has openrouter apiKey")
+	}
+}
+
+func TestOpenRouterCloudUsable_EnvKey(t *testing.T) {
+	t.Setenv("TINYCODE_DATA_DIR", t.TempDir())
+	t.Setenv("OPENROUTER_API_KEY", "sk-env")
+	if !openRouterCloudUsable() {
+		t.Fatal("expected true when OPENROUTER_API_KEY is set")
+	}
 }
 
 func stubPATHBinaries(t *testing.T, names ...string) {

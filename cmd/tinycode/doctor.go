@@ -192,10 +192,9 @@ func checkProviders(cfg *config.Info, failed *bool) {
 		}
 	}
 
-	hasCloudKey := false
-	if apiKey := os.Getenv("OPENROUTER_API_KEY"); apiKey != "" {
+	hasCloudKey := openRouterCloudUsable()
+	if hasCloudKey {
 		fmt.Printf("%s Provider: openrouter -- API key set\n", checkPass)
-		hasCloudKey = true
 	}
 
 	// Config-defined providers: require usable models via /v1/models (not bare base URL).
@@ -237,6 +236,19 @@ func providerPathUsable(anyLocalUsable, hasCloudAPIKey, anyConfigUsable bool) bo
 	return anyLocalUsable || hasCloudAPIKey || anyConfigUsable
 }
 
+// openRouterCloudUsable is true when OPENROUTER_API_KEY is set or auth.json
+// has a non-empty openrouter API key.
+func openRouterCloudUsable() bool {
+	if os.Getenv("OPENROUTER_API_KEY") != "" {
+		return true
+	}
+	store, err := auth.Open(auth.DefaultPath())
+	if err != nil || store == nil {
+		return false
+	}
+	return store.APIKey("openrouter") != ""
+}
+
 func printPullHint(name string) {
 	switch name {
 	case "ollama":
@@ -249,7 +261,7 @@ func printPullHint(name string) {
 func printProviderNextSteps() {
 	fmt.Println("    next steps:")
 	fmt.Println("    - start Ollama: ollama serve && ollama pull <model>")
-	fmt.Println("    - or set OPENROUTER_API_KEY for cloud models")
+	fmt.Println("    - or set OPENROUTER_API_KEY / run: tinycode providers login openrouter")
 	fmt.Println("    - then run: tinycode  (connect dialog opens if no model)")
 	fmt.Println("    - or in the TUI: /connect")
 }
