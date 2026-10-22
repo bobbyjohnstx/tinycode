@@ -30,18 +30,24 @@ export const DialogSelectMcp: Component = () => {
       .sort((a, b) => a.name.localeCompare(b.name)),
   )
 
+  // Mutate path is reconnect-only. Interactive MCP OAuth / connect / disconnect
+  // HTTP routes are not used from the SPA — auth remains CLI: `tinycode mcp auth`.
   const toggle = useMutation(() => ({
     mutationFn: async (name: string) => {
       const status = sync.data.mcp[name]
-      if (status?.status === "connected") {
-        await sdk.client.mcp.disconnect({ name })
-        return
-      }
       if (status?.status === "needs_auth") {
-        await sdk.client.mcp.auth.authenticate({ name })
+        // Honest disabled: browser OAuth is not supported here.
         return
       }
-      await sdk.client.mcp.connect({ name })
+      const base = sdk.url.replace(/\/$/, "")
+      const res = await fetch(`${base}/mcp/${encodeURIComponent(name)}/reconnect`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      })
+      if (!res.ok) {
+        throw new Error(`MCP reconnect failed (${res.status})`)
+      }
     },
     onSuccess: () => queryClient.refetchQueries(queryOptions.mcp(pathKey(sync.directory))),
   }))
@@ -63,6 +69,7 @@ export const DialogSelectMcp: Component = () => {
         sortBy={(a, b) => a.name.localeCompare(b.name)}
         onSelect={(x) => {
           if (!x || toggle.isPending) return
+          if (x.status === "needs_auth") return
           toggle.mutate(x.name)
         }}
       >
@@ -77,8 +84,12 @@ export const DialogSelectMcp: Component = () => {
           const error = () => {
             const s = mcpStatus()
             if (s?.status === "failed" || s?.status === "needs_client_registration") return s.error
+            if (s?.status === "needs_auth") {
+              return "Authenticate via CLI: tinycode mcp auth " + i.name
+            }
           }
           const enabled = () => status() === "connected"
+          const canToggle = () => status() !== "needs_auth"
           return (
             <div class="w-full flex items-center justify-between gap-x-3">
               <div class="flex flex-col gap-0.5 min-w-0">
@@ -95,9 +106,9 @@ export const DialogSelectMcp: Component = () => {
               <div onClick={(e) => e.stopPropagation()}>
                 <Switch
                   checked={enabled()}
-                  disabled={toggle.isPending && toggle.variables === i.name}
+                  disabled={!canToggle() || (toggle.isPending && toggle.variables === i.name)}
                   onChange={() => {
-                    if (toggle.isPending) return
+                    if (!canToggle() || toggle.isPending) return
                     toggle.mutate(i.name)
                   }}
                 />
