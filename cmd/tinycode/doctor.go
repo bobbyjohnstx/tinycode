@@ -530,12 +530,22 @@ func countConfigPlugins(cfg *config.Info) int {
 // next-step hints for new users. Never marks the doctor run as failed.
 func reportPlugins(cfg *config.Info, dataDir string) []string {
 	var hints []string
+	inConfig := map[string]bool{}
+	if cfg != nil && len(cfg.Plugins) > 0 {
+		if specs, err := plugin.ParsePluginConfig(cfg.Plugins); err == nil {
+			for _, s := range specs {
+				inConfig[s.Name] = true
+			}
+		}
+	}
+
 	if cfg == nil || len(cfg.Plugins) == 0 {
 		fmt.Printf("%s Plugins: none configured (builtins still work)\n", checkPass)
 		fmt.Printf("    tip: tinycode plugin install safety-net\n")
-		fmt.Printf("    tip: then add \"plugins\": [\"safety-net\"] to %s\n", config.GlobalConfigFile())
+		fmt.Printf("    tip: then tinycode plugin enable safety-net\n")
 		hints = append(hints, `tinycode plugin install safety-net`)
-		hints = append(hints, `add "plugins": ["safety-net"] to config, then re-run doctor`)
+		hints = append(hints, `tinycode plugin enable safety-net`)
+		hints = append(hints, reportOrphanPluginBinaries(inConfig)...)
 		return hints
 	}
 
@@ -543,6 +553,7 @@ func reportPlugins(cfg *config.Info, dataDir string) []string {
 	if err != nil {
 		fmt.Printf("%s Plugins: config present but unreadable (%v)\n", checkWarn, err)
 		hints = append(hints, "fix plugins array in config (string or [name, options] entries)")
+		hints = append(hints, reportOrphanPluginBinaries(inConfig)...)
 		return hints
 	}
 
@@ -565,6 +576,7 @@ func reportPlugins(cfg *config.Info, dataDir string) []string {
 
 	if configured == 0 {
 		fmt.Printf("%s Plugins: only builtins listed in config\n", checkPass)
+		hints = append(hints, reportOrphanPluginBinaries(inConfig)...)
 		return hints
 	}
 
@@ -577,6 +589,42 @@ func reportPlugins(cfg *config.Info, dataDir string) []string {
 		for _, name := range missing {
 			hints = append(hints, "tinycode plugin install "+name)
 		}
+	}
+	hints = append(hints, reportOrphanPluginBinaries(inConfig)...)
+	return hints
+}
+
+// reportOrphanPluginBinaries tips/WARNs for binaries under ConfigDir()/plugins
+// that are not listed in config. Never fails doctor.
+func reportOrphanPluginBinaries(inConfig map[string]bool) []string {
+	pluginDir := filepath.Join(config.ConfigDir(), "plugins")
+	entries, err := os.ReadDir(pluginDir)
+	if err != nil {
+		return nil
+	}
+	var orphans []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if inConfig[name] {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || info.Mode()&0o111 == 0 {
+			continue
+		}
+		orphans = append(orphans, name)
+	}
+	if len(orphans) == 0 {
+		return nil
+	}
+	fmt.Printf("%s Plugins: %d installed binary(ies) not in config\n", checkWarn, len(orphans))
+	var hints []string
+	for _, name := range orphans {
+		fmt.Printf("    tip: tinycode plugin enable %s\n", name)
+		hints = append(hints, "tinycode plugin enable "+name)
 	}
 	return hints
 }
