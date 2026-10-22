@@ -309,7 +309,7 @@ When a loop is detected, the stream stops with a budget error and the model's pa
 
 **Problem:** Pressing Escape to abort doesn't stop a long-running tool. The TUI appears stuck.
 
-**Solution:** Fixed on main after v2.6.0 (#886; Unreleased until the next tag). The abort drain now has a hard timeout — tools that ignore context cancellation are force-reaped after the deadline. On v2.6.0 and earlier, the tool will eventually time out at its individual limit (60s for most tools, 120s for bash).
+**Solution:** Fixed in v2.6.1 (#886). The abort drain now has a hard timeout — tools that ignore context cancellation are force-reaped after the deadline. On v2.6.0 and earlier, the tool will eventually time out at its individual limit (60s for most tools, 120s for bash).
 
 ## Plugin & Configuration Issues
 
