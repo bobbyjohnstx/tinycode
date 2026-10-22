@@ -74,6 +74,25 @@ func TestModelDialog_ViewProvidersEmpty_ShowsSetupGuidance(t *testing.T) {
 	if !strings.Contains(view, "rescan") {
 		t.Error("expected rescan hint in empty providers view")
 	}
+	if !strings.Contains(view, "tinycode doctor") {
+		t.Error("expected tinycode doctor hint in empty providers view")
+	}
+}
+
+func TestModelDialog_FirstRun_ModelPhaseShowsEscBack(t *testing.T) {
+	d := NewModelDialog()
+	d.ShowFirstRun([]ProviderInfo{
+		{ID: "ollama", Name: "Ollama", Models: []ModelInfo{{ID: "qwen", Name: "Qwen"}}},
+	})
+	d.phase = phaseModels
+	d.SetSize(80, 24)
+	view := d.View()
+	if strings.Contains(view, "esc skip") {
+		t.Error("model phase must not show esc skip")
+	}
+	if !strings.Contains(view, "esc back") {
+		t.Error("expected esc back on model phase")
+	}
 }
 
 func TestModelDialog_EmptyProviders_RTriggersRescan(t *testing.T) {

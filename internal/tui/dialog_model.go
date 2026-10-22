@@ -445,6 +445,9 @@ func (d ModelDialog) viewProviders() string {
 		sb.WriteString("\n")
 		sb.WriteString(styleMetadata.Render("  (override with TINYCODE_VLLM_HOST)"))
 		sb.WriteString("\n\n")
+		sb.WriteString("  Diagnose with: ")
+		sb.WriteString(styleMetadata.Render("tinycode doctor"))
+		sb.WriteString("\n")
 		sb.WriteString("  Or press ")
 		sb.WriteString(styleSelected.Render("o"))
 		sb.WriteString(" to enter an OpenRouter API key\n")
@@ -578,10 +581,6 @@ func (d ModelDialog) viewModels() string {
 
 	sb.WriteString("\n\n")
 	sb.WriteString(styleMetadata.Render("  esc back  space scope"))
-	if d.firstRunHint {
-		sb.WriteString("\n")
-		sb.WriteString(styleMetadata.Render("  esc skip · /connect anytime"))
-	}
 
 	return sb.String()
 }
