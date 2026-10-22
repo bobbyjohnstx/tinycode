@@ -229,6 +229,12 @@ await conn.loadSession({ sessionId, cwd: workspaceRoot }) // replays history via
 const forked = await conn.unstable_forkSession({ sessionId })
 ```
 
+### Resume vs load
+
+`session/resume` (`resumeSession`) re-attaches the agent to an existing session id and returns setup metadata (modes / model config). It does **not** replay conversation history to the client as `session/update` notifications.
+
+Use `session/load` (`loadSession`) when the IDE needs prior messages, tool calls, and tool results streamed back for UI restoration. After resume alone, the client only sees new turns.
+
 ## Error Handling
 
 All ACP methods return promises that reject on error. Handle JSON-RPC error codes (`-32602` invalid params, `-32603` internal, `-32601` method not found).
