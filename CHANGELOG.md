@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-10-22
+
 ### TUI
 - Dismiss permission overlay when ask cancels on abort (#861)
 - Empty-model provider state in `/connect` (#865)
