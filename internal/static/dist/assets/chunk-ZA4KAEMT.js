@@ -1,0 +1,1 @@
+import{b as s}from"./chunk-OAM4OFRF.js";import{Gb as t,_ as r}from"./chunk-GXOB4LJ3.js";var{use:n,provider:l}=r({name:"Servers",init:()=>{let e=t(),o=s(()=>e.list,()=>!0);return{list:()=>e.list,health:o}}});export{n as a,l as b};
