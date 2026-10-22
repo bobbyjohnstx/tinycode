@@ -14,6 +14,7 @@ import { useSync } from "@/context/sync"
 import { type ServerHealth } from "@/utils/server-health"
 import { useServers } from "@/context/servers"
 import { formatterView } from "@/components/formatter-status"
+import { mcpStatusDotClass, mcpStatusLabelKey } from "@/utils/mcp-status"
 
 const pollMs = 10_000
 
@@ -400,25 +401,22 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                 <For each={mcpNames()}>
                   {(name) => {
                     const status = () => mcpStatus(name)
+                    const labelKey = () => mcpStatusLabelKey(status())
                     return (
                       <div class="flex items-center gap-2 w-full min-h-8 pl-3 pr-2 py-1 rounded-md text-left">
                         <div
                           classList={{
                             "size-1.5 rounded-full shrink-0": true,
-                            "bg-icon-success-base": status() === "connected",
-                            "bg-icon-critical-base": status() === "failed",
-                            "bg-border-weak-base": status() === "disabled",
-                            "bg-icon-warning-base":
-                              status() === "needs_auth" || status() === "needs_client_registration",
+                            ...mcpStatusDotClass(status()),
                           }}
                         />
                         <span class="flex flex-col min-w-0 flex-1">
                           <span class="flex items-center gap-2 min-w-0">
                             <span class="text-14-regular text-text-base truncate">{name}</span>
                           </span>
-                          <Show when={status() === "needs_auth"}>
+                          <Show when={labelKey() && status() !== "connected"}>
                             <span class="text-11-regular text-text-weaker truncate">
-                              {language.t("mcp.status.needs_auth")}
+                              {language.t(labelKey()!)}
                             </span>
                           </Show>
                         </span>

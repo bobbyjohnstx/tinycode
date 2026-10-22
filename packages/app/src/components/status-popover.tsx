@@ -8,6 +8,7 @@ import { useLanguage } from "@/context/language"
 import { useServer } from "@/context/server"
 import { useSync } from "@/context/sync"
 import { useServers } from "@/context/servers"
+import { mcpIssueLevel } from "@/utils/mcp-status"
 
 const Body = lazy(() => import("./status-popover-body").then((x) => ({ default: x.StatusPopoverBody })))
 const ServerBody = lazy(() => import("./status-popover-body").then((x) => ({ default: x.StatusPopoverServerBody })))
@@ -19,13 +20,7 @@ export function StatusPopover() {
   const sync = useSync()
   const [shown, setShown] = createSignal(false)
   const ready = createMemo(() => servers.health[server.key]?.healthy === false || sync.data.mcp_ready)
-  const mcpIssue = createMemo(() => {
-    const mcp = Object.values(sync.data.mcp ?? {})
-    const failed = mcp.some((item) => item.status === "failed" || item.status === "needs_client_registration")
-    const warn = mcp.some((item) => item.status === "needs_auth")
-    if (failed) return "critical" as const
-    if (warn) return "warning" as const
-  })
+  const mcpIssue = createMemo(() => mcpIssueLevel(Object.values(sync.data.mcp ?? {})))
   const serverHealthy = () => servers.health[server.key]?.healthy === true
   const healthy = createMemo(() => servers.health[server.key]?.healthy === true && !mcpIssue())
 
@@ -87,13 +82,7 @@ function DirectoryStatusPopover() {
   const [shown, setShown] = createSignal(false)
   const serverHealth = () => servers.health[server.key]?.healthy
   const ready = createMemo(() => serverHealth() === false || sync.data.mcp_ready)
-  const mcpIssue = createMemo(() => {
-    const mcp = Object.values(sync.data.mcp ?? {})
-    const failed = mcp.some((item) => item.status === "failed" || item.status === "needs_client_registration")
-    const warn = mcp.some((item) => item.status === "needs_auth")
-    if (failed) return "critical" as const
-    if (warn) return "warning" as const
-  })
+  const mcpIssue = createMemo(() => mcpIssueLevel(Object.values(sync.data.mcp ?? {})))
   const healthy = createMemo(() => serverHealth() === true && !mcpIssue())
   const state = createMemo<StatusPopoverState>(() => ({
     shown: shown(),

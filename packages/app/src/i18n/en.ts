@@ -388,8 +388,13 @@ export const dict = {
   "dialog.plugins.empty": "Plugins configured in tinycode.json",
 
   "mcp.status.connected": "connected",
+  "mcp.status.disconnected": "disconnected",
+  "mcp.status.connecting": "connecting",
+  "mcp.status.reconnecting": "reconnecting",
+  "mcp.status.error": "error",
   "mcp.status.failed": "failed",
   "mcp.status.needs_auth": "needs auth",
+  "mcp.status.needs_client_registration": "needs client registration",
   "mcp.status.disabled": "disabled",
   "mcp.auth.clickToAuthenticate": "Click to authenticate",
 

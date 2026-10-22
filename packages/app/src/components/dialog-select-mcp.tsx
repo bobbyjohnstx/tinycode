@@ -8,14 +8,7 @@ import { Switch } from "@tinycode/ui/switch"
 import { useLanguage } from "@/context/language"
 import { useQueryOptions } from "@/context/server-sync"
 import { pathKey } from "@/utils/path-key"
-
-const statusLabels = {
-  connected: "mcp.status.connected",
-  failed: "mcp.status.failed",
-  needs_auth: "mcp.status.needs_auth",
-  needs_client_registration: "mcp.status.needs_client_registration",
-  disabled: "mcp.status.disabled",
-} as const
+import { isMcpFailure, mcpStatusLabelKey } from "@/utils/mcp-status"
 
 export const DialogSelectMcp: Component = () => {
   const sync = useSync()
@@ -77,13 +70,13 @@ export const DialogSelectMcp: Component = () => {
           const mcpStatus = () => sync.data.mcp[i.name]
           const status = () => mcpStatus()?.status
           const statusLabel = () => {
-            const key = status() ? statusLabels[status() as keyof typeof statusLabels] : undefined
+            const key = mcpStatusLabelKey(status())
             if (!key) return
             return language.t(key)
           }
           const error = () => {
             const s = mcpStatus()
-            if (s?.status === "failed" || s?.status === "needs_client_registration") return s.error
+            if (isMcpFailure(s?.status)) return s?.error
             if (s?.status === "needs_auth") {
               return "Authenticate via CLI: tinycode mcp auth " + i.name
             }

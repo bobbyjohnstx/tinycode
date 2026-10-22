@@ -6,6 +6,7 @@ import { useLanguage } from "@/context/language"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { useLocal } from "@/context/local"
+import { mcpStatusDotClass } from "@/utils/mcp-status"
 
 type HealthData = { healthy?: boolean; version?: string }
 type McpEntry = { status: string }
@@ -143,10 +144,7 @@ export const DialogDebug: Component = () => {
                     <div
                       classList={{
                         "size-1.5 rounded-full shrink-0": true,
-                        "bg-icon-success-base": (status as McpEntry).status === "connected",
-                        "bg-icon-critical-base": (status as McpEntry).status === "failed",
-                        "bg-border-weak-base": (status as McpEntry).status === "disabled",
-                        "bg-icon-warning-base": (status as McpEntry).status === "needs_auth",
+                        ...mcpStatusDotClass((status as McpEntry).status),
                       }}
                     />
                     <span>{name}: {(status as McpEntry).status}</span>
