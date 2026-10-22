@@ -89,7 +89,7 @@ func (c *OpenAIClient) Stream(ctx context.Context, req Request, opts ...StreamOp
 	resp, err := c.Client.Do(httpReq)
 	if err != nil {
 		slog.Error("LLM request failed", "model", req.Model, "elapsed", time.Since(start), "error", err)
-		return nil, fmt.Errorf("sending request: %w", err)
+		return nil, dialError(c.BaseURL, err)
 	}
 
 	if resp.StatusCode != http.StatusOK {

@@ -73,7 +73,7 @@ func (c *AnthropicClient) Stream(ctx context.Context, req Request, opts ...Strea
 	resp, err := c.Client.Do(httpReq)
 	if err != nil {
 		slog.Error("Anthropic request failed", "model", req.Model, "elapsed", time.Since(start), "error", err)
-		return nil, fmt.Errorf("sending request: %w", err)
+		return nil, dialError(c.BaseURL, err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
