@@ -109,6 +109,8 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 				ID:         stringProp(props, "id"),
 				SessionID:  sessionID,
 				Permission: stringProp(props, "permission"),
+				Patterns:   stringSliceProp(props, "patterns"),
+				Always:     stringSliceProp(props, "always"),
 				Metadata:   metadata,
 			},
 		}
@@ -680,6 +682,24 @@ func sessionInfoFromAPI(s session.Info) SessionInfo {
 func stringProp(props map[string]any, key string) string {
 	v, _ := props[key].(string)
 	return v
+}
+
+// stringSliceProp extracts a []string from JSON []string or []any.
+func stringSliceProp(props map[string]any, key string) []string {
+	if ss, ok := props[key].([]string); ok {
+		return ss
+	}
+	raw, ok := props[key].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, v := range raw {
+		if s, ok := v.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // extractSessionError extracts a human-readable error message from a session.error

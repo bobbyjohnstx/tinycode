@@ -343,8 +343,10 @@ func handleJSONPermissionEvents(permSub *bus.Subscription, permSvc *permission.S
 		payload := map[string]any{
 			"type":       "permission",
 			"id":         req.ID,
+			"sessionID":  req.SessionID,
 			"permission": req.Permission,
 			"patterns":   req.Patterns,
+			"always":     req.Always,
 		}
 		if len(req.Metadata) > 0 {
 			payload["metadata"] = req.Metadata

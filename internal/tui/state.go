@@ -127,6 +127,8 @@ type PermissionRequest struct {
 	ID         string         `json:"id"`
 	SessionID  string         `json:"sessionID"`
 	Permission string         `json:"permission"`
+	Patterns   []string       `json:"patterns,omitempty"`
+	Always     []string       `json:"always,omitempty"`
 	Metadata   map[string]any `json:"metadata"`
 }
 

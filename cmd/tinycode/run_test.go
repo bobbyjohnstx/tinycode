@@ -524,6 +524,12 @@ func TestJSONPermissionProtocol_EndToEnd(t *testing.T) {
 			if evt["permission"] != "shell" {
 				t.Errorf("permission field = %v, want 'shell'", evt["permission"])
 			}
+			if evt["sessionID"] != "ses_1" {
+				t.Errorf("sessionID = %v, want ses_1", evt["sessionID"])
+			}
+			if _, ok := evt["always"]; !ok {
+				t.Error("expected always field on permission NDJSON request")
+			}
 		}
 	}
 	if !found {

@@ -291,12 +291,19 @@ func (p PermissionPrompt) View() string {
 
 	sb.WriteString("\n")
 
+	alwaysLabel := "Allow always"
+	if len(p.request.Always) > 0 {
+		alwaysLabel = "Allow always (" + strings.Join(p.request.Always, ", ") + ")"
+	} else if len(p.request.Patterns) > 0 {
+		alwaysLabel = "Allow always (" + strings.Join(p.request.Patterns, ", ") + ")"
+	}
+
 	actions := []struct {
 		label  string
 		action PermissionAction
 	}{
 		{"Allow once", PermissionAllow},
-		{"Allow always", PermissionAlways},
+		{alwaysLabel, PermissionAlways},
 		{"Reject", PermissionReject},
 	}
 
@@ -316,6 +323,11 @@ func (p PermissionPrompt) View() string {
 		}
 	}
 	sb.WriteString(strings.Join(buttons, "  "))
+	sb.WriteString("\n")
+	if shellPermission(p.request.Permission) {
+		sb.WriteString(dimStyle.Render("  Always also releases other waiting shell asks this turn (command text not stored)."))
+		sb.WriteString("\n")
+	}
 	sb.WriteString("    " + dimStyle.Render("⇆ select  enter confirm  esc reject"))
 
 	content := sb.String()

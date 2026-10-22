@@ -568,4 +568,22 @@ func TestPermissionPrompt_View_ContainsPermissionRequired(t *testing.T) {
 	if !strings.Contains(view, "esc reject") {
 		t.Error("expected 'esc reject' hint in view")
 	}
+	if !strings.Contains(view, "releases other waiting shell") {
+		t.Error("expected shell sibling-release disclosure")
+	}
+}
+
+func TestPermissionPrompt_AlwaysShowsPatterns(t *testing.T) {
+	p := NewPermissionPrompt()
+	p.Show(PermissionRequest{
+		ID:         "perm-1",
+		Permission: "edit",
+		Always:     []string{"/tmp/foo"},
+		Patterns:   []string{"/tmp/foo"},
+	})
+	p.SetSize(100, 30)
+	view := p.View()
+	if !strings.Contains(view, "/tmp/foo") {
+		t.Errorf("expected always patterns in Allow always label, got %q", view)
+	}
 }

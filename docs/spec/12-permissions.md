@@ -250,7 +250,8 @@ Tool execution passes path or command strings as Patterns (via `askPatterns` in 
 3. Send `nil` to reply channel (allow this request)
 4. Add rules to `approved` list: one `Rule{Permission, Pattern, ActionAllow}` for each pattern in `Request.Always`
 5. Persist via `RuleStore.SaveRules()` if store is configured
-6. **Auto-resolve:** scan remaining pending asks for the same session; if all patterns now evaluate to allow (against the updated `approved` list), resolve them automatically with `ReplyAlways`
+6. **Auto-resolve:** scan remaining pending asks for the same session family; if all patterns now evaluate to allow (against the updated `approved` list), resolve them automatically with `ReplyAlways`
+7. **Shell sibling release:** when the approved ask is `shell`/`bash`, other waiting shell asks in the same session family are also released even if their command patterns are not yet covered by the new rules. Command text for those siblings is not stored — a later different shell command still asks.
 
 ## 12.8 Persistence
 
