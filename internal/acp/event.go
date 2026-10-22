@@ -16,6 +16,11 @@ import (
 const permissionTimeout = permission.AskTimeout
 const questionTimeout = permission.AskTimeout
 
+type outboundRPC struct {
+	id     uint64
+	cancel context.CancelFunc
+}
+
 type EventRelay struct {
 	bus       *bus.Bus
 	transport *StdioTransport
@@ -24,6 +29,10 @@ type EventRelay struct {
 	mu            sync.Mutex
 	partTypes     map[string]string // partID → "text" | "reasoning"
 	streamedParts map[string]bool   // partIDs that already streamed deltas
+
+	outboundMu  sync.Mutex
+	outboundSeq uint64
+	outbound    map[string][]outboundRPC // sessionID → in-flight permission/elicitation cancels
 }
 
 func NewEventRelay(b *bus.Bus, transport *StdioTransport) *EventRelay {
@@ -32,6 +41,49 @@ func NewEventRelay(b *bus.Bus, transport *StdioTransport) *EventRelay {
 		transport:     transport,
 		partTypes:     make(map[string]string),
 		streamedParts: make(map[string]bool),
+		outbound:      make(map[string][]outboundRPC),
+	}
+}
+
+// CancelOutbound cancels in-flight session/request_permission and elicitation/create RPCs.
+func (r *EventRelay) CancelOutbound(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	r.outboundMu.Lock()
+	pending := r.outbound[sessionID]
+	delete(r.outbound, sessionID)
+	r.outboundMu.Unlock()
+	for _, rpc := range pending {
+		rpc.cancel()
+	}
+}
+
+// trackOutbound registers a cancel tied to sessionID. Call stop when the RPC finishes.
+func (r *EventRelay) trackOutbound(sessionID string) (ctx context.Context, stop func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	r.outboundMu.Lock()
+	r.outboundSeq++
+	id := r.outboundSeq
+	r.outbound[sessionID] = append(r.outbound[sessionID], outboundRPC{id: id, cancel: cancel})
+	r.outboundMu.Unlock()
+	return ctx, func() {
+		cancel()
+		r.outboundMu.Lock()
+		defer r.outboundMu.Unlock()
+		list := r.outbound[sessionID]
+		out := list[:0]
+		for _, rpc := range list {
+			if rpc.id == id {
+				continue
+			}
+			out = append(out, rpc)
+		}
+		if len(out) == 0 {
+			delete(r.outbound, sessionID)
+		} else {
+			r.outbound[sessionID] = out
+		}
 	}
 }
 
@@ -121,7 +173,9 @@ func (r *EventRelay) relayEvent(evt bus.Event) {
 			}
 		}
 		safego.Go(func() {
-			r.handlePermissionAsked(context.Background(), req)
+			base, stop := r.trackOutbound(req.SessionID)
+			defer stop()
+			r.handlePermissionAsked(base, req)
 		})
 		return
 	case "question.asked":
@@ -130,7 +184,10 @@ func (r *EventRelay) relayEvent(evt bus.Event) {
 			return
 		}
 		safego.Go(func() {
-			r.handleQuestionAsked(context.Background(), props)
+			sid, _ := props["sessionID"].(string)
+			base, stop := r.trackOutbound(sid)
+			defer stop()
+			r.handleQuestionAsked(base, props)
 		})
 		return
 	}
@@ -146,6 +203,8 @@ func (r *EventRelay) relayEvent(evt bus.Event) {
 	}
 
 	switch evt.Type {
+	case "session.abort":
+		r.CancelOutbound(sessionID)
 	case "message.part.updated":
 		r.relayMessagePart(sessionID, props)
 	case "message.part.delta":

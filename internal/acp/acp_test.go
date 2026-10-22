@@ -1820,6 +1820,65 @@ func TestEventRelay_SetPermissionService(t *testing.T) {
 	// handlePermissionAsked handles that error path).
 }
 
+func TestEventRelay_SessionAbort_CancelsOutboundPermission(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	svc := NewService(newMockSessionService(), b)
+	output := newNotifyBuffer()
+	transport := NewStdioTransport(svc, output)
+	relay := NewEventRelay(b, transport)
+	permSvc := permission.NewService(b)
+	relay.SetPermissionService(permSvc)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	startRelay(t, relay, ctx)
+
+	var askErr error
+	askDone := make(chan struct{})
+	safego.Go(func() {
+		defer close(askDone)
+		askErr = permSvc.Ask(context.Background(), permission.AskInput{
+			ID:         "perm_abort",
+			SessionID:  "ses_abort",
+			Permission: "bash",
+			Patterns:   []string{"ls"},
+			Ruleset:    permission.Ruleset{},
+		})
+	})
+	deadline := time.After(2 * time.Second)
+	for len(permSvc.List()) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for pending ask")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+
+	// Ask already published permission.asked; wait for outbound RPC write.
+	select {
+	case <-output.ch:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for request_permission write")
+	}
+
+	start := time.Now()
+	b.Publish("session.abort", map[string]any{"sessionID": "ses_abort", "source": "test"})
+
+	select {
+	case <-askDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Ask did not unblock after session.abort")
+	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("cancel took %v; expected immediate (not AskTimeout)", elapsed)
+	}
+	if !errors.Is(askErr, permission.ErrRejected) {
+		t.Fatalf("askErr = %v, want ErrRejected", askErr)
+	}
+}
+
 func TestEventRelay_PermissionAsked_EmitsToolCallID(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

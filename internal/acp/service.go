@@ -753,12 +753,13 @@ func (s *Service) handleCancel(_ context.Context, params json.RawMessage) (any, 
 	s.markCancelled(req.SessionID)
 	if s.runner != nil {
 		s.runner.Abort(req.SessionID)
-	} else {
-		s.bus.Publish("session.abort", map[string]any{
-			"sessionID": req.SessionID,
-			"source":    "acp",
-		})
 	}
+	// Always publish so EventRelay can cancel in-flight permission/elicitation RPCs
+	// (Abort alone leaves SendRequest waiting until AskTimeout → orphaned IDE modals).
+	s.bus.Publish("session.abort", map[string]any{
+		"sessionID": req.SessionID,
+		"source":    "acp",
+	})
 	return nil, nil
 }
 
