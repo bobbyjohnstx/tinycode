@@ -38,6 +38,7 @@ func keybindingPaletteItems(keys KeyMap) []PaletteItem {
 		entry(keys.Editor),
 		entry(keys.DiffView),
 		entry(keys.ThemePicker),
+		entry(keys.MCPList),
 
 		separator("Global"),
 		entry(keys.CommandPalette),
@@ -46,6 +47,7 @@ func keybindingPaletteItems(keys KeyMap) []PaletteItem {
 		entry(keys.ClearOrQuit),
 		entry(keys.Quit),
 		entry(keys.Interrupt),
+		entry(keys.AltNewline),
 		entry(keys.ScrollUp),
 		entry(keys.ScrollDown),
 	}

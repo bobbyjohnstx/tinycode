@@ -22,8 +22,6 @@ type KeyMap struct {
 	// Navigation
 	CycleAgentNext key.Binding
 	CycleAgentPrev key.Binding
-	CycleModelNext key.Binding
-	CycleModelPrev key.Binding
 	ScrollUp       key.Binding
 	ScrollDown     key.Binding
 
@@ -100,14 +98,6 @@ func DefaultKeyMap() KeyMap {
 		CycleAgentPrev: key.NewBinding(
 			key.WithKeys("shift+tab"),
 			key.WithHelp("shift+tab", "prev agent"),
-		),
-		CycleModelNext: key.NewBinding(
-			key.WithKeys("f2"),
-			key.WithHelp("f2", "next model"),
-		),
-		CycleModelPrev: key.NewBinding(
-			key.WithKeys("shift+f2"),
-			key.WithHelp("shift+f2", "prev model"),
 		),
 		ScrollUp: key.NewBinding(
 			key.WithKeys("pgup"),

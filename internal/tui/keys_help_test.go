@@ -45,6 +45,7 @@ func TestKeybindingPaletteItems_ContainsExpectedBindings(t *testing.T) {
 		"ctrl+x o":    false,
 		"ctrl+x n":    false,
 		"ctrl+x x":    false,
+		"ctrl+x i":    false,
 		"ctrl+p":      false,
 		"ctrl+k":      false,
 		"ctrl+f":      false,
@@ -65,6 +66,43 @@ func TestKeybindingPaletteItems_ContainsExpectedBindings(t *testing.T) {
 		if !found {
 			t.Errorf("expected keybinding %q not found in palette items", label)
 		}
+	}
+}
+
+func TestKeybindingPaletteItems_IncludesMCPListAndNoF2(t *testing.T) {
+	keys := DefaultKeyMap()
+	items := keybindingPaletteItems(keys)
+
+	foundMCP := false
+	for _, item := range items {
+		if item.Label == "ctrl+x i" {
+			foundMCP = true
+		}
+		if item.Label == "f2" || item.Label == "shift+f2" {
+			t.Errorf("dead CycleModel binding %q must not appear in help", item.Label)
+		}
+	}
+	if !foundMCP {
+		t.Error("expected MCPList (ctrl+x i) in keybinding help")
+	}
+}
+
+func TestKeyMapHelp_NoUnboundCycleModel(t *testing.T) {
+	keys := DefaultKeyMap()
+	// Drift guard: palette help must only surface live KeyMap bindings.
+	for _, item := range keybindingPaletteItems(keys) {
+		if item.Label == "f2" || strings.Contains(item.Description, "next model") {
+			t.Fatalf("unexpected cycle-model help entry: %+v", item)
+		}
+	}
+	if strings.Contains(helpCommandsText, "F2") || strings.Contains(helpCommandsText, "f2") {
+		t.Error("/help must not document unbound f2 CycleModel")
+	}
+	if !strings.Contains(helpCommandsText, "PgUp") {
+		t.Error("/help should document PgUp/PgDn")
+	}
+	if !strings.Contains(helpCommandsText, "Alt+Enter") {
+		t.Error("/help should document Alt+Enter")
 	}
 }
 
