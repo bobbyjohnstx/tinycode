@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -183,9 +182,11 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 
 	activeToolCalls := make(map[string]*Part)
 
+	aborted := false
 	for event := range ch {
 		if p.isAborted() {
-			return nil, nil, fmt.Errorf("aborted")
+			aborted = true
+			break
 		}
 
 		switch event.Type {
@@ -251,8 +252,21 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 		}
 	}
 
+	// Flush incomplete tool calls (stream ended / budget / cancel without End).
+	for id, tc := range activeToolCalls {
+		toolCallParts = append(toolCallParts, *tc)
+		p.bus.Publish("session.tool.end", map[string]any{
+			"sessionID":  p.config.SessionID,
+			"toolCallID": id,
+			"toolName":   tc.ToolName,
+			"toolArgs":   tc.ToolArgs,
+			"incomplete": true,
+		})
+		delete(activeToolCalls, id)
+	}
+
 	budget := errors.Is(streamErr, llm.ErrStreamBudget)
-	if streamErr != nil && !budget {
+	if streamErr != nil && !budget && !aborted {
 		return nil, nil, streamErr
 	}
 
@@ -274,6 +288,9 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 		CreatedAt: time.Now(),
 	}
 
+	if aborted {
+		return msg, usage, fmt.Errorf("aborted")
+	}
 	if budget {
 		return msg, usage, llm.ErrStreamBudget
 	}
@@ -318,16 +335,10 @@ func messageHasVisibleAnswer(msg *Message) bool {
 	if msg == nil {
 		return false
 	}
+	// Text only — tool-call-only / mid-reasoning must not suppress budget follow-up.
 	for _, part := range msg.Parts {
-		switch part.Type {
-		case PartText:
-			if strings.TrimSpace(part.Text) != "" {
-				return true
-			}
-		case PartToolCall:
-			if part.ToolName != "" && part.ToolName != "invalid" && json.Valid([]byte(part.ToolArgs)) {
-				return true
-			}
+		if part.Type == PartText && strings.TrimSpace(part.Text) != "" {
+			return true
 		}
 	}
 	return false
