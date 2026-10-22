@@ -125,3 +125,17 @@ finished:
 		t.Fatalf("result = %+v, want IsError Question cancelled", result)
 	}
 }
+
+func TestExecuteQuestion_NilBusFailClosed(t *testing.T) {
+	tc := &Context{SessionID: "ses-q-nil", Bus: nil}
+	result, err := executeQuestion(context.Background(), tc, json.RawMessage(`{"question":"Continue?"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Fatalf("result = %+v, want IsError when Bus is nil", result)
+	}
+	if result.Output == "" || result.Output[0] == '[' {
+		t.Fatalf("output = %q, want fail-closed message (not fake success)", result.Output)
+	}
+}

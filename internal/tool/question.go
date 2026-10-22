@@ -45,7 +45,10 @@ func executeQuestion(ctx context.Context, tc *Context, rawArgs json.RawMessage) 
 	}
 
 	if tc.Bus == nil {
-		return &ExecuteResult{Output: fmt.Sprintf("[question: %s]", args.Question)}, nil
+		return &ExecuteResult{
+			Output:  "question tool unavailable: event bus not configured",
+			IsError: true,
+		}, nil
 	}
 
 	questionID, err := id.Ascending("question")
