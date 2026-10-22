@@ -752,3 +752,52 @@ func TestServiceRestart_RestartsKnownServer(t *testing.T) {
 		t.Errorf("expected StatusError after restart with bad command, got %q", status)
 	}
 }
+
+func TestServiceRestart_SurvivesCancelledContext(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+	defer s.Close()
+
+	oldCtx, oldCancel := context.WithCancel(context.Background())
+	defer oldCancel()
+
+	mt := &mockTransport{callResult: "ok"}
+	s.mu.Lock()
+	s.servers["detach-srv"] = &serverConn{
+		name:      "detach-srv",
+		config:    config.MCPConfig{Transport: "stdio", Command: "nonexistent-cmd-detach-xyz"},
+		transport: mt,
+		status:    StatusConnected,
+		tools:     []MCPTool{{Name: "tool-a"}},
+		cancel:    oldCancel,
+		ctx:       oldCtx,
+	}
+	s.mu.Unlock()
+
+	// Simulate HTTP handler returning: request context already cancelled.
+	reqCtx, reqCancel := context.WithCancel(context.Background())
+	reqCancel()
+
+	if err := s.Restart(reqCtx, "detach-srv"); err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+
+	s.WaitForConnections(context.Background(), 3*time.Second)
+
+	s.mu.RLock()
+	conn := s.servers["detach-srv"]
+	status := conn.status
+	errMsg := conn.err
+	s.mu.RUnlock()
+
+	if status != StatusError {
+		t.Fatalf("expected StatusError after restart with bad command, got %q (err=%q)", status, errMsg)
+	}
+	if errMsg == "" {
+		t.Fatal("expected connect error message")
+	}
+	if errMsg == context.Canceled.Error() || errMsg == "context canceled" {
+		t.Fatalf("connect died with request cancel: %q (Restart must use WithoutCancel)", errMsg)
+	}
+}

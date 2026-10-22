@@ -1,6 +1,9 @@
 package server
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+)
 
 func (s *Server) handleMCPStatus(w http.ResponseWriter, r *http.Request) {
 	if s.deps.MCPService != nil {
@@ -16,7 +19,9 @@ func (s *Server) handleMCPReconnect(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotFound, "MCP service not available")
 		return
 	}
-	if err := s.deps.MCPService.Restart(r.Context(), name); err != nil {
+	// Detach from request cancel so Restart's async connect outlives this handler
+	// (same pattern as StartPrompt).
+	if err := s.deps.MCPService.Restart(context.WithoutCancel(r.Context()), name); err != nil {
 		respondError(w, http.StatusNotFound, err.Error())
 		return
 	}

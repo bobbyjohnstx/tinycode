@@ -483,6 +483,9 @@ func (s *Service) Restart(ctx context.Context, name string) error {
 	conn.tools = nil
 	s.mu.Unlock()
 
+	// Detach from caller cancel (e.g. HTTP request) so async connect
+	// survives after POST /mcp/{name}/reconnect returns.
+	ctx = context.WithoutCancel(ctx)
 	safego.Go(func() { s.connectServer(ctx, name) })
 	return nil
 }
