@@ -13,7 +13,7 @@ import { useProviders } from "@/hooks/use-providers"
 import { getSessionContextMetrics } from "@/components/session/session-context-metrics"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
-import { isMcpFailure } from "@/utils/mcp-status"
+import { mcpIssueLevel } from "@/utils/mcp-status"
 
 interface SessionContextUsageProps {
   variant?: "button" | "indicator"
@@ -117,8 +117,8 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
     const entries = Object.entries(servers)
     if (entries.length === 0) return undefined
     const connected = entries.filter(([, s]) => s.status === "connected").length
-    const hasErrors = entries.some(([, s]) => isMcpFailure(s.status))
-    return { total: entries.length, connected, hasErrors }
+    const issue = mcpIssueLevel(Object.values(servers))
+    return { total: entries.length, connected, issue }
   })
 
   const openContext = () => {
@@ -203,8 +203,9 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
                       <span
                         class="inline-block size-1.5 rounded-full"
                         classList={{
-                          "bg-icon-success-base": !mcp().hasErrors,
-                          "bg-icon-critical-base": mcp().hasErrors,
+                          "bg-icon-success-base": !mcp().issue,
+                          "bg-icon-warning-base": mcp().issue === "warning",
+                          "bg-icon-critical-base": mcp().issue === "critical",
                         }}
                       />
                       <span>{mcp().connected}</span>
