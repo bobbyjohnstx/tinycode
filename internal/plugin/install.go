@@ -46,7 +46,7 @@ func PluginReleaseTag(embedded, envOverride string) (string, error) {
 		return tag, nil
 	}
 	if ov == "" {
-		return "", fmt.Errorf("cannot determine plugin release tag from version %q; set TINYCODE_PLUGIN_RELEASE=vX.Y.Z", emb)
+		return "", fmt.Errorf("cannot determine plugin release tag from version %q; set TINYCODE_PLUGIN_RELEASE=vX.Y.Z (a published release tag), or install with --from <binary> / build from a tagged checkout", emb)
 	}
 	if tag, ok := normalizeReleaseTag(ov); ok {
 		return tag, nil

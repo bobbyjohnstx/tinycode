@@ -31,6 +31,9 @@ func runDoctor() {
 
 	// Version info
 	fmt.Printf("%s Version: %s\n", checkPass, version)
+	if _, err := plugin.PluginReleaseTag(version, os.Getenv("TINYCODE_PLUGIN_RELEASE")); err != nil {
+		fmt.Printf("%s Plugin release tag: non-release build — set TINYCODE_PLUGIN_RELEASE=vX.Y.Z for plugin install, or use --from\n", checkWarn)
+	}
 	fmt.Printf("%s Go: %s\n", checkPass, runtime.Version())
 	fmt.Printf("%s OS/Arch: %s/%s\n", checkPass, runtime.GOOS, runtime.GOARCH)
 
