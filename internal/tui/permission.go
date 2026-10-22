@@ -46,12 +46,14 @@ type PermissionDismissedMsg struct {
 // PermissionPrompt shows a tool permission request with Allow/Always/Reject.
 // Requests that arrive while one is visible are queued and shown after it.
 type PermissionPrompt struct {
-	request  PermissionRequest
-	queue    []PermissionRequest
-	selected PermissionAction
-	visible  bool
-	width    int
-	height   int
+	request       PermissionRequest
+	queue         []PermissionRequest
+	selected      PermissionAction
+	visible       bool
+	width         int
+	height        int
+	cancelledIDs  map[string]struct{} // remote cancel; late reply toast-once
+	cancelToasted map[string]struct{}
 }
 
 // NewPermissionPrompt creates a PermissionPrompt.
@@ -123,6 +125,85 @@ func (p *PermissionPrompt) queued(id string) bool {
 
 func shellPermission(perm string) bool {
 	return perm == "shell" || perm == "bash"
+}
+
+// VisibleID returns the ID of the currently shown request, or empty if hidden.
+func (p PermissionPrompt) VisibleID() string {
+	if !p.visible {
+		return ""
+	}
+	return p.request.ID
+}
+
+// removeQueued drops a queued permission by ID (SSE resolve for a non-visible item).
+func (p *PermissionPrompt) removeQueued(id string) {
+	if len(p.queue) == 0 {
+		return
+	}
+	kept := p.queue[:0]
+	for _, req := range p.queue {
+		if req.ID == id {
+			continue
+		}
+		kept = append(kept, req)
+	}
+	p.queue = kept
+}
+
+// ClearSession dismisses the visible prompt and drops queued asks for sessionID.
+// Empty sessionID clears all permission UI state for the overlay.
+func (p *PermissionPrompt) ClearSession(sessionID string) {
+	if p.visible && (sessionID == "" || p.request.SessionID == sessionID) {
+		if p.request.ID != "" {
+			p.markCancelled(p.request.ID)
+		}
+		p.visible = false
+	}
+	if sessionID == "" {
+		for _, req := range p.queue {
+			p.markCancelled(req.ID)
+		}
+		p.queue = nil
+		return
+	}
+	kept := p.queue[:0]
+	for _, req := range p.queue {
+		if req.SessionID == sessionID {
+			p.markCancelled(req.ID)
+			continue
+		}
+		kept = append(kept, req)
+	}
+	p.queue = kept
+}
+
+func (p *PermissionPrompt) markCancelled(id string) {
+	if id == "" {
+		return
+	}
+	if p.cancelledIDs == nil {
+		p.cancelledIDs = make(map[string]struct{})
+	}
+	p.cancelledIDs[id] = struct{}{}
+}
+
+// lateReplyToast reports whether a failed HTTP reply for id should toast.
+// Remotely cancelled IDs toast at most once, then clear.
+func (p *PermissionPrompt) lateReplyToast(id string) bool {
+	if id == "" || p.cancelledIDs == nil {
+		return true
+	}
+	if _, ok := p.cancelledIDs[id]; !ok {
+		return true
+	}
+	if p.cancelToasted == nil {
+		p.cancelToasted = make(map[string]struct{})
+	}
+	if _, done := p.cancelToasted[id]; done {
+		return false
+	}
+	p.cancelToasted[id] = struct{}{}
+	return true
 }
 
 // Hide closes the permission prompt without discarding queued requests.

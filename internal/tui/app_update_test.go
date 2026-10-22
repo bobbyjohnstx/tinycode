@@ -1026,6 +1026,94 @@ func TestHandleDialogMsg_PermissionDismissedMsg_HidesPromptAndReturnsReply(t *te
 	}
 }
 
+func TestHandleDialogMsg_PermissionRejectedMsg_AdvancesQueue(t *testing.T) {
+	app := NewApp("")
+	app.permPrompt.Show(PermissionRequest{ID: "perm_1", SessionID: "ses_p", Permission: "bash"})
+	app.permPrompt.Show(PermissionRequest{ID: "perm_2", SessionID: "ses_p", Permission: "edit"})
+
+	result, cmd, handled := app.handleDialogMsg(PermissionRejectedMsg{ID: "perm_1", SessionID: "ses_p", Reply: "reject"})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if cmd != nil {
+		t.Fatal("server-side reject must not POST another reply")
+	}
+	if !result.permPrompt.IsVisible() {
+		t.Fatal("expected queued permission shown")
+	}
+	if result.permPrompt.VisibleID() != "perm_2" {
+		t.Fatalf("visible = %q, want perm_2", result.permPrompt.VisibleID())
+	}
+}
+
+func TestHandleDialogMsg_PermissionRejectedMsg_RemovesQueued(t *testing.T) {
+	app := NewApp("")
+	app.permPrompt.Show(PermissionRequest{ID: "perm_1", SessionID: "ses_p", Permission: "bash"})
+	app.permPrompt.Show(PermissionRequest{ID: "perm_2", SessionID: "ses_p", Permission: "edit"})
+
+	result, _, handled := app.handleDialogMsg(PermissionRejectedMsg{ID: "perm_2", SessionID: "ses_p", Reply: "reject"})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if result.permPrompt.VisibleID() != "perm_1" {
+		t.Fatalf("visible = %q, want perm_1", result.permPrompt.VisibleID())
+	}
+	if result.permPrompt.ShowNext() {
+		t.Fatal("perm_2 should have been removed from queue")
+	}
+}
+
+func TestHandleStateMsg_SessionIdle_DismissesPermissionOverlay(t *testing.T) {
+	app := NewApp("")
+	app.state.ActiveSession = "ses_p"
+	app.state.SessionStatus["ses_p"] = SessionStatus{Working: true}
+	app.status.SetWorking(true)
+	app.permPrompt.Show(PermissionRequest{ID: "perm_1", SessionID: "ses_p", Permission: "bash"})
+	app.permPrompt.Show(PermissionRequest{ID: "perm_2", SessionID: "ses_p", Permission: "edit"})
+
+	result, _, handled := app.handleStateMsg(SessionStatusMsg{
+		SessionID: "ses_p",
+		Status:    SessionStatus{Working: false},
+	})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if result.permPrompt.IsVisible() {
+		t.Fatal("expected permission overlay dismissed on idle")
+	}
+	if result.permPrompt.ShowNext() {
+		t.Fatal("expected session permission queue cleared on idle")
+	}
+}
+
+func TestHandleNotificationMsg_SessionError_DismissesPermissionOverlay(t *testing.T) {
+	app := NewApp("")
+	app.state.ActiveSession = "ses_p"
+	app.permPrompt.Show(PermissionRequest{ID: "perm_1", SessionID: "ses_p", Permission: "bash"})
+
+	result, _, handled := app.handleNotificationMsg(SessionErrorMsg{SessionID: "ses_p", Error: "boom"})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if result.permPrompt.IsVisible() {
+		t.Fatal("expected permission overlay dismissed on session.error")
+	}
+}
+
+func TestPermissionPrompt_LateReplyToastOnce(t *testing.T) {
+	p := NewPermissionPrompt()
+	p.markCancelled("perm_x")
+	if !p.lateReplyToast("perm_x") {
+		t.Fatal("first late reply after cancel should toast")
+	}
+	if p.lateReplyToast("perm_x") {
+		t.Fatal("second late reply after cancel must not toast again")
+	}
+	if !p.lateReplyToast("perm_other") {
+		t.Fatal("non-cancelled IDs should still toast")
+	}
+}
+
 func TestHandleDialogMsg_QuestionAsked_ShowsPrompt(t *testing.T) {
 	app := NewApp("")
 	app.width = 100

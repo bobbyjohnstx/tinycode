@@ -113,6 +113,13 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 			},
 		}
 
+	case "permission.replied":
+		return PermissionRejectedMsg{
+			ID:        stringProp(props, "requestID"),
+			SessionID: sessionID,
+			Reply:     stringProp(props, "reply"),
+		}
+
 	case "question.asked":
 		question, options := parseAskedQuestion(props)
 		return QuestionAskedMsg{
@@ -632,7 +639,7 @@ func unrevertSession(client *api.Client, sessionID string) tea.Cmd {
 func replyPermission(client *api.Client, sessionID, permissionID, action string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.ReplyPermission(sessionID, permissionID, action)
-		return PermissionRepliedMsg{Err: err}
+		return PermissionRepliedMsg{PermissionID: permissionID, Err: err}
 	}
 }
 

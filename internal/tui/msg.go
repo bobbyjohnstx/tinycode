@@ -102,7 +102,8 @@ type AbortSentMsg struct {
 type AbortRequestMsg struct{}
 
 type PermissionRepliedMsg struct {
-	Err error
+	PermissionID string
+	Err          error
 }
 
 // PermissionReplyMsg is a request to send a permission reply to the server.
@@ -110,6 +111,14 @@ type PermissionReplyMsg struct {
 	SessionID    string
 	PermissionID string
 	Action       string
+}
+
+// PermissionRejectedMsg is an SSE notification that a permission ask was
+// resolved/cancelled server-side (abort, timeout, or another client replied).
+type PermissionRejectedMsg struct {
+	ID        string
+	SessionID string
+	Reply     string
 }
 
 type QuestionRepliedMsg struct {

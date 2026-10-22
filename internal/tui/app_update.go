@@ -268,6 +268,15 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 				if hadPrev && prev.Working {
 					fmt.Print("\a")
 				}
+				// Abort/idle while permission overlay is up — dismiss (do not clear prompt queue).
+				if a.permPrompt.IsVisible() {
+					a.permPrompt.ClearSession(msg.SessionID)
+					if a.permPrompt.ShowNext() {
+						// other-session ask still queued
+					} else {
+						a.setFocus(FocusPrompt)
+					}
+				}
 			} else if !wasWorking && msg.Status.Working {
 				cmds = append(cmds, a.reflowChrome())
 			}
@@ -326,6 +335,12 @@ func (a App) handleNotificationMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 			if a.status.working {
 				a.status.SetWorking(false)
 				cmds = append(cmds, a.reflowChromeClear())
+			}
+			if a.permPrompt.IsVisible() {
+				a.permPrompt.ClearSession(msg.SessionID)
+				if !a.permPrompt.ShowNext() {
+					a.setFocus(FocusPrompt)
+				}
 			}
 		}
 		a.state.SessionStatus[msg.SessionID] = SessionStatus{Working: false}
@@ -496,6 +511,20 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		}
 		a.setFocus(FocusPrompt)
 		return a, reply, true
+	case PermissionRejectedMsg:
+		// Server-side resolve (abort/timeout/other client) — do not POST another reply.
+		if a.permPrompt.VisibleID() == msg.ID {
+			a.permPrompt.markCancelled(msg.ID)
+			a.permPrompt.Hide()
+			if a.permPrompt.ShowNext() {
+				return a, nil, true
+			}
+			a.setFocus(FocusPrompt)
+			return a, nil, true
+		}
+		a.permPrompt.markCancelled(msg.ID)
+		a.permPrompt.removeQueued(msg.ID)
+		return a, nil, true
 	case QuestionDismissedMsg:
 		a.questionPrompt.Hide()
 		slog.Info("question answered", "id", msg.ID, "sessionID", msg.SessionID, "rejected", msg.Rejected)

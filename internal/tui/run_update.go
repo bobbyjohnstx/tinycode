@@ -72,7 +72,9 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 	case PermissionRepliedMsg:
 		if msg.Err != nil {
 			slog.Error("permission reply failed", "error", msg.Err)
-			cmds = append(cmds, c.showErrorToast("Permission reply failed: %v", msg.Err)...)
+			if c.app.permPrompt.lateReplyToast(msg.PermissionID) {
+				cmds = append(cmds, c.showErrorToast("Permission reply failed: %v", msg.Err)...)
+			}
 		}
 		return c, tea.Batch(cmds...), true
 

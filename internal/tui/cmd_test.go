@@ -761,6 +761,28 @@ func TestMapSSEToMsg_PermissionAsked(t *testing.T) {
 	}
 }
 
+func TestMapSSEToMsg_PermissionReplied(t *testing.T) {
+	evt := api.ServerEvent{
+		Type: "permission.replied",
+		Properties: map[string]any{
+			"sessionID": "ses_1",
+			"requestID": "perm-1",
+			"reply":     "reject",
+		},
+	}
+	msg := mapSSEToMsg(evt)
+	rej, ok := msg.(PermissionRejectedMsg)
+	if !ok {
+		t.Fatalf("expected PermissionRejectedMsg, got %T", msg)
+	}
+	if rej.ID != "perm-1" {
+		t.Errorf("ID = %q, want perm-1", rej.ID)
+	}
+	if rej.Reply != "reject" {
+		t.Errorf("Reply = %q, want reject", rej.Reply)
+	}
+}
+
 func TestMapSSEToMsg_QuestionAsked(t *testing.T) {
 	evt := api.ServerEvent{
 		Type: "question.asked",
