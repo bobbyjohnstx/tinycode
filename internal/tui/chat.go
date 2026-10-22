@@ -192,13 +192,13 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 
 // PageUp scrolls the viewport up one page and unsticks from the bottom.
 func (c *ChatView) PageUp() {
-	c.viewport.ViewUp()
+	c.viewport.PageUp()
 	c.stickyBottom = false
 }
 
 // PageDown scrolls the viewport down one page; resticks if at bottom.
 func (c *ChatView) PageDown() {
-	c.viewport.ViewDown()
+	c.viewport.PageDown()
 	if c.viewport.AtBottom() {
 		c.stickyBottom = true
 	}

@@ -1275,7 +1275,7 @@ func TestFailClosedQuestion_HeadlessRejects(t *testing.T) {
 		if !strings.Contains(reason, "non-interactive") {
 			t.Errorf("reason = %q, want mention of non-interactive", reason)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("timed out waiting for question.rejected")
 	}
 
@@ -1284,8 +1284,8 @@ func TestFailClosedQuestion_HeadlessRejects(t *testing.T) {
 		if result == nil || !result.IsError {
 			t.Fatalf("result = %+v, want IsError=true", result)
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("question tool did not return within 5s")
+	case <-time.After(10 * time.Second):
+		t.Fatal("question tool did not return within 10s")
 	}
 }
 

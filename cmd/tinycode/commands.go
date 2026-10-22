@@ -66,7 +66,7 @@ func runProviders() {
 			runProvidersLogout(args[1:])
 			return
 		case "list", "ls":
-			args = args[1:]
+			// default — fall through to provider list below
 		case "help", "--help", "-h":
 			fmt.Println("Usage: tinycode providers [list|login|logout]")
 			fmt.Println()

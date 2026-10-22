@@ -75,9 +75,6 @@ func TestWritePreservesCreatedDate(t *testing.T) {
 	// Inject a distinctive created date so we can verify it survives rewrites.
 	path := filepath.Join(dir, wikiDir, "evolving-page.md")
 	data1, _ := os.ReadFile(path)
-	patched := strings.Replace(string(data1), "created: ", "created: 2020-01-01T00:00:00Z\noriginal_created: ", 1)
-	patched = strings.Replace(patched, "\noriginal_created: ", "\n# original: ", 1)
-	// Simpler: just rewrite created to a known value.
 	fm1, body1 := parseFrontmatter(string(data1))
 	fm1["created"] = "2020-01-01T00:00:00Z"
 	var sb strings.Builder

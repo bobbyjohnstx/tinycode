@@ -56,7 +56,6 @@ type LSPStatus struct {
 // Sidebar is a toggleable right panel showing the session tree and metadata.
 type Sidebar struct {
 	sessions   []SessionInfo
-	active     string
 	agent      string
 	model      string
 	cwd        string
