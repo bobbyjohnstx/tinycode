@@ -231,6 +231,93 @@ func TestExecuteTools_CancelledContext_AbandonsPending(t *testing.T) {
 	}
 }
 
+func TestExecuteTools_AbortDrainTimeout_IgnoresCancel(t *testing.T) {
+	prev := abortDrainTimeout
+	abortDrainTimeout = 50 * time.Millisecond
+	defer func() { abortDrainTimeout = prev }()
+
+	exec := &ignoringCancelToolExecutor{
+		started: make(chan struct{}, 1),
+		release: make(chan struct{}),
+	}
+	b := bus.New()
+	defer b.Close()
+
+	sub := b.Subscribe("session.tool.result")
+	defer sub.Unsubscribe()
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:       "ses-drain",
+		Model:           &provider.Model{ID: "test-model"},
+		Compaction:      DefaultCompactionConfig(),
+		AutoContinueMax: -1,
+	}, &mockLLMClient{}, exec, b)
+
+	toolCalls := []Part{
+		ToolCallPart("call-1", "hang", `{}`),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type outcome struct {
+		results   []Part
+		allFailed bool
+	}
+	done := make(chan outcome, 1)
+	start := time.Now()
+	go func() {
+		results, allFailed := p.executeTools(ctx, toolCalls)
+		done <- outcome{results, allFailed}
+	}()
+
+	select {
+	case <-exec.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("tool did not start")
+	}
+	cancel()
+
+	var out outcome
+	select {
+	case out = <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("executeTools did not return after abort drain timeout")
+	}
+	elapsed := time.Since(start)
+	results, allFailed := out.results, out.allFailed
+
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("executeTools took %v; want return within abortDrainTimeout", elapsed)
+	}
+	if len(results) != 1 || results[0].Type == "" {
+		t.Fatalf("expected aborted result, got %+v", results)
+	}
+	if results[0].ToolResult != "aborted" || !results[0].ToolError {
+		t.Errorf("result = %+v, want aborted error", results[0])
+	}
+	if !allFailed {
+		t.Error("expected allFailed=true")
+	}
+
+	// Late worker finishes after drain claimed the slot — must not double-publish.
+	close(exec.release)
+	deadline := time.After(200 * time.Millisecond)
+	count := 0
+collect:
+	for {
+		select {
+		case <-sub.C:
+			count++
+		case <-deadline:
+			break collect
+		}
+	}
+	if count != 1 {
+		t.Fatalf("session.tool.result publishes = %d, want 1 (no double-publish)", count)
+	}
+}
+
 func TestExecuteTools_CapsConcurrentCalls(t *testing.T) {
 	exec := &countingToolExecutor{
 		started: make(chan struct{}, 32),
@@ -860,6 +947,25 @@ func (b *blockingToolExecutor) Execute(ctx context.Context, name string, args js
 }
 
 func (b *blockingToolExecutor) ToolDefs(_ []string) []llm.Tool {
+	return nil
+}
+
+// ignoringCancelToolExecutor blocks past ctx cancel (simulates tools that ignore cancel).
+type ignoringCancelToolExecutor struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (i *ignoringCancelToolExecutor) Execute(_ context.Context, _ string, _ json.RawMessage, _ string) (string, bool, error) {
+	select {
+	case i.started <- struct{}{}:
+	default:
+	}
+	<-i.release
+	return "late", false, nil
+}
+
+func (i *ignoringCancelToolExecutor) ToolDefs(_ []string) []llm.Tool {
 	return nil
 }
 

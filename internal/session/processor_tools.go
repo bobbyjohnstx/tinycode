@@ -6,10 +6,15 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
+
+// abortDrainTimeout is the wall-clock wait after parent cancel for in-flight
+// tools that ignore ctx. Overridable in tests.
+var abortDrainTimeout = 5 * time.Second
 
 // ToolExecutor defines the interface for executing tool calls.
 type ToolExecutor interface {
@@ -90,6 +95,19 @@ func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part,
 	ch := make(chan toolResult, len(toolCalls))
 	sem := make(chan struct{}, maxConcurrentTools)
 
+	// record claims a slot once: first writer publishes; late writers no-op
+	// (prevents double-publish when abort drain times out before a slow tool).
+	var resultMu sync.Mutex
+	record := func(idx int, call Part, result Part, output string, isErr bool) {
+		resultMu.Lock()
+		defer resultMu.Unlock()
+		if results[idx].Type != "" {
+			return
+		}
+		results[idx] = result
+		p.publishToolResult(call, output, isErr)
+	}
+
 	var wg sync.WaitGroup
 launch:
 	for i, tc := range toolCalls {
@@ -108,12 +126,9 @@ launch:
 					// the panic without sending on ch and hang the collector.
 					safego.LogPanic(nil, "tool panicked", r, "tool", call.ToolName)
 					msg := fmt.Sprintf("tool panicked: %v", r)
-					p.publishToolResult(call, msg, true)
-					ch <- toolResult{
-						index:  idx,
-						result: ToolResultPart(call.ToolCallID, call.ToolName, msg, true),
-						failed: true,
-					}
+					part := ToolResultPart(call.ToolCallID, call.ToolName, msg, true)
+					record(idx, call, part, msg, true)
+					ch <- toolResult{index: idx, result: part, failed: true}
 				}
 			}()
 
@@ -123,12 +138,9 @@ launch:
 				select {
 				case <-g.wait:
 				case <-ctx.Done():
-					p.publishToolResult(call, "aborted", true)
-					ch <- toolResult{
-						index:  idx,
-						result: ToolResultPart(call.ToolCallID, call.ToolName, "aborted", true),
-						failed: true,
-					}
+					part := ToolResultPart(call.ToolCallID, call.ToolName, "aborted", true)
+					record(idx, call, part, "aborted", true)
+					ch <- toolResult{index: idx, result: part, failed: true}
 					close(g.done)
 					return
 				}
@@ -137,12 +149,9 @@ launch:
 
 			select {
 			case <-ctx.Done():
-				p.publishToolResult(call, "aborted", true)
-				ch <- toolResult{
-					index:  idx,
-					result: ToolResultPart(call.ToolCallID, call.ToolName, "aborted", true),
-					failed: true,
-				}
+				part := ToolResultPart(call.ToolCallID, call.ToolName, "aborted", true)
+				record(idx, call, part, "aborted", true)
+				ch <- toolResult{index: idx, result: part, failed: true}
 				return
 			case sem <- struct{}{}:
 			}
@@ -151,32 +160,23 @@ launch:
 			// Permission check: if tool args reference paths outside the
 			// configured directory, ask the permission service.
 			if denied := p.checkExternalDirectory(ctx, call); denied != "" {
-				p.publishToolResult(call, denied, true)
-				ch <- toolResult{
-					index:  idx,
-					result: ToolResultPart(call.ToolCallID, call.ToolName, denied, true),
-					failed: true,
-				}
+				part := ToolResultPart(call.ToolCallID, call.ToolName, denied, true)
+				record(idx, call, part, denied, true)
+				ch <- toolResult{index: idx, result: part, failed: true}
 				return
 			}
 
 			output, isErr, err := p.tools.Execute(ctx, call.ToolName, json.RawMessage(call.ToolArgs), p.config.SessionID)
 			if err != nil {
-				p.publishToolResult(call, err.Error(), true)
-				ch <- toolResult{
-					index:  idx,
-					result: ToolResultPart(call.ToolCallID, call.ToolName, err.Error(), true),
-					failed: true,
-				}
+				part := ToolResultPart(call.ToolCallID, call.ToolName, err.Error(), true)
+				record(idx, call, part, err.Error(), true)
+				ch <- toolResult{index: idx, result: part, failed: true}
 				return
 			}
 
-			p.publishToolResult(call, output, isErr)
-			ch <- toolResult{
-				index:  idx,
-				result: ToolResultPart(call.ToolCallID, call.ToolName, output, isErr),
-				failed: isErr,
-			}
+			part := ToolResultPart(call.ToolCallID, call.ToolName, output, isErr)
+			record(idx, call, part, output, isErr)
+			ch <- toolResult{index: idx, result: part, failed: isErr}
 		})
 	}
 
@@ -185,7 +185,6 @@ launch:
 		close(ch)
 	})
 
-	allFailed := true
 	collected := 0
 	for collected < len(toolCalls) {
 		select {
@@ -193,39 +192,58 @@ launch:
 			if !ok {
 				goto fillAborted
 			}
-			results[tr.index] = tr.result
-			if !tr.failed {
-				allFailed = false
+			// Worker already recorded via record(); mirror into local view.
+			resultMu.Lock()
+			if results[tr.index].Type == "" {
+				results[tr.index] = tr.result
 			}
+			resultMu.Unlock()
 			collected++
 		case <-ctx.Done():
-			// Abort: wait for in-flight workers (bounded by Registry body policy /
-			// parent cancel) so we do not leak goroutines or double-publish results.
-			for tr := range ch {
-				if results[tr.index].Type == "" {
-					results[tr.index] = tr.result
-					if !tr.failed {
-						allFailed = false
+			// Abort: wait briefly for in-flight workers, then fill remaining.
+			drain := time.NewTimer(abortDrainTimeout)
+			for {
+				select {
+				case tr, ok := <-ch:
+					if !ok {
+						drain.Stop()
+						goto fillAborted
 					}
+					resultMu.Lock()
+					if results[tr.index].Type == "" {
+						results[tr.index] = tr.result
+					}
+					resultMu.Unlock()
+					collected++
+					if collected >= len(toolCalls) {
+						drain.Stop()
+						goto fillAborted
+					}
+				case <-drain.C:
+					goto fillAborted
 				}
 			}
-			goto fillAborted
 		}
 	}
-	return results, allFailed
+	return results, allToolsFailed(results)
 
 fillAborted:
-	allFailed = true
 	for i := range results {
-		if results[i].Type == "" {
-			results[i] = ToolResultPart(toolCalls[i].ToolCallID, toolCalls[i].ToolName, "aborted", true)
-			p.publishToolResult(toolCalls[i], "aborted", true)
-		}
-		if !results[i].ToolError {
+		part := ToolResultPart(toolCalls[i].ToolCallID, toolCalls[i].ToolName, "aborted", true)
+		record(i, toolCalls[i], part, "aborted", true)
+	}
+	return results, allToolsFailed(results)
+}
+
+func allToolsFailed(results []Part) bool {
+	allFailed := true
+	for i := range results {
+		if results[i].Type != "" && !results[i].ToolError {
 			allFailed = false
+			break
 		}
 	}
-	return results, allFailed
+	return allFailed
 }
 
 // publishToolResult emits session.tool.result after a tool finishes executing
