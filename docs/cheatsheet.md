@@ -76,6 +76,7 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `/remember` | Triage findings to memory surfaces |
 | `/deepinit` | Generate per-directory `AGENTS.md` files |
 | `/clear-queue` | Clear queued prompts for the current turn |
+| `/privacy` | Show data storage paths, provider list, and privacy info |
 
 **CLI commands:**
 
@@ -145,14 +146,6 @@ Return
 Write guide for new developers on session architecture
 ```
 
-### Session navigation (vim-style hjkl)
-```
-<leader>h          # Go to previous sibling session
-<leader>j          # Go to first child session
-<leader>k          # Go to parent session
-<leader>l          # Go to next sibling session
-```
-
 ### Scripted / CI usage (run mode)
 ```bash
 # Single prompt, auto-approve tools
@@ -198,12 +191,11 @@ After listing models (`<leader>m`):
 
 - Press `?` in diff viewer for more navigation shortcuts
 - Sessions form a tree — child sessions inherit context from parent
-- Use `<leader>c` or `/compact` to compact a session (runs real summarization via `Processor.Compact`) before exporting
+- Use `/compact` to compact a session (runs real summarization via `Processor.Compact`) before exporting
 - Export to HTML with `tinycode export --format html <session-id>`
 - Type `@filename` to reference a file in your prompt
-- Use `<leader>;` to collapse code blocks and focus on analysis
 - Session tree shows hierarchy with `<leader>b`
 - **Prompt stash:** `Ctrl+S` parks your current draft (clearing the composer) so you can run a side command or wait on a permission prompt; press `Ctrl+S` again (with an empty composer) to restore it. The stash is in-memory only — session-local, not persisted to disk, and lost on restart — but it does survive the composer being cleared after a submit
 - **Prompt history browser:** `Ctrl+R` opens a scrollable list of past prompts (newest first) instead of relying on bare `↑`/`↓`; a status hint below the composer also shows the entry count once you have history
-- **Model warmup:** On startup, tinycode probes the Ollama model to verify tool-call support and pre-load it into GPU memory. Look for "qwen3.5:9b ready — tool calling supported" in the toast/footer
+- **Model warmup:** On startup, tinycode probes the Ollama model to verify tool-call support and pre-load it into GPU memory. Look for "ready — tool calling supported" in the toast/footer
 - **Tool-call warnings:** If you see "Multiple tool call failures detected," switch to a larger model via `<leader>m` — tinycode auto-repairs common JSON issues, but very small models may not support tool calling at all

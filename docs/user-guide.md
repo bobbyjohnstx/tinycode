@@ -120,7 +120,7 @@ These are processed by the model. They show up in autocomplete alongside client 
 |---------|-------------|
 | `/ask <agent> <message>` | Route a prompt to a specific agent (e.g., `/ask architect design the auth flow`) |
 | `/swarm <task>` | Split a task into subtasks and dispatch parallel subagents (see [Swarm Mode](#subagents-and-swarm-mode)) |
-| `/work-loop <task>` | Iterate on a task autonomously until complete or blocked |
+| `/goal <task>` | Iterate on a task autonomously until complete or blocked (`/work-loop` is an alias) |
 | `/review [target]` | Ask code-reviewer to review a change |
 | `/init` | Generate root `AGENTS.md` from repo signals (ecosystem detection) and guided project setup |
 
@@ -413,12 +413,12 @@ Constraints:
 - The coordinator does not use tools directly -- it only dispatches via the task tool
 - If a subagent times out or errors, the coordinator reports what failed and synthesizes partial results
 
-### Work-loop mode (/work-loop)
+### Work-loop mode (/goal)
 
-Work-loop mode iterates autonomously on a task until it is complete or blocked:
+`/work-loop` is an alias for `/goal`. Use `/goal` to iterate autonomously on a task until it is complete or blocked:
 
 ```
-/work-loop fix all lint errors in this project
+/goal fix all lint errors in this project
 ```
 
 The agent cycles through: understand, plan, act, verify, assess. It continues without asking for confirmation until the task is done or the same action fails 3 times.
@@ -452,8 +452,6 @@ For Ollama models, tinycode sends a warmup probe to pre-load the model into GPU 
 2. **Select model** -- scrollable list of models for the chosen provider
 
 In the model list, type to search (e.g., "qwen" to filter). Backspace clears the filter. Esc goes back to the provider list.
-
-**F2 / Shift+F2** -- Cycle through recently used models without opening a dialog.
 
 **Tab** in the model list -- moves between available models.
 
