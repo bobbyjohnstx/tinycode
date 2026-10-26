@@ -102,6 +102,13 @@ func mapSSEToMsg(evt api.ServerEvent) tea.Msg {
 		}
 		return SessionErrorMsg{SessionID: sessionID, Error: errMsg}
 
+	case "session.warning":
+		warnMsg, _ := props["message"].(string)
+		if warnMsg != "" {
+			return ToastMsg{Text: warnMsg, IsError: false}
+		}
+		return nil
+
 	case "permission.asked":
 		metadata, _ := props["metadata"].(map[string]any)
 		return PermissionRequestedMsg{

@@ -170,6 +170,7 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 	totalUsage := TokenUsage{}
 	var consecutiveToolFailures int
 	var hadPriorToolCalls bool
+	var toolIntentRetried bool
 	iteration := 0
 
 	for {
@@ -246,6 +247,22 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 		if len(toolCalls) == 0 {
 			if p.tryAutoContinue(hadPriorToolCalls) {
 				continue
+			}
+			// Detect model describing tool actions in text without calling tools.
+			// Inject a system hint so the next turn nudges the model to use tools.
+			// Only retry once to avoid infinite loops with models that keep talking.
+			if !toolIntentRetried {
+				if text := extractAssistantText(assistantMsg); detectToolIntent(text) {
+					toolIntentRetried = true
+					slog.Warn("tool intent detected in text without tool_call",
+						"sessionID", p.config.SessionID, "iteration", iteration)
+					p.bus.Publish("session.warning", map[string]any{
+						"sessionID": p.config.SessionID,
+						"message":   "Model described a file operation but did not call a tool. Retrying with a hint.",
+					})
+					p.injectToolIntentHint()
+					continue
+				}
 			}
 			slog.Info("processor done (no tool calls)", "sessionID", p.config.SessionID, "iteration", iteration)
 			return &ProcessResult{
