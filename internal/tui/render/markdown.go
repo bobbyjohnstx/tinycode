@@ -91,12 +91,22 @@ var MarkdownPresets = map[string]MarkdownThemeColors{
 	},
 }
 
+// colorfulPreset is a sentinel — it uses glamour's built-in "dark" style
+// directly (the original rendering before theme customization).
+const colorfulPreset = "colorful"
+
 // NewMarkdownRendererWithPreset creates a renderer using a named preset.
 // The special name "notty" uses glamour's notty style (no custom colors).
 // Returns nil if the preset name is unknown.
 func NewMarkdownRendererWithPreset(width int, name string) *MarkdownRenderer {
 	if width < 20 {
 		width = 20
+	}
+
+	// "colorful" uses glamour's built-in dark style — the original rendering
+	// before any theme customization was added.
+	if name == colorfulPreset {
+		return NewMarkdownRenderer(width)
 	}
 
 	// GLAMOUR_STYLE env var takes precedence over presets.

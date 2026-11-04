@@ -140,16 +140,16 @@ func (c *connectedApp) handleMarkdownStyleCommand(trimmed string) (tea.Model, te
 		if current == "" {
 			current = "(theme default)"
 		}
-		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Markdown style: %s (use /markdown-style dark|light|muted|notty)", current)})
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Markdown style: %s (use /markdown-style dark|light|muted|colorful|notty)", current)})
 		c.updateApp(model)
 		return c, cmd
 	}
 
 	// Validate the preset name.
-	if name != "notty" {
+	if name != "notty" && name != "colorful" {
 		if _, ok := render.MarkdownPresets[name]; !ok {
 			model, cmd := c.app.Update(ToastMsg{
-				Text:    fmt.Sprintf("Unknown markdown style: %s (use dark, light, muted, notty)", name),
+				Text:    fmt.Sprintf("Unknown markdown style: %s (use dark, light, muted, colorful, notty)", name),
 				IsError: true,
 			})
 			c.updateApp(model)
