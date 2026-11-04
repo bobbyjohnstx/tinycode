@@ -194,14 +194,15 @@ The shell command runs in the working directory and its output is included as co
 
 | Key | Action |
 |-----|--------|
-| T | Toggle thought/reasoning expand/collapse |
-| V | Toggle all tool output expand/collapse |
+| T | Toggle thought/reasoning expand/collapse (when prompt is empty) |
+| V | Toggle all tool output expand/collapse (when prompt is empty) |
 
 Tool output is collapsed by default (one-line summary). Groups of 4+ consecutive reads collapse into a single line (e.g., `▸ read 6 files (14.4KB)`). Click on a collapsed tool or group to expand it. Use `/verbose` to toggle the session default.
 
 **Markdown style** — controls heading, code, and link colors independently from the theme:
 
 ```
+/markdown-style auto       # reset to theme default
 /markdown-style dark       # default
 /markdown-style colorful   # original glamour (brighter)
 /markdown-style muted      # softer contrast
@@ -422,7 +423,7 @@ What happens:
 
 1. The build agent receives your task with swarm instructions prepended
 2. It analyzes the task and creates 2-4 independent subtasks
-3. Each subtask is dispatched to a subagent (executor or explore) via the `task` tool
+3. Each subtask is dispatched to a subagent (executor, explore, code-reviewer, security-reviewer, test-engineer, architect, or debugger) via the `task` tool
 4. Subagents run in parallel, each with its own tool access
 5. After all subagents complete, the build agent synthesizes a report
 
@@ -559,13 +560,7 @@ tinycode session delete <id>       # Delete a session by ID
 
 ### Context Management
 
-tinycode uses a two-stage approach to keep conversations within the model's context window:
-
-**Stage 1 — Elision (~80% of context).** When input tokens reach approximately 80% of the available context window, tinycode automatically replaces old tool results with compact stubs (`[output masked]`), preserving the 5 most recent tool outputs. This is lightweight — no LLM call, no information loss from conversation text, just tool output trimming. Elision defers the more expensive summarization step and is especially valuable on local models with smaller context windows (32k-64k).
-
-**Stage 2 — Summarization (~100% of context).** When input tokens approach the full context limit, tinycode triggers a full LLM-powered summarization of older messages. This replaces the conversation history with a structured summary while preserving recent context. You can also trigger this manually with `/compact`.
-
-Both stages run automatically. Elision fires first and may be sufficient for shorter sessions — many conversations never need the full summarization step.
+tinycode uses automatic summarization to keep conversations within the model's context window. When input tokens approach the context limit, tinycode triggers an LLM-powered summarization of older messages, replacing conversation history with a structured summary while preserving recent context. You can also trigger this manually with `/compact`.
 
 **Bounded tool previews.** Tool outputs over 50 lines are automatically formatted as head+tail previews (first 30 + last 20 lines) with a structured header showing total size. This reduces context consumption at the source.
 

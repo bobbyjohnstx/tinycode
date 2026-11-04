@@ -207,13 +207,9 @@ export GLAMOUR_STYLE=dark
      "animations": false
    }
    ```
-2. Collapse code blocks to reduce rendering:
-   ```
-   <leader>;        # Toggle code concealment
-   ```
-3. Try a smaller terminal font size (renders faster)
-4. Check system isn't CPU-constrained (tinycode TUI runs on single thread)
-5. Reduce number of open sessions
+2. Try a smaller terminal font size (renders faster)
+3. Check system isn't CPU-constrained (tinycode TUI runs on single thread)
+4. Reduce number of open sessions
 
 ### Web UI is slow
 

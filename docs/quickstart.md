@@ -98,7 +98,7 @@ This opens an inline diff viewer showing all uncommitted changes in the working 
 /help
 ```
 
-Opens the command palette showing every keybinding and slash command. You can also press **Ctrl+P**.
+Opens the help reference showing every keybinding and slash command. You can also press **Ctrl+P** for the command palette.
 
 For a list of all CLI subcommands:
 
@@ -308,4 +308,4 @@ More cases: [troubleshooting.md](troubleshooting.md).
 - Read the full [User Guide](user-guide.md) for detailed coverage of every feature
 - See [Plugin Development](plugin-development.md) to build custom tool plugins
 - Check [Architecture](architecture.md) for how tinycode works internally
-- Run `tinycode init` for optional Red Hat plugin/role setup (models: `/connect`, `OPENROUTER_API_KEY`, or Ollama)
+- Run `/init` to generate an AGENTS.md file and submit a setup prompt to configure tinycode for your project

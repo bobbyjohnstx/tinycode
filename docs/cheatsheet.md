@@ -25,8 +25,8 @@ Quick reference for the most common keyboard shortcuts, agents, and commands.
 | `<leader>n` | Create a new session |
 | `<leader>m` | List available models |
 | `<leader>a` | List available agents |
-| `T` | Toggle thought/reasoning block expand/collapse |
-| `V` | Toggle all tool output expand/collapse |
+| `T` | Toggle thought/reasoning block expand/collapse (when prompt is empty) |
+| `V` | Toggle all tool output expand/collapse (when prompt is empty) |
 | `f` | Fork session at selected turn (in `/rewind` dialog) |
 
 ## Agents
@@ -80,7 +80,7 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `/clear-queue` | Clear queued prompts for the current turn |
 | `/privacy` | Show data storage paths, provider list, and privacy info |
 | `/verbose` | Toggle tool output between collapsed/expanded for the session |
-| `/markdown-style` | Change markdown rendering: dark, light, muted, colorful, notty |
+| `/markdown-style` | Change markdown rendering: auto, dark, light, muted, colorful, notty |
 
 **CLI commands:**
 
@@ -164,7 +164,7 @@ tinycode run --multi-turn --max-iterations 20 -m ollama/qwen3:8b
 
 ## Configuration
 
-Edit `~/.config/tinycode/config.json`:
+Edit `~/.config/tinycode/tinycode.jsonc`:
 
 ```json
 {

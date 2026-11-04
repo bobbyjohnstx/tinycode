@@ -46,6 +46,8 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 | `/mcp` | Manage MCP (Model Context Protocol) server connections. | Setting up external tool servers (web search, databases, etc.). |
 | `/hooks` | Show configured lifecycle hooks — both plugin hooks and shell hooks from settings.json. | Checking what automation runs on session events and tool calls. |
 | `/scoped-models` | Toggle model scoping (favorites). Only show preferred models in the picker. | When the provider has many models and you only use a few. |
+| `/verbose` | Toggle tool output between collapsed and expanded for the session. | When you want to see full tool output by default instead of one-line summaries. |
+| `/markdown-style` | Change markdown text display (auto\|dark\|light\|muted\|colorful\|notty). | When heading, code, or link colors don't suit your terminal. |
 | `/diagnostics` | Show diagnostics info for bug reports. | When something isn't working and you need to report it. |
 | `/help` | Show this command reference and keybindings. | When you forget a command. |
 | `/clear-queue` | Clear all queued prompts waiting for the current turn. | When you queued prompts by mistake while the session was busy. |
@@ -106,4 +108,6 @@ These are not slash commands — they are tools the model can invoke during a co
 | `Esc` | Interrupt the current turn (does **not** clear `[Q:n]` queued prompts — use `/clear-queue`) / dismiss dialog |
 | `PgUp` / `PgDn` | Scroll chat history |
 | `Alt+Enter` | Insert newline in prompt |
+| `T` | Toggle thought/reasoning block expand/collapse (when prompt is empty) |
+| `V` | Toggle all tool output expand/collapse (when prompt is empty) |
 | `f` | Fork session at selected turn (in `/rewind` dialog) |

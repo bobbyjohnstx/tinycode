@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### TUI
+- Fix `/context` token categorization — type strings used underscores instead of hyphens, breaking all tool token counting (#920)
+- Fix `/context` system token inflation — exclude output tokens from API total (#920)
+- V and T keys only intercepted when prompt is empty — typing "The" or "Verify" no longer triggers toggles (#921)
+- Message reload honors verbose mode — `Collapsed` synced with `toolsExpanded` (#922)
+- Tool grouping restricted to read/glob/grep/list_files and excludes errored tools (#923)
+- Theme colors propagate to H1–H6 headings (clear blue background) and LinkText (#924)
+- Mouse click offset accounts for sidebar width (#925)
+- `/markdown-style auto` resets to theme default; hint includes "colorful" (#926)
+
+### Session
+- Goal state cleared on session switch, rewind, and stale generation (#915, #916, #919)
+- Goal evaluation requires working→idle transition (wasWorking guard) (#917)
+- Rewind blocked while model is working — prevents silent session corruption (#918)
+- Compaction preserves tool_use when tool_result is kept (case 2) (#909)
+- Concurrent tool cap raised from 8 to 16
+- Task/subagent tools exempt from 60s body timeout (#914)
+
+### Swarm
+- `/swarm` prompt lists specialist subagent types: code-reviewer, security-reviewer, test-engineer, architect, debugger (not just executor/explore)
+
 ## [2.7.0] - 2026-11-03
 
 ### TUI
