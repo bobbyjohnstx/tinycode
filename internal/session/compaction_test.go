@@ -1102,3 +1102,212 @@ func TestAdjustPreserveForToolPairs_BoundsCheck(t *testing.T) {
 		t.Errorf("nil messages should return idx, got %d", got)
 	}
 }
+
+func TestAdjustPreserveForToolPairs_MultipleConsecutivePairs(t *testing.T) {
+	// Two consecutive tool_use/tool_result pairs:
+	//   0: user
+	//   1: assistant (tool_call A, tool_call B)
+	//   2: tool (tool_result A, tool_result B)
+	//   3: assistant (tool_call C)
+	//   4: tool (tool_result C)
+	//   5: assistant (text "done")
+	messages := []Message{
+		{Role: RoleUser, Parts: []Part{TextPart("hello")}},
+		{Role: RoleAssistant, Parts: []Part{
+			ToolCallPart("call_a", "read", `{"path":"a.go"}`),
+			ToolCallPart("call_b", "write", `{"path":"b.go"}`),
+		}},
+		{Role: RoleTool, Parts: []Part{
+			ToolResultPart("call_a", "read", "content a", false),
+			ToolResultPart("call_b", "write", "ok", false),
+		}},
+		{Role: RoleAssistant, Parts: []Part{
+			ToolCallPart("call_c", "bash", `{"command":"ls"}`),
+		}},
+		{Role: RoleTool, Parts: []Part{
+			ToolResultPart("call_c", "bash", "file list", false),
+		}},
+		{Role: RoleAssistant, Parts: []Part{TextPart("done")}},
+	}
+
+	// Split between pairs (idx=3, assistant with tool_call C) should stay.
+	got := adjustPreserveForToolPairs(messages, 3)
+	if got != 3 {
+		t.Errorf("split at boundary between pairs: got %d, want 3", got)
+	}
+
+	// Split on second tool_result (idx=4) should pull back to idx=3 (its tool_use).
+	got = adjustPreserveForToolPairs(messages, 4)
+	if got != 3 {
+		t.Errorf("split on second tool_result: got %d, want 3", got)
+	}
+
+	// Split on first tool_result (idx=2) should pull back to idx=1 (its tool_use).
+	got = adjustPreserveForToolPairs(messages, 2)
+	if got != 1 {
+		t.Errorf("split on first tool_result: got %d, want 1", got)
+	}
+}
+
+func TestAdjustPreserveForToolPairs_SplitOnToolResultInMiddleOfMultiplePairs(t *testing.T) {
+	// Three tool pairs in sequence. Split lands on the middle tool_result.
+	messages := []Message{
+		{Role: RoleUser, Parts: []Part{TextPart("start")}},
+		{Role: RoleAssistant, Parts: []Part{ToolCallPart("c1", "read", `{}`)}},
+		{Role: RoleTool, Parts: []Part{ToolResultPart("c1", "read", "r1", false)}},
+		{Role: RoleAssistant, Parts: []Part{ToolCallPart("c2", "edit", `{}`)}},
+		{Role: RoleTool, Parts: []Part{ToolResultPart("c2", "edit", "r2", false)}},
+		{Role: RoleAssistant, Parts: []Part{ToolCallPart("c3", "bash", `{}`)}},
+		{Role: RoleTool, Parts: []Part{ToolResultPart("c3", "bash", "r3", false)}},
+		{Role: RoleAssistant, Parts: []Part{TextPart("all done")}},
+	}
+
+	// Split at idx=4 (middle tool_result) should pull back to idx=3.
+	got := adjustPreserveForToolPairs(messages, 4)
+	if got != 3 {
+		t.Errorf("split on middle tool_result: got %d, want 3", got)
+	}
+}
+
+func TestAdjustPreserveForToolPairs_MessageWithTextAndToolResult(t *testing.T) {
+	// A message that has both text and tool_result parts should trigger adjustment.
+	messages := []Message{
+		{Role: RoleUser, Parts: []Part{TextPart("hello")}},
+		{Role: RoleAssistant, Parts: []Part{ToolCallPart("c1", "read", `{}`)}},
+		{Role: RoleTool, Parts: []Part{
+			TextPart("some context"),
+			ToolResultPart("c1", "read", "file content", false),
+		}},
+		{Role: RoleAssistant, Parts: []Part{TextPart("done")}},
+	}
+
+	got := adjustPreserveForToolPairs(messages, 2)
+	if got != 1 {
+		t.Errorf("message with text+tool_result: got %d, want 1", got)
+	}
+}
+
+func TestAdjustPreserveForToolPairs_NoAssistantBeforeToolResult(t *testing.T) {
+	// Edge case: tool_result at idx but no assistant with tool_call before it.
+	// Should return original idx.
+	messages := []Message{
+		{Role: RoleUser, Parts: []Part{TextPart("hello")}},
+		{Role: RoleTool, Parts: []Part{
+			ToolResultPart("c1", "read", "orphaned result", false),
+		}},
+		{Role: RoleAssistant, Parts: []Part{TextPart("ok")}},
+	}
+
+	got := adjustPreserveForToolPairs(messages, 1)
+	if got != 1 {
+		t.Errorf("no assistant with tool_call before tool_result: got %d, want 1", got)
+	}
+}
+
+func TestAdjustPreserveForToolPairs_AssistantWithoutToolCall(t *testing.T) {
+	// Assistant exists before tool_result but has no tool_call parts (only text).
+	// Should return original idx since the walk-back finds an assistant without tool_call.
+	messages := []Message{
+		{Role: RoleUser, Parts: []Part{TextPart("hello")}},
+		{Role: RoleAssistant, Parts: []Part{TextPart("thinking...")}},
+		{Role: RoleTool, Parts: []Part{
+			ToolResultPart("c1", "read", "orphaned result", false),
+		}},
+		{Role: RoleAssistant, Parts: []Part{TextPart("done")}},
+	}
+
+	got := adjustPreserveForToolPairs(messages, 2)
+	if got != 2 {
+		t.Errorf("assistant without tool_call before tool_result: got %d, want 2", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// maskObservations edge cases
+// ---------------------------------------------------------------------------
+
+func TestMaskObservations_AllPartsAreToolResults(t *testing.T) {
+	// Messages where every part in a message is a tool_result (no text parts).
+	// All 7 messages have only tool_result parts. Last 5 preserved, first 2 masked.
+	var messages []Message
+	for i := 0; i < 7; i++ {
+		messages = append(messages, Message{
+			Parts: []Part{
+				ToolResultPart("c"+string(rune('a'+i)), "read", "output-"+string(rune('a'+i)), false),
+			},
+		})
+	}
+	masked := maskObservations(messages)
+
+	// First 2 should be masked (7 - 5 = 2)
+	for i := 0; i < 2; i++ {
+		if masked[i].Parts[0].ToolResult != "[output masked for compaction]" {
+			t.Errorf("message %d should be masked, got %q", i, masked[i].Parts[0].ToolResult)
+		}
+	}
+	// Last 5 should be preserved
+	for i := 2; i < 7; i++ {
+		if masked[i].Parts[0].ToolResult == "[output masked for compaction]" {
+			t.Errorf("message %d should be preserved, got masked", i)
+		}
+	}
+}
+
+func TestMaskObservations_ToolResultWithEmptyOutput(t *testing.T) {
+	// A tool_result with an empty ToolResult string should still be masked
+	// when it falls outside the preserve window.
+	messages := []Message{
+		{Parts: []Part{ToolResultPart("c1", "bash", "", false)}},
+	}
+	// Add 5 more to push the first one out of the preserve window.
+	for i := 2; i <= 6; i++ {
+		messages = append(messages, Message{
+			Parts: []Part{ToolResultPart("c"+string(rune('0'+i)), "read", "output", false)},
+		})
+	}
+	masked := maskObservations(messages)
+
+	if masked[0].Parts[0].ToolResult != "[output masked for compaction]" {
+		t.Errorf("empty tool_result should be masked, got %q", masked[0].Parts[0].ToolResult)
+	}
+	// Verify the ToolCallID and ToolName are preserved on the masked result.
+	if masked[0].Parts[0].ToolCallID != "c1" {
+		t.Errorf("ToolCallID should be preserved, got %q", masked[0].Parts[0].ToolCallID)
+	}
+	if masked[0].Parts[0].ToolName != "bash" {
+		t.Errorf("ToolName should be preserved, got %q", masked[0].Parts[0].ToolName)
+	}
+}
+
+func TestMaskObservations_MixedToolCallAndToolResultInSameMessage(t *testing.T) {
+	// Defensive test: a message with both tool_call and tool_result parts.
+	// Only tool_result parts should be affected by masking.
+	messages := []Message{
+		{Parts: []Part{
+			ToolCallPart("c1", "read", `{"path":"a.go"}`),
+			ToolResultPart("c0", "write", "write ok", false),
+		}},
+	}
+	// Add 5 more tool_result messages to push the first out of window.
+	for i := 2; i <= 6; i++ {
+		messages = append(messages, Message{
+			Parts: []Part{ToolResultPart("c"+string(rune('0'+i)), "read", "output", false)},
+		})
+	}
+	masked := maskObservations(messages)
+
+	// The tool_call part should be unchanged.
+	if masked[0].Parts[0].Type != PartToolCall {
+		t.Errorf("tool_call part type should be preserved, got %s", masked[0].Parts[0].Type)
+	}
+	if masked[0].Parts[0].ToolName != "read" {
+		t.Errorf("tool_call ToolName should be preserved, got %q", masked[0].Parts[0].ToolName)
+	}
+	if masked[0].Parts[0].ToolArgs != `{"path":"a.go"}` {
+		t.Errorf("tool_call ToolArgs should be preserved, got %q", masked[0].Parts[0].ToolArgs)
+	}
+	// The tool_result part should be masked.
+	if masked[0].Parts[1].ToolResult != "[output masked for compaction]" {
+		t.Errorf("tool_result in mixed message should be masked, got %q", masked[0].Parts[1].ToolResult)
+	}
+}
