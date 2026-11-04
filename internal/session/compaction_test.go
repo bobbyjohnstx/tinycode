@@ -1311,3 +1311,53 @@ func TestMaskObservations_MixedToolCallAndToolResultInSameMessage(t *testing.T) 
 		t.Errorf("tool_result in mixed message should be masked, got %q", masked[0].Parts[1].ToolResult)
 	}
 }
+
+func TestAdjustPreserveForToolPairs_ToolUseInLastCompacted(t *testing.T) {
+	// Case 2: last compacted message has tool_use, next message has tool_result.
+	// Split at idx=2 would orphan the tool_use from its results.
+	messages := []Message{
+		{Role: "user", Parts: []Part{{Type: "text", Text: "hello"}}},
+		{Role: "assistant", Parts: []Part{
+			{Type: PartToolCall, ToolCallID: "call_1", ToolName: "read"},
+			{Type: PartToolCall, ToolCallID: "call_2", ToolName: "read"},
+			{Type: PartToolCall, ToolCallID: "call_3", ToolName: "read"},
+		}},
+		{Role: "tool", Parts: []Part{
+			{Type: PartToolResult, ToolCallID: "call_1", ToolName: "read", ToolResult: "file1"},
+			{Type: PartToolResult, ToolCallID: "call_2", ToolName: "read", ToolResult: "file2"},
+			{Type: PartToolResult, ToolCallID: "call_3", ToolName: "read", ToolResult: "file3"},
+		}},
+		{Role: "assistant", Parts: []Part{{Type: "text", Text: "done"}}},
+	}
+	// If preserveIdx=2 (tool_result message), case 1 pulls back to 1 (tool_use).
+	got := adjustPreserveForToolPairs(messages, 2)
+	if got != 1 {
+		t.Errorf("adjustPreserveForToolPairs(msgs, 2) = %d, want 1", got)
+	}
+	// If preserveIdx=2 where idx-1 is the tool_use message, case 2 should pull back.
+	// This is the same result as case 1 in this layout, confirming both paths work.
+}
+
+func TestAdjustPreserveForToolPairs_Case2_ToolUseAtBoundary(t *testing.T) {
+	// idx-1 is an assistant with tool_use, idx is the tool_result.
+	// Case 2 should pull back to include the tool_use.
+	messages := []Message{
+		{Role: "user", Parts: []Part{{Type: "text", Text: "setup"}}},
+		{Role: "assistant", Parts: []Part{{Type: "text", Text: "analysis"}}},
+		{Role: "user", Parts: []Part{{Type: "text", Text: "re-read"}}},
+		{Role: "assistant", Parts: []Part{
+			{Type: PartToolCall, ToolCallID: "call_x", ToolName: "read"},
+		}},
+		{Role: "tool", Parts: []Part{
+			{Type: PartToolResult, ToolCallID: "call_x", ToolName: "read", ToolResult: "content"},
+		}},
+		{Role: "assistant", Parts: []Part{{Type: "text", Text: "here is what I found"}}},
+	}
+	// preserveIdx=4 means we compact 0-3 and preserve 4-5.
+	// But message 3 has tool_use and message 4 has its result.
+	// Case 2: idx-1 (message 3) has tool_call → pull back to 3.
+	got := adjustPreserveForToolPairs(messages, 4)
+	if got != 3 {
+		t.Errorf("adjustPreserveForToolPairs(msgs, 4) = %d, want 3 (preserve tool_use with its result)", got)
+	}
+}
