@@ -59,6 +59,14 @@ func RenderToolInline(toolName, toolArgs string, isError bool) string {
 	return fmt.Sprintf("  %s %s", icon, name)
 }
 
+// RenderToolGroupSummary renders a collapsed group of same-tool calls.
+// Format: "  <icon> <name> <detail>"
+func RenderToolGroupSummary(toolName, detail string) string {
+	icon := ToolIcon(toolName)
+	name := styleToolName.Render(toolName)
+	return fmt.Sprintf("  %s %s %s", icon, name, styleToolDim.Render(detail))
+}
+
 // RenderToolBlock renders a tool call as a bordered box with detail content.
 func RenderToolBlock(toolName, toolArgs string, width int, isError bool) string {
 	if width < 20 {

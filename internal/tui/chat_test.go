@@ -104,6 +104,39 @@ func TestToggleThoughtAll(t *testing.T) {
 	}
 }
 
+func TestPartViewThoughtExpandedDefaultFalse(t *testing.T) {
+	p := PartView{Type: "reasoning", Text: "thoughts"}
+	if p.ThoughtExpanded {
+		t.Error("ThoughtExpanded should default to false (collapsed)")
+	}
+}
+
+func TestToggleToolGroup(t *testing.T) {
+	cv := NewChatView(80, 24)
+	// Default: not expanded
+	if cv.toolGroupExpanded["grp1"] {
+		t.Error("tool group should default to collapsed")
+	}
+	cv.toggleToolGroup("grp1")
+	if !cv.toolGroupExpanded["grp1"] {
+		t.Error("tool group should be expanded after toggle")
+	}
+	cv.toggleToolGroup("grp1")
+	if cv.toolGroupExpanded["grp1"] {
+		t.Error("tool group should be collapsed after second toggle")
+	}
+}
+
+func TestToggleAllToolCollapse_ClearsToolGroupOverrides(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.toolGroupExpanded["grp1"] = true
+	cv.toolGroupExpanded["grp2"] = false
+	cv.toggleAllToolCollapse()
+	if len(cv.toolGroupExpanded) != 0 {
+		t.Error("toggleAllToolCollapse should clear per-group overrides")
+	}
+}
+
 // --- applyDelta tests ---
 
 func TestApplyDelta_AppendsTextToMatchingPart(t *testing.T) {

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -944,5 +945,153 @@ func TestRenderAssistantMessage_SuppressedToolNoHit(t *testing.T) {
 	renderMessageWithOpts(msg, 80, md, opts)
 	if len(hits) != 0 {
 		t.Fatalf("suppressed bare tool should produce no hit, got %d", len(hits))
+	}
+}
+
+// --- tool group rendering tests ---
+
+func makeReadPart(id, path string, text string) PartView {
+	return PartView{
+		ID:       id,
+		Type:     "tool",
+		ToolName: "read",
+		ToolArgs: fmt.Sprintf(`{"file_path":%q}`, path),
+		Text:     text,
+		Time:     map[string]any{"start": float64(1000), "end": float64(2000)},
+	}
+}
+
+func TestFindToolRuns_SixConsecutiveReads(t *testing.T) {
+	parts := []PartView{
+		makeReadPart("r1", "/a.go", "aaa"),
+		makeReadPart("r2", "/b.go", "bbb"),
+		makeReadPart("r3", "/c.go", "ccc"),
+		makeReadPart("r4", "/d.go", "ddd"),
+		makeReadPart("r5", "/e.go", "eee"),
+		makeReadPart("r6", "/f.go", "fff"),
+	}
+	groups := groupSubagentParts(parts)
+	runs := findToolRuns(groups)
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(runs))
+	}
+	run := runs[0]
+	if run.count != 6 {
+		t.Errorf("expected count=6, got %d", run.count)
+	}
+	if run.firstPartID != "r1" {
+		t.Errorf("expected firstPartID=r1, got %q", run.firstPartID)
+	}
+	if run.totalSize != 18 {
+		t.Errorf("expected totalSize=18, got %d", run.totalSize)
+	}
+}
+
+func TestFindToolRuns_MixedToolsBreakGroup(t *testing.T) {
+	parts := []PartView{
+		makeReadPart("r1", "/a.go", "aa"),
+		makeReadPart("r2", "/b.go", "bb"),
+		{ID: "b1", Type: "tool", ToolName: "bash", ToolArgs: `{"command":"ls"}`, Time: map[string]any{"end": float64(1)}},
+		makeReadPart("r3", "/c.go", "cc"),
+		makeReadPart("r4", "/d.go", "dd"),
+	}
+	groups := groupSubagentParts(parts)
+	runs := findToolRuns(groups)
+	if len(runs) != 0 {
+		t.Errorf("expected 0 runs (groups of 2 are too small), got %d", len(runs))
+	}
+}
+
+func TestFindToolRuns_ThreeReadsNoGroup(t *testing.T) {
+	parts := []PartView{
+		makeReadPart("r1", "/a.go", "a"),
+		makeReadPart("r2", "/b.go", "b"),
+		makeReadPart("r3", "/c.go", "c"),
+	}
+	groups := groupSubagentParts(parts)
+	runs := findToolRuns(groups)
+	if len(runs) != 0 {
+		t.Errorf("expected 0 runs (3 is below threshold), got %d", len(runs))
+	}
+}
+
+func TestRenderAssistantMessage_GroupedReadsCollapsed(t *testing.T) {
+	md := testRenderer()
+	parts := make([]PartView, 6)
+	for i := range parts {
+		parts[i] = makeReadPart(
+			fmt.Sprintf("r%d", i+1),
+			fmt.Sprintf("/path/file%d.go", i+1),
+			strings.Repeat("x", 2400),
+		)
+	}
+	msg := MessageView{
+		Info:  MessageInfo{Role: "assistant", Agent: "build"},
+		Parts: parts,
+	}
+	var tgHits []toolGroupHit
+	opts := &renderOpts{toolGroupHits: &tgHits}
+	got := stripANSI(renderMessageWithOpts(msg, 80, md, opts))
+
+	// Should show single summary line instead of 6 individual lines
+	if !strings.Contains(got, "6 files") {
+		t.Errorf("expected '6 files' in grouped output, got %q", got)
+	}
+	if !strings.Contains(got, "14.1KB") {
+		t.Errorf("expected size in grouped output, got %q", got)
+	}
+	// Should NOT show individual file paths
+	if strings.Contains(got, "/path/file1.go") {
+		t.Errorf("collapsed group should not show individual paths, got %q", got)
+	}
+	if len(tgHits) != 1 {
+		t.Errorf("expected 1 tool group hit, got %d", len(tgHits))
+	}
+}
+
+func TestRenderAssistantMessage_GroupedReadsExpanded(t *testing.T) {
+	md := testRenderer()
+	parts := make([]PartView, 4)
+	for i := range parts {
+		parts[i] = makeReadPart(
+			fmt.Sprintf("r%d", i+1),
+			fmt.Sprintf("/path/file%d.go", i+1),
+			"content",
+		)
+	}
+	msg := MessageView{
+		Info:  MessageInfo{Role: "assistant", Agent: "build"},
+		Parts: parts,
+	}
+	expanded := map[string]bool{"r1": true}
+	opts := &renderOpts{toolGroupExpanded: expanded}
+	got := stripANSI(renderMessageWithOpts(msg, 80, md, opts))
+
+	// When expanded, individual file paths should appear
+	if !strings.Contains(got, "/path/file1.go") {
+		t.Errorf("expanded group should show individual paths, got %q", got)
+	}
+	if !strings.Contains(got, "/path/file4.go") {
+		t.Errorf("expanded group should show all individual paths, got %q", got)
+	}
+}
+
+func TestFormatSize(t *testing.T) {
+	tests := []struct {
+		input int
+		want  string
+	}{
+		{0, "0B"},
+		{512, "512B"},
+		{1024, "1.0KB"},
+		{14745, "14.4KB"},
+		{1048576, "1.0MB"},
+		{2621440, "2.5MB"},
+	}
+	for _, tt := range tests {
+		got := formatSize(tt.input)
+		if got != tt.want {
+			t.Errorf("formatSize(%d) = %q, want %q", tt.input, got, tt.want)
+		}
 	}
 }

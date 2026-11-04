@@ -33,7 +33,9 @@ type ChatView struct {
 	stickyBottom bool
 
 	// Tool collapse state
-	toolsExpanded bool // session-wide toggle: true = all tools expanded
+	toolsExpanded     bool            // session-wide toggle: true = all tools expanded
+	toolGroupExpanded map[string]bool // first part ID → expanded
+	toolGroupLines    map[int]string  // content line number → first part ID
 
 	// Subagent group state
 	subagentExpanded map[string]bool           // label → expanded
@@ -66,14 +68,15 @@ func NewChatView(width, height int) ChatView {
 	ti.CharLimit = 200
 
 	return ChatView{
-		viewport:         vp,
-		searchInput:      ti,
-		renderer:         render.NewMarkdownRenderer(width - 4),
-		width:            width,
-		height:           height,
-		stickyBottom:     true,
-		subagentExpanded: make(map[string]bool),
-		subagentStatus:   make(map[string]SubagentStatus),
+		viewport:          vp,
+		searchInput:       ti,
+		renderer:          render.NewMarkdownRenderer(width - 4),
+		width:             width,
+		height:            height,
+		stickyBottom:      true,
+		subagentExpanded:  make(map[string]bool),
+		subagentStatus:    make(map[string]SubagentStatus),
+		toolGroupExpanded: make(map[string]bool),
 	}
 }
 
@@ -170,6 +173,11 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 		case msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress:
 			if partID, ok := c.thoughtLines[contentLine]; ok {
 				c.toggleThought(partID)
+				c.rebuildContent()
+				return c, nil
+			}
+			if firstPartID, ok := c.toolGroupLines[contentLine]; ok {
+				c.toggleToolGroup(firstPartID)
 				c.rebuildContent()
 				return c, nil
 			}
@@ -458,6 +466,15 @@ func (c *ChatView) toggleToolCollapse(partID string) {
 	}
 }
 
+// toggleToolGroup toggles the expanded state of a tool group.
+func (c *ChatView) toggleToolGroup(firstPartID string) {
+	current := c.toolsExpanded
+	if val, ok := c.toolGroupExpanded[firstPartID]; ok {
+		current = val
+	}
+	c.toolGroupExpanded[firstPartID] = !current
+}
+
 // toggleAllToolCollapse toggles all tool parts between collapsed and expanded.
 func (c *ChatView) toggleAllToolCollapse() {
 	c.toolsExpanded = !c.toolsExpanded
@@ -469,6 +486,8 @@ func (c *ChatView) toggleAllToolCollapse() {
 			}
 		}
 	}
+	// Clear per-group overrides so all groups follow the global state.
+	c.toolGroupExpanded = make(map[string]bool)
 }
 
 // thoughtHit records a thought label's line offset within rendered output.
@@ -582,6 +601,7 @@ func (c *ChatView) rebuildContent() {
 	var sb strings.Builder
 	c.thoughtLines = make(map[int]string)
 	c.toolLines = make(map[int]string)
+	c.toolGroupLines = make(map[int]string)
 	c.subagentLines = make(map[int]string)
 	c.copyLines = make(map[int]string)
 	c.msgLineStarts = make([]int, 0, len(c.messages))
@@ -597,13 +617,17 @@ func (c *ChatView) rebuildContent() {
 		var sHits []subagentHit
 		var cHits []copyHit
 		var toolHits []toolHit
+		var tgHits []toolGroupHit
 		opts := &renderOpts{
-			thoughtHits:      &tHits,
-			subagentHits:     &sHits,
-			copyHits:         &cHits,
-			toolHits:         &toolHits,
-			subagentExpanded: c.subagentExpanded,
-			subagentStatus:   c.subagentStatus,
+			thoughtHits:       &tHits,
+			subagentHits:      &sHits,
+			copyHits:          &cHits,
+			toolHits:          &toolHits,
+			toolGroupHits:     &tgHits,
+			subagentExpanded:  c.subagentExpanded,
+			subagentStatus:    c.subagentStatus,
+			toolGroupExpanded: c.toolGroupExpanded,
+			toolsExpanded:     c.toolsExpanded,
 		}
 		rendered := renderMessageWithOpts(msg, c.width, c.renderer, opts)
 		for _, h := range tHits {
@@ -617,6 +641,9 @@ func (c *ChatView) rebuildContent() {
 		}
 		for _, h := range toolHits {
 			c.toolLines[lineNum+h.lineOffset] = h.partID
+		}
+		for _, h := range tgHits {
+			c.toolGroupLines[lineNum+h.lineOffset] = h.firstPartID
 		}
 		sb.WriteString(rendered)
 		lineNum += strings.Count(rendered, "\n")

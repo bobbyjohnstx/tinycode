@@ -54,14 +54,23 @@ type toolHit struct {
 	partID     string
 }
 
+// toolGroupHit records a tool group summary line's offset for click-to-toggle.
+type toolGroupHit struct {
+	lineOffset  int
+	firstPartID string
+}
+
 // renderOpts bundles rendering state and hit collectors.
 type renderOpts struct {
-	thoughtHits      *[]thoughtHit
-	subagentHits     *[]subagentHit
-	copyHits         *[]copyHit
-	toolHits         *[]toolHit
-	subagentExpanded map[string]bool
-	subagentStatus   map[string]SubagentStatus
+	thoughtHits       *[]thoughtHit
+	subagentHits      *[]subagentHit
+	copyHits          *[]copyHit
+	toolHits          *[]toolHit
+	toolGroupHits     *[]toolGroupHit
+	subagentExpanded  map[string]bool
+	subagentStatus    map[string]SubagentStatus
+	toolGroupExpanded map[string]bool
+	toolsExpanded     bool
 }
 
 // subagentGroup holds consecutive parts belonging to the same subagent.
@@ -111,8 +120,35 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 	honestyCueShown := false
 
 	groups := groupSubagentParts(msg.Parts)
+	toolRuns := findToolRuns(groups)
 
-	for _, g := range groups {
+	for i := 0; i < len(groups); i++ {
+		g := groups[i]
+
+		// Check for tool group run (4+ consecutive same-tool parts).
+		if run, ok := toolRuns[i]; ok {
+			expanded := false
+			if opts != nil {
+				if val, ok := opts.toolGroupExpanded[run.firstPartID]; ok {
+					expanded = val
+				} else {
+					expanded = opts.toolsExpanded
+				}
+			}
+			if !expanded {
+				if opts != nil && opts.toolGroupHits != nil {
+					*opts.toolGroupHits = append(*opts.toolGroupHits, toolGroupHit{lineOffset: lineNum, firstPartID: run.firstPartID})
+				}
+				summary := renderToolGroupSummary(run)
+				sb.WriteString(summary)
+				sb.WriteString("\n")
+				lineNum += strings.Count(summary, "\n") + 1
+				i = run.endIdx - 1
+				continue
+			}
+			// Expanded: fall through to render individual parts normally.
+		}
+
 		if g.label != "" {
 			// Render subagent group
 			expanded := false
@@ -462,6 +498,98 @@ func partDuration(part PartView) string {
 		return fmt.Sprintf("%dms", d.Milliseconds())
 	}
 	return fmt.Sprintf("%.1fs", d.Seconds())
+}
+
+// --- Tool group rendering ---
+
+// toolRun describes a run of 4+ consecutive same-tool groups.
+type toolRun struct {
+	toolName    string
+	firstPartID string
+	count       int
+	endIdx      int // exclusive index in groups slice
+	totalSize   int
+}
+
+// findToolRuns scans for runs of 4+ consecutive non-subagent groups with the
+// same tool name. Returns a map of starting group index to run info.
+func findToolRuns(groups []subagentGroup) map[int]*toolRun {
+	runs := make(map[int]*toolRun)
+	i := 0
+	for i < len(groups) {
+		g := groups[i]
+		if g.label != "" || len(g.parts) != 1 || !isGroupableTool(g.parts[0]) {
+			i++
+			continue
+		}
+		p := g.parts[0]
+		toolName := strings.ToLower(p.ToolName)
+		startIdx := i
+		count := 1
+		totalSize := len(p.Text)
+		firstPartID := p.ID
+		j := i + 1
+		for j < len(groups) {
+			gj := groups[j]
+			if gj.label != "" || len(gj.parts) != 1 {
+				break
+			}
+			pj := gj.parts[0]
+			if pj.Type == "tool-result" {
+				totalSize += len(pj.Text)
+				j++
+				continue
+			}
+			if !isGroupableTool(pj) || strings.ToLower(pj.ToolName) != toolName {
+				break
+			}
+			count++
+			totalSize += len(pj.Text)
+			j++
+		}
+		if count >= 4 && firstPartID != "" {
+			runs[startIdx] = &toolRun{
+				toolName:    toolName,
+				firstPartID: firstPartID,
+				count:       count,
+				endIdx:      j,
+				totalSize:   totalSize,
+			}
+		}
+		i = j
+	}
+	return runs
+}
+
+func isGroupableTool(p PartView) bool {
+	return (p.Type == "tool" || p.Type == "tool-call") && p.ToolName != ""
+}
+
+// renderToolGroupSummary renders a single-line summary for a collapsed tool group.
+func renderToolGroupSummary(run *toolRun) string {
+	label := toolGroupLabel(run.toolName, run.count)
+	detail := fmt.Sprintf("%s (%s)", label, formatSize(run.totalSize))
+	return render.RenderToolGroupSummary(run.toolName, detail)
+}
+
+func toolGroupLabel(toolName string, count int) string {
+	if toolName == "read" {
+		return fmt.Sprintf("%d files", count)
+	}
+	return fmt.Sprintf("%d calls", count)
+}
+
+// formatSize formats a byte count as a human-readable string.
+func formatSize(bytes int) string {
+	if bytes < 1024 {
+		return fmt.Sprintf("%dB", bytes)
+	}
+	kb := float64(bytes) / 1024
+	if kb < 1024 {
+		return fmt.Sprintf("%.1fKB", kb)
+	}
+	mb := kb / 1024
+	return fmt.Sprintf("%.1fMB", mb)
 }
 
 // --- Subagent group rendering ---
