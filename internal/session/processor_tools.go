@@ -64,7 +64,7 @@ func (p *Processor) applyPendingAgentSwitch() string {
 	return target
 }
 
-const maxConcurrentTools = 8
+const maxConcurrentTools = 16
 
 func (p *Processor) executeTools(ctx context.Context, toolCalls []Part) ([]Part, bool) {
 	type toolResult struct {
