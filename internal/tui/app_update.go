@@ -165,8 +165,9 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		return a, cmd
 	}
 
-	// Intercept Shift+V and Shift+T before they reach the text input.
-	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 {
+	// Intercept Shift+V and Shift+T only when the prompt is empty so they
+	// don't steal characters from words like "The" or "Verify".
+	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 && a.prompt.Value() == "" {
 		switch msg.Runes[0] {
 		case 'V':
 			a.chat.toggleAllToolCollapse()

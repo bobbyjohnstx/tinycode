@@ -1657,6 +1657,39 @@ func TestHandleKeyMsg_NoOverlay_DispatchesToFocused(t *testing.T) {
 	}
 }
 
+func TestHandleKeyMsg_ShiftV_EmptyPromptTogglesVerbose(t *testing.T) {
+	app := NewApp("")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.focus = FocusPrompt
+
+	before := app.chat.toolsExpanded
+	result, _ := app.handleKeyMsg(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'V'}})
+	if result.chat.toolsExpanded == before {
+		t.Error("expected toolsExpanded to toggle when prompt is empty")
+	}
+}
+
+func TestHandleKeyMsg_ShiftV_NonEmptyPromptTypesV(t *testing.T) {
+	app := NewApp("")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.focus = FocusPrompt
+
+	// Pre-fill the prompt so V should be typed, not intercepted.
+	app.prompt.SetValue("erify")
+	before := app.chat.toolsExpanded
+	result, _ := app.handleKeyMsg(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'V'}})
+	if result.chat.toolsExpanded != before {
+		t.Error("expected toolsExpanded unchanged when prompt has text")
+	}
+	if !strings.Contains(result.prompt.Value(), "V") {
+		t.Errorf("expected 'V' in prompt value, got %q", result.prompt.Value())
+	}
+}
+
 func TestHandleKeyMsg_OverlayPriority_PermBeforePalette(t *testing.T) {
 	app := NewApp("")
 	app.width = 100
