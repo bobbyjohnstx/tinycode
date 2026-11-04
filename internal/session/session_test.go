@@ -1386,12 +1386,12 @@ func TestCheckCompaction_SoftThreshold(t *testing.T) {
 		t.Fatalf("unexpected error: %v", result.Error)
 	}
 
-	// Elision should have fired
-	if !p.elisionDone {
-		t.Error("expected elisionDone to be true after soft threshold")
+	// Elision is disabled — soft threshold no longer masks old tool results.
+	if p.elisionDone {
+		t.Error("elision should be disabled — soft threshold no longer fires")
 	}
 
-	// compactionCount should NOT have incremented (no LLM compaction)
+	// compactionCount should NOT have incremented (below hard threshold)
 	if p.compactionCount != 0 {
 		t.Errorf("expected compactionCount=0, got %d", p.compactionCount)
 	}

@@ -55,9 +55,10 @@ func TestCompact_CircuitBreakerReturnsError(t *testing.T) {
 	}
 }
 
-func TestCheckCompaction_SmallContextElides(t *testing.T) {
-	// context 8192, reserve 2048, threshold 6144, soft threshold 4915.
-	// 5000 input tokens is above the soft line and below compaction.
+func TestCheckCompaction_SmallContextNoElision(t *testing.T) {
+	// Elision is disabled — soft threshold no longer masks old tool results.
+	// context 8192, reserve 2048, threshold 6144.
+	// 5000 input tokens is below the compaction threshold.
 	client := &mockLLMClient{
 		responses: []mockResponse{
 			{events: []llm.Event{
@@ -91,8 +92,8 @@ func TestCheckCompaction_SmallContextElides(t *testing.T) {
 	if result.Error != nil {
 		t.Fatalf("unexpected error: %v", result.Error)
 	}
-	if !p.elisionDone {
-		t.Error("expected elision on an 8192-token window")
+	if p.elisionDone {
+		t.Error("elision should be disabled — soft threshold no longer masks results")
 	}
 	if p.compactionCount != 0 {
 		t.Errorf("expected compactionCount=0, got %d", p.compactionCount)

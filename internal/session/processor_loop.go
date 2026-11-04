@@ -152,12 +152,10 @@ func (p *Processor) checkCompaction(ctx context.Context, usage TokenUsage) error
 		outputReserve := compactionOutputReserve(p.config.Model.Limit.Context, p.config.Model.Limit.Output)
 		threshold := p.config.Model.Limit.Context - outputReserve
 		if threshold > 0 {
-			softThreshold := int(float64(threshold) * 0.8)
-			if usage.Input >= softThreshold && usage.Input < threshold {
-				slog.Info("elision triggered", "sessionID", p.config.SessionID,
-					"inputTokens", usage.Input, "softThreshold", softThreshold)
-				p.elideOldResults()
-			}
+			// Elision (masking old tool results at 80% threshold) is disabled.
+			// It caused more problems than it fixed: the model re-reads masked
+			// files, wasting iterations and context. Full compaction at 100%
+			// threshold handles the overflow case with a proper summary.
 			if usage.Input >= threshold {
 				slog.Info("proactive compaction triggered", "sessionID", p.config.SessionID, "inputTokens", usage.Input, "threshold", threshold)
 				if err := p.compactOrStop(ctx, "proactive"); err != nil {
