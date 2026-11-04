@@ -358,12 +358,21 @@ func TestDiscoverVLLM(t *testing.T) {
 	d := NewDiscovery(reg, b)
 	d.discoverVLLM(t.Context(), srv.URL)
 
-	m, err := reg.GetModel("vllm", "meta-llama/Llama-3-8B")
+	// Map key is normalized (dots→hyphens, lowercase) to prevent churn.
+	m, err := reg.GetModel("vllm", normalizeModelKey("meta-llama/Llama-3-8B"))
 	if err != nil {
 		t.Fatalf("model not found: %v", err)
 	}
 	if m.Limit.Context != 8192 {
 		t.Errorf("expected context 8192, got %d", m.Limit.Context)
+	}
+	// API.ID preserves the raw name for server requests.
+	if m.API.ID != "meta-llama/Llama-3-8B" {
+		t.Errorf("API.ID = %q, want raw name %q", m.API.ID, "meta-llama/Llama-3-8B")
+	}
+	// Display name preserves the raw name.
+	if m.Name != "meta-llama/Llama-3-8B" {
+		t.Errorf("Name = %q, want raw name %q", m.Name, "meta-llama/Llama-3-8B")
 	}
 }
 

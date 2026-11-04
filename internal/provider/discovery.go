@@ -271,21 +271,38 @@ func (d *Discovery) handleDiscoverySuccess(providerID string) {
 	}
 }
 
+// normalizeModelKey produces a stable key for model identity comparison.
+// Some vLLM endpoints alternate formatting between polls (e.g.
+// "granite-4.0-h-tiny" vs "granite-4-0-h-tiny"), causing false churn.
+func normalizeModelKey(id string) string {
+	return strings.NewReplacer(".", "-").Replace(strings.ToLower(id))
+}
+
 // diffModels logs models added and removed compared to the existing
-// registration for a provider.
+// registration for a provider. Model keys are normalized so that
+// formatting-only changes (dots vs hyphens) do not trigger churn.
 func (d *Discovery) diffModels(providerID string, newModels map[string]*Model) {
 	existing, err := d.registry.GetProvider(providerID)
 	if err != nil {
 		return // provider not yet registered, no diff needed
 	}
 
+	existingNorm := make(map[string]bool, len(existing.Models))
+	for id := range existing.Models {
+		existingNorm[normalizeModelKey(id)] = true
+	}
+	newNorm := make(map[string]bool, len(newModels))
 	for id := range newModels {
-		if _, ok := existing.Models[id]; !ok {
+		newNorm[normalizeModelKey(id)] = true
+	}
+
+	for id := range newModels {
+		if !existingNorm[normalizeModelKey(id)] {
 			slog.Info("model added", "provider", providerID, "model", id)
 		}
 	}
 	for id := range existing.Models {
-		if _, ok := newModels[id]; !ok {
+		if !newNorm[normalizeModelKey(id)] {
 			slog.Info("model removed", "provider", providerID, "model", id)
 		}
 	}
@@ -373,8 +390,9 @@ func (d *Discovery) discoverVLLM(ctx context.Context, baseURL string) {
 			contextLen = inferContextFromModelID(m.ID)
 		}
 
-		models[m.ID] = &Model{
-			ID:         m.ID,
+		key := normalizeModelKey(m.ID)
+		models[key] = &Model{
+			ID:         key,
 			ProviderID: "vllm",
 			Name:       m.ID,
 			API: ModelAPI{

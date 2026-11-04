@@ -152,6 +152,11 @@ func (r *Registry) GetModel(providerID, modelID string) (*Model, error) {
 
 	m, ok := p.Models[modelID]
 	if !ok {
+		// Try normalized key for vLLM models where the API alternates
+		// dot/hyphen formatting across polls.
+		m, ok = p.Models[normalizeModelKey(modelID)]
+	}
+	if !ok {
 		suggestion := r.suggestModel(providerID, modelID)
 		if suggestion != "" {
 			return nil, fmt.Errorf("model %q not found in provider %q, did you mean %q?", modelID, providerID, suggestion)

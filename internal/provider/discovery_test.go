@@ -1,6 +1,36 @@
 package provider
 
-import "testing"
+import (
+	"testing"
+)
+
+func TestNormalizeModelKey(t *testing.T) {
+	tests := []struct {
+		a, b string
+	}{
+		{"granite-4.0-h-tiny", "granite-4-0-h-tiny"},
+		{"granite-3.2-8b-instruct", "granite-3-2-8b-instruct"},
+		{"granite-4.0-micro", "granite-4-0-micro"},
+		{"nomic-embed-text-v1.5", "nomic-embed-text-v1-5"},
+		{"granite-guardian-3.3-8b", "granite-guardian-3-3-8b"},
+		{"granite-4.1-8b", "granite-4-1-8b"},
+	}
+	for _, tt := range tests {
+		ka := normalizeModelKey(tt.a)
+		kb := normalizeModelKey(tt.b)
+		if ka != kb {
+			t.Errorf("normalizeModelKey(%q) = %q, normalizeModelKey(%q) = %q — should match", tt.a, ka, tt.b, kb)
+		}
+	}
+}
+
+func TestNormalizeModelKey_DistinctModelsStayDistinct(t *testing.T) {
+	a := normalizeModelKey("granite-3.1-8b-instruct")
+	b := normalizeModelKey("granite-3.2-8b-instruct")
+	if a == b {
+		t.Errorf("different models should produce different keys: %q vs %q", a, b)
+	}
+}
 
 func TestInferContextFromModelID(t *testing.T) {
 	tests := []struct {
