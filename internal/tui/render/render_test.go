@@ -70,6 +70,44 @@ func TestRenderToolInline_BashCommand(t *testing.T) {
 	}
 }
 
+func TestRenderToolInline_BashStripsCD(t *testing.T) {
+	args := `{"command":"cd /Users/bjohns/projects/myapp && go test ./..."}`
+	out := RenderToolInline("bash", args, false)
+	if strings.Contains(out, "cd /Users") {
+		t.Errorf("bash inline should strip cd prefix, got %q", out)
+	}
+	if !strings.Contains(out, "go test") {
+		t.Error("bash inline should show the actual command after stripping cd")
+	}
+}
+
+func TestRenderToolInline_BashNoCDUntouched(t *testing.T) {
+	args := `{"command":"echo hello"}`
+	out := RenderToolInline("bash", args, false)
+	if !strings.Contains(out, "echo hello") {
+		t.Errorf("bash inline without cd prefix should be untouched, got %q", out)
+	}
+}
+
+func TestStripCdPrefix(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"cd /path/to/project && ls -la", "ls -la"},
+		{"cd /a/b/c && go test ./...", "go test ./..."},
+		{"echo hello", "echo hello"},
+		{"cd /only", "cd /only"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		got := stripCdPrefix(tt.input)
+		if got != tt.want {
+			t.Errorf("stripCdPrefix(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestRenderToolInline_ReadFile(t *testing.T) {
 	args := `{"file_path":"/tmp/foo.go"}`
 	out := RenderToolInline("read", args, false)

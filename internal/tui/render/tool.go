@@ -93,7 +93,7 @@ func inlineDetail(toolName, toolArgs string) string {
 	switch strings.ToLower(toolName) {
 	case "bash", "shell":
 		if cmd, ok := args["command"].(string); ok {
-			line := firstLine(cmd)
+			line := stripCdPrefix(firstLine(cmd))
 			return styleToolDim.Render("$ " + truncate(line, 58))
 		}
 	case "read", "write", "edit":
@@ -196,4 +196,17 @@ func firstLine(s string) string {
 		return s[:idx]
 	}
 	return s
+}
+
+// stripCdPrefix removes a leading "cd /path && " from shell commands.
+// tinycode's shell tool prepends this to run commands in the project directory;
+// it's noise in the display since the cwd is already shown in the status bar.
+func stripCdPrefix(cmd string) string {
+	if !strings.HasPrefix(cmd, "cd ") {
+		return cmd
+	}
+	if idx := strings.Index(cmd, " && "); idx >= 0 {
+		return strings.TrimSpace(cmd[idx+4:])
+	}
+	return cmd
 }
