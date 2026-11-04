@@ -171,6 +171,7 @@ func ApplyColorTheme(ct *ColorTheme) {
 	styleTimestamp = lipgloss.NewStyle().Foreground(ct.TextMuted)
 	styleAgentFooter = lipgloss.NewStyle().Foreground(ct.TextMuted)
 	styleReasoningText = lipgloss.NewStyle().Foreground(ct.TextMuted)
+	styleCopyAffordance = lipgloss.NewStyle().Bold(true).Foreground(ct.TextMuted)
 
 	// render package tool name style
 	render.SetToolNameStyle(lipgloss.NewStyle().Bold(true).Foreground(ct.Primary))
