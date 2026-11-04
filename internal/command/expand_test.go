@@ -136,6 +136,71 @@ func TestExpandSlashCommand_SwarmPlanDisplayText(t *testing.T) {
 	}
 }
 
+func TestExpandSlashCommand_SwarmDisplayText(t *testing.T) {
+	result := ExpandSlashCommand("/swarm review the code", "", "")
+	if result.DisplayText != "/swarm review the code" {
+		t.Errorf("expected DisplayText %q, got %q", "/swarm review the code", result.DisplayText)
+	}
+}
+
+func TestSwarmPrefix_ContainsAllSpecialistTypes(t *testing.T) {
+	specialists := []string{
+		"executor",
+		"explore",
+		"code-reviewer",
+		"security-reviewer",
+		"test-engineer",
+		"architect",
+		"debugger",
+	}
+	for _, s := range specialists {
+		if !strings.Contains(SwarmPrefix, `"`+s+`"`) {
+			t.Errorf("SwarmPrefix missing specialist subagent_type %q", s)
+		}
+	}
+}
+
+func TestSwarmPlanPrefix_ContainsAllSpecialistTypes(t *testing.T) {
+	specialists := []string{
+		"executor",
+		"explore",
+		"code-reviewer",
+		"security-reviewer",
+		"test-engineer",
+		"architect",
+		"debugger",
+	}
+	for _, s := range specialists {
+		if !strings.Contains(SwarmPlanPrefix, `"`+s+`"`) {
+			t.Errorf("SwarmPlanPrefix missing specialist subagent_type %q", s)
+		}
+	}
+}
+
+func TestWorkLoopPrefix_ContainsKeyInstructions(t *testing.T) {
+	checks := []struct {
+		label  string
+		needle string
+	}{
+		{"mode header", "WORK-LOOP mode"},
+		{"completion signal", "until it is complete"},
+		{"no confirmation", "Do NOT ask for confirmation"},
+		{"blocked exit", "blocked"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(WorkLoopPrefix, c.needle) {
+			t.Errorf("WorkLoopPrefix missing %s phrase %q", c.label, c.needle)
+		}
+	}
+}
+
+func TestExpandSlashCommand_WorkLoopDisplayText(t *testing.T) {
+	result := ExpandSlashCommand("/work-loop fix the bug", "", "")
+	if result.DisplayText != "/work-loop fix the bug" {
+		t.Errorf("expected DisplayText %q, got %q", "/work-loop fix the bug", result.DisplayText)
+	}
+}
+
 func TestExpandSlashCommand_BuiltinSkill(t *testing.T) {
 	result := ExpandSlashCommand("/debug investigate flaky test", "", "")
 	if result.Text == "/debug investigate flaky test" {

@@ -864,6 +864,27 @@ func TestHandleGoalEval_NilGoalReturnsNil(t *testing.T) {
 	}
 }
 
+func TestHandleGoalEval_StaleGenerationIgnored(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	goal := newGoalTracker("tests pass", "go test ./...")
+	goal.state.Iteration = 2
+	ca := &connectedApp{app: app, goal: goal}
+
+	// Send a GoalEvalMsg with a stale generation (from a previous goal).
+	result, cmd := ca.handleGoalEval(GoalEvalMsg{Met: true, Generation: goal.generation - 1})
+	updated := result.(*connectedApp)
+
+	if updated.goal == nil {
+		t.Error("expected goal to remain active when generation mismatches")
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd for stale generation")
+	}
+}
+
 func TestHandleGoalEval_GoalMetClearsGoal(t *testing.T) {
 	app := NewApp("http://localhost:4096")
 	app.width = 100
@@ -873,7 +894,7 @@ func TestHandleGoalEval_GoalMetClearsGoal(t *testing.T) {
 	goal.state.Iteration = 2
 	ca := &connectedApp{app: app, goal: goal}
 
-	result, cmd := ca.handleGoalEval(GoalEvalMsg{Met: true})
+	result, cmd := ca.handleGoalEval(GoalEvalMsg{Met: true, Generation: goal.generation})
 	updated := result.(*connectedApp)
 
 	if updated.goal != nil {
@@ -893,7 +914,7 @@ func TestHandleGoalEval_MaxIterationsReachedClearsGoal(t *testing.T) {
 	goal.state.Iteration = goal.state.MaxIterations
 	ca := &connectedApp{app: app, goal: goal}
 
-	result, cmd := ca.handleGoalEval(GoalEvalMsg{Met: false, Output: "still failing"})
+	result, cmd := ca.handleGoalEval(GoalEvalMsg{Met: false, Output: "still failing", Generation: goal.generation})
 	updated := result.(*connectedApp)
 
 	if updated.goal != nil {
@@ -915,7 +936,7 @@ func TestHandleGoalEval_StuckDetectionClearsGoal(t *testing.T) {
 	goal.recentOutputs = []string{"same output", "same output"}
 	ca := &connectedApp{app: app, goal: goal}
 
-	result, cmd := ca.handleGoalEval(GoalEvalMsg{Met: false, Output: "same output"})
+	result, cmd := ca.handleGoalEval(GoalEvalMsg{Met: false, Output: "same output", Generation: goal.generation})
 	updated := result.(*connectedApp)
 
 	if updated.goal != nil {
@@ -943,7 +964,7 @@ func TestHandleGoalEval_NotMetContinuesIteration(t *testing.T) {
 	client := api.New(srv.URL, "/tmp", "")
 	ca := &connectedApp{app: app, goal: goal, client: client}
 
-	result, cmd := ca.handleGoalEval(GoalEvalMsg{Met: false, Output: "FAIL main_test.go"})
+	result, cmd := ca.handleGoalEval(GoalEvalMsg{Met: false, Output: "FAIL main_test.go", Generation: goal.generation})
 	updated := result.(*connectedApp)
 
 	if updated.goal == nil {
@@ -963,7 +984,7 @@ func TestHandleGoalEval_NoActiveSessionClearsGoal(t *testing.T) {
 	goal.state.Iteration = 1
 	ca := &connectedApp{app: app, goal: goal}
 
-	result, _ := ca.handleGoalEval(GoalEvalMsg{Met: false, Output: "unique output"})
+	result, _ := ca.handleGoalEval(GoalEvalMsg{Met: false, Output: "unique output", Generation: goal.generation})
 	updated := result.(*connectedApp)
 
 	if updated.goal != nil {

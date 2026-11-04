@@ -16,7 +16,14 @@ STEP 3: After all tasks return results, write a final synthesis report.
 TASK TOOL FORMAT — each call must include:
   "description": short label (e.g. "Batch 1: files A-G")
   "prompt": detailed instructions for the subagent — tell it exactly what to do and what to return
-  "subagent_type": "executor" (for running commands) or "explore" (for reading/searching)
+  "subagent_type": pick the best match for each subtask:
+    - "executor" — writing code, running commands, making changes
+    - "explore" — reading files, searching, gathering information
+    - "code-reviewer" — code review, bug hunting, quality analysis
+    - "security-reviewer" — security audits, vulnerability detection
+    - "test-engineer" — writing tests, test coverage, TDD
+    - "architect" — architecture decisions, design analysis, system trade-offs
+    - "debugger" — root-cause analysis, diagnosing failures
 
 CONSTRAINTS:
 - Do NOT set "background": true — use foreground mode
@@ -71,7 +78,14 @@ When the user approves (says "go", "approve", "yes", or similar), THEN call the 
 TASK TOOL FORMAT — each call must include:
   "description": short label (e.g. "Batch 1: files A-G")
   "prompt": detailed instructions for the subagent — tell it exactly what to do and what to return
-  "subagent_type": "executor" (for running commands) or "explore" (for reading/searching)
+  "subagent_type": pick the best match for each subtask:
+    - "executor" — writing code, running commands, making changes
+    - "explore" — reading files, searching, gathering information
+    - "code-reviewer" — code review, bug hunting, quality analysis
+    - "security-reviewer" — security audits, vulnerability detection
+    - "test-engineer" — writing tests, test coverage, TDD
+    - "architect" — architecture decisions, design analysis, system trade-offs
+    - "debugger" — root-cause analysis, diagnosing failures
 
 CONSTRAINTS:
 - Do NOT set "background": true — use foreground mode

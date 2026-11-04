@@ -105,9 +105,124 @@ func TestGoalTracker_EmptyCommandSkipsShellEval(t *testing.T) {
 	}
 }
 
+func TestEvaluateGoal_SuccessfulCommand(t *testing.T) {
+	msg := evaluateGoal("true", t.TempDir(), 1, 0)()
+	got, ok := msg.(GoalEvalMsg)
+	if !ok {
+		t.Fatalf("message = %T, want GoalEvalMsg", msg)
+	}
+	if !got.Met {
+		t.Error("expected Met=true for exit-0 command")
+	}
+	if got.Err != nil {
+		t.Errorf("unexpected Err: %v", got.Err)
+	}
+	if got.Iteration != 1 {
+		t.Errorf("Iteration = %d, want 1", got.Iteration)
+	}
+}
+
+func TestEvaluateGoal_FailingCommand(t *testing.T) {
+	msg := evaluateGoal("false", t.TempDir(), 3, 0)()
+	got, ok := msg.(GoalEvalMsg)
+	if !ok {
+		t.Fatalf("message = %T, want GoalEvalMsg", msg)
+	}
+	if got.Met {
+		t.Error("expected Met=false for exit-nonzero command")
+	}
+	if got.Iteration != 3 {
+		t.Errorf("Iteration = %d, want 3", got.Iteration)
+	}
+}
+
+func TestEvaluateGoal_CapturesStderr(t *testing.T) {
+	msg := evaluateGoal("echo err >&2", t.TempDir(), 1, 0)()
+	got, ok := msg.(GoalEvalMsg)
+	if !ok {
+		t.Fatalf("message = %T, want GoalEvalMsg", msg)
+	}
+	if !strings.Contains(got.Output, "err") {
+		t.Errorf("Output = %q, want it to contain stderr text 'err'", got.Output)
+	}
+}
+
+func TestEvaluateGoal_CombinesStdoutAndStderr(t *testing.T) {
+	msg := evaluateGoal("echo out && echo err >&2", t.TempDir(), 2, 0)()
+	got, ok := msg.(GoalEvalMsg)
+	if !ok {
+		t.Fatalf("message = %T, want GoalEvalMsg", msg)
+	}
+	if !strings.Contains(got.Output, "out") {
+		t.Errorf("Output = %q, missing stdout 'out'", got.Output)
+	}
+	if !strings.Contains(got.Output, "err") {
+		t.Errorf("Output = %q, missing stderr 'err'", got.Output)
+	}
+}
+
+func TestGoalTracker_IsStuck_WindowSlides(t *testing.T) {
+	g := newGoalTracker("tests pass", "go test ./...")
+	// Fill window with identical outputs to trigger stuck.
+	g.isStuck("same")
+	g.isStuck("same")
+	if !g.isStuck("same") {
+		t.Fatal("expected stuck after 3 identical")
+	}
+	// Break the streak with a different output.
+	if g.isStuck("different") {
+		t.Error("expected not stuck after different output")
+	}
+	// Two more identical — should NOT trigger stuck yet (need 3 fresh).
+	if g.isStuck("new") {
+		t.Error("expected not stuck with only 2 in window after break")
+	}
+	if g.isStuck("new") {
+		t.Error("expected not stuck with 2 identical — window is [different, new, new]")
+	}
+	// Third identical makes it stuck again.
+	if !g.isStuck("new") {
+		t.Error("expected stuck after 3 consecutive identical 'new'")
+	}
+}
+
+func TestGoalTracker_IterationTracking(t *testing.T) {
+	g := newGoalTracker("tests pass", "go test ./... -count=1")
+	if got := g.statusText(); got != "Goal: 0/10 — tests pass" {
+		t.Errorf("initial statusText = %q", got)
+	}
+	g.state.Iteration = 5
+	if got := g.statusText(); got != "Goal: 5/10 — tests pass" {
+		t.Errorf("mid-run statusText = %q", got)
+	}
+	g.state.Iteration = 10
+	if got := g.statusText(); got != "Goal: 10/10 — tests pass" {
+		t.Errorf("final statusText = %q", got)
+	}
+}
+
+func TestGoalTracker_GenerationIncrementsAcrossTrackers(t *testing.T) {
+	g1 := newGoalTracker("tests pass", "go test ./...")
+	g2 := newGoalTracker("build succeeds", "go build ./...")
+	if g2.generation <= g1.generation {
+		t.Errorf("g2.generation (%d) should be greater than g1.generation (%d)", g2.generation, g1.generation)
+	}
+}
+
+func TestEvaluateGoal_PropagatesGeneration(t *testing.T) {
+	msg := evaluateGoal("true", t.TempDir(), 1, 42)()
+	got, ok := msg.(GoalEvalMsg)
+	if !ok {
+		t.Fatalf("message = %T, want GoalEvalMsg", msg)
+	}
+	if got.Generation != 42 {
+		t.Errorf("Generation = %d, want 42", got.Generation)
+	}
+}
+
 func TestEvaluateGoal_DropsCredentialEnv(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "super-secret")
-	msg := evaluateGoal(`printf 'ran:%s' "$OPENROUTER_API_KEY"`, t.TempDir(), 1)()
+	msg := evaluateGoal(`printf 'ran:%s' "$OPENROUTER_API_KEY"`, t.TempDir(), 1, 0)()
 	got, ok := msg.(GoalEvalMsg)
 	if !ok {
 		t.Fatalf("message = %T", msg)

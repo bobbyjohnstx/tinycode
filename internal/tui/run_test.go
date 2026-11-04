@@ -1255,3 +1255,188 @@ func TestSessionStatusIdle_ReadOnlyTurnNoUndoHint(t *testing.T) {
 		t.Errorf("expected no undo toast on read-only turn, got %q", updated.app.toast.current.Text)
 	}
 }
+
+// --- /rewind (RewindSelectedMsg) tests ---
+
+func TestConnectedApp_RewindSelectedMsg_BlockedWhileWorking(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses_123"
+	app.status.SetWorking(true)
+
+	goal := newGoalTracker("fix the build", "make test")
+	ca := &connectedApp{app: app, goal: goal}
+
+	result, _ := ca.Update(RewindSelectedMsg{Turn: RewindTurn{Index: 3, MessageID: "m5", Preview: "Third turn"}})
+	updated := result.(*connectedApp)
+
+	// Goal must NOT be cleared when rewind is blocked.
+	if updated.goal == nil {
+		t.Error("expected goal to remain set when rewind is blocked while working")
+	}
+	// showErrorToast applies the toast directly to the app state.
+	if !updated.app.toast.IsVisible() {
+		t.Fatal("expected error toast visible when rewind is blocked while working")
+	}
+	if !updated.app.toast.current.IsError {
+		t.Error("expected an error toast, got non-error toast")
+	}
+	if !strings.Contains(updated.app.toast.current.Text, "Abort") {
+		t.Errorf("expected toast to mention 'Abort', got %q", updated.app.toast.current.Text)
+	}
+}
+
+func TestConnectedApp_RewindSelectedMsg_ClearsGoalOnRewind(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	app := NewApp(srv.URL)
+	app.state.ActiveSession = "ses_123"
+	app.state.Sessions = []SessionInfo{{ID: "ses_123", Title: "Test Session"}}
+	client := api.New(srv.URL, "/tmp", "")
+
+	goal := newGoalTracker("fix the build", "make test")
+	ca := &connectedApp{app: app, client: client, goal: goal}
+
+	result, cmd := ca.Update(RewindSelectedMsg{Turn: RewindTurn{Index: 2, MessageID: "m3", Preview: "Second turn"}})
+	updated := result.(*connectedApp)
+
+	// Goal must be cleared on rewind.
+	if updated.goal != nil {
+		t.Error("expected goal to be nil after rewind")
+	}
+	// Should return a command (rewindSession + toast).
+	if cmd == nil {
+		t.Fatal("expected commands from rewind")
+	}
+}
+
+func TestConnectedApp_RewindSelectedMsg_NoGoalStillWorks(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	app := NewApp(srv.URL)
+	app.state.ActiveSession = "ses_123"
+	app.state.Sessions = []SessionInfo{{ID: "ses_123", Title: "Test Session"}}
+	client := api.New(srv.URL, "/tmp", "")
+
+	ca := &connectedApp{app: app, client: client}
+
+	_, cmd := ca.Update(RewindSelectedMsg{Turn: RewindTurn{Index: 1, MessageID: "m1", Preview: "First turn"}})
+
+	// Should proceed normally, returning a rewind command.
+	if cmd == nil {
+		t.Fatal("expected a command from rewind with no goal active")
+	}
+}
+
+// --- /btw (BtwResponseMsg) tests ---
+
+func TestConnectedApp_BtwResponseMsg_SuccessAppendsHistory(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	// Pre-populate with one entry to verify append behavior.
+	ca.btwHistory = []sideQA{{Question: "first?", Answer: "yes"}}
+
+	_, cmd := ca.Update(BtwResponseMsg{
+		Question: "what is Go?",
+		Answer:   "A programming language by Google",
+	})
+
+	if len(ca.btwHistory) != 2 {
+		t.Fatalf("expected btwHistory length 2, got %d", len(ca.btwHistory))
+	}
+	last := ca.btwHistory[1]
+	if last.Question != "what is Go?" {
+		t.Errorf("expected question %q, got %q", "what is Go?", last.Question)
+	}
+	if last.Answer != "A programming language by Google" {
+		t.Errorf("expected answer %q, got %q", "A programming language by Google", last.Answer)
+	}
+	// Should return a toast command for the answer.
+	if cmd == nil {
+		t.Fatal("expected a toast command for successful btw response")
+	}
+}
+
+func TestConnectedApp_BtwResponseMsg_ErrorShowsToast(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	ca := &connectedApp{app: app}
+
+	ca.btwHistory = []sideQA{{Question: "first?", Answer: "yes"}}
+
+	result, cmd := ca.Update(BtwResponseMsg{
+		Err: errors.New("model timeout"),
+	})
+	updated := result.(*connectedApp)
+
+	// History should be unchanged.
+	if len(updated.btwHistory) != 1 {
+		t.Errorf("expected btwHistory length 1 (unchanged), got %d", len(updated.btwHistory))
+	}
+	// Should return an error toast command.
+	if cmd == nil {
+		t.Fatal("expected an error toast command on btw failure")
+	}
+}
+
+// --- /branch (BranchDoneMsg) tests ---
+
+func TestConnectedApp_BranchDoneMsg_SuccessAddsSessions(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.width = 100
+	app.height = 30
+	app.ready = true
+	app.state.ActiveSession = "ses_parent"
+	app.state.Sessions = []SessionInfo{{ID: "ses_parent", Title: "Original"}}
+	ca := &connectedApp{app: app}
+
+	branched := SessionInfo{ID: "ses_branch1", Title: "branch of Original", ParentID: "ses_parent"}
+	_, cmd := ca.Update(BranchDoneMsg{Session: &branched})
+
+	// The branched session should be prepended to Sessions.
+	if len(ca.app.state.Sessions) != 2 {
+		t.Fatalf("expected 2 sessions, got %d", len(ca.app.state.Sessions))
+	}
+	if ca.app.state.Sessions[0].ID != "ses_branch1" {
+		t.Errorf("expected branched session prepended, got %q", ca.app.state.Sessions[0].ID)
+	}
+	// Should return a command that includes SessionSwitchedMsg.
+	if cmd == nil {
+		t.Fatal("expected commands from successful branch")
+	}
+	switched, ok := findMsg[SessionSwitchedMsg](flattenCmd(cmd))
+	if !ok {
+		t.Fatal("expected a SessionSwitchedMsg from the dispatched command")
+	}
+	if switched.SessionID != "ses_branch1" {
+		t.Errorf("expected switch to ses_branch1, got %q", switched.SessionID)
+	}
+}
+
+func TestConnectedApp_BranchDoneMsg_ErrorShowsToast(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses_parent"
+	ca := &connectedApp{app: app}
+
+	_, cmd := ca.Update(BranchDoneMsg{Err: errors.New("branch conflict")})
+
+	if cmd == nil {
+		t.Fatal("expected an error toast command on branch failure")
+	}
+	// Sessions should be unchanged (no session added on error).
+	if len(ca.app.state.Sessions) != 0 {
+		t.Errorf("expected no sessions added on error, got %+v", ca.app.state.Sessions)
+	}
+}

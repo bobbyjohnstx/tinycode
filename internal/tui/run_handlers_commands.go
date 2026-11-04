@@ -557,7 +557,7 @@ func (c *connectedApp) handleGoalCommand(trimmed string) (tea.Model, tea.Cmd) {
 
 // handleGoalEval processes the result of a goal condition evaluation.
 func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
-	if c.goal == nil {
+	if c.goal == nil || msg.Generation != c.goal.generation {
 		return c, nil
 	}
 

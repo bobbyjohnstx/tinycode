@@ -145,6 +145,46 @@ func TestDefaultGoalMaxIterations(t *testing.T) {
 	}
 }
 
+func TestDetectEcosystem_EmptyDir(t *testing.T) {
+	if got := detectEcosystem(""); got != "" {
+		t.Errorf("detectEcosystem(\"\") = %q, want empty", got)
+	}
+}
+
+func TestDetectEcosystem_NoIndicators(t *testing.T) {
+	dir := t.TempDir() // exists but has no indicator files
+	if got := detectEcosystem(dir); got != "" {
+		t.Errorf("detectEcosystem(bare dir) = %q, want empty", got)
+	}
+}
+
+func TestResolveGoalCommand_EmbeddedPattern(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		condition string
+		wantCmd   string
+	}{
+		{"make sure build succeeds and deploy", "go build ./..."},
+		{"please ensure all tests pass before merging", "go test ./... -count=1"},
+		{"verify lint passes after the refactor", "go vet ./..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.condition, func(t *testing.T) {
+			cmd, ok := ResolveGoalCommand(tt.condition, dir)
+			if !ok {
+				t.Fatalf("ResolveGoalCommand(%q) ok = false, want true", tt.condition)
+			}
+			if cmd != tt.wantCmd {
+				t.Errorf("ResolveGoalCommand(%q) = %q, want %q", tt.condition, cmd, tt.wantCmd)
+			}
+		})
+	}
+}
+
 func TestResolveGoalCommand_UnrecognizedReturnsEmpty(t *testing.T) {
 	tests := []string{
 		"make the auth module work",

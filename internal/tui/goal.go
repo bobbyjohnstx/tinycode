@@ -19,30 +19,36 @@ import (
 type goalTracker struct {
 	state         *session.GoalState
 	recentOutputs []string // last N evaluation outputs for stuck detection
+	generation    uint64
 }
 
 const goalStuckThreshold = 3
 
+var goalGenCounter uint64
+
 func newGoalTracker(text, command string) *goalTracker {
+	goalGenCounter++
 	return &goalTracker{
 		state: &session.GoalState{
 			Text:          text,
 			Command:       command,
 			MaxIterations: session.DefaultGoalMaxIterations(),
 		},
+		generation: goalGenCounter,
 	}
 }
 
 // GoalEvalMsg carries the result of a goal condition evaluation.
 type GoalEvalMsg struct {
-	Met       bool   // true if exit code 0
-	Output    string // combined stdout+stderr
-	Err       error  // exec error (non-zero exit is NOT an error here)
-	Iteration int
+	Met        bool   // true if exit code 0
+	Output     string // combined stdout+stderr
+	Err        error  // exec error (non-zero exit is NOT an error here)
+	Iteration  int
+	Generation uint64
 }
 
 // evaluateGoal runs the goal command and returns a GoalEvalMsg.
-func evaluateGoal(command, dir string, iteration int) tea.Cmd {
+func evaluateGoal(command, dir string, iteration int, generation uint64) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
@@ -65,9 +71,10 @@ func evaluateGoal(command, dir string, iteration int) tea.Cmd {
 
 		met := err == nil // exit code 0 = condition met
 		return GoalEvalMsg{
-			Met:       met,
-			Output:    output,
-			Iteration: iteration,
+			Met:        met,
+			Output:     output,
+			Iteration:  iteration,
+			Generation: generation,
 		}
 	}
 }

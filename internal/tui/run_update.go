@@ -15,6 +15,11 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 
 	switch msg := msg.(type) {
 	case SessionSwitchedMsg:
+		if c.goal != nil {
+			c.goal = nil
+			c.app.status.SetGoal("")
+			cmds = append(cmds, c.app.reflowChrome())
+		}
 		model, cmd := c.app.Update(msg)
 		c.updateApp(model)
 		if cmd != nil {
@@ -352,14 +357,14 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		}
 		// When the active session transitions from working to idle and a goal is active,
 		// trigger goal evaluation.
-		if msg.SessionID == c.app.state.ActiveSession && !msg.Status.Working && c.goal != nil {
+		if msg.SessionID == c.app.state.ActiveSession && wasWorking && !msg.Status.Working && c.goal != nil {
 			c.goal.state.Iteration++
 			c.app.status.SetGoalState(c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations)
 			cmds = append(cmds, c.app.reflowChrome())
 			if c.goal.state.Command != "" {
 				// Shell-verifiable goal: run the command to check.
 				dir := c.app.status.Cwd()
-				cmds = append(cmds, evaluateGoal(c.goal.state.Command, dir, c.goal.state.Iteration))
+				cmds = append(cmds, evaluateGoal(c.goal.state.Command, dir, c.goal.state.Iteration, c.goal.generation))
 			}
 			// Self-assessment goals (empty command): the model self-terminates
 			// via its prompt protocol. Iteration counter and max-iterations
@@ -386,8 +391,17 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 		if sessionID == "" {
 			return c, tea.Batch(c.showErrorToast("No active session to rewind")...), true
 		}
+		if c.app.status.working {
+			return c, tea.Batch(c.showErrorToast("Abort the current turn first (Ctrl-C)")...), true
+		}
+		if c.goal != nil {
+			c.goal = nil
+			c.app.status.SetGoal("")
+			cmds = append(cmds, c.app.reflowChrome())
+		}
 		cmd := c.app.toast.Show("Rewinding conversation...", false)
-		return c, tea.Batch(cmd, rewindSession(c.client, sessionID, msg.Turn.MessageID, msg.Turn.Index)), true
+		cmds = append(cmds, cmd, rewindSession(c.client, sessionID, msg.Turn.MessageID, msg.Turn.Index))
+		return c, tea.Batch(cmds...), true
 
 	case RewindDoneMsg:
 		if msg.Err != nil {
