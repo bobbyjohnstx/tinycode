@@ -204,6 +204,87 @@ func TestParseThemeJSON_WithDefs(t *testing.T) {
 	}
 }
 
+func TestParseThemeJSON_MarkdownKeys(t *testing.T) {
+	data := []byte(`{
+		"theme": {
+			"markdownText":       {"dark": "#F8F8F2", "light": "#282A36"},
+			"markdownHeading":    {"dark": "#BD93F9", "light": "#6C3483"},
+			"markdownCode":       {"dark": "#50FA7B", "light": "#196F3D"},
+			"markdownLink":       {"dark": "#8BE9FD", "light": "#2980B9"},
+			"markdownBlockQuote": {"dark": "#6272A4", "light": "#566573"}
+		}
+	}`)
+
+	ct := parseThemeJSON("md-test", data)
+	if ct == nil {
+		t.Fatal("expected non-nil ColorTheme")
+	}
+
+	tests := []struct {
+		name string
+		got  lipgloss.AdaptiveColor
+		dark string
+	}{
+		{"MarkdownText", ct.MarkdownText, "#F8F8F2"},
+		{"MarkdownHeading", ct.MarkdownHeading, "#BD93F9"},
+		{"MarkdownCode", ct.MarkdownCode, "#50FA7B"},
+		{"MarkdownLink", ct.MarkdownLink, "#8BE9FD"},
+		{"MarkdownBlockQuote", ct.MarkdownBlockQuote, "#6272A4"},
+	}
+	for _, tt := range tests {
+		if tt.got.Dark != tt.dark {
+			t.Errorf("%s.Dark = %q, want %q", tt.name, tt.got.Dark, tt.dark)
+		}
+	}
+}
+
+func TestParseThemeJSON_MarkdownKeys_MissingFallsBackToZero(t *testing.T) {
+	data := []byte(`{"theme": {"primary": {"dark": "#FF0000", "light": "#00FF00"}}}`)
+
+	ct := parseThemeJSON("no-md", data)
+	if ct == nil {
+		t.Fatal("expected non-nil ColorTheme")
+	}
+	if ct.MarkdownText.Dark != "" {
+		t.Errorf("expected empty MarkdownText.Dark, got %q", ct.MarkdownText.Dark)
+	}
+	if ct.MarkdownHeading.Dark != "" {
+		t.Errorf("expected empty MarkdownHeading.Dark, got %q", ct.MarkdownHeading.Dark)
+	}
+}
+
+func TestColorTheme_MarkdownColors(t *testing.T) {
+	ct := &ColorTheme{
+		MarkdownText:       lipgloss.AdaptiveColor{Dark: "#AAAAAA", Light: "#111111"},
+		MarkdownHeading:    lipgloss.AdaptiveColor{Dark: "#BBBBBB", Light: "#222222"},
+		MarkdownCode:       lipgloss.AdaptiveColor{Dark: "#CCCCCC", Light: "#333333"},
+		MarkdownLink:       lipgloss.AdaptiveColor{Dark: "#DDDDDD", Light: "#444444"},
+		MarkdownBlockQuote: lipgloss.AdaptiveColor{Dark: "#EEEEEE", Light: "#555555"},
+	}
+
+	colors := ct.MarkdownColors()
+
+	// MarkdownColors resolves based on lipgloss.HasDarkBackground().
+	// We can't control that in tests, but we verify the values are non-empty
+	// and correspond to either the dark or light variant.
+	for _, pair := range []struct {
+		name string
+		got  string
+		dark string
+		lite string
+	}{
+		{"Text", colors.Text, "#AAAAAA", "#111111"},
+		{"Heading", colors.Heading, "#BBBBBB", "#222222"},
+		{"Code", colors.Code, "#CCCCCC", "#333333"},
+		{"Link", colors.Link, "#DDDDDD", "#444444"},
+		{"BlockQuote", colors.BlockQuote, "#EEEEEE", "#555555"},
+	} {
+		if pair.got != pair.dark && pair.got != pair.lite {
+			t.Errorf("MarkdownColors().%s = %q, want %q or %q", pair.name, pair.got, pair.dark, pair.lite)
+		}
+	}
+}
+
 func TestParseThemeJSON_InvalidJSON(t *testing.T) {
 	ct := parseThemeJSON("bad", []byte(`{not json}`))
 	if ct != nil {

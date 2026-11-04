@@ -45,6 +45,12 @@ type ColorTheme struct {
 	BgElement       lipgloss.AdaptiveColor
 	DiffAdded       lipgloss.AdaptiveColor
 	DiffRemoved     lipgloss.AdaptiveColor
+
+	MarkdownText       lipgloss.AdaptiveColor
+	MarkdownHeading    lipgloss.AdaptiveColor
+	MarkdownCode       lipgloss.AdaptiveColor
+	MarkdownLink       lipgloss.AdaptiveColor
+	MarkdownBlockQuote lipgloss.AdaptiveColor
 }
 
 type ThemeRegistry struct {
@@ -149,6 +155,30 @@ func parseThemeJSON(id string, data []byte) *ColorTheme {
 		BgElement:    color("backgroundElement"),
 		DiffAdded:    color("diffAdded"),
 		DiffRemoved:  color("diffRemoved"),
+
+		MarkdownText:       color("markdownText"),
+		MarkdownHeading:    color("markdownHeading"),
+		MarkdownCode:       color("markdownCode"),
+		MarkdownLink:       color("markdownLink"),
+		MarkdownBlockQuote: color("markdownBlockQuote"),
+	}
+}
+
+// MarkdownColors resolves the theme's markdown AdaptiveColors to concrete hex
+// strings (dark or light) suitable for the glamour renderer.
+func (ct *ColorTheme) MarkdownColors() render.MarkdownThemeColors {
+	resolve := func(ac lipgloss.AdaptiveColor) string {
+		if lipgloss.HasDarkBackground() {
+			return ac.Dark
+		}
+		return ac.Light
+	}
+	return render.MarkdownThemeColors{
+		Text:       resolve(ct.MarkdownText),
+		Heading:    resolve(ct.MarkdownHeading),
+		Code:       resolve(ct.MarkdownCode),
+		Link:       resolve(ct.MarkdownLink),
+		BlockQuote: resolve(ct.MarkdownBlockQuote),
 	}
 }
 

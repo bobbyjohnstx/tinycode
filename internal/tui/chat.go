@@ -40,6 +40,9 @@ type ChatView struct {
 	subagentStatus   map[string]SubagentStatus // label → completion data
 	subagentLines    map[int]string            // content line number → subagent label
 
+	// Theme-derived markdown colors (nil = default glamour dark style).
+	mdColors *render.MarkdownThemeColors
+
 	// Mouse drag selection state
 	dragging  bool
 	dragStart [2]int // [line, col] in content coordinates
@@ -85,7 +88,19 @@ func (c *ChatView) SetSize(width, height int) {
 	} else {
 		c.viewport.Height = height
 	}
-	c.renderer = render.NewMarkdownRenderer(width - 4)
+	if c.mdColors != nil {
+		c.renderer = render.NewMarkdownRendererWithTheme(width-4, *c.mdColors)
+	} else {
+		c.renderer = render.NewMarkdownRenderer(width - 4)
+	}
+	c.rebuildContent()
+}
+
+// SetMarkdownColors updates the theme-derived glamour colors and rebuilds the
+// chat content with the new markdown renderer.
+func (c *ChatView) SetMarkdownColors(colors render.MarkdownThemeColors) {
+	c.mdColors = &colors
+	c.renderer = render.NewMarkdownRendererWithTheme(c.width-4, colors)
 	c.rebuildContent()
 }
 

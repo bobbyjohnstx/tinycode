@@ -483,6 +483,7 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		a.state.CurrentTheme = msg.ThemeID
 		if theme := a.themes.Get(msg.ThemeID); theme != nil {
 			ApplyColorTheme(theme)
+			a.chat.SetMarkdownColors(theme.MarkdownColors())
 			cmd := a.toast.Show("Theme: "+theme.Name, false)
 			return a, cmd, true
 		}

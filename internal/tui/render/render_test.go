@@ -218,6 +218,92 @@ func TestMarkdownRenderer_RenderStreaming_MultipleBlocks(t *testing.T) {
 	}
 }
 
+// --- NewMarkdownRendererWithTheme tests ---
+
+func TestNewMarkdownRendererWithTheme_ProducesValidRenderer(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "")
+	colors := MarkdownThemeColors{
+		Text:       "#F8F8F2",
+		Heading:    "#BD93F9",
+		Code:       "#50FA7B",
+		Link:       "#8BE9FD",
+		BlockQuote: "#6272A4",
+	}
+	r := NewMarkdownRendererWithTheme(80, colors)
+	if r == nil {
+		t.Fatal("expected non-nil renderer")
+	}
+	out := r.RenderFinal("# Hello\n\nWorld")
+	if out == "" {
+		t.Fatal("expected non-empty rendered output")
+	}
+	stripped := stripANSI(out)
+	if !strings.Contains(stripped, "Hello") {
+		t.Errorf("rendered output should contain 'Hello', got %q", stripped)
+	}
+}
+
+func TestNewMarkdownRendererWithTheme_FallbackWhenNoColors(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "")
+	colors := MarkdownThemeColors{} // all empty
+	r := NewMarkdownRendererWithTheme(80, colors)
+	if r == nil {
+		t.Fatal("expected non-nil renderer")
+	}
+	// Should still render (falls back to default dark style)
+	out := r.RenderFinal("**bold text**")
+	stripped := stripANSI(out)
+	if !strings.Contains(stripped, "bold text") {
+		t.Errorf("fallback renderer should render content, got %q", stripped)
+	}
+}
+
+func TestNewMarkdownRendererWithTheme_GlamourStyleEnvOverride(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "light")
+	colors := MarkdownThemeColors{
+		Text:    "#F8F8F2",
+		Heading: "#BD93F9",
+	}
+	r := NewMarkdownRendererWithTheme(80, colors)
+	if r == nil {
+		t.Fatal("expected non-nil renderer")
+	}
+	// When GLAMOUR_STYLE is set, theme colors are ignored and the env style is used.
+	out := r.RenderFinal("# Test")
+	if out == "" {
+		t.Fatal("expected non-empty output with GLAMOUR_STYLE override")
+	}
+}
+
+func TestNewMarkdownRendererWithTheme_PartialColors(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "")
+	colors := MarkdownThemeColors{
+		Heading: "#BD93F9",
+		// Other colors left empty — should still produce a valid renderer.
+	}
+	r := NewMarkdownRendererWithTheme(80, colors)
+	if r == nil {
+		t.Fatal("expected non-nil renderer")
+	}
+	out := r.RenderFinal("# Heading\n\nParagraph")
+	stripped := stripANSI(out)
+	if !strings.Contains(stripped, "Heading") {
+		t.Errorf("should contain 'Heading', got %q", stripped)
+	}
+}
+
+func TestMarkdownThemeColors_HasColors(t *testing.T) {
+	empty := MarkdownThemeColors{}
+	if empty.HasColors() {
+		t.Error("empty colors should return false")
+	}
+
+	partial := MarkdownThemeColors{Heading: "#BD93F9"}
+	if !partial.HasColors() {
+		t.Error("partial colors should return true")
+	}
+}
+
 // --- truncate tests ---
 
 func TestTruncate_ShortString(t *testing.T) {

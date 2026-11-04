@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/glamour/styles"
 )
 
 // MarkdownRenderer renders markdown to styled terminal output using glamour.
@@ -48,6 +49,71 @@ func NewMarkdownRenderer(width int) *MarkdownRenderer {
 		return &MarkdownRenderer{width: width}
 	}
 	return &MarkdownRenderer{renderer: r, width: width}
+}
+
+// MarkdownThemeColors carries resolved hex color strings for glamour styling.
+// Empty strings mean "use the default glamour dark style value".
+type MarkdownThemeColors struct {
+	Text       string
+	Heading    string
+	Code       string
+	Link       string
+	BlockQuote string
+}
+
+// HasColors reports whether any theme color is set.
+func (c MarkdownThemeColors) HasColors() bool {
+	return c.Text != "" || c.Heading != "" || c.Code != "" || c.Link != "" || c.BlockQuote != ""
+}
+
+// NewMarkdownRendererWithTheme creates a renderer using theme-derived glamour
+// colors. If GLAMOUR_STYLE env var is set (and not "auto"), it takes
+// precedence and theme colors are ignored.
+func NewMarkdownRendererWithTheme(width int, colors MarkdownThemeColors) *MarkdownRenderer {
+	if width < 20 {
+		width = 20
+	}
+
+	// GLAMOUR_STYLE env var takes precedence over theme colors.
+	if envStyle := os.Getenv("GLAMOUR_STYLE"); envStyle != "" && envStyle != "auto" {
+		return NewMarkdownRenderer(width)
+	}
+
+	// If no theme colors provided, fall back to default.
+	if !colors.HasColors() {
+		return NewMarkdownRenderer(width)
+	}
+
+	// Start from the dark base style and override with theme colors.
+	sc := styles.DarkStyleConfig
+	if colors.Text != "" {
+		sc.Document.Color = strPtr(colors.Text)
+	}
+	if colors.Heading != "" {
+		sc.Heading.Color = strPtr(colors.Heading)
+	}
+	if colors.Code != "" {
+		sc.Code.Color = strPtr(colors.Code)
+	}
+	if colors.Link != "" {
+		sc.Link.Color = strPtr(colors.Link)
+	}
+	if colors.BlockQuote != "" {
+		sc.BlockQuote.Color = strPtr(colors.BlockQuote)
+	}
+
+	r, err := glamour.NewTermRenderer(
+		glamour.WithStyles(sc),
+		glamour.WithWordWrap(width),
+	)
+	if r == nil || err != nil {
+		return &MarkdownRenderer{width: width}
+	}
+	return &MarkdownRenderer{renderer: r, width: width}
+}
+
+func strPtr(s string) *string {
+	return &s
 }
 
 // RenderFinal renders the complete markdown text through glamour.
