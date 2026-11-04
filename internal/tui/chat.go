@@ -45,6 +45,9 @@ type ChatView struct {
 	// Theme-derived markdown colors (nil = default glamour dark style).
 	mdColors *render.MarkdownThemeColors
 
+	// Explicit markdown style preset name (empty = use theme colors).
+	markdownStyle string
+
 	// Mouse drag selection state
 	dragging  bool
 	dragStart [2]int // [line, col] in content coordinates
@@ -91,7 +94,13 @@ func (c *ChatView) SetSize(width, height int) {
 	} else {
 		c.viewport.Height = height
 	}
-	if c.mdColors != nil {
+	if c.markdownStyle != "" {
+		if r := render.NewMarkdownRendererWithPreset(width-4, c.markdownStyle); r != nil {
+			c.renderer = r
+		} else {
+			c.renderer = render.NewMarkdownRenderer(width - 4)
+		}
+	} else if c.mdColors != nil {
 		c.renderer = render.NewMarkdownRendererWithTheme(width-4, *c.mdColors)
 	} else {
 		c.renderer = render.NewMarkdownRenderer(width - 4)
@@ -100,10 +109,36 @@ func (c *ChatView) SetSize(width, height int) {
 }
 
 // SetMarkdownColors updates the theme-derived glamour colors and rebuilds the
-// chat content with the new markdown renderer.
+// chat content with the new markdown renderer. If an explicit markdown style
+// is set via SetMarkdownStyle, theme colors are stored but do not override
+// the active preset.
 func (c *ChatView) SetMarkdownColors(colors render.MarkdownThemeColors) {
 	c.mdColors = &colors
+	if c.markdownStyle != "" {
+		// Explicit style takes precedence; store colors for fallback only.
+		return
+	}
 	c.renderer = render.NewMarkdownRendererWithTheme(c.width-4, colors)
+	c.rebuildContent()
+}
+
+// SetMarkdownStyle applies a named markdown style preset. The preset
+// overrides theme-derived colors until cleared (empty name restores
+// theme colors).
+func (c *ChatView) SetMarkdownStyle(name string) {
+	c.markdownStyle = name
+	if name == "" {
+		// Revert to theme colors or default.
+		if c.mdColors != nil {
+			c.renderer = render.NewMarkdownRendererWithTheme(c.width-4, *c.mdColors)
+		} else {
+			c.renderer = render.NewMarkdownRenderer(c.width - 4)
+		}
+	} else {
+		if r := render.NewMarkdownRendererWithPreset(c.width-4, name); r != nil {
+			c.renderer = r
+		}
+	}
 	c.rebuildContent()
 }
 

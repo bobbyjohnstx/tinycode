@@ -92,6 +92,7 @@ func runAttach(args []string) {
 		ServerURL:       f.url,
 		Directory:       directory,
 		Theme:           cfg.Theme,
+		MarkdownStyle:   cfg.MarkdownStyle,
 		Token:           token,
 		Version:         version,
 		ScopedModels:    cfg.ScopedModels,

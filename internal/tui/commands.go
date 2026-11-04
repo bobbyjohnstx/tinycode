@@ -32,6 +32,7 @@ var clientCommandDefs = []clientCommandDef{
 	{Name: "goal", Description: "Autonomous execution until condition met", InPalette: true},
 	{Name: "help", Description: "Show keybindings and commands", InPalette: true},
 	{Name: "hooks", Description: "Show configured hooks (plugin and shell)", InPalette: true},
+	{Name: "markdown-style", Description: "Change markdown text display style", InPalette: true},
 	{Name: "mcp", Description: "Manage MCP servers", InPalette: true},
 	{Name: "paste-image", Description: "Paste image from clipboard", InPalette: true},
 	{Name: "privacy", Description: "Show what data is stored and where", InPalette: false},

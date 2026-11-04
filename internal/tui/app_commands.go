@@ -154,6 +154,12 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		a.contextDlg.Show(breakdown)
 		a.setFocus(FocusDialog)
 		return nil, true
+	case "markdown-style":
+		current := a.chat.markdownStyle
+		if current == "" {
+			current = "(theme default)"
+		}
+		return a.toast.Show(fmt.Sprintf("Markdown style: %s (use /markdown-style dark|light|muted|notty)", current), false), true
 	case "verbose":
 		a.chat.toggleAllToolCollapse()
 		a.chat.rebuildContent()

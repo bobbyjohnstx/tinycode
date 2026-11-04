@@ -342,6 +342,57 @@ func TestMarkdownThemeColors_HasColors(t *testing.T) {
 	}
 }
 
+// --- Preset tests ---
+
+func TestNewMarkdownRendererWithPreset_KnownPresets(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "")
+	for name := range MarkdownPresets {
+		t.Run(name, func(t *testing.T) {
+			r := NewMarkdownRendererWithPreset(80, name)
+			if r == nil {
+				t.Fatalf("NewMarkdownRendererWithPreset(%q) returned nil", name)
+			}
+			out := r.RenderFinal("# Hello")
+			if out == "" {
+				t.Fatalf("expected non-empty output for preset %q", name)
+			}
+		})
+	}
+}
+
+func TestNewMarkdownRendererWithPreset_Notty(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "")
+	r := NewMarkdownRendererWithPreset(80, "notty")
+	if r == nil {
+		t.Fatal("expected non-nil renderer for notty preset")
+	}
+	out := r.RenderFinal("# Hello")
+	if out == "" {
+		t.Fatal("expected non-empty output for notty preset")
+	}
+}
+
+func TestNewMarkdownRendererWithPreset_UnknownReturnsNil(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "")
+	r := NewMarkdownRendererWithPreset(80, "nonexistent")
+	if r != nil {
+		t.Fatal("expected nil for unknown preset name")
+	}
+}
+
+func TestNewMarkdownRendererWithPreset_GlamourStyleOverrides(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "light")
+	r := NewMarkdownRendererWithPreset(80, "dark")
+	if r == nil {
+		t.Fatal("expected non-nil renderer when GLAMOUR_STYLE overrides")
+	}
+	// When GLAMOUR_STYLE is set, the preset colors are ignored and the env style is used.
+	out := r.RenderFinal("# Test")
+	if out == "" {
+		t.Fatal("expected non-empty output with GLAMOUR_STYLE override")
+	}
+}
+
 // --- truncate tests ---
 
 func TestTruncate_ShortString(t *testing.T) {

@@ -52,3 +52,4 @@ docs/draft-email-*.md
 docs/wiki-and-self-improvement.md
 notes/
 .fresh-env-results/
+mock-llm

@@ -66,6 +66,62 @@ func (c MarkdownThemeColors) HasColors() bool {
 	return c.Text != "" || c.Heading != "" || c.Code != "" || c.Link != "" || c.BlockQuote != ""
 }
 
+// MarkdownPresets maps named styles to hardcoded color values.
+var MarkdownPresets = map[string]MarkdownThemeColors{
+	"dark": {
+		Text:       "#e0e0e0",
+		Heading:    "#61afef",
+		Code:       "#98c379",
+		Link:       "#56b6c2",
+		BlockQuote: "#abb2bf",
+	},
+	"light": {
+		Text:       "#383a42",
+		Heading:    "#4078f2",
+		Code:       "#50a14f",
+		Link:       "#0184bc",
+		BlockQuote: "#696c77",
+	},
+	"muted": {
+		Text:       "#b0b0b0",
+		Heading:    "#7a9ec2",
+		Code:       "#7a9e7a",
+		Link:       "#7a9eb0",
+		BlockQuote: "#888888",
+	},
+}
+
+// NewMarkdownRendererWithPreset creates a renderer using a named preset.
+// The special name "notty" uses glamour's notty style (no custom colors).
+// Returns nil if the preset name is unknown.
+func NewMarkdownRendererWithPreset(width int, name string) *MarkdownRenderer {
+	if width < 20 {
+		width = 20
+	}
+
+	// GLAMOUR_STYLE env var takes precedence over presets.
+	if envStyle := os.Getenv("GLAMOUR_STYLE"); envStyle != "" && envStyle != "auto" {
+		return NewMarkdownRenderer(width)
+	}
+
+	if name == "notty" {
+		r, err := glamour.NewTermRenderer(
+			glamour.WithStandardStyle("notty"),
+			glamour.WithWordWrap(width),
+		)
+		if r == nil || err != nil {
+			return &MarkdownRenderer{width: width}
+		}
+		return &MarkdownRenderer{renderer: r, width: width}
+	}
+
+	colors, ok := MarkdownPresets[name]
+	if !ok {
+		return nil
+	}
+	return NewMarkdownRendererWithTheme(width, colors)
+}
+
 // NewMarkdownRendererWithTheme creates a renderer using theme-derived glamour
 // colors. If GLAMOUR_STYLE env var is set (and not "auto"), it takes
 // precedence and theme colors are ignored.

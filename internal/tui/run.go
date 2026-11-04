@@ -22,6 +22,7 @@ type RunConfig struct {
 	ServerURL       string
 	Directory       string
 	Theme           string
+	MarkdownStyle   string
 	Token           string
 	Version         string
 	ScopedModels    []string
@@ -37,6 +38,9 @@ func Run(ctx context.Context, cfg RunConfig) error {
 	client := api.New(cfg.ServerURL, cfg.Directory, cfg.Token)
 
 	app := newConnectedApp(ctx, cfg.ServerURL, client, cfg.Directory, cfg.Theme, cfg.Version, cfg.ScopedModels)
+	if cfg.MarkdownStyle != "" {
+		app.app.chat.SetMarkdownStyle(cfg.MarkdownStyle)
+	}
 	app.app.state.ShellHooks = cfg.ShellHooks
 	app.app.state.CycleAgents = cfg.CycleAgents
 	app.initialTitle = cfg.InitialTitle

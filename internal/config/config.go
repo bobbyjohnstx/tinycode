@@ -46,6 +46,7 @@ type Info struct {
 	LSP               *LSPConfig                 `json:"lsp,omitempty"`
 	Formatter         *FormatterConfig           `json:"formatter,omitempty"`
 	Theme             string                     `json:"theme,omitempty"`
+	MarkdownStyle     string                     `json:"markdown_style,omitempty"`
 	Effort            string                     `json:"effort,omitempty"`
 	AutoApprove       *bool                      `json:"autoApprove,omitempty"`
 	ScopedModels      []string                   `json:"scopedModels,omitempty"`

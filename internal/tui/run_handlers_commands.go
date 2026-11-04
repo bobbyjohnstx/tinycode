@@ -19,6 +19,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/scaffold"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/render"
 )
 
 // thinkingLevelBudget maps a thinking level name to a token budget.
@@ -128,6 +129,38 @@ func (c *connectedApp) handleEffortCommand(trimmed string) (tea.Model, tea.Cmd) 
 	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Effort level: %s", level)})
 	c.updateApp(model)
 	return c, tea.Batch(cmd, reflowCmd)
+}
+
+// handleMarkdownStyleCommand handles the /markdown-style slash command.
+func (c *connectedApp) handleMarkdownStyleCommand(trimmed string) (tea.Model, tea.Cmd) {
+	name := strings.TrimSpace(strings.TrimPrefix(trimmed, "/markdown-style"))
+
+	if name == "" {
+		current := c.app.chat.markdownStyle
+		if current == "" {
+			current = "(theme default)"
+		}
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Markdown style: %s (use /markdown-style dark|light|muted|notty)", current)})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	// Validate the preset name.
+	if name != "notty" {
+		if _, ok := render.MarkdownPresets[name]; !ok {
+			model, cmd := c.app.Update(ToastMsg{
+				Text:    fmt.Sprintf("Unknown markdown style: %s (use dark, light, muted, notty)", name),
+				IsError: true,
+			})
+			c.updateApp(model)
+			return c, cmd
+		}
+	}
+
+	c.app.chat.SetMarkdownStyle(name)
+	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Markdown style: %s", name)})
+	c.updateApp(model)
+	return c, cmd
 }
 
 // showErrorToast sends a ToastMsg to the app and returns any resulting cmds.

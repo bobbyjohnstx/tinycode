@@ -125,6 +125,7 @@ func runTUI(args []string) {
 		ServerURL:       serverURL,
 		Directory:       dir,
 		Theme:           cfg.Theme,
+		MarkdownStyle:   cfg.MarkdownStyle,
 		Token:           token,
 		Version:         version,
 		ScopedModels:    cfg.ScopedModels,

@@ -64,6 +64,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c.handleEffortCommand(trimmed)
 	}
 
+	if trimmed == "/markdown-style" || strings.HasPrefix(trimmed, "/markdown-style ") {
+		return c.handleMarkdownStyleCommand(trimmed)
+	}
+
 	if trimmed == "/branch" || strings.HasPrefix(trimmed, "/branch ") {
 		return c.handleBranchCommand(trimmed)
 	}

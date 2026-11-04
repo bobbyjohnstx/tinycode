@@ -347,6 +347,53 @@ func TestHandleEffortCommand_RejectsInvalidLevel(t *testing.T) {
 	}
 }
 
+// --- handleMarkdownStyleCommand tests ---
+
+func TestHandleMarkdownStyleCommand_ShowsCurrentWhenNoArg(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleMarkdownStyleCommand("/markdown-style")
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected toast to show current markdown style")
+	}
+}
+
+func TestHandleMarkdownStyleCommand_SetsValidPreset(t *testing.T) {
+	t.Setenv("GLAMOUR_STYLE", "")
+	tests := []string{"dark", "light", "muted", "notty"}
+	for _, name := range tests {
+		t.Run(name, func(t *testing.T) {
+			app := NewApp("http://localhost:4096")
+			ca := &connectedApp{app: app}
+
+			result, _ := ca.handleMarkdownStyleCommand("/markdown-style " + name)
+			updated := result.(*connectedApp)
+
+			if updated.app.chat.markdownStyle != name {
+				t.Errorf("expected markdownStyle %q, got %q", name, updated.app.chat.markdownStyle)
+			}
+		})
+	}
+}
+
+func TestHandleMarkdownStyleCommand_RejectsUnknownStyle(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleMarkdownStyleCommand("/markdown-style neon")
+	updated := result.(*connectedApp)
+
+	if updated.app.chat.markdownStyle != "" {
+		t.Errorf("expected markdownStyle unchanged (empty), got %q", updated.app.chat.markdownStyle)
+	}
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast for unknown style")
+	}
+}
+
 // --- handleEditorRequest tests ---
 
 func TestHandleEditorRequest_ReturnsCmd(t *testing.T) {
