@@ -190,6 +190,27 @@ The shell command runs in the working directory and its output is included as co
 | PgDn | Scroll conversation down |
 | Mouse wheel | Scroll conversation |
 
+### Chat display
+
+| Key | Action |
+|-----|--------|
+| T | Toggle thought/reasoning expand/collapse |
+| V | Toggle all tool output expand/collapse |
+
+Tool output is collapsed by default (one-line summary). Groups of 4+ consecutive reads collapse into a single line (e.g., `▸ read 6 files (14.4KB)`). Click on a collapsed tool or group to expand it. Use `/verbose` to toggle the session default.
+
+**Markdown style** — controls heading, code, and link colors independently from the theme:
+
+```
+/markdown-style dark       # default
+/markdown-style colorful   # original glamour (brighter)
+/markdown-style muted      # softer contrast
+/markdown-style light      # for light terminals
+/markdown-style notty      # no colors
+```
+
+Persist with `"markdown_style": "muted"` in tinycode.jsonc. `GLAMOUR_STYLE` env var overrides all styles.
+
 ### Leader key sequences
 
 The leader key is **Ctrl+X**. Press it, then press a follow-up key within 500ms.

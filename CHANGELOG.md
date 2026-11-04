@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-11-03
+
+### TUI
+- Collapsed tool blocks by default — press `V` to expand all, click to expand individual, `/verbose` to toggle (#905)
+- Group 4+ consecutive reads into single summary line: `▸ read 6 files (14.4KB)` (#911)
+- Thoughts collapsed by default (click or `T` to expand) (#911)
+- Collapsed tool results fully suppressed — no more bare `(N lines)` noise
+- `/markdown-style` command: dark, light, muted, colorful, notty — independent from theme (#912)
+- Strip `cd /path &&` prefix from bash tool display
+- Wire `styleCopyAffordance` and glamour markdown rendering to theme system (#906)
+
+### Session
+- Tool-intent detection: retry with hint when model describes actions instead of calling tools (#904)
+- Compaction: prevent orphaning tool_result from tool_use pairs (#909)
+- Compaction: back off instead of stopping when no progress (#909)
+- Disable elision — masking old tool results caused re-reads, wasting iterations
+
+### Providers
+- Raise vLLM default context from 8192: infer from model family (granite→128K, claude→200K, qwen→32K, etc.) (#910)
+- Config override: `provider.vllm.options.contextLength` in tinycode.jsonc (#910)
+- Read provider endpoints from config (`provider.<name>.options.baseURL`) with env-var-wins precedence (#907)
+- Provider discoverability: cheatsheet table, /help entry, doctor tips, /connect footer (#908)
+
+### Docs
+- Harness Engineering alignment report (arXiv:2609.00006) with corrected scorecard
+- Fixed phantom keybindings, ramalama section, F2 model cycling from docs (UX review)
+- Comprehensive compaction tests (13 new tests for tool pairs and backoff)
+
 ## [2.6.1] - 2026-10-22
 
 ### TUI
