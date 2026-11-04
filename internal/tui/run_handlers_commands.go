@@ -145,11 +145,19 @@ func (c *connectedApp) handleMarkdownStyleCommand(trimmed string) (tea.Model, te
 		return c, cmd
 	}
 
+	// "auto" resets to theme default.
+	if name == "auto" {
+		c.app.chat.SetMarkdownStyle("")
+		model, cmd := c.app.Update(ToastMsg{Text: "Markdown style: auto (theme default)"})
+		c.updateApp(model)
+		return c, cmd
+	}
+
 	// Validate the preset name.
 	if name != "notty" && name != "colorful" {
 		if _, ok := render.MarkdownPresets[name]; !ok {
 			model, cmd := c.app.Update(ToastMsg{
-				Text:    fmt.Sprintf("Unknown markdown style: %s (use dark, light, muted, colorful, notty)", name),
+				Text:    fmt.Sprintf("Unknown markdown style: %s (use auto, dark, light, muted, colorful, notty)", name),
 				IsError: true,
 			})
 			c.updateApp(model)

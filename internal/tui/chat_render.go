@@ -561,7 +561,15 @@ func findToolRuns(groups []subagentGroup) map[int]*toolRun {
 }
 
 func isGroupableTool(p PartView) bool {
-	return (p.Type == "tool" || p.Type == "tool-call") && p.ToolName != ""
+	if p.ToolError {
+		return false
+	}
+	switch p.ToolName {
+	case "read", "glob", "grep", "list_files":
+		return (p.Type == "tool" || p.Type == "tool-call")
+	default:
+		return false
+	}
 }
 
 // renderToolGroupSummary renders a single-line summary for a collapsed tool group.

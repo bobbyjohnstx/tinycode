@@ -157,12 +157,25 @@ func NewMarkdownRendererWithTheme(width int, colors MarkdownThemeColors) *Markdo
 	}
 	if colors.Heading != "" {
 		sc.Heading.Color = strPtr(colors.Heading)
+		// Override per-level headings — glamour's dark style sets H1 with its
+		// own Color ("228") and BackgroundColor ("63") that override the generic
+		// Heading color. Clear H1's background and propagate theme color to all levels.
+		sc.H1.Color = strPtr(colors.Heading)
+		sc.H1.BackgroundColor = strPtr("")
+		sc.H2.Color = strPtr(colors.Heading)
+		sc.H3.Color = strPtr(colors.Heading)
+		sc.H4.Color = strPtr(colors.Heading)
+		sc.H5.Color = strPtr(colors.Heading)
+		sc.H6.Color = strPtr(colors.Heading)
 	}
 	if colors.Code != "" {
 		sc.Code.Color = strPtr(colors.Code)
 	}
 	if colors.Link != "" {
 		sc.Link.Color = strPtr(colors.Link)
+		// LinkText is the visible text of a link — without this, glamour's
+		// default LinkText color overrides the Link color we just set.
+		sc.LinkText.Color = strPtr(colors.Link)
 	}
 	if colors.BlockQuote != "" {
 		sc.BlockQuote.Color = strPtr(colors.BlockQuote)

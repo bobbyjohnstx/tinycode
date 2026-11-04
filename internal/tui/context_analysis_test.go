@@ -224,13 +224,13 @@ func TestAnalyzeContext_ToolCallCategorization(t *testing.T) {
 			Info: MessageInfo{Role: "assistant"},
 			Parts: []PartView{
 				{Type: "text", Text: "I'll read the file"},
-				{Type: "tool_call", ToolName: "read", ToolArgs: `{"file_path":"/tmp/a.go"}`},
+				{Type: "tool-call", ToolName: "read", ToolArgs: `{"file_path":"/tmp/a.go"}`},
 			},
 		},
 		{
 			Info: MessageInfo{Role: "assistant"},
 			Parts: []PartView{
-				{Type: "tool_result", ToolName: "read", Text: "package main"},
+				{Type: "tool-result", ToolName: "read", Text: "package main"},
 			},
 		},
 	}
@@ -240,6 +240,48 @@ func TestAnalyzeContext_ToolCallCategorization(t *testing.T) {
 	}
 	if b.ToolResultTokens == 0 {
 		t.Error("expected tool result tokens > 0")
+	}
+}
+
+func TestAnalyzeContext_ToolTypeCategorization(t *testing.T) {
+	msgs := []MessageView{
+		{
+			Info: MessageInfo{Role: "assistant"},
+			Parts: []PartView{
+				{Type: "tool", ToolName: "Bash", ToolArgs: `{"command":"ls"}`, Text: "file1.go\nfile2.go"},
+			},
+		},
+	}
+	b := AnalyzeContext(msgs, 1000, 0)
+	if b.ToolCallTokens == 0 {
+		t.Error("expected tool call tokens > 0 for 'tool' type with ToolArgs")
+	}
+	if b.ToolResultTokens == 0 {
+		t.Error("expected tool result tokens > 0 for 'tool' type with Text")
+	}
+	// Categories should sum to total
+	sum := b.SystemTokens + b.UserTokens + b.AssistantTokens + b.ToolCallTokens + b.ToolResultTokens
+	if sum != b.TotalTokens {
+		t.Errorf("categories sum %d != total %d", sum, b.TotalTokens)
+	}
+}
+
+func TestAnalyzeContext_APILessThanEstimate(t *testing.T) {
+	// When API reports fewer tokens than our estimate, use the estimate
+	// so categories still sum to total.
+	msgs := []MessageView{
+		{
+			Info:  MessageInfo{Role: "user"},
+			Parts: []PartView{{Type: "text", Text: "hello world test message"}},
+		},
+	}
+	b := AnalyzeContext(msgs, 1000, 1) // apiTokens=1 < estimated
+	estimated := b.SystemTokens + b.UserTokens + b.AssistantTokens + b.ToolCallTokens + b.ToolResultTokens
+	if b.TotalTokens != estimated {
+		t.Errorf("TotalTokens = %d, want estimated %d when API < estimated", b.TotalTokens, estimated)
+	}
+	if b.TotalTokens < 1 {
+		t.Error("TotalTokens should be positive")
 	}
 }
 

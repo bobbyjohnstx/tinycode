@@ -207,7 +207,7 @@ func firstLine(s string) string {
 }
 
 // stripCdPrefix removes a leading "cd /path && " from shell commands.
-// tinycode's shell tool prepends this to run commands in the project directory;
+// The LLM agent prepends this to run commands in the project directory;
 // it's noise in the display since the cwd is already shown in the status bar.
 func stripCdPrefix(cmd string) string {
 	if !strings.HasPrefix(cmd, "cd ") {

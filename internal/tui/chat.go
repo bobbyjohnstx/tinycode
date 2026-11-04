@@ -601,10 +601,10 @@ func (c ChatView) handleMessagesLoaded(msg MessagesLoadedMsg) (ChatView, tea.Cmd
 		for _, m := range msg.Messages {
 			mv := parseMessageView(m)
 			mv.Parts = parseLoadedParts(m)
-			// Default tool parts to collapsed on session reload.
+			// Default tool parts to collapsed on session reload (respect verbose mode).
 			for j := range mv.Parts {
 				if mv.Parts[j].Type == "tool" || mv.Parts[j].Type == "tool-call" || mv.Parts[j].Type == "tool-result" {
-					mv.Parts[j].Collapsed = true
+					mv.Parts[j].Collapsed = !c.toolsExpanded
 				}
 			}
 			views = append(views, mv)

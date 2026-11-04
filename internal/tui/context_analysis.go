@@ -38,13 +38,20 @@ func AnalyzeContext(messages []MessageView, contextLimit int, apiTokens int) Con
 		case "assistant":
 			b.AssistantTokens += size
 		default:
-			// Categorize tool_call and tool_result parts.
+			// Categorize tool-call, tool-result, and tool parts.
 			for _, p := range msg.Parts {
 				switch p.Type {
-				case "tool_call":
+				case "tool-call":
 					b.ToolCallTokens += estimateChars(p.ToolName + p.ToolArgs)
-				case "tool_result":
+				case "tool-result":
 					b.ToolResultTokens += estimateChars(p.Text)
+				case "tool":
+					if p.ToolArgs != "" {
+						b.ToolCallTokens += estimateChars(p.ToolName + p.ToolArgs)
+					}
+					if p.Text != "" {
+						b.ToolResultTokens += estimateChars(p.Text)
+					}
 				}
 			}
 		}
@@ -52,7 +59,7 @@ func AnalyzeContext(messages []MessageView, contextLimit int, apiTokens int) Con
 		// Separate tool parts from assistant/user messages too.
 		for _, p := range msg.Parts {
 			switch p.Type {
-			case "tool_call":
+			case "tool-call":
 				tc := estimateChars(p.ToolName + p.ToolArgs)
 				buckets = append(buckets, bucket{name: "tool_call:" + p.ToolName, tokens: tc})
 				// Shift from role bucket to tool bucket.
@@ -60,19 +67,36 @@ func AnalyzeContext(messages []MessageView, contextLimit int, apiTokens int) Con
 					b.AssistantTokens -= tc
 					b.ToolCallTokens += tc
 				}
-			case "tool_result":
+			case "tool-result":
 				tr := estimateChars(p.Text)
 				buckets = append(buckets, bucket{name: "tool_result:" + p.ToolName, tokens: tr})
 				if msg.Info.Role == "assistant" {
 					b.AssistantTokens -= tr
 					b.ToolResultTokens += tr
 				}
+			case "tool":
+				if p.ToolArgs != "" {
+					tc := estimateChars(p.ToolName + p.ToolArgs)
+					buckets = append(buckets, bucket{name: "tool_call:" + p.ToolName, tokens: tc})
+					if msg.Info.Role == "assistant" {
+						b.AssistantTokens -= tc
+						b.ToolCallTokens += tc
+					}
+				}
+				if p.Text != "" {
+					tr := estimateChars(p.Text)
+					buckets = append(buckets, bucket{name: "tool_result:" + p.ToolName, tokens: tr})
+					if msg.Info.Role == "assistant" {
+						b.AssistantTokens -= tr
+						b.ToolResultTokens += tr
+					}
+				}
 			}
 		}
 	}
 
 	estimated := b.SystemTokens + b.UserTokens + b.AssistantTokens + b.ToolCallTokens + b.ToolResultTokens
-	if apiTokens > 0 {
+	if apiTokens > 0 && apiTokens >= estimated {
 		b.TotalTokens = apiTokens
 		// The gap between API-reported tokens and our message estimate is the
 		// system prompt (agent definition + tool schemas + config context).
@@ -117,9 +141,12 @@ func estimateMessageTokens(msg MessageView) int {
 	total := 0
 	for _, p := range msg.Parts {
 		switch p.Type {
-		case "tool_call":
+		case "tool-call":
 			total += estimateChars(p.ToolName + p.ToolArgs)
-		case "tool_result":
+		case "tool-result":
+			total += estimateChars(p.Text)
+		case "tool":
+			total += estimateChars(p.ToolName + p.ToolArgs)
 			total += estimateChars(p.Text)
 		default:
 			total += estimateChars(p.Text)

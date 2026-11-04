@@ -159,7 +159,7 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		if current == "" {
 			current = "(theme default)"
 		}
-		return a.toast.Show(fmt.Sprintf("Markdown style: %s (use /markdown-style dark|light|muted|notty)", current), false), true
+		return a.toast.Show(fmt.Sprintf("Markdown style: %s (use /markdown-style auto|dark|light|muted|colorful|notty)", current), false), true
 	case "verbose":
 		a.chat.toggleAllToolCollapse()
 		a.chat.rebuildContent()

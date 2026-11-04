@@ -165,6 +165,24 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 		return a, cmd
 	}
 
+	// Intercept Shift+V and Shift+T before they reach the text input.
+	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 {
+		switch msg.Runes[0] {
+		case 'V':
+			a.chat.toggleAllToolCollapse()
+			a.chat.rebuildContent()
+			label := "collapsed"
+			if a.chat.toolsExpanded {
+				label = "expanded"
+			}
+			return a, a.toast.Show("Tool output: "+label, false)
+		case 'T':
+			a.chat.toggleThought("")
+			a.chat.rebuildContent()
+			return a, nil
+		}
+	}
+
 	return a.dispatchToFocused(msg)
 }
 
@@ -787,7 +805,14 @@ func newestAssistantTokens(msgs []MessageView) int {
 // handleMouseMsg routes mouse events to the appropriate component.
 func (a App) handleMouseMsg(msg tea.MouseMsg) (App, tea.Cmd) {
 	l := calculateLayout(a.width, a.height, a.sidebar.IsOpen(), a.prompt.Height(), a.status.Height())
-	if msg.Y < l.chatHeight && msg.X < l.chatWidth {
+	// When the sidebar is open it occupies the left columns; adjust X so
+	// the chat component receives coordinates relative to its own origin.
+	chatX := msg.X
+	if l.hasSidebar {
+		chatX -= l.sidebarWidth
+	}
+	if msg.Y < l.chatHeight && chatX >= 0 && chatX < l.chatWidth {
+		msg.X = chatX
 		var cmd tea.Cmd
 		a.chat, cmd = a.chat.Update(msg)
 		return a, cmd

@@ -384,7 +384,7 @@ func (a *App) updateSidebarContext() {
 		m := msgs[i]
 		if m.Info.Role == "assistant" {
 			t := m.Info.Tokens
-			total := t.Input + t.Output
+			total := t.Input
 			if total > 0 && lastTokens == 0 {
 				lastTokens = total
 			}
