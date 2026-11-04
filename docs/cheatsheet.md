@@ -199,3 +199,15 @@ After listing models (`<leader>m`):
 - **Prompt history browser:** `Ctrl+R` opens a scrollable list of past prompts (newest first) instead of relying on bare `↑`/`↓`; a status hint below the composer also shows the entry count once you have history
 - **Model warmup:** On startup, tinycode probes the Ollama model to verify tool-call support and pre-load it into GPU memory. Look for "ready — tool calling supported" in the toast/footer
 - **Tool-call warnings:** If you see "Multiple tool call failures detected," switch to a larger model via `<leader>m` — tinycode auto-repairs common JSON issues, but very small models may not support tool calling at all
+
+## Provider Configuration
+
+| Provider | How to connect |
+|----------|---------------|
+| Ollama | Auto-discovered at localhost:11434 |
+| LM Studio | Auto-discovered at localhost:1234 |
+| vLLM | Set `TINYCODE_VLLM_HOST=http://host:8000` or config `provider.vllm.options.baseURL` |
+| OpenRouter | Set `OPENROUTER_API_KEY=sk-or-...` |
+| Custom | Add to `"provider"` block in tinycode.jsonc (see user-guide) |
+
+Env vars override config. Use `/connect` to select a model after connecting.

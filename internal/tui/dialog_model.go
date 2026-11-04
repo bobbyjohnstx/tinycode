@@ -489,6 +489,9 @@ func (d ModelDialog) viewProviders() string {
 		sb.WriteString(styleMetadata.Render("  ▼ more"))
 	}
 
+	sb.WriteString("\n")
+	sb.WriteString(styleMetadata.Render("  more providers: /help or tinycode doctor"))
+
 	if d.firstRunHint {
 		sb.WriteString("\n\n")
 		sb.WriteString(styleMetadata.Render(footer))

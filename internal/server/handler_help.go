@@ -119,6 +119,7 @@ func (s *Server) handleHelp(w http.ResponseWriter, r *http.Request) {
 		{Name: "Manual Compaction", Description: "Use /compact to summarize older messages and free context window space (Processor.Compact; also POST /session/{id}/summarize)."},
 		{Name: "tinycode doctor", Description: "Run tinycode doctor from the CLI for a headless health check of config, database, providers, agents, plugins, and skills. TUI skill: /doctor."},
 		{Name: "Web UI limits", Description: "Embedded SolidJS web UI has no in-browser PTY terminal; config.share defaults to disabled (no session share/publish routes)."},
+		{Name: "Provider Configuration", Description: "Ollama and LM Studio are auto-discovered. Set TINYCODE_VLLM_HOST for vLLM, OPENROUTER_API_KEY for OpenRouter, or add custom providers in tinycode.jsonc under the provider block."},
 		{Name: "Safe Mode", Description: "Start with --safe-mode to skip plugins, MCP servers, and user-defined agents. The status bar shows an orange SAFE MODE indicator."},
 		{Name: "Session Resume", Description: "Use -c/--continue to resume the most recent session, or -r/--resume to resume by ID or title substring."},
 		{Name: "System Prompt Override", Description: "Use --append-system-prompt or --append-system-prompt-file to inject custom instructions into the system prompt."},

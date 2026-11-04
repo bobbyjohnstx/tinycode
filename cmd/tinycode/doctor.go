@@ -97,6 +97,14 @@ func runDoctor() {
 	// Providers
 	checkProviders(cfg, &failed)
 
+	// Hint about additional providers not currently configured
+	if os.Getenv("TINYCODE_VLLM_HOST") == "" {
+		fmt.Printf("%s Tip: connect vLLM with TINYCODE_VLLM_HOST=http://host:8000\n", checkPass)
+	}
+	if os.Getenv("OPENROUTER_API_KEY") == "" {
+		fmt.Printf("%s Tip: connect OpenRouter with OPENROUTER_API_KEY=sk-or-...\n", checkPass)
+	}
+
 	// MCP
 	if len(cfg.MCP) > 0 {
 		for name, mcp := range cfg.MCP {
