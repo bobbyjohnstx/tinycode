@@ -126,6 +126,52 @@ func TestAnalyzeContext_APITokensOverrideEstimate(t *testing.T) {
 	}
 }
 
+func TestAnalyzeContext_SystemTokensFromAPIGap(t *testing.T) {
+	// API reports 30000 tokens, but messages only account for ~500.
+	// The gap (~29500) should be attributed to System (the system prompt).
+	msgs := []MessageView{
+		{
+			Info:  MessageInfo{Role: "user"},
+			Parts: []PartView{{Type: "text", Text: "review this project"}},
+		},
+		{
+			Info:  MessageInfo{Role: "assistant"},
+			Parts: []PartView{{Type: "text", Text: "Here is my analysis of the project..."}},
+		},
+	}
+	b := AnalyzeContext(msgs, 200000, 30000)
+
+	if b.TotalTokens != 30000 {
+		t.Errorf("TotalTokens = %d, want 30000", b.TotalTokens)
+	}
+	if b.SystemTokens == 0 {
+		t.Error("SystemTokens should be non-zero when API reports more tokens than messages estimate")
+	}
+	messageEstimate := b.UserTokens + b.AssistantTokens + b.ToolCallTokens + b.ToolResultTokens
+	expectedSystem := 30000 - messageEstimate
+	if b.SystemTokens != expectedSystem {
+		t.Errorf("SystemTokens = %d, want %d (30000 - %d message estimate)", b.SystemTokens, expectedSystem, messageEstimate)
+	}
+	// All categories should sum to total
+	sum := b.SystemTokens + b.UserTokens + b.AssistantTokens + b.ToolCallTokens + b.ToolResultTokens
+	if sum != b.TotalTokens {
+		t.Errorf("categories sum %d != total %d", sum, b.TotalTokens)
+	}
+}
+
+func TestAnalyzeContext_SystemTokensZeroWhenNoAPI(t *testing.T) {
+	msgs := []MessageView{
+		{
+			Info:  MessageInfo{Role: "user"},
+			Parts: []PartView{{Type: "text", Text: "hello"}},
+		},
+	}
+	b := AnalyzeContext(msgs, 1000, 0)
+	if b.SystemTokens != 0 {
+		t.Errorf("SystemTokens should be 0 without API data, got %d", b.SystemTokens)
+	}
+}
+
 func TestContextDialogOpenClose(t *testing.T) {
 	d := NewContextDialog()
 

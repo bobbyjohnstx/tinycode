@@ -130,8 +130,10 @@ func (d ContextDialog) View() string {
 		bar := lipgloss.NewStyle().Foreground(cat.color).Render(strings.Repeat("█", filled))
 		empty := strings.Repeat("░", barWidth-filled)
 
-		fmt.Fprintf(&sb, "%-13s %s%s %s %d%%\n",
-			cat.name, bar, empty,
+		sb.WriteString(cat.name)
+		sb.WriteString("\n")
+		fmt.Fprintf(&sb, "%s%s %s %d%%\n",
+			bar, empty,
 			formatTokenCount(cat.tokens), pct)
 	}
 

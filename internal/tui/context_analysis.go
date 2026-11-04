@@ -74,6 +74,13 @@ func AnalyzeContext(messages []MessageView, contextLimit int, apiTokens int) Con
 	estimated := b.SystemTokens + b.UserTokens + b.AssistantTokens + b.ToolCallTokens + b.ToolResultTokens
 	if apiTokens > 0 {
 		b.TotalTokens = apiTokens
+		// The gap between API-reported tokens and our message estimate is the
+		// system prompt (agent definition + tool schemas + config context).
+		// The system prompt is never in the message list — it's prepended by
+		// the LLM client. Attribute the gap to System so the bars add up.
+		if apiTokens > estimated {
+			b.SystemTokens += apiTokens - estimated
+		}
 	} else {
 		b.TotalTokens = estimated
 	}
