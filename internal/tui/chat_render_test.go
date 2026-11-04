@@ -112,9 +112,9 @@ func TestRenderToolResultPart_Collapsed(t *testing.T) {
 		Text:      "line 1\nline 2\nline 3",
 		Collapsed: true,
 	}
-	got := stripANSI(renderToolResultPart(part, 80))
-	if !strings.Contains(got, "(3 lines)") {
-		t.Errorf("collapsed result should show line count, got %q", got)
+	got := renderToolResultPart(part, 80)
+	if got != "" {
+		t.Errorf("collapsed result should be suppressed (empty), got %q", got)
 	}
 }
 
@@ -848,9 +848,9 @@ func TestRenderToolResultPart_ErrorInline(t *testing.T) {
 
 func TestRenderToolResultPart_CollapsedExplicit(t *testing.T) {
 	part := PartView{Type: "tool-result", ToolName: "bash", Collapsed: true, Text: "output"}
-	got := stripANSI(renderToolResultPart(part, 80))
-	if !strings.Contains(got, "(1 lines)") {
-		t.Errorf("collapsed tool result should show line count, got %q", got)
+	got := renderToolResultPart(part, 80)
+	if got != "" {
+		t.Errorf("collapsed tool result should be suppressed, got %q", got)
 	}
 }
 

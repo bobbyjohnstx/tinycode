@@ -434,8 +434,7 @@ func renderToolResultPart(part PartView, width int) string {
 		return ""
 	}
 	if part.Collapsed {
-		totalLines := len(strings.Split(part.Text, "\n"))
-		return styleMetadata.Render(fmt.Sprintf("  (%d lines)", totalLines))
+		return ""
 	}
 	if part.ToolName == "read" {
 		return ""
