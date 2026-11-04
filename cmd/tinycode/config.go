@@ -469,6 +469,23 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 	lmStudioURL := "http://127.0.0.1:1234"
 	vllmURL := ""
 
+	// Read provider endpoints from config (env vars override below)
+	if pc, ok := cfg.Provider["ollama"]; ok && pc.Options != nil {
+		if u, ok := pc.Options["baseURL"].(string); ok && u != "" {
+			ollamaURL = strings.TrimSuffix(strings.TrimSuffix(u, "/"), "/v1")
+		}
+	}
+	if pc, ok := cfg.Provider["lm-studio"]; ok && pc.Options != nil {
+		if u, ok := pc.Options["baseURL"].(string); ok && u != "" {
+			lmStudioURL = strings.TrimSuffix(strings.TrimSuffix(u, "/"), "/v1")
+		}
+	}
+	if pc, ok := cfg.Provider["vllm"]; ok && pc.Options != nil {
+		if u, ok := pc.Options["baseURL"].(string); ok && u != "" {
+			vllmURL = strings.TrimSuffix(strings.TrimSuffix(u, "/"), "/v1")
+		}
+	}
+
 	if v := os.Getenv("TINYCODE_OLLAMA_HOST"); v != "" {
 		ollamaURL = v
 	} else if v := os.Getenv("OLLAMA_HOST"); v != "" {
