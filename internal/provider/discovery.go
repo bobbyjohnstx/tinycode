@@ -310,27 +310,44 @@ func (d *Discovery) diffModels(providerID string, newModels map[string]*Model) {
 
 // inferContextFromModelID returns a reasonable context window size based on
 // known model family patterns. Called when the API doesn't report max_model_len.
+// Values sourced from models.corp.redhat.com catalog (2026-11-04).
 func inferContextFromModelID(id string) int {
 	lower := strings.ToLower(id)
 	switch {
+	case strings.Contains(lower, "gemini"):
+		return 1049000
+	case strings.Contains(lower, "diffusiongemma"):
+		return 262000
+	case strings.Contains(lower, "gemma"):
+		return 262000
 	case strings.Contains(lower, "claude"):
 		return 200000
-	case strings.Contains(lower, "granite"):
-		return 128000
-	case strings.Contains(lower, "llama"):
-		return 128000
+	case strings.Contains(lower, "qwen") && !strings.Contains(lower, "reranker"):
+		return 262000
+	case strings.Contains(lower, "nemotron") && strings.Contains(lower, "parse"):
+		return 16384
 	case strings.Contains(lower, "nemotron"):
-		return 128000
-	case strings.Contains(lower, "qwen"):
+		return 262000
+	case strings.Contains(lower, "gpt-oss"):
+		return 131000
+	case strings.Contains(lower, "llama"):
+		return 131000
+	case strings.Contains(lower, "granite-guardian"):
 		return 32768
+	case strings.Contains(lower, "granite-3-1") || strings.Contains(lower, "granite-3.1"):
+		return 4096
+	case strings.Contains(lower, "granite-3-2") || strings.Contains(lower, "granite-3.2"):
+		return 60000
+	case strings.Contains(lower, "granite"):
+		return 131000
+	case strings.Contains(lower, "mistral") && strings.Contains(lower, "small"):
+		return 131000
 	case strings.Contains(lower, "mistral"):
-		return 32768
+		return 33000
 	case strings.Contains(lower, "deepseek"):
 		return 65536
 	case strings.Contains(lower, "phi"):
 		return 16384
-	case strings.Contains(lower, "gemma"):
-		return 8192
 	default:
 		return 32768
 	}

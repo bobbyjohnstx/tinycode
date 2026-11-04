@@ -37,6 +37,7 @@ tinycode.log
 # Local dev files
 UPCOMING_CHANGELOG.md
 logs/
+docs/reference/maas-model-catalog.md
 *.bun-build
 bun.lock
 tsconfig.tsbuildinfo
