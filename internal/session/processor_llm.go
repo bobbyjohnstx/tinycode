@@ -444,6 +444,9 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 			summaryParts = append(summaryParts, event.Text)
 		}
 		if event.Type == llm.EventError {
+			if errors.Is(event.Error, llm.ErrStreamBudget) {
+				break
+			}
 			return false, event.Error
 		}
 	}
