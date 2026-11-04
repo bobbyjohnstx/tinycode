@@ -1057,3 +1057,48 @@ func TestExtractToolArgPath_PrefersFirstMatchingKey(t *testing.T) {
 		t.Errorf("expected /first.go (file_path checked first), got %q", got)
 	}
 }
+
+func TestAdjustPreserveForToolPairs_PullsBackToToolUse(t *testing.T) {
+	messages := []Message{
+		{Role: "user", Parts: []Part{{Type: "text", Text: "hello"}}},
+		{Role: "assistant", Parts: []Part{
+			{Type: PartToolCall, ToolCallID: "call_1", ToolName: "read"},
+		}},
+		{Role: "tool", Parts: []Part{
+			{Type: PartToolResult, ToolCallID: "call_1", ToolName: "read", ToolResult: "file content"},
+		}},
+		{Role: "assistant", Parts: []Part{{Type: "text", Text: "done"}}},
+	}
+	// If preserveIdx=2 (tool_result message), it should pull back to 1 (tool_use)
+	got := adjustPreserveForToolPairs(messages, 2)
+	if got != 1 {
+		t.Errorf("adjustPreserveForToolPairs(msgs, 2) = %d, want 1", got)
+	}
+}
+
+func TestAdjustPreserveForToolPairs_NoAdjustWhenNoToolResult(t *testing.T) {
+	messages := []Message{
+		{Role: "user", Parts: []Part{{Type: "text", Text: "hello"}}},
+		{Role: "assistant", Parts: []Part{{Type: "text", Text: "response"}}},
+		{Role: "user", Parts: []Part{{Type: "text", Text: "follow up"}}},
+	}
+	got := adjustPreserveForToolPairs(messages, 2)
+	if got != 2 {
+		t.Errorf("adjustPreserveForToolPairs(msgs, 2) = %d, want 2 (no tool_result)", got)
+	}
+}
+
+func TestAdjustPreserveForToolPairs_BoundsCheck(t *testing.T) {
+	messages := []Message{
+		{Role: "user", Parts: []Part{{Type: "text", Text: "hello"}}},
+	}
+	if got := adjustPreserveForToolPairs(messages, 0); got != 0 {
+		t.Errorf("idx=0 should return 0, got %d", got)
+	}
+	if got := adjustPreserveForToolPairs(messages, 5); got != 5 {
+		t.Errorf("idx out of range should return as-is, got %d", got)
+	}
+	if got := adjustPreserveForToolPairs(nil, 1); got != 1 {
+		t.Errorf("nil messages should return idx, got %d", got)
+	}
+}

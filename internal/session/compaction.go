@@ -252,6 +252,39 @@ func maskObservations(messages []Message) []Message {
 	return result
 }
 
+// adjustPreserveForToolPairs ensures the compaction split point does not
+// orphan tool_result messages from their matching tool_use. If the first
+// preserved message (at idx) contains tool_results, we pull idx back to
+// include the prior assistant message which holds the tool_use blocks.
+func adjustPreserveForToolPairs(messages []Message, idx int) int {
+	if idx <= 0 || idx >= len(messages) {
+		return idx
+	}
+	// Check if the first preserved message has tool_result parts.
+	firstPreserved := messages[idx]
+	hasToolResult := false
+	for _, p := range firstPreserved.Parts {
+		if p.Type == PartToolResult {
+			hasToolResult = true
+			break
+		}
+	}
+	if !hasToolResult {
+		return idx
+	}
+	// Walk backwards to find the assistant message with tool_use (tool-call).
+	for i := idx - 1; i >= 0; i-- {
+		if messages[i].Role == "assistant" {
+			for _, p := range messages[i].Parts {
+				if p.Type == PartToolCall {
+					return i
+				}
+			}
+		}
+	}
+	return idx
+}
+
 // truncate shortens s to maxLen characters, appending a truncation marker if needed.
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {

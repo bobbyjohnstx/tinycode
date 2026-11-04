@@ -189,12 +189,17 @@ func (p *Processor) compactOrStop(ctx context.Context, kind string) error {
 		if before <= 2 {
 			return nil
 		}
-		slog.Warn("compaction made no progress", "sessionID", p.config.SessionID, "kind", kind, "messages", before)
-		return fmt.Errorf("%s compaction made no progress (%d messages)", kind, before)
+		// Back off instead of stopping — the next iteration may produce a
+		// response that doesn't exceed the threshold, or the user may switch
+		// to a model with a larger context window.
+		slog.Warn("compaction made no progress, continuing",
+			"sessionID", p.config.SessionID, "kind", kind, "messages", before)
+		return nil
 	}
 	if len(p.Messages()) >= before {
-		slog.Warn("compaction made no progress", "sessionID", p.config.SessionID, "kind", kind, "messages", len(p.Messages()))
-		return fmt.Errorf("%s compaction made no progress (%d messages)", kind, len(p.Messages()))
+		slog.Warn("compaction made no progress after summary, continuing",
+			"sessionID", p.config.SessionID, "kind", kind, "messages", len(p.Messages()))
+		return nil
 	}
 	return nil
 }

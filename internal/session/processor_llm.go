@@ -400,6 +400,11 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	compNum = p.compactionCount
 	p.mu.Unlock()
 
+	// Ensure preserveIdx doesn't split a tool_use/tool_result pair.
+	// If the first preserved message contains tool_results, pull back to
+	// include the prior assistant message with the matching tool_use blocks.
+	preserveIdx = adjustPreserveForToolPairs(messages, preserveIdx)
+
 	toCompact := messages[:preserveIdx]
 	preserved := messages[preserveIdx:]
 
