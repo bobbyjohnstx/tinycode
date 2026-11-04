@@ -13,6 +13,13 @@ func TestBodyTimeout_QuestionUsesParentOnly(t *testing.T) {
 	}
 }
 
+func TestBodyTimeout_TaskUsesParentOnly(t *testing.T) {
+	d, ok := bodyTimeout("task", json.RawMessage(`{}`))
+	if ok {
+		t.Fatalf("task must not set body timeout (subagents manage own lifetime), got %v", d)
+	}
+}
+
 func TestBodyTimeout_DefaultIs60s(t *testing.T) {
 	d, ok := bodyTimeout("read", json.RawMessage(`{}`))
 	if !ok || d != 60*time.Second {

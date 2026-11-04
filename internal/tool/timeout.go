@@ -14,6 +14,12 @@ func bodyTimeout(name string, args json.RawMessage) (time.Duration, bool) {
 	if name == "question" {
 		return 0, false
 	}
+	// Subagent tasks manage their own lifetime via iteration limits and
+	// step caps. The 60s body timeout is too short for remote LLM endpoints
+	// (MAAS, OpenRouter) where a single completion can take 30-60s.
+	if name == "task" {
+		return 0, false
+	}
 	if name == "bash" {
 		own := defaultShellTimeout
 		var parsed struct {
