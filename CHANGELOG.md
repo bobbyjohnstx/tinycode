@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-11-04
+
 ### TUI
 - Fix `/context` token categorization — type strings used underscores instead of hyphens, breaking all tool token counting (#920)
 - Fix `/context` system token inflation — exclude output tokens from API total (#920)
