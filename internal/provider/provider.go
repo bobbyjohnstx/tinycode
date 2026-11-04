@@ -18,20 +18,30 @@ type Info struct {
 }
 
 type Registry struct {
-	mu        sync.RWMutex
-	providers map[string]*Info
-	disabled  map[string]bool
-	enabled   map[string]bool
-	failures  map[string]int // providerID -> consecutive failure count
+	mu               sync.RWMutex
+	providers        map[string]*Info
+	disabled         map[string]bool
+	enabled          map[string]bool
+	failures         map[string]int // providerID -> consecutive failure count
+	contextOverrides map[string]int // providerID -> context length override from config
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
-		providers: make(map[string]*Info),
-		disabled:  make(map[string]bool),
-		enabled:   make(map[string]bool),
-		failures:  make(map[string]int),
+		providers:        make(map[string]*Info),
+		disabled:         make(map[string]bool),
+		enabled:          make(map[string]bool),
+		failures:         make(map[string]int),
+		contextOverrides: make(map[string]int),
 	}
+}
+
+// SetContextOverride sets a config-based context length override for a provider.
+// When models are registered for this provider, their context limit is overridden.
+func (r *Registry) SetContextOverride(providerID string, contextLen int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.contextOverrides[providerID] = contextLen
 }
 
 // SetFilters configures which providers are enabled/disabled.
@@ -66,6 +76,13 @@ func (r *Registry) Register(info *Info) {
 		return
 	}
 	applyRemoteCatalogToProvider(info)
+	// Apply config-based context length override to all models in this provider.
+	if ctxLen, ok := r.contextOverrides[info.ID]; ok && ctxLen > 0 {
+		for _, m := range info.Models {
+			m.Limit.Context = ctxLen
+			m.Limit.Output = ctxLen / 2
+		}
+	}
 	r.providers[info.ID] = info
 }
 

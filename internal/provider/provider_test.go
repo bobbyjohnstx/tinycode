@@ -493,3 +493,50 @@ func TestDiscovery_StartStop(t *testing.T) {
 func ptr(f float64) *float64 {
 	return &f
 }
+
+func TestSetContextOverride_AppliedOnRegister(t *testing.T) {
+	reg := NewRegistry()
+	reg.SetContextOverride("vllm", 128000)
+
+	reg.Register(&Info{
+		ID:   "vllm",
+		Name: "vLLM",
+		Models: map[string]*Model{
+			"granite-3.1-8b": {
+				ID: "granite-3.1-8b", ProviderID: "vllm",
+				Limit: ModelLimit{Context: 8192, Output: 4096},
+			},
+		},
+	})
+
+	info := func() *Info { i, _ := reg.GetProvider("vllm"); return i }()
+	if info == nil {
+		t.Fatal("expected vllm provider")
+	}
+	m := info.Models["granite-3.1-8b"]
+	if m.Limit.Context != 128000 {
+		t.Errorf("context = %d, want 128000", m.Limit.Context)
+	}
+	if m.Limit.Output != 64000 {
+		t.Errorf("output = %d, want 64000", m.Limit.Output)
+	}
+}
+
+func TestSetContextOverride_NoOverrideWhenNotSet(t *testing.T) {
+	reg := NewRegistry()
+	reg.Register(&Info{
+		ID:   "ollama",
+		Name: "Ollama",
+		Models: map[string]*Model{
+			"qwen3:8b": {
+				ID: "qwen3:8b", ProviderID: "ollama",
+				Limit: ModelLimit{Context: 32768, Output: 16384},
+			},
+		},
+	})
+
+	m := func() *Info { i, _ := reg.GetProvider("ollama"); return i }().Models["qwen3:8b"]
+	if m.Limit.Context != 32768 {
+		t.Errorf("context = %d, want 32768 (no override)", m.Limit.Context)
+	}
+}

@@ -515,6 +515,10 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 		}
 	}
 
+	// Apply config-based context length overrides after discovery registers models.
+	// provider.<name>.options.contextLength overrides the API-reported (or inferred) value.
+	applyConfigContextLengths(cfg, reg)
+
 	disc.Start(ctx, ollamaURL, vllmURL, lmStudioURL)
 
 	apiKey := os.Getenv("OPENROUTER_API_KEY")
@@ -552,6 +556,36 @@ func startDiscovery(ctx context.Context, reg *provider.Registry, b *bus.Bus, cfg
 	provider.ApplyRemoteCatalog(ctx, reg)
 
 	return disc
+}
+
+// applyConfigContextLengths sets a registry callback that overrides model
+// context limits from provider config. Called once; the callback fires each
+// time a provider is registered or updated by discovery.
+func applyConfigContextLengths(cfg *config.Info, reg *provider.Registry) {
+	if cfg == nil {
+		return
+	}
+	for providerID, pc := range cfg.Provider {
+		if pc.Options == nil {
+			continue
+		}
+		ctxRaw, ok := pc.Options["contextLength"]
+		if !ok {
+			continue
+		}
+		var ctxLen int
+		switch v := ctxRaw.(type) {
+		case float64:
+			ctxLen = int(v)
+		case int:
+			ctxLen = v
+		}
+		if ctxLen <= 0 {
+			continue
+		}
+		slog.Info("config context length override", "provider", providerID, "contextLength", ctxLen)
+		reg.SetContextOverride(providerID, ctxLen)
+	}
 }
 
 // registerConfigProviders registers custom API providers from config that

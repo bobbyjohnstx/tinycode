@@ -291,13 +291,43 @@ func (d *Discovery) diffModels(providerID string, newModels map[string]*Model) {
 	}
 }
 
+// inferContextFromModelID returns a reasonable context window size based on
+// known model family patterns. Called when the API doesn't report max_model_len.
+func inferContextFromModelID(id string) int {
+	lower := strings.ToLower(id)
+	switch {
+	case strings.Contains(lower, "claude"):
+		return 200000
+	case strings.Contains(lower, "granite"):
+		return 128000
+	case strings.Contains(lower, "llama"):
+		return 128000
+	case strings.Contains(lower, "nemotron"):
+		return 128000
+	case strings.Contains(lower, "qwen"):
+		return 32768
+	case strings.Contains(lower, "mistral"):
+		return 32768
+	case strings.Contains(lower, "deepseek"):
+		return 65536
+	case strings.Contains(lower, "phi"):
+		return 16384
+	case strings.Contains(lower, "gemma"):
+		return 8192
+	default:
+		return 32768
+	}
+}
+
 type vllmModelsResponse struct {
 	Data []vllmModel `json:"data"`
 }
 
 type vllmModel struct {
-	ID          string `json:"id"`
-	MaxModelLen int    `json:"max_model_len,omitempty"`
+	ID             string `json:"id"`
+	MaxModelLen    int    `json:"max_model_len,omitempty"`
+	ContextLength  int    `json:"context_length,omitempty"`
+	MaxTokens      int    `json:"max_tokens,omitempty"`
 }
 
 func (d *Discovery) discoverVLLM(ctx context.Context, baseURL string) {
@@ -334,7 +364,13 @@ func (d *Discovery) discoverVLLM(ctx context.Context, baseURL string) {
 	for _, m := range body.Data {
 		contextLen := m.MaxModelLen
 		if contextLen == 0 {
-			contextLen = 8192
+			contextLen = m.ContextLength
+		}
+		if contextLen == 0 {
+			contextLen = m.MaxTokens
+		}
+		if contextLen == 0 {
+			contextLen = inferContextFromModelID(m.ID)
 		}
 
 		models[m.ID] = &Model{
