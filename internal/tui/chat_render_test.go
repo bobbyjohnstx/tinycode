@@ -108,12 +108,12 @@ func TestRenderToolResultPart_TruncatedOutput(t *testing.T) {
 func TestRenderToolResultPart_Collapsed(t *testing.T) {
 	part := PartView{
 		Type:      "tool-result",
-		Text:      "some output",
+		Text:      "line 1\nline 2\nline 3",
 		Collapsed: true,
 	}
-	got := renderToolResultPart(part, 80)
-	if got != "" {
-		t.Errorf("collapsed result should be empty, got %q", got)
+	got := stripANSI(renderToolResultPart(part, 80))
+	if !strings.Contains(got, "(3 lines)") {
+		t.Errorf("collapsed result should show line count, got %q", got)
 	}
 }
 
@@ -847,9 +847,9 @@ func TestRenderToolResultPart_ErrorInline(t *testing.T) {
 
 func TestRenderToolResultPart_CollapsedExplicit(t *testing.T) {
 	part := PartView{Type: "tool-result", ToolName: "bash", Collapsed: true, Text: "output"}
-	got := renderToolResultPart(part, 80)
-	if got != "" {
-		t.Errorf("collapsed tool result should be empty, got %q", got)
+	got := stripANSI(renderToolResultPart(part, 80))
+	if !strings.Contains(got, "(1 lines)") {
+		t.Errorf("collapsed tool result should show line count, got %q", got)
 	}
 }
 
@@ -894,5 +894,55 @@ func TestShouldSuppressBareTool(t *testing.T) {
 				t.Errorf("shouldSuppressBareTool() = %v, want %v", got, tt.suppress)
 			}
 		})
+	}
+}
+
+func TestRenderToolResultPart_ErrorAlwaysExpanded(t *testing.T) {
+	part := PartView{
+		Type:      "tool",
+		ToolName:  "bash",
+		ToolError: true,
+		Text:      "command failed",
+		Collapsed: true,
+	}
+	got := renderToolResultPart(part, 80)
+	if !strings.Contains(got, "error") {
+		t.Errorf("error tool result should render expanded regardless of Collapsed, got %q", got)
+	}
+}
+
+func TestRenderAssistantMessage_ToolHits(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant", Agent: "build"},
+		Parts: []PartView{
+			{ID: "p1", Type: "tool", ToolName: "bash", ToolArgs: `{"command":"ls"}`, Time: map[string]any{"end": float64(1)}},
+			{ID: "p2", Type: "text", Text: "done"},
+		},
+	}
+	var hits []toolHit
+	opts := &renderOpts{toolHits: &hits}
+	renderMessageWithOpts(msg, 80, md, opts)
+	if len(hits) != 1 {
+		t.Fatalf("expected 1 tool hit, got %d", len(hits))
+	}
+	if hits[0].partID != "p1" {
+		t.Errorf("expected partID p1, got %q", hits[0].partID)
+	}
+}
+
+func TestRenderAssistantMessage_SuppressedToolNoHit(t *testing.T) {
+	md := testRenderer()
+	msg := MessageView{
+		Info: MessageInfo{Role: "assistant", Agent: "build"},
+		Parts: []PartView{
+			{ID: "p1", Type: "tool-call", ToolName: "read", ToolArgs: ""},
+		},
+	}
+	var hits []toolHit
+	opts := &renderOpts{toolHits: &hits}
+	renderMessageWithOpts(msg, 80, md, opts)
+	if len(hits) != 0 {
+		t.Fatalf("suppressed bare tool should produce no hit, got %d", len(hits))
 	}
 }

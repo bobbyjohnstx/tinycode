@@ -26,10 +26,14 @@ type ChatView struct {
 	messages     []MessageView
 	renderer     *render.MarkdownRenderer
 	thoughtLines map[int]string // content line number → part ID
+	toolLines    map[int]string // content line number → tool part ID
 	copyLines    map[int]string // content line number → text to copy
 	width        int
 	height       int
 	stickyBottom bool
+
+	// Tool collapse state
+	toolsExpanded bool // session-wide toggle: true = all tools expanded
 
 	// Subagent group state
 	subagentExpanded map[string]bool           // label → expanded
@@ -138,6 +142,11 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 			c.rebuildContent()
 			return c, nil
 		}
+		if msg.String() == "V" {
+			c.toggleAllToolCollapse()
+			c.rebuildContent()
+			return c, nil
+		}
 
 	case tea.MouseMsg:
 		slog.Debug("chat mouse", "x", msg.X, "y", msg.Y, "yOffset", c.viewport.YOffset)
@@ -146,6 +155,11 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 		case msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress:
 			if partID, ok := c.thoughtLines[contentLine]; ok {
 				c.toggleThought(partID)
+				c.rebuildContent()
+				return c, nil
+			}
+			if partID, ok := c.toolLines[contentLine]; ok {
+				c.toggleToolCollapse(partID)
 				c.rebuildContent()
 				return c, nil
 			}
@@ -368,6 +382,9 @@ func (c *ChatView) upsertPart(msg MessagePartUpdatedMsg) {
 				return
 			}
 		}
+		if !c.toolsExpanded && (msg.Part.Type == "tool" || msg.Part.Type == "tool-call" || msg.Part.Type == "tool-result") {
+			msg.Part.Collapsed = true
+		}
 		c.messages[i].Parts = append(c.messages[i].Parts, msg.Part)
 		return
 	}
@@ -411,6 +428,32 @@ func (c *ChatView) toggleSubagent(label string) {
 		return
 	}
 	c.subagentExpanded[label] = !c.subagentExpanded[label]
+}
+
+// toggleToolCollapse toggles the collapsed state of a single tool part by ID.
+func (c *ChatView) toggleToolCollapse(partID string) {
+	for i := range c.messages {
+		for j := range c.messages[i].Parts {
+			p := &c.messages[i].Parts[j]
+			if p.ID == partID {
+				p.Collapsed = !p.Collapsed
+				return
+			}
+		}
+	}
+}
+
+// toggleAllToolCollapse toggles all tool parts between collapsed and expanded.
+func (c *ChatView) toggleAllToolCollapse() {
+	c.toolsExpanded = !c.toolsExpanded
+	for i := range c.messages {
+		for j := range c.messages[i].Parts {
+			p := &c.messages[i].Parts[j]
+			if p.Type == "tool" || p.Type == "tool-call" || p.Type == "tool-result" {
+				p.Collapsed = !c.toolsExpanded
+			}
+		}
+	}
 }
 
 // thoughtHit records a thought label's line offset within rendered output.
@@ -489,6 +532,12 @@ func (c ChatView) handleMessagesLoaded(msg MessagesLoadedMsg) (ChatView, tea.Cmd
 		for _, m := range msg.Messages {
 			mv := parseMessageView(m)
 			mv.Parts = parseLoadedParts(m)
+			// Default tool parts to collapsed on session reload.
+			for j := range mv.Parts {
+				if mv.Parts[j].Type == "tool" || mv.Parts[j].Type == "tool-call" || mv.Parts[j].Type == "tool-result" {
+					mv.Parts[j].Collapsed = true
+				}
+			}
 			views = append(views, mv)
 		}
 		c.messages = views
@@ -517,6 +566,7 @@ func parseLoadedParts(m map[string]any) []PartView {
 func (c *ChatView) rebuildContent() {
 	var sb strings.Builder
 	c.thoughtLines = make(map[int]string)
+	c.toolLines = make(map[int]string)
 	c.subagentLines = make(map[int]string)
 	c.copyLines = make(map[int]string)
 	c.msgLineStarts = make([]int, 0, len(c.messages))
@@ -531,10 +581,12 @@ func (c *ChatView) rebuildContent() {
 		var tHits []thoughtHit
 		var sHits []subagentHit
 		var cHits []copyHit
+		var toolHits []toolHit
 		opts := &renderOpts{
 			thoughtHits:      &tHits,
 			subagentHits:     &sHits,
 			copyHits:         &cHits,
+			toolHits:         &toolHits,
 			subagentExpanded: c.subagentExpanded,
 			subagentStatus:   c.subagentStatus,
 		}
@@ -547,6 +599,9 @@ func (c *ChatView) rebuildContent() {
 		}
 		for _, h := range cHits {
 			c.copyLines[lineNum+h.lineOffset] = h.text
+		}
+		for _, h := range toolHits {
+			c.toolLines[lineNum+h.lineOffset] = h.partID
 		}
 		sb.WriteString(rendered)
 		lineNum += strings.Count(rendered, "\n")

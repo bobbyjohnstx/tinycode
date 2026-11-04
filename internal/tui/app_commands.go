@@ -154,6 +154,14 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		a.contextDlg.Show(breakdown)
 		a.setFocus(FocusDialog)
 		return nil, true
+	case "verbose":
+		a.chat.toggleAllToolCollapse()
+		a.chat.rebuildContent()
+		label := "collapsed"
+		if a.chat.toolsExpanded {
+			label = "expanded"
+		}
+		return a.toast.Show("Tool output: "+label, false), true
 	}
 	return nil, false
 }

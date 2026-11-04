@@ -48,11 +48,18 @@ type copyHit struct {
 	text       string
 }
 
+// toolHit records a tool-call line's offset for click-to-toggle collapse.
+type toolHit struct {
+	lineOffset int
+	partID     string
+}
+
 // renderOpts bundles rendering state and hit collectors.
 type renderOpts struct {
 	thoughtHits      *[]thoughtHit
 	subagentHits     *[]subagentHit
 	copyHits         *[]copyHit
+	toolHits         *[]toolHit
 	subagentExpanded map[string]bool
 	subagentStatus   map[string]SubagentStatus
 }
@@ -176,6 +183,9 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 				if tc == "" {
 					break
 				}
+				if opts != nil && opts.toolHits != nil && part.ID != "" {
+					*opts.toolHits = append(*opts.toolHits, toolHit{lineOffset: lineNum, partID: part.ID})
+				}
 				sb.WriteString(tc)
 				sb.WriteString("\n")
 				lineNum += strings.Count(tc, "\n") + 1
@@ -189,6 +199,9 @@ func renderAssistantMessage(msg MessageView, width int, md *render.MarkdownRende
 			case "tool":
 				tc := renderToolCallPart(part)
 				if tc != "" {
+					if opts != nil && opts.toolHits != nil && part.ID != "" {
+						*opts.toolHits = append(*opts.toolHits, toolHit{lineOffset: lineNum, partID: part.ID})
+					}
 					sb.WriteString(tc)
 					sb.WriteString("\n")
 					lineNum += strings.Count(tc, "\n") + 1
@@ -384,7 +397,11 @@ func renderToolResultPart(part PartView, width int) string {
 	if part.Text == "" {
 		return ""
 	}
-	if part.Collapsed || part.ToolName == "read" {
+	if part.Collapsed {
+		totalLines := len(strings.Split(part.Text, "\n"))
+		return styleMetadata.Render(fmt.Sprintf("  (%d lines)", totalLines))
+	}
+	if part.ToolName == "read" {
 		return ""
 	}
 

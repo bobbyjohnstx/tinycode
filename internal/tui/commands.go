@@ -43,4 +43,5 @@ var clientCommandDefs = []clientCommandDef{
 	{Name: "theme", Description: "Change color theme", InPalette: true},
 	{Name: "thinking", Description: "Set reasoning level (off/low/medium/high/max)", InPalette: true},
 	{Name: "undo", Description: "Revert last AI file changes", InPalette: false},
+	{Name: "verbose", Description: "Toggle tool output between collapsed and expanded", InPalette: true},
 }

@@ -966,3 +966,118 @@ func TestHighlightLineRange_WithAnsiEscapes(t *testing.T) {
 		t.Error("expected original ANSI to pass through")
 	}
 }
+
+func TestToggleToolCollapse_SinglePart(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info: MessageInfo{ID: "m1", Role: "assistant"},
+			Parts: []PartView{
+				{ID: "p1", MessageID: "m1", Type: "tool", ToolName: "bash", Collapsed: true},
+				{ID: "p2", MessageID: "m1", Type: "tool", ToolName: "read", Collapsed: true},
+			},
+		},
+	}
+
+	cv.toggleToolCollapse("p1")
+
+	if cv.messages[0].Parts[0].Collapsed {
+		t.Error("p1 should be expanded after toggle")
+	}
+	if !cv.messages[0].Parts[1].Collapsed {
+		t.Error("p2 should remain collapsed")
+	}
+}
+
+func TestToggleAllToolCollapse(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info: MessageInfo{ID: "m1", Role: "assistant"},
+			Parts: []PartView{
+				{ID: "p1", MessageID: "m1", Type: "tool", ToolName: "bash", Collapsed: true},
+				{ID: "p2", MessageID: "m1", Type: "tool-result", Collapsed: true},
+				{ID: "p3", MessageID: "m1", Type: "text", Text: "hello"},
+			},
+		},
+	}
+
+	// First toggle: expand all
+	cv.toggleAllToolCollapse()
+	if !cv.toolsExpanded {
+		t.Error("toolsExpanded should be true after first toggle")
+	}
+	if cv.messages[0].Parts[0].Collapsed || cv.messages[0].Parts[1].Collapsed {
+		t.Error("all tool parts should be expanded")
+	}
+	// text part should be unaffected
+	if cv.messages[0].Parts[2].Collapsed {
+		t.Error("text parts should not be affected")
+	}
+
+	// Second toggle: collapse all
+	cv.toggleAllToolCollapse()
+	if cv.toolsExpanded {
+		t.Error("toolsExpanded should be false after second toggle")
+	}
+	if !cv.messages[0].Parts[0].Collapsed || !cv.messages[0].Parts[1].Collapsed {
+		t.Error("all tool parts should be collapsed")
+	}
+}
+
+func TestVKeyTogglesToolCollapse(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info: MessageInfo{ID: "m1", Role: "assistant"},
+			Parts: []PartView{
+				{ID: "p1", MessageID: "m1", Type: "tool", ToolName: "bash", ToolArgs: `{"command":"ls"}`, Collapsed: true, Time: map[string]any{"end": float64(1)}},
+			},
+		},
+	}
+
+	// Simulate V key
+	cv, _ = cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'V'}})
+
+	if !cv.toolsExpanded {
+		t.Error("V key should toggle toolsExpanded to true")
+	}
+	if cv.messages[0].Parts[0].Collapsed {
+		t.Error("tool part should be expanded after V key")
+	}
+}
+
+func TestUpsertPart_NewToolPartDefaultsCollapsed(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info: MessageInfo{ID: "m1", Role: "assistant"},
+		},
+	}
+
+	cv.upsertPart(MessagePartUpdatedMsg{
+		Part: PartView{ID: "p1", MessageID: "m1", Type: "tool", ToolName: "bash"},
+	})
+
+	if !cv.messages[0].Parts[0].Collapsed {
+		t.Error("new tool part should default to collapsed")
+	}
+}
+
+func TestUpsertPart_NewToolPartRespectsExpanded(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.toolsExpanded = true
+	cv.messages = []MessageView{
+		{
+			Info: MessageInfo{ID: "m1", Role: "assistant"},
+		},
+	}
+
+	cv.upsertPart(MessagePartUpdatedMsg{
+		Part: PartView{ID: "p1", MessageID: "m1", Type: "tool", ToolName: "bash"},
+	})
+
+	if cv.messages[0].Parts[0].Collapsed {
+		t.Error("new tool part should not be collapsed when toolsExpanded is true")
+	}
+}
