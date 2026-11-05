@@ -6,14 +6,22 @@
 #
 # Usage:
 #   ./script/benchmark-models.sh                    # all MAAS chat models
+#   ./script/benchmark-models.sh --status            # show progress of running/completed benchmark
 #   ./script/benchmark-models.sh granite-4-1-8b     # single model
-#   ./script/benchmark-models.sh --provider vllm    # all models from one provider
+#   ./script/benchmark-models.sh --skip model1 model2  # skip specific models
 #   DEMO_DIR=/path/to/demo ./script/benchmark-models.sh  # custom demo path
+#
+# Environment:
+#   TIMEOUT          seconds per model (default: 300)
+#   MAX_ITERATIONS   processor iterations per model (default: 50)
+#   DEMO_DIR         path to tinycode-demo (default: ../tinycode-demo)
+#   RESULTS_DIR      output directory (default: ./benchmark-results)
+#   TINYCODE_VLLM_HOST  vLLM endpoint (default: https://models.corp.redhat.com/oai)
 #
 # Prerequisites:
 #   - tinycode binary built (make build)
-#   - tinycode-demo project at $DEMO_DIR (default: ../tinycode-demo)
-#   - Provider configured (MAAS_API_KEY or provider in tinycode.jsonc)
+#   - tinycode-demo project at $DEMO_DIR
+#   - VPN connected (for models.corp.redhat.com)
 
 set -euo pipefail
 
@@ -25,14 +33,17 @@ RESULTS_DIR="${RESULTS_DIR:-${PROJECT_DIR}/benchmark-results}"
 TIMEOUT="${TIMEOUT:-300}"
 MAX_ITERATIONS="${MAX_ITERATIONS:-50}"
 LOG_FILE="${HOME}/.local/share/tinycode/tinycode.log"
+PROGRESS_FILE="${RESULTS_DIR}/progress.txt"
 
 # Convert to absolute paths
-TINYCODE="$(cd "$(dirname "$TINYCODE")" && pwd)/$(basename "$TINYCODE")"
-RESULTS_DIR="$(mkdir -p "$RESULTS_DIR" && cd "$RESULTS_DIR" && pwd)"
+TINYCODE="$(cd "$(dirname "$TINYCODE")" 2>/dev/null && pwd)/$(basename "$TINYCODE")"
+mkdir -p "$RESULTS_DIR"
+RESULTS_DIR="$(cd "$RESULTS_DIR" && pwd)"
 
-# The 20 planted bugs — grep patterns to detect in model output.
-# Each pattern is "BUG_NUMBER:grep_pattern" where the pattern matches
-# how a model would describe finding that bug.
+# Ensure vLLM provider is discoverable
+export TINYCODE_VLLM_HOST="${TINYCODE_VLLM_HOST:-https://models.corp.redhat.com/oai}"
+
+# The 20 planted bugs — ERE patterns to detect in model output.
 declare -a BUG_PATTERNS=(
     "1:nil.*pointer|nil.*dereference|DueDate.*nil|task\.DueDate|nil check"
     "2:SQL.*inject|sql.*inject|fmt\.Sprintf.*SQL|string.*interpolat.*sql|parameterized"
@@ -95,46 +106,142 @@ MAAS_MODELS=(
     "qwen3-8-27b-fp8"
 )
 
-# Ensure vLLM provider is discoverable
-export TINYCODE_VLLM_HOST="${TINYCODE_VLLM_HOST:-https://models.corp.redhat.com/oai}"
-
 REVIEW_PROMPT='Review this project for bugs and security issues. Read every source file (Go, Python, JavaScript, HTML, Bash). IMPORTANT: Do NOT read README.md — it contains test answers and will invalidate the benchmark. For each bug found, report: the file and line number, what the bug is, and its severity (high/medium/low). Number your findings. Do not fix anything — report only.'
 
 # --- Functions ---
 
+show_status() {
+    echo "=== Benchmark Status ==="
+    echo "Results: $RESULTS_DIR"
+    echo ""
+
+    local completed=0 total=0 running="" skipped=0
+    for model in "${MAAS_MODELS[@]}"; do
+        total=$((total + 1))
+        local json_file="${RESULTS_DIR}/${model}.json"
+        if [ -f "$json_file" ]; then
+            completed=$((completed + 1))
+        fi
+    done
+
+    if [ -f "$PROGRESS_FILE" ]; then
+        running=$(tail -1 "$PROGRESS_FILE" 2>/dev/null || true)
+    fi
+
+    echo "Progress: $completed/${#MAAS_MODELS[@]} models completed"
+    if [ -n "$running" ]; then
+        echo "Current:  $running"
+    fi
+    echo ""
+
+    if [ "$completed" -gt 0 ] && command -v jq &>/dev/null; then
+        printf "  %-40s %6s  %5s  %4s  %4s  %s\n" "MODEL" "SCORE" "TIME" "ITER" "TOOL" "STATUS"
+        echo "  $(printf '%.0s-' {1..90})"
+        for f in "$RESULTS_DIR"/*.json; do
+            [ -f "$f" ] || continue
+            jq -r '"\(.model)\t\(.score)\t\(.total)\t\(.percent)\t\(.duration_seconds)\t\(.iterations)\t\(.tool_calls)\t\(.status)"' "$f" 2>/dev/null
+        done | sort -t$'\t' -k2 -rn | while IFS=$'\t' read -r model score total pct dur iters tools status; do
+            printf "  %-40s %2d/%-2d (%3d%%)  %4ds  %4s  %4s  %s\n" \
+                "$model" "$score" "$total" "$pct" "$dur" "$iters" "$tools" "$status"
+        done
+    fi
+    exit 0
+}
+
 score_output() {
     local output_file="$1"
     local found=0
-    local found_bugs=""
-    local missed_bugs=""
 
     for entry in "${BUG_PATTERNS[@]}"; do
-        local num="${entry%%:*}"
         local pattern="${entry#*:}"
         if grep -qiE "$pattern" "$output_file" 2>/dev/null; then
             found=$((found + 1))
-            found_bugs="${found_bugs} #${num}"
-        else
-            missed_bugs="${missed_bugs} #${num}"
         fi
     done
 
     echo "$found"
 }
 
+detect_skip() {
+    local model="$1"
+    local output_file="$2"
+    local log_file="$3"
+    local status="$4"
+    local iterations="$5"
+    local tool_calls="$6"
+    local output_size
+    output_size=$(wc -c < "$output_file" 2>/dev/null | tr -d ' ' || echo "0")
+
+    # Model produced no output or errored immediately
+    if [ "$status" != "completed" ] && [ "$output_size" -lt 50 ]; then
+        echo "no-output"
+        return
+    fi
+
+    # Model completed but made zero tool calls — not an agent model
+    if [ "$tool_calls" -eq 0 ] && [ "$iterations" -le 2 ]; then
+        # Check if output is just chat (no file references)
+        if ! grep -qiE "handler/|store/|static/|scripts/|main\.go|routes\.go|task\.go" "$output_file" 2>/dev/null; then
+            echo "no-tools"
+            return
+        fi
+    fi
+
+    echo ""
+}
+
+inject_provider_config() {
+    local demo_config="${DEMO_DIR}/tinycode.jsonc"
+    local vllm_host="${TINYCODE_VLLM_HOST}"
+    python3 -I -c "
+import json, sys, re
+cfg_path = sys.argv[1]
+vllm_url = sys.argv[2]
+with open(cfg_path) as f:
+    text = f.read()
+text = re.sub(r'//.*\$', '', text, flags=re.MULTILINE)
+cfg = json.loads(text)
+cfg.setdefault('provider', {}).setdefault('vllm', {}).setdefault('options', {})['baseURL'] = vllm_url
+with open(cfg_path, 'w') as f:
+    json.dump(cfg, f, indent=2)
+" "$demo_config" "$vllm_host" 2>/dev/null || true
+}
+
 run_model() {
     local model="$1"
     local provider="${2:-vllm}"
+    local model_index="${3:-?}"
+    local model_total="${4:-?}"
     local output_file="${RESULTS_DIR}/${model}.txt"
     local json_file="${RESULTS_DIR}/${model}.json"
+    local log_out="${RESULTS_DIR}/${model}.log"
     local safe_model="${provider}/${model}"
 
-    echo "--- Testing: ${model} ---"
+    # Skip if already completed (supports resume)
+    if [ -f "$json_file" ]; then
+        local prev_status
+        prev_status=$(jq -r '.status' "$json_file" 2>/dev/null || echo "")
+        if [ "$prev_status" = "completed" ] || [ "$prev_status" = "skipped" ]; then
+            local prev_score
+            prev_score=$(jq -r '.score' "$json_file" 2>/dev/null || echo "0")
+            local prev_dur
+            prev_dur=$(jq -r '.duration_seconds' "$json_file" 2>/dev/null || echo "0")
+            printf "  [%d/%d] %-40s %2d/20 (%3d%%)  %4ds  (cached)\n" \
+                "$model_index" "$model_total" "$model" "$prev_score" "$((prev_score * 100 / 20))" "$prev_dur"
+            return
+        fi
+    fi
+
+    # Update progress file
+    echo "[$(date '+%H:%M:%S')] $model_index/$model_total $model" >> "$PROGRESS_FILE"
+
+    printf "  [%d/%d] %-40s " "$model_index" "$model_total" "$model"
 
     # Reset demo to clean state
     make -C "$DEMO_DIR" reset -s 2>/dev/null || true
+    inject_provider_config
 
-    # Record log position before run so we can extract this model's log slice
+    # Record log position
     local log_start_line=0
     if [ -f "$LOG_FILE" ]; then
         log_start_line=$(wc -l < "$LOG_FILE")
@@ -143,26 +250,8 @@ run_model() {
     local start_time
     start_time=$(date +%s)
 
-    # Ensure the demo project has the vLLM provider configured so the run
-    # command can resolve the model without waiting for async discovery.
-    local demo_config="${DEMO_DIR}/tinycode.jsonc"
-    local vllm_host="${TINYCODE_VLLM_HOST}"
-    python3 -I -c "
-import json, sys
-cfg_path = sys.argv[1]
-vllm_url = sys.argv[2]
-with open(cfg_path) as f:
-    text = f.read()
-# Strip JS-style comments for json.loads
-import re
-text = re.sub(r'//.*$', '', text, flags=re.MULTILINE)
-cfg = json.loads(text)
-cfg.setdefault('provider', {}).setdefault('vllm', {}).setdefault('options', {})['baseURL'] = vllm_url
-with open(cfg_path, 'w') as f:
-    json.dump(cfg, f, indent=2)
-" "$demo_config" "$vllm_host" 2>/dev/null || true
-
     # Run tinycode in headless mode
+    local status
     if timeout "$TIMEOUT" "$TINYCODE" run \
         -m "$safe_model" \
         -dangerously-skip-permissions \
@@ -172,41 +261,46 @@ with open(cfg_path, 'w') as f:
         "$REVIEW_PROMPT" \
         2>"${RESULTS_DIR}/${model}.stderr" \
         >"$output_file"; then
-        local status="completed"
+        status="completed"
     else
         local exit_code=$?
         if [ "$exit_code" -eq 124 ]; then
-            local status="timeout"
+            status="timeout"
         else
-            local status="error (exit $exit_code)"
+            status="error"
         fi
     fi
 
-    # Extract this model's log slice
+    # Extract log slice
     if [ -f "$LOG_FILE" ]; then
-        tail -n +"$((log_start_line + 1))" "$LOG_FILE" > "${RESULTS_DIR}/${model}.log" 2>/dev/null || true
+        tail -n +"$((log_start_line + 1))" "$LOG_FILE" > "$log_out" 2>/dev/null || true
     fi
 
     local end_time
     end_time=$(date +%s)
     local duration=$((end_time - start_time))
 
-    # Score the output
+    # Score
     local score
     score=$(score_output "$output_file")
 
-    # Count tool calls and errors from the log slice
-    local log_file="${RESULTS_DIR}/${model}.log"
+    # Log stats
     local tool_calls log_errors log_warns compactions iterations
-    tool_calls=$(grep -c "tool completed" "$log_file" 2>/dev/null | tr -d '\n' || echo "0")
-    log_errors=$(grep -c "level=ERROR" "$log_file" 2>/dev/null | tr -d '\n' || echo "0")
-    log_warns=$(grep -c "level=WARN" "$log_file" 2>/dev/null | tr -d '\n' || echo "0")
-    compactions=$(grep -c "compaction triggered" "$log_file" 2>/dev/null | tr -d '\n' || echo "0")
-    iterations=$(grep -c "processor loop iteration" "$log_file" 2>/dev/null | tr -d '\n' || echo "0")
+    tool_calls=$(grep -c "tool completed" "$log_out" 2>/dev/null | tr -d '\n' || echo "0")
+    log_errors=$(grep -c "level=ERROR" "$log_out" 2>/dev/null | tr -d '\n' || echo "0")
+    log_warns=$(grep -c "level=WARN" "$log_out" 2>/dev/null | tr -d '\n' || echo "0")
+    compactions=$(grep -c "compaction triggered" "$log_out" 2>/dev/null | tr -d '\n' || echo "0")
+    iterations=$(grep -c "processor loop iteration" "$log_out" 2>/dev/null | tr -d '\n' || echo "0")
 
-    # Detect which bugs were found/missed
-    local found_list=""
-    local missed_list=""
+    # Detect non-agent models
+    local skip_reason
+    skip_reason=$(detect_skip "$model" "$output_file" "$log_out" "$status" "$iterations" "$tool_calls")
+    if [ -n "$skip_reason" ]; then
+        status="skipped (${skip_reason})"
+    fi
+
+    # Bugs found/missed
+    local found_list="" missed_list=""
     for entry in "${BUG_PATTERNS[@]}"; do
         local num="${entry%%:*}"
         local pattern="${entry#*:}"
@@ -216,6 +310,10 @@ with open(cfg_path, 'w') as f:
             missed_list="${missed_list}${num},"
         fi
     done
+
+    # Output size
+    local output_bytes
+    output_bytes=$(wc -c < "$output_file" 2>/dev/null | tr -d ' ' || echo "0")
 
     # Write JSON result
     cat > "$json_file" <<JSONEOF
@@ -232,21 +330,73 @@ with open(cfg_path, 'w') as f:
     "compactions": ${compactions},
     "log_errors": ${log_errors},
     "log_warnings": ${log_warns},
+    "output_bytes": ${output_bytes},
     "found": [${found_list%,}],
     "missed": [${missed_list%,}],
     "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 JSONEOF
 
-    # Print summary line
-    printf "  %-45s %2d/20 (%3d%%)  %4ds  %s\n" \
-        "$model" "$score" "$((score * 100 / 20))" "$duration" "$status"
+    # Print result
+    printf "%2d/20 (%3d%%)  %4ds  %s\n" \
+        "$score" "$((score * 100 / 20))" "$duration" "$status"
+
+    # Update progress
+    echo "[$(date '+%H:%M:%S')] $model_index/$model_total $model → ${score}/20 (${duration}s) $status" >> "$PROGRESS_FILE"
 
     # Reset demo
     make -C "$DEMO_DIR" reset -s 2>/dev/null || true
 }
 
+print_summary() {
+    echo ""
+    echo "=== Final Results (sorted by score) ==="
+    echo ""
+
+    if ! command -v jq &>/dev/null; then
+        echo "Install jq for formatted summary. Raw results in: $RESULTS_DIR/"
+        return
+    fi
+
+    local completed=0 skipped=0 errored=0 timed_out=0
+    printf "  %-40s %6s  %5s  %4s  %4s  %6s  %s\n" "MODEL" "SCORE" "TIME" "ITER" "TOOL" "OUTPUT" "STATUS"
+    echo "  $(printf '%.0s-' {1..100})"
+
+    for f in "$RESULTS_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        jq -r '"\(.model)\t\(.score)\t\(.total)\t\(.percent)\t\(.duration_seconds)\t\(.iterations)\t\(.tool_calls)\t\(.output_bytes // 0)\t\(.status)"' "$f" 2>/dev/null
+    done | sort -t$'\t' -k2 -rn -k5 -n | while IFS=$'\t' read -r model score total pct dur iters tools outb status; do
+        local out_human
+        if [ "$outb" -ge 1024 ]; then
+            out_human="$(echo "$outb" | awk '{printf "%.1fKB", $1/1024}')"
+        else
+            out_human="${outb}B"
+        fi
+        printf "  %-40s %2d/%-2d (%3d%%)  %4ds  %4s  %4s  %6s  %s\n" \
+            "$model" "$score" "$total" "$pct" "$dur" "$iters" "$tools" "$out_human" "$status"
+    done
+
+    # Stats
+    echo ""
+    local total_models total_completed total_skipped
+    total_models=$(ls "$RESULTS_DIR"/*.json 2>/dev/null | wc -l | tr -d ' ')
+    total_completed=$(jq -r '.status' "$RESULTS_DIR"/*.json 2>/dev/null | grep -c "completed" || echo "0")
+    total_skipped=$(jq -r '.status' "$RESULTS_DIR"/*.json 2>/dev/null | grep -c "skipped" || echo "0")
+    echo "  Models tested: $total_models  Completed: $total_completed  Skipped: $total_skipped"
+    echo ""
+    echo "  Results: $RESULTS_DIR/"
+    echo "  Per model: .json (scores) .txt (output) .log (tinycode log) .stderr (errors)"
+    echo ""
+    echo "  Check progress anytime:  $0 --status"
+    echo "  Resume interrupted run:  $0  (completed models are cached)"
+}
+
 # --- Main ---
+
+# Handle --status flag
+if [ "${1:-}" = "--status" ]; then
+    show_status
+fi
 
 if [ ! -d "$DEMO_DIR" ]; then
     echo "Error: tinycode-demo not found at $DEMO_DIR"
@@ -260,59 +410,82 @@ if [ ! -x "$TINYCODE" ]; then
     exit 1
 fi
 
-mkdir -p "$RESULTS_DIR"
-
 # Determine which models to test
 models=()
 provider="vllm"
+skip_models=()
 
-if [ $# -eq 0 ]; then
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --provider)
+            provider="$2"
+            shift 2
+            mapfile -t models < <("$TINYCODE" models 2>/dev/null | grep "^$provider/" | sed "s|$provider/||" || true)
+            if [ ${#models[@]} -eq 0 ]; then
+                echo "No models found for provider: $provider"
+                exit 1
+            fi
+            ;;
+        --skip)
+            shift
+            while [ $# -gt 0 ] && [[ ! "$1" =~ ^-- ]]; do
+                skip_models+=("$1")
+                shift
+            done
+            ;;
+        *)
+            models+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [ ${#models[@]} -eq 0 ]; then
     models=("${MAAS_MODELS[@]}")
-elif [ "$1" = "--provider" ] && [ $# -ge 2 ]; then
-    provider="$2"
-    # Use tinycode models command to list available models
-    mapfile -t models < <("$TINYCODE" models 2>/dev/null | grep "^$provider/" | sed "s|$provider/||" || true)
-    if [ ${#models[@]} -eq 0 ]; then
-        echo "No models found for provider: $provider"
-        exit 1
-    fi
-else
-    models=("$@")
+fi
+
+# Filter out skipped models
+if [ ${#skip_models[@]} -gt 0 ]; then
+    filtered=()
+    for m in "${models[@]}"; do
+        local_skip=false
+        for s in "${skip_models[@]}"; do
+            if [ "$m" = "$s" ]; then
+                local_skip=true
+                break
+            fi
+        done
+        if ! $local_skip; then
+            filtered+=("$m")
+        fi
+    done
+    models=("${filtered[@]}")
 fi
 
 # Must run from the demo directory so tinycode sees the project
 cd "$DEMO_DIR"
 
+# Initialize progress
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Benchmark started — ${#models[@]} models" > "$PROGRESS_FILE"
+
 echo "=== tinycode Model Benchmark ==="
 echo "Demo:     $DEMO_DIR"
 echo "Models:   ${#models[@]}"
-echo "Timeout:  ${TIMEOUT}s"
+echo "Timeout:  ${TIMEOUT}s per model"
 echo "Results:  $RESULTS_DIR"
 echo ""
-printf "  %-45s %5s  %5s  %s\n" "MODEL" "SCORE" "TIME" "STATUS"
-echo "  $(printf '%.0s-' {1..80})"
+echo "  Check progress:  $0 --status"
+echo "  Resume if interrupted: just re-run (completed models are cached)"
+echo ""
+printf "  %-50s %6s  %5s  %s\n" "MODEL" "SCORE" "TIME" "STATUS"
+echo "  $(printf '%.0s-' {1..90})"
 
+model_index=0
 for model in "${models[@]}"; do
-    run_model "$model" "$provider"
+    model_index=$((model_index + 1))
+    run_model "$model" "$provider" "$model_index" "${#models[@]}"
 done
 
-echo ""
-echo "=== Summary ==="
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Benchmark complete" >> "$PROGRESS_FILE"
 
-# Sort results by score descending
-if command -v jq &>/dev/null; then
-    echo ""
-    printf "  %-45s %5s  %5s  %s\n" "MODEL" "SCORE" "TIME" "STATUS"
-    echo "  $(printf '%.0s-' {1..80})"
-    for f in "$RESULTS_DIR"/*.json; do
-        [ -f "$f" ] || continue
-        jq -r '"\(.model)\t\(.score)\t\(.total)\t\(.percent)\t\(.duration_seconds)\t\(.status)"' "$f"
-    done | sort -t$'\t' -k2 -rn | while IFS=$'\t' read -r model score total pct dur status; do
-        printf "  %-45s %2d/%-2d (%3d%%)  %4ds  %s\n" "$model" "$score" "$total" "$pct" "$dur" "$status"
-    done
-    echo ""
-    echo "JSON results in: $RESULTS_DIR/*.json"
-    echo "Full output in:  $RESULTS_DIR/*.txt"
-else
-    echo "Install jq for sorted summary. Raw results in: $RESULTS_DIR/"
-fi
+print_summary
