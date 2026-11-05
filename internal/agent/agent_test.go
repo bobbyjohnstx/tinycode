@@ -970,8 +970,10 @@ func TestBuildAgent_SensitiveActionsAsk(t *testing.T) {
 	if general == nil {
 		t.Fatal("general agent not found")
 	}
-	if got := permission.Evaluate("edit", "main.go", general.Permission); got.Action != permission.ActionAsk {
-		t.Errorf("general edit: got %s, want ask", got.Action)
+	// general has a wildcard allow so all permissions (including mcp/plugin)
+	// pass the ToolDefs filter. edit is allowed, not ask.
+	if got := permission.Evaluate("edit", "main.go", general.Permission); got.Action != permission.ActionAllow {
+		t.Errorf("general edit: got %s, want allow", got.Action)
 	}
 	if got := permission.Evaluate("read", "main.go", general.Permission); got.Action != permission.ActionAllow {
 		t.Errorf("general read: got %s, want allow", got.Action)
@@ -1133,5 +1135,66 @@ func TestAgentPromptsAvoidMissingHandoffs(t *testing.T) {
 		if opsCompact == nil || !opsCompact.Compact || !strings.Contains(opsCompact.Prompt, needle) {
 			t.Errorf("ops compact prompt should name %s", needle)
 		}
+	}
+}
+
+func TestBuildAgent_WildcardIncludesMCPAndPlugin(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(DefaultPerms, nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	build := r.Get("build", nil)
+	if build == nil {
+		t.Fatal("build agent not found")
+	}
+
+	// Visible should include "*" from the wildcard allow.
+	visible := permission.Visible(build.Permission)
+	foundWildcard := false
+	for _, v := range visible {
+		if v == "*" {
+			foundWildcard = true
+			break
+		}
+	}
+	if !foundWildcard {
+		t.Errorf("build Visible() should include \"*\", got %v", visible)
+	}
+
+	// A tool with Permission:"mcp" should pass the ToolDefs filter
+	// because "*" is in the visible set.
+	mcpRule := permission.Evaluate("mcp", "*", build.Permission)
+	if mcpRule.Action != permission.ActionAllow {
+		t.Errorf("mcp permission should evaluate to allow, got %s", mcpRule.Action)
+	}
+
+	// A tool with Permission:"plugin" should also pass.
+	pluginRule := permission.Evaluate("plugin", "*", build.Permission)
+	if pluginRule.Action != permission.ActionAllow {
+		t.Errorf("plugin permission should evaluate to allow, got %s", pluginRule.Action)
+	}
+
+	// Ask rules still override the wildcard (last-wins semantics).
+	webfetchRule := permission.Evaluate("webfetch", "*", build.Permission)
+	if webfetchRule.Action != permission.ActionAsk {
+		t.Errorf("webfetch should still be ask, got %s", webfetchRule.Action)
+	}
+
+	// Verify general agent also has the wildcard.
+	general := r.Get("general", nil)
+	if general == nil {
+		t.Fatal("general agent not found")
+	}
+	generalVisible := permission.Visible(general.Permission)
+	foundWildcard = false
+	for _, v := range generalVisible {
+		if v == "*" {
+			foundWildcard = true
+			break
+		}
+	}
+	if !foundWildcard {
+		t.Errorf("general Visible() should include \"*\", got %v", generalVisible)
 	}
 }

@@ -23,17 +23,14 @@ var defaultsFS embed.FS
 // destructive shell for every agent that does not override it.
 var DefaultPerms permission.Ruleset
 
-// buildPerms allows ordinary work for the default agent. The ask rules come
-// after those allows so last-match prompts for .env reads, webfetch,
-// directories outside the project, destructive shell, and shell commands
-// that name a secret file. User rules are merged after this set and can
-// still override an ask.
-//
-// read covers grep, glob, question, skill, and websearch, which use the read
-// permission. edit covers write, apply_patch, and todowrite. shell covers
-// bash and monitor. task, diagnostics, notepad, and report_findings have no
-// permission of their own; naming them here keeps them in the tool list.
+// buildPerms allows ordinary work for the default agent. The leading wildcard
+// allow ensures every tool permission (including mcp and plugin) passes the
+// ToolDefs visibility filter. The ask rules come after the wildcard so
+// last-match prompts for .env reads, webfetch, directories outside the
+// project, destructive shell, and shell commands that name a secret file.
+// User rules are merged after this set and can still override an ask.
 var buildPerms = permission.Ruleset{
+	{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
 	{Permission: "question", Pattern: "*", Action: permission.ActionAllow},
 	{Permission: "plan_enter", Pattern: "*", Action: permission.ActionAllow},
 	{Permission: "read", Pattern: "*", Action: permission.ActionAllow},
@@ -439,6 +436,7 @@ func (r *Registry) registerSubagents(generalPrompt, explorePrompt, scoutPrompt s
 		Permission: permission.Merge(
 			defaultPerms,
 			permission.Ruleset{
+				{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
 				{Permission: "todowrite", Pattern: "*", Action: permission.ActionDeny},
 			},
 			userPerms,
