@@ -129,6 +129,7 @@ func (p *Processor) buildRequest() llm.Request {
 						Arguments: part.ToolArgs,
 					},
 					ThoughtSignature: part.ThoughtSig,
+					ExtraContent:     extraContentFromThoughtSig(part.ThoughtSig),
 				})
 			}
 		}
@@ -522,6 +523,17 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func extraContentFromThoughtSig(sig string) *llm.ExtraContent {
+	if sig == "" {
+		return nil
+	}
+	return &llm.ExtraContent{
+		Google: &llm.GoogleExtra{
+			ThoughtSignature: sig,
+		},
+	}
 }
 
 func clampMaxTokens(req *llm.Request, model *provider.Model) {

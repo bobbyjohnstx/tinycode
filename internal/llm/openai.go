@@ -280,6 +280,8 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 		}
 		if tc.ThoughtSignature != "" {
 			accum.thoughtSignature = tc.ThoughtSignature
+		} else if tc.ExtraContent != nil && tc.ExtraContent.Google != nil && tc.ExtraContent.Google.ThoughtSignature != "" {
+			accum.thoughtSignature = tc.ExtraContent.Google.ThoughtSignature
 		}
 		if tc.Function.Name != "" {
 			tokens += ApproxTokens(tc.Function.Name)
@@ -484,11 +486,20 @@ type chatCompletionDelta struct {
 }
 
 type chatCompletionToolCall struct {
-	Index            int                    `json:"index"`
-	ID               string                 `json:"id,omitempty"`
-	Type             string                 `json:"type,omitempty"`
-	Function         chatCompletionFunction `json:"function"`
-	ThoughtSignature string                 `json:"thought_signature,omitempty"`
+	Index            int                       `json:"index"`
+	ID               string                    `json:"id,omitempty"`
+	Type             string                    `json:"type,omitempty"`
+	Function         chatCompletionFunction    `json:"function"`
+	ThoughtSignature string                    `json:"thought_signature,omitempty"`
+	ExtraContent     *chatCompletionExtraContent `json:"extra_content,omitempty"`
+}
+
+type chatCompletionExtraContent struct {
+	Google *chatCompletionGoogleExtra `json:"google,omitempty"`
+}
+
+type chatCompletionGoogleExtra struct {
+	ThoughtSignature string `json:"thought_signature,omitempty"`
 }
 
 type chatCompletionFunction struct {

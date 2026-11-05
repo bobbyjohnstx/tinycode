@@ -58,10 +58,19 @@ type Message struct {
 }
 
 type ToolCall struct {
-	ID               string       `json:"id"`
-	Type             string       `json:"type"`
-	Function         FunctionCall `json:"function"`
-	ThoughtSignature string       `json:"thought_signature,omitempty"`
+	ID               string            `json:"id"`
+	Type             string            `json:"type"`
+	Function         FunctionCall      `json:"function"`
+	ThoughtSignature string            `json:"thought_signature,omitempty"`
+	ExtraContent     *ExtraContent     `json:"extra_content,omitempty"`
+}
+
+type ExtraContent struct {
+	Google *GoogleExtra `json:"google,omitempty"`
+}
+
+type GoogleExtra struct {
+	ThoughtSignature string `json:"thought_signature,omitempty"`
 }
 
 type FunctionCall struct {
