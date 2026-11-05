@@ -16,6 +16,7 @@
 #   MAX_ITERATIONS   processor iterations per model (default: 50)
 #   DEMO_DIR         path to tinycode-demo (default: ../tinycode-demo)
 #   RESULTS_DIR      output directory (default: ./benchmark-results)
+#   BENCHMARK_AGENT  agent to use (default: code-reviewer; also: security-reviewer, build)
 #   TINYCODE_VLLM_HOST  vLLM endpoint (default: https://models.corp.redhat.com/oai)
 #
 # Prerequisites:
@@ -254,6 +255,7 @@ run_model() {
     local status
     if timeout "$TIMEOUT" "$TINYCODE" run \
         -m "$safe_model" \
+        -agent "${BENCHMARK_AGENT:-code-reviewer}" \
         -dangerously-skip-permissions \
         -max-iterations "$MAX_ITERATIONS" \
         -no-fail-on-tool-error \
@@ -320,6 +322,7 @@ run_model() {
 {
     "model": "${model}",
     "provider": "${provider}",
+    "agent": "${BENCHMARK_AGENT:-code-reviewer}",
     "score": ${score},
     "total": 20,
     "percent": $((score * 100 / 20)),
