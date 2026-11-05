@@ -38,6 +38,7 @@ tinycode.log
 UPCOMING_CHANGELOG.md
 logs/
 docs/reference/maas-model-catalog.md
+benchmark-results/
 *.bun-build
 bun.lock
 tsconfig.tsbuildinfo

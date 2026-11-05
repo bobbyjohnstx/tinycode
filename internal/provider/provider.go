@@ -22,8 +22,9 @@ type Registry struct {
 	providers        map[string]*Info
 	disabled         map[string]bool
 	enabled          map[string]bool
-	failures         map[string]int // providerID -> consecutive failure count
-	contextOverrides map[string]int // providerID -> context length override from config
+	failures         map[string]int    // providerID -> consecutive failure count
+	lastErrors       map[string]string // providerID -> last discovery error message
+	contextOverrides map[string]int    // providerID -> context length override from config
 }
 
 func NewRegistry() *Registry {
@@ -32,6 +33,7 @@ func NewRegistry() *Registry {
 		disabled:         make(map[string]bool),
 		enabled:          make(map[string]bool),
 		failures:         make(map[string]int),
+		lastErrors:       make(map[string]string),
 		contextOverrides: make(map[string]int),
 	}
 }
@@ -103,6 +105,24 @@ func (r *Registry) RecordFailure(id string) int {
 	return r.failures[id]
 }
 
+// RecordFailureWithError increments the failure count and stores the error message.
+func (r *Registry) RecordFailureWithError(id string, err error) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.failures[id]++
+	if err != nil {
+		r.lastErrors[id] = err.Error()
+	}
+	return r.failures[id]
+}
+
+// LastError returns the last discovery error for a provider, if any.
+func (r *Registry) LastError(id string) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.lastErrors[id]
+}
+
 // ResetFailures resets the consecutive failure count for a provider
 // and returns the previous count.
 func (r *Registry) ResetFailures(id string) int {
@@ -147,6 +167,9 @@ func (r *Registry) GetModel(providerID, modelID string) (*Model, error) {
 
 	p, ok := r.providers[providerID]
 	if !ok {
+		if lastErr := r.lastErrors[providerID]; lastErr != "" {
+			return nil, fmt.Errorf("provider %q not found (last error: %s)", providerID, lastErr)
+		}
 		return nil, fmt.Errorf("provider %q not found", providerID)
 	}
 

@@ -221,7 +221,7 @@ func (d *Discovery) handleDiscoveryFailure(providerID, providerName string, err 
 	delete(d.healthyNextPoll, providerID)
 	d.dormantMu.Unlock()
 
-	count := d.registry.RecordFailure(providerID)
+	count := d.registry.RecordFailureWithError(providerID, err)
 	slog.Info("provider discovery failed",
 		"provider", providerID,
 		"error", err,

@@ -441,7 +441,7 @@ func resolveRunModel(reg *provider.Registry, modelStr string, isJSON bool) (stri
 
 	model, err := reg.GetModel(providerID, modelID)
 	if err != nil {
-		fail(err.Error())
+		fail(fmt.Sprintf("%v — check the provider endpoint URL and network; run: tinycode doctor", err))
 	}
 	return providerID, modelID, model
 }
