@@ -118,11 +118,14 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		MaxIterations: maxIter,
 		DoomThreshold: config.DoomLoopThreshold(sm.cfg),
 	}
-	temp, topP := sm.resolveAgentLLMParams(agentInfo)
+	temp, topP, agentMaxTokens := sm.resolveAgentLLMParams(agentInfo)
 	procCfg.Temperature = temp
 	procCfg.TopP = topP
 	if sm.cfg != nil {
 		procCfg.MaxTokens = sm.cfg.MaxTokens
+	}
+	if agentMaxTokens != nil {
+		procCfg.MaxTokens = agentMaxTokens
 	}
 	proc := session.NewProcessor(procCfg, client, childTools, sm.bus)
 

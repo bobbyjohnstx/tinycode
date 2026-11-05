@@ -19,9 +19,10 @@ type Event struct {
 	Text string `json:"text,omitempty"`
 
 	// tool-call fields
-	ToolCallID   string `json:"toolCallID,omitempty"`
-	ToolName     string `json:"toolName,omitempty"`
-	ToolCallArgs string `json:"toolCallArgs,omitempty"`
+	ToolCallID       string `json:"toolCallID,omitempty"`
+	ToolName         string `json:"toolName,omitempty"`
+	ToolCallArgs     string `json:"toolCallArgs,omitempty"`
+	ThoughtSignature string `json:"thoughtSignature,omitempty"`
 
 	// finish
 	FinishReason string `json:"finishReason,omitempty"`
@@ -57,9 +58,10 @@ type Message struct {
 }
 
 type ToolCall struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	Function FunctionCall `json:"function"`
+	ID               string       `json:"id"`
+	Type             string       `json:"type"`
+	Function         FunctionCall `json:"function"`
+	ThoughtSignature string       `json:"thought_signature,omitempty"`
 }
 
 type FunctionCall struct {

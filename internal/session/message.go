@@ -43,6 +43,7 @@ type Part struct {
 	FileData   string   `json:"fileData,omitempty"`
 	ImageData  string   `json:"imageData,omitempty"`
 	MediaType  string   `json:"mediaType,omitempty"`
+	ThoughtSig string   `json:"thoughtSig,omitempty"`
 }
 
 type Message struct {

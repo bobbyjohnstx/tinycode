@@ -58,39 +58,41 @@ const (
 )
 
 type Info struct {
-	Name        string             `json:"name"`
-	Description string             `json:"description,omitempty"`
-	Mode        Mode               `json:"mode"`
-	Native      bool               `json:"native,omitempty"`
-	Hidden      bool               `json:"hidden,omitempty"`
-	Disabled    bool               `json:"disabled,omitempty"`
-	TopP        *float64           `json:"topP,omitempty"`
-	Temperature *float64           `json:"temperature,omitempty"`
-	Color       string             `json:"color,omitempty"`
-	Permission  permission.Ruleset `json:"permission"`
-	Prompt      string             `json:"prompt,omitempty"`
-	Compact     bool               `json:"compact,omitempty"`
-	Steps       *int               `json:"steps,omitempty"`
-	Options     map[string]any     `json:"options"`
-	Model       *session.ModelRef  `json:"model,omitempty"`
-	Variant     string             `json:"variant,omitempty"`
+	Name            string             `json:"name"`
+	Description     string             `json:"description,omitempty"`
+	Mode            Mode               `json:"mode"`
+	Native          bool               `json:"native,omitempty"`
+	Hidden          bool               `json:"hidden,omitempty"`
+	Disabled        bool               `json:"disabled,omitempty"`
+	TopP            *float64           `json:"topP,omitempty"`
+	Temperature     *float64           `json:"temperature,omitempty"`
+	Color           string             `json:"color,omitempty"`
+	Permission      permission.Ruleset `json:"permission"`
+	Prompt          string             `json:"prompt,omitempty"`
+	Compact         bool               `json:"compact,omitempty"`
+	Steps           *int               `json:"steps,omitempty"`
+	MaxOutputTokens *int               `json:"maxOutputTokens,omitempty"`
+	Options         map[string]any     `json:"options"`
+	Model           *session.ModelRef  `json:"model,omitempty"`
+	Variant         string             `json:"variant,omitempty"`
 }
 
 type ConfigOverride struct {
-	Model       string         `json:"model,omitempty"`
-	Variant     string         `json:"variant,omitempty"`
-	Prompt      string         `json:"prompt,omitempty"`
-	Description string         `json:"description,omitempty"`
-	Temperature *float64       `json:"temperature,omitempty"`
-	TopP        *float64       `json:"top_p,omitempty"`
-	Mode        Mode           `json:"mode,omitempty"`
-	Color       string         `json:"color,omitempty"`
-	Hidden      *bool          `json:"hidden,omitempty"`
-	Name        string         `json:"name,omitempty"`
-	Steps       *int           `json:"steps,omitempty"`
-	Disable     bool           `json:"disable,omitempty"`
-	Options     map[string]any `json:"options,omitempty"`
-	Permission  map[string]any `json:"permission,omitempty"`
+	Model           string         `json:"model,omitempty"`
+	Variant         string         `json:"variant,omitempty"`
+	Prompt          string         `json:"prompt,omitempty"`
+	Description     string         `json:"description,omitempty"`
+	Temperature     *float64       `json:"temperature,omitempty"`
+	TopP            *float64       `json:"top_p,omitempty"`
+	Mode            Mode           `json:"mode,omitempty"`
+	Color           string         `json:"color,omitempty"`
+	Hidden          *bool          `json:"hidden,omitempty"`
+	Name            string         `json:"name,omitempty"`
+	Steps           *int           `json:"steps,omitempty"`
+	MaxOutputTokens *int           `json:"max_output_tokens,omitempty"`
+	Disable         bool           `json:"disable,omitempty"`
+	Options         map[string]any `json:"options,omitempty"`
+	Permission      map[string]any `json:"permission,omitempty"`
 }
 
 type Registry struct {
@@ -229,6 +231,9 @@ func (r *Registry) ApplyConfigOverrides(overrides map[string]ConfigOverride, def
 		}
 		if override.Steps != nil {
 			agent.Steps = override.Steps
+		}
+		if override.MaxOutputTokens != nil {
+			agent.MaxOutputTokens = override.MaxOutputTokens
 		}
 		if override.Options != nil {
 			for k, v := range override.Options {
@@ -573,6 +578,9 @@ func applyFrontmatter(info *Info, frontmatter map[string]any) {
 	}
 	if steps, ok := frontmatter["steps"].(int); ok {
 		info.Steps = &steps
+	}
+	if mot, ok := frontmatter["max_output_tokens"].(int); ok {
+		info.MaxOutputTokens = &mot
 	}
 	if temp, ok := asFloat64(frontmatter["temperature"]); ok {
 		info.Temperature = &temp

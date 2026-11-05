@@ -2,6 +2,7 @@
 description: Code review with severity-rated feedback, logic defect detection, SOLID principle checks, and quality assessment
 mode: subagent
 steps: 7
+max_output_tokens: 32768
 permission:
   "*": deny
   read: allow

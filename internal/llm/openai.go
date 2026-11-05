@@ -278,6 +278,9 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 				accum.name = tc.Function.Name
 			}
 		}
+		if tc.ThoughtSignature != "" {
+			accum.thoughtSignature = tc.ThoughtSignature
+		}
 		if tc.Function.Name != "" {
 			tokens += ApproxTokens(tc.Function.Name)
 		}
@@ -431,10 +434,11 @@ func (c *OpenAIClient) finalizeOpenAIToolCalls(toolCalls map[int]*toolCallAccum,
 					"original_args": args,
 				})
 				ch <- Event{
-					Type:         EventToolCallEnd,
-					ToolCallID:   accum.id,
-					ToolName:     "invalid",
-					ToolCallArgs: string(invalidArgs),
+					Type:             EventToolCallEnd,
+					ToolCallID:       accum.id,
+					ToolName:         "invalid",
+					ToolCallArgs:     string(invalidArgs),
+					ThoughtSignature: accum.thoughtSignature,
 				}
 				delete(toolCalls, idx)
 				continue
@@ -442,19 +446,21 @@ func (c *OpenAIClient) finalizeOpenAIToolCalls(toolCalls map[int]*toolCallAccum,
 			args = *repaired
 		}
 		ch <- Event{
-			Type:         EventToolCallEnd,
-			ToolCallID:   accum.id,
-			ToolName:     accum.name,
-			ToolCallArgs: args,
+			Type:             EventToolCallEnd,
+			ToolCallID:       accum.id,
+			ToolName:         accum.name,
+			ToolCallArgs:     args,
+			ThoughtSignature: accum.thoughtSignature,
 		}
 		delete(toolCalls, idx)
 	}
 }
 
 type toolCallAccum struct {
-	id   string
-	name string
-	args string
+	id               string
+	name             string
+	args             string
+	thoughtSignature string
 }
 
 type chatCompletionChunk struct {
@@ -478,10 +484,11 @@ type chatCompletionDelta struct {
 }
 
 type chatCompletionToolCall struct {
-	Index    int                    `json:"index"`
-	ID       string                 `json:"id,omitempty"`
-	Type     string                 `json:"type,omitempty"`
-	Function chatCompletionFunction `json:"function"`
+	Index            int                    `json:"index"`
+	ID               string                 `json:"id,omitempty"`
+	Type             string                 `json:"type,omitempty"`
+	Function         chatCompletionFunction `json:"function"`
+	ThoughtSignature string                 `json:"thought_signature,omitempty"`
 }
 
 type chatCompletionFunction struct {

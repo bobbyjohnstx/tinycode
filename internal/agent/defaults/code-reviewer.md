@@ -3,6 +3,7 @@ name: code-reviewer
 description: Expert code review specialist with severity-rated feedback, logic defect detection, SOLID principle checks, style, performance, and quality strategy
 mode: subagent
 steps: 7
+max_output_tokens: 32768
 permission:
   "*": deny
   read: allow

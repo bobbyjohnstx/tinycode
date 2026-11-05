@@ -10,7 +10,7 @@ const (
 	// DefaultStreamTokens is the completion cap for an OpenAI-compatible
 	// stream when the caller did not set max_tokens. Reasoning and answer
 	// text both count.
-	DefaultStreamTokens = 8192
+	DefaultStreamTokens = 16384
 	// StreamWallClock is the longest one completion may run. A slow trickle
 	// of tokens must not reset this.
 	StreamWallClock = 8 * time.Minute

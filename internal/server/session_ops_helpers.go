@@ -149,9 +149,9 @@ func (sm *SessionManager) persistPromptResult(result *session.ProcessResult, exi
 	return nil
 }
 
-// resolveAgentLLMParams returns Temperature/TopP preferring agent frontmatter
-// when set, otherwise global config defaults.
-func (sm *SessionManager) resolveAgentLLMParams(agentInfo *agent.Info) (temp, topP *float64) {
+// resolveAgentLLMParams returns Temperature/TopP/MaxOutputTokens preferring
+// agent frontmatter when set, otherwise global config defaults.
+func (sm *SessionManager) resolveAgentLLMParams(agentInfo *agent.Info) (temp, topP *float64, maxTokens *int) {
 	if sm.cfg != nil {
 		temp = sm.cfg.Temperature
 		topP = sm.cfg.TopP
@@ -163,8 +163,11 @@ func (sm *SessionManager) resolveAgentLLMParams(agentInfo *agent.Info) (temp, to
 		if agentInfo.TopP != nil {
 			topP = agentInfo.TopP
 		}
+		if agentInfo.MaxOutputTokens != nil {
+			maxTokens = agentInfo.MaxOutputTokens
+		}
 	}
-	return temp, topP
+	return temp, topP, maxTokens
 }
 
 // buildCompactionConfig creates a compaction config, applying any overrides from the app config.

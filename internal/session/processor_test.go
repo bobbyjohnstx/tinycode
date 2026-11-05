@@ -1435,6 +1435,83 @@ func TestHandleLLMError_NoProgressDoesNotRetry(t *testing.T) {
 	}
 }
 
+func intPtr(n int) *int { return &n }
+
+func TestClampMaxTokens(t *testing.T) {
+	tests := []struct {
+		name      string
+		maxTokens *int
+		model     *provider.Model
+		want      *int
+	}{
+		{"normal clamp", intPtr(32768), &provider.Model{Limit: provider.ModelLimit{Output: 8192}}, intPtr(8192)},
+		{"fallback to context", intPtr(32768), &provider.Model{Limit: provider.ModelLimit{Context: 16384}}, intPtr(16384)},
+		{"both zero no-op", intPtr(32768), &provider.Model{Limit: provider.ModelLimit{}}, intPtr(32768)},
+		{"nil model no-op", intPtr(32768), nil, intPtr(32768)},
+		{"under limit no-op", intPtr(4096), &provider.Model{Limit: provider.ModelLimit{Output: 8192}}, intPtr(4096)},
+		{"nil MaxTokens no-op", nil, &provider.Model{Limit: provider.ModelLimit{Output: 8192}}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := llm.Request{MaxTokens: tt.maxTokens}
+			clampMaxTokens(&req, tt.model)
+			if tt.want == nil {
+				if req.MaxTokens != nil {
+					t.Errorf("expected nil MaxTokens, got %d", *req.MaxTokens)
+				}
+			} else if req.MaxTokens == nil {
+				t.Errorf("expected %d, got nil", *tt.want)
+			} else if *req.MaxTokens != *tt.want {
+				t.Errorf("got %d, want %d", *req.MaxTokens, *tt.want)
+			}
+		})
+	}
+}
+
+func TestRecoverStreamBudget_SurfacesReasoning(t *testing.T) {
+	// The retry also hits ErrStreamBudget, with reasoning but no visible text.
+	client := &mockLLMClient{
+		responses: []mockResponse{{
+			events: []llm.Event{
+				{Type: llm.EventReasoningDelta, Text: "deep analysis of the problem"},
+				{Type: llm.EventError, Error: llm.ErrStreamBudget},
+			},
+		}},
+	}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses_reason",
+		Model:     &provider.Model{ID: "test-model"},
+	}, client, &stubToolExecutor{}, b)
+	p.SetMessages([]Message{{
+		Role:  RoleTool,
+		Parts: []Part{ToolResultPart("call", "read", "contents", false)},
+	}})
+
+	got, _, err := p.recoverStreamBudget(context.Background(), 1, &Message{
+		Parts: []Part{ReasoningPart("initial thinking")},
+	}, &TokenUsage{}, llm.ErrStreamBudget)
+	if err != nil {
+		t.Fatalf("expected nil error when reasoning is surfaced, got: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected non-nil message")
+	}
+	found := false
+	for _, part := range got.Parts {
+		if part.Type == PartText && strings.HasPrefix(part.Text, "[From model reasoning] ") {
+			found = true
+			if !strings.Contains(part.Text, "deep analysis of the problem") {
+				t.Errorf("reasoning text not surfaced: %q", part.Text)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected reasoning to be surfaced as text part")
+	}
+}
+
 func TestRecoverStreamBudget_NilUsageOnRecoveryFailure(t *testing.T) {
 	client := &mockLLMClient{
 		responses: []mockResponse{

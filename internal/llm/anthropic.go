@@ -98,7 +98,7 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 	if req.MaxTokens != nil {
 		ar.MaxTokens = *req.MaxTokens
 	} else {
-		ar.MaxTokens = 4096
+		ar.MaxTokens = DefaultStreamTokens
 	}
 
 	if req.Temperature != nil {

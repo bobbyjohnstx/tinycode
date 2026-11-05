@@ -15,7 +15,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
 
-const answerFollowUp = "Stop reasoning. Report the findings from the tool results already in the session."
+const answerFollowUp = "Stop all reasoning and thinking. You MUST provide a direct answer NOW using only the information already available in the conversation. Do not use any tools."
 
 func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) {
 	req := p.buildRequest()
@@ -128,6 +128,7 @@ func (p *Processor) buildRequest() llm.Request {
 						Name:      part.ToolName,
 						Arguments: part.ToolArgs,
 					},
+					ThoughtSignature: part.ThoughtSig,
 				})
 			}
 		}
@@ -167,6 +168,8 @@ func (p *Processor) buildRequest() llm.Request {
 		MaxTokens:      p.config.MaxTokens,
 		ThinkingBudget: p.config.ThinkingBudget,
 	}
+
+	clampMaxTokens(&req, p.config.Model)
 
 	return req
 }
@@ -221,6 +224,7 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 		case llm.EventToolCallEnd:
 			if tc, ok := activeToolCalls[event.ToolCallID]; ok {
 				tc.ToolArgs = event.ToolCallArgs
+				tc.ThoughtSig = event.ThoughtSignature
 				toolCallParts = append(toolCallParts, *tc)
 				delete(activeToolCalls, event.ToolCallID)
 				p.bus.Publish("session.tool.end", map[string]any{
@@ -327,6 +331,24 @@ func (p *Processor) recoverStreamBudget(ctx context.Context, iteration int, msg 
 	}
 	if errors.Is(err2, llm.ErrStreamBudget) && messageHasVisibleAnswer(msg2) {
 		return msg2, usage, nil
+	}
+	// Before returning the error, try to surface reasoning content
+	if errors.Is(err2, llm.ErrStreamBudget) && !messageHasVisibleAnswer(msg2) {
+		var reasoning strings.Builder
+		for i := range msg2.Parts {
+			if msg2.Parts[i].Type == PartReasoning && msg2.Parts[i].Text != "" {
+				reasoning.WriteString(msg2.Parts[i].Text)
+			}
+		}
+		if reasoning.Len() > 0 {
+			msg2.Parts = append(msg2.Parts, Part{
+				Type: PartText,
+				Text: "[From model reasoning] " + reasoning.String(),
+			})
+			slog.Info("stream budget surfaced reasoning as answer",
+				"sessionID", p.config.SessionID)
+			return msg2, usage, nil
+		}
 	}
 	return msg2, usage, err2
 }
@@ -500,6 +522,26 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func clampMaxTokens(req *llm.Request, model *provider.Model) {
+	if model == nil || req.MaxTokens == nil {
+		return
+	}
+	cap := model.Limit.Output
+	if cap <= 0 {
+		cap = model.Limit.Context
+	}
+	if cap <= 0 {
+		return // unknown model limits, no-op
+	}
+	if *req.MaxTokens > cap {
+		slog.Warn("clamped max_tokens to model limit",
+			"requested", *req.MaxTokens,
+			"limit", cap,
+			"model", model.ID)
+		*req.MaxTokens = cap
+	}
 }
 
 var httpStatusRe = regexp.MustCompile(`\bHTTP (\d{3})\b`)

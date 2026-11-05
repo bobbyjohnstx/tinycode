@@ -114,7 +114,7 @@ func TestResolveAgentLLMParams_AgentOverridesConfig(t *testing.T) {
 		TopP:        &cfgTopP,
 	}, nil)
 
-	temp, topP := sm.resolveAgentLLMParams(&agent.Info{
+	temp, topP, _ := sm.resolveAgentLLMParams(&agent.Info{
 		Temperature: &agentTemp,
 		TopP:        &agentTopP,
 	})
@@ -126,7 +126,7 @@ func TestResolveAgentLLMParams_AgentOverridesConfig(t *testing.T) {
 	}
 
 	// When agent leaves params unset, fall back to config.
-	temp, topP = sm.resolveAgentLLMParams(&agent.Info{})
+	temp, topP, _ = sm.resolveAgentLLMParams(&agent.Info{})
 	if temp == nil || *temp != 0.2 {
 		t.Errorf("Temperature = %v, want config 0.2", temp)
 	}

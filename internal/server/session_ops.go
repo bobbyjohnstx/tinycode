@@ -339,7 +339,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	if sm.agentRegistry != nil {
 		agentInfo = sm.agentRegistry.Get(input.Agent, model.SizeB())
 	}
-	temp, topP := sm.resolveAgentLLMParams(agentInfo)
+	temp, topP, agentMaxTokens := sm.resolveAgentLLMParams(agentInfo)
 
 	sm.mu.Lock()
 	var compactFails int
@@ -357,7 +357,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	}
 	sm.mu.Unlock()
 
-	proc := session.NewProcessor(session.ProcessorConfig{
+	procCfg := session.ProcessorConfig{
 		SessionID:          sessionID,
 		Agent:              input.Agent,
 		Model:              model,
@@ -378,7 +378,11 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		CompactionFailures: compactFails,
 		Temperature:        temp,
 		TopP:               topP,
-	}, client, sessionTools, sm.bus)
+	}
+	if agentMaxTokens != nil {
+		procCfg.MaxTokens = agentMaxTokens
+	}
+	proc := session.NewProcessor(procCfg, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 	proc.SetRecentToolCalls(recentDoom)
 	if len(imageParts) > 0 {
