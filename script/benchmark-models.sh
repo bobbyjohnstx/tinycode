@@ -132,7 +132,7 @@ run_model() {
     echo "--- Testing: ${model} ---"
 
     # Reset demo to clean state
-    (cd "$DEMO_DIR" && git checkout -- . && git clean -fd -q 2>/dev/null) || true
+    make -C "$DEMO_DIR" reset -s 2>/dev/null || true
 
     # Record log position before run so we can extract this model's log slice
     local log_start_line=0
@@ -243,7 +243,7 @@ JSONEOF
         "$model" "$score" "$((score * 100 / 20))" "$duration" "$status"
 
     # Reset demo
-    (cd "$DEMO_DIR" && git checkout -- . && git clean -fd -q 2>/dev/null) || true
+    make -C "$DEMO_DIR" reset -s 2>/dev/null || true
 }
 
 # --- Main ---
