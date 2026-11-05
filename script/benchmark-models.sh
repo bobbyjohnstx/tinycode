@@ -317,6 +317,14 @@ run_model() {
     local output_bytes
     output_bytes=$(wc -c < "$output_file" 2>/dev/null | tr -d ' ' || echo "0")
 
+    # Count total findings reported by the model (lines starting with numbers, bullets, or bracketed severity)
+    local total_findings
+    total_findings=$(grep -ciE "^\s*[0-9]+[\.\)]\s|^\s*[-\*]\s.*\b(bug|issue|vuln|error|missing|hardcoded|inject|xss|csrf)\b|\[(critical|high|medium|low)\]" "$output_file" 2>/dev/null | tr -d '\n' || echo "0")
+    local bonus_findings=$((total_findings - score))
+    if [ "$bonus_findings" -lt 0 ]; then
+        bonus_findings=0
+    fi
+
     # Write JSON result
     cat > "$json_file" <<JSONEOF
 {
@@ -326,6 +334,8 @@ run_model() {
     "score": ${score},
     "total": 20,
     "percent": $((score * 100 / 20)),
+    "total_findings": ${total_findings},
+    "bonus_findings": ${bonus_findings},
     "duration_seconds": ${duration},
     "status": "${status}",
     "tool_calls": ${tool_calls},
@@ -341,8 +351,8 @@ run_model() {
 JSONEOF
 
     # Print result
-    printf "%2d/20 (%3d%%)  %4ds  %s\n" \
-        "$score" "$((score * 100 / 20))" "$duration" "$status"
+    printf "%2d/20 (%3d%%) +%d  %4ds  %s\n" \
+        "$score" "$((score * 100 / 20))" "$bonus_findings" "$duration" "$status"
 
     # Update progress
     echo "[$(date '+%H:%M:%S')] $model_index/$model_total $model → ${score}/20 (${duration}s) $status" >> "$PROGRESS_FILE"
@@ -362,21 +372,15 @@ print_summary() {
     fi
 
     local completed=0 skipped=0 errored=0 timed_out=0
-    printf "  %-40s %6s  %5s  %4s  %4s  %6s  %s\n" "MODEL" "SCORE" "TIME" "ITER" "TOOL" "OUTPUT" "STATUS"
+    printf "  %-40s %6s  %5s  %5s  %4s  %4s  %s\n" "MODEL" "SCORE" "BONUS" "TIME" "ITER" "TOOL" "STATUS"
     echo "  $(printf '%.0s-' {1..100})"
 
     for f in "$RESULTS_DIR"/*.json; do
         [ -f "$f" ] || continue
-        jq -r '"\(.model)\t\(.score)\t\(.total)\t\(.percent)\t\(.duration_seconds)\t\(.iterations)\t\(.tool_calls)\t\(.output_bytes // 0)\t\(.status)"' "$f" 2>/dev/null
-    done | sort -t$'\t' -k2 -rn -k5 -n | while IFS=$'\t' read -r model score total pct dur iters tools outb status; do
-        local out_human
-        if [ "$outb" -ge 1024 ]; then
-            out_human="$(echo "$outb" | awk '{printf "%.1fKB", $1/1024}')"
-        else
-            out_human="${outb}B"
-        fi
-        printf "  %-40s %2d/%-2d (%3d%%)  %4ds  %4s  %4s  %6s  %s\n" \
-            "$model" "$score" "$total" "$pct" "$dur" "$iters" "$tools" "$out_human" "$status"
+        jq -r '"\(.model)\t\(.score)\t\(.total)\t\(.percent)\t\(.total_findings // 0)\t\(.bonus_findings // 0)\t\(.duration_seconds)\t\(.iterations)\t\(.tool_calls)\t\(.status)"' "$f" 2>/dev/null
+    done | sort -t$'\t' -k2 -rn -k5 -n | while IFS=$'\t' read -r model score total pct tfind bonus dur iters tools status; do
+        printf "  %-40s %2d/%-2d (%3d%%)  +%-3s  %4ds  %4s  %4s  %s\n" \
+            "$model" "$score" "$total" "$pct" "$bonus" "$dur" "$iters" "$tools" "$status"
     done
 
     # Stats
