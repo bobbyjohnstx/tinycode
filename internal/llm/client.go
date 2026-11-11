@@ -18,6 +18,11 @@ type Request struct {
 	ThinkingBudget *int           `json:"thinking_budget,omitempty"`
 	KeepAlive      string         `json:"keep_alive,omitempty"`
 
+	// ThinkingTokenBudget caps the reasoning tokens for vLLM models
+	// (vLLM's thinking_token_budget; -1 means unlimited). Only set for
+	// vLLM; the Anthropic client never serializes it.
+	ThinkingTokenBudget *int `json:"thinking_token_budget,omitempty"`
+
 	// ChatTemplateKwargs passes raw kwargs to a vLLM chat template
 	// (e.g. {"enable_thinking": false}). Only set for vLLM models;
 	// templates that do not use a key ignore it.

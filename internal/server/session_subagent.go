@@ -107,16 +107,17 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 
 	// Prefer agent Temperature/TopP when set; otherwise inherit from global config.
 	procCfg := session.ProcessorConfig{
-		SessionID:     subSessionID,
-		Agent:         agent,
-		Model:         model,
-		SystemPrompt:  systemPrompt,
-		AgentPerms:    agentPerms,
-		Ruleset:       agentRuleset,
-		Perms:         sm.perms,
-		Directory:     directory,
-		MaxIterations: maxIter,
-		DoomThreshold: config.DoomLoopThreshold(sm.cfg),
+		SessionID:               subSessionID,
+		Agent:                   agent,
+		Model:                   model,
+		SystemPrompt:            systemPrompt,
+		AgentPerms:              agentPerms,
+		Ruleset:                 agentRuleset,
+		Perms:                   sm.perms,
+		Directory:               directory,
+		MaxIterations:           maxIter,
+		DoomThreshold:           config.DoomLoopThreshold(sm.cfg),
+		VLLMThinkingTokenBudget: config.VLLMThinkingTokenBudget(sm.cfg),
 	}
 	temp, topP := sm.resolveAgentLLMParams(agentInfo)
 	procCfg.Temperature = temp

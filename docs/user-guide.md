@@ -507,6 +507,31 @@ Control how much the model "thinks" before responding:
 
 Higher thinking levels give better results on complex tasks but use more tokens and take longer. The current level is shown in the prompt and persists for the session.
 
+On **vLLM** models, the thinking level is sent to the server as vLLM's `thinking_token_budget` (in reasoning tokens). The resolution order is:
+
+1. The active `/thinking` level, if set (e.g. `medium` → 4096).
+2. Otherwise the `thinking_token_budget` option on the vLLM provider, if configured:
+
+   ```jsonc
+   {
+     "provider": {
+       "vllm": {
+         "baseURL": "http://localhost:8000/v1",
+         "options": { "thinking_token_budget": 8192 }
+       }
+     }
+   }
+   ```
+
+3. Otherwise a built-in default of 4096.
+
+Rules:
+
+- A value of `-1` (or any negative number) disables the budget — the field is not sent, so the model reasons without a cap.
+- Values below 1024 are clamped to 1024; very small budgets starve reasoning models and degrade answers.
+- If the vLLM server has no reasoning parser configured, it rejects the request with a 400. tinycode detects this, retries once without the field, and drops `thinking_token_budget` for the rest of the session (a warning is logged once).
+- The session-compaction summary never sends a budget (it disables thinking via `enable_thinking: false` instead).
+
 ### Reasoning loop protection
 
 Small models (9B–14B) sometimes enter reasoning loops — repeating "but wait" or restating the same sentence. tinycode detects this and stops the stream automatically. The default completion cap is 8192 tokens with an 8-minute wall clock. If a loop is detected earlier, the stream stops immediately, the model's partial answer is kept, and the error is reported as a reasoning loop.

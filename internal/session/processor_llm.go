@@ -17,6 +17,16 @@ import (
 
 const answerFollowUp = "Stop reasoning. Report the findings from the tool results already in the session."
 
+const (
+	// vllmDefaultThinkingTokenBudget is the thinking budget sent to vLLM when
+	// neither a /thinking level nor provider.vllm.options.thinking_token_budget
+	// is set.
+	vllmDefaultThinkingTokenBudget = 4096
+	// vllmMinThinkingTokenBudget: smaller budgets starve the reasoning model
+	// and hurt answer quality, so requests are clamped to at least this.
+	vllmMinThinkingTokenBudget = 1024
+)
+
 func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) {
 	req := p.buildRequest()
 
@@ -41,6 +51,17 @@ func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) 
 
 		ch, err := p.client.Stream(ctx, req, opts...)
 		if err != nil {
+			if p.isVLLM() && req.ThinkingTokenBudget != nil && statusFromError(err) == 400 &&
+				strings.Contains(strings.ToLower(err.Error()), "thinking_token_budget") {
+				p.mu.Lock()
+				p.thinkingBudgetDisabled = true
+				p.mu.Unlock()
+				slog.Warn("vLLM rejected thinking_token_budget; disabling it for the rest of this session",
+					"sessionID", p.config.SessionID)
+				req.ThinkingTokenBudget = nil
+				lastErr = err
+				continue
+			}
 			if provider.IsRetryable(err.Error()) || provider.IsRetryableStatus(statusFromError(err)) {
 				lastErr = err
 				continue
@@ -168,7 +189,45 @@ func (p *Processor) buildRequest() llm.Request {
 		ThinkingBudget: p.config.ThinkingBudget,
 	}
 
+	if p.isVLLM() {
+		if budget := p.vllmThinkingBudget(); budget != 0 {
+			req.ThinkingTokenBudget = &budget
+		}
+	}
+
 	return req
+}
+
+// vllmThinkingBudget resolves the thinking_token_budget for vLLM models: a
+// configured /thinking level wins, then the provider option, then the
+// built-in default. Negative values mean "no budget" (returns 0, field
+// omitted); positive values are clamped to at least vllmMinThinkingTokenBudget.
+// Returns 0 when the budget is disabled for the session.
+func (p *Processor) vllmThinkingBudget() int {
+	p.mu.Lock()
+	disabled := p.thinkingBudgetDisabled
+	p.mu.Unlock()
+	if disabled {
+		return 0
+	}
+
+	var budget int
+	switch {
+	case p.config.ThinkingBudget != nil && *p.config.ThinkingBudget > 0:
+		budget = *p.config.ThinkingBudget
+	case p.config.VLLMThinkingTokenBudget != nil:
+		budget = *p.config.VLLMThinkingTokenBudget
+	default:
+		budget = vllmDefaultThinkingTokenBudget
+	}
+
+	if budget < 0 {
+		return 0
+	}
+	if budget < vllmMinThinkingTokenBudget {
+		return vllmMinThinkingTokenBudget
+	}
+	return budget
 }
 
 func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, error) {

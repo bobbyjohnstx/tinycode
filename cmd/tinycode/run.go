@@ -229,20 +229,21 @@ func runRun() {
 
 	compactionCfg := session.DefaultCompactionConfig()
 	proc := session.NewProcessor(session.ProcessorConfig{
-		SessionID:       sessionID,
-		Agent:           agentName,
-		Model:           model,
-		SystemPrompt:    systemPrompt,
-		Compaction:      compactionCfg,
-		AgentPerms:      agentPerms,
-		Ruleset:         agentRuleset,
-		MaxIterations:   *maxIterFlag,
-		TokenBudget:     *maxTokensFlag,
-		Directory:       dir,
-		Perms:           permSvc,
-		AutoContinueMax: autoContinueMax,
-		DoomThreshold:   config.DoomLoopThreshold(cfg),
-		SmallModel:      cfg.SmallModel,
+		SessionID:               sessionID,
+		Agent:                   agentName,
+		Model:                   model,
+		SystemPrompt:            systemPrompt,
+		Compaction:              compactionCfg,
+		AgentPerms:              agentPerms,
+		Ruleset:                 agentRuleset,
+		MaxIterations:           *maxIterFlag,
+		TokenBudget:             *maxTokensFlag,
+		Directory:               dir,
+		Perms:                   permSvc,
+		AutoContinueMax:         autoContinueMax,
+		DoomThreshold:           config.DoomLoopThreshold(cfg),
+		VLLMThinkingTokenBudget: config.VLLMThinkingTokenBudget(cfg),
+		SmallModel:              cfg.SmallModel,
 	}, client, toolReg, b)
 	proc.SetMessages(existingMsgs)
 

@@ -7,6 +7,8 @@
 - Stream stops for a detected reasoning loop now report `ErrReasoningLoop` instead of the misleading `stream budget exceeded`. The error wraps `ErrStreamBudget`, so a loop stop keeps the same partial-answer recovery as a budget stop
 - `Request` gains optional `chat_template_kwargs` for vLLM chat-template parameters (never serialized for other providers)
 - Loop stops now log the last 300 characters of the reasoning trace so real loops are distinguishable from false positives
+- `/thinking` levels are now honoured on vLLM models via `thinking_token_budget` — resolution order: active level → `provider.vllm.options.thinking_token_budget` → default 4096; values < 0 disable the budget, values below 1024 are clamped to 1024
+- If a vLLM server has no reasoning parser (400 mentioning `thinking_token_budget`), the field is dropped after one retry for the rest of the session; the compaction summary never sends a budget
 
 ### Session
 - Compaction summary on vLLM models disables thinking (`chat_template_kwargs: {"enable_thinking": false}`) so reasoning models no longer stall on the loop detector

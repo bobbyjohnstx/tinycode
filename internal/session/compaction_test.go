@@ -1457,6 +1457,33 @@ func TestCompact_vLLMDisablesThinkingOnSummaryRequest(t *testing.T) {
 	}
 }
 
+// The compaction summary disables thinking, so it must never carry a
+// thinking_token_budget (even when a /thinking level or provider option is
+// configured).
+func TestCompact_vLLMSummaryNeverCarriesThinkingTokenBudget(t *testing.T) {
+	client := &recordingClient{responses: []mockResponse{{events: summaryEvents("Summary.")}}}
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:               "ses_vllm_summary_budget",
+		Model:                   &provider.Model{ID: "qwen3.8-27b-w3", ProviderID: "vllm"},
+		Compaction:              DefaultCompactionConfig(),
+		ThinkingBudget:          intPtr(4096),
+		VLLMThinkingTokenBudget: intPtr(8192),
+	}, client, &stubToolExecutor{}, bus.New())
+	p.SetMessages(compactableHistory())
+
+	compacted, err := p.compact(context.Background(), true)
+	if err != nil || !compacted {
+		t.Fatalf("compact() = (%v, %v), want (true, nil)", compacted, err)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("expected 1 summary request, got %d", len(client.requests))
+	}
+	if client.requests[0].ThinkingTokenBudget != nil {
+		t.Errorf("summary request must not carry thinking_token_budget, got %v", *client.requests[0].ThinkingTokenBudget)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // end-to-end: real OpenAI client + readSSE + compact() against a mock HTTP
 // vLLM. Proves the fix through the actual production path: the summary

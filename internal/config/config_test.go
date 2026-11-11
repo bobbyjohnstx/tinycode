@@ -316,6 +316,29 @@ func TestDoomLoopThreshold(t *testing.T) {
 	}
 }
 
+func TestVLLMThinkingTokenBudget(t *testing.T) {
+	if got := VLLMThinkingTokenBudget(nil); got != nil {
+		t.Errorf("nil config = %v, want nil", got)
+	}
+	if got := VLLMThinkingTokenBudget(&Info{}); got != nil {
+		t.Errorf("unset provider = %v, want nil", got)
+	}
+	if got := VLLMThinkingTokenBudget(&Info{Provider: map[string]ProviderConfig{"vllm": {}}}); got != nil {
+		t.Errorf("unset option = %v, want nil", got)
+	}
+	// JSON decodes numbers as float64.
+	if got := VLLMThinkingTokenBudget(&Info{Provider: map[string]ProviderConfig{"vllm": {Options: map[string]interface{}{"thinking_token_budget": 8192.0}}}}); got == nil || *got != 8192 {
+		t.Errorf("float64 option = %v, want 8192", got)
+	}
+	// -1 means "no budget" and must be preserved (caller omits the field).
+	if got := VLLMThinkingTokenBudget(&Info{Provider: map[string]ProviderConfig{"vllm": {Options: map[string]interface{}{"thinking_token_budget": -1.0}}}}); got == nil || *got != -1 {
+		t.Errorf("negative option = %v, want -1", got)
+	}
+	if got := VLLMThinkingTokenBudget(&Info{Provider: map[string]ProviderConfig{"vllm": {Options: map[string]interface{}{"thinking_token_budget": "lots"}}}}); got != nil {
+		t.Errorf("wrong-type option = %v, want nil", got)
+	}
+}
+
 func TestParseConfig_ExperimentalConfig(t *testing.T) {
 	input := `{
 		"experimental": {

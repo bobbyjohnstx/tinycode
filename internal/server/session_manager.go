@@ -40,10 +40,11 @@ type activeSession struct {
 	toolPartIDs      map[string]string // toolCallID → partID mapping for begin/end pairing
 
 	// Durable across prompts (Processor is recreated each turn).
-	compactionFailures int
-	recentToolCalls    []session.ToolCallSignature
-	goalActive         bool
-	compactBreakerTripped bool
+	compactionFailures     int
+	recentToolCalls        []session.ToolCallSignature
+	goalActive             bool
+	compactBreakerTripped  bool
+	thinkingBudgetDisabled bool
 }
 
 const deltaBatchInterval = 16 * time.Millisecond
