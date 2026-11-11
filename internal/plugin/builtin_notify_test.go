@@ -3,9 +3,36 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
+
+// fakeNotify records the commands a fake runNotifyCommand would have run,
+// without executing anything.
+type fakeNotify struct {
+	calls []string
+}
+
+func (f *fakeNotify) run(ctx context.Context, name string, args ...string) error {
+	f.calls = append(f.calls, strings.Join(append([]string{name}, args...), " "))
+	return nil
+}
+
+// swapRunner replaces runNotifyCommand with f.run and returns a restore func.
+func swapRunner(f *fakeNotify) func() {
+	prev := runNotifyCommand
+	runNotifyCommand = f.run
+	return func() { runNotifyCommand = prev }
+}
+
+// resetRateLimiter clears the rate-limit state so each test starts fresh.
+func resetRateLimiter() {
+	notifyMu.Lock()
+	lastNotifyTime = time.Time{}
+	notifyMu.Unlock()
+}
 
 func TestNotifyTool_UrgencyParameter(t *testing.T) {
 	p := NewNotifyPlugin()
@@ -58,12 +85,12 @@ func TestNotifyTool_RequiresFields(t *testing.T) {
 }
 
 func TestRateLimiting(t *testing.T) {
-	// Reset rate limiter state.
-	notifyMu.Lock()
-	lastNotifyTime = time.Time{}
-	notifyMu.Unlock()
+	resetRateLimiter()
 
-	// First call should go through (may fail on the command itself, but won't be rate-limited).
+	fake := &fakeNotify{}
+	t.Cleanup(swapRunner(fake))
+
+	// First call should go through (will not be rate-limited).
 	result1, _ := SendNotification(context.Background(), "Test", "First", "normal")
 	if result1 == "Notification rate-limited (max 1 per 5 seconds)" {
 		t.Error("first notification should not be rate-limited")
@@ -76,6 +103,52 @@ func TestRateLimiting(t *testing.T) {
 	}
 	if result2 != "Notification rate-limited (max 1 per 5 seconds)" {
 		t.Errorf("second notification should be rate-limited, got: %q", result2)
+	}
+
+	// Only the first call should have built a command; none was actually executed.
+	if len(fake.calls) != 1 {
+		t.Errorf("expected exactly 1 notification command built, got %d: %v", len(fake.calls), fake.calls)
+	}
+}
+
+func TestSendNotification_LinuxCommandLine(t *testing.T) {
+	if runtime.GOOS != "linux" || isWSL() {
+		t.Skip("notify-send command construction only runs on non-WSL Linux")
+	}
+	resetRateLimiter()
+
+	fake := &fakeNotify{}
+	t.Cleanup(swapRunner(fake))
+
+	result, err := SendNotification(context.Background(), "My Title", "My Message", "critical")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "Notification sent" {
+		t.Errorf("result = %q, want %q", result, "Notification sent")
+	}
+	want := "notify-send --urgency=critical My Title My Message"
+	if len(fake.calls) != 1 || fake.calls[0] != want {
+		t.Errorf("commands = %v, want [%q]", fake.calls, want)
+	}
+}
+
+func TestSendNotification_SuppressedInTestsWithoutFakeRunner(t *testing.T) {
+	// Force the no-fake state: whatever a prior test left behind, this test
+	// must see no installed runner so the safety net applies.
+	prev := runNotifyCommand
+	runNotifyCommand = nil
+	t.Cleanup(func() { runNotifyCommand = prev })
+	resetRateLimiter()
+
+	// Under `go test` with no fake runner, SendNotification must return the
+	// suppressed result and run no command and ring no bell.
+	result, err := SendNotification(context.Background(), "Test", "Suppressed", "normal")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "Notification suppressed (test)" {
+		t.Errorf("result = %q, want %q", result, "Notification suppressed (test)")
 	}
 }
 
