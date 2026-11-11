@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func sseHandler(lines []string) http.HandlerFunc {
@@ -743,7 +744,7 @@ func TestOpenAIStream_KeepAliveSetForOllama(t *testing.T) {
 
 func TestOpenAIStream_StopsWhenReasoningLoops(t *testing.T) {
 	sentence := "But wait, index.html still has the same unclosed footer. "
-	lines := make([]string, 8)
+	lines := make([]string, reasoningStallCount+2)
 	for i := range lines {
 		lines[i] = `{"choices":[{"delta":{"reasoning_content":"` + sentence + `"}}]}`
 	}
@@ -760,21 +761,75 @@ func TestOpenAIStream_StopsWhenReasoningLoops(t *testing.T) {
 	}
 	events := collectEvents(t, ch, 5*time.Second)
 	var reasoning int
-	var budget bool
+	var loop bool
 	for _, ev := range events {
 		if ev.Type == EventReasoningDelta {
 			reasoning++
 		}
-		if ev.Type == EventError && errors.Is(ev.Error, ErrStreamBudget) {
-			budget = true
+		if ev.Type == EventError && errors.Is(ev.Error, ErrReasoningLoop) {
+			loop = true
 		}
 	}
-	if !budget {
-		t.Fatal("expected the reasoning loop to stop the stream")
+	if !loop {
+		t.Fatal("expected a reasoning loop stop, not a budget stop")
 	}
 	if reasoning >= len(lines) {
 		t.Fatalf("reasoning chunks = %d, loop was not cut before the end", reasoning)
 	}
+}
+
+func TestOpenAIStream_ChatTemplateKwargsOnWire(t *testing.T) {
+	t.Run("set appears in request body", func(t *testing.T) {
+		var raw map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&raw)
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "data: [DONE]\n\n")
+		}))
+		defer server.Close()
+
+		client := NewOpenAIClient(server.URL, "key")
+		ch, err := client.Stream(context.Background(), Request{
+			Model:              "qwen3.8-27b-w3",
+			Messages:           []Message{{Role: "user", Content: "Summarize"}},
+			ChatTemplateKwargs: map[string]any{"enable_thinking": false},
+		})
+		if err != nil {
+			t.Fatalf("Stream() error: %v", err)
+		}
+		_ = collectEvents(t, ch, 5*time.Second)
+
+		kwargs, ok := raw["chat_template_kwargs"].(map[string]any)
+		if !ok {
+			t.Fatalf("chat_template_kwargs missing from wire body: %v", raw)
+		}
+		if kwargs["enable_thinking"] != false {
+			t.Errorf("enable_thinking = %v, want false", kwargs["enable_thinking"])
+		}
+	})
+
+	t.Run("nil is absent from request body", func(t *testing.T) {
+		var raw map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&raw)
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "data: [DONE]\n\n")
+		}))
+		defer server.Close()
+
+		client := NewOpenAIClient(server.URL, "key")
+		ch, err := client.Stream(context.Background(), Request{
+			Model:    "gpt-4o",
+			Messages: []Message{{Role: "user", Content: "Hi"}},
+		})
+		if err != nil {
+			t.Fatalf("Stream() error: %v", err)
+		}
+		_ = collectEvents(t, ch, 5*time.Second)
+		if _, ok := raw["chat_template_kwargs"]; ok {
+			t.Errorf("chat_template_kwargs should be absent when nil: %v", raw)
+		}
+	})
 }
 
 func TestOpenAIStream_StopsWhenReasoningExceedsBudget(t *testing.T) {
@@ -916,4 +971,53 @@ func streamTextAndReasoning(t *testing.T, serverURL string) (text, reasoning str
 		}
 	}
 	return text, reasoning
+}
+
+func TestLoopTail_MultiByteRuneBoundaries(t *testing.T) {
+	cyrillic := strings.Repeat("а", 400) // 400 runes, 800 bytes
+	cases := []struct {
+		name    string
+		trace   string
+		want    string
+		wantLen int
+	}{
+		{
+			name:    "short ascii unchanged",
+			trace:   "short",
+			want:    "short",
+			wantLen: 5,
+		},
+		{
+			name:    "ascii keeps last 300",
+			trace:   strings.Repeat("x", 500),
+			want:    strings.Repeat("x", 300),
+			wantLen: 300,
+		},
+		{
+			name:    "cyrillic keeps last 300 runes",
+			trace:   cyrillic,
+			want:    strings.Repeat("а", 300),
+			wantLen: 300,
+		},
+		{
+			name:    "mixed multi-byte keeps last 300 runes",
+			trace:   strings.Repeat("ab", 200) + cyrillic, // 400 ascii + 400 cyrillic = 800 runes
+			want:    strings.Repeat("а", 300),
+			wantLen: 300,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := loopTail(tc.trace)
+			if got != tc.want {
+				t.Errorf("loopTail() = %d chars, want %d chars", len([]rune(got)), tc.wantLen)
+			}
+			if len([]rune(got)) != tc.wantLen {
+				t.Errorf("loopTail() rune count = %d, want %d", len([]rune(got)), tc.wantLen)
+			}
+			if !utf8.ValidString(got) {
+				t.Errorf("loopTail() produced invalid UTF-8 (rune-boundary slice)")
+			}
+		})
+	}
 }

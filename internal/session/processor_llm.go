@@ -423,32 +423,25 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	}
 
 	summaryReq := llm.Request{
-		Model: compactionModel,
-		Messages: []llm.Message{
-			{Role: "user", Content: prompt},
-		},
+		Model:    compactionModel,
+		Messages: []llm.Message{{Role: "user", Content: prompt}},
+	}
+	if p.isVLLM() {
+		// vLLM passes chat_template_kwargs to the chat template. Disabling
+		// thinking keeps the summary short and stops reasoning models from
+		// stalling on the loop detector. Templates without the key ignore it.
+		summaryReq.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
 	}
 
 	var opts []llm.StreamOption
 	if p.config.Model != nil && len(p.config.Model.Headers) > 0 {
 		opts = append(opts, llm.WithHeaders(p.config.Model.Headers))
 	}
-	ch, err := p.client.Stream(ctx, summaryReq, opts...)
+
+	summary, err := p.runSummaryStream(ctx, summaryReq, opts...)
 	if err != nil {
-		return false, fmt.Errorf("requesting compaction summary: %w", err)
+		return false, fmt.Errorf("compaction summary: %w", err)
 	}
-
-	var summaryParts []string
-	for event := range ch {
-		if event.Type == llm.EventTextDelta {
-			summaryParts = append(summaryParts, event.Text)
-		}
-		if event.Type == llm.EventError {
-			return false, event.Error
-		}
-	}
-
-	summary := strings.Join(summaryParts, "")
 	if strings.TrimSpace(summary) == "" {
 		return false, fmt.Errorf("compaction summary is empty")
 	}
@@ -497,6 +490,30 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// isVLLM reports whether the session's active model is served by vLLM.
+func (p *Processor) isVLLM() bool {
+	return p.config.Model != nil && strings.EqualFold(p.config.Model.ProviderID, "vllm")
+}
+
+// runSummaryStream runs one compaction summary request and returns the
+// joined summary text. The first stream error ends the call.
+func (p *Processor) runSummaryStream(ctx context.Context, req llm.Request, opts ...llm.StreamOption) (string, error) {
+	ch, err := p.client.Stream(ctx, req, opts...)
+	if err != nil {
+		return "", fmt.Errorf("requesting compaction summary: %w", err)
+	}
+	var parts []string
+	for event := range ch {
+		if event.Type == llm.EventTextDelta {
+			parts = append(parts, event.Text)
+		}
+		if event.Type == llm.EventError {
+			return "", event.Error
+		}
+	}
+	return strings.Join(parts, ""), nil
 }
 
 var httpStatusRe = regexp.MustCompile(`\bHTTP (\d{3})\b`)

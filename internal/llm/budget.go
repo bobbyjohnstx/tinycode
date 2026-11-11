@@ -2,6 +2,7 @@ package llm
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -16,8 +17,9 @@ const (
 	StreamWallClock = 8 * time.Minute
 
 	// reasoningStallCount is how many times "but wait" may appear in one
-	// reasoning trace before that trace is treated as stuck.
-	reasoningStallCount = 4
+	// reasoning trace before that trace is treated as stuck. Ordinary
+	// double-checking says it a few times; a genuine loop says it far more.
+	reasoningStallCount = 10
 	// reasoningRepeatMin is the shortest sentence that can count as a repeat.
 	reasoningRepeatMin = 48
 	// reasoningRepeatCount is how many identical sentences end the trace.
@@ -28,6 +30,13 @@ const (
 // token cap or the wall clock. The events sent before this error are the
 // partial completion.
 var ErrStreamBudget = errors.New("stream budget exceeded")
+
+// ErrReasoningLoop means the completion was closed because the reasoning
+// trace was repeating itself, not because the token cap or wall clock ran
+// out. It wraps ErrStreamBudget so the stop keeps the same partial-completion
+// recovery as a budget hit; errors.Is(err, ErrReasoningLoop) identifies the
+// loop specifically.
+var ErrReasoningLoop = fmt.Errorf("reasoning loop detected: %w", ErrStreamBudget)
 
 // ApproxTokens estimates a token count from UTF-8 text. Four bytes is one token.
 func ApproxTokens(s string) int {

@@ -509,7 +509,7 @@ Higher thinking levels give better results on complex tasks but use more tokens 
 
 ### Reasoning loop protection
 
-Small models (9B–14B) sometimes enter reasoning loops — repeating "but wait" or restating the same sentence. tinycode detects this and stops the stream automatically. The default completion cap is 8192 tokens with an 8-minute wall clock. If a loop is detected earlier, the stream stops immediately and the model's partial answer is returned.
+Small models (9B–14B) sometimes enter reasoning loops — repeating "but wait" or restating the same sentence. tinycode detects this and stops the stream automatically. The default completion cap is 8192 tokens with an 8-minute wall clock. If a loop is detected earlier, the stream stops immediately, the model's partial answer is kept, and the error is reported as a reasoning loop.
 
 ### Think tag handling
 

@@ -315,6 +315,24 @@ func TestAnthropicBuildRequest_ZeroThinkingBudget(t *testing.T) {
 	}
 }
 
+func TestAnthropicBuildRequest_ChatTemplateKwargsNeverSerialized(t *testing.T) {
+	client := NewAnthropicClient("http://localhost", "test-key")
+	req := Request{
+		Model:              "claude-sonnet-4-20250514",
+		Messages:           []Message{{Role: "user", Content: "hello"}},
+		ChatTemplateKwargs: map[string]any{"enable_thinking": false},
+	}
+
+	ar := client.buildRequest(req)
+	data, err := json.Marshal(ar)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+	if strings.Contains(string(data), "chat_template_kwargs") {
+		t.Errorf("chat_template_kwargs must never reach the Anthropic wire: %s", data)
+	}
+}
+
 func intPtr(n int) *int { return &n }
 
 func TestAnthropicBuildRequest_ToolUseAndResultHistory(t *testing.T) {

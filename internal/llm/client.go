@@ -6,17 +6,22 @@ import (
 )
 
 type Request struct {
-	Model         string         `json:"model"`
-	Messages      []Message      `json:"messages"`
-	Tools         []Tool         `json:"tools,omitempty"`
-	ToolChoice    string         `json:"tool_choice,omitempty"`
-	Stream        bool           `json:"stream"`
-	StreamOptions *StreamOptions `json:"stream_options,omitempty"`
-	Temperature   *float64       `json:"temperature,omitempty"`
-	TopP          *float64       `json:"top_p,omitempty"`
+	Model          string         `json:"model"`
+	Messages       []Message      `json:"messages"`
+	Tools          []Tool         `json:"tools,omitempty"`
+	ToolChoice     string         `json:"tool_choice,omitempty"`
+	Stream         bool           `json:"stream"`
+	StreamOptions  *StreamOptions `json:"stream_options,omitempty"`
+	Temperature    *float64       `json:"temperature,omitempty"`
+	TopP           *float64       `json:"top_p,omitempty"`
 	MaxTokens      *int           `json:"max_tokens,omitempty"`
 	ThinkingBudget *int           `json:"thinking_budget,omitempty"`
 	KeepAlive      string         `json:"keep_alive,omitempty"`
+
+	// ChatTemplateKwargs passes raw kwargs to a vLLM chat template
+	// (e.g. {"enable_thinking": false}). Only set for vLLM models;
+	// templates that do not use a key ignore it.
+	ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
 }
 
 // UsesAnthropicProtocol reports whether requests should use the Anthropic
