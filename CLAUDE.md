@@ -31,6 +31,29 @@ Use conventional commit-style messages and PR titles: `type(scope): summary`.
 
 Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes: `tui`, `server`, `llm`, `session`, `provider`, `config`, `tool`, `plugin`, `acp`, `permission`, `mcp`, `vcs`, `bus`, `storage`, `agent`, `skill`, `command`, `project`.
 
+## PR Co-author
+
+Every PR you send must be co-authored by the repository owner's git identity:
+`Co-authored-by: $(git config get user.name) <$(git config get user.email)>`.
+Before committing, resolve the placeholders with those `git config get` calls and add
+the resulting `Co-authored-by:` trailer to each commit (keep it when amending or
+rebasing). Never guess or substitute another identity — if the git identity is unset,
+stop and ask.
+
+## AI Attribution
+
+Every commit you create must also acknowledge the agent and the model that produced it,
+with this trailer (after the `Co-authored-by:` trailer):
+
+`Assisted-by: <agent> (<provider>/<model>)`, e.g. `Assisted-by: tinycode (vllm/qwen3.8-27b-w3)`.
+
+- `<agent>` is the tool you are running in (`tinycode`, `Claude Code`, `Cursor`, ...).
+- `<provider>/<model>` is the model actually serving this session. If it is not stated in
+  your context, use the `model` value from `~/.config/tinycode/tinycode.jsonc` when running
+  in tinycode; if you still cannot determine it, stop and ask. Never guess a model name.
+- One `Assisted-by:` line per agent/model that contributed; keep them when amending or
+  rebasing.
+
 ## Style Guide
 
 - Follow standard Go conventions (`gofmt`, `go vet`)
