@@ -631,6 +631,57 @@ func TestOpenAIStream_OmitsThinkingBudget(t *testing.T) {
 	}
 }
 
+func TestOpenAIStream_ThinkingTokenBudgetOnWire(t *testing.T) {
+	pos := 8192
+	neg := -1
+	tests := []struct {
+		name    string
+		budget  *int
+		wantSet bool
+	}{
+		{name: "set", budget: &pos, wantSet: true},
+		{name: "nil omitted", budget: nil, wantSet: false},
+		{name: "negative", budget: &neg, wantSet: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var raw map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				json.NewDecoder(r.Body).Decode(&raw)
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprint(w, "data: [DONE]\n\n")
+			}))
+			defer server.Close()
+
+			client := NewOpenAIClient(server.URL, "key")
+			ch, err := client.Stream(context.Background(), Request{
+				Model:               "qwen3-32b",
+				Messages:            []Message{{Role: "user", Content: "Hi"}},
+				ThinkingTokenBudget: tc.budget,
+			})
+			if err != nil {
+				t.Fatalf("Stream() error: %v", err)
+			}
+			collectEvents(t, ch, 5*time.Second)
+
+			got, ok := raw["thinking_token_budget"]
+			if tc.wantSet {
+				if !ok {
+					t.Fatalf("wire body missing thinking_token_budget: %#v", raw)
+				}
+				if tc.budget != nil && int(got.(float64)) != *tc.budget {
+					t.Errorf("thinking_token_budget = %v, want %d", got, *tc.budget)
+				}
+			} else if ok {
+				t.Errorf("wire body must omit thinking_token_budget, got %#v", got)
+			}
+			if _, ok := raw["thinking_budget"]; ok {
+				t.Errorf("wire body must omit thinking_budget, got %#v", raw["thinking_budget"])
+			}
+		})
+	}
+}
+
 func TestOpenAIClient_HeaderTimeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(200 * time.Millisecond)

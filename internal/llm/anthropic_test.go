@@ -333,6 +333,24 @@ func TestAnthropicBuildRequest_ChatTemplateKwargsNeverSerialized(t *testing.T) {
 	}
 }
 
+func TestAnthropicBuildRequest_ThinkingTokenBudgetNeverSerialized(t *testing.T) {
+	client := NewAnthropicClient("http://localhost", "test-key")
+	req := Request{
+		Model:               "claude-sonnet-4-20250514",
+		Messages:            []Message{{Role: "user", Content: "hello"}},
+		ThinkingTokenBudget: intPtr(8192),
+	}
+
+	ar := client.buildRequest(req)
+	data, err := json.Marshal(ar)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+	if strings.Contains(string(data), "thinking_token_budget") {
+		t.Errorf("thinking_token_budget must never reach the Anthropic wire: %s", data)
+	}
+}
+
 func intPtr(n int) *int { return &n }
 
 func TestAnthropicBuildRequest_ToolUseAndResultHistory(t *testing.T) {

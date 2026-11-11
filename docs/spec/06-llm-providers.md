@@ -257,6 +257,7 @@ Configuration via `config.Info`:
 - **Output limit:** `context / 2`
 - **Capabilities:** Temperature + tool call enabled by default
 - **Compaction:** The session-compaction summary request disables thinking via `chat_template_kwargs: {"enable_thinking": false}`. vLLM passes the kwargs to the chat template; templates that do not use the key ignore it. This keeps reasoning models from stalling the summary on the loop detector.
+- **Thinking budget:** On vLLM models only, the request carries `thinking_token_budget` (vLLM's reasoning-token cap) when a server-side reasoning parser is expected. Resolution order: active `/thinking` level → `provider.vllm.options.thinking_token_budget` → built-in default 4096. A configured value < 0 omits the field (no budget); values below 1024 are clamped to 1024. If the server has no reasoning parser it returns 400 mentioning `thinking_token_budget`; the client retries once without the field, logs a warning, and disables the budget for the rest of the session (state persists across prompts on the server session record). The compaction summary never carries a budget. Non-vLLM requests never include the field, and `thinking_budget` (Anthropic) is never serialized on the OpenAI/vLLM wire.
 
 ### LM Studio
 

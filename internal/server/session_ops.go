@@ -346,6 +346,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	var recentDoom []session.ToolCallSignature
 	goalActive := input.GoalActive
 	wasTripped := false
+	thinkingBudgetDisabled := false
 	if active, ok := sm.sessions[sessionID]; ok {
 		compactFails = active.compactionFailures
 		recentDoom = append([]session.ToolCallSignature(nil), active.recentToolCalls...)
@@ -354,30 +355,33 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		}
 		active.goalActive = goalActive
 		wasTripped = active.compactBreakerTripped
+		thinkingBudgetDisabled = active.thinkingBudgetDisabled
 	}
 	sm.mu.Unlock()
 
 	procCfg := session.ProcessorConfig{
-		SessionID:          sessionID,
-		Agent:              input.Agent,
-		Model:              model,
-		SystemPrompt:       systemPrompt,
-		Compaction:         sm.buildCompactionConfig(),
-		AgentPerms:         agentPerms,
-		Ruleset:            agentRuleset,
-		Perms:              sm.perms,
-		Directory:          sessionDir,
-		UserDisplayText:    displayText,
-		MaxIterations:      maxIter,
-		MaxTokens:          input.MaxTokens,
-		ThinkingBudget:     input.ThinkingBudget,
-		TokenBudget:        sm.tokenBudget,
-		SmallModel:         smallModel,
-		DoomThreshold:      config.DoomLoopThreshold(sm.cfg),
-		GoalActive:         goalActive,
-		CompactionFailures: compactFails,
-		Temperature:        temp,
-		TopP:               topP,
+		SessionID:               sessionID,
+		Agent:                   input.Agent,
+		Model:                   model,
+		SystemPrompt:            systemPrompt,
+		Compaction:              sm.buildCompactionConfig(),
+		AgentPerms:              agentPerms,
+		Ruleset:                 agentRuleset,
+		Perms:                   sm.perms,
+		Directory:               sessionDir,
+		UserDisplayText:         displayText,
+		MaxIterations:           maxIter,
+		MaxTokens:               input.MaxTokens,
+		ThinkingBudget:          input.ThinkingBudget,
+		TokenBudget:             sm.tokenBudget,
+		SmallModel:              smallModel,
+		DoomThreshold:           config.DoomLoopThreshold(sm.cfg),
+		VLLMThinkingTokenBudget: config.VLLMThinkingTokenBudget(sm.cfg),
+		ThinkingBudgetDisabled:  thinkingBudgetDisabled,
+		GoalActive:              goalActive,
+		CompactionFailures:      compactFails,
+		Temperature:             temp,
+		TopP:                    topP,
 	}
 	if agentMaxTokens != nil {
 		procCfg.MaxTokens = agentMaxTokens
@@ -405,6 +409,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	if active, ok := sm.sessions[sessionID]; ok {
 		active.compactionFailures = fails
 		active.recentToolCalls = proc.RecentToolCalls()
+		active.thinkingBudgetDisabled = proc.ThinkingBudgetDisabled()
 		if fails == 0 {
 			active.compactBreakerTripped = false
 		} else if session.CompactBreakerTripped(fails) {

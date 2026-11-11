@@ -281,6 +281,39 @@ func DoomLoopThreshold(cfg *Info) int {
 	return cfg.Experimental.DoomLoopThreshold
 }
 
+// VLLMThinkingTokenBudget reads provider.vllm.options.thinking_token_budget
+// from the config. It returns nil when the option is unset or unparseable
+// (the caller then falls back to the built-in default). A negative value
+// (e.g. -1) means "no budget".
+func VLLMThinkingTokenBudget(cfg *Info) *int {
+	if cfg == nil {
+		return nil
+	}
+	pc, ok := cfg.Provider["vllm"]
+	if !ok || pc.Options == nil {
+		return nil
+	}
+	raw, ok := pc.Options["thinking_token_budget"]
+	if !ok {
+		return nil
+	}
+	var v int
+	switch n := raw.(type) {
+	case float64:
+		v = int(n)
+	case int:
+		v = n
+	case int64:
+		v = int(n)
+	case int32:
+		v = int(n)
+	default:
+		slog.Warn("vllm thinking_token_budget option is not a number", "value", raw)
+		return nil
+	}
+	return &v
+}
+
 // SkillsConfig defines paths and URLs for skill discovery.
 type SkillsConfig struct {
 	Paths []string `json:"paths,omitempty"`

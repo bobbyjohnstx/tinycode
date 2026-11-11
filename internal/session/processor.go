@@ -32,44 +32,52 @@ type ProcessorConfig struct {
 	Directory       string
 	// CompactionFailures seeds the durable compact breaker across prompts.
 	CompactionFailures int
-	CompactionModel string
-	SmallModel      string
-	Temperature     *float64
-	TopP            *float64
-	MaxTokens       *int
-	MaxIterations   int
-	TokenBudget     int
-	ThinkingBudget  *int
-	Perms           *permission.Service
-	Ruleset         permission.Ruleset
-	UserDisplayText string
+	CompactionModel    string
+	SmallModel         string
+	Temperature        *float64
+	TopP               *float64
+	MaxTokens          *int
+	MaxIterations      int
+	TokenBudget        int
+	ThinkingBudget     *int
+	// VLLMThinkingTokenBudget is the default thinking_token_budget for vLLM
+	// models from provider.vllm.options.thinking_token_budget (nil = unset).
+	VLLMThinkingTokenBudget *int
+	// ThinkingBudgetDisabled is seeded when a prior request in this session
+	// was rejected by vLLM for setting thinking_token_budget.
+	ThinkingBudgetDisabled bool
+	Perms                  *permission.Service
+	Ruleset                permission.Ruleset
+	UserDisplayText        string
 }
 
 type Processor struct {
-	config             ProcessorConfig
-	client             llm.Client
-	tools              ToolExecutor
-	bus                *bus.Bus
-	messages           []Message
-	priorSummary       string
-	compactionCount    int
-	elisionDone        bool
-	aborted            bool
-	compacted          bool
-	recentToolCalls    []ToolCallSignature
-	autoContinueCount  int
-	answerFollowUpUsed bool
-	userExtraParts     []Part
-	mu                 sync.Mutex
+	config                 ProcessorConfig
+	client                 llm.Client
+	tools                  ToolExecutor
+	bus                    *bus.Bus
+	messages               []Message
+	priorSummary           string
+	compactionCount        int
+	elisionDone            bool
+	aborted                bool
+	compacted              bool
+	recentToolCalls        []ToolCallSignature
+	autoContinueCount      int
+	answerFollowUpUsed     bool
+	userExtraParts         []Part
+	thinkingBudgetDisabled bool
+	mu                     sync.Mutex
 }
 
 func NewProcessor(config ProcessorConfig, client llm.Client, tools ToolExecutor, eventBus *bus.Bus) *Processor {
 	return &Processor{
-		config:          config,
-		client:          client,
-		tools:           tools,
-		bus:             eventBus,
-		compactionCount: config.CompactionFailures,
+		config:                 config,
+		client:                 client,
+		tools:                  tools,
+		bus:                    eventBus,
+		compactionCount:        config.CompactionFailures,
+		thinkingBudgetDisabled: config.ThinkingBudgetDisabled,
 	}
 }
 
@@ -78,6 +86,14 @@ func (p *Processor) CompactionFailures() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.compactionCount
+}
+
+// ThinkingBudgetDisabled reports whether thinking_token_budget must be omitted
+// from all further requests in this session (a vLLM 400 disabled it).
+func (p *Processor) ThinkingBudgetDisabled() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.thinkingBudgetDisabled
 }
 
 // RecentToolCalls returns the doom-loop window (for carry across prompts).
