@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -67,6 +68,18 @@ func (p *notifyPlugin) Tools() []BuiltinTool {
 
 func (p *notifyPlugin) Hooks() BuiltinHooks { return BuiltinHooks{} }
 
+// defaultRunNotifyCommand executes a notification command for real.
+func defaultRunNotifyCommand(ctx context.Context, name string, args ...string) error {
+	return exec.CommandContext(ctx, name, args...).Run()
+}
+
+// runNotifyCommand, when non-nil, replaces defaultRunNotifyCommand. Tests
+// install a fake here to record the command without running it.
+var runNotifyCommand func(ctx context.Context, name string, args ...string) error
+
+// ringBell prints the terminal bell. A variable so tests can silence it.
+var ringBell = func() { fmt.Print("\a") }
+
 // SendNotification sends a desktop notification with rate limiting.
 // Exported so TUI auto-notification hooks can call it directly.
 func SendNotification(ctx context.Context, title, message, urgency string) (string, error) {
@@ -78,7 +91,15 @@ func SendNotification(ctx context.Context, title, message, urgency string) (stri
 	lastNotifyTime = time.Now()
 	notifyMu.Unlock()
 
-	var cmd *exec.Cmd
+	// Safety net: under `go test` do not run any real command or bell unless a
+	// test has explicitly installed a fake runner. This keeps notifications from
+	// popping up on a developer's desktop or ringing the terminal bell.
+	if testing.Testing() && runNotifyCommand == nil {
+		return "Notification suppressed (test)", nil
+	}
+
+	var cmdName string
+	var cmdArgs []string
 	switch {
 	case runtime.GOOS == "darwin":
 		script := fmt.Sprintf(`display notification %s with title %s`,
@@ -86,30 +107,36 @@ func SendNotification(ctx context.Context, title, message, urgency string) (stri
 		if urgency == "critical" {
 			script += ` sound name "Ping"`
 		}
-		cmd = exec.CommandContext(ctx, "osascript", "-e", script)
+		cmdName = "osascript"
+		cmdArgs = []string{"-e", script}
 
 	case runtime.GOOS == "linux" && isWSL():
 		// WSL: try notify-send first (works on many WSL setups with WSLg),
 		// fall back to terminal bell.
 		if path, err := exec.LookPath("notify-send"); err == nil {
-			args := []string{"--urgency=" + urgency, title, message}
-			cmd = exec.CommandContext(ctx, path, args...)
+			cmdName = path
+			cmdArgs = []string{"--urgency=" + urgency, title, message}
 		} else {
-			fmt.Print("\a")
+			ringBell()
 			return "Notification sent (terminal bell — WSL without notify-send)", nil
 		}
 
 	case runtime.GOOS == "linux":
-		cmd = exec.CommandContext(ctx, "notify-send", "--urgency="+urgency, title, message)
+		cmdName = "notify-send"
+		cmdArgs = []string{"--urgency=" + urgency, title, message}
 
 	default:
-		fmt.Print("\a")
+		ringBell()
 		return "Notification sent (terminal bell)", nil
 	}
 
-	if err := cmd.Run(); err != nil {
+	runner := runNotifyCommand
+	if runner == nil {
+		runner = defaultRunNotifyCommand
+	}
+	if err := runner(ctx, cmdName, cmdArgs...); err != nil {
 		// If the notification command fails, fall back to terminal bell.
-		fmt.Print("\a")
+		ringBell()
 		return "Notification sent (terminal bell — command failed)", nil
 	}
 	return "Notification sent", nil
