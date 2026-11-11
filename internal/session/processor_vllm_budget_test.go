@@ -163,6 +163,116 @@ func TestCallLLM_VLLM400ThinkingBudget_RetriesWithoutFieldAndDisables(t *testing
 	}
 }
 
+// A vLLM request that carries a thinking budget but no explicit max_tokens
+// gets its stream cap sized around the budget (budget + answer headroom),
+// so higher /thinking levels can finish under the cap.
+func TestBuildRequest_VLLMStreamCap_ThinkingLevelSizesMaxTokens(t *testing.T) {
+	p := newBudgetProc(ProcessorConfig{
+		SessionID:      "ses-vllm-streamcap",
+		Model:          vllmModel("qwen3-32b"),
+		ThinkingBudget: intPtr(16384),
+	})
+	req := p.buildRequest()
+	if req.ThinkingTokenBudget == nil || *req.ThinkingTokenBudget != 16384 {
+		t.Fatalf("ThinkingTokenBudget = %v, want 16384", req.ThinkingTokenBudget)
+	}
+	if req.MaxTokens == nil || *req.MaxTokens != 16384+vllmAnswerHeadroom {
+		t.Errorf("MaxTokens = %v, want %d", req.MaxTokens, 16384+vllmAnswerHeadroom)
+	}
+}
+
+func TestBuildRequest_VLLMStreamCap_DefaultBudgetSizesMaxTokens(t *testing.T) {
+	p := newBudgetProc(ProcessorConfig{SessionID: "ses-vllm-streamcap-default", Model: vllmModel("qwen3-32b")})
+	req := p.buildRequest()
+	if req.MaxTokens == nil || *req.MaxTokens != vllmDefaultThinkingTokenBudget+vllmAnswerHeadroom {
+		t.Errorf("MaxTokens = %v, want %d", req.MaxTokens, vllmDefaultThinkingTokenBudget+vllmAnswerHeadroom)
+	}
+}
+
+// An explicit max_tokens is never overridden by the thinking budget.
+func TestBuildRequest_VLLMStreamCap_ExplicitMaxTokensUnchanged(t *testing.T) {
+	explicit := 64000
+	p := newBudgetProc(ProcessorConfig{
+		SessionID:      "ses-vllm-streamcap-explicit",
+		Model:          vllmModel("qwen3-32b"),
+		ThinkingBudget: intPtr(16384),
+		MaxTokens:      &explicit,
+	})
+	req := p.buildRequest()
+	if req.MaxTokens == nil || *req.MaxTokens != explicit {
+		t.Errorf("MaxTokens = %v, want %d (explicit value unchanged)", req.MaxTokens, explicit)
+	}
+}
+
+// A known model output limit smaller than budget+headroom wins.
+func TestBuildRequest_VLLMStreamCap_ClampedByModelOutputLimit(t *testing.T) {
+	m := vllmModel("qwen3-32b")
+	m.Limit = provider.ModelLimit{Output: 20000}
+	p := newBudgetProc(ProcessorConfig{
+		SessionID:      "ses-vllm-streamcap-clamp",
+		Model:          m,
+		ThinkingBudget: intPtr(16384),
+	})
+	req := p.buildRequest()
+	if req.MaxTokens == nil || *req.MaxTokens != 20000 {
+		t.Errorf("MaxTokens = %v, want 20000 (model output limit)", req.MaxTokens)
+	}
+}
+
+// No budget (omitted via -1 or disabled) means no stream-cap sizing.
+func TestBuildRequest_VLLMStreamCap_NoBudgetNoMaxTokens(t *testing.T) {
+	p := newBudgetProc(ProcessorConfig{
+		SessionID:               "ses-vllm-streamcap-nobudget",
+		Model:                   vllmModel("qwen3-32b"),
+		VLLMThinkingTokenBudget: intPtr(-1),
+	})
+	req := p.buildRequest()
+	if req.MaxTokens != nil {
+		t.Errorf("MaxTokens = %v, want nil when no budget", req.MaxTokens)
+	}
+}
+
+// Non-vLLM models never get the stream cap sized.
+func TestBuildRequest_NonVLLMStreamCap_Unchanged(t *testing.T) {
+	p := newBudgetProc(ProcessorConfig{
+		SessionID:      "ses-openai-streamcap",
+		Model:          &provider.Model{ID: "gpt-4", ProviderID: "openai"},
+		ThinkingBudget: intPtr(16384),
+	})
+	req := p.buildRequest()
+	if req.MaxTokens != nil {
+		t.Errorf("MaxTokens = %v, want nil for non-vLLM", req.MaxTokens)
+	}
+}
+
+// The 400-compat retry drops the budget but keeps the raised max_tokens,
+// since with the budget gone the model may reason uncapped.
+func TestCallLLM_VLLM400Retry_KeepsRaisedMaxTokens(t *testing.T) {
+	reject := errors.New(`HTTP 400: {"detail":"thinking_token_budget not supported"}`)
+	client := &budgetRetryClient{responses: []mockResponse{{err: reject}, okText()}}
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:      "ses-vllm-400-cap",
+		Model:          vllmModel("qwen3-32b"),
+		ThinkingBudget: intPtr(16384),
+	}, client, &mockToolExecutor{}, newTestBus(t))
+	p.SetMessages([]Message{{Role: RoleUser, Parts: []Part{TextPart("hi")}}})
+
+	if _, _, err := p.callLLM(context.Background()); err != nil {
+		t.Fatalf("callLLM error: %v", err)
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("expected 2 requests (retry), got %d", len(client.requests))
+	}
+	wantCap := 16384 + vllmAnswerHeadroom
+	if client.requests[0].MaxTokens == nil || *client.requests[0].MaxTokens != wantCap {
+		t.Errorf("first request MaxTokens = %v, want %d", client.requests[0].MaxTokens, wantCap)
+	}
+	if client.requests[1].MaxTokens == nil || *client.requests[1].MaxTokens != wantCap {
+		t.Errorf("retry MaxTokens = %v, want %d (kept after budget drop)", client.requests[1].MaxTokens, wantCap)
+	}
+}
+
 func TestCallLLM_VLLM400WithoutBudget_MatchesNoRetry(t *testing.T) {
 	// A 400 that does not mention thinking_token_budget must NOT trigger the
 	// compat path (and 400 is not retryable).

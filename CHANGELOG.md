@@ -9,9 +9,11 @@
 - Loop stops now log the last 300 characters of the reasoning trace so real loops are distinguishable from false positives
 - `/thinking` levels are now honoured on vLLM models via `thinking_token_budget` — resolution order: active level → `provider.vllm.options.thinking_token_budget` → default 4096; values < 0 disable the budget, values below 1024 are clamped to 1024
 - If a vLLM server has no reasoning parser (400 mentioning `thinking_token_budget`), the field is dropped after one retry for the rest of the session; the compaction summary never sends a budget
+- On vLLM, an active thinking budget raises `max_tokens` to the budget plus 8,192 of answer headroom (never below the default 8,192) when no explicit `max_tokens` is set, so `/thinking high`/`max` can finish under the stream cap; the model's output limit wins when known and smaller
 
 ### Session
 - Compaction summary on vLLM models disables thinking (`chat_template_kwargs: {"enable_thinking": false}`) so reasoning models no longer stall on the loop detector
+- Compaction summaries get a dedicated 16,384-token output cap (capped by the model's output limit when known) for all providers, so long-session summaries no longer fail with `stream budget exceeded`
 
 ## [2.7.1] - 2026-11-04
 

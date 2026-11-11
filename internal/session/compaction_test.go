@@ -1484,6 +1484,44 @@ func TestCompact_vLLMSummaryNeverCarriesThinkingTokenBudget(t *testing.T) {
 	}
 }
 
+// The compaction summary gets a dedicated 16k output cap so long sessions'
+// summaries no longer hit the default 8192-token stream cap; the model's
+// output limit wins when known and smaller. Applies to all providers.
+func TestCompact_SummaryCarriesDedicatedMaxTokens(t *testing.T) {
+	cases := []struct {
+		name  string
+		model *provider.Model
+		want  int
+	}{
+		{name: "vllm", model: &provider.Model{ID: "qwen3.8-27b-w3", ProviderID: "vllm"}, want: compactionSummaryMaxTokens},
+		{name: "vllm with smaller output limit", model: &provider.Model{ID: "qwen3.8-27b-w3", ProviderID: "vllm", Limit: provider.ModelLimit{Output: 8000}}, want: 8000},
+		{name: "non-vllm", model: &provider.Model{ID: "gpt-4o", ProviderID: "openrouter"}, want: compactionSummaryMaxTokens},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &recordingClient{responses: []mockResponse{{events: summaryEvents("Summary.")}}}
+			p := NewProcessor(ProcessorConfig{
+				SessionID:  "ses_summary_cap_" + tc.name,
+				Model:      tc.model,
+				Compaction: DefaultCompactionConfig(),
+			}, client, &stubToolExecutor{}, bus.New())
+			p.SetMessages(compactableHistory())
+
+			compacted, err := p.compact(context.Background(), true)
+			if err != nil || !compacted {
+				t.Fatalf("compact() = (%v, %v), want (true, nil)", compacted, err)
+			}
+			if len(client.requests) != 1 {
+				t.Fatalf("expected 1 summary request, got %d", len(client.requests))
+			}
+			got := client.requests[0].MaxTokens
+			if got == nil || *got != tc.want {
+				t.Errorf("summary MaxTokens = %v, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // end-to-end: real OpenAI client + readSSE + compact() against a mock HTTP
 // vLLM. Proves the fix through the actual production path: the summary
