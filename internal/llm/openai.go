@@ -229,12 +229,13 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 	}
 }
 
-// loopTail returns the last 300 characters of a reasoning trace for logging.
+// loopTail returns the last 300 runes of a reasoning trace for logging.
 func loopTail(trace string) string {
-	if len(trace) <= 300 {
+	runes := []rune(trace)
+	if len(runes) <= 300 {
 		return trace
 	}
-	return trace[len(trace)-300:]
+	return string(runes[len(runes)-300:])
 }
 
 // processOpenAIChunk handles a single parsed SSE chunk: emits text/reasoning

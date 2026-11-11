@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func sseHandler(lines []string) http.HandlerFunc {
@@ -970,4 +971,53 @@ func streamTextAndReasoning(t *testing.T, serverURL string) (text, reasoning str
 		}
 	}
 	return text, reasoning
+}
+
+func TestLoopTail_MultiByteRuneBoundaries(t *testing.T) {
+	cyrillic := strings.Repeat("а", 400) // 400 runes, 800 bytes
+	cases := []struct {
+		name    string
+		trace   string
+		want    string
+		wantLen int
+	}{
+		{
+			name:    "short ascii unchanged",
+			trace:   "short",
+			want:    "short",
+			wantLen: 5,
+		},
+		{
+			name:    "ascii keeps last 300",
+			trace:   strings.Repeat("x", 500),
+			want:    strings.Repeat("x", 300),
+			wantLen: 300,
+		},
+		{
+			name:    "cyrillic keeps last 300 runes",
+			trace:   cyrillic,
+			want:    strings.Repeat("а", 300),
+			wantLen: 300,
+		},
+		{
+			name:    "mixed multi-byte keeps last 300 runes",
+			trace:   strings.Repeat("ab", 200) + cyrillic, // 400 ascii + 400 cyrillic = 800 runes
+			want:    strings.Repeat("а", 300),
+			wantLen: 300,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := loopTail(tc.trace)
+			if got != tc.want {
+				t.Errorf("loopTail() = %d chars, want %d chars", len([]rune(got)), tc.wantLen)
+			}
+			if len([]rune(got)) != tc.wantLen {
+				t.Errorf("loopTail() rune count = %d, want %d", len([]rune(got)), tc.wantLen)
+			}
+			if !utf8.ValidString(got) {
+				t.Errorf("loopTail() produced invalid UTF-8 (rune-boundary slice)")
+			}
+		})
+	}
 }
