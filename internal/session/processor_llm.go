@@ -25,6 +25,15 @@ const (
 	// vllmMinThinkingTokenBudget: smaller budgets starve the reasoning model
 	// and hurt answer quality, so requests are clamped to at least this.
 	vllmMinThinkingTokenBudget = 1024
+	// vllmAnswerHeadroom is kept after a thinking budget when sizing the
+	// stream's max_tokens, for the answer and tool calls.
+	vllmAnswerHeadroom = 8192
+	// compactionSummaryMaxTokens caps the compaction summary's output. The
+	// default stream cap (8192) truncates long sessions' summaries ("stream
+	// budget exceeded"); a dedicated, larger cap keeps full summaries while
+	// staying far below context. The model's output limit wins when known and
+	// smaller. Applies to all providers.
+	compactionSummaryMaxTokens = 16384
 )
 
 func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) {
@@ -59,6 +68,8 @@ func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) 
 				slog.Warn("vLLM rejected thinking_token_budget; disabling it for the rest of this session",
 					"sessionID", p.config.SessionID)
 				req.ThinkingTokenBudget = nil
+				// The raised max_tokens stays: with the budget gone the model
+				// may reason uncapped and still needs the room to finish.
 				lastErr = err
 				continue
 			}
@@ -192,6 +203,13 @@ func (p *Processor) buildRequest() llm.Request {
 	if p.isVLLM() {
 		if budget := p.vllmThinkingBudget(); budget != 0 {
 			req.ThinkingTokenBudget = &budget
+			// vLLM counts thinking tokens against max_tokens, and the stream
+			// enforcer counts reasoning toward the same cap. When no explicit
+			// max_tokens is configured, size it around the budget so higher
+			// /thinking levels can finish (never shrinking the default cap).
+			if p.config.MaxTokens == nil {
+				req.MaxTokens = p.vllmStreamCap(budget)
+			}
 		}
 	}
 
@@ -228,6 +246,22 @@ func (p *Processor) vllmThinkingBudget() int {
 		return vllmMinThinkingTokenBudget
 	}
 	return budget
+}
+
+// vllmStreamCap sizes max_tokens for a vLLM request that carries a thinking
+// budget: the budget plus answer headroom, floored at the default stream cap
+// so the effective cap never shrinks, and capped by the model's output limit
+// when known and smaller. (After the min-budget clamp, budget+headroom is
+// always above the floor; the floor documents that invariant.)
+func (p *Processor) vllmStreamCap(budget int) *int {
+	limit := budget + vllmAnswerHeadroom
+	if limit < llm.DefaultStreamTokens {
+		limit = llm.DefaultStreamTokens
+	}
+	if p.config.Model != nil && p.config.Model.Limit.Output > 0 && p.config.Model.Limit.Output < limit {
+		limit = p.config.Model.Limit.Output
+	}
+	return &limit
 }
 
 func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, error) {
@@ -491,6 +525,14 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 		// stalling on the loop detector. Templates without the key ignore it.
 		summaryReq.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
 	}
+	// Long sessions' summaries can exceed the default stream cap ("stream
+	// budget exceeded"); give the summary a dedicated, larger cap for all
+	// providers, clamped by the model's output limit when known and smaller.
+	limit := compactionSummaryMaxTokens
+	if p.config.Model != nil && p.config.Model.Limit.Output > 0 && p.config.Model.Limit.Output < limit {
+		limit = p.config.Model.Limit.Output
+	}
+	summaryReq.MaxTokens = &limit
 
 	var opts []llm.StreamOption
 	if p.config.Model != nil && len(p.config.Model.Headers) > 0 {

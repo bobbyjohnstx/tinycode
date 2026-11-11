@@ -531,6 +531,7 @@ Rules:
 - Values below 1024 are clamped to 1024; very small budgets starve reasoning models and degrade answers.
 - If the vLLM server has no reasoning parser configured, it rejects the request with a 400. tinycode detects this, retries once without the field, and drops `thinking_token_budget` for the rest of the session (a warning is logged once).
 - The session-compaction summary never sends a budget (it disables thinking via `enable_thinking: false` instead).
+- On vLLM, an active thinking budget also raises the response token cap to the budget plus 8,192 of answer headroom (or the model's output limit, whichever is smaller) so higher levels can finish. Compaction summaries get a dedicated 16,384-token output cap.
 
 ### Reasoning loop protection
 
