@@ -134,16 +134,16 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 	think := &thinkSplitter{}
 	defer think.flush(ch)
 
-	stop := func(reason string) {
+	stop := func(reason string, err error) {
 		slog.Warn("SSE stream stopped", "reason", reason, "tokens", tokens, "limit", tokenLimit, "elapsed", time.Since(started))
 		think.flush(ch)
 		c.finalizeOpenAIToolCalls(toolCalls, ch)
-		ch <- Event{Type: EventError, Error: ErrStreamBudget}
+		ch <- Event{Type: EventError, Error: err}
 	}
 
 	for {
 		if !completed && StreamBudgetHit(tokens, tokenLimit, time.Since(started), StreamWallClock) {
-			stop("budget")
+			stop("budget", ErrStreamBudget)
 			return
 		}
 		var line string
@@ -210,7 +210,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 				reasoning.WriteString(rc)
 			}
 			if reasoning.Len() > prev && ReasoningLoop(reasoning.String()) {
-				stop("reasoning loop")
+				stop("reasoning loop", ErrReasoningLoop)
 				return
 			}
 		}
@@ -219,7 +219,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 			continue
 		}
 		if StreamBudgetHit(tokens, tokenLimit, time.Since(started), StreamWallClock) {
-			stop("budget")
+			stop("budget", ErrStreamBudget)
 			return
 		}
 	}

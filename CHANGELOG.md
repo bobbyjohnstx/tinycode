@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### LLM
+- Reasoning-loop detector threshold raised from 4 to 10 "but wait" occurrences — careful double-checking traces (e.g. Qwen on vLLM) are no longer killed
+- Stream stops for a detected reasoning loop now report `ErrReasoningLoop` instead of the misleading `stream budget exceeded`
+- `Request` gains optional `chat_template_kwargs` for vLLM chat-template parameters (never serialized for other providers)
+
+### Session
+- Compaction summary on vLLM models disables thinking (`chat_template_kwargs: {"enable_thinking": false}`) so reasoning models no longer stall on the loop detector
+- Compaction summary retries once with thinking disabled when the stream stops on a reasoning loop or the token cap
+
 ## [2.7.1] - 2026-11-04
 
 ### TUI

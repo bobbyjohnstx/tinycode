@@ -743,7 +743,7 @@ func TestOpenAIStream_KeepAliveSetForOllama(t *testing.T) {
 
 func TestOpenAIStream_StopsWhenReasoningLoops(t *testing.T) {
 	sentence := "But wait, index.html still has the same unclosed footer. "
-	lines := make([]string, 8)
+	lines := make([]string, reasoningStallCount+2)
 	for i := range lines {
 		lines[i] = `{"choices":[{"delta":{"reasoning_content":"` + sentence + `"}}]}`
 	}
@@ -760,21 +760,75 @@ func TestOpenAIStream_StopsWhenReasoningLoops(t *testing.T) {
 	}
 	events := collectEvents(t, ch, 5*time.Second)
 	var reasoning int
-	var budget bool
+	var loop bool
 	for _, ev := range events {
 		if ev.Type == EventReasoningDelta {
 			reasoning++
 		}
-		if ev.Type == EventError && errors.Is(ev.Error, ErrStreamBudget) {
-			budget = true
+		if ev.Type == EventError && errors.Is(ev.Error, ErrReasoningLoop) {
+			loop = true
 		}
 	}
-	if !budget {
-		t.Fatal("expected the reasoning loop to stop the stream")
+	if !loop {
+		t.Fatal("expected a reasoning loop stop, not a budget stop")
 	}
 	if reasoning >= len(lines) {
 		t.Fatalf("reasoning chunks = %d, loop was not cut before the end", reasoning)
 	}
+}
+
+func TestOpenAIStream_ChatTemplateKwargsOnWire(t *testing.T) {
+	t.Run("set appears in request body", func(t *testing.T) {
+		var raw map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&raw)
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "data: [DONE]\n\n")
+		}))
+		defer server.Close()
+
+		client := NewOpenAIClient(server.URL, "key")
+		ch, err := client.Stream(context.Background(), Request{
+			Model:              "qwen3.8-27b-w3",
+			Messages:           []Message{{Role: "user", Content: "Summarize"}},
+			ChatTemplateKwargs: map[string]any{"enable_thinking": false},
+		})
+		if err != nil {
+			t.Fatalf("Stream() error: %v", err)
+		}
+		_ = collectEvents(t, ch, 5*time.Second)
+
+		kwargs, ok := raw["chat_template_kwargs"].(map[string]any)
+		if !ok {
+			t.Fatalf("chat_template_kwargs missing from wire body: %v", raw)
+		}
+		if kwargs["enable_thinking"] != false {
+			t.Errorf("enable_thinking = %v, want false", kwargs["enable_thinking"])
+		}
+	})
+
+	t.Run("nil is absent from request body", func(t *testing.T) {
+		var raw map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&raw)
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "data: [DONE]\n\n")
+		}))
+		defer server.Close()
+
+		client := NewOpenAIClient(server.URL, "key")
+		ch, err := client.Stream(context.Background(), Request{
+			Model:    "gpt-4o",
+			Messages: []Message{{Role: "user", Content: "Hi"}},
+		})
+		if err != nil {
+			t.Fatalf("Stream() error: %v", err)
+		}
+		_ = collectEvents(t, ch, 5*time.Second)
+		if _, ok := raw["chat_template_kwargs"]; ok {
+			t.Errorf("chat_template_kwargs should be absent when nil: %v", raw)
+		}
+	})
 }
 
 func TestOpenAIStream_StopsWhenReasoningExceedsBudget(t *testing.T) {
