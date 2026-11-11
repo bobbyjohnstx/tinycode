@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -51,6 +52,18 @@ func TestReasoningLoop_QwenStyleDoubleCheckingNotALoop(t *testing.T) {
 		"But wait, there is a second consumer of this event that needs the old shape."
 	if ReasoningLoop(trace) {
 		t.Error("five different but-wait double-checks should not be a loop")
+	}
+}
+
+func TestErrReasoningLoopWrapsErrStreamBudget(t *testing.T) {
+	if !errors.Is(ErrReasoningLoop, ErrStreamBudget) {
+		t.Error("ErrReasoningLoop should satisfy errors.Is(_, ErrStreamBudget) so budget recovery applies")
+	}
+	if !errors.Is(ErrReasoningLoop, ErrReasoningLoop) {
+		t.Error("ErrReasoningLoop should identify itself")
+	}
+	if errors.Is(ErrStreamBudget, ErrReasoningLoop) {
+		t.Error("a plain budget stop is not a reasoning loop")
 	}
 }
 
