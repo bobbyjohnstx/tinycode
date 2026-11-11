@@ -23,7 +23,7 @@ func TestReasoningLoop(t *testing.T) {
 		t.Error("one second guess is not a loop")
 	}
 	var stalled strings.Builder
-	for i := 0; i < 4; i++ {
+	for i := 0; i < reasoningStallCount; i++ {
 		stalled.WriteString("But wait, index.html still has the same unclosed footer. ")
 	}
 	if !ReasoningLoop(stalled.String()) {
@@ -38,6 +38,19 @@ func TestReasoningLoop(t *testing.T) {
 	}
 	if !ReasoningLoop(repeated.String()) {
 		t.Error("the same long sentence three times should stop the trace")
+	}
+}
+
+func TestReasoningLoop_QwenStyleDoubleCheckingNotALoop(t *testing.T) {
+	// Qwen-family models say "But wait" routinely while double-checking.
+	// A few second guesses with different surrounding text is not a loop.
+	trace := "But wait, let me verify the import path before I touch the handler. " +
+		"But wait, the test fixture uses a different timezone than the production config. " +
+		"But wait, the migration script already renames the column, so I should not. " +
+		"But wait, the client cache TTL is longer than the server publish interval. " +
+		"But wait, there is a second consumer of this event that needs the old shape."
+	if ReasoningLoop(trace) {
+		t.Error("five different but-wait double-checks should not be a loop")
 	}
 }
 

@@ -3,6 +3,12 @@ package session
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -1359,5 +1365,269 @@ func TestAdjustPreserveForToolPairs_Case2_ToolUseAtBoundary(t *testing.T) {
 	got := adjustPreserveForToolPairs(messages, 4)
 	if got != 3 {
 		t.Errorf("adjustPreserveForToolPairs(msgs, 4) = %d, want 3 (preserve tool_use with its result)", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// vLLM compaction: thinking disabled, retry on loop/budget
+// ---------------------------------------------------------------------------
+
+// recordingClient captures the llm.Request for each Stream call and plays
+// back the queued response.
+type recordingClient struct {
+	requests  []llm.Request
+	responses []mockResponse
+}
+
+func (c *recordingClient) Stream(ctx context.Context, req llm.Request, opts ...llm.StreamOption) (<-chan llm.Event, error) {
+	c.requests = append(c.requests, req)
+	if len(c.responses) == 0 {
+		return nil, errors.New("no more mock responses")
+	}
+	resp := c.responses[0]
+	c.responses = c.responses[1:]
+	if resp.err != nil {
+		return nil, resp.err
+	}
+	ch := make(chan llm.Event, len(resp.events))
+	for _, e := range resp.events {
+		ch <- e
+	}
+	close(ch)
+	return ch, nil
+}
+
+// compactableHistory returns a history that compact(force=true) will
+// summarize (everything except the last message).
+func compactableHistory() []Message {
+	return []Message{
+		{Role: RoleUser, Parts: []Part{TextPart("do something")}},
+		{Role: RoleAssistant, Parts: []Part{ToolCallPart("c1", "read", `{"path":"x.go"}`)}},
+		{Role: RoleTool, Parts: []Part{ToolResultPart("c1", "read", "content of x.go", false)}},
+		{Role: RoleAssistant, Parts: []Part{TextPart("Here is the result.")}},
+	}
+}
+
+func summaryEvents(text string) []llm.Event {
+	return []llm.Event{
+		{Type: llm.EventTextDelta, Text: text},
+		{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 100, CompletionTokens: 50}},
+	}
+}
+
+func TestCompact_vLLMDisablesThinkingOnSummaryRequest(t *testing.T) {
+	vllmClient := &recordingClient{responses: []mockResponse{{events: summaryEvents("Summary with thinking off.")}}}
+	otherClient := &recordingClient{responses: []mockResponse{{events: summaryEvents("Summary.")}}}
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_vllm_kwargs",
+		Model:      &provider.Model{ID: "qwen3.8-27b-w3", ProviderID: "vllm"},
+		Compaction: DefaultCompactionConfig(),
+	}, vllmClient, &stubToolExecutor{}, bus.New())
+	p.SetMessages(compactableHistory())
+
+	compacted, err := p.compact(context.Background(), true)
+	if err != nil || !compacted {
+		t.Fatalf("compact() = (%v, %v), want (true, nil)", compacted, err)
+	}
+	if len(vllmClient.requests) != 1 {
+		t.Fatalf("expected 1 summary request, got %d", len(vllmClient.requests))
+	}
+	want := map[string]any{"enable_thinking": false}
+	if !reflect.DeepEqual(vllmClient.requests[0].ChatTemplateKwargs, want) {
+		t.Errorf("ChatTemplateKwargs = %v, want %v", vllmClient.requests[0].ChatTemplateKwargs, want)
+	}
+	if !strings.Contains(p.Messages()[0].Parts[0].Text, "Summary with thinking off") {
+		t.Errorf("first message = %q, want the summary", p.Messages()[0].Parts[0].Text)
+	}
+
+	p2 := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_other_kwargs",
+		Model:      &provider.Model{ID: "gpt-4o", ProviderID: "openrouter"},
+		Compaction: DefaultCompactionConfig(),
+	}, otherClient, &stubToolExecutor{}, bus.New())
+	p2.SetMessages(compactableHistory())
+
+	compacted, err = p2.compact(context.Background(), true)
+	if err != nil || !compacted {
+		t.Fatalf("compact() = (%v, %v), want (true, nil)", compacted, err)
+	}
+	if otherClient.requests[0].ChatTemplateKwargs != nil {
+		t.Errorf("ChatTemplateKwargs = %v, want nil for non-vLLM models", otherClient.requests[0].ChatTemplateKwargs)
+	}
+}
+
+func TestCompact_RetriesWithThinkingDisabledAfterReasoningLoop(t *testing.T) {
+	client := &recordingClient{
+		responses: []mockResponse{
+			{events: []llm.Event{{Type: llm.EventError, Error: llm.ErrReasoningLoop}}},
+			{events: summaryEvents("Second summary.")},
+		},
+	}
+	p := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_retry_loop",
+		Model:      &provider.Model{ID: "qwen3.8-27b-w3", ProviderID: "vllm"},
+		Compaction: DefaultCompactionConfig(),
+	}, client, &stubToolExecutor{}, bus.New())
+	p.SetMessages(compactableHistory())
+
+	compacted, err := p.compact(context.Background(), true)
+	if err != nil || !compacted {
+		t.Fatalf("compact() = (%v, %v), want (true, nil) after retry", compacted, err)
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("expected 2 summary requests, got %d", len(client.requests))
+	}
+	want := map[string]any{"enable_thinking": false}
+	if !reflect.DeepEqual(client.requests[1].ChatTemplateKwargs, want) {
+		t.Errorf("retry ChatTemplateKwargs = %v, want %v", client.requests[1].ChatTemplateKwargs, want)
+	}
+	if !strings.Contains(p.Messages()[0].Parts[0].Text, "Second summary") {
+		t.Errorf("first message = %q, want the retry summary", p.Messages()[0].Parts[0].Text)
+	}
+}
+
+func TestCompact_RetriesWithThinkingDisabledAfterStreamBudget(t *testing.T) {
+	client := &recordingClient{
+		responses: []mockResponse{
+			{events: []llm.Event{{Type: llm.EventError, Error: llm.ErrStreamBudget}}},
+			{events: summaryEvents("Budget retry summary.")},
+		},
+	}
+	p := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_retry_budget",
+		Model:      &provider.Model{ID: "qwen3.8-27b-w3", ProviderID: "vllm"},
+		Compaction: DefaultCompactionConfig(),
+	}, client, &stubToolExecutor{}, bus.New())
+	p.SetMessages(compactableHistory())
+
+	compacted, err := p.compact(context.Background(), true)
+	if err != nil || !compacted {
+		t.Fatalf("compact() = (%v, %v), want (true, nil) after retry", compacted, err)
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("expected 2 summary requests, got %d", len(client.requests))
+	}
+	if !strings.Contains(p.Messages()[0].Parts[0].Text, "Budget retry summary") {
+		t.Errorf("first message = %q, want the retry summary", p.Messages()[0].Parts[0].Text)
+	}
+}
+
+func TestCompact_NoRetryAfterReasoningLoopOnNonVLLM(t *testing.T) {
+	client := &recordingClient{
+		responses: []mockResponse{
+			{events: []llm.Event{{Type: llm.EventError, Error: llm.ErrReasoningLoop}}},
+			{events: summaryEvents("Should not be used.")},
+		},
+	}
+	p := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_no_retry",
+		Model:      &provider.Model{ID: "gpt-4o", ProviderID: "openrouter"},
+		Compaction: DefaultCompactionConfig(),
+	}, client, &stubToolExecutor{}, bus.New())
+	p.SetMessages(compactableHistory())
+
+	compacted, err := p.compact(context.Background(), true)
+	if compacted || err == nil {
+		t.Fatalf("compact() = (%v, %v), want (false, loop error)", compacted, err)
+	}
+	if !errors.Is(err, llm.ErrReasoningLoop) {
+		t.Errorf("err = %v, want ErrReasoningLoop", err)
+	}
+	if len(client.requests) != 1 {
+		t.Fatalf("expected exactly 1 summary request, got %d", len(client.requests))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// end-to-end: real OpenAI client + readSSE + ReasoningLoop + compact()
+// against a mock HTTP vLLM. Proves the fix through the actual production path:
+// the summary request carries chat_template_kwargs on the wire, and a
+// reasoning-loop stop on the first attempt is retried once and succeeds.
+// ---------------------------------------------------------------------------
+
+// mockVLLM returns an SSE chat-completions response. If kwargs is non-nil it
+// requires the request to carry that exact chat_template_kwargs (else 400).
+// If loopOnce is set, the first call streams reasoning that trips the loop
+// detector; the second streams a clean summary.
+func mockVLLM(t *testing.T, kwargs map[string]any, loopOnce bool) (*httptest.Server, *int) {
+	t.Helper()
+	calls := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/models", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"data":[{"id":"test-model"}]}`)
+	})
+	mux.HandleFunc("POST /v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ChatTemplateKwargs map[string]any `json:"chat_template_kwargs"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decoding request: %v", err)
+		}
+		if kwargs != nil && !reflect.DeepEqual(body.ChatTemplateKwargs, kwargs) {
+			http.Error(w, `{"error":"chat_template_kwargs mismatch"}`, http.StatusBadRequest)
+			return
+		}
+		calls++
+		w.Header().Set("Content-Type", "text/event-stream")
+		if loopOnce && calls == 1 {
+			// 12 identical "but wait" sentences (≥10) trip the loop detector.
+			for i := 0; i < 12; i++ {
+				fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"But wait, let me reconsider the boundary condition on the loop index. \"}}]}\n\n")
+			}
+			return
+		}
+		fmt.Fprint(w, `data: {"choices":[{"delta":{"content":"End-to-end summary."}}]}` + "\n\n")
+		fmt.Fprint(w, `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}` + "\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv, &calls
+}
+
+func TestCompact_EndToEnd_ReasoningLoopRetryAgainstMockVLLM(t *testing.T) {
+	want := map[string]any{"enable_thinking": false}
+	srv, calls := mockVLLM(t, want, true)
+
+	client := llm.NewOpenAIClient(srv.URL+"/v1", "key")
+	p := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_e2e_vllm",
+		Model:      &provider.Model{ID: "test-model", ProviderID: "vllm"},
+		Compaction: DefaultCompactionConfig(),
+	}, client, &stubToolExecutor{}, bus.New())
+	p.SetMessages(compactableHistory())
+
+	compacted, err := p.compact(context.Background(), true)
+	if err != nil || !compacted {
+		t.Fatalf("compact() = (%v, %v), want (true, nil) after one retry", compacted, err)
+	}
+	if *calls != 2 {
+		t.Fatalf("expected 2 summary calls (loop + retry), got %d", *calls)
+	}
+	if !strings.Contains(p.Messages()[0].Parts[0].Text, "End-to-end summary") {
+		t.Errorf("summary = %q, want the retry summary", p.Messages()[0].Parts[0].Text)
+	}
+}
+
+func TestCompact_EndToEnd_NoLoopNoRetryAgainstMockVLLM(t *testing.T) {
+	want := map[string]any{"enable_thinking": false}
+	srv, calls := mockVLLM(t, want, false)
+
+	client := llm.NewOpenAIClient(srv.URL+"/v1", "key")
+	p := NewProcessor(ProcessorConfig{
+		SessionID:  "ses_e2e_clean",
+		Model:      &provider.Model{ID: "test-model", ProviderID: "vllm"},
+		Compaction: DefaultCompactionConfig(),
+	}, client, &stubToolExecutor{}, bus.New())
+	p.SetMessages(compactableHistory())
+
+	compacted, err := p.compact(context.Background(), true)
+	if err != nil || !compacted {
+		t.Fatalf("compact() = (%v, %v), want (true, nil)", compacted, err)
+	}
+	if *calls != 1 {
+		t.Fatalf("expected exactly 1 summary call (no loop), got %d", *calls)
 	}
 }

@@ -240,16 +240,16 @@ Source: `internal/session/processor_validation.go`, `internal/session/processor_
 Source: `internal/llm/budget.go`, `internal/llm/openai.go`
 
 `ReasoningLoop()` detects two patterns in a model's reasoning trace during streaming:
-1. The phrase "but wait" appears ≥4 times (`reasoningStallCount`)
+1. The phrase "but wait" appears ≥10 times (`reasoningStallCount`)
 2. Any sentence ≥48 characters appears ≥3 times (`reasoningRepeatCount` / `reasoningRepeatMin`)
 
-When detected, the SSE stream is stopped immediately and `ErrStreamBudget` is returned. The model's partial answer up to that point is preserved. This primarily affects small models (9B–14B) that enter self-doubt spirals or verbatim repetition loops.
+When detected, the SSE stream is stopped immediately and `ErrReasoningLoop` is returned, so the stop is reported as a loop rather than a budget overrun. Unlike `ErrStreamBudget` (token cap / wall clock), a loop stop is not treated as a usable partial answer — the agent turn surfaces the error, and compaction retries the summary once with thinking disabled on vLLM. This primarily affects small models (9B–14B) that enter self-doubt spirals or verbatim repetition loops.
 
 | Constant | Value |
 |----------|-------|
 | `DefaultStreamTokens` | 8192 |
 | `StreamWallClock` | 8 minutes |
-| `reasoningStallCount` | 4 |
+| `reasoningStallCount` | 10 |
 | `reasoningRepeatMin` | 48 characters |
 | `reasoningRepeatCount` | 3 |
 

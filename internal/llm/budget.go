@@ -16,8 +16,9 @@ const (
 	StreamWallClock = 8 * time.Minute
 
 	// reasoningStallCount is how many times "but wait" may appear in one
-	// reasoning trace before that trace is treated as stuck.
-	reasoningStallCount = 4
+	// reasoning trace before that trace is treated as stuck. Ordinary
+	// double-checking says it a few times; a genuine loop says it far more.
+	reasoningStallCount = 10
 	// reasoningRepeatMin is the shortest sentence that can count as a repeat.
 	reasoningRepeatMin = 48
 	// reasoningRepeatCount is how many identical sentences end the trace.
@@ -28,6 +29,12 @@ const (
 // token cap or the wall clock. The events sent before this error are the
 // partial completion.
 var ErrStreamBudget = errors.New("stream budget exceeded")
+
+// ErrReasoningLoop means the completion was closed because the reasoning
+// trace was repeating itself. Unlike ErrStreamBudget, the trace — not the
+// token or wall-clock budget — is the reason it stopped; callers decide
+// whether the events sent before the error are useful.
+var ErrReasoningLoop = errors.New("reasoning loop detected")
 
 // ApproxTokens estimates a token count from UTF-8 text. Four bytes is one token.
 func ApproxTokens(s string) int {

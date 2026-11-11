@@ -17,6 +17,11 @@ type Request struct {
 	MaxTokens      *int           `json:"max_tokens,omitempty"`
 	ThinkingBudget *int           `json:"thinking_budget,omitempty"`
 	KeepAlive      string         `json:"keep_alive,omitempty"`
+
+	// ChatTemplateKwargs passes raw kwargs to a vLLM chat template
+	// (e.g. {"enable_thinking": false}). Only set for vLLM models;
+	// templates that do not use a key ignore it.
+	ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
 }
 
 // UsesAnthropicProtocol reports whether requests should use the Anthropic

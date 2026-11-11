@@ -71,7 +71,7 @@ type Tool struct {
 2. Background goroutine reads SSE lines via `bufio.Scanner` (1MB buffer limit)
 3. Lines dispatched to event channel (capacity: 64)
 4. Timeout management: wall-clock cap (8 min) and per-completion token cap (8192)
-5. Reasoning loop detector: stops the stream when the model repeats "but wait" ≥4 times or the same sentence ≥3 times
+5. Reasoning loop detector: stops the stream when the model repeats "but wait" ≥10 times or the same sentence ≥3 times
 6. Think tag splitter: `<think>...</think>` pairs in `delta.Content` are extracted into `EventReasoningDelta` events. Unclosed or nested tags are left as plain text.
 7. Context cancellation propagated to HTTP request
 
@@ -256,6 +256,7 @@ Configuration via `config.Info`:
 - **Context:** From `max_model_len`, fallback 8192
 - **Output limit:** `context / 2`
 - **Capabilities:** Temperature + tool call enabled by default
+- **Compaction:** The session-compaction summary request disables thinking via `chat_template_kwargs: {"enable_thinking": false}`. vLLM passes the kwargs to the chat template; templates that do not use the key ignore it. If the summary stream still stops on a reasoning loop or the token cap, compaction retries once with thinking disabled.
 
 ### LM Studio
 
