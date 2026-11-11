@@ -134,8 +134,12 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 	think := &thinkSplitter{}
 	defer think.flush(ch)
 
-	stop := func(reason string, err error) {
-		slog.Warn("SSE stream stopped", "reason", reason, "tokens", tokens, "limit", tokenLimit, "elapsed", time.Since(started))
+	stop := func(reason string, err error, tail string) {
+		logAttrs := []any{"reason", reason, "tokens", tokens, "limit", tokenLimit, "elapsed", time.Since(started)}
+		if tail != "" {
+			logAttrs = append(logAttrs, "tail", tail)
+		}
+		slog.Warn("SSE stream stopped", logAttrs...)
 		think.flush(ch)
 		c.finalizeOpenAIToolCalls(toolCalls, ch)
 		ch <- Event{Type: EventError, Error: err}
@@ -143,7 +147,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 
 	for {
 		if !completed && StreamBudgetHit(tokens, tokenLimit, time.Since(started), StreamWallClock) {
-			stop("budget", ErrStreamBudget)
+			stop("budget", ErrStreamBudget, "")
 			return
 		}
 		var line string
@@ -210,7 +214,7 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 				reasoning.WriteString(rc)
 			}
 			if reasoning.Len() > prev && ReasoningLoop(reasoning.String()) {
-				stop("reasoning loop", ErrReasoningLoop)
+				stop("reasoning loop", ErrReasoningLoop, loopTail(reasoning.String()))
 				return
 			}
 		}
@@ -219,10 +223,18 @@ func (c *OpenAIClient) readSSE(ctx context.Context, body io.ReadCloser, ch chan<
 			continue
 		}
 		if StreamBudgetHit(tokens, tokenLimit, time.Since(started), StreamWallClock) {
-			stop("budget", ErrStreamBudget)
+			stop("budget", ErrStreamBudget, "")
 			return
 		}
 	}
+}
+
+// loopTail returns the last 300 characters of a reasoning trace for logging.
+func loopTail(trace string) string {
+	if len(trace) <= 300 {
+		return trace
+	}
+	return trace[len(trace)-300:]
 }
 
 // processOpenAIChunk handles a single parsed SSE chunk: emits text/reasoning

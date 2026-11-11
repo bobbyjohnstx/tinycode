@@ -2,6 +2,7 @@ package llm
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -31,10 +32,11 @@ const (
 var ErrStreamBudget = errors.New("stream budget exceeded")
 
 // ErrReasoningLoop means the completion was closed because the reasoning
-// trace was repeating itself. Unlike ErrStreamBudget, the trace — not the
-// token or wall-clock budget — is the reason it stopped; callers decide
-// whether the events sent before the error are useful.
-var ErrReasoningLoop = errors.New("reasoning loop detected")
+// trace was repeating itself, not because the token cap or wall clock ran
+// out. It wraps ErrStreamBudget so the stop keeps the same partial-completion
+// recovery as a budget hit; errors.Is(err, ErrReasoningLoop) identifies the
+// loop specifically.
+var ErrReasoningLoop = fmt.Errorf("reasoning loop detected: %w", ErrStreamBudget)
 
 // ApproxTokens estimates a token count from UTF-8 text. Four bytes is one token.
 func ApproxTokens(s string) int {

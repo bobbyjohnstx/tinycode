@@ -258,7 +258,7 @@ If repairs fail, the model may not support tool calling reliably. See "Tool call
 1. The phrase "but wait" appears 10+ times in one reasoning trace
 2. The same sentence (≥48 characters) appears 3+ times
 
-When a loop is detected, the stream stops with a `reasoning loop detected` error (reported separately from token-cap / wall-clock budget errors). This is most common with small models (9B–14B) on complex tasks. If it happens frequently:
+When a loop is detected, the stream stops and the model's partial answer is kept, as with a budget stop; the error is reported as `reasoning loop detected` (the message also carries the `stream budget exceeded` wording, so budget-recovery paths apply). This is most common with small models (9B–14B) on complex tasks. If it happens frequently:
 1. Switch to a larger model or one with less aggressive reasoning
 2. Simplify the prompt — break the task into smaller steps
 3. Increase `experimental.doom_loop_threshold` in `tinycode.jsonc` if the model is making progress but hitting the identical-tool-call limit

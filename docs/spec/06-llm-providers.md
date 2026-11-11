@@ -256,7 +256,7 @@ Configuration via `config.Info`:
 - **Context:** From `max_model_len`, fallback 8192
 - **Output limit:** `context / 2`
 - **Capabilities:** Temperature + tool call enabled by default
-- **Compaction:** The session-compaction summary request disables thinking via `chat_template_kwargs: {"enable_thinking": false}`. vLLM passes the kwargs to the chat template; templates that do not use the key ignore it. If the summary stream still stops on a reasoning loop or the token cap, compaction retries once with thinking disabled.
+- **Compaction:** The session-compaction summary request disables thinking via `chat_template_kwargs: {"enable_thinking": false}`. vLLM passes the kwargs to the chat template; templates that do not use the key ignore it. This keeps reasoning models from stalling the summary on the loop detector.
 
 ### LM Studio
 

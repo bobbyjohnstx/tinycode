@@ -439,16 +439,6 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	}
 
 	summary, err := p.runSummaryStream(ctx, summaryReq, opts...)
-	if err != nil && p.isVLLM() && (errors.Is(err, llm.ErrReasoningLoop) || errors.Is(err, llm.ErrStreamBudget)) {
-		// A reasoning model can loop or hit the token cap while thinking
-		// before it writes the summary. Retry once with thinking disabled;
-		// the circuit breaker above already counts this call.
-		slog.Warn("compaction summary failed; retrying with thinking disabled",
-			"sessionID", p.config.SessionID, "error", err)
-		retryReq := summaryReq
-		retryReq.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
-		summary, err = p.runSummaryStream(ctx, retryReq, opts...)
-	}
 	if err != nil {
 		return false, fmt.Errorf("compaction summary: %w", err)
 	}

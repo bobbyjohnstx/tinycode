@@ -1065,6 +1065,39 @@ func TestRecoverStreamBudget_AsksOnceForTheReport(t *testing.T) {
 	}
 }
 
+// A reasoning-loop stop keeps the same partial-answer recovery as a
+// stream-budget stop: the partial message (reasoning + visible text) is
+// kept and the loop error is surfaced.
+func TestRecoverStreamBudget_KeepsPartialAnswerOnReasoningLoop(t *testing.T) {
+	client := &mockLLMClient{responses: []mockResponse{}}
+	b := bus.New()
+	defer b.Close()
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses_loop_partial",
+		Model:     &provider.Model{ID: "test-model"},
+	}, client, &stubToolExecutor{}, b)
+	p.SetMessages([]Message{{
+		Role:  RoleTool,
+		Parts: []Part{ToolResultPart("call", "read", "contents", false)},
+	}})
+
+	partial := &Message{Parts: []Part{
+		ReasoningPart("But wait, but wait, but wait..."),
+		TextPart("partial answer found"),
+	}}
+	kept, usage, err := p.recoverStreamBudget(context.Background(), 1, partial, &TokenUsage{}, llm.ErrReasoningLoop)
+	if err != nil {
+		t.Fatalf("expected partial answer kept with no error, got %v", err)
+	}
+	if kept == nil || !messageHasVisibleAnswer(kept) {
+		t.Fatal("expected the partial answer to be kept")
+	}
+	if client.callCount != 0 {
+		t.Fatalf("kept partial answer made %d calls, want 0", client.callCount)
+	}
+	_ = usage
+}
+
 // --- Issue #749: recoverStreamBudget accumulates token usage ---
 
 func TestRecoverStreamBudget_AccumulatesTokenUsage(t *testing.T) {

@@ -243,7 +243,7 @@ Source: `internal/llm/budget.go`, `internal/llm/openai.go`
 1. The phrase "but wait" appears ≥10 times (`reasoningStallCount`)
 2. Any sentence ≥48 characters appears ≥3 times (`reasoningRepeatCount` / `reasoningRepeatMin`)
 
-When detected, the SSE stream is stopped immediately and `ErrReasoningLoop` is returned, so the stop is reported as a loop rather than a budget overrun. Unlike `ErrStreamBudget` (token cap / wall clock), a loop stop is not treated as a usable partial answer — the agent turn surfaces the error, and compaction retries the summary once with thinking disabled on vLLM. This primarily affects small models (9B–14B) that enter self-doubt spirals or verbatim repetition loops.
+When detected, the SSE stream is stopped immediately and `ErrReasoningLoop` is returned, so the stop is reported as a loop rather than a budget overrun. `ErrReasoningLoop` wraps `ErrStreamBudget`, so the stop keeps the same partial-completion recovery as a budget hit: the partial answer is kept and the loop error is surfaced when the turn cannot recover it. This primarily affects small models (9B–14B) that enter self-doubt spirals or verbatim repetition loops.
 
 | Constant | Value |
 |----------|-------|
