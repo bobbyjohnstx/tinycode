@@ -27,10 +27,14 @@ type MockResponse struct {
 }
 
 type CapturedRequest struct {
-	Model    string            `json:"model"`
-	Messages []json.RawMessage `json:"messages"`
-	Tools    []json.RawMessage `json:"tools"`
-	Stream   bool              `json:"stream"`
+	Model               string            `json:"model"`
+	Messages            []json.RawMessage `json:"messages"`
+	Tools               []json.RawMessage `json:"tools"`
+	Stream              bool              `json:"stream"`
+	MaxTokens           *int              `json:"max_tokens,omitempty"`
+	ThinkingTokenBudget *int              `json:"thinking_token_budget,omitempty"`
+	EnableThinking      *bool             `json:"enable_thinking,omitempty"`
+	ChatTemplateKwargs  map[string]any    `json:"chat_template_kwargs,omitempty"`
 }
 
 type MockLLMServer struct {

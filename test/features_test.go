@@ -718,6 +718,60 @@ func TestHeadless_GoalPatternMatching(t *testing.T) {
 	}
 }
 
+func TestHeadless_MaxTokensCaptured(t *testing.T) {
+	// Verify that max_tokens is set on the wire request to the LLM.
+	// This exercises the stream-cap logic added in PR #62 (vLLM thinking budget).
+	h := NewTestHarness(t)
+	h.MockServer.AddResponse(MockResponse{Content: "max_tokens response"})
+
+	result := h.RunJSON("Hello")
+
+	if result.ExitCode != 0 {
+		t.Fatalf("exit code %d, stderr: %s", result.ExitCode, result.Stderr)
+	}
+
+	reqs := h.MockServer.Requests()
+	if len(reqs) == 0 {
+		t.Fatal("no requests captured")
+	}
+
+	req := reqs[0]
+	if req.MaxTokens == nil {
+		t.Fatal("expected max_tokens to be set on wire request, got nil")
+	}
+	if *req.MaxTokens <= 0 {
+		t.Errorf("expected max_tokens > 0, got %d", *req.MaxTokens)
+	}
+}
+
+func TestHeadless_MaxTokensReasonableRange(t *testing.T) {
+	// Verify max_tokens is within a reasonable range (not zero, not absurdly small).
+	// The default stream cap should be at least 4096 tokens for a normal request.
+	h := NewTestHarness(t)
+	h.MockServer.AddResponse(MockResponse{Content: "OK"})
+
+	result := h.RunJSON("Simple prompt")
+
+	if result.ExitCode != 0 {
+		t.Fatalf("exit code %d, stderr: %s", result.ExitCode, result.Stderr)
+	}
+
+	reqs := h.MockServer.Requests()
+	if len(reqs) == 0 {
+		t.Fatal("no requests captured")
+	}
+
+	req := reqs[0]
+	if req.MaxTokens == nil {
+		t.Fatal("expected max_tokens to be set")
+	}
+
+	// The default stream cap should be at least 4096
+	if *req.MaxTokens < 4096 {
+		t.Errorf("expected max_tokens >= 4096, got %d", *req.MaxTokens)
+	}
+}
+
 func TestHeadless_BtwEndpoint_SideQuestion(t *testing.T) {
 	h := NewTestHarness(t)
 
