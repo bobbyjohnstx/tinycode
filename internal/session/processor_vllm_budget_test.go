@@ -85,6 +85,15 @@ func TestBuildRequest_NonVLLM_NeverSetsThinkingTokenBudget(t *testing.T) {
 	}
 }
 
+func TestBuildRequest_VLLMThinkingTokenBudget_ThinkingOffOmitsField(t *testing.T) {
+	// /thinking off sends ThinkingBudget=0, which should disable the vLLM budget
+	p := newBudgetProc(ProcessorConfig{SessionID: "ses-vllm-off", Model: vllmModel("qwen3-32b"), ThinkingBudget: intPtr(0)})
+	req := p.buildRequest()
+	if req.ThinkingTokenBudget != nil {
+		t.Errorf("ThinkingTokenBudget = %v, want nil when /thinking off (budget=0)", req.ThinkingTokenBudget)
+	}
+}
+
 func TestBuildRequest_VLLMThinkingTokenBudget_DisabledOmitsField(t *testing.T) {
 	p := newBudgetProc(ProcessorConfig{SessionID: "ses-vllm-dis", Model: vllmModel("qwen3-32b"), ThinkingBudgetDisabled: true})
 	p.thinkingBudgetDisabled = true
