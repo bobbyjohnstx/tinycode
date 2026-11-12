@@ -87,10 +87,17 @@ func TestBuildRequest_NonVLLM_NeverSetsThinkingTokenBudget(t *testing.T) {
 
 func TestBuildRequest_VLLMThinkingTokenBudget_ThinkingOffOmitsField(t *testing.T) {
 	// /thinking off sends ThinkingBudget=0, which should disable the vLLM budget
+	// and send enable_thinking: false to stop server-side reasoning
 	p := newBudgetProc(ProcessorConfig{SessionID: "ses-vllm-off", Model: vllmModel("qwen3-32b"), ThinkingBudget: intPtr(0)})
 	req := p.buildRequest()
 	if req.ThinkingTokenBudget != nil {
 		t.Errorf("ThinkingTokenBudget = %v, want nil when /thinking off (budget=0)", req.ThinkingTokenBudget)
+	}
+	if req.ChatTemplateKwargs == nil {
+		t.Fatal("ChatTemplateKwargs = nil, want enable_thinking: false")
+	}
+	if val, ok := req.ChatTemplateKwargs["enable_thinking"]; !ok || val != false {
+		t.Errorf("ChatTemplateKwargs[enable_thinking] = %v, want false", val)
 	}
 }
 

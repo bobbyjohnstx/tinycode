@@ -212,6 +212,9 @@ func (p *Processor) buildRequest() llm.Request {
 			if p.config.MaxTokens == nil {
 				req.MaxTokens = p.vllmStreamCap(budget)
 			}
+		} else if p.config.ThinkingBudget != nil && *p.config.ThinkingBudget == 0 {
+			// /thinking off — explicitly disable reasoning on the server
+			req.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
 		}
 	}
 
