@@ -76,7 +76,7 @@ Requires Go 1.27.1+. Other modes: `tinycode web` (browser UI), `tinycode serve` 
 - **Frecency ranking** --- command palette ranked by usage frequency + recency
 - **MCP integration** --- connect external tool servers via stdio, SSE, or streamable HTTP; manage with `/mcp` dialog
 - **Multimodal input** --- paste images from clipboard (`/paste-image`) for vision-capable models
-- **Extended thinking** --- `/thinking` controls reasoning budget (off/low/medium/high/max)
+- **Extended thinking** --- `/thinking` controls reasoning depth on all providers (vLLM, LM Studio, OpenRouter, Ollama, Anthropic)
 - **Model scoping** --- `/scoped-models` favorites list to filter the model selector
 - **Snapshot undo/redo** --- `/undo` and `/redo` revert or restore AI file changes; `/rewind` rolls back to any earlier conversation turn
 - **Diff viewer** --- `/diff` shows uncommitted changes inline

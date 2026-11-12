@@ -51,7 +51,8 @@ tinycode -m vllm/qwen3-8-27b-fp8     # internal RHOAI model (no sandbox limits)
 | Command | What it does |
 |---------|-------------|
 | `/connect` | Model picker (shows all MAAS models under "vLLM") |
-| `/thinking high` | Enable extended thinking (wired to vLLM thinking_token_budget) |
+| `/thinking high` | Enable extended thinking (vLLM: thinking_token_budget, all providers supported) |
+| `/thinking off` | Disable reasoning (sends enable_thinking:false to vLLM) |
 | `/effort high` | Increase reasoning depth |
 | `/markdown-style dark` | Change text display style |
 

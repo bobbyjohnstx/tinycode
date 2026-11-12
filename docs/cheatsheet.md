@@ -81,6 +81,10 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `/privacy` | Show data storage paths, provider list, and privacy info |
 | `/verbose` | Toggle tool output between collapsed/expanded for the session |
 | `/markdown-style` | Change markdown rendering: auto, dark, light, muted, colorful, notty |
+| `/thinking <level>` | Set reasoning depth: off, low, medium, high, max (all providers) |
+| `/effort <level>` | Set work intensity: low, medium, high, max |
+| `/goal <condition>` | Autonomous loop until condition met (e.g. "tests pass") |
+| `/swarm <task>` | Parallel subagent dispatch with specialist agents |
 
 **CLI commands:**
 

@@ -229,7 +229,7 @@ This creates a self-contained HTML file you can open in any browser.
 
 | Command | What it does |
 |---------|--------------|
-| `/thinking high` | Enable extended reasoning (1k/4k/16k/128k token budget) |
+| `/thinking high` | Enable extended reasoning (works on all providers: vLLM, LM Studio, OpenRouter, Ollama) |
 | `/theme` | Pick a color theme with live preview |
 | `/paste-image` | Paste a clipboard image for vision models |
 | `/mcp` | Manage MCP server connections |

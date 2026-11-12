@@ -271,6 +271,18 @@ When a loop is detected, the stream stops and the model's partial answer is kept
 1. Verify you're running v2.3.1+ (`tinycode version`)
 2. For vLLM, adding `--reasoning-parser` is still recommended for efficiency — it avoids sending raw tags over the wire
 
+### /thinking off doesn't stop reasoning
+
+**Problem:** After `/thinking off`, the model still produces reasoning content.
+
+**Solution:** Ensure you're running a recent build. Before v2.7.2, `/thinking off` only affected vLLM models. Now it sends `enable_thinking: false` (vLLM), `reasoning_effort: "none"` (LM Studio/OpenRouter), or `think: false` (Ollama). Rebuild with `make build` if on an older binary. Some models may still emit `<think>` tags in their text output regardless of the server-side setting.
+
+### Gemini 3.x returns HTTP 400 on tool results
+
+**Problem:** Gemini 3.x models (flash-lite, 3.5-flash, 3.7-flash) fail with HTTP 400 mentioning `thought_signature`.
+
+**Solution:** Upgrade to v2.7.1+ which echoes the `thought_signature` field (at `extra_content.google.thought_signature`) back with tool results. This is required by Gemini 3.x via the MAAS proxy.
+
 ### Model doesn't support tool calling
 
 **Problem:** tinycode detects `capabilities.toolcall=false` for this model and skips tools entirely.

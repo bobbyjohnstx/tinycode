@@ -3,17 +3,36 @@
 ## [Unreleased]
 
 ### LLM
-- Reasoning-loop detector threshold raised from 4 to 10 "but wait" occurrences — careful double-checking traces (e.g. Qwen on vLLM) are no longer killed
-- Stream stops for a detected reasoning loop now report `ErrReasoningLoop` instead of the misleading `stream budget exceeded`. The error wraps `ErrStreamBudget`, so a loop stop keeps the same partial-answer recovery as a budget stop
-- `Request` gains optional `chat_template_kwargs` for vLLM chat-template parameters (never serialized for other providers)
-- Loop stops now log the last 300 characters of the reasoning trace so real loops are distinguishable from false positives
-- `/thinking` levels are now honoured on vLLM models via `thinking_token_budget` — resolution order: active level → `provider.vllm.options.thinking_token_budget` → default 4096; values < 0 disable the budget, values below 1024 are clamped to 1024
-- If a vLLM server has no reasoning parser (400 mentioning `thinking_token_budget`), the field is dropped after one retry for the rest of the session; the compaction summary never sends a budget
-- On vLLM, an active thinking budget raises `max_tokens` to the budget plus 8,192 of answer headroom (never below the default 8,192) when no explicit `max_tokens` is set, so `/thinking high`/`max` can finish under the stream cap; the model's output limit wins when known and smaller
+- `/thinking` works on all providers: vLLM (thinking_token_budget), LM Studio (reasoning_effort), OpenRouter (reasoning_effort), Ollama (think), Anthropic (native)
+- `/thinking off` actually disables reasoning — sends `enable_thinking: false` (vLLM), `reasoning_effort: "none"` (LM Studio/OpenRouter), `think: false` (Ollama)
+- `DefaultStreamTokens` raised from 8192 to 16384; Anthropic client unified to use same default (was separate 4096)
+- `max_tokens` clamped to model output/context limit — prevents HTTP 400 on small-context models (#931)
+- Gemini 3.x `thought_signature` echoed through the pipeline — Gemini 3.x models now work (was HTTP 400) (#932)
+- Models that exhaust output budget on reasoning get reasoning surfaced as "[From model reasoning]" text instead of session dying (#933)
+- Per-agent `max_output_tokens` in frontmatter — code-reviewer gets 32768 (#934)
+- Reasoning-loop detector threshold raised from 4 to 10 "but wait" occurrences (PR #62)
+- `ErrReasoningLoop` replaces misleading `stream budget exceeded` for loop stops (PR #62)
+- vLLM thinking budget: resolution order active level -> provider config -> default 4096; 400-compat retry for servers without reasoning parser (PR #62)
+- On vLLM, active thinking budget raises `max_tokens` to budget + 8192 headroom; model output limit wins when smaller (PR #62)
 
 ### Session
-- Compaction summary on vLLM models disables thinking (`chat_template_kwargs: {"enable_thinking": false}`) so reasoning models no longer stall on the loop detector
-- Compaction summaries get a dedicated 16,384-token output cap (capped by the model's output limit when known) for all providers, so long-session summaries no longer fail with `stream budget exceeded`
+- Compaction summaries disable thinking on all providers (vLLM, LM Studio, OpenRouter, Ollama)
+- Compaction summaries get a dedicated 32,768-token output cap for all providers
+- Compaction keeps partial summary on stream budget exceeded (#929)
+- Build agent gets wildcard permissions — MCP and plugin tools now visible (#930)
+
+### Test
+- Desktop notifications suppressed in tests via injectable runner + `testing.Testing()` safety net (PR #61, Jerome Fenal)
+- E2e tests capture `max_tokens`, `thinking_token_budget`, `enable_thinking` on the wire
+
+### Provider
+- Inferred context windows updated from MAAS catalog (granite-3.1 128K->4K, qwen 32K->262K, gemini added at 1049K)
+- vLLM model key normalization — dots/hyphens alternation no longer causes churn (#927)
+- Discovery errors surfaced in model resolution — "provider not found" now includes the DNS/network error
+
+### Docs
+- MAAS quickstart cheatsheet (`docs/maas-quickstart.md`)
+- Documentation audit: removed obsolete elision description, updated swarm types, V/T key caveat, help-commands entries
 
 ## [2.7.1] - 2026-11-04
 
