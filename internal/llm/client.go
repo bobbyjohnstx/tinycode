@@ -28,10 +28,15 @@ type Request struct {
 	// templates that do not use a key ignore it.
 	ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
 
-	// ReasoningEffort controls reasoning depth for LM Studio models.
+	// ReasoningEffort controls reasoning depth for LM Studio and OpenRouter.
 	// Values: "none", "low", "medium", "high", "xhigh".
-	// Only set for LM Studio; stripped from vLLM and Anthropic requests.
+	// Stripped from vLLM (uses ChatTemplateKwargs) and Anthropic requests.
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+
+	// Think controls reasoning for Ollama models.
+	// Values: "low", "medium", "high", "max", or false (to disable).
+	// Only set for Ollama; omitted for other providers.
+	Think any `json:"think,omitempty"`
 }
 
 // UsesAnthropicProtocol reports whether requests should use the Anthropic

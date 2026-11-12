@@ -216,8 +216,10 @@ func (p *Processor) buildRequest() llm.Request {
 			// /thinking off — explicitly disable reasoning on the server
 			req.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
 		}
-	} else if p.isLMStudio() {
-		req.ReasoningEffort = p.lmStudioReasoningEffort()
+	} else if p.isLMStudio() || p.isOpenRouter() {
+		req.ReasoningEffort = p.reasoningEffort()
+	} else if p.isOllama() {
+		req.Think = p.ollamaThink()
 	}
 
 	clampMaxTokens(&req, p.config.Model)
@@ -554,8 +556,10 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 		// thinking keeps the summary short and stops reasoning models from
 		// stalling on the loop detector. Templates without the key ignore it.
 		summaryReq.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
-	} else if p.isLMStudio() {
+	} else if p.isLMStudio() || p.isOpenRouter() {
 		summaryReq.ReasoningEffort = "none"
+	} else if p.isOllama() {
+		summaryReq.Think = false
 	}
 	// Long sessions' summaries can exceed the default stream cap ("stream
 	// budget exceeded"); give the summary a dedicated, larger cap for all
@@ -666,9 +670,19 @@ func (p *Processor) isLMStudio() bool {
 	return p.config.Model != nil && strings.EqualFold(p.config.Model.ProviderID, "lm-studio")
 }
 
-// lmStudioReasoningEffort maps the /thinking level to LM Studio's reasoning_effort
-// parameter. Returns "" (omitted from wire) when no thinking level is set.
-func (p *Processor) lmStudioReasoningEffort() string {
+// isOpenRouter reports whether the session's active model is served by OpenRouter.
+func (p *Processor) isOpenRouter() bool {
+	return p.config.Model != nil && strings.EqualFold(p.config.Model.ProviderID, "openrouter")
+}
+
+// isOllama reports whether the session's active model is served by Ollama.
+func (p *Processor) isOllama() bool {
+	return p.config.Model != nil && strings.EqualFold(p.config.Model.ProviderID, "ollama")
+}
+
+// reasoningEffort maps the /thinking level to reasoning_effort for LM Studio
+// and OpenRouter. Returns "" (omitted from wire) when no thinking level is set.
+func (p *Processor) reasoningEffort() string {
 	if p.config.ThinkingBudget == nil {
 		return ""
 	}
@@ -684,6 +698,27 @@ func (p *Processor) lmStudioReasoningEffort() string {
 		return "high"
 	default:
 		return "xhigh"
+	}
+}
+
+// ollamaThink maps the /thinking level to Ollama's think parameter.
+// Returns nil (omitted from wire) when no thinking level is set.
+func (p *Processor) ollamaThink() any {
+	if p.config.ThinkingBudget == nil {
+		return nil
+	}
+	budget := *p.config.ThinkingBudget
+	switch {
+	case budget == 0:
+		return false
+	case budget <= 1024:
+		return "low"
+	case budget <= 4096:
+		return "medium"
+	case budget <= 16384:
+		return "high"
+	default:
+		return "max"
 	}
 }
 

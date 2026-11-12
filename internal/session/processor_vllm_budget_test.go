@@ -398,3 +398,83 @@ func TestBuildRequest_LMStudio_NotVLLM(t *testing.T) {
 		t.Error("LM Studio model should report isLMStudio=true")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// OpenRouter reasoning_effort mapping
+// ---------------------------------------------------------------------------
+
+func openRouterModel(id string) *provider.Model {
+	return &provider.Model{ID: id, ProviderID: "openrouter"}
+}
+
+func TestBuildRequest_OpenRouter_ReasoningEffortMapping(t *testing.T) {
+	tests := []struct {
+		name   string
+		budget *int
+		want   string
+	}{
+		{"nil budget = no effort", nil, ""},
+		{"off (0) = none", intPtr(0), "none"},
+		{"low (1024) = low", intPtr(1024), "low"},
+		{"high (16384) = high", intPtr(16384), "high"},
+		{"max (128000) = xhigh", intPtr(128000), "xhigh"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newBudgetProc(ProcessorConfig{
+				SessionID:      "ses-or",
+				Model:          openRouterModel("openai/gpt-4o"),
+				ThinkingBudget: tt.budget,
+			})
+			req := p.buildRequest()
+			if req.ReasoningEffort != tt.want {
+				t.Errorf("ReasoningEffort = %q, want %q", req.ReasoningEffort, tt.want)
+			}
+			if req.ThinkingTokenBudget != nil {
+				t.Error("ThinkingTokenBudget should be nil for OpenRouter")
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Ollama think mapping
+// ---------------------------------------------------------------------------
+
+func ollamaModel(id string) *provider.Model {
+	return &provider.Model{ID: id, ProviderID: "ollama"}
+}
+
+func TestBuildRequest_Ollama_ThinkMapping(t *testing.T) {
+	tests := []struct {
+		name   string
+		budget *int
+		want   any
+	}{
+		{"nil budget = no think", nil, nil},
+		{"off (0) = false", intPtr(0), false},
+		{"low (1024) = low", intPtr(1024), "low"},
+		{"medium (4096) = medium", intPtr(4096), "medium"},
+		{"high (16384) = high", intPtr(16384), "high"},
+		{"max (128000) = max", intPtr(128000), "max"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newBudgetProc(ProcessorConfig{
+				SessionID:      "ses-ollama",
+				Model:          ollamaModel("qwen3:latest"),
+				ThinkingBudget: tt.budget,
+			})
+			req := p.buildRequest()
+			if req.Think != tt.want {
+				t.Errorf("Think = %v (%T), want %v (%T)", req.Think, req.Think, tt.want, tt.want)
+			}
+			if req.ReasoningEffort != "" {
+				t.Errorf("ReasoningEffort should be empty for Ollama, got %q", req.ReasoningEffort)
+			}
+			if req.ThinkingTokenBudget != nil {
+				t.Error("ThinkingTokenBudget should be nil for Ollama")
+			}
+		})
+	}
+}
