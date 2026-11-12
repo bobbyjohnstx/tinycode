@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-11-12
+
 ### LLM
 - `/thinking` works on all providers: vLLM (thinking_token_budget), LM Studio (reasoning_effort), OpenRouter (reasoning_effort), Ollama (think), Anthropic (native)
 - `/thinking off` actually disables reasoning — sends `enable_thinking: false` (vLLM), `reasoning_effort: "none"` (LM Studio/OpenRouter), `think: false` (Ollama)
