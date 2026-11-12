@@ -216,6 +216,8 @@ func (p *Processor) buildRequest() llm.Request {
 			// /thinking off — explicitly disable reasoning on the server
 			req.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
 		}
+	} else if p.isLMStudio() {
+		req.ReasoningEffort = p.lmStudioReasoningEffort()
 	}
 
 	clampMaxTokens(&req, p.config.Model)
@@ -552,6 +554,8 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 		// thinking keeps the summary short and stops reasoning models from
 		// stalling on the loop detector. Templates without the key ignore it.
 		summaryReq.ChatTemplateKwargs = map[string]any{"enable_thinking": false}
+	} else if p.isLMStudio() {
+		summaryReq.ReasoningEffort = "none"
 	}
 	// Long sessions' summaries can exceed the default stream cap ("stream
 	// budget exceeded"); give the summary a dedicated, larger cap for all
@@ -655,6 +659,32 @@ func clampMaxTokens(req *llm.Request, model *provider.Model) {
 // isVLLM reports whether the session's active model is served by vLLM.
 func (p *Processor) isVLLM() bool {
 	return p.config.Model != nil && strings.EqualFold(p.config.Model.ProviderID, "vllm")
+}
+
+// isLMStudio reports whether the session's active model is served by LM Studio.
+func (p *Processor) isLMStudio() bool {
+	return p.config.Model != nil && strings.EqualFold(p.config.Model.ProviderID, "lm-studio")
+}
+
+// lmStudioReasoningEffort maps the /thinking level to LM Studio's reasoning_effort
+// parameter. Returns "" (omitted from wire) when no thinking level is set.
+func (p *Processor) lmStudioReasoningEffort() string {
+	if p.config.ThinkingBudget == nil {
+		return ""
+	}
+	budget := *p.config.ThinkingBudget
+	switch {
+	case budget == 0:
+		return "none"
+	case budget <= 1024:
+		return "low"
+	case budget <= 4096:
+		return "medium"
+	case budget <= 16384:
+		return "high"
+	default:
+		return "xhigh"
+	}
 }
 
 // runSummaryStream runs one compaction summary request and returns the

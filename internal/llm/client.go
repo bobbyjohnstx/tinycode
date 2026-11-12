@@ -27,6 +27,11 @@ type Request struct {
 	// (e.g. {"enable_thinking": false}). Only set for vLLM models;
 	// templates that do not use a key ignore it.
 	ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
+
+	// ReasoningEffort controls reasoning depth for LM Studio models.
+	// Values: "none", "low", "medium", "high", "xhigh".
+	// Only set for LM Studio; stripped from vLLM and Anthropic requests.
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 
 // UsesAnthropicProtocol reports whether requests should use the Anthropic

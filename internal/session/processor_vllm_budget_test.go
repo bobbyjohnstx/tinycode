@@ -340,3 +340,61 @@ func newTestBus(t *testing.T) *bus.Bus {
 	t.Cleanup(b.Close)
 	return b
 }
+
+// ---------------------------------------------------------------------------
+// LM Studio reasoning_effort mapping
+// ---------------------------------------------------------------------------
+
+func lmStudioModel(id string) *provider.Model {
+	return &provider.Model{ID: id, ProviderID: "lm-studio"}
+}
+
+func TestBuildRequest_LMStudio_ReasoningEffortMapping(t *testing.T) {
+	tests := []struct {
+		name   string
+		budget *int
+		want   string
+	}{
+		{"nil budget = no effort", nil, ""},
+		{"off (0) = none", intPtr(0), "none"},
+		{"low (1024) = low", intPtr(1024), "low"},
+		{"medium (4096) = medium", intPtr(4096), "medium"},
+		{"high (16384) = high", intPtr(16384), "high"},
+		{"max (128000) = xhigh", intPtr(128000), "xhigh"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newBudgetProc(ProcessorConfig{
+				SessionID:      "ses-lms",
+				Model:          lmStudioModel("test-model"),
+				ThinkingBudget: tt.budget,
+			})
+			req := p.buildRequest()
+			if req.ReasoningEffort != tt.want {
+				t.Errorf("ReasoningEffort = %q, want %q", req.ReasoningEffort, tt.want)
+			}
+			// LM Studio should NOT set vLLM-specific fields
+			if req.ThinkingTokenBudget != nil {
+				t.Error("ThinkingTokenBudget should be nil for LM Studio")
+			}
+			if req.ChatTemplateKwargs != nil {
+				t.Error("ChatTemplateKwargs should be nil for LM Studio")
+			}
+		})
+	}
+}
+
+func TestBuildRequest_LMStudio_NotVLLM(t *testing.T) {
+	// LM Studio should not trigger vLLM code paths
+	p := newBudgetProc(ProcessorConfig{
+		SessionID:      "ses-lms-not-vllm",
+		Model:          lmStudioModel("test-model"),
+		ThinkingBudget: intPtr(16384),
+	})
+	if p.isVLLM() {
+		t.Error("LM Studio model should not report isVLLM=true")
+	}
+	if !p.isLMStudio() {
+		t.Error("LM Studio model should report isLMStudio=true")
+	}
+}
