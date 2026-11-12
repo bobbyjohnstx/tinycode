@@ -29,11 +29,11 @@ const (
 	// stream's max_tokens, for the answer and tool calls.
 	vllmAnswerHeadroom = 8192
 	// compactionSummaryMaxTokens caps the compaction summary's output. The
-	// default stream cap (8192) truncates long sessions' summaries ("stream
-	// budget exceeded"); a dedicated, larger cap keeps full summaries while
-	// staying far below context. The model's output limit wins when known and
-	// smaller. Applies to all providers.
-	compactionSummaryMaxTokens = 16384
+	// default stream cap (DefaultStreamTokens=16384) truncates long sessions'
+	// summaries ("stream budget exceeded"); a dedicated, larger cap keeps full
+	// summaries while staying far below context. The model's output limit wins
+	// when known and smaller. Applies to all providers.
+	compactionSummaryMaxTokens = 32768
 )
 
 func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) {

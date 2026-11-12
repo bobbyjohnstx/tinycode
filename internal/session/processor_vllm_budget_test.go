@@ -10,8 +10,6 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 )
 
-func intPtr(v int) *int { return &v }
-
 // vllmModel returns a vLLM provider model.
 func vllmModel(id string) *provider.Model {
 	return &provider.Model{ID: id, ProviderID: "vllm"}
@@ -184,8 +182,11 @@ func TestBuildRequest_VLLMStreamCap_ThinkingLevelSizesMaxTokens(t *testing.T) {
 func TestBuildRequest_VLLMStreamCap_DefaultBudgetSizesMaxTokens(t *testing.T) {
 	p := newBudgetProc(ProcessorConfig{SessionID: "ses-vllm-streamcap-default", Model: vllmModel("qwen3-32b")})
 	req := p.buildRequest()
-	if req.MaxTokens == nil || *req.MaxTokens != vllmDefaultThinkingTokenBudget+vllmAnswerHeadroom {
-		t.Errorf("MaxTokens = %v, want %d", req.MaxTokens, vllmDefaultThinkingTokenBudget+vllmAnswerHeadroom)
+	// Default budget (4096) + headroom (8192) = 12288, which is below
+	// DefaultStreamTokens (16384), so the floor wins.
+	want := llm.DefaultStreamTokens
+	if req.MaxTokens == nil || *req.MaxTokens != want {
+		t.Errorf("MaxTokens = %v, want %d (floored at DefaultStreamTokens)", req.MaxTokens, want)
 	}
 }
 
