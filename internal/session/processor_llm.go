@@ -235,6 +235,8 @@ func (p *Processor) vllmThinkingBudget() int {
 
 	var budget int
 	switch {
+	case p.config.ThinkingBudget != nil && *p.config.ThinkingBudget == 0:
+		return 0 // /thinking off — explicitly disabled
 	case p.config.ThinkingBudget != nil && *p.config.ThinkingBudget > 0:
 		budget = *p.config.ThinkingBudget
 	case p.config.VLLMThinkingTokenBudget != nil:
