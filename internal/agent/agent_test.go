@@ -979,6 +979,25 @@ func TestBuildAgent_SensitiveActionsAsk(t *testing.T) {
 		t.Errorf("general read: got %s, want allow", got.Action)
 	}
 
+	// general must gate the same sensitive actions as build
+	generalAsks := []struct {
+		permission string
+		pattern    string
+	}{
+		{"read", ".env"},
+		{"read", ".env.local"},
+		{"webfetch", "https://example.com"},
+		{"external_directory", "/tmp/outside"},
+		{"destructive-shell", "rm -rf /tmp/x"},
+		{"secret-shell", "cat .env"},
+	}
+	for _, tc := range generalAsks {
+		got := permission.Evaluate(tc.permission, tc.pattern, general.Permission)
+		if got.Action != permission.ActionAsk {
+			t.Errorf("general %s %q: got %s, want ask", tc.permission, tc.pattern, got.Action)
+		}
+	}
+
 	explore := r.Get("explore", nil)
 	if explore == nil {
 		t.Fatal("explore agent not found")

@@ -115,6 +115,12 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 		}
 		// Anthropic requires temperature=1 when thinking is enabled.
 		ar.Temperature = nil
+		// Anthropic rejects top_p when thinking is active.
+		ar.TopP = nil
+		// Anthropic requires thinking budget strictly less than max_tokens.
+		if ar.Thinking.BudgetTokens >= ar.MaxTokens {
+			ar.MaxTokens = ar.Thinking.BudgetTokens + DefaultStreamTokens
+		}
 	}
 
 	// Extract system message and convert messages. Consecutive tool results are

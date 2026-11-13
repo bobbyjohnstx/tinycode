@@ -62,11 +62,20 @@ func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) 
 		if err != nil {
 			if p.isVLLM() && req.ThinkingTokenBudget != nil && statusFromError(err) == 400 &&
 				strings.Contains(strings.ToLower(err.Error()), "thinking_token_budget") {
-				p.mu.Lock()
-				p.thinkingBudgetDisabled = true
-				p.mu.Unlock()
-				slog.Warn("vLLM rejected thinking_token_budget; disabling it for the rest of this session",
-					"sessionID", p.config.SessionID)
+				errLower := strings.ToLower(err.Error())
+				permanent := strings.Contains(errLower, "not configured") ||
+					strings.Contains(errLower, "not supported") ||
+					strings.Contains(errLower, "unexpected keyword")
+				if permanent {
+					p.mu.Lock()
+					p.thinkingBudgetDisabled = true
+					p.mu.Unlock()
+					slog.Warn("vLLM rejected thinking_token_budget (unsupported); disabling for session",
+						"sessionID", p.config.SessionID, "error", err)
+				} else {
+					slog.Warn("vLLM rejected thinking_token_budget (value error); retrying without",
+						"sessionID", p.config.SessionID, "error", err)
+				}
 				req.ThinkingTokenBudget = nil
 				// The raised max_tokens stays: with the budget gone the model
 				// may reason uncapped and still needs the room to finish.
@@ -220,6 +229,24 @@ func (p *Processor) buildRequest() llm.Request {
 		req.ReasoningEffort = p.reasoningEffort()
 	} else if p.isOllama() {
 		req.Think = p.ollamaThink()
+	}
+
+	// Clamp vLLM thinking budget to stay under max_tokens
+	if p.isVLLM() && req.ThinkingTokenBudget != nil && req.MaxTokens != nil {
+		if *req.ThinkingTokenBudget >= *req.MaxTokens {
+			clamped := *req.MaxTokens - vllmAnswerHeadroom
+			if clamped < vllmMinThinkingTokenBudget {
+				clamped = vllmMinThinkingTokenBudget
+			}
+			if clamped >= *req.MaxTokens {
+				clamped = *req.MaxTokens - 1
+			}
+			slog.Warn("clamped vLLM thinking budget to fit max_tokens",
+				"original", *req.ThinkingTokenBudget,
+				"clamped", clamped,
+				"maxTokens", *req.MaxTokens)
+			*req.ThinkingTokenBudget = clamped
+		}
 	}
 
 	clampMaxTokens(&req, p.config.Model)
@@ -399,7 +426,7 @@ func (p *Processor) consumeStream(ch <-chan llm.Event) (*Message, *TokenUsage, e
 		return msg, usage, fmt.Errorf("aborted")
 	}
 	if budget {
-		return msg, usage, llm.ErrStreamBudget
+		return msg, usage, streamErr
 	}
 	return msg, usage, nil
 }

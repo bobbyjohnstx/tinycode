@@ -478,3 +478,98 @@ func TestBuildRequest_Ollama_ThinkMapping(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Issue #937: vLLM budget clamp + 400 value-error split
+// ---------------------------------------------------------------------------
+
+func TestBuildRequest_VLLMBudgetClampedToFitMaxTokens(t *testing.T) {
+	explicit := 32768
+	p := newBudgetProc(ProcessorConfig{
+		SessionID:      "ses-vllm-clamp",
+		Model:          vllmModel("qwen3-32b"),
+		ThinkingBudget: intPtr(128000),
+		MaxTokens:      &explicit,
+	})
+	req := p.buildRequest()
+	if req.ThinkingTokenBudget == nil {
+		t.Fatal("ThinkingTokenBudget = nil, want clamped value")
+	}
+	if *req.ThinkingTokenBudget >= 32768 {
+		t.Errorf("ThinkingTokenBudget = %d, want < 32768 (clamped to fit max_tokens)", *req.ThinkingTokenBudget)
+	}
+	// Should be 32768 - vllmAnswerHeadroom = 24576
+	want := 32768 - vllmAnswerHeadroom
+	if *req.ThinkingTokenBudget != want {
+		t.Errorf("ThinkingTokenBudget = %d, want %d", *req.ThinkingTokenBudget, want)
+	}
+}
+
+func TestBuildRequest_VLLMBudgetUnderMaxTokens_NoClamp(t *testing.T) {
+	explicit := 32768
+	p := newBudgetProc(ProcessorConfig{
+		SessionID:      "ses-vllm-noclamp",
+		Model:          vllmModel("qwen3-32b"),
+		ThinkingBudget: intPtr(4096),
+		MaxTokens:      &explicit,
+	})
+	req := p.buildRequest()
+	if req.ThinkingTokenBudget == nil || *req.ThinkingTokenBudget != 4096 {
+		t.Errorf("ThinkingTokenBudget = %v, want 4096 (no clamp needed)", req.ThinkingTokenBudget)
+	}
+}
+
+func TestCallLLM_VLLM400ValueError_DoesNotPermanentlyDisable(t *testing.T) {
+	// A 400 with a value-related error (not "not configured"/"not supported")
+	// should retry without the field but NOT permanently disable.
+	reject := errors.New(`HTTP 400: {"detail":"thinking_token_budget must be less than max_tokens"}`)
+	client := &budgetRetryClient{responses: []mockResponse{{err: reject}, okText()}}
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses-vllm-400-value",
+		Model:     vllmModel("qwen3-32b"),
+	}, client, &mockToolExecutor{}, newTestBus(t))
+	p.SetMessages([]Message{{Role: RoleUser, Parts: []Part{TextPart("hi")}}})
+
+	msg, _, err := p.callLLM(context.Background())
+	if err != nil {
+		t.Fatalf("callLLM error: %v", err)
+	}
+	if msg == nil {
+		t.Fatal("callLLM returned nil message")
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("expected 2 requests (retry), got %d", len(client.requests))
+	}
+	if client.requests[1].ThinkingTokenBudget != nil {
+		t.Error("retry request should not carry ThinkingTokenBudget")
+	}
+	if p.ThinkingBudgetDisabled() {
+		t.Error("ThinkingBudgetDisabled = true, want false for value error (not permanent)")
+	}
+}
+
+func TestCallLLM_VLLM400Unsupported_PermanentlyDisables(t *testing.T) {
+	reject := errors.New(`HTTP 400: {"detail":"thinking_token_budget is set but reasoning_config is not configured"}`)
+	client := &budgetRetryClient{responses: []mockResponse{{err: reject}, okText()}}
+
+	p := NewProcessor(ProcessorConfig{
+		SessionID: "ses-vllm-400-unsupported",
+		Model:     vllmModel("qwen3-32b"),
+	}, client, &mockToolExecutor{}, newTestBus(t))
+	p.SetMessages([]Message{{Role: RoleUser, Parts: []Part{TextPart("hi")}}})
+
+	msg, _, err := p.callLLM(context.Background())
+	if err != nil {
+		t.Fatalf("callLLM error: %v", err)
+	}
+	if msg == nil {
+		t.Fatal("callLLM returned nil message")
+	}
+	if len(client.requests) != 2 {
+		t.Fatalf("expected 2 requests (retry), got %d", len(client.requests))
+	}
+	if !p.ThinkingBudgetDisabled() {
+		t.Error("ThinkingBudgetDisabled = false, want true for 'not configured' error")
+	}
+}

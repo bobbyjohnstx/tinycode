@@ -442,6 +442,11 @@ func (r *Registry) registerSubagents(generalPrompt, explorePrompt, scoutPrompt s
 			defaultPerms,
 			permission.Ruleset{
 				{Permission: "*", Pattern: "*", Action: permission.ActionAllow},
+				{Permission: "read", Pattern: ".env*", Action: permission.ActionAsk},
+				{Permission: "webfetch", Pattern: "*", Action: permission.ActionAsk},
+				{Permission: "external_directory", Pattern: "*", Action: permission.ActionAsk},
+				{Permission: "destructive-shell", Pattern: "*", Action: permission.ActionAsk},
+				{Permission: "secret-shell", Pattern: "*", Action: permission.ActionAsk},
 				{Permission: "todowrite", Pattern: "*", Action: permission.ActionDeny},
 			},
 			userPerms,

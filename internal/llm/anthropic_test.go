@@ -315,6 +315,86 @@ func TestAnthropicBuildRequest_ZeroThinkingBudget(t *testing.T) {
 	}
 }
 
+func TestAnthropicBuildRequest_ThinkingBudgetRaisesMaxTokens(t *testing.T) {
+	client := NewAnthropicClient("http://localhost", "test-key")
+	budget := 16384
+	req := Request{
+		Model:          "claude-sonnet-4-20250514",
+		Messages:       []Message{{Role: "user", Content: "hello"}},
+		MaxTokens:      intPtr(16384),
+		ThinkingBudget: &budget,
+	}
+
+	ar := client.buildRequest(req)
+
+	if ar.Thinking == nil {
+		t.Fatal("expected Thinking to be set")
+	}
+	if ar.MaxTokens <= ar.Thinking.BudgetTokens {
+		t.Errorf("max_tokens (%d) must be strictly greater than budget (%d)", ar.MaxTokens, ar.Thinking.BudgetTokens)
+	}
+	if ar.MaxTokens != 16384+DefaultStreamTokens {
+		t.Errorf("max_tokens = %d, want %d", ar.MaxTokens, 16384+DefaultStreamTokens)
+	}
+}
+
+func TestAnthropicBuildRequest_ThinkingBudgetLargeRaisesMaxTokens(t *testing.T) {
+	client := NewAnthropicClient("http://localhost", "test-key")
+	budget := 128000
+	req := Request{
+		Model:          "claude-sonnet-4-20250514",
+		Messages:       []Message{{Role: "user", Content: "hello"}},
+		ThinkingBudget: &budget,
+	}
+
+	ar := client.buildRequest(req)
+
+	if ar.Thinking == nil {
+		t.Fatal("expected Thinking to be set")
+	}
+	if ar.MaxTokens <= 128000 {
+		t.Errorf("max_tokens (%d) must be strictly greater than budget 128000", ar.MaxTokens)
+	}
+	if ar.MaxTokens != 128000+DefaultStreamTokens {
+		t.Errorf("max_tokens = %d, want %d", ar.MaxTokens, 128000+DefaultStreamTokens)
+	}
+}
+
+func TestAnthropicBuildRequest_ThinkingBudgetBelowMaxTokens_NoChange(t *testing.T) {
+	client := NewAnthropicClient("http://localhost", "test-key")
+	budget := 4096
+	req := Request{
+		Model:          "claude-sonnet-4-20250514",
+		Messages:       []Message{{Role: "user", Content: "hello"}},
+		MaxTokens:      intPtr(16384),
+		ThinkingBudget: &budget,
+	}
+
+	ar := client.buildRequest(req)
+
+	if ar.MaxTokens != 16384 {
+		t.Errorf("max_tokens should stay at 16384 when budget < max_tokens, got %d", ar.MaxTokens)
+	}
+}
+
+func TestAnthropicBuildRequest_ThinkingClearsTopP(t *testing.T) {
+	client := NewAnthropicClient("http://localhost", "test-key")
+	budget := 8192
+	req := Request{
+		Model:          "claude-sonnet-4-20250514",
+		Messages:       []Message{{Role: "user", Content: "hello"}},
+		MaxTokens:      intPtr(32768),
+		ThinkingBudget: &budget,
+		TopP:           func() *float64 { f := 0.9; return &f }(),
+	}
+
+	ar := client.buildRequest(req)
+
+	if ar.TopP != nil {
+		t.Errorf("expected TopP nil when thinking enabled, got %v", *ar.TopP)
+	}
+}
+
 func TestAnthropicBuildRequest_ChatTemplateKwargsNeverSerialized(t *testing.T) {
 	client := NewAnthropicClient("http://localhost", "test-key")
 	req := Request{
