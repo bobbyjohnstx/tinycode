@@ -714,3 +714,22 @@ func TestNewClient_SelectsOpenAIByDefault(t *testing.T) {
 		t.Fatalf("got %T, want *OpenAIClient", c)
 	}
 }
+
+func TestAnthropicBuildRequest_ThinkingBudgetCappedByModelLimit(t *testing.T) {
+	c := &AnthropicClient{BaseURL: "https://api.anthropic.com", APIKey: "key"}
+	budget := 128000
+	req := Request{
+		Model:            "claude-sonnet-5-5",
+		Messages:         []Message{{Role: "user", Content: "hi"}},
+		ThinkingBudget:   &budget,
+		ModelOutputLimit: 32768,
+	}
+	ar := c.buildRequest(req)
+	if ar.MaxTokens > 32768 {
+		t.Errorf("MaxTokens = %d, want <= 32768 (model output limit)", ar.MaxTokens)
+	}
+	if ar.Thinking.BudgetTokens >= ar.MaxTokens {
+		t.Errorf("BudgetTokens %d >= MaxTokens %d, must be strictly less",
+			ar.Thinking.BudgetTokens, ar.MaxTokens)
+	}
+}

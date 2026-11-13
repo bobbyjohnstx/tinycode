@@ -573,3 +573,27 @@ func TestCallLLM_VLLM400Unsupported_PermanentlyDisables(t *testing.T) {
 		t.Error("ThinkingBudgetDisabled = false, want true for 'not configured' error")
 	}
 }
+
+func TestBuildRequest_VLLMBudgetClampedByModelLimit(t *testing.T) {
+	// Model output limit (4096) is smaller than both agent cap (32768) and budget (4096 default).
+	// clampMaxTokens lowers max_tokens to 4096, then budget clamp must shrink budget below 4096.
+	m := vllmModel("granite-small")
+	m.Limit = provider.ModelLimit{Output: 4096}
+	p := newBudgetProc(ProcessorConfig{
+		SessionID:      "ses-vllm-model-limit",
+		Model:          m,
+		MaxTokens:      intPtr(32768),
+		ThinkingBudget: intPtr(16384), // /thinking high
+	})
+	req := p.buildRequest()
+	if req.MaxTokens == nil || *req.MaxTokens > 4096 {
+		t.Errorf("MaxTokens = %v, want <= 4096 (model output limit)", req.MaxTokens)
+	}
+	if req.ThinkingTokenBudget == nil {
+		t.Fatal("ThinkingTokenBudget should not be nil")
+	}
+	if *req.ThinkingTokenBudget >= *req.MaxTokens {
+		t.Errorf("ThinkingTokenBudget %d >= MaxTokens %d, must be strictly less",
+			*req.ThinkingTokenBudget, *req.MaxTokens)
+	}
+}

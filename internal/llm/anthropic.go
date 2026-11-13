@@ -121,6 +121,14 @@ func (c *AnthropicClient) buildRequest(req Request) anthropicRequest {
 		if ar.Thinking.BudgetTokens >= ar.MaxTokens {
 			ar.MaxTokens = ar.Thinking.BudgetTokens + DefaultStreamTokens
 		}
+		// Clamp max_tokens to the model's output limit when known.
+		if req.ModelOutputLimit > 0 && ar.MaxTokens > req.ModelOutputLimit {
+			ar.MaxTokens = req.ModelOutputLimit
+		}
+		// Re-clamp budget to stay strictly under the (possibly lowered) max_tokens.
+		if ar.Thinking.BudgetTokens >= ar.MaxTokens && ar.MaxTokens > 1 {
+			ar.Thinking.BudgetTokens = ar.MaxTokens - 1
+		}
 	}
 
 	// Extract system message and convert messages. Consecutive tool results are

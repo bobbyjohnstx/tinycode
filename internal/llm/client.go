@@ -37,6 +37,11 @@ type Request struct {
 	// Values: "low", "medium", "high", "max", or false (to disable).
 	// Only set for Ollama; omitted for other providers.
 	Think any `json:"think,omitempty"`
+
+	// ModelOutputLimit is the model's output token limit (from provider registry).
+	// Used by the Anthropic client to cap max_tokens after thinking budget raise.
+	// Not serialized on the wire.
+	ModelOutputLimit int `json:"-"`
 }
 
 // UsesAnthropicProtocol reports whether requests should use the Anthropic

@@ -210,6 +210,9 @@ func (p *Processor) buildRequest() llm.Request {
 		MaxTokens:      p.config.MaxTokens,
 		ThinkingBudget: p.config.ThinkingBudget,
 	}
+	if p.config.Model != nil {
+		req.ModelOutputLimit = p.config.Model.Limit.Output
+	}
 
 	if p.isVLLM() {
 		if budget := p.vllmThinkingBudget(); budget != 0 {
@@ -231,7 +234,10 @@ func (p *Processor) buildRequest() llm.Request {
 		req.Think = p.ollamaThink()
 	}
 
-	// Clamp vLLM thinking budget to stay under max_tokens
+	clampMaxTokens(&req, p.config.Model)
+
+	// Clamp vLLM thinking budget AFTER clampMaxTokens, so the budget
+	// stays under the (possibly lowered) max_tokens.
 	if p.isVLLM() && req.ThinkingTokenBudget != nil && req.MaxTokens != nil {
 		if *req.ThinkingTokenBudget >= *req.MaxTokens {
 			clamped := *req.MaxTokens - vllmAnswerHeadroom
@@ -248,8 +254,6 @@ func (p *Processor) buildRequest() llm.Request {
 			*req.ThinkingTokenBudget = clamped
 		}
 	}
-
-	clampMaxTokens(&req, p.config.Model)
 
 	return req
 }
