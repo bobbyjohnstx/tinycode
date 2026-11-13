@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-11-13
+
+### Security
+- General agent wildcard auto-approved destructive commands, secret reads, and .env access — added 5 ask rules matching build agent (#935)
+
+### LLM
+- Anthropic thinking budget capped by model output limit — `/thinking max` no longer sends max_tokens past the model's cap (#936)
+- vLLM thinking budget clamped after max_tokens model-limit clamp — budget stays strictly under the final max_tokens (#937)
+- vLLM 400 handler split: only permanently disables thinking when server says parameter is unsupported, not for value errors (#937)
+- `ErrReasoningLoop` preserved through `consumeStream` — callers can distinguish loop stops from budget stops (#938)
+
 ## [2.8.0] - 2026-11-12
 
 ### LLM
