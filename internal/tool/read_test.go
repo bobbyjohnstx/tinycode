@@ -135,6 +135,130 @@ func TestExecuteRead_NonImageUnchanged(t *testing.T) {
 	}
 }
 
+func TestExecuteRead_ImageDuplicateCheck_Symlink(t *testing.T) {
+	dir := t.TempDir()
+	imgPath := filepath.Join(dir, "original.png")
+	if err := os.WriteFile(imgPath, []byte("fake-png-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	linkPath := filepath.Join(dir, "link.png")
+	if err := os.Symlink(imgPath, linkPath); err != nil {
+		t.Skip("symlinks not supported")
+	}
+
+	tc := &Context{
+		Directory:  dir,
+		ReadFiles:  NewSafeReadFiles(),
+		ReadImages: NewSafeReadFiles(),
+	}
+
+	raw1, _ := json.Marshal(readArgs{FilePath: imgPath})
+	result1, err := executeRead(context.Background(), tc, raw1)
+	if err != nil || result1.IsError {
+		t.Fatalf("unexpected error on first read: %v / %s", err, result1.Output)
+	}
+	if !strings.HasPrefix(result1.Output, "data:image/png;base64,") {
+		t.Fatalf("expected data URI, got %q", result1.Output)
+	}
+
+	raw2, _ := json.Marshal(readArgs{FilePath: linkPath})
+	result2, err := executeRead(context.Background(), tc, raw2)
+	if err != nil {
+		t.Fatalf("unexpected error on symlink read: %v", err)
+	}
+	// resolvePath resolves symlinks, so both paths canonicalize to the same file.
+	// The duplicate check correctly catches this as already attached.
+	if result2.Output != "Image already attached" {
+		t.Errorf("expected duplicate detection for symlink to same image, got %q", result2.Output)
+	}
+}
+
+func TestExecuteRead_ImageDuplicateCheck_DifferentExtensions(t *testing.T) {
+	dir := t.TempDir()
+	jpgPath := filepath.Join(dir, "photo.jpg")
+	pngPath := filepath.Join(dir, "icon.png")
+	if err := os.WriteFile(jpgPath, []byte("fake-jpg-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pngPath, []byte("fake-png-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:  dir,
+		ReadFiles:  NewSafeReadFiles(),
+		ReadImages: NewSafeReadFiles(),
+	}
+
+	raw1, _ := json.Marshal(readArgs{FilePath: jpgPath})
+	result1, err := executeRead(context.Background(), tc, raw1)
+	if err != nil || result1.IsError {
+		t.Fatalf("unexpected error reading jpg: %v / %s", err, result1.Output)
+	}
+	if !strings.HasPrefix(result1.Output, "data:image/jpeg;base64,") {
+		t.Fatalf("expected jpeg data URI, got %q", result1.Output)
+	}
+
+	raw2, _ := json.Marshal(readArgs{FilePath: pngPath})
+	result2, err := executeRead(context.Background(), tc, raw2)
+	if err != nil || result2.IsError {
+		t.Fatalf("unexpected error reading png: %v / %s", err, result2.Output)
+	}
+	if !strings.HasPrefix(result2.Output, "data:image/png;base64,") {
+		t.Fatalf("expected png data URI, got %q", result2.Output)
+	}
+
+	// Re-read jpg should be duplicate
+	result3, err := executeRead(context.Background(), tc, raw1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result3.Output != "Image already attached" {
+		t.Errorf("expected duplicate for jpg, got %q", result3.Output)
+	}
+
+	// Re-read png should also be duplicate
+	result4, err := executeRead(context.Background(), tc, raw2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result4.Output != "Image already attached" {
+		t.Errorf("expected duplicate for png, got %q", result4.Output)
+	}
+}
+
+func TestExecuteRead_ImageNilReadImages(t *testing.T) {
+	dir := t.TempDir()
+	imgPath := filepath.Join(dir, "test.png")
+	if err := os.WriteFile(imgPath, []byte("fake-png-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:  dir,
+		ReadFiles:  NewSafeReadFiles(),
+		ReadImages: nil,
+	}
+	raw, _ := json.Marshal(readArgs{FilePath: imgPath})
+
+	result, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result.IsError {
+		t.Fatalf("unexpected error: %v / %s", err, result.Output)
+	}
+	if !strings.HasPrefix(result.Output, "data:image/png;base64,") {
+		t.Fatalf("expected data URI, got %q", result.Output)
+	}
+
+	// Second read with nil ReadImages should still return data (no tracking)
+	result2, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result2.IsError {
+		t.Fatalf("unexpected error: %v / %s", err, result2.Output)
+	}
+	if !strings.HasPrefix(result2.Output, "data:image/png;base64,") {
+		t.Fatalf("expected data URI on second read with nil tracker, got %q", result2.Output)
+	}
+}
+
 func makeBinaryData(size int, binaryRatio float64) []byte {
 	data := make([]byte, size)
 	binaryCount := int(float64(size) * binaryRatio)

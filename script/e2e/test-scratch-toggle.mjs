@@ -2,6 +2,9 @@
 //
 // Validates that /scratch opens a scratch session and /scratch close
 // returns to the parent. No LLM needed — tests session lifecycle only.
+//
+// Requires a working session page in the web SPA. If the SPA crashes
+// on session load, these tests fail with "Input not found".
 
 import {
   getConfig,

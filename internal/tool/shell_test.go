@@ -563,3 +563,57 @@ func TestExecuteShell_DefaultPermissionStillAsksForDestructive(t *testing.T) {
 		t.Fatal("timed out")
 	}
 }
+
+func TestExecuteShell_WiderPermissionOnSecretShowsEscalation(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	perms := permission.NewService(b)
+	defer perms.Close()
+
+	dir := t.TempDir()
+	r := NewRegistry(&Context{
+		Directory: dir,
+		Bus:       b,
+		Perms:     perms,
+		Ruleset: permission.Ruleset{
+			{Permission: "shell", Pattern: "*", Action: permission.ActionAllow},
+			{Permission: "secret-shell", Pattern: "*", Action: permission.ActionAsk},
+		},
+	})
+	RegisterBuiltins(r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		r.Execute(ctx, "bash", json.RawMessage(`{
+			"command":"cat .env",
+			"permission":"wider",
+			"justification":"Need to verify env vars for debugging"
+		}`), "sess-secret-wider")
+		close(done)
+	}()
+
+	req := waitForPermission(t, perms, 2*time.Second)
+	if req.Permission != "secret-shell" {
+		t.Fatalf("permission %q, want secret-shell", req.Permission)
+	}
+	if req.Metadata["justification"] != "Need to verify env vars for debugging" {
+		t.Errorf("justification = %v, want debugging reason", req.Metadata["justification"])
+	}
+	if req.Metadata["escalation"] != true {
+		t.Errorf("escalation = %v, want true", req.Metadata["escalation"])
+	}
+	if err := perms.RespondToAsk(permission.ReplyInput{
+		RequestID: req.ID,
+		Reply:     permission.ReplyReject,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("timed out")
+	}
+}

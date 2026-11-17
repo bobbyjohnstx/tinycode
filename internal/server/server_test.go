@@ -225,6 +225,77 @@ func TestSessionCRUD(t *testing.T) {
 	}
 }
 
+func TestSessionUpdate_DirectoryChangesStoreAndResponse(t *testing.T) {
+	srv, _ := testServer(t)
+
+	// Create a session
+	req := httptest.NewRequest("POST", "/session?directory=/tmp/test", strings.NewReader(`{"title":"DirTest"}`))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("create: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var created map[string]any
+	json.NewDecoder(w.Body).Decode(&created)
+	sessionID := created["id"].(string)
+
+	// PATCH directory
+	req = httptest.NewRequest("PATCH", "/session/"+sessionID, strings.NewReader(`{"directory":"/tmp/newdir"}`))
+	w = httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("update directory: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updated map[string]any
+	json.NewDecoder(w.Body).Decode(&updated)
+	if updated["directory"] != "/tmp/newdir" {
+		t.Errorf("response directory = %v, want /tmp/newdir", updated["directory"])
+	}
+
+	// GET should reflect the new directory
+	req = httptest.NewRequest("GET", "/session/"+sessionID, nil)
+	w = httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get: expected 200, got %d", w.Code)
+	}
+	var fetched map[string]any
+	json.NewDecoder(w.Body).Decode(&fetched)
+	if fetched["directory"] != "/tmp/newdir" {
+		t.Errorf("persisted directory = %v, want /tmp/newdir", fetched["directory"])
+	}
+}
+
+func TestSessionUpdate_DirectoryAndTitleTogether(t *testing.T) {
+	srv, _ := testServer(t)
+
+	req := httptest.NewRequest("POST", "/session?directory=/tmp/test", strings.NewReader(`{"title":"Both"}`))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("create: expected 200, got %d", w.Code)
+	}
+	var created map[string]any
+	json.NewDecoder(w.Body).Decode(&created)
+	sessionID := created["id"].(string)
+
+	req = httptest.NewRequest("PATCH", "/session/"+sessionID, strings.NewReader(`{"title":"NewTitle","directory":"/tmp/changed"}`))
+	w = httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("update: expected 200, got %d", w.Code)
+	}
+	var updated map[string]any
+	json.NewDecoder(w.Body).Decode(&updated)
+	if updated["title"] != "NewTitle" {
+		t.Errorf("title = %v, want NewTitle", updated["title"])
+	}
+	if updated["directory"] != "/tmp/changed" {
+		t.Errorf("directory = %v, want /tmp/changed", updated["directory"])
+	}
+}
+
 func TestSessionCreate_DefaultDirectory(t *testing.T) {
 	srv, _ := testServer(t)
 

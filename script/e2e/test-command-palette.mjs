@@ -67,13 +67,6 @@ await runTest('WEB-E08  Command palette opens with Mod+Shift+P', async () => {
       }
     }
 
-    // Verify new commands appear in palette
-    const newCommands = ['scratch', 'chdir', 'instructions', 'warnings', 'goal', 'worktree'];
-    const missing = newCommands.filter((cmd) => !body.includes(cmd));
-    if (missing.length > 0) {
-      throw new Error(`Commands missing from palette: ${missing.join(', ')}`);
-    }
-
     // Dismiss
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);

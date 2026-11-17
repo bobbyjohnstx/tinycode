@@ -2,6 +2,9 @@
 //
 // Tests /warnings, /instructions, and /chdir — all client-side commands
 // that show toasts or dialogs. No model connection needed.
+//
+// Requires a working session page in the web SPA. If the SPA crashes
+// on session load, these tests fail with "Input not found".
 
 import {
   getConfig,
