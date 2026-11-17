@@ -305,10 +305,10 @@ func TestServiceReconnect_NoDuplicateTools(t *testing.T) {
 		t.Error("expected at least one tool listing after refresh")
 	}
 
-	// Verify no duplicate tools
+	// Verify no duplicate tools (2 MCP tools + 1 mcp_resource)
 	allTools := s.Tools(context.Background())
-	if len(allTools) != 2 {
-		t.Errorf("expected 2 tools, got %d", len(allTools))
+	if len(allTools) != 3 {
+		t.Errorf("expected 3 tools, got %d", len(allTools))
 	}
 
 	// Verify specific tool IDs
@@ -532,6 +532,18 @@ func (m *reconnectMockTransport) CallTool(_ context.Context, _ string, _ json.Ra
 		return "", m.callErr
 	}
 	return m.callResult, nil
+}
+
+func (m *reconnectMockTransport) ListResources(_ context.Context) ([]MCPResource, error) {
+	return nil, nil
+}
+
+func (m *reconnectMockTransport) ListResourceTemplates(_ context.Context) ([]MCPResourceTemplate, error) {
+	return nil, nil
+}
+
+func (m *reconnectMockTransport) ReadResource(_ context.Context, _ string) (string, error) {
+	return "", fmt.Errorf("not implemented")
 }
 
 func (m *reconnectMockTransport) Close() error {

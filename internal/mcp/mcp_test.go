@@ -565,9 +565,13 @@ func TestStreamableHTTPTransport_SessionID(t *testing.T) {
 // Mock transport for unit tests
 
 type mockTransport struct {
-	tools      []MCPTool
-	callResult string
-	callErr    error
+	tools              []MCPTool
+	callResult         string
+	callErr            error
+	resources          []MCPResource
+	resourceTemplates  []MCPResourceTemplate
+	resourceContent    map[string]string // uri -> content
+	resourceErr        error
 }
 
 func (m *mockTransport) Connect(_ context.Context) error {
@@ -585,6 +589,32 @@ func (m *mockTransport) CallTool(_ context.Context, _ string, _ json.RawMessage)
 	return m.callResult, nil
 }
 
+func (m *mockTransport) ListResources(_ context.Context) ([]MCPResource, error) {
+	if m.resourceErr != nil {
+		return nil, m.resourceErr
+	}
+	return m.resources, nil
+}
+
+func (m *mockTransport) ListResourceTemplates(_ context.Context) ([]MCPResourceTemplate, error) {
+	if m.resourceErr != nil {
+		return nil, m.resourceErr
+	}
+	return m.resourceTemplates, nil
+}
+
+func (m *mockTransport) ReadResource(_ context.Context, uri string) (string, error) {
+	if m.resourceErr != nil {
+		return "", m.resourceErr
+	}
+	if m.resourceContent != nil {
+		if content, ok := m.resourceContent[uri]; ok {
+			return content, nil
+		}
+	}
+	return "", fmt.Errorf("resource not found: %s", uri)
+}
+
 func (m *mockTransport) Close() error {
 	return nil
 }
@@ -592,9 +622,12 @@ func (m *mockTransport) Close() error {
 // Mock MCP HTTP handler for streamable HTTP transport tests
 
 type mockMCPHandler struct {
-	initialized bool
-	tools       []MCPTool
-	toolResult  string
+	initialized       bool
+	tools             []MCPTool
+	toolResult        string
+	resources         []MCPResource
+	resourceTemplates []MCPResourceTemplate
+	resourceContent   map[string]string // uri -> content
 }
 
 func (h *mockMCPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -628,6 +661,49 @@ func (h *mockMCPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"content": []map[string]any{
 				{"type": "text", "text": h.toolResult},
 			},
+		}
+	case "resources/list":
+		resources := h.resources
+		if resources == nil {
+			resources = []MCPResource{}
+		}
+		result = map[string]any{"resources": resources}
+	case "resourceTemplates/list":
+		templates := h.resourceTemplates
+		if templates == nil {
+			templates = []MCPResourceTemplate{}
+		}
+		result = map[string]any{"resourceTemplates": templates}
+	case "resources/read":
+		var params map[string]any
+		if req.Params != nil {
+			paramsJSON, _ := json.Marshal(req.Params)
+			json.Unmarshal(paramsJSON, &params)
+		}
+		uri, _ := params["uri"].(string)
+		if h.resourceContent != nil {
+			if content, ok := h.resourceContent[uri]; ok {
+				result = map[string]any{
+					"contents": []map[string]any{
+						{"uri": uri, "text": content},
+					},
+				}
+			} else {
+				resultJSON, _ := json.Marshal(map[string]any{})
+				resp := jsonrpcResponse{
+					JSONRPC: "2.0",
+					ID:      req.ID,
+					Error:   &jsonrpcError{Code: -32602, Message: "resource not found: " + uri},
+				}
+				_ = resultJSON
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(resp)
+				return
+			}
+		} else {
+			result = map[string]any{
+				"contents": []map[string]any{},
+			}
 		}
 	default:
 		result = map[string]any{}
@@ -799,5 +875,267 @@ func TestServiceRestart_SurvivesCancelledContext(t *testing.T) {
 	}
 	if errMsg == context.Canceled.Error() || errMsg == "context canceled" {
 		t.Fatalf("connect died with request cancel: %q (Restart must use WithoutCancel)", errMsg)
+	}
+}
+
+// --- Resource tests ---
+
+func TestServiceListResources_Empty(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+
+	resources, err := s.ListResources(context.Background())
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if len(resources) != 0 {
+		t.Errorf("expected empty, got %d", len(resources))
+	}
+}
+
+func TestServiceListResources_AggregatesServers(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s.mu.Lock()
+	s.servers["srv-a"] = &serverConn{
+		name:   "srv-a",
+		status: StatusConnected,
+		transport: &mockTransport{
+			resources: []MCPResource{
+				{URI: "file:///a.txt", Name: "A"},
+			},
+		},
+		cancel: cancel,
+		ctx:    ctx,
+	}
+	s.servers["srv-b"] = &serverConn{
+		name:   "srv-b",
+		status: StatusConnected,
+		transport: &mockTransport{
+			resources: []MCPResource{
+				{URI: "file:///b.txt", Name: "B"},
+				{URI: "file:///c.txt", Name: "C"},
+			},
+		},
+		cancel: cancel,
+		ctx:    ctx,
+	}
+	s.mu.Unlock()
+
+	resources, err := s.ListResources(context.Background())
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if len(resources) != 3 {
+		t.Fatalf("expected 3 resources, got %d", len(resources))
+	}
+}
+
+func TestServiceListResourceTemplates(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s.mu.Lock()
+	s.servers["srv"] = &serverConn{
+		name:   "srv",
+		status: StatusConnected,
+		transport: &mockTransport{
+			resourceTemplates: []MCPResourceTemplate{
+				{URITemplate: "file:///{path}", Name: "File"},
+			},
+		},
+		cancel: cancel,
+		ctx:    ctx,
+	}
+	s.mu.Unlock()
+
+	templates, err := s.ListResourceTemplates(context.Background())
+	if err != nil {
+		t.Fatalf("ListResourceTemplates: %v", err)
+	}
+	if len(templates) != 1 {
+		t.Fatalf("expected 1 template, got %d", len(templates))
+	}
+	if templates[0].URITemplate != "file:///{path}" {
+		t.Errorf("expected file:///{path}, got %q", templates[0].URITemplate)
+	}
+}
+
+func TestServiceReadResource(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s.mu.Lock()
+	s.servers["srv"] = &serverConn{
+		name:   "srv",
+		status: StatusConnected,
+		transport: &mockTransport{
+			resourceContent: map[string]string{
+				"file:///hello.txt": "Hello, world!",
+			},
+		},
+		cancel: cancel,
+		ctx:    ctx,
+	}
+	s.mu.Unlock()
+
+	content, err := s.ReadResource(context.Background(), "file:///hello.txt")
+	if err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	if content != "Hello, world!" {
+		t.Errorf("expected 'Hello, world!', got %q", content)
+	}
+}
+
+func TestServiceReadResource_NotFound(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+	defer s.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s.mu.Lock()
+	s.servers["srv"] = &serverConn{
+		name:   "srv",
+		status: StatusConnected,
+		transport: &mockTransport{
+			resourceContent: map[string]string{},
+		},
+		cancel: cancel,
+		ctx:    ctx,
+	}
+	s.mu.Unlock()
+
+	_, err := s.ReadResource(context.Background(), "file:///missing.txt")
+	if err == nil {
+		t.Fatal("expected error for missing resource")
+	}
+}
+
+func TestServiceReadResource_NoServers(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	s := NewService(b)
+
+	_, err := s.ReadResource(context.Background(), "file:///any.txt")
+	if err == nil {
+		t.Fatal("expected error when no servers")
+	}
+}
+
+func TestStreamableHTTPTransport_ListResources(t *testing.T) {
+	handler := &mockMCPHandler{
+		resources: []MCPResource{
+			{URI: "file:///doc.txt", Name: "Doc", Description: "A document"},
+			{URI: "db://users", Name: "Users", MimeType: "application/json"},
+		},
+	}
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	transport := NewStreamableHTTPTransport(srv.URL, nil)
+	if err := transport.Connect(context.Background()); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	resources, err := transport.ListResources(context.Background())
+	if err != nil {
+		t.Fatalf("list resources: %v", err)
+	}
+
+	if len(resources) != 2 {
+		t.Fatalf("expected 2 resources, got %d", len(resources))
+	}
+	if resources[0].URI != "file:///doc.txt" {
+		t.Errorf("expected 'file:///doc.txt', got %q", resources[0].URI)
+	}
+}
+
+func TestStreamableHTTPTransport_ListResourceTemplates(t *testing.T) {
+	handler := &mockMCPHandler{
+		resourceTemplates: []MCPResourceTemplate{
+			{URITemplate: "file:///{path}", Name: "File", Description: "A file by path"},
+		},
+	}
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	transport := NewStreamableHTTPTransport(srv.URL, nil)
+	if err := transport.Connect(context.Background()); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	templates, err := transport.ListResourceTemplates(context.Background())
+	if err != nil {
+		t.Fatalf("list resource templates: %v", err)
+	}
+
+	if len(templates) != 1 {
+		t.Fatalf("expected 1 template, got %d", len(templates))
+	}
+	if templates[0].URITemplate != "file:///{path}" {
+		t.Errorf("expected 'file:///{path}', got %q", templates[0].URITemplate)
+	}
+}
+
+func TestStreamableHTTPTransport_ReadResource(t *testing.T) {
+	handler := &mockMCPHandler{
+		resourceContent: map[string]string{
+			"file:///hello.txt": "Hello, World!",
+		},
+	}
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	transport := NewStreamableHTTPTransport(srv.URL, nil)
+	if err := transport.Connect(context.Background()); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	content, err := transport.ReadResource(context.Background(), "file:///hello.txt")
+	if err != nil {
+		t.Fatalf("read resource: %v", err)
+	}
+
+	if content != "Hello, World!" {
+		t.Errorf("expected 'Hello, World!', got %q", content)
+	}
+}
+
+func TestStreamableHTTPTransport_ReadResource_NotFound(t *testing.T) {
+	handler := &mockMCPHandler{
+		resourceContent: map[string]string{},
+	}
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	transport := NewStreamableHTTPTransport(srv.URL, nil)
+	if err := transport.Connect(context.Background()); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	_, err := transport.ReadResource(context.Background(), "file:///missing.txt")
+	if err == nil {
+		t.Fatal("expected error for missing resource")
 	}
 }

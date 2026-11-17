@@ -38,6 +38,20 @@ type MCPTool struct {
 	InputSchema json.RawMessage `json:"inputSchema,omitempty"`
 }
 
+type MCPResource struct {
+	URI         string `json:"uri"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	MimeType    string `json:"mimeType,omitempty"`
+}
+
+type MCPResourceTemplate struct {
+	URITemplate string `json:"uriTemplate"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	MimeType    string `json:"mimeType,omitempty"`
+}
+
 type Service struct {
 	mu      sync.RWMutex
 	servers map[string]*serverConn
@@ -445,6 +459,13 @@ func (s *Service) Tools(ctx context.Context) map[string]*tool.Def {
 			defs[toolID] = convertMCPTool(serverName, t, conn.transport)
 		}
 	}
+
+	// Include the mcp_resource tool when at least one server is configured.
+	if len(s.servers) > 0 {
+		rt := s.ResourceTool()
+		defs[rt.ID] = rt
+	}
+
 	return defs
 }
 
@@ -502,6 +523,126 @@ func (s *Service) Close() {
 	for _, conn := range servers {
 		s.stopServer(conn)
 	}
+}
+
+// ListResources returns resources from all connected MCP servers.
+func (s *Service) ListResources(ctx context.Context) ([]MCPResource, error) {
+	s.mu.RLock()
+	var transports []Transport
+	for _, conn := range s.servers {
+		if conn.status == StatusConnected && conn.transport != nil {
+			transports = append(transports, conn.transport)
+		}
+	}
+	s.mu.RUnlock()
+
+	var all []MCPResource
+	for _, t := range transports {
+		resources, err := t.ListResources(ctx)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, resources...)
+	}
+	return all, nil
+}
+
+// ListResourceTemplates returns resource templates from all connected MCP servers.
+func (s *Service) ListResourceTemplates(ctx context.Context) ([]MCPResourceTemplate, error) {
+	s.mu.RLock()
+	var transports []Transport
+	for _, conn := range s.servers {
+		if conn.status == StatusConnected && conn.transport != nil {
+			transports = append(transports, conn.transport)
+		}
+	}
+	s.mu.RUnlock()
+
+	var all []MCPResourceTemplate
+	for _, t := range transports {
+		templates, err := t.ListResourceTemplates(ctx)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, templates...)
+	}
+	return all, nil
+}
+
+// ReadResource reads a single resource by URI. It tries connected servers
+// until one succeeds or all return an error.
+func (s *Service) ReadResource(ctx context.Context, uri string) (string, error) {
+	s.mu.RLock()
+	var transports []Transport
+	for _, conn := range s.servers {
+		if conn.status == StatusConnected && conn.transport != nil {
+			transports = append(transports, conn.transport)
+		}
+	}
+	s.mu.RUnlock()
+
+	if len(transports) == 0 {
+		return "", fmt.Errorf("no connected MCP servers")
+	}
+
+	var lastErr error
+	for _, t := range transports {
+		content, err := t.ReadResource(ctx, uri)
+		if err == nil {
+			return content, nil
+		}
+		lastErr = err
+	}
+	return "", lastErr
+}
+
+// ResourceTool returns the mcp_resource tool definition wired to this service.
+// Returns nil if the service has no connected servers.
+func (s *Service) ResourceTool() *tool.Def {
+	return tool.MCPResourceTool(&resourceAdapter{svc: s})
+}
+
+// resourceAdapter bridges Service's concrete types to the tool.MCPResourceLister interface.
+type resourceAdapter struct {
+	svc *Service
+}
+
+func (a *resourceAdapter) ListResources(ctx context.Context) ([]tool.MCPResourceInfo, error) {
+	resources, err := a.svc.ListResources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]tool.MCPResourceInfo, len(resources))
+	for i, r := range resources {
+		out[i] = tool.MCPResourceInfo{
+			URI:         r.URI,
+			Name:        r.Name,
+			Description: r.Description,
+			MimeType:    r.MimeType,
+		}
+	}
+	return out, nil
+}
+
+func (a *resourceAdapter) ListResourceTemplates(ctx context.Context) ([]tool.MCPResourceTemplateInfo, error) {
+	templates, err := a.svc.ListResourceTemplates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]tool.MCPResourceTemplateInfo, len(templates))
+	for i, t := range templates {
+		out[i] = tool.MCPResourceTemplateInfo{
+			URITemplate: t.URITemplate,
+			Name:        t.Name,
+			Description: t.Description,
+			MimeType:    t.MimeType,
+		}
+	}
+	return out, nil
+}
+
+func (a *resourceAdapter) ReadResource(ctx context.Context, uri string) (string, error) {
+	return a.svc.ReadResource(ctx, uri)
 }
 
 func (s *Service) publishStatus(name string) {

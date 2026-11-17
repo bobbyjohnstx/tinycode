@@ -268,6 +268,141 @@ func (t *StdioTransport) CallTool(ctx context.Context, name string, args json.Ra
 	return output, nil
 }
 
+func (t *StdioTransport) ListResources(ctx context.Context) ([]MCPResource, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	var all []MCPResource
+	var cursor string
+
+	for {
+		params := map[string]any{}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+
+		req := jsonrpcRequest{
+			JSONRPC: "2.0",
+			ID:      t.nextID.Add(1),
+			Method:  "resources/list",
+			Params:  params,
+		}
+
+		resp, err := t.roundTrip(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("listing resources: %w", err)
+		}
+		if resp.Error != nil {
+			return nil, fmt.Errorf("listing resources: %s", resp.Error.Message)
+		}
+
+		var result struct {
+			Resources  []MCPResource `json:"resources"`
+			NextCursor string        `json:"nextCursor,omitempty"`
+		}
+		if err := json.Unmarshal(resp.Result, &result); err != nil {
+			return nil, fmt.Errorf("parsing resources response: %w", err)
+		}
+
+		all = append(all, result.Resources...)
+
+		if result.NextCursor == "" {
+			break
+		}
+		cursor = result.NextCursor
+	}
+
+	return all, nil
+}
+
+func (t *StdioTransport) ListResourceTemplates(ctx context.Context) ([]MCPResourceTemplate, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	var all []MCPResourceTemplate
+	var cursor string
+
+	for {
+		params := map[string]any{}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+
+		req := jsonrpcRequest{
+			JSONRPC: "2.0",
+			ID:      t.nextID.Add(1),
+			Method:  "resourceTemplates/list",
+			Params:  params,
+		}
+
+		resp, err := t.roundTrip(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("listing resource templates: %w", err)
+		}
+		if resp.Error != nil {
+			return nil, fmt.Errorf("listing resource templates: %s", resp.Error.Message)
+		}
+
+		var result struct {
+			ResourceTemplates []MCPResourceTemplate `json:"resourceTemplates"`
+			NextCursor        string                `json:"nextCursor,omitempty"`
+		}
+		if err := json.Unmarshal(resp.Result, &result); err != nil {
+			return nil, fmt.Errorf("parsing resource templates response: %w", err)
+		}
+
+		all = append(all, result.ResourceTemplates...)
+
+		if result.NextCursor == "" {
+			break
+		}
+		cursor = result.NextCursor
+	}
+
+	return all, nil
+}
+
+func (t *StdioTransport) ReadResource(ctx context.Context, uri string) (string, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	req := jsonrpcRequest{
+		JSONRPC: "2.0",
+		ID:      t.nextID.Add(1),
+		Method:  "resources/read",
+		Params:  map[string]any{"uri": uri},
+	}
+
+	resp, err := t.roundTrip(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("reading resource %s: %w", uri, err)
+	}
+	if resp.Error != nil {
+		return "", fmt.Errorf("reading resource %s: %s", uri, resp.Error.Message)
+	}
+
+	var result struct {
+		Contents []struct {
+			URI      string `json:"uri"`
+			MimeType string `json:"mimeType,omitempty"`
+			Text     string `json:"text"`
+		} `json:"contents"`
+	}
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		return "", fmt.Errorf("parsing resource result: %w", err)
+	}
+
+	var output string
+	for _, c := range result.Contents {
+		if output != "" {
+			output += "\n"
+		}
+		output += c.Text
+	}
+
+	return output, nil
+}
+
 func (t *StdioTransport) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
