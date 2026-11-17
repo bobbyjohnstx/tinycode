@@ -68,8 +68,9 @@ declare -a BUG_PATTERNS=(
     "20:hardcoded.*port|port.*8080|port.*hardcoded|configurable.*port"
 )
 
-# MAAS chat models (from models.corp.redhat.com API, 2026-11-17).
-# Excludes embedding, reranking, safety, parse, and auto-routing models.
+# MAAS chat models (from models.corp.redhat.com portal, 2026-11-17).
+# Excludes embedding, reranking, safety, parse, docling, and auto-routing models.
+# Enterprise-only models (nemotron-nano, nemotron-super-fp8) excluded.
 MAAS_MODELS=(
     "claude-haiku-4-5"
     "claude-haiku-5-5"
@@ -87,6 +88,7 @@ MAAS_MODELS=(
     "glm-5-3"
     "gpt-oss-120b"
     "gpt-oss-20b"
+    "granite-3-1-8b-instruct"
     "granite-3-2-8b-instruct"
     "granite-3-3-8b-instruct"
     "granite-4-0-h-small"
@@ -95,13 +97,14 @@ MAAS_MODELS=(
     "granite-4-1-30b"
     "granite-4-1-8b"
     "granite-5-0-230b-preview-r261008a"
+    "granite-switch-4-1-8b"
     "llama-3-3-70b-instruct"
     "mistral-7b-instruct-v0-3"
     "mistral-small-3-2-24b-instruct-2506"
     "muse-spark-open-816b-a42b-nvfp4"
+    "nemotron-super-120b-bf16-ga"
     "nvidia-nemotron-3-nano-30b-a3b-fp8-ga"
     "nvidia-nemotron-3-ultra-550b-a55b-nvfp4"
-    "qwen3-14b"
     "qwen3-8-27b-fp8"
 )
 
