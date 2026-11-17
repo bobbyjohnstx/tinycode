@@ -158,20 +158,30 @@ type SafeWritableRoots struct {
 }
 
 func NewSafeWritableRoots(initial ...string) *SafeWritableRoots {
-	roots := make([]string, len(initial))
-	copy(roots, initial)
+	roots := make([]string, 0, len(initial))
+	for _, p := range initial {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			roots = append(roots, r)
+		} else {
+			roots = append(roots, p)
+		}
+	}
 	return &SafeWritableRoots{roots: roots}
 }
 
 func (s *SafeWritableRoots) Add(path string) {
+	resolved := path
+	if r, err := filepath.EvalSymlinks(path); err == nil {
+		resolved = r
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, r := range s.roots {
-		if r == path {
+		if r == resolved {
 			return
 		}
 	}
-	s.roots = append(s.roots, path)
+	s.roots = append(s.roots, resolved)
 }
 
 // Contains reports whether path is inside any writable root.
@@ -181,17 +191,26 @@ func (s *SafeWritableRoots) Contains(path string) bool {
 	resolved := path
 	if r, err := filepath.EvalSymlinks(path); err == nil {
 		resolved = r
-	} else if dir := filepath.Dir(path); dir != path {
-		// File may not exist yet — resolve its parent directory.
-		if rdir, err2 := filepath.EvalSymlinks(dir); err2 == nil {
-			resolved = filepath.Join(rdir, filepath.Base(path))
+	} else {
+		// File/dir may not exist yet — walk up to find the nearest
+		// existing ancestor and resolve that, then reattach the tail.
+		tail := ""
+		cur := path
+		for cur != "/" && cur != "." {
+			parent := filepath.Dir(cur)
+			tail = filepath.Join(filepath.Base(cur), tail)
+			if rp, err2 := filepath.EvalSymlinks(parent); err2 == nil {
+				resolved = filepath.Join(rp, tail)
+				break
+			}
+			cur = parent
 		}
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, root := range s.roots {
-		if isUnderDir(resolved, root) {
+		if isUnderDir(resolved, root) || isUnderDir(path, root) {
 			return true
 		}
 	}
@@ -802,6 +821,14 @@ func (r *Registry) Snapshot() *Registry {
 func (r *Registry) ClearImageCache() {
 	if r.ctx != nil && r.ctx.ReadImages != nil {
 		r.ctx.ReadImages.Clear()
+	}
+}
+
+// ClearDiscoveredInstructions resets the per-directory instruction discovery
+// set so that session switches and compaction get fresh instruction attachments.
+func (r *Registry) ClearDiscoveredInstructions() {
+	if r.ctx != nil && r.ctx.DiscoveredInstructions != nil {
+		r.ctx.DiscoveredInstructions.Clear()
 	}
 }
 

@@ -462,11 +462,14 @@ func (c *connectedApp) handleChdirCommand(trimmed string) (tea.Model, tea.Cmd) {
 	c.app.sidebar.SetCwd(resolved)
 	c.app.prompt.SetCwd(resolved)
 
-	// Update the session directory on the server.
+	// Update the session directory on the server and add as writable root.
 	if sessionID := c.app.state.ActiveSession; sessionID != "" {
 		safego.Go(func() {
 			if err := c.client.UpdateSessionDirectory(sessionID, resolved); err != nil {
 				slog.Error("failed to update session directory", "error", err)
+			}
+			if err := c.client.AddWritableRoot(resolved); err != nil {
+				slog.Error("failed to add writable root for new directory", "error", err)
 			}
 		})
 	}
@@ -956,6 +959,13 @@ func (c *connectedApp) handleWorktreeCreated(msg WorktreeCreatedMsg) (tea.Model,
 			c.app.status.SetCwd(msg.WorktreePath)
 			c.app.sidebar.SetCwd(msg.WorktreePath)
 			c.app.prompt.SetCwd(msg.WorktreePath)
+
+			// Add the worktree path as a writable root so the session can edit its files.
+			safego.Go(func() {
+				if err := c.client.AddWritableRoot(msg.WorktreePath); err != nil {
+					slog.Error("failed to add writable root for worktree", "error", err)
+				}
+			})
 		}
 
 		cmds = append(cmds, func() tea.Msg {

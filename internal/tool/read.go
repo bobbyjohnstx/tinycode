@@ -254,7 +254,8 @@ func discoverInstructions(path string, tc *Context) string {
 	dir := filepath.Dir(path)
 
 	// Only discover for files inside the session root.
-	if !strings.HasPrefix(dir, sessionRoot) {
+	// Use path separator suffix to prevent /tmp/proj matching /tmp/proj-other.
+	if dir != sessionRoot && !strings.HasPrefix(dir, sessionRoot+string(filepath.Separator)) {
 		return ""
 	}
 
