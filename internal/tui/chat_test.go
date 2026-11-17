@@ -1114,3 +1114,198 @@ func TestUpsertPart_NewToolPartRespectsExpanded(t *testing.T) {
 		t.Error("new tool part should not be collapsed when toolsExpanded is true")
 	}
 }
+
+// --- Incremental rendering tests ---
+
+func TestRebuildContent_StreamingOnlyRendersLastMessage(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info:  MessageInfo{ID: "msg1", Role: "user"},
+			Parts: []PartView{{ID: "p1", MessageID: "msg1", Type: "text", Text: "hello"}},
+		},
+		{
+			Info:  MessageInfo{ID: "msg2", Role: "assistant"},
+			Parts: []PartView{{ID: "p2", MessageID: "msg2", Type: "text", Text: "response"}},
+		},
+	}
+
+	// Initial build renders all messages.
+	cv.rebuildContent()
+	initialRenderCount := cv.renderCount
+
+	// Simulate streaming delta on last message.
+	cv.messages[1].Parts[0].Text = "response with more text"
+	cv.renderCount = 0
+	cv.rebuildContent()
+
+	// Only the last message should be re-rendered (1 call), not both (2 calls).
+	if cv.renderCount != 1 {
+		t.Errorf("streaming update should re-render 1 message, got %d renders", cv.renderCount)
+	}
+
+	// Sanity: initial build rendered both messages.
+	if initialRenderCount != 2 {
+		t.Errorf("initial build should render 2 messages, got %d", initialRenderCount)
+	}
+}
+
+func TestRebuildContent_AppendedMessageRendersOnlyNew(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info:  MessageInfo{ID: "msg1", Role: "user"},
+			Parts: []PartView{{ID: "p1", MessageID: "msg1", Type: "text", Text: "hello"}},
+		},
+		{
+			Info:  MessageInfo{ID: "msg2", Role: "assistant"},
+			Parts: []PartView{{ID: "p2", MessageID: "msg2", Type: "text", Text: "response"}},
+		},
+	}
+	cv.rebuildContent()
+
+	// Append a new message.
+	cv.messages = append(cv.messages, MessageView{
+		Info:  MessageInfo{ID: "msg3", Role: "user"},
+		Parts: []PartView{{ID: "p3", MessageID: "msg3", Type: "text", Text: "follow-up"}},
+	})
+	cv.renderCount = 0
+	cv.rebuildContent()
+
+	// Should re-render the previous last (msg2) + new message (msg3) = 2.
+	if cv.renderCount != 2 {
+		t.Errorf("appending a message should render 2 (previous last + new), got %d", cv.renderCount)
+	}
+}
+
+func TestRebuildContent_RewindTriggersFullRebuild(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info:  MessageInfo{ID: "msg1", Role: "user"},
+			Parts: []PartView{{ID: "p1", MessageID: "msg1", Type: "text", Text: "hello"}},
+		},
+		{
+			Info:  MessageInfo{ID: "msg2", Role: "assistant"},
+			Parts: []PartView{{ID: "p2", MessageID: "msg2", Type: "text", Text: "response"}},
+		},
+		{
+			Info:  MessageInfo{ID: "msg3", Role: "user"},
+			Parts: []PartView{{ID: "p3", MessageID: "msg3", Type: "text", Text: "follow-up"}},
+		},
+	}
+	cv.rebuildContent()
+
+	// Simulate rewind: remove the last message.
+	cv.messages = cv.messages[:2]
+	cv.renderCount = 0
+	cv.rebuildContent()
+
+	// Should do a full rebuild (all 2 remaining messages).
+	if cv.renderCount != 2 {
+		t.Errorf("rewind should trigger full rebuild of all %d messages, got %d renders",
+			len(cv.messages), cv.renderCount)
+	}
+}
+
+func TestRebuildContent_VerboseToggleTriggersFullRebuild(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info:  MessageInfo{ID: "msg1", Role: "user"},
+			Parts: []PartView{{ID: "p1", MessageID: "msg1", Type: "text", Text: "hello"}},
+		},
+		{
+			Info:  MessageInfo{ID: "msg2", Role: "assistant"},
+			Parts: []PartView{{ID: "p2", MessageID: "msg2", Type: "text", Text: "response"}},
+		},
+	}
+	cv.rebuildContent()
+
+	// Toggle toolsExpanded (simulates /verbose or V key).
+	cv.toolsExpanded = !cv.toolsExpanded
+	cv.renderCount = 0
+	cv.rebuildContent()
+
+	// Should do a full rebuild of all messages.
+	if cv.renderCount != 2 {
+		t.Errorf("verbose toggle should trigger full rebuild, got %d renders (expected %d)",
+			cv.renderCount, len(cv.messages))
+	}
+}
+
+func TestRebuildContent_CacheInvalidationTriggersFullRebuild(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info:  MessageInfo{ID: "msg1", Role: "user"},
+			Parts: []PartView{{ID: "p1", MessageID: "msg1", Type: "text", Text: "hello"}},
+		},
+		{
+			Info:  MessageInfo{ID: "msg2", Role: "assistant"},
+			Parts: []PartView{{ID: "p2", MessageID: "msg2", Type: "text", Text: "response"}},
+		},
+	}
+	cv.rebuildContent()
+
+	// Explicitly invalidate cache (simulates toggle, resize, etc.).
+	cv.renderCache = nil
+	cv.renderCount = 0
+	cv.rebuildContent()
+
+	if cv.renderCount != 2 {
+		t.Errorf("cache invalidation should trigger full rebuild, got %d renders (expected %d)",
+			cv.renderCount, len(cv.messages))
+	}
+}
+
+func TestRebuildContent_ContentPreservedAfterIncremental(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info:  MessageInfo{ID: "msg1", Role: "user"},
+			Parts: []PartView{{ID: "p1", MessageID: "msg1", Type: "text", Text: "first message"}},
+		},
+		{
+			Info:  MessageInfo{ID: "msg2", Role: "assistant"},
+			Parts: []PartView{{ID: "p2", MessageID: "msg2", Type: "text", Text: "second message"}},
+		},
+	}
+
+	// Full rebuild.
+	cv.rebuildContent()
+	fullView := stripAnsi(cv.View())
+
+	// Simulate streaming (no actual change).
+	cv.rebuildContent()
+	incrementalView := stripAnsi(cv.View())
+
+	if fullView != incrementalView {
+		t.Errorf("incremental rebuild should produce identical output to full rebuild")
+	}
+}
+
+func TestRebuildContent_DeltaToNonLastInvalidatesCache(t *testing.T) {
+	cv := NewChatView(80, 24)
+	cv.messages = []MessageView{
+		{
+			Info:  MessageInfo{ID: "msg1", Role: "user"},
+			Parts: []PartView{{ID: "p1", MessageID: "msg1", Type: "text", Text: "hello"}},
+		},
+		{
+			Info:  MessageInfo{ID: "msg2", Role: "assistant"},
+			Parts: []PartView{{ID: "p2", MessageID: "msg2", Type: "text", Text: "response"}},
+		},
+	}
+	cv.rebuildContent()
+
+	// Delta targets non-last message: should invalidate cache via Update.
+	cv, _ = cv.Update(MessagePartDeltaMsg{
+		MessageID: "msg1", PartID: "p1", Field: "text", Delta: " world",
+	})
+
+	// Verify the text was updated.
+	if cv.messages[0].Parts[0].Text != "hello world" {
+		t.Errorf("expected 'hello world', got %q", cv.messages[0].Parts[0].Text)
+	}
+}

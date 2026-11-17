@@ -276,7 +276,7 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 		MessageID      string       `json:"messageID,omitempty"`
 		Model          *promptModel `json:"model,omitempty"`
 		Agent          string       `json:"agent,omitempty"`
-		Parts          []promptPart `json:"parts"`
+		Parts          []PromptPart `json:"parts"`
 		Variant        string       `json:"variant,omitempty"`
 		ThinkingBudget *int         `json:"thinkingBudget,omitempty"`
 		MaxTokens      *int         `json:"maxTokens,omitempty"`
@@ -291,7 +291,7 @@ func (s *Server) handleSessionPrompt(w http.ResponseWriter, r *http.Request) {
 
 	// Support legacy {"content": "..."} format
 	if len(body.Parts) == 0 && body.Content != "" {
-		body.Parts = []promptPart{{Type: "text", Text: body.Content}}
+		body.Parts = []PromptPart{{Type: "text", Text: body.Content}}
 	}
 
 	if len(body.Parts) == 0 {
@@ -369,7 +369,7 @@ func (s *Server) handleSessionPromptAsync(w http.ResponseWriter, r *http.Request
 		MessageID      string       `json:"messageID,omitempty"`
 		Model          *promptModel `json:"model,omitempty"`
 		Agent          string       `json:"agent,omitempty"`
-		Parts          []promptPart `json:"parts"`
+		Parts          []PromptPart `json:"parts"`
 		Variant        string       `json:"variant,omitempty"`
 		ThinkingBudget *int         `json:"thinkingBudget,omitempty"`
 		MaxTokens      *int         `json:"maxTokens,omitempty"`

@@ -359,11 +359,23 @@ func (c *Client) ForkSessionAtMessage(sessionID, messageID, title string) (*sess
 	return &info, nil
 }
 
+// RewindResult carries the response from a rewind operation.
+type RewindResult struct {
+	Unrestored []string `json:"unrestored,omitempty"`
+}
+
 // RewindSession rewinds a session to a specific message via POST /session/{id}/rewind.
-// All messages after the target message are deleted.
-func (c *Client) RewindSession(sessionID, messageID string) error {
+// All messages after the target message are deleted. Returns unrestored paths
+// from shell mutations in the deleted messages.
+func (c *Client) RewindSession(sessionID, messageID string) (RewindResult, error) {
 	body := map[string]string{"messageID": messageID}
-	return c.postNoResp("/session/"+sessionID+"/rewind", body)
+	var resp struct {
+		Unrestored []string `json:"unrestored,omitempty"`
+	}
+	if err := c.postJSON("/session/"+sessionID+"/rewind", body, &resp); err != nil {
+		return RewindResult{}, err
+	}
+	return RewindResult{Unrestored: resp.Unrestored}, nil
 }
 
 // Btw sends a side question via POST /session/{id}/btw and returns the answer.

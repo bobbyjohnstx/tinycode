@@ -20,6 +20,18 @@ func stripAnsi(s string) string {
 	return ansiRe.ReplaceAllString(s, "")
 }
 
+// cachedMessageRender stores the rendered output of a single message for
+// incremental rendering. Only the last message is re-rendered on streaming
+// updates; earlier messages reuse their cached output.
+type cachedMessageRender struct {
+	rendered      string
+	thoughtHits   []thoughtHit
+	subagentHits  []subagentHit
+	copyHits      []copyHit
+	toolHits      []toolHit
+	toolGroupHits []toolGroupHit
+}
+
 // ChatView displays a scrollable list of messages using a viewport.
 type ChatView struct {
 	viewport     viewport.Model
@@ -41,6 +53,11 @@ type ChatView struct {
 	subagentExpanded map[string]bool           // label → expanded
 	subagentStatus   map[string]SubagentStatus // label → completion data
 	subagentLines    map[int]string            // content line number → subagent label
+
+	// Incremental rendering cache: avoids re-rendering unchanged messages.
+	renderCache       []cachedMessageRender
+	lastToolsExpanded bool
+	renderCount       int // number of renderMessageWithOpts calls (for testing)
 
 	// Theme-derived markdown colors (nil = default glamour dark style).
 	mdColors *render.MarkdownThemeColors
@@ -105,6 +122,7 @@ func (c *ChatView) SetSize(width, height int) {
 	} else {
 		c.renderer = render.NewMarkdownRenderer(width - 4)
 	}
+	c.renderCache = nil
 	c.rebuildContent()
 }
 
@@ -119,6 +137,7 @@ func (c *ChatView) SetMarkdownColors(colors render.MarkdownThemeColors) {
 		return
 	}
 	c.renderer = render.NewMarkdownRendererWithTheme(c.width-4, colors)
+	c.renderCache = nil
 	c.rebuildContent()
 }
 
@@ -139,6 +158,7 @@ func (c *ChatView) SetMarkdownStyle(name string) {
 			c.renderer = r
 		}
 	}
+	c.renderCache = nil
 	c.rebuildContent()
 }
 
@@ -151,31 +171,43 @@ func (c ChatView) Init() tea.Cmd {
 func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 	switch msg := msg.(type) {
 	case MessagePartDeltaMsg:
+		if !c.isLastMessageID(msg.MessageID) {
+			c.renderCache = nil
+		}
 		c.applyDelta(msg)
 		c.rebuildContent()
 		return c, nil
 
 	case MessageUpdatedMsg:
+		if !c.isLastMessageID(msg.Message.Info.ID) {
+			c.renderCache = nil
+		}
 		c.upsertMessage(msg)
 		c.rebuildContent()
 		return c, nil
 
 	case MessagePartUpdatedMsg:
+		if !c.isLastMessageID(msg.Part.MessageID) {
+			c.renderCache = nil
+		}
 		c.upsertPart(msg)
 		c.rebuildContent()
 		return c, nil
 
 	case ToggleThoughtMsg:
+		c.renderCache = nil
 		c.toggleThought(msg.PartID)
 		c.rebuildContent()
 		return c, nil
 
 	case ToggleSubagentMsg:
+		c.renderCache = nil
 		c.toggleSubagent(msg.Label)
 		c.rebuildContent()
 		return c, nil
 
 	case SubagentCompletedMsg:
+		c.renderCache = nil
 		c.subagentStatus[msg.Label] = SubagentStatus{
 			Label:        msg.Label,
 			Agent:        msg.Agent,
@@ -191,6 +223,7 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 			return c.handleSearchKey(msg)
 		}
 		if msg.String() == "T" {
+			c.renderCache = nil
 			c.toggleThought("")
 			c.rebuildContent()
 			return c, nil
@@ -207,21 +240,25 @@ func (c ChatView) Update(msg tea.Msg) (ChatView, tea.Cmd) {
 		switch {
 		case msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress:
 			if partID, ok := c.thoughtLines[contentLine]; ok {
+				c.renderCache = nil
 				c.toggleThought(partID)
 				c.rebuildContent()
 				return c, nil
 			}
 			if firstPartID, ok := c.toolGroupLines[contentLine]; ok {
+				c.renderCache = nil
 				c.toggleToolGroup(firstPartID)
 				c.rebuildContent()
 				return c, nil
 			}
 			if partID, ok := c.toolLines[contentLine]; ok {
+				c.renderCache = nil
 				c.toggleToolCollapse(partID)
 				c.rebuildContent()
 				return c, nil
 			}
 			if label, ok := c.subagentLines[contentLine]; ok {
+				c.renderCache = nil
 				c.toggleSubagent(label)
 				c.rebuildContent()
 				return c, nil
@@ -394,6 +431,12 @@ func highlightLineRange(line string, startCol, endCol int) string {
 	}
 
 	return sb.String()
+}
+
+// isLastMessageID reports whether the given ID matches the last message.
+func (c *ChatView) isLastMessageID(id string) bool {
+	n := len(c.messages)
+	return n > 0 && c.messages[n-1].Info.ID == id
 }
 
 // applyDelta appends streaming text to the matching part.
@@ -610,6 +653,7 @@ func (c ChatView) handleMessagesLoaded(msg MessagesLoadedMsg) (ChatView, tea.Cmd
 			views = append(views, mv)
 		}
 		c.messages = views
+		c.renderCache = nil
 		c.rebuildContent()
 	}
 	return c, nil
@@ -631,57 +675,90 @@ func parseLoadedParts(m map[string]any) []PartView {
 	return views
 }
 
-// rebuildContent renders all messages into the viewport.
+// rebuildContent renders messages into the viewport. It uses an incremental
+// cache so that only new or changed messages are rendered through the
+// (expensive) markdown renderer. The last cached message is always
+// re-rendered to handle streaming deltas. Full rebuilds occur on rewind,
+// toolsExpanded toggle, resize, or style changes (signalled by setting
+// renderCache to nil before calling).
 func (c *ChatView) rebuildContent() {
-	var sb strings.Builder
-	c.thoughtLines = make(map[int]string)
-	c.toolLines = make(map[int]string)
-	c.toolGroupLines = make(map[int]string)
-	c.subagentLines = make(map[int]string)
-	c.copyLines = make(map[int]string)
-	c.msgLineStarts = make([]int, 0, len(c.messages))
-	lineNum := 0
+	// Detect full-rebuild triggers that weren't caught by callers.
+	if c.toolsExpanded != c.lastToolsExpanded || len(c.messages) < len(c.renderCache) {
+		c.renderCache = nil
+	}
+	c.lastToolsExpanded = c.toolsExpanded
 
-	for i, msg := range c.messages {
-		if i > 0 {
-			sb.WriteString("\n")
-			lineNum++
-		}
-		c.msgLineStarts = append(c.msgLineStarts, lineNum)
+	// Determine rendering range: always re-render the last cached message
+	// (the streaming/active message) and render any newly appended messages.
+	startFrom := len(c.renderCache)
+	if startFrom > 0 {
+		startFrom-- // re-render last cached message (streaming case)
+	}
+	c.renderCache = c.renderCache[:startFrom]
+
+	// Render messages from startFrom onward.
+	for i := startFrom; i < len(c.messages); i++ {
 		var tHits []thoughtHit
 		var sHits []subagentHit
 		var cHits []copyHit
-		var toolHits []toolHit
+		var tlHits []toolHit
 		var tgHits []toolGroupHit
 		opts := &renderOpts{
 			thoughtHits:       &tHits,
 			subagentHits:      &sHits,
 			copyHits:          &cHits,
-			toolHits:          &toolHits,
+			toolHits:          &tlHits,
 			toolGroupHits:     &tgHits,
 			subagentExpanded:  c.subagentExpanded,
 			subagentStatus:    c.subagentStatus,
 			toolGroupExpanded: c.toolGroupExpanded,
 			toolsExpanded:     c.toolsExpanded,
 		}
-		rendered := renderMessageWithOpts(msg, c.width, c.renderer, opts)
-		for _, h := range tHits {
+		rendered := renderMessageWithOpts(c.messages[i], c.width, c.renderer, opts)
+		c.renderCount++
+		c.renderCache = append(c.renderCache, cachedMessageRender{
+			rendered:      rendered,
+			thoughtHits:   tHits,
+			subagentHits:  sHits,
+			copyHits:      cHits,
+			toolHits:      tlHits,
+			toolGroupHits: tgHits,
+		})
+	}
+
+	// Reconstruct full content and hit maps from cache.
+	var sb strings.Builder
+	c.thoughtLines = make(map[int]string)
+	c.toolLines = make(map[int]string)
+	c.toolGroupLines = make(map[int]string)
+	c.subagentLines = make(map[int]string)
+	c.copyLines = make(map[int]string)
+	c.msgLineStarts = make([]int, 0, len(c.renderCache))
+	lineNum := 0
+
+	for i, cached := range c.renderCache {
+		if i > 0 {
+			sb.WriteString("\n")
+			lineNum++
+		}
+		c.msgLineStarts = append(c.msgLineStarts, lineNum)
+		for _, h := range cached.thoughtHits {
 			c.thoughtLines[lineNum+h.lineOffset] = h.partID
 		}
-		for _, h := range sHits {
+		for _, h := range cached.subagentHits {
 			c.subagentLines[lineNum+h.lineOffset] = h.label
 		}
-		for _, h := range cHits {
+		for _, h := range cached.copyHits {
 			c.copyLines[lineNum+h.lineOffset] = h.text
 		}
-		for _, h := range toolHits {
+		for _, h := range cached.toolHits {
 			c.toolLines[lineNum+h.lineOffset] = h.partID
 		}
-		for _, h := range tgHits {
+		for _, h := range cached.toolGroupHits {
 			c.toolGroupLines[lineNum+h.lineOffset] = h.firstPartID
 		}
-		sb.WriteString(rendered)
-		lineNum += strings.Count(rendered, "\n")
+		sb.WriteString(cached.rendered)
+		lineNum += strings.Count(cached.rendered, "\n")
 	}
 
 	c.viewport.SetContent(sb.String())

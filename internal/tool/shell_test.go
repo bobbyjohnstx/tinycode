@@ -711,6 +711,179 @@ func TestExecuteShell_ForegroundStillWorks(t *testing.T) {
 	}
 }
 
+func TestClassifyMutation(t *testing.T) {
+	tests := []struct {
+		name      string
+		command   string
+		wantMut   bool
+		wantPaths []string // nil means don't check paths
+	}{
+		{
+			name:      "redirect_stdout_to_file",
+			command:   "echo hi > out.txt",
+			wantMut:   true,
+			wantPaths: []string{"out.txt"},
+		},
+		{
+			name:      "append_redirect_to_file",
+			command:   "echo hi >> log.txt",
+			wantMut:   true,
+			wantPaths: []string{"log.txt"},
+		},
+		{
+			name:      "stderr_redirect_2_ampersand_1",
+			command:   "cat a 2>&1",
+			wantMut:   false,
+			wantPaths: nil,
+		},
+		{
+			name:      "redirect_to_dev_null",
+			command:   "echo hi > /dev/null",
+			wantMut:   false,
+			wantPaths: nil,
+		},
+		{
+			name:      "tee_to_file",
+			command:   "echo hi | tee output.txt",
+			wantMut:   true,
+			wantPaths: []string{"output.txt"},
+		},
+		{
+			name:      "find_delete",
+			command:   "find . -name x -delete",
+			wantMut:   true,
+			wantPaths: []string{"unknown"},
+		},
+		{
+			name:      "sed_in_place",
+			command:   "sed -i 's/a/b/' file.go",
+			wantMut:   true,
+			wantPaths: []string{"file.go"},
+		},
+		{
+			name:      "sort_output",
+			command:   "sort -o sorted.txt input.txt",
+			wantMut:   true,
+			wantPaths: []string{"sorted.txt"},
+		},
+		{
+			name:      "safe_ls",
+			command:   "ls -la",
+			wantMut:   false,
+			wantPaths: nil,
+		},
+		{
+			name:      "safe_grep",
+			command:   "grep foo file",
+			wantMut:   false,
+			wantPaths: nil,
+		},
+		{
+			name:      "safe_cat",
+			command:   "cat file",
+			wantMut:   false,
+			wantPaths: nil,
+		},
+		{
+			name:      "pipe_with_redirect",
+			command:   "echo hi | grep foo > result.txt",
+			wantMut:   true,
+			wantPaths: []string{"result.txt"},
+		},
+		{
+			name:      "unparseable_subshell_path",
+			command:   "$(cmd) > $(other)",
+			wantMut:   true,
+			wantPaths: []string{"unknown"},
+		},
+		{
+			name:      "find_exec_rm",
+			command:   "find /tmp -name '*.bak' -exec rm {} \\;",
+			wantMut:   true,
+			wantPaths: []string{"unknown"},
+		},
+		{
+			name:      "tee_with_append_flag",
+			command:   "echo data | tee -a log.txt",
+			wantMut:   true,
+			wantPaths: []string{"log.txt"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotMut, gotPaths := ClassifyMutation(tt.command)
+			if gotMut != tt.wantMut {
+				t.Errorf("ClassifyMutation(%q) mutation = %v, want %v", tt.command, gotMut, tt.wantMut)
+			}
+			if tt.wantPaths != nil {
+				if len(gotPaths) != len(tt.wantPaths) {
+					t.Fatalf("ClassifyMutation(%q) paths = %v, want %v", tt.command, gotPaths, tt.wantPaths)
+				}
+				for i, want := range tt.wantPaths {
+					if gotPaths[i] != want {
+						t.Errorf("ClassifyMutation(%q) path[%d] = %q, want %q", tt.command, i, gotPaths[i], want)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestIsMutation(t *testing.T) {
+	if IsMutation("ls -la") {
+		t.Error("ls -la should not be a mutation")
+	}
+	if !IsMutation("echo hi > out.txt") {
+		t.Error("echo hi > out.txt should be a mutation")
+	}
+}
+
+func TestExecuteShell_MutationRecordsMetadata(t *testing.T) {
+	tc := &Context{
+		Directory: t.TempDir(),
+		ReadFiles: NewSafeReadFiles(),
+	}
+
+	raw := json.RawMessage(`{"command":"echo test > mutation_test.txt"}`)
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Output)
+	}
+	if result.Metadata == nil {
+		t.Fatal("expected metadata on mutation result")
+	}
+	paths, ok := result.Metadata["mutation_paths"].([]string)
+	if !ok {
+		t.Fatalf("mutation_paths not []string: %T", result.Metadata["mutation_paths"])
+	}
+	if len(paths) != 1 || paths[0] != "mutation_test.txt" {
+		t.Errorf("mutation_paths = %v, want [mutation_test.txt]", paths)
+	}
+}
+
+func TestExecuteShell_NonMutationHasNoMetadata(t *testing.T) {
+	tc := &Context{
+		Directory: t.TempDir(),
+		ReadFiles: NewSafeReadFiles(),
+	}
+
+	raw := json.RawMessage(`{"command":"echo hello"}`)
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Output)
+	}
+	if result.Metadata != nil {
+		t.Errorf("expected no metadata on non-mutation, got %v", result.Metadata)
+	}
+}
+
 func TestExecuteShell_WiderPermissionOnSecretShowsEscalation(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

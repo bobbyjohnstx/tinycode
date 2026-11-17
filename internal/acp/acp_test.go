@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +20,7 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/safego"
+	"github.com/bobbyjohnstx/tinycode/internal/server"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
 
@@ -175,10 +178,11 @@ func (m *mockSessionService) Fork(_ context.Context, parentID, title string) (*s
 }
 
 type mockRunner struct {
-	mu    sync.Mutex
-	busy  map[string]bool
-	bus   *bus.Bus
-	delay time.Duration
+	mu        sync.Mutex
+	busy      map[string]bool
+	bus       *bus.Bus
+	delay     time.Duration
+	lastParts []server.PromptPart
 }
 
 func newMockRunner(b *bus.Bus) *mockRunner {
@@ -190,9 +194,24 @@ func newMockRunner(b *bus.Bus) *mockRunner {
 }
 
 func (r *mockRunner) StartTextPrompt(ctx context.Context, sessionID, text string) error {
+	return r.StartPartsPrompt(ctx, sessionID, []server.PromptPart{{Type: "text", Text: text}})
+}
+
+func (r *mockRunner) StartPartsPrompt(ctx context.Context, sessionID string, parts []server.PromptPart) error {
 	r.mu.Lock()
 	r.busy[sessionID] = true
+	r.lastParts = append([]server.PromptPart(nil), parts...)
 	r.mu.Unlock()
+
+	var text string
+	for _, p := range parts {
+		if p.Type == "text" {
+			if text != "" {
+				text += "\n"
+			}
+			text += p.Text
+		}
+	}
 
 	r.bus.Publish("session.status", map[string]any{
 		"sessionID": sessionID,
@@ -222,6 +241,12 @@ func (r *mockRunner) StartTextPrompt(ctx context.Context, sessionID, text string
 		})
 	})
 	return nil
+}
+
+func (r *mockRunner) getLastParts() []server.PromptPart {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]server.PromptPart(nil), r.lastParts...)
 }
 
 func (r *mockRunner) Abort(sessionID string) {
@@ -356,8 +381,8 @@ func TestInitialize(t *testing.T) {
 		t.Error("expected loadSession capability")
 	}
 	promptCaps := caps["promptCapabilities"].(map[string]any)
-	if promptCaps["image"] != false {
-		t.Error("expected image capability false until supported")
+	if promptCaps["image"] != true {
+		t.Error("expected image capability true")
 	}
 	if promptCaps["embeddedContext"] != false {
 		t.Error("expected embeddedContext capability false until supported")
@@ -2348,6 +2373,10 @@ type errorThenIdleRunner struct {
 	busy map[string]bool
 }
 
+func (r *errorThenIdleRunner) StartPartsPrompt(ctx context.Context, sessionID string, _ []server.PromptPart) error {
+	return r.StartTextPrompt(ctx, sessionID, "")
+}
+
 func (r *errorThenIdleRunner) StartTextPrompt(_ context.Context, sessionID, _ string) error {
 	r.mu.Lock()
 	r.busy = map[string]bool{sessionID: true}
@@ -2854,5 +2883,233 @@ func TestLoadSession_ReplaysToolHistory(t *testing.T) {
 	}
 	if !strings.Contains(out, "/tmp/x.go") {
 		t.Errorf("expected edit path in replay, got: %s", out)
+	}
+}
+
+func TestPrompt_ImagePart(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	runner := newMockRunner(b)
+	svc := NewServiceWithConfig(Config{
+		Sessions:   mock,
+		Bus:        b,
+		Runner:     runner,
+		DefaultCWD: "/tmp",
+	})
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: "/tmp", Title: "Test",
+		Model: &session.ModelRef{ProviderID: "test", ModelID: "model"},
+	})
+
+	params, _ := json.Marshal(map[string]any{
+		"sessionId": created.ID,
+		"prompt": []map[string]any{
+			{"type": "text", "text": "describe this image"},
+			{"type": "image", "content": "aWJhc2U2NA==", "mediaType": "image/jpeg"},
+		},
+	})
+	result, rpcErr := svc.HandleRequest(context.Background(), "session/prompt", params)
+	if rpcErr != nil {
+		t.Fatalf("prompt error: %s", rpcErr.Message)
+	}
+	resp := result.(map[string]any)
+	if resp["stopReason"] != "end_turn" {
+		t.Fatalf("expected end_turn, got %v", resp["stopReason"])
+	}
+
+	parts := runner.getLastParts()
+	if len(parts) != 2 {
+		t.Fatalf("expected 2 parts, got %d", len(parts))
+	}
+	if parts[0].Type != "text" || parts[0].Text != "describe this image" {
+		t.Errorf("text part mismatch: %+v", parts[0])
+	}
+	if parts[1].Type != "image" || parts[1].Content != "aWJhc2U2NA==" || parts[1].MediaType != "image/jpeg" {
+		t.Errorf("image part mismatch: %+v", parts[1])
+	}
+}
+
+func TestPrompt_ImageDefaultMediaType(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	runner := newMockRunner(b)
+	svc := NewServiceWithConfig(Config{
+		Sessions:   mock,
+		Bus:        b,
+		Runner:     runner,
+		DefaultCWD: "/tmp",
+	})
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: "/tmp", Title: "Test",
+		Model: &session.ModelRef{ProviderID: "test", ModelID: "model"},
+	})
+
+	params, _ := json.Marshal(map[string]any{
+		"sessionId": created.ID,
+		"prompt": []map[string]any{
+			{"type": "image", "content": "cG5n"},
+		},
+	})
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/prompt", params)
+	if rpcErr != nil {
+		t.Fatalf("prompt error: %s", rpcErr.Message)
+	}
+
+	parts := runner.getLastParts()
+	if len(parts) != 1 {
+		t.Fatalf("expected 1 part, got %d", len(parts))
+	}
+	if parts[0].MediaType != "image/png" {
+		t.Errorf("expected default mediaType image/png, got %q", parts[0].MediaType)
+	}
+}
+
+func TestPrompt_AtFileReference(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	runner := newMockRunner(b)
+
+	dir := t.TempDir()
+	testFile := filepath.Join(dir, "hello.go")
+	os.WriteFile(testFile, []byte("package main\n"), 0o644)
+
+	svc := NewServiceWithConfig(Config{
+		Sessions:   mock,
+		Bus:        b,
+		Runner:     runner,
+		DefaultCWD: dir,
+	})
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: dir, Title: "Test",
+		Model: &session.ModelRef{ProviderID: "test", ModelID: "model"},
+	})
+
+	params, _ := json.Marshal(map[string]any{
+		"sessionId": created.ID,
+		"prompt": []map[string]any{
+			{"type": "text", "text": "review @hello.go please"},
+		},
+	})
+	result, rpcErr := svc.HandleRequest(context.Background(), "session/prompt", params)
+	if rpcErr != nil {
+		t.Fatalf("prompt error: %s", rpcErr.Message)
+	}
+	resp := result.(map[string]any)
+	if resp["stopReason"] != "end_turn" {
+		t.Fatalf("expected end_turn, got %v", resp["stopReason"])
+	}
+
+	parts := runner.getLastParts()
+	if len(parts) != 2 {
+		t.Fatalf("expected 2 parts (text + file), got %d", len(parts))
+	}
+	if !strings.Contains(parts[1].Text, "package main") {
+		t.Errorf("expected file content in second part, got %q", parts[1].Text)
+	}
+	if !strings.Contains(parts[1].Text, "--- File: hello.go ---") {
+		t.Errorf("expected file header, got %q", parts[1].Text)
+	}
+}
+
+func TestPrompt_AtFileNonexistent(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	runner := newMockRunner(b)
+
+	dir := t.TempDir()
+	svc := NewServiceWithConfig(Config{
+		Sessions:   mock,
+		Bus:        b,
+		Runner:     runner,
+		DefaultCWD: dir,
+	})
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: dir, Title: "Test",
+		Model: &session.ModelRef{ProviderID: "test", ModelID: "model"},
+	})
+
+	params, _ := json.Marshal(map[string]any{
+		"sessionId": created.ID,
+		"prompt": []map[string]any{
+			{"type": "text", "text": "look at @nonexistent.go"},
+		},
+	})
+	result, rpcErr := svc.HandleRequest(context.Background(), "session/prompt", params)
+	if rpcErr != nil {
+		t.Fatalf("prompt error: %s", rpcErr.Message)
+	}
+	resp := result.(map[string]any)
+	if resp["stopReason"] != "end_turn" {
+		t.Fatalf("expected end_turn, got %v", resp["stopReason"])
+	}
+
+	// Nonexistent file should be gracefully skipped — only the original text part remains.
+	parts := runner.getLastParts()
+	if len(parts) != 1 {
+		t.Fatalf("expected 1 part (nonexistent file skipped), got %d", len(parts))
+	}
+	if parts[0].Text != "look at @nonexistent.go" {
+		t.Errorf("expected original text preserved, got %q", parts[0].Text)
+	}
+}
+
+func TestPrompt_PlainTextUnchanged(t *testing.T) {
+	b := bus.New()
+	t.Cleanup(func() { b.Close() })
+	mock := newMockSessionService()
+	runner := newMockRunner(b)
+	svc := NewServiceWithConfig(Config{
+		Sessions:   mock,
+		Bus:        b,
+		Runner:     runner,
+		DefaultCWD: "/tmp",
+	})
+
+	created, _ := mock.Create(context.Background(), session.CreateInput{
+		ProjectID: "acp", Directory: "/tmp", Title: "Test",
+		Model: &session.ModelRef{ProviderID: "test", ModelID: "model"},
+	})
+
+	params, _ := json.Marshal(map[string]any{
+		"sessionId": created.ID,
+		"prompt": []map[string]any{
+			{"type": "text", "text": "hello world"},
+		},
+	})
+	_, rpcErr := svc.HandleRequest(context.Background(), "session/prompt", params)
+	if rpcErr != nil {
+		t.Fatalf("prompt error: %s", rpcErr.Message)
+	}
+
+	parts := runner.getLastParts()
+	if len(parts) != 1 {
+		t.Fatalf("expected 1 part, got %d", len(parts))
+	}
+	if parts[0].Type != "text" || parts[0].Text != "hello world" {
+		t.Errorf("expected plain text unchanged, got %+v", parts[0])
+	}
+}
+
+func TestInitialize_ImageCapabilityTrue(t *testing.T) {
+	svc, _, _ := testService(t)
+	result, rpcErr := svc.HandleRequest(context.Background(), "initialize", nil)
+	if rpcErr != nil {
+		t.Fatalf("initialize error: %s", rpcErr.Message)
+	}
+	data, _ := json.Marshal(result)
+	var resp map[string]any
+	json.Unmarshal(data, &resp)
+	caps := resp["agentCapabilities"].(map[string]any)
+	promptCaps := caps["promptCapabilities"].(map[string]any)
+	if promptCaps["image"] != true {
+		t.Errorf("expected image capability true, got %v", promptCaps["image"])
 	}
 }

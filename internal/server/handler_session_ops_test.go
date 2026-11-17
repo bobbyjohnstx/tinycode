@@ -302,6 +302,168 @@ func TestHandleSessionRewindMessages_NonexistentMessageReturns404(t *testing.T) 
 	}
 }
 
+func TestHandleSessionRewindMessages_ReturnsUnrestoredPaths(t *testing.T) {
+	srv, _ := testServer(t)
+
+	createReq := httptest.NewRequest("POST", "/session?directory=/tmp", strings.NewReader(`{"title":"Rewind Unrestored"}`))
+	createW := httptest.NewRecorder()
+	srv.mux.ServeHTTP(createW, createReq)
+
+	var created map[string]any
+	json.NewDecoder(createW.Body).Decode(&created)
+	sessionID := created["id"].(string)
+
+	ms := srv.messageStore()
+	// Message 0: user text
+	if err := ms.Append(&session.Message{
+		ID: "m0", SessionID: sessionID, Role: session.RoleUser,
+		Parts:     []session.Part{session.TextPart("hello")},
+		CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Message 1: assistant with bash that writes out.txt
+	if err := ms.Append(&session.Message{
+		ID: "m1", SessionID: sessionID, Role: session.RoleAssistant,
+		Parts: []session.Part{
+			session.ToolCallPart("tc1", "bash", `{"command":"echo data > out.txt"}`),
+		},
+		CreatedAt: time.Now().Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	body := fmt.Sprintf(`{"messageID":"m0"}`)
+	req := httptest.NewRequest("POST", "/session/"+sessionID+"/rewind", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+
+	unrestored, ok := result["unrestored"].([]any)
+	if !ok || len(unrestored) == 0 {
+		t.Fatalf("expected unrestored paths, got %v", result["unrestored"])
+	}
+
+	found := false
+	for _, v := range unrestored {
+		if v == "out.txt" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected out.txt in unrestored, got %v", unrestored)
+	}
+}
+
+func TestHandleSessionRewindMessages_ReadOnlyBashNoUnrestored(t *testing.T) {
+	srv, _ := testServer(t)
+
+	createReq := httptest.NewRequest("POST", "/session?directory=/tmp", strings.NewReader(`{"title":"Rewind ReadOnly"}`))
+	createW := httptest.NewRecorder()
+	srv.mux.ServeHTTP(createW, createReq)
+
+	var created map[string]any
+	json.NewDecoder(createW.Body).Decode(&created)
+	sessionID := created["id"].(string)
+
+	ms := srv.messageStore()
+	if err := ms.Append(&session.Message{
+		ID: "m0", SessionID: sessionID, Role: session.RoleUser,
+		Parts:     []session.Part{session.TextPart("hello")},
+		CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ms.Append(&session.Message{
+		ID: "m1", SessionID: sessionID, Role: session.RoleAssistant,
+		Parts: []session.Part{
+			session.ToolCallPart("tc1", "bash", `{"command":"grep -r foo ."}`),
+		},
+		CreatedAt: time.Now().Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	body := fmt.Sprintf(`{"messageID":"m0"}`)
+	req := httptest.NewRequest("POST", "/session/"+sessionID+"/rewind", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+
+	if result["unrestored"] != nil {
+		t.Errorf("expected no unrestored for read-only commands, got %v", result["unrestored"])
+	}
+}
+
+func TestHandleSessionRewindMessages_UnclassifiableBashShowsUnknown(t *testing.T) {
+	srv, _ := testServer(t)
+
+	createReq := httptest.NewRequest("POST", "/session?directory=/tmp", strings.NewReader(`{"title":"Rewind Unknown"}`))
+	createW := httptest.NewRecorder()
+	srv.mux.ServeHTTP(createW, createReq)
+
+	var created map[string]any
+	json.NewDecoder(createW.Body).Decode(&created)
+	sessionID := created["id"].(string)
+
+	ms := srv.messageStore()
+	if err := ms.Append(&session.Message{
+		ID: "m0", SessionID: sessionID, Role: session.RoleUser,
+		Parts:     []session.Part{session.TextPart("hello")},
+		CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ms.Append(&session.Message{
+		ID: "m1", SessionID: sessionID, Role: session.RoleAssistant,
+		Parts: []session.Part{
+			session.ToolCallPart("tc1", "bash", `{"command":"python3 deploy.py"}`),
+		},
+		CreatedAt: time.Now().Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	body := fmt.Sprintf(`{"messageID":"m0"}`)
+	req := httptest.NewRequest("POST", "/session/"+sessionID+"/rewind", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+
+	unrestored, ok := result["unrestored"].([]any)
+	if !ok || len(unrestored) == 0 {
+		t.Fatalf("expected unrestored with unknown entry, got %v", result["unrestored"])
+	}
+
+	found := false
+	for _, v := range unrestored {
+		if v == "unknown shell changes" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'unknown shell changes' in unrestored, got %v", unrestored)
+	}
+}
+
 // --- handleSessionChildren ---
 
 func TestHandleSessionChildren_ReturnsEmptyArrayWhenNoChildren(t *testing.T) {

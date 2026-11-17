@@ -1236,12 +1236,14 @@ func TestRewindSession_SendsMessageID(t *testing.T) {
 		gotPath = r.URL.Path
 		data, _ := io.ReadAll(r.Body)
 		json.Unmarshal(data, &gotBody)
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"sessionID": "ses_rw", "deletedCount": 0})
 	}))
 	defer srv.Close()
 
 	c := New(srv.URL, "/tmp", "")
-	err := c.RewindSession("ses_rw", "msg_99")
+	_, err := c.RewindSession("ses_rw", "msg_99")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1264,9 +1266,31 @@ func TestRewindSession_ServerError(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "/tmp", "")
-	err := c.RewindSession("ses_1", "msg_1")
+	_, err := c.RewindSession("ses_1", "msg_1")
 	if err == nil {
 		t.Fatal("expected error for 500 response")
+	}
+}
+
+func TestRewindSession_ReturnsUnrestoredPaths(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"sessionID":    "ses_1",
+			"deletedCount": 1,
+			"unrestored":   []string{"out.txt"},
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "/tmp", "")
+	result, err := c.RewindSession("ses_1", "msg_1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Unrestored) != 1 || result.Unrestored[0] != "out.txt" {
+		t.Errorf("expected unrestored=[out.txt], got %v", result.Unrestored)
 	}
 }
 

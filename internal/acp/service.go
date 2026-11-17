@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -43,6 +45,7 @@ type SessionService interface {
 // SessionRunner drives agent turns (typically *server.SessionManager).
 type SessionRunner interface {
 	StartTextPrompt(ctx context.Context, sessionID, text string) error
+	StartPartsPrompt(ctx context.Context, sessionID string, parts []server.PromptPart) error
 	Abort(sessionID string)
 	IsBusy(sessionID string) bool
 }
@@ -164,7 +167,7 @@ func (s *Service) handleInitialize(_ context.Context, params json.RawMessage) (a
 			"loadSession": true,
 			"promptCapabilities": map[string]any{
 				"embeddedContext": false,
-				"image":           false,
+				"image":           true,
 			},
 			"sessionCapabilities": map[string]any{
 				"close":  map[string]any{},
@@ -640,12 +643,16 @@ func (s *Service) handlePrompt(ctx context.Context, params json.RawMessage) (any
 	var req struct {
 		SessionID string `json:"sessionId"`
 		Prompt    []struct {
-			Type string `json:"type"`
-			Text string `json:"text,omitempty"`
+			Type      string `json:"type"`
+			Text      string `json:"text,omitempty"`
+			Content   string `json:"content,omitempty"`
+			MediaType string `json:"mediaType,omitempty"`
 		} `json:"prompt"`
 		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text,omitempty"`
+			Type      string `json:"type"`
+			Text      string `json:"text,omitempty"`
+			Content   string `json:"content,omitempty"`
+			MediaType string `json:"mediaType,omitempty"`
 		} `json:"content"`
 	}
 	if err := json.Unmarshal(params, &req); err != nil {
@@ -657,28 +664,66 @@ func (s *Service) handlePrompt(ctx context.Context, params json.RawMessage) (any
 		blocks = req.Content
 	}
 
-	var text string
-	for _, part := range blocks {
-		if part.Type == "text" {
-			if text != "" {
-				text += "\n"
+	var parts []server.PromptPart
+	var hasContent bool
+	for _, block := range blocks {
+		switch block.Type {
+		case "text":
+			if block.Text == "" {
+				continue
 			}
-			text += part.Text
+			parts = append(parts, server.PromptPart{Type: "text", Text: block.Text})
+			hasContent = true
+		case "image":
+			data := block.Content
+			if data == "" {
+				data = block.Text
+			}
+			if data == "" {
+				continue
+			}
+			mediaType := block.MediaType
+			if mediaType == "" {
+				mediaType = "image/png"
+			}
+			parts = append(parts, server.PromptPart{
+				Type:      "image",
+				Content:   data,
+				MediaType: mediaType,
+			})
+			hasContent = true
 		}
 	}
-	if text == "" {
+	if !hasContent {
 		return nil, &RPCError{Code: InvalidParams, Message: "empty prompt content"}
 	}
 
-	if _, err := s.sessions.Get(ctx, req.SessionID); err != nil {
+	info, err := s.sessions.Get(ctx, req.SessionID)
+	if err != nil {
 		return nil, &RPCError{Code: InvalidParams, Message: "session not found"}
 	}
+
+	// Resolve @file references in text parts.
+	cwd := info.Directory
+	if cwd == "" {
+		cwd = s.defaultCWD
+	}
+	parts = resolveAtFileRefs(parts, cwd)
 
 	s.clearCancelled(req.SessionID)
 	s.clearFailed(req.SessionID)
 
 	if s.runner == nil {
 		// Legacy bus-only path for unit tests without a runner.
+		var text string
+		for _, p := range parts {
+			if p.Type == "text" {
+				if text != "" {
+					text += "\n"
+				}
+				text += p.Text
+			}
+		}
 		s.bus.Publish("session.prompt", map[string]any{
 			"sessionID": req.SessionID,
 			"content":   text,
@@ -692,7 +737,7 @@ func (s *Service) handlePrompt(ctx context.Context, params json.RawMessage) (any
 	errSub := s.bus.Subscribe("session.error")
 	defer errSub.Unsubscribe()
 
-	if err := s.runner.StartTextPrompt(ctx, req.SessionID, text); err != nil {
+	if err := s.runner.StartPartsPrompt(ctx, req.SessionID, parts); err != nil {
 		return nil, &RPCError{Code: InternalError, Message: err.Error()}
 	}
 
@@ -935,4 +980,87 @@ func (s *Service) drainSessionErrors(sub *bus.Subscription, sessionID string) {
 			return
 		}
 	}
+}
+
+// resolveAtFileRefs scans text parts for @path tokens and appends file content
+// as additional text parts. Nonexistent files are logged and skipped.
+func resolveAtFileRefs(parts []server.PromptPart, cwd string) []server.PromptPart {
+	var result []server.PromptPart
+	for _, p := range parts {
+		result = append(result, p)
+		if p.Type != "text" {
+			continue
+		}
+		for _, ref := range findAtTokens(p.Text) {
+			absPath := ref
+			if !filepath.IsAbs(absPath) {
+				absPath = filepath.Join(cwd, ref)
+			}
+			content, err := readFileForPrompt(absPath)
+			if err != nil {
+				slog.Debug("@file read failed", "path", ref, "error", err)
+				continue
+			}
+			result = append(result, server.PromptPart{
+				Type: "text",
+				Text: fmt.Sprintf("--- File: %s ---\n%s\n--- End ---", ref, content),
+			})
+		}
+	}
+	return result
+}
+
+// findAtTokens scans text for @-prefixed file references.
+func findAtTokens(text string) []string {
+	runes := []rune(text)
+	var refs []string
+	for i := 0; i < len(runes); i++ {
+		if runes[i] != '@' {
+			continue
+		}
+		if i > 0 && runes[i-1] != ' ' && runes[i-1] != '\t' && runes[i-1] != '\n' {
+			continue
+		}
+		end := i + 1
+		for end < len(runes) {
+			if runes[end] == ' ' || runes[end] == '\t' || runes[end] == '\n' {
+				break
+			}
+			end++
+		}
+		path := string(runes[i+1 : end])
+		if path == "" {
+			continue
+		}
+		refs = append(refs, path)
+		i = end - 1
+	}
+	return refs
+}
+
+// readFileForPrompt reads a file up to 100KB for inclusion in a prompt.
+func readFileForPrompt(path string) (string, error) {
+	const maxSize = 100 * 1024
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("is a directory")
+	}
+	if info.Size() > maxSize {
+		f, err := os.Open(path)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+		buf := make([]byte, maxSize)
+		n, _ := f.Read(buf)
+		return string(buf[:n]) + "\n... (truncated)", nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }

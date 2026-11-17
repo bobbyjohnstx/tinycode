@@ -1983,7 +1983,12 @@ func TestBranchSession_ReturnsErrorOnServerFailure(t *testing.T) {
 
 func TestRewindSession_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"sessionID":    "ses-1",
+			"deletedCount": 2,
+		})
 	}))
 	defer srv.Close()
 
@@ -2000,6 +2005,37 @@ func TestRewindSession_Success(t *testing.T) {
 	}
 	if done.TurnIndex != 3 {
 		t.Errorf("expected TurnIndex 3, got %d", done.TurnIndex)
+	}
+}
+
+func TestRewindSession_WithUnrestored(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"sessionID":    "ses-1",
+			"deletedCount": 2,
+			"unrestored":   []string{"out.txt", "unknown shell changes"},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := rewindSession(client, "ses-1", "msg-5", 3)
+	msg := cmd()
+
+	done, ok := msg.(RewindDoneMsg)
+	if !ok {
+		t.Fatalf("expected RewindDoneMsg, got %T", msg)
+	}
+	if done.Err != nil {
+		t.Errorf("expected no error, got %v", done.Err)
+	}
+	if len(done.Unrestored) != 2 {
+		t.Fatalf("expected 2 unrestored paths, got %d: %v", len(done.Unrestored), done.Unrestored)
+	}
+	if done.Unrestored[0] != "out.txt" {
+		t.Errorf("expected first unrestored to be 'out.txt', got %q", done.Unrestored[0])
 	}
 }
 

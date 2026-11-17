@@ -20,7 +20,7 @@ type PromptInput struct {
 	SessionID      string
 	Model          *promptModel
 	Agent          string
-	Parts          []promptPart
+	Parts          []PromptPart
 	MessageID      string
 	ThinkingBudget *int
 	MaxTokens      *int
@@ -34,7 +34,8 @@ type promptModel struct {
 	ModelID    string `json:"modelID"`
 }
 
-type promptPart struct {
+// PromptPart is a single content part within a prompt (text, image, etc.).
+type PromptPart struct {
 	Type      string `json:"type"`
 	Content   string `json:"content,omitempty"`
 	Text      string `json:"text,omitempty"`
@@ -98,7 +99,7 @@ func (sm *SessionManager) subscribePrompts() {
 					ModelID:    info.Model.ModelID,
 				},
 				Agent: info.Agent,
-				Parts: []promptPart{{Type: "text", Text: content}},
+				Parts: []PromptPart{{Type: "text", Text: content}},
 			})
 		}
 	})
@@ -125,7 +126,34 @@ func (sm *SessionManager) StartTextPrompt(ctx context.Context, sessionID, text s
 			ModelID:    info.Model.ModelID,
 		},
 		Agent: agentName,
-		Parts: []promptPart{{Type: "text", Text: text}},
+		Parts: []PromptPart{{Type: "text", Text: text}},
+	})
+	return nil
+}
+
+// StartPartsPrompt loads the session's model/agent from the store and starts a
+// prompt turn with multiple content parts (text, image, etc.).
+func (sm *SessionManager) StartPartsPrompt(ctx context.Context, sessionID string, parts []PromptPart) error {
+	store := session.NewStore(sm.db)
+	info, err := store.Get(sessionID)
+	if err != nil {
+		return fmt.Errorf("get session: %w", err)
+	}
+	if info.Model == nil {
+		return fmt.Errorf("session %s has no model configured", sessionID)
+	}
+	agentName := info.Agent
+	if agentName == "" {
+		agentName = "build"
+	}
+	sm.StartPrompt(ctx, PromptInput{
+		SessionID: sessionID,
+		Model: &promptModel{
+			ProviderID: info.Model.ProviderID,
+			ModelID:    info.Model.ModelID,
+		},
+		Agent: agentName,
+		Parts: parts,
 	})
 	return nil
 }

@@ -417,8 +417,9 @@ type WorktreeCreatedMsg struct {
 
 // RewindDoneMsg carries the result of a /rewind command.
 type RewindDoneMsg struct {
-	TurnIndex int
-	Err       error
+	TurnIndex  int
+	Unrestored []string // paths from shell mutations in deleted turns
+	Err        error
 }
 
 // ForkDoneMsg carries the result of forking a session at a specific turn.

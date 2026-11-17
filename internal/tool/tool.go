@@ -19,8 +19,9 @@ import (
 )
 
 type ExecuteResult struct {
-	Output  string
-	IsError bool
+	Output   string
+	IsError  bool
+	Metadata map[string]any // optional; e.g. mutation paths for rewind tracking
 }
 
 // BeforeHookFunc is called before tool execution. If it returns an error,

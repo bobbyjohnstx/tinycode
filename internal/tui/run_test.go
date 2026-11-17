@@ -1339,6 +1339,55 @@ func TestConnectedApp_RewindSelectedMsg_NoGoalStillWorks(t *testing.T) {
 	}
 }
 
+func TestConnectedApp_RewindDoneMsg_ShowsUnrestoredWarning(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses_123"
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.Update(RewindDoneMsg{
+		TurnIndex:  2,
+		Unrestored: []string{"out.txt", "unknown shell changes"},
+	})
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Fatal("expected toast visible for unrestored warning")
+	}
+	text := updated.app.toast.current.Text
+	if !strings.Contains(text, "out.txt") {
+		t.Errorf("expected toast to mention 'out.txt', got %q", text)
+	}
+	if !strings.Contains(text, "may be incomplete") {
+		t.Errorf("expected toast to mention 'may be incomplete', got %q", text)
+	}
+	if !updated.app.toast.current.IsError {
+		t.Error("expected warning toast (isError=true) when unrestored paths present")
+	}
+}
+
+func TestConnectedApp_RewindDoneMsg_NoUnrestoredNoWarning(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses_123"
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.Update(RewindDoneMsg{
+		TurnIndex:  2,
+		Unrestored: nil,
+	})
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Fatal("expected toast visible for rewind success")
+	}
+	text := updated.app.toast.current.Text
+	if !strings.Contains(text, "Rewound to turn 2") {
+		t.Errorf("expected success toast, got %q", text)
+	}
+	if updated.app.toast.current.IsError {
+		t.Error("expected non-error toast when no unrestored paths")
+	}
+}
+
 // --- /btw (BtwResponseMsg) tests ---
 
 func TestConnectedApp_BtwResponseMsg_SuccessAppendsHistory(t *testing.T) {

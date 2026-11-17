@@ -501,8 +501,8 @@ func branchSession(client *api.Client, sessionID, title string) tea.Cmd {
 // rewindSession rewinds a session to a specific message via POST /session/{id}/rewind.
 func rewindSession(client *api.Client, sessionID, messageID string, turnIndex int) tea.Cmd {
 	return func() tea.Msg {
-		err := client.RewindSession(sessionID, messageID)
-		return RewindDoneMsg{TurnIndex: turnIndex, Err: err}
+		result, err := client.RewindSession(sessionID, messageID)
+		return RewindDoneMsg{TurnIndex: turnIndex, Unrestored: result.Unrestored, Err: err}
 	}
 }
 

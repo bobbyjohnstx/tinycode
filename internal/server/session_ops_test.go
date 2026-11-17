@@ -541,7 +541,7 @@ func TestProcessPrompt_ListError_PublishesSessionError(t *testing.T) {
 		SessionID: info.ID,
 		Model:     &promptModel{ProviderID: "test-provider", ModelID: "test-model"},
 		Agent:     "build",
-		Parts:     []promptPart{{Type: "text", Text: "hello"}},
+		Parts:     []PromptPart{{Type: "text", Text: "hello"}},
 	}, done)
 	<-done
 

@@ -29,6 +29,97 @@ var secretFilePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\.pem\b`),
 }
 
+// mutationPatterns detect shell commands that write to files via redirection,
+// tee, in-place edit, etc. This is a best-effort heuristic for permission
+// gating and rewind tracking — NOT a security boundary. Determined attackers
+// or unusual shell constructs can bypass these patterns.
+var mutationPatterns = []struct {
+	re       *regexp.Regexp
+	pathFunc func(cmd string) []string // extract destination paths; nil → "unknown"
+}{
+	// > or >> redirecting to a file.
+	// The \s+ after >>? ensures >&N and 2>&1 (no space) are not matched.
+	{
+		re: regexp.MustCompile(`(>>?)\s+([^\s;&|]+)`),
+		pathFunc: func(cmd string) []string {
+			re := regexp.MustCompile(`(>>?)\s+([^\s;&|]+)`)
+			matches := re.FindAllStringSubmatch(cmd, -1)
+			var paths []string
+			for _, m := range matches {
+				dest := m[2]
+				if dest == "/dev/null" {
+					continue
+				}
+				if strings.Contains(dest, "$(") || strings.Contains(dest, "`") {
+					paths = append(paths, "unknown")
+				} else {
+					paths = append(paths, dest)
+				}
+			}
+			return paths
+		},
+	},
+	// tee with a file argument
+	{
+		re: regexp.MustCompile(`\btee\s+(?:-[a-zA-Z]*\s+)*([^\s;&|]+)`),
+		pathFunc: func(cmd string) []string {
+			re := regexp.MustCompile(`\btee\s+(?:-[a-zA-Z]*\s+)*([^\s;&|]+)`)
+			m := re.FindStringSubmatch(cmd)
+			if m == nil {
+				return nil
+			}
+			dest := m[1]
+			if strings.HasPrefix(dest, "-") {
+				return nil
+			}
+			if strings.Contains(dest, "$(") || strings.Contains(dest, "`") {
+				return []string{"unknown"}
+			}
+			return []string{dest}
+		},
+	},
+	// find with -delete or -exec rm
+	{
+		re: regexp.MustCompile(`\bfind\b.*(?:-delete\b|-exec\s+rm\b)`),
+		pathFunc: func(cmd string) []string {
+			return []string{"unknown"}
+		},
+	},
+	// sed -i (in-place edit)
+	{
+		re: regexp.MustCompile(`\bsed\s+(?:-[a-zA-Z]*)*i`),
+		pathFunc: func(cmd string) []string {
+			// Extract the last non-flag argument as the file
+			re := regexp.MustCompile(`\bsed\s+(?:-[^\s]*\s+)*'[^']*'\s+(\S+)`)
+			m := re.FindStringSubmatch(cmd)
+			if m != nil {
+				dest := m[1]
+				if strings.Contains(dest, "$(") || strings.Contains(dest, "`") {
+					return []string{"unknown"}
+				}
+				return []string{dest}
+			}
+			return []string{"unknown"}
+		},
+	},
+	// sort -o (output to file)
+	{
+		re: regexp.MustCompile(`\bsort\s+.*-o\s+([^\s;&|]+)`),
+		pathFunc: func(cmd string) []string {
+			re := regexp.MustCompile(`\bsort\s+.*-o\s+([^\s;&|]+)`)
+			m := re.FindStringSubmatch(cmd)
+			if m == nil {
+				return []string{"unknown"}
+			}
+			dest := m[1]
+			if strings.Contains(dest, "$(") || strings.Contains(dest, "`") {
+				return []string{"unknown"}
+			}
+			return []string{dest}
+		},
+	},
+}
+
 var destructivePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\brm\s+(-[rRf]+\s+|--recursive)`),
 	regexp.MustCompile(`\brm\s+-[^\s]*[rR]`),
@@ -161,6 +252,27 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		}
 	}
 
+	// Mutation check: best-effort heuristic for file-writing commands.
+	// Records destination paths on the result metadata for rewind tracking.
+	var mutationPaths []string
+	if isMut, mPaths := ClassifyMutation(args.Command); isMut {
+		mutationPaths = mPaths
+		if tc.Perms != nil {
+			meta := map[string]any{"command": args.Command, "mutation_paths": mPaths}
+			_, askErr := tc.Perms.Ask(ctx, permission.AskInput{
+				SessionID:  tc.SessionID,
+				Permission: "shell",
+				Patterns:   []string{args.Command},
+				Metadata:   meta,
+				Ruleset:    tc.Ruleset,
+				Tool:       askToolRef(tc),
+			})
+			if askErr != nil {
+				return &ExecuteResult{Output: askErr.Error(), IsError: true}, nil
+			}
+		}
+	}
+
 	// Background mode: delegate to MonitorManager immediately.
 	if args.Background {
 		return executeShellBackground(ctx, tc, args, timeout)
@@ -216,23 +328,46 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
+	// attachMutation stamps mutation metadata onto a result for rewind tracking.
+	attachMutation := func(r *ExecuteResult) *ExecuteResult {
+		if len(mutationPaths) > 0 {
+			if r.Metadata == nil {
+				r.Metadata = make(map[string]any)
+			}
+			r.Metadata["mutation_paths"] = mutationPaths
+		}
+		return r
+	}
+
 	select {
 	case <-done:
 		// Process finished within timeout — normal path.
 		cancel()
 		elapsed := time.Since(start)
-		return formatShellOutput(args.Command, cmd, stdout, stderr, elapsed)
+		result, err := formatShellOutput(args.Command, cmd, stdout, stderr, elapsed)
+		if err != nil {
+			return result, err
+		}
+		return attachMutation(result), nil
 
 	case <-timer.C:
 		// Timeout — try to promote to background monitor.
 		elapsed := time.Since(start)
-		return promoteToBackground(tc, cmd, cancel, stdinPipe, rb, done, args.Command, stdout, stderr, timeout, elapsed)
+		result, err := promoteToBackground(tc, cmd, cancel, stdinPipe, rb, done, args.Command, stdout, stderr, timeout, elapsed)
+		if err != nil {
+			return result, err
+		}
+		return attachMutation(result), nil
 
 	case <-ctx.Done():
 		// Outer context cancelled (e.g. deadline from bodyTimeout).
 		elapsed := time.Since(start)
 		if ctx.Err() == context.DeadlineExceeded {
-			return promoteToBackground(tc, cmd, cancel, stdinPipe, rb, done, args.Command, stdout, stderr, timeout, elapsed)
+			result, err := promoteToBackground(tc, cmd, cancel, stdinPipe, rb, done, args.Command, stdout, stderr, timeout, elapsed)
+			if err != nil {
+				return result, err
+			}
+			return attachMutation(result), nil
 		}
 		cancel()
 		<-done
@@ -360,6 +495,40 @@ func IsDestructive(command string) bool {
 		}
 	}
 	return false
+}
+
+// ClassifyMutation checks whether a shell command writes to files via
+// redirection, tee, in-place edit, etc. Returns the detected destination
+// paths (or "unknown" when the path is not statically parseable).
+//
+// This is a best-effort heuristic — NOT a security boundary. Unusual shell
+// constructs, variable expansion, and creative quoting can bypass detection.
+func ClassifyMutation(command string) (isMutation bool, paths []string) {
+	// Skip >&N and 2>&1 patterns before checking mutation patterns —
+	// pre-filter the command to avoid false positives from fd redirects.
+	for _, mp := range mutationPatterns {
+		if !mp.re.MatchString(command) {
+			continue
+		}
+		if mp.pathFunc != nil {
+			extracted := mp.pathFunc(command)
+			if len(extracted) > 0 {
+				isMutation = true
+				paths = append(paths, extracted...)
+			}
+		} else {
+			isMutation = true
+			paths = append(paths, "unknown")
+		}
+	}
+	return isMutation, paths
+}
+
+// IsMutation returns true if the command appears to write to files.
+// Best-effort heuristic — not a security boundary.
+func IsMutation(command string) bool {
+	mut, _ := ClassifyMutation(command)
+	return mut
 }
 
 // gateSecretAccess asks before a command that names a secret file.

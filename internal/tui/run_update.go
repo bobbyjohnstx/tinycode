@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -408,7 +409,12 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 			slog.Error("rewind failed", "error", msg.Err)
 			cmds = append(cmds, c.showErrorToast("Rewind failed: %v", msg.Err)...)
 		} else {
-			toastCmd := c.app.toast.Show(fmt.Sprintf("Rewound to turn %d", msg.TurnIndex), false)
+			toastText := fmt.Sprintf("Rewound to turn %d", msg.TurnIndex)
+			if len(msg.Unrestored) > 0 {
+				toastText += fmt.Sprintf(" — unrestored: %s (this list may be incomplete)",
+					strings.Join(msg.Unrestored, ", "))
+			}
+			toastCmd := c.app.toast.Show(toastText, len(msg.Unrestored) > 0)
 			if toastCmd != nil {
 				cmds = append(cmds, toastCmd)
 			}

@@ -130,6 +130,31 @@ func (s *Server) handleSessionRewindMessages(w http.ResponseWriter, r *http.Requ
 	}
 
 	ms := s.messageStore()
+
+	// List messages before deletion to scan for shell mutations.
+	allMessages, err := ms.List(sessionID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Find messages after the target.
+	idx := -1
+	for i, m := range allMessages {
+		if m.ID == body.MessageID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		respondError(w, http.StatusNotFound, "message not found")
+		return
+	}
+	deletedMessages := allMessages[idx+1:]
+
+	// Extract unrestored paths from shell mutations in deleted messages.
+	unrestored := extractUnrestoredPaths(deletedMessages)
+
 	deleted, err := ms.DeleteAfter(sessionID, body.MessageID)
 	if err != nil {
 		if errors.Is(err, session.ErrMessageNotFound) {
@@ -140,11 +165,15 @@ func (s *Server) handleSessionRewindMessages(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"sessionID":       sessionID,
 		"deletedCount":    deleted,
 		"rewindToMessage": body.MessageID,
-	})
+	}
+	if len(unrestored) > 0 {
+		resp["unrestored"] = unrestored
+	}
+	respondJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleSessionChildren(w http.ResponseWriter, r *http.Request) {
