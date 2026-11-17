@@ -197,6 +197,7 @@ func TestInitTooling_WiresDBAndRuleStore(t *testing.T) {
 	}
 	_ = permSvc // wired; load path covered by SetStore on a new service
 	svc2 := permission.NewService(b)
+	svc2.SetHasResponder(true)
 	svc2.SetStore(store, proj.ID)
 	if _, err := svc2.Ask(t.Context(), permission.AskInput{
 		SessionID: "s", Permission: "bash", Patterns: []string{"true"},
@@ -258,6 +259,7 @@ func TestWirePermissionAskHook_DeniesDangerousCommand(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 
 	// Simulate the deny path wirePermissionAskHook uses when a plugin rejects.
 	permSvc.SetAskInterceptor(func(req permission.Request) error {

@@ -470,6 +470,7 @@ func TestJSONPermissionProtocol_EndToEnd(t *testing.T) {
 	defer b.Close()
 
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 
 	cap := captureStdout(t)
 
@@ -923,6 +924,7 @@ func TestStdinMux_PermissionReplyDuringAsk(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -1047,7 +1049,7 @@ func TestWireRunSubagentRunner_SetsFunc(t *testing.T) {
 		Bus:          b,
 		Registry:     nil,
 		ToolRegistry: tool.NewRegistry(&tool.Context{Directory: t.TempDir()}),
-		PermService:  permission.NewService(b),
+		PermService:  func() *permission.Service { s := permission.NewService(b); s.SetHasResponder(true); return s }(),
 	})
 	wireRunSubagentRunner(toolCtx, srv)
 	if toolCtx.SubagentRunner == nil {
@@ -1133,6 +1135,7 @@ func TestJSONPermissionProtocol_EmptyReplyRejects(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	_ = captureStdout(t)
 	permReplyCh := setupRunPermissions(b, permSvc, false, false, "json")
 
@@ -1167,6 +1170,7 @@ func TestJSONPermissionProtocol_RetryExhaustionForceRejects(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	_ = captureStdout(t)
 	permReplyCh := setupRunPermissions(b, permSvc, false, false, "json")
 
@@ -1201,6 +1205,7 @@ func TestJSONPermissionProtocol_EmitsMetadata(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	cap := captureStdout(t)
 	permReplyCh := setupRunPermissions(b, permSvc, false, false, "json")
 

@@ -1715,6 +1715,7 @@ func TestEventRelay_PermissionAskedNilTransportRejects(t *testing.T) {
 	defer b.Close()
 
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	relay := NewEventRelay(b, nil) // nil transport
 	relay.SetPermissionService(permSvc)
 
@@ -1813,6 +1814,7 @@ func TestEventRelay_SetPermissionService(t *testing.T) {
 	relay := NewEventRelay(b, transport)
 
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	relay.SetPermissionService(permSvc)
 
 	// Verify by triggering a permission event; the relay won't panic
@@ -1829,6 +1831,7 @@ func TestEventRelay_SessionAbort_CancelsOutboundPermission(t *testing.T) {
 	transport := NewStdioTransport(svc, output)
 	relay := NewEventRelay(b, transport)
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	relay.SetPermissionService(permSvc)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1888,6 +1891,7 @@ func TestEventRelay_PermissionAsked_EmitsToolCallID(t *testing.T) {
 	transport := NewStdioTransport(svc, output)
 	relay := NewEventRelay(b, transport)
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	relay.SetPermissionService(permSvc)
 
 	ctx, cancel := context.WithCancel(context.Background())

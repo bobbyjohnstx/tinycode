@@ -147,6 +147,7 @@ func newTestHarness(t *testing.T, scenarios []mockScenario) *testHarness {
 	})
 
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	toolReg := tool.NewRegistry(&tool.Context{
 		Directory: t.TempDir(),
 		Bus:       b,
@@ -745,6 +746,7 @@ func TestE2E_ClientFactoryReceivesAPIKey(t *testing.T) {
 	agentReg := agent.NewRegistry()
 	agentReg.LoadDefaults(nil, nil)
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	toolReg := tool.NewRegistry(&tool.Context{
 		Directory: t.TempDir(),
 		Bus:       b,
