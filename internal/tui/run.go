@@ -94,6 +94,8 @@ type connectedApp struct {
 	resumeSessionID         string
 	btwHistory              []sideQA
 	goal                    *goalTracker
+	scratchSessionID        string              // active scratch thread session ID (empty = none)
+	scratchParentID         string              // parent session ID when scratch is active
 	startHead               string              // git HEAD at session start, for /changes
 	sessionQueues           map[string][]string // per-session prompts waiting for that run to finish
 	undoHintShown           bool                // once-per-process /undo discovery toast after first AI edit
@@ -248,6 +250,19 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SessionCreatedLocalMsg:
 		return c.handleSessionCreatedLocal(msg)
+
+	case ScratchCreatedMsg:
+		return c.handleScratchCreated(msg)
+
+	case ScratchClosedMsg:
+		// Logged if delete failed, but no user action needed.
+		if msg.Err != nil {
+			slog.Error("scratch session delete failed", "error", msg.Err)
+		}
+		return c, nil
+
+	case ScratchToggleMsg:
+		return c.toggleScratch()
 
 	case ShellResultMsg:
 		return c.handleShellResult(msg)

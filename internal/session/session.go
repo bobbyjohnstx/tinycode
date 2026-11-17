@@ -280,6 +280,15 @@ func (s *Store) UpdateModel(sessionID string, model *ModelRef) error {
 	return err
 }
 
+// UpdateDirectory updates the session's working directory.
+func (s *Store) UpdateDirectory(sessionID, directory string) error {
+	_, err := s.db.Exec(
+		"UPDATE session SET directory = ?, time_updated = ? WHERE id = ?",
+		directory, time.Now().UnixMilli(), sessionID,
+	)
+	return err
+}
+
 // UpdateAgent updates the session's agent name.
 func (s *Store) UpdateAgent(sessionID, agent string) error {
 	_, err := s.db.Exec(

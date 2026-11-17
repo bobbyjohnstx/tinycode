@@ -116,6 +116,8 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return func() tea.Msg { return BranchRequestMsg{} }, true
 	case "btw":
 		return a.toast.Show("Usage: /btw <question> — ask without polluting context", false), true
+	case "chdir":
+		return a.toast.Show("Usage: /chdir <path> — change working directory for this session", false), true
 	case "effort":
 		current := a.state.EffortLevel
 		if current == "" {
@@ -132,6 +134,8 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return a.toast.Show(fmt.Sprintf("Thinking: %s (use /thinking off|low|medium|high|max)", current), false), true
 	case "goal":
 		return a.toast.Show("Usage: /goal <condition> — autonomous execution until condition met", false), true
+	case "scratch":
+		return func() tea.Msg { return ScratchToggleMsg{} }, true
 	case "rewind":
 		if a.state.ActiveSession == "" {
 			return a.toast.Show("No active session to rewind", true), true
@@ -146,6 +150,11 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 	case "hooks":
 		info := a.buildHooksInfo()
 		a.debugDlg.Show("Hooks", info)
+		a.setFocus(FocusDialog)
+		return nil, true
+	case "instructions":
+		info := session.FormatInstructionInfo(a.status.Cwd())
+		a.debugDlg.Show("Instructions", info)
 		a.setFocus(FocusDialog)
 		return nil, true
 	case "context":

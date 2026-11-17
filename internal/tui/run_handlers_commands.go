@@ -418,6 +418,62 @@ func (c *connectedApp) handleBranchCommand(trimmed string) (tea.Model, tea.Cmd) 
 	return c, tea.Batch(cmd, branchSession(c.client, sessionID, title))
 }
 
+// handleChdirCommand processes a /chdir <path> command.
+// It changes the session's working directory without moving the process's global cwd.
+func (c *connectedApp) handleChdirCommand(trimmed string) (tea.Model, tea.Cmd) {
+	arg := strings.TrimSpace(strings.TrimPrefix(trimmed, "/chdir"))
+	if arg == "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "Usage: /chdir <path>", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	// Resolve relative paths against the current session directory.
+	dir := arg
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(c.app.status.Cwd(), dir)
+	}
+
+	// Resolve symlinks before storing.
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Invalid path: %v", err), IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	info, err := os.Stat(resolved)
+	if err != nil {
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Path not found: %s", arg), IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+	if !info.IsDir() {
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Not a directory: %s", arg), IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	// Update local TUI state.
+	c.app.status.SetCwd(resolved)
+	c.app.sidebar.SetCwd(resolved)
+	c.app.prompt.SetCwd(resolved)
+
+	// Update the session directory on the server.
+	if sessionID := c.app.state.ActiveSession; sessionID != "" {
+		safego.Go(func() {
+			if err := c.client.UpdateSessionDirectory(sessionID, resolved); err != nil {
+				slog.Error("failed to update session directory", "error", err)
+			}
+		})
+	}
+
+	reflowCmd := c.app.reflowChrome()
+	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Directory: %s", resolved)})
+	c.updateApp(model)
+	return c, tea.Batch(cmd, reflowCmd)
+}
+
 // handleInitCommand generates a root AGENTS.md (if missing) then submits an
 // improved setup prompt to the LLM.
 func (c *connectedApp) handleInitCommand() (tea.Model, tea.Cmd) {
@@ -650,4 +706,123 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return c, tea.Batch(cmds...)
+}
+
+// handleScratchCommand processes /scratch, /scratch close, /scratch keep, and /scratch <prompt>.
+func (c *connectedApp) handleScratchCommand(trimmed string) (tea.Model, tea.Cmd) {
+	arg := strings.TrimSpace(strings.TrimPrefix(trimmed, "/scratch"))
+
+	switch arg {
+	case "close":
+		return c.closeScratch(false)
+	case "keep":
+		return c.closeScratch(true)
+	default:
+		return c.openScratch(arg)
+	}
+}
+
+// openScratch creates a new scratch session (or asks to close the existing one first).
+func (c *connectedApp) openScratch(initialPrompt string) (tea.Model, tea.Cmd) {
+	parentID := c.app.state.ActiveSession
+
+	// If scratch is already open, ask user to close it first.
+	if c.scratchSessionID != "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "Scratch already open — /scratch close or /scratch keep first", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	if parentID == "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "No active session for scratch thread", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	// Get current agent and model from parent session.
+	agent := c.app.state.CurrentAgent
+	if agent == "" {
+		agent = "build"
+	}
+
+	input := api.SessionCreateInput{
+		ParentID: parentID,
+		Title:    "scratch",
+		Agent:    agent,
+	}
+	if c.app.state.CurrentModel.ModelID != "" {
+		input.Model = &session.ModelRef{
+			ProviderID: c.app.state.CurrentModel.ProviderID,
+			ModelID:    c.app.state.CurrentModel.ModelID,
+		}
+	}
+
+	if initialPrompt != "" {
+		c.pendingPrompt = initialPrompt
+	}
+
+	cmd := c.app.toast.Show("Opening scratch thread...", false)
+	return c, tea.Batch(cmd, createScratchSession(c.client, input, parentID))
+}
+
+// closeScratch closes the current scratch session. If keep is false, the session is deleted.
+func (c *connectedApp) closeScratch(keep bool) (tea.Model, tea.Cmd) {
+	if c.scratchSessionID == "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "No scratch thread to close", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	scratchID := c.scratchSessionID
+	parentID := c.scratchParentID
+
+	// Clear scratch state immediately.
+	c.scratchSessionID = ""
+	c.scratchParentID = ""
+	c.app.status.SetScratch(false)
+
+	var cmds []tea.Cmd
+
+	// Switch back to parent.
+	cmds = append(cmds, func() tea.Msg {
+		return SessionSwitchedMsg{SessionID: parentID}
+	})
+
+	if keep {
+		cmds = append(cmds, c.app.toast.Show("Scratch thread kept", false))
+	} else {
+		cmds = append(cmds, deleteScratchSession(c.client, scratchID))
+		cmds = append(cmds, c.app.toast.Show("Scratch thread discarded", false))
+	}
+
+	cmds = append(cmds, c.app.reflowChrome())
+	return c, tea.Batch(cmds...)
+}
+
+// toggleScratch opens a new scratch thread or closes the active one.
+func (c *connectedApp) toggleScratch() (tea.Model, tea.Cmd) {
+	if c.scratchSessionID != "" {
+		return c.closeScratch(false)
+	}
+	return c.openScratch("")
+}
+
+// createScratchSession creates a new session for scratch use.
+func createScratchSession(client *api.Client, input api.SessionCreateInput, parentID string) tea.Cmd {
+	return func() tea.Msg {
+		info, err := client.CreateSession(input)
+		if err != nil {
+			return ScratchCreatedMsg{Err: err}
+		}
+		si := sessionInfoFromAPI(*info)
+		return ScratchCreatedMsg{Session: &si, ParentID: parentID}
+	}
+}
+
+// deleteScratchSession deletes a scratch session via the API.
+func deleteScratchSession(client *api.Client, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.DeleteSession(sessionID)
+		return ScratchClosedMsg{Kept: false, Err: err}
+	}
 }

@@ -46,6 +46,7 @@ type StatusBar struct {
 	turnTokens    int
 	leaderPending bool
 	safeMode      bool
+	scratch       bool
 	queueCount    int
 	connected     bool
 	reconnecting  bool
@@ -139,6 +140,11 @@ func (s *StatusBar) SetAgent(agent string) {
 // SetSafeMode sets the safe mode indicator.
 func (s *StatusBar) SetSafeMode(safe bool) {
 	s.safeMode = safe
+}
+
+// SetScratch sets the scratch thread indicator.
+func (s *StatusBar) SetScratch(active bool) {
+	s.scratch = active
 }
 
 // SetGoal updates the goal status display. Pass "" to clear.
@@ -340,6 +346,9 @@ func (s StatusBar) renderStatusMeta(dim, accent lipgloss.Style, dot string) stri
 			Foreground(lipgloss.AdaptiveColor{Light: "#B35900", Dark: "#FFA500"}).
 			Bold(true)
 		leftParts = append(leftParts, warn.Render("SAFE MODE"))
+	}
+	if s.scratch {
+		leftParts = append(leftParts, styleStatusInfo.Render("SCRATCH"))
 	}
 	if !s.connected {
 		if s.reconnecting {

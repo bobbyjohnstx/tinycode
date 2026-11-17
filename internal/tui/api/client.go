@@ -90,6 +90,22 @@ func (c *Client) UpdateSessionTitle(id, title string) error {
 	return nil
 }
 
+// UpdateSessionDirectory sets the session's working directory via PATCH /session/{id}.
+func (c *Client) UpdateSessionDirectory(id, directory string) error {
+	data, err := json.Marshal(map[string]string{"directory": directory})
+	if err != nil {
+		return err
+	}
+	body, err := c.doRequest(http.MethodPatch, "/session/"+id, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if body != nil {
+		body.Close()
+	}
+	return nil
+}
+
 // UpdateSessionAgent sets the session's agent via PATCH /session/{id}.
 func (c *Client) UpdateSessionAgent(id, agent string) error {
 	data, err := json.Marshal(map[string]string{"agent": agent})

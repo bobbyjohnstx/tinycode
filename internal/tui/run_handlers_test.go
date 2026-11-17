@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -1283,4 +1285,427 @@ func TestSessionAgentPatchedMsg_NilErrNoToast(t *testing.T) {
 		t.Errorf("expected no toast on success, got %+v", ca.app.toast.current)
 	}
 	_ = cmd
+}
+
+// --- /chdir command tests ---
+
+func TestHandleChdirCommand_ValidDirectory(t *testing.T) {
+	dir := t.TempDir()
+	app := NewApp("http://localhost:4096")
+	app.status.SetCwd("/original")
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleChdirCommand("/chdir " + dir)
+	updated := result.(*connectedApp)
+
+	// EvalSymlinks may resolve the temp dir differently.
+	resolved, _ := filepath.EvalSymlinks(dir)
+	if got := updated.app.status.Cwd(); got != resolved {
+		t.Errorf("expected cwd %q, got %q", resolved, got)
+	}
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected toast confirming directory change")
+	}
+}
+
+func TestHandleChdirCommand_NonExistentPath(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.status.SetCwd("/tmp")
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleChdirCommand("/chdir /nonexistent/path/xyz")
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast for nonexistent path")
+	}
+	if updated.app.status.Cwd() != "/tmp" {
+		t.Errorf("cwd should not change on error, got %q", updated.app.status.Cwd())
+	}
+}
+
+func TestHandleChdirCommand_FileNotDirectory(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "afile.txt")
+	if err := os.WriteFile(file, []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Resolve dir so we compare apples to apples on macOS (/var -> /private/var).
+	resolvedDir, _ := filepath.EvalSymlinks(dir)
+	app := NewApp("http://localhost:4096")
+	app.status.SetCwd(resolvedDir)
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleChdirCommand("/chdir " + file)
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast for file path")
+	}
+	if updated.app.status.Cwd() != resolvedDir {
+		t.Errorf("cwd should not change on error, got %q", updated.app.status.Cwd())
+	}
+}
+
+func TestHandleChdirCommand_RelativePathResolvesAgainstCwd(t *testing.T) {
+	base := t.TempDir()
+	sub := filepath.Join(base, "subdir")
+	if err := os.Mkdir(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved, _ := filepath.EvalSymlinks(base)
+	app := NewApp("http://localhost:4096")
+	app.status.SetCwd(resolved)
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleChdirCommand("/chdir subdir")
+	updated := result.(*connectedApp)
+
+	expectedResolved, _ := filepath.EvalSymlinks(sub)
+	if got := updated.app.status.Cwd(); got != expectedResolved {
+		t.Errorf("expected cwd %q, got %q", expectedResolved, got)
+	}
+}
+
+func TestHandleChdirCommand_NoArgShowsUsage(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleChdirCommand("/chdir ")
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected usage toast")
+	}
+}
+
+// --- scratch thread tests ---
+
+func TestScratchCommand_NoActiveSession_ShowsError(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleScratchCommand("/scratch")
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast when no active session")
+	}
+}
+
+func TestScratchCommand_CloseWithNoScratch_ShowsError(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleScratchCommand("/scratch close")
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast when no scratch thread to close")
+	}
+}
+
+func TestScratchCommand_KeepWithNoScratch_ShowsError(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleScratchCommand("/scratch keep")
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast when no scratch thread to keep")
+	}
+}
+
+func TestScratchCommand_AlreadyOpen_ShowsError(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses-parent"
+	ca := &connectedApp{
+		app:              app,
+		scratchSessionID: "ses-scratch",
+		scratchParentID:  "ses-parent",
+	}
+
+	result, _ := ca.handleScratchCommand("/scratch")
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast when scratch already open")
+	}
+}
+
+func TestScratchCreated_SetsStateAndSwitches(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses-parent"
+	ca := &connectedApp{app: app}
+
+	scratchSession := &SessionInfo{
+		ID:       "ses-scratch",
+		Title:    "scratch",
+		ParentID: "ses-parent",
+	}
+
+	result, cmd := ca.handleScratchCreated(ScratchCreatedMsg{
+		Session:  scratchSession,
+		ParentID: "ses-parent",
+	})
+	updated := result.(*connectedApp)
+
+	if updated.scratchSessionID != "ses-scratch" {
+		t.Errorf("expected scratchSessionID 'ses-scratch', got %q", updated.scratchSessionID)
+	}
+	if updated.scratchParentID != "ses-parent" {
+		t.Errorf("expected scratchParentID 'ses-parent', got %q", updated.scratchParentID)
+	}
+	if !updated.app.status.scratch {
+		t.Error("expected scratch indicator set on status bar")
+	}
+
+	// The batch should include a SessionSwitchedMsg.
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd")
+	}
+}
+
+func TestScratchCreated_Error_ClearsPending(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{
+		app:           app,
+		pendingPrompt: "test question",
+	}
+
+	result, _ := ca.handleScratchCreated(ScratchCreatedMsg{
+		Err: errors.New("server error"),
+	})
+	updated := result.(*connectedApp)
+
+	if updated.pendingPrompt != "" {
+		t.Errorf("expected pendingPrompt cleared, got %q", updated.pendingPrompt)
+	}
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast")
+	}
+}
+
+func TestScratchClose_Discard_ClearsState(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses-scratch"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	ca := &connectedApp{
+		app:              app,
+		client:           client,
+		scratchSessionID: "ses-scratch",
+		scratchParentID:  "ses-parent",
+	}
+
+	result, cmd := ca.closeScratch(false)
+	updated := result.(*connectedApp)
+
+	if updated.scratchSessionID != "" {
+		t.Errorf("expected scratchSessionID cleared, got %q", updated.scratchSessionID)
+	}
+	if updated.scratchParentID != "" {
+		t.Errorf("expected scratchParentID cleared, got %q", updated.scratchParentID)
+	}
+	if updated.app.status.scratch {
+		t.Error("expected scratch indicator cleared")
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd for session switch + delete")
+	}
+}
+
+func TestScratchClose_Keep_ClearsStateWithoutDelete(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses-scratch"
+	ca := &connectedApp{
+		app:              app,
+		scratchSessionID: "ses-scratch",
+		scratchParentID:  "ses-parent",
+	}
+
+	result, cmd := ca.closeScratch(true)
+	updated := result.(*connectedApp)
+
+	if updated.scratchSessionID != "" {
+		t.Errorf("expected scratchSessionID cleared, got %q", updated.scratchSessionID)
+	}
+	if updated.scratchParentID != "" {
+		t.Errorf("expected scratchParentID cleared, got %q", updated.scratchParentID)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd for session switch back to parent")
+	}
+}
+
+func TestToggleScratch_OpensWhenNoScratch(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses-parent"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":       "ses-scratch",
+			"title":    "scratch",
+			"parentID": "ses-parent",
+			"time":     map[string]any{"created": 1000, "updated": 1000},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	ca := &connectedApp{
+		app:    app,
+		client: client,
+	}
+
+	_, cmd := ca.toggleScratch()
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd to create scratch session")
+	}
+}
+
+func TestToggleScratch_ClosesWhenScratchActive(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses-scratch"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	ca := &connectedApp{
+		app:              app,
+		client:           client,
+		scratchSessionID: "ses-scratch",
+		scratchParentID:  "ses-parent",
+	}
+
+	result, cmd := ca.toggleScratch()
+	updated := result.(*connectedApp)
+
+	if updated.scratchSessionID != "" {
+		t.Errorf("expected scratchSessionID cleared, got %q", updated.scratchSessionID)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd to close scratch and switch back")
+	}
+}
+
+func TestCreateScratchSession_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":       "ses-scratch",
+			"title":    "scratch",
+			"parentID": "ses-parent",
+			"time":     map[string]any{"created": 1000, "updated": 1000},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := createScratchSession(client, api.SessionCreateInput{
+		ParentID: "ses-parent",
+		Title:    "scratch",
+		Agent:    "build",
+	}, "ses-parent")
+	msg := cmd()
+
+	created, ok := msg.(ScratchCreatedMsg)
+	if !ok {
+		t.Fatalf("expected ScratchCreatedMsg, got %T", msg)
+	}
+	if created.Err != nil {
+		t.Fatalf("unexpected error: %v", created.Err)
+	}
+	if created.Session == nil {
+		t.Fatal("expected non-nil Session")
+	}
+	if created.Session.ID != "ses-scratch" {
+		t.Errorf("expected session ID 'ses-scratch', got %q", created.Session.ID)
+	}
+	if created.ParentID != "ses-parent" {
+		t.Errorf("expected parentID 'ses-parent', got %q", created.ParentID)
+	}
+}
+
+func TestCreateScratchSession_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "fail"})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := createScratchSession(client, api.SessionCreateInput{
+		ParentID: "ses-parent",
+		Title:    "scratch",
+	}, "ses-parent")
+	msg := cmd()
+
+	created, ok := msg.(ScratchCreatedMsg)
+	if !ok {
+		t.Fatalf("expected ScratchCreatedMsg, got %T", msg)
+	}
+	if created.Err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestDeleteScratchSession_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("expected DELETE, got %s", r.Method)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := deleteScratchSession(client, "ses-scratch")
+	msg := cmd()
+
+	closed, ok := msg.(ScratchClosedMsg)
+	if !ok {
+		t.Fatalf("expected ScratchClosedMsg, got %T", msg)
+	}
+	if closed.Err != nil {
+		t.Fatalf("unexpected error: %v", closed.Err)
+	}
+	if closed.Kept {
+		t.Error("expected Kept=false for discard")
+	}
+}
+
+func TestScratchCreated_WithPendingPrompt_SendsIt(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses-parent"
+	ca := &connectedApp{
+		app:           app,
+		pendingPrompt: "help me with this",
+	}
+
+	scratchSession := &SessionInfo{
+		ID:       "ses-scratch",
+		Title:    "scratch",
+		ParentID: "ses-parent",
+	}
+
+	result, cmd := ca.handleScratchCreated(ScratchCreatedMsg{
+		Session:  scratchSession,
+		ParentID: "ses-parent",
+	})
+	updated := result.(*connectedApp)
+
+	if updated.pendingPrompt != "" {
+		t.Errorf("expected pendingPrompt cleared after scratch created, got %q", updated.pendingPrompt)
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd including sendPrompt")
+	}
 }

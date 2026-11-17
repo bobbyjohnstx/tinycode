@@ -78,12 +78,20 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c.handleMarkdownStyleCommand(trimmed)
 	}
 
+	if strings.HasPrefix(trimmed, "/chdir ") {
+		return c.handleChdirCommand(trimmed)
+	}
+
 	if trimmed == "/branch" || strings.HasPrefix(trimmed, "/branch ") {
 		return c.handleBranchCommand(trimmed)
 	}
 
 	if trimmed == "/btw" || strings.HasPrefix(trimmed, "/btw ") {
 		return c.handleBtwCommand(trimmed)
+	}
+
+	if trimmed == "/scratch" || strings.HasPrefix(trimmed, "/scratch ") {
+		return c.handleScratchCommand(trimmed)
 	}
 
 	if trimmed == "/init" || strings.HasPrefix(trimmed, "/init ") {
@@ -288,6 +296,41 @@ func (c *connectedApp) handleSessionCreatedLocal(msg SessionCreatedLocalMsg) (te
 			c.pendingPrompt = ""
 			c.pendingAgent = ""
 		}
+	}
+	return c, tea.Batch(cmds...)
+}
+
+// handleScratchCreated processes a ScratchCreatedMsg: sets the scratch session ID,
+// switches to it, and sends any pending prompt.
+func (c *connectedApp) handleScratchCreated(msg ScratchCreatedMsg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	if msg.Err != nil {
+		c.pendingPrompt = ""
+		slog.Error("scratch session creation failed", "error", msg.Err)
+		model, cmd := c.app.Update(ToastMsg{Text: "Failed to open scratch: " + msg.Err.Error(), IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+	if msg.Session != nil {
+		c.scratchSessionID = msg.Session.ID
+		c.scratchParentID = msg.ParentID
+		c.app.status.SetScratch(true)
+
+		// Add to session list and switch to it.
+		c.app.state.Sessions = append([]SessionInfo{*msg.Session}, c.app.state.Sessions...)
+		c.app.sidebar.SetSessions(c.app.state.Sessions)
+		cmds = append(cmds, func() tea.Msg {
+			return SessionSwitchedMsg{SessionID: msg.Session.ID}
+		})
+
+		// Send pending prompt if /scratch had an initial prompt.
+		if c.pendingPrompt != "" {
+			pi := c.buildPromptInput(c.pendingPrompt)
+			cmds = append(cmds, sendPrompt(c.client, msg.Session.ID, pi))
+			c.pendingPrompt = ""
+		}
+
+		cmds = append(cmds, c.app.reflowChrome())
 	}
 	return c, tea.Batch(cmds...)
 }

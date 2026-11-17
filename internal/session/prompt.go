@@ -9,6 +9,16 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
 )
 
+// maxInstructionBytes caps the combined size of discovered instruction files
+// and AppendSystemPrompt text. When exceeded, outermost files are dropped first.
+const maxInstructionBytes = 32768
+
+// instructionBlock holds a discovered instruction file's display path and content.
+type instructionBlock struct {
+	Path    string
+	Content string
+}
+
 // SystemPromptInput contains all inputs needed to build the system prompt.
 type SystemPromptInput struct {
 	AgentPrompt        string
@@ -34,15 +44,10 @@ func BuildSystemPrompt(input SystemPromptInput) string {
 
 	if input.Directory != "" {
 		instrFiles := discoverInstructionFiles(input.Directory)
-		for _, path := range instrFiles {
-			content, err := os.ReadFile(path)
-			if err != nil {
-				continue
-			}
-			trimmed := strings.TrimSpace(string(content))
-			if trimmed != "" {
-				sections = append(sections, trimmed)
-			}
+		blocks := readInstructionBlocks(input.Directory, instrFiles)
+		instrSection := formatInstructionBlocks(blocks, len(input.AppendSystemPrompt))
+		if instrSection != "" {
+			sections = append(sections, instrSection)
 		}
 	}
 
@@ -95,23 +100,93 @@ func buildEnvironmentSection(input SystemPromptInput) string {
 	return "# Environment\n" + strings.Join(parts, "\n")
 }
 
+// readInstructionBlocks reads the given files and returns blocks with
+// display paths relative to dir when possible.
+func readInstructionBlocks(dir string, files []string) []instructionBlock {
+	var blocks []instructionBlock
+	for _, path := range files {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		trimmed := strings.TrimSpace(string(data))
+		if trimmed == "" {
+			continue
+		}
+		displayPath := path
+		if rel, err := filepath.Rel(dir, path); err == nil {
+			displayPath = rel
+		}
+		blocks = append(blocks, instructionBlock{
+			Path:    displayPath,
+			Content: trimmed,
+		})
+	}
+	return blocks
+}
+
+// formatInstructionBlocks assembles instruction blocks into a single prompt
+// section with [path] headers. Combined file text plus appendSize is capped
+// at maxInstructionBytes; outermost blocks are dropped first when over the cap.
+func formatInstructionBlocks(blocks []instructionBlock, appendSize int) string {
+	if len(blocks) == 0 {
+		return ""
+	}
+
+	total := appendSize
+	for _, b := range blocks {
+		total += len(b.Content)
+	}
+
+	omitted := 0
+	for total > maxInstructionBytes && len(blocks) > 1 {
+		total -= len(blocks[0].Content)
+		blocks = blocks[1:]
+		omitted++
+	}
+
+	var sb strings.Builder
+	if omitted > 0 {
+		fmt.Fprintf(&sb, "[%d instruction files omitted due to size limit]\n\n", omitted)
+	}
+	for i, b := range blocks {
+		fmt.Fprintf(&sb, "[%s]\n%s", b.Path, b.Content)
+		if i < len(blocks)-1 {
+			sb.WriteString("\n\n")
+		}
+	}
+
+	return sb.String()
+}
+
 // discoverInstructionFiles walks up from dir to the filesystem root, collecting
-// paths to CLAUDE.md, AGENTS.md, and .tinycode/CLAUDE.md files. Results are
-// returned outermost first so the innermost (closest to the project) file wins
-// when appended last.
+// paths to CLAUDE.md, AGENTS.md (or AGENTS.override.md), and .tinycode/CLAUDE.md
+// files. In each directory, AGENTS.override.md replaces AGENTS.md when present.
+// Results are returned outermost first so the innermost (closest to the project)
+// file wins when appended last.
 func discoverInstructionFiles(dir string) []string {
 	var files []string
 	current := dir
 	for {
-		for _, candidate := range []string{
-			filepath.Join(current, "CLAUDE.md"),
-			filepath.Join(current, "AGENTS.md"),
-			filepath.Join(current, ".tinycode", "CLAUDE.md"),
-		} {
-			if _, err := os.Stat(candidate); err == nil {
-				files = append(files, candidate)
-			}
+		// CLAUDE.md
+		claudePath := filepath.Join(current, "CLAUDE.md")
+		if _, err := os.Stat(claudePath); err == nil {
+			files = append(files, claudePath)
 		}
+		// AGENTS.override.md replaces AGENTS.md for this directory only
+		overridePath := filepath.Join(current, "AGENTS.override.md")
+		agentsPath := filepath.Join(current, "AGENTS.md")
+		if _, err := os.Stat(overridePath); err == nil {
+			files = append(files, overridePath)
+		} else if _, err := os.Stat(agentsPath); err == nil {
+			files = append(files, agentsPath)
+		}
+		// .tinycode/CLAUDE.md
+		tinycodePath := filepath.Join(current, ".tinycode", "CLAUDE.md")
+		if _, err := os.Stat(tinycodePath); err == nil {
+			files = append(files, tinycodePath)
+		}
+
 		parent := filepath.Dir(current)
 		if parent == current {
 			break
@@ -129,4 +204,34 @@ func discoverInstructionFiles(dir string) []string {
 // discoverInstructionFiles.
 func discoverClaudeMD(dir string) []string {
 	return discoverInstructionFiles(dir)
+}
+
+// FormatInstructionInfo returns a human-readable listing of discovered
+// instruction blocks with paths and byte sizes. Used by /instructions.
+func FormatInstructionInfo(dir string) string {
+	files := discoverInstructionFiles(dir)
+	blocks := readInstructionBlocks(dir, files)
+
+	var sb strings.Builder
+	total := 0
+	for _, b := range blocks {
+		total += len(b.Content)
+	}
+
+	fmt.Fprintf(&sb, "INSTRUCTION BLOCKS (%d files, %d bytes, cap %d bytes)\n\n", len(blocks), total, maxInstructionBytes)
+
+	if len(blocks) == 0 {
+		sb.WriteString("  (none found)\n")
+		return sb.String()
+	}
+
+	for i, b := range blocks {
+		fmt.Fprintf(&sb, "  %d. [%s]  %d bytes\n", i+1, b.Path, len(b.Content))
+	}
+
+	if total > maxInstructionBytes {
+		sb.WriteString("\n  Over cap: outermost files will be dropped at prompt assembly\n")
+	}
+
+	return sb.String()
 }

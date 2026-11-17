@@ -181,6 +181,8 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 			a.chat.toggleThought("")
 			a.chat.rebuildContent()
 			return a, nil
+		case 'S':
+			return a, func() tea.Msg { return ScratchToggleMsg{} }
 		}
 	}
 

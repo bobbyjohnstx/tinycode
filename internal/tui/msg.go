@@ -384,6 +384,22 @@ type BtwResponseMsg struct {
 	Err      error
 }
 
+// ScratchCreatedMsg carries the result of creating a scratch session.
+type ScratchCreatedMsg struct {
+	Session  *SessionInfo
+	ParentID string
+	Err      error
+}
+
+// ScratchClosedMsg carries the result of closing a scratch session (discard or keep).
+type ScratchClosedMsg struct {
+	Kept bool
+	Err  error
+}
+
+// ScratchToggleMsg is sent by the Shift+S key to toggle scratch on/off.
+type ScratchToggleMsg struct{}
+
 // RewindDoneMsg carries the result of a /rewind command.
 type RewindDoneMsg struct {
 	TurnIndex int

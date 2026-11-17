@@ -31,6 +31,7 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 |---------|-------------|----------------|
 | `/context` | Show a breakdown of what fills the context window — system prompt, conversation, tool results — with token estimates per category. | When the model seems to be forgetting things, or before deciding whether to compact. |
 | `/btw <question>` | Ask a side question without adding to the conversation history. The answer appears as a toast. `/btw` alone shows the last side answer. | Quick lookups mid-task: `/btw what type is this field?` without derailing the current conversation. |
+| `/scratch [prompt]` | Open a throwaway side conversation. Messages stay out of the parent transcript. `/scratch close` discards it, `/scratch keep` saves it. `S` key toggles when prompt is empty. | Multi-turn exploration without polluting the main session. |
 | `/changes` | Show a diff of only the files tinycode modified in this session (excludes pre-existing uncommitted changes). | Before committing — see exactly what tinycode changed, not your other uncommitted work. |
 | `/diff` | Show all uncommitted changes in the working directory (full git diff). | Quick look at everything that's changed, regardless of source. |
 | `/copy [N]` | Copy the last assistant response to clipboard. Pass N for the Nth-latest. Shows a code-block picker if the response contains fenced blocks. | Grabbing code or output to paste elsewhere. `/copy 2` for the second-to-last response. |
@@ -108,6 +109,7 @@ These are not slash commands — they are tools the model can invoke during a co
 | `Esc` | Interrupt the current turn (does **not** clear `[Q:n]` queued prompts — use `/clear-queue`) / dismiss dialog |
 | `PgUp` / `PgDn` | Scroll chat history |
 | `Alt+Enter` | Insert newline in prompt |
+| `S` | Toggle scratch thread on/off (when prompt is empty) |
 | `T` | Toggle thought/reasoning block expand/collapse (when prompt is empty) |
 | `V` | Toggle all tool output expand/collapse (when prompt is empty) |
 | `f` | Fork session at selected turn (in `/rewind` dialog) |

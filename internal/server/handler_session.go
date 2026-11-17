@@ -145,9 +145,10 @@ func (s *Server) handleSessionUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	var body struct {
-		Title string            `json:"title,omitempty"`
-		Agent string            `json:"agent,omitempty"`
-		Model *session.ModelRef `json:"model,omitempty"`
+		Title     string            `json:"title,omitempty"`
+		Agent     string            `json:"agent,omitempty"`
+		Model     *session.ModelRef `json:"model,omitempty"`
+		Directory string            `json:"directory,omitempty"`
 	}
 	if err := decodeJSON(w, r, &body); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -170,6 +171,12 @@ func (s *Server) handleSessionUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Model != nil {
 		if err := store.UpdateModel(id, body.Model); err != nil {
+			respondError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if body.Directory != "" {
+		if err := store.UpdateDirectory(id, body.Directory); err != nil {
 			respondError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

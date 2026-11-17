@@ -22,42 +22,63 @@ const (
 	maxMonitorTimeout     = 1800 * time.Second // 30 minutes
 	maxMonitors           = 5
 	ringBufferSize        = 100
+	maxBufferedBytes      = 1 << 20 // 1 MiB cap on buffered output
+	stdinWait             = 500 * time.Millisecond
 )
 
-// ringBuffer holds the last N lines.
+// ringBuffer holds the last N lines with a byte cap.
 type ringBuffer struct {
-	mu    sync.Mutex
-	lines []string
-	max   int
+	mu        sync.Mutex
+	lines     []string
+	max       int
+	bytes     int
+	maxBytes  int
+	truncated bool
 }
 
 func newRingBuffer(max int) *ringBuffer {
 	return &ringBuffer{
-		lines: make([]string, 0, max),
-		max:   max,
+		lines:    make([]string, 0, max),
+		max:      max,
+		maxBytes: maxBufferedBytes,
 	}
 }
 
 func (rb *ringBuffer) Add(line string) {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
+
+	// Drop oldest lines while over the byte cap or line cap.
+	for rb.bytes+len(line) > rb.maxBytes && len(rb.lines) > 0 {
+		rb.bytes -= len(rb.lines[0])
+		copy(rb.lines, rb.lines[1:])
+		rb.lines = rb.lines[:len(rb.lines)-1]
+		rb.truncated = true
+	}
 	if len(rb.lines) >= rb.max {
+		rb.bytes -= len(rb.lines[0])
 		copy(rb.lines, rb.lines[1:])
 		rb.lines = rb.lines[:rb.max-1]
+		rb.truncated = true
 	}
 	rb.lines = append(rb.lines, line)
+	rb.bytes += len(line)
 }
 
 // Drain returns all buffered lines joined by newline and clears the buffer.
-func (rb *ringBuffer) Drain() string {
+// If output was truncated due to the byte cap, the second return is true.
+func (rb *ringBuffer) Drain() (string, bool) {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 	if len(rb.lines) == 0 {
-		return ""
+		return "", rb.truncated
 	}
 	result := strings.Join(rb.lines, "\n")
+	trunc := rb.truncated
 	rb.lines = rb.lines[:0]
-	return result
+	rb.bytes = 0
+	rb.truncated = false
+	return result, trunc
 }
 
 // Len returns the current number of buffered lines.
@@ -69,10 +90,12 @@ func (rb *ringBuffer) Len() int {
 
 type monitorProcess struct {
 	id          string
+	command     string
 	description string
 	cmd         *exec.Cmd
 	cancel      context.CancelFunc
 	output      *ringBuffer
+	stdinPipe   io.WriteCloser
 	started     time.Time
 	deadline    time.Time
 	done        chan struct{}
@@ -121,6 +144,12 @@ func (mm *MonitorManager) Start(ctx context.Context, command, description, dir s
 	cmd.Dir = dir
 	cmd.Env = procenv.Child(nil)
 
+	stdinW, err := cmd.StdinPipe()
+	if err != nil {
+		cancel()
+		mm.mu.Unlock()
+		return "", fmt.Errorf("stdin pipe: %w", err)
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
@@ -137,10 +166,12 @@ func (mm *MonitorManager) Start(ctx context.Context, command, description, dir s
 	now := time.Now()
 	mon := &monitorProcess{
 		id:          monitorID,
+		command:     command,
 		description: description,
 		cmd:         cmd,
 		cancel:      cancel,
 		output:      newRingBuffer(ringBufferSize),
+		stdinPipe:   stdinW,
 		started:     now,
 		deadline:    now.Add(timeout),
 		done:        make(chan struct{}),
@@ -185,7 +216,7 @@ func (mm *MonitorManager) Start(ctx context.Context, command, description, dir s
 	return monitorID, nil
 }
 
-// Stop cancels a running monitor.
+// Stop cancels a running monitor and closes its stdin pipe.
 func (mm *MonitorManager) Stop(id string) error {
 	mm.mu.Lock()
 	mon, ok := mm.monitors[id]
@@ -195,6 +226,9 @@ func (mm *MonitorManager) Stop(id string) error {
 		return fmt.Errorf("monitor %s not found", id)
 	}
 
+	if mon.stdinPipe != nil {
+		_ = mon.stdinPipe.Close()
+	}
 	mon.cancel()
 	<-mon.done
 
@@ -203,6 +237,49 @@ func (mm *MonitorManager) Stop(id string) error {
 	mm.mu.Unlock()
 
 	return nil
+}
+
+// WriteStdin writes text to a running monitor's stdin and waits briefly for
+// new output. It returns the new output collected during the wait.
+func (mm *MonitorManager) WriteStdin(id, text string) (string, bool, error) {
+	mm.mu.Lock()
+	mon, ok := mm.monitors[id]
+	mm.mu.Unlock()
+
+	if !ok {
+		return "", false, fmt.Errorf("monitor %s not found", id)
+	}
+
+	// Check if the process has exited.
+	select {
+	case <-mon.done:
+		return "", false, fmt.Errorf("monitor %s has exited", id)
+	default:
+	}
+
+	if mon.stdinPipe == nil {
+		return "", false, fmt.Errorf("monitor %s has no stdin pipe", id)
+	}
+
+	// Drain any output accumulated before the write.
+	mon.output.Drain()
+
+	if _, err := io.WriteString(mon.stdinPipe, text); err != nil {
+		return "", false, fmt.Errorf("write to monitor %s stdin: %w", id, err)
+	}
+
+	// Wait briefly for output or process exit.
+	timer := time.NewTimer(stdinWait)
+	defer timer.Stop()
+
+	select {
+	case <-mon.done:
+		// Process exited — drain remaining output.
+	case <-timer.C:
+	}
+
+	output, truncated := mon.output.Drain()
+	return output, truncated, nil
 }
 
 // MonitorInfo describes a running monitor for listing.
@@ -240,6 +317,17 @@ func (mm *MonitorManager) List() []MonitorInfo {
 	return result
 }
 
+// Command returns the original shell command for a monitor, or "" if not found.
+func (mm *MonitorManager) Command(id string) string {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	mon, ok := mm.monitors[id]
+	if !ok {
+		return ""
+	}
+	return mon.command
+}
+
 // DrainAll returns buffered output from all monitors that have accumulated
 // output since the last drain. Returns empty string if nothing to report.
 func (mm *MonitorManager) DrainAll() string {
@@ -248,8 +336,8 @@ func (mm *MonitorManager) DrainAll() string {
 
 	var parts []string
 	for _, mon := range mm.monitors {
-		output := mon.output.Drain()
-		if output == "" {
+		output, truncated := mon.output.Drain()
+		if output == "" && !truncated {
 			continue
 		}
 		desc := mon.description
@@ -266,7 +354,11 @@ func (mm *MonitorManager) DrainAll() string {
 		if !running {
 			status = "exited"
 		}
-		parts = append(parts, fmt.Sprintf("[Monitor %s (%s) — %s]\n%s", mon.id, desc, status, output))
+		entry := fmt.Sprintf("[Monitor %s (%s) — %s]\n%s", mon.id, desc, status, output)
+		if truncated {
+			entry += "\n[output truncated — oldest lines dropped]"
+		}
+		parts = append(parts, entry)
 	}
 
 	// Clean up finished monitors after draining.
@@ -294,6 +386,9 @@ func (mm *MonitorManager) Shutdown() {
 	mm.mu.Unlock()
 
 	for _, mon := range monitors {
+		if mon.stdinPipe != nil {
+			_ = mon.stdinPipe.Close()
+		}
 		mon.cancel()
 		<-mon.done
 	}
@@ -309,13 +404,14 @@ type monitorArgs struct {
 	Description string `json:"description,omitempty"`
 	Action      string `json:"action,omitempty"`
 	MonitorID   string `json:"monitor_id,omitempty"`
+	Input       string `json:"input,omitempty"`
 }
 
 // MonitorTool returns the tool definition for the monitor tool.
 func MonitorTool() *Def {
 	return &Def{
 		ID:          "monitor",
-		Description: "Run a command in the background and watch its output. Output is buffered and delivered at the next turn boundary. Use action='list' to see running monitors or action='stop' with monitor_id to stop one.",
+		Description: "Run a command in the background and watch its output. Output is buffered and delivered at the next turn boundary. Use action='list' to see running monitors, action='stop' with monitor_id to stop one, or action='stdin' with monitor_id and input to write to a process's stdin (pipes only, not a full terminal).",
 		Permission:  "shell",
 		Parameters: map[string]any{
 			"type": "object",
@@ -334,12 +430,16 @@ func MonitorTool() *Def {
 				},
 				"action": map[string]any{
 					"type":        "string",
-					"description": "Action to perform: 'start' (default), 'stop', or 'list'",
-					"enum":        []string{"start", "stop", "list"},
+					"description": "Action to perform: 'start' (default), 'stop', 'list', or 'stdin'",
+					"enum":        []string{"start", "stop", "list", "stdin"},
 				},
 				"monitor_id": map[string]any{
 					"type":        "string",
-					"description": "Monitor ID for stop operations",
+					"description": "Monitor ID for stop or stdin operations",
+				},
+				"input": map[string]any{
+					"type":        "string",
+					"description": "Text to write to the process's stdin (required for action='stdin')",
 				},
 			},
 		},
@@ -439,6 +539,58 @@ func executeMonitor(ctx context.Context, tc *Context, rawArgs json.RawMessage) (
 		}
 
 		return &ExecuteResult{Output: fmt.Sprintf("Monitor started: %s (ID: %s)\nOutput will be delivered at the next turn boundary.", desc, monID)}, nil
+
+	case "stdin":
+		if args.MonitorID == "" {
+			return &ExecuteResult{Output: "monitor_id is required for stdin action", IsError: true}, nil
+		}
+		if args.Input == "" {
+			return &ExecuteResult{Output: "input is required for stdin action", IsError: true}, nil
+		}
+
+		// Permission checks against the original command.
+		origCmd := tc.MonitorManager.Command(args.MonitorID)
+		if origCmd == "" {
+			return &ExecuteResult{Output: fmt.Sprintf("monitor %s not found", args.MonitorID), IsError: true}, nil
+		}
+
+		if blocked := gateSecretAccess(ctx, tc, origCmd, ""); blocked != nil {
+			return blocked, nil
+		}
+		if IsDestructive(origCmd) {
+			if tc.Perms != nil {
+				askErr := tc.Perms.Ask(ctx, permission.AskInput{
+					SessionID:  tc.SessionID,
+					Permission: "destructive-shell",
+					Patterns:   []string{origCmd},
+					Metadata:   map[string]any{"command": origCmd},
+					Ruleset:    tc.Ruleset,
+					Tool:       askToolRef(tc),
+				})
+				if askErr != nil {
+					return &ExecuteResult{Output: askErr.Error(), IsError: true}, nil
+				}
+			} else {
+				return &ExecuteResult{
+					Output:  fmt.Sprintf("Potentially destructive command detected: %s\nUse with caution.", origCmd),
+					IsError: true,
+				}, nil
+			}
+		}
+
+		output, truncated, err := tc.MonitorManager.WriteStdin(args.MonitorID, args.Input)
+		if err != nil {
+			return &ExecuteResult{Output: fmt.Sprintf("stdin write failed: %v", err), IsError: true}, nil
+		}
+
+		result := output
+		if result == "" {
+			result = "(no new output)"
+		}
+		if truncated {
+			result += "\n[output truncated — oldest lines dropped]"
+		}
+		return &ExecuteResult{Output: result}, nil
 
 	default:
 		return &ExecuteResult{Output: fmt.Sprintf("Unknown action: %s", action), IsError: true}, nil

@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +22,7 @@ func TestRingBuffer_AddAndDrain(t *testing.T) {
 		t.Errorf("expected 3 lines, got %d", rb.Len())
 	}
 
-	result := rb.Drain()
+	result, _ := rb.Drain()
 	if result != "line1\nline2\nline3" {
 		t.Errorf("unexpected drain result: %q", result)
 	}
@@ -41,7 +42,7 @@ func TestRingBuffer_OverflowKeepsLastN(t *testing.T) {
 		t.Errorf("expected 3 lines, got %d", rb.Len())
 	}
 
-	result := rb.Drain()
+	result, _ := rb.Drain()
 	lines := strings.Split(result, "\n")
 	if len(lines) != 3 {
 		t.Errorf("expected 3 lines after drain, got %d", len(lines))
@@ -67,7 +68,7 @@ func TestRingBuffer_100Lines(t *testing.T) {
 
 func TestRingBuffer_DrainEmpty(t *testing.T) {
 	rb := newRingBuffer(5)
-	if result := rb.Drain(); result != "" {
+	if result, _ := rb.Drain(); result != "" {
 		t.Errorf("expected empty string from empty buffer, got %q", result)
 	}
 }
@@ -436,5 +437,174 @@ func TestMonitorTool_BlocksDestructiveWithoutPerms(t *testing.T) {
 	}
 	if !isErr {
 		t.Fatalf("expected error for destructive command without perms, got: %s", output)
+	}
+}
+
+func TestMonitorManager_WriteStdin(t *testing.T) {
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	// Start cat, which echoes stdin to stdout.
+	id, err := mm.Start(context.Background(), "cat", "stdin test", t.TempDir(), 5*time.Second)
+	if err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	output, truncated, err := mm.WriteStdin(id, "hello\n")
+	if err != nil {
+		t.Fatalf("write stdin failed: %v", err)
+	}
+	if !strings.Contains(output, "hello") {
+		t.Errorf("expected output to contain 'hello', got %q", output)
+	}
+	if truncated {
+		t.Error("unexpected truncation")
+	}
+}
+
+func TestMonitorManager_WriteStdin_MultipleWrites(t *testing.T) {
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	id, err := mm.Start(context.Background(), "cat", "multi stdin", t.TempDir(), 5*time.Second)
+	if err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	out1, _, err := mm.WriteStdin(id, "first\n")
+	if err != nil {
+		t.Fatalf("first write failed: %v", err)
+	}
+	if !strings.Contains(out1, "first") {
+		t.Errorf("expected 'first' in output, got %q", out1)
+	}
+
+	out2, _, err := mm.WriteStdin(id, "second\n")
+	if err != nil {
+		t.Fatalf("second write failed: %v", err)
+	}
+	if !strings.Contains(out2, "second") {
+		t.Errorf("expected 'second' in output, got %q", out2)
+	}
+}
+
+func TestMonitorManager_WriteStdin_StoppedProcess(t *testing.T) {
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	id, err := mm.Start(context.Background(), "echo done", "exit test", t.TempDir(), 5*time.Second)
+	if err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	// Wait for the process to exit.
+	time.Sleep(500 * time.Millisecond)
+
+	_, _, err = mm.WriteStdin(id, "text\n")
+	if err == nil {
+		t.Fatal("expected error writing to exited process")
+	}
+	if !strings.Contains(err.Error(), "exited") {
+		t.Errorf("expected 'exited' in error, got %v", err)
+	}
+}
+
+func TestMonitorManager_Command(t *testing.T) {
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	id, err := mm.Start(context.Background(), "sleep 2", "cmd test", t.TempDir(), 5*time.Second)
+	if err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	cmd := mm.Command(id)
+	if cmd != "sleep 2" {
+		t.Errorf("expected command 'sleep 2', got %q", cmd)
+	}
+
+	if got := mm.Command("nonexistent"); got != "" {
+		t.Errorf("expected empty command for nonexistent monitor, got %q", got)
+	}
+}
+
+func TestMonitorTool_StdinAction(t *testing.T) {
+	r := NewRegistry(&Context{
+		Directory: t.TempDir(),
+	})
+	RegisterBuiltins(r)
+
+	// Start cat.
+	startArgs := json.RawMessage(`{"command":"cat","description":"stdin tool test"}`)
+	startOut, isErr, err := r.Execute(context.Background(), "monitor", startArgs, "ses-stdin")
+	if err != nil {
+		t.Fatalf("execute error: %v", err)
+	}
+	if isErr {
+		t.Fatalf("start failed: %s", startOut)
+	}
+
+	monID := extractMonitorID(t, startOut)
+	if monID == "" {
+		t.Fatalf("could not extract monitor ID from: %q", startOut)
+	}
+
+	// Write stdin.
+	stdinArgs := json.RawMessage(fmt.Sprintf(`{"action":"stdin","monitor_id":%q,"input":"test_line\n"}`, monID))
+	output, isErr, err := r.Execute(context.Background(), "monitor", stdinArgs, "ses-stdin")
+	if err != nil {
+		t.Fatalf("execute error: %v", err)
+	}
+	if isErr {
+		t.Errorf("stdin action failed: %s", output)
+	}
+	if !strings.Contains(output, "test_line") {
+		t.Errorf("expected 'test_line' in output, got %q", output)
+	}
+}
+
+func TestMonitorTool_StdinAction_MissingFields(t *testing.T) {
+	r := NewRegistry(&Context{
+		Directory: t.TempDir(),
+	})
+	RegisterBuiltins(r)
+
+	// Missing monitor_id.
+	args := json.RawMessage(`{"action":"stdin","input":"text"}`)
+	output, isErr, _ := r.Execute(context.Background(), "monitor", args, "ses-stdin")
+	if !isErr {
+		t.Error("expected error for missing monitor_id")
+	}
+	if !strings.Contains(output, "monitor_id is required") {
+		t.Errorf("expected 'monitor_id is required', got %q", output)
+	}
+
+	// Missing input.
+	args = json.RawMessage(`{"action":"stdin","monitor_id":"mon_1"}`)
+	output, isErr, _ = r.Execute(context.Background(), "monitor", args, "ses-stdin")
+	if !isErr {
+		t.Error("expected error for missing input")
+	}
+	if !strings.Contains(output, "input is required") {
+		t.Errorf("expected 'input is required', got %q", output)
+	}
+}
+
+func TestRingBuffer_ByteCap(t *testing.T) {
+	rb := newRingBuffer(1000)
+	rb.maxBytes = 100 // small cap for testing
+
+	// Add lines until over cap.
+	for i := 0; i < 20; i++ {
+		rb.Add(strings.Repeat("x", 10))
+	}
+
+	result, truncated := rb.Drain()
+	if !truncated {
+		t.Error("expected truncation flag to be set")
+	}
+	// Total bytes should be <= 100.
+	if len(result) > 110 { // some slack for newline joins
+		t.Errorf("output too large after truncation: %d bytes", len(result))
 	}
 }

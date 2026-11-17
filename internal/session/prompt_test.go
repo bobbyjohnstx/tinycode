@@ -298,3 +298,297 @@ func TestBuildToolSection(t *testing.T) {
 		t.Errorf("expected no tool section without LSP tools, got %q", result)
 	}
 }
+
+// --- Issue #951: scoped instruction blocks ---
+
+func TestBuildSystemPrompt_LabeledBlocks(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte("root rules"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "CLAUDE.md"), []byte("sub rules"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: sub})
+
+	// Blocks should have relative path headers
+	if !strings.Contains(result, "[../CLAUDE.md]") {
+		t.Errorf("expected [../CLAUDE.md] header, got:\n%s", result)
+	}
+	if !strings.Contains(result, "[CLAUDE.md]") {
+		t.Errorf("expected [CLAUDE.md] header, got:\n%s", result)
+	}
+	// Content should follow headers
+	if !strings.Contains(result, "[../CLAUDE.md]\nroot rules") {
+		t.Errorf("expected root content after header, got:\n%s", result)
+	}
+	if !strings.Contains(result, "[CLAUDE.md]\nsub rules") {
+		t.Errorf("expected sub content after header, got:\n%s", result)
+	}
+	// Outermost first
+	rootIdx := strings.Index(result, "[../CLAUDE.md]")
+	subIdx := strings.Index(result, "[CLAUDE.md]\nsub")
+	if rootIdx >= subIdx {
+		t.Error("expected outermost block before innermost")
+	}
+}
+
+func TestDiscoverInstructionFiles_OverrideReplacesAgents(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("claude"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("agents original"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.override.md"), []byte("agents override"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files := discoverInstructionFiles(dir)
+
+	foundOverride := false
+	foundAgents := false
+	for _, f := range files {
+		if strings.HasSuffix(f, "AGENTS.override.md") {
+			foundOverride = true
+		}
+		if strings.HasSuffix(f, "AGENTS.md") && !strings.HasSuffix(f, "override.md") {
+			foundAgents = true
+		}
+	}
+	if !foundOverride {
+		t.Error("expected AGENTS.override.md in discovered files")
+	}
+	if foundAgents {
+		t.Error("AGENTS.md should be replaced by AGENTS.override.md")
+	}
+}
+
+func TestBuildSystemPrompt_OverrideContent(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("original agents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.override.md"), []byte("override agents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	if strings.Contains(result, "original agents") {
+		t.Error("AGENTS.md content should not appear when override exists")
+	}
+	if !strings.Contains(result, "override agents") {
+		t.Error("expected AGENTS.override.md content in prompt")
+	}
+}
+
+func TestBuildSystemPrompt_OverrideDoesNotAffectParent(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Parent has AGENTS.md (no override)
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("parent agents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Child has override
+	if err := os.WriteFile(filepath.Join(sub, "AGENTS.md"), []byte("child agents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "AGENTS.override.md"), []byte("child override"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: sub})
+
+	if !strings.Contains(result, "parent agents") {
+		t.Error("parent AGENTS.md should still appear")
+	}
+	if strings.Contains(result, "child agents") {
+		t.Error("child AGENTS.md should be replaced by override")
+	}
+	if !strings.Contains(result, "child override") {
+		t.Error("expected child AGENTS.override.md content")
+	}
+}
+
+func TestBuildSystemPrompt_CapDropsOutermost(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Outer file: large enough that outer + inner > cap
+	outerContent := strings.Repeat("x", maxInstructionBytes)
+	innerContent := "inner rules"
+	if err := os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte(outerContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "CLAUDE.md"), []byte(innerContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: sub})
+
+	if strings.Contains(result, outerContent) {
+		t.Error("outer file should be dropped when over cap")
+	}
+	if !strings.Contains(result, innerContent) {
+		t.Error("inner file should be kept")
+	}
+	if !strings.Contains(result, "1 instruction files omitted due to size limit") {
+		t.Error("expected omission note")
+	}
+}
+
+func TestBuildSystemPrompt_CapCountsAppendSystemPrompt(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Outer file is small, but outer + inner + append > cap
+	outerContent := strings.Repeat("o", 20000)
+	innerContent := strings.Repeat("i", 10000)
+	appendText := strings.Repeat("a", 10000)
+	if err := os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte(outerContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "CLAUDE.md"), []byte(innerContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{
+		Directory:          sub,
+		AppendSystemPrompt: appendText,
+	})
+
+	// outer (20k) + inner (10k) + append (10k) = 40k > 32k
+	// Drop outer: inner (10k) + append (10k) = 20k < 32k
+	if strings.Contains(result, outerContent) {
+		t.Error("outer file should be dropped when total (with append) exceeds cap")
+	}
+	if !strings.Contains(result, innerContent) {
+		t.Error("inner file should be kept")
+	}
+	if !strings.Contains(result, appendText) {
+		t.Error("AppendSystemPrompt should still be present")
+	}
+}
+
+func TestBuildSystemPrompt_UnreadableFileSkipped(t *testing.T) {
+	dir := t.TempDir()
+	unreadable := filepath.Join(dir, "CLAUDE.md")
+	if err := os.WriteFile(unreadable, []byte("secret"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(unreadable, 0000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(unreadable, 0644) })
+
+	// Should not panic or include unreadable content
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	if strings.Contains(result, "secret") {
+		t.Error("unreadable file content should not appear")
+	}
+}
+
+func TestDiscoverClaudeMD_ReturnsOverrideFiles(t *testing.T) {
+	dir := t.TempDir()
+	tinycodeDir := filepath.Join(dir, ".tinycode")
+	if err := os.MkdirAll(tinycodeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("claude"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.override.md"), []byte("override"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tinycodeDir, "CLAUDE.md"), []byte("tinycode"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files := discoverClaudeMD(dir)
+
+	foundClaude := false
+	foundOverride := false
+	foundTinycode := false
+	for _, f := range files {
+		switch {
+		case strings.HasSuffix(f, filepath.Join(dir, "CLAUDE.md")):
+			foundClaude = true
+		case strings.HasSuffix(f, "AGENTS.override.md"):
+			foundOverride = true
+		case strings.HasSuffix(f, filepath.Join(".tinycode", "CLAUDE.md")):
+			foundTinycode = true
+		}
+	}
+	if !foundClaude {
+		t.Errorf("expected CLAUDE.md in results: %v", files)
+	}
+	if !foundOverride {
+		t.Errorf("expected AGENTS.override.md in results: %v", files)
+	}
+	if !foundTinycode {
+		t.Errorf("expected .tinycode/CLAUDE.md in results: %v", files)
+	}
+}
+
+func TestBuildSystemPrompt_LargeFileNotTruncated(t *testing.T) {
+	dir := t.TempDir()
+	// Single file larger than cap — should be kept whole, not split
+	largeContent := strings.Repeat("L", maxInstructionBytes+5000)
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(largeContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	if !strings.Contains(result, largeContent) {
+		t.Error("single file larger than cap should be kept whole, not truncated")
+	}
+	if strings.Contains(result, "omitted due to size limit") {
+		t.Error("should not omit the only file even if over cap")
+	}
+}
+
+func TestFormatInstructionInfo(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("project rules"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("agent config"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	info := FormatInstructionInfo(dir)
+
+	if !strings.Contains(info, "INSTRUCTION BLOCKS") {
+		t.Error("expected header")
+	}
+	if !strings.Contains(info, "2 files") {
+		t.Errorf("expected 2 files in header, got:\n%s", info)
+	}
+	if !strings.Contains(info, "CLAUDE.md") {
+		t.Error("expected CLAUDE.md path in listing")
+	}
+	if !strings.Contains(info, "AGENTS.md") {
+		t.Error("expected AGENTS.md path in listing")
+	}
+	if !strings.Contains(info, "bytes") {
+		t.Error("expected byte sizes in listing")
+	}
+}
