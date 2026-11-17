@@ -253,24 +253,11 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 	}
 
 	// Mutation check: best-effort heuristic for file-writing commands.
-	// Records destination paths on the result metadata for rewind tracking.
+	// Records destination paths on the result metadata for rewind tracking (#971).
+	// No separate permission ask — the registry-level shell permission already covers it.
 	var mutationPaths []string
 	if isMut, mPaths := ClassifyMutation(args.Command); isMut {
 		mutationPaths = mPaths
-		if tc.Perms != nil {
-			meta := map[string]any{"command": args.Command, "mutation_paths": mPaths}
-			_, askErr := tc.Perms.Ask(ctx, permission.AskInput{
-				SessionID:  tc.SessionID,
-				Permission: "shell",
-				Patterns:   []string{args.Command},
-				Metadata:   meta,
-				Ruleset:    tc.Ruleset,
-				Tool:       askToolRef(tc),
-			})
-			if askErr != nil {
-				return &ExecuteResult{Output: askErr.Error(), IsError: true}, nil
-			}
-		}
 	}
 
 	// Background mode: delegate to MonitorManager immediately.

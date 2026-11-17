@@ -996,6 +996,12 @@ func resolveAtFileRefs(parts []server.PromptPart, cwd string) []server.PromptPar
 			if !filepath.IsAbs(absPath) {
 				absPath = filepath.Join(cwd, ref)
 			}
+			absPath = filepath.Clean(absPath)
+			// Restrict to files inside the working directory to prevent traversal.
+			if !strings.HasPrefix(absPath, cwd+string(filepath.Separator)) && absPath != cwd {
+				slog.Debug("@file outside cwd, skipped", "path", ref, "cwd", cwd)
+				continue
+			}
 			content, err := readFileForPrompt(absPath)
 			if err != nil {
 				slog.Debug("@file read failed", "path", ref, "error", err)

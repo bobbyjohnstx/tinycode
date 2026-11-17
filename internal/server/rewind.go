@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/bobbyjohnstx/tinycode/internal/session"
@@ -17,11 +18,19 @@ var readOnlyPrefixes = []string{
 	"type", "echo", "printf", "true", "false", "test", "[",
 	"pwd", "whoami", "hostname", "uname", "date", "env", "printenv",
 	"id", "uptime", "ps", "top", "htop", "free", "df", "du",
-	"man", "help", "info",
+	"man", "help", "info", "tree", "less", "more",
+	"sha256sum", "md5sum", "sha1sum", "base64", "xxd", "hexdump",
+	"curl", "wget", "dig", "nslookup", "ping", "traceroute",
+	"jq", "yq",
 	"git status", "git log", "git diff", "git show", "git branch",
 	"git remote", "git tag", "git rev-parse", "git describe",
 	"git ls-files", "git ls-tree", "git cat-file", "git blame",
+	"git stash list", "git reflog",
 	"go doc", "go version", "go env", "go list",
+	"go test", "go vet",
+	"kubectl get", "kubectl describe", "kubectl logs",
+	"oc get", "oc describe", "oc logs",
+	"docker ps", "docker images", "docker logs", "docker inspect",
 }
 
 // redirectRe matches output redirects (> or >>) that turn a read-only
@@ -102,6 +111,7 @@ func extractUnrestoredPaths(messages []session.Message) []string {
 	for p := range seen {
 		result = append(result, p)
 	}
+	sort.Strings(result)
 	if hasUnknown {
 		result = append(result, "unknown shell changes")
 	}

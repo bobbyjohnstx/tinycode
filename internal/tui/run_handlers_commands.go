@@ -765,6 +765,112 @@ func (c *connectedApp) handleGoalEval(msg GoalEvalMsg) (tea.Model, tea.Cmd) {
 	return c, tea.Batch(cmds...)
 }
 
+// handleGoalJudge processes the result of an LLM-as-judge goal evaluation.
+func (c *connectedApp) handleGoalJudge(msg GoalJudgeMsg) (tea.Model, tea.Cmd) {
+	if c.goal == nil || msg.Generation != c.goal.generation {
+		return c, nil
+	}
+
+	var cmds []tea.Cmd
+
+	switch msg.Verdict {
+	case "done":
+		// Goal met: stop and show success.
+		text := c.goal.state.Text
+		iterations := c.goal.state.Iteration
+		c.goal = nil
+		fadeCmd := c.app.status.SetGoalComplete(text, iterations)
+		cmds = append(cmds, c.app.reflowChrome())
+		if fadeCmd != nil {
+			cmds = append(cmds, fadeCmd)
+		}
+		toastText := fmt.Sprintf("Goal met: %s (after %d iterations)", text, iterations)
+		toastCmd := c.app.toast.Show(toastText, false)
+		if toastCmd != nil {
+			cmds = append(cmds, toastCmd)
+		}
+		safego.Go(func() {
+			_, _ = plugin.SendNotification(context.Background(), "Goal met", toastText, "normal")
+		})
+		return c, tea.Batch(cmds...)
+
+	case "blocked", "paused":
+		// Cannot proceed: clear goal and show reason.
+		reason := msg.Reason
+		if reason == "" {
+			reason = msg.Verdict
+		}
+		text := fmt.Sprintf("Goal %s: %s — %s", msg.Verdict, c.goal.state.Text, reason)
+		c.goal = nil
+		c.app.status.SetGoal("")
+		cmds = append(cmds, c.app.reflowChrome())
+		toastCmd := c.app.toast.Show(text, true)
+		if toastCmd != nil {
+			cmds = append(cmds, toastCmd)
+		}
+		return c, tea.Batch(cmds...)
+	}
+
+	// Verdict is "continue" (or any unrecognized value treated as continue).
+
+	// Max iterations check.
+	if c.goal.state.Iteration >= c.goal.state.MaxIterations {
+		text := fmt.Sprintf("Goal not met after %d iterations: %s", c.goal.state.MaxIterations, c.goal.state.Text)
+		c.goal = nil
+		c.app.status.SetGoal("")
+		cmds = append(cmds, c.app.reflowChrome())
+		toastCmd := c.app.toast.Show(text, true)
+		if toastCmd != nil {
+			cmds = append(cmds, toastCmd)
+		}
+		return c, tea.Batch(cmds...)
+	}
+
+	// Stuck detection: same next_step N times in a row.
+	if c.goal.isNextStepStuck(msg.NextStep) {
+		text := fmt.Sprintf("Goal appears stuck: %s (same next step %d times)", c.goal.state.Text, goalStuckThreshold)
+		c.goal = nil
+		c.app.status.SetGoal("")
+		cmds = append(cmds, c.app.reflowChrome())
+		toastCmd := c.app.toast.Show(text, true)
+		if toastCmd != nil {
+			cmds = append(cmds, toastCmd)
+		}
+		return c, tea.Batch(cmds...)
+	}
+
+	// Continue: inject next_step as follow-up prompt.
+	sessionID := c.app.state.ActiveSession
+	if sessionID == "" {
+		c.goal = nil
+		c.app.status.SetGoal("")
+		return c, c.app.reflowChrome()
+	}
+
+	c.app.status.SetGoalState(c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations)
+	cmds = append(cmds, c.app.reflowChrome())
+
+	nextStep := msg.NextStep
+	if nextStep == "" {
+		nextStep = "Continue working on the objective."
+	}
+
+	followUp := fmt.Sprintf("The goal '%s' is not met yet (iteration %d/%d).\nJudge feedback: %s\nNext step: %s",
+		c.goal.state.Text, c.goal.state.Iteration, c.goal.state.MaxIterations,
+		msg.Reason, nextStep)
+
+	pi := c.buildPromptInput(followUp)
+	cmds = append(cmds, sendPrompt(c.client, sessionID, pi))
+
+	spinCmd := c.app.status.SetWorking(true)
+	cmds = append(cmds, c.app.reflowChrome())
+	if spinCmd != nil {
+		cmds = append(cmds, spinCmd)
+	}
+
+	return c, tea.Batch(cmds...)
+}
+
 // handleScratchCommand processes /scratch, /scratch close, /scratch keep, and /scratch <prompt>.
 func (c *connectedApp) handleScratchCommand(trimmed string) (tea.Model, tea.Cmd) {
 	arg := strings.TrimSpace(strings.TrimPrefix(trimmed, "/scratch"))
