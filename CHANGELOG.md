@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-11-17
+
+### Fixes
+- Hook trust store constructed and attached in all entry points — shell hook trust checks now actually run (#975)
+- Structured questions: `parseAskedQuestion` returns all questions with headers, options, and descriptions — not just the first (#976)
+- Warning list populated from error toasts — `/warnings` no longer always empty (#977)
+- Image dedup cache cleared on compaction — images can be re-attached after compaction drops them (#978)
+- `/worktree` runs async, checks dirty tree, creates child session and switches to it (#979)
+- Monitor stdin preserves pre-write accumulated output instead of discarding it (#980)
+
+### Test
+- Fixed 3 pre-existing test failures: doom threshold for read-only tools, MaxTokens defaults to DefaultStreamTokens
+- Zero known test failures across the Go test suite
+
 ## [2.9.0] - 2026-11-17
 
 ### Features
