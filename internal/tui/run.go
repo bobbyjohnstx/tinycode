@@ -28,6 +28,7 @@ type RunConfig struct {
 	ScopedModels    []string
 	CycleAgents     []string
 	ShellHooks      map[string][]config.HookConfig
+	HookTrustStore  *plugin.HookTrustStore
 	InitialTitle    string
 	SafeMode        bool
 	ResumeSessionID string
@@ -42,6 +43,8 @@ func Run(ctx context.Context, cfg RunConfig) error {
 		app.app.chat.SetMarkdownStyle(cfg.MarkdownStyle)
 	}
 	app.app.state.ShellHooks = cfg.ShellHooks
+	app.app.state.HookTrustStore = cfg.HookTrustStore
+	app.app.state.ProjectDir = cfg.Directory
 	app.app.state.CycleAgents = cfg.CycleAgents
 	app.initialTitle = cfg.InitialTitle
 	app.resumeSessionID = cfg.ResumeSessionID
@@ -263,6 +266,12 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ScratchToggleMsg:
 		return c.toggleScratch()
+
+	case WorktreeRequestMsg:
+		return c.handleWorktreeRequest()
+
+	case WorktreeCreatedMsg:
+		return c.handleWorktreeCreated(msg)
 
 	case ShellResultMsg:
 		return c.handleShellResult(msg)

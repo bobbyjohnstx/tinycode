@@ -190,12 +190,7 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		if a.state.ActiveSession == "" {
 			return a.toast.Show("No active session", true), true
 		}
-		dir := a.status.Cwd()
-		result, err := session.CreateWorktree(dir, false)
-		if err != nil {
-			return a.toast.Show("Worktree: "+err.Error(), true), true
-		}
-		return a.toast.Show(fmt.Sprintf("Worktree created at %s (branch %s)", result.WorktreePath, result.BranchName), false), true
+		return func() tea.Msg { return WorktreeRequestMsg{} }, true
 	}
 	return nil, false
 }

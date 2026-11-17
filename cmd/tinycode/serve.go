@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
@@ -60,7 +61,9 @@ func runServe() {
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, toolReg, cfg, dir)
+	hookTrustStore := plugin.NewHookTrustStore(config.DataDir())
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	shellRunner.WithTrust(hookTrustStore, dir)
 	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 	wirePermissionAskHook(permSvc, pluginMgr)
@@ -148,7 +151,9 @@ func runWeb() {
 	pluginMgr := plugin.NewManager(slog.Default())
 	defer pluginMgr.Shutdown()
 	loadConfigPlugins(pluginMgr, toolReg, cfg, dir)
+	hookTrustStoreWeb := plugin.NewHookTrustStore(config.DataDir())
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	shellRunner.WithTrust(hookTrustStoreWeb, dir)
 	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 	wirePermissionAskHook(permSvc, pluginMgr)

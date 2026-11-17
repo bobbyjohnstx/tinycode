@@ -400,6 +400,15 @@ type ScratchClosedMsg struct {
 // ScratchToggleMsg is sent by the Shift+S key to toggle scratch on/off.
 type ScratchToggleMsg struct{}
 
+// WorktreeRequestMsg is sent by /worktree to trigger async worktree creation.
+type WorktreeRequestMsg struct{}
+
+// WorktreeCreatedMsg carries the result of creating a git worktree and its child session.
+type WorktreeCreatedMsg struct {
+	Session *SessionInfo
+	Err     error
+}
+
 // RewindDoneMsg carries the result of a /rewind command.
 type RewindDoneMsg struct {
 	TurnIndex int

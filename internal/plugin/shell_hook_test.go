@@ -318,6 +318,70 @@ func TestRunAfterSync_CapturesContext(t *testing.T) {
 	}
 }
 
+func TestWithTrust_AttachesStoreAndProjectDir(t *testing.T) {
+	store := NewHookTrustStore(t.TempDir())
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Command: "echo hi"}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+	got := r.WithTrust(store, "/tmp/project")
+	if got != r {
+		t.Fatal("WithTrust should return the same runner")
+	}
+	if r.trustStore != store {
+		t.Error("expected trustStore to be set")
+	}
+	if r.projectDir != "/tmp/project" {
+		t.Errorf("expected projectDir /tmp/project, got %q", r.projectDir)
+	}
+}
+
+func TestWithTrust_NilRunnerReturnsNil(t *testing.T) {
+	store := NewHookTrustStore(t.TempDir())
+	var r *ShellHookRunner
+	got := r.WithTrust(store, "/tmp/project")
+	if got != nil {
+		t.Fatal("WithTrust on nil runner should return nil")
+	}
+}
+
+func TestWithTrust_UntrustedHookSkipped(t *testing.T) {
+	store := NewHookTrustStore(t.TempDir())
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Command: "echo hi"}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+	r.WithTrust(store, "/tmp/project")
+
+	// Hook is untrusted by default, so RunBefore should skip it (no output, no error).
+	ctx, err := r.RunBefore("session.start", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ctx) != 0 {
+		t.Errorf("expected no context from skipped hook, got %v", ctx)
+	}
+}
+
+func TestWithTrust_TrustedHookRuns(t *testing.T) {
+	store := NewHookTrustStore(t.TempDir())
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Command: "echo ok"}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+	r.WithTrust(store, "/tmp/project")
+
+	// Trust the hook.
+	if err := store.Trust("echo ok", "session.start", "/tmp/project"); err != nil {
+		t.Fatalf("Trust failed: %v", err)
+	}
+
+	_, err := r.RunBefore("session.start", nil)
+	if err != nil {
+		t.Fatalf("unexpected error for trusted hook: %v", err)
+	}
+}
+
 func TestRunAfterSync_NonZeroExit_NoAbort(t *testing.T) {
 	hooks := map[string][]config.HookConfig{
 		"session.start": {{Command: `echo '{"hookSpecificOutput":{"additionalContext":["ctx despite error"]}}'; exit 1`}},

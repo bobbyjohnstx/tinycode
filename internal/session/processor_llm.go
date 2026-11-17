@@ -639,6 +639,12 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	p.compactionCount = 0
 	p.mu.Unlock()
 
+	// Clear the image dedup cache so images dropped during compaction can
+	// be re-attached when the model references them again.
+	if clearer, ok := p.tools.(ImageCacheClearer); ok {
+		clearer.ClearImageCache()
+	}
+
 	p.bus.Publish("session.compacted", map[string]any{
 		"sessionID":     p.config.SessionID,
 		"compactionNum": compNum,

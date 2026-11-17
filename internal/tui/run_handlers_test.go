@@ -1709,3 +1709,84 @@ func TestScratchCreated_WithPendingPrompt_SendsIt(t *testing.T) {
 		t.Fatal("expected non-nil cmd including sendPrompt")
 	}
 }
+
+// --- /worktree command tests ---
+
+func TestWorktreeRequest_NoSession_ReturnsError(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	// No active session.
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleWorktreeRequest()
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast for no active session")
+	}
+}
+
+func TestWorktreeRequest_ReturnsAsyncCmd(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses-parent"
+	app.status.SetCwd(t.TempDir())
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":    "ses-wt",
+			"title": "worktree",
+			"time":  map[string]any{"created": 1000, "updated": 1000},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, app.status.Cwd(), "")
+	ca := &connectedApp{
+		app:    app,
+		client: client,
+	}
+
+	_, cmd := ca.handleWorktreeRequest()
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd from handleWorktreeRequest")
+	}
+}
+
+func TestWorktreeCreated_SwitchesSession(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	app.state.ActiveSession = "ses-parent"
+	ca := &connectedApp{app: app}
+
+	wtSession := &SessionInfo{
+		ID:    "ses-wt",
+		Title: "worktree: tinycode/abc",
+	}
+
+	result, cmd := ca.handleWorktreeCreated(WorktreeCreatedMsg{
+		Session: wtSession,
+	})
+	updated := result.(*connectedApp)
+
+	// Session should be prepended to the list.
+	if len(updated.app.state.Sessions) == 0 || updated.app.state.Sessions[0].ID != "ses-wt" {
+		t.Error("expected worktree session added to sessions list")
+	}
+
+	// Should emit a cmd (batch including SessionSwitchedMsg + reflowChrome).
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd for session switch")
+	}
+}
+
+func TestWorktreeCreated_Error_ShowsToast(t *testing.T) {
+	app := NewApp("http://localhost:4096")
+	ca := &connectedApp{app: app}
+
+	result, _ := ca.handleWorktreeCreated(WorktreeCreatedMsg{
+		Err: errors.New("dirty tree"),
+	})
+	updated := result.(*connectedApp)
+
+	if !updated.app.toast.IsVisible() {
+		t.Error("expected error toast for worktree failure")
+	}
+}

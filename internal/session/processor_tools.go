@@ -32,6 +32,14 @@ type AgentSwitcher interface {
 	TakePendingAgentSwitch() (string, bool)
 }
 
+// ImageCacheClearer is an optional interface implemented by ToolExecutors
+// that maintain an image dedup cache. After compaction drops image parts
+// from the message window, the cache must be cleared so the model can
+// re-attach images it references. Checked via type assertion after compact.
+type ImageCacheClearer interface {
+	ClearImageCache()
+}
+
 // applyPendingAgentSwitch checks for an approved plan_enter/plan_exit tool
 // call and updates the processor's active agent bookkeeping. Returns the new
 // agent name, or "" if no switch was pending. The new agent's permissions and

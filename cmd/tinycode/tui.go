@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/mcp"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
@@ -72,7 +73,9 @@ func runTUI(args []string) {
 	if !flags.safeMode {
 		loadConfigPlugins(pluginMgr, toolReg, cfg, dir)
 	}
+	hookTrustStore := plugin.NewHookTrustStore(config.DataDir())
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	shellRunner.WithTrust(hookTrustStore, dir)
 	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 	wirePermissionAskHook(permSvc, pluginMgr)
@@ -131,6 +134,7 @@ func runTUI(args []string) {
 		ScopedModels:    cfg.ScopedModels,
 		CycleAgents:     cfg.CycleAgents,
 		ShellHooks:      cfg.Hooks,
+		HookTrustStore:  hookTrustStore,
 		InitialTitle:    flags.title,
 		SafeMode:        flags.safeMode,
 		ResumeSessionID: resumeSessionID,

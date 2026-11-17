@@ -261,11 +261,11 @@ func (mm *MonitorManager) WriteStdin(id, text string) (string, bool, error) {
 		return "", false, fmt.Errorf("monitor %s has no stdin pipe", id)
 	}
 
-	// Drain any output accumulated before the write.
-	mon.output.Drain()
+	// Drain any output accumulated before the write so it is not lost.
+	preOutput, preTruncated := mon.output.Drain()
 
 	if _, err := io.WriteString(mon.stdinPipe, text); err != nil {
-		return "", false, fmt.Errorf("write to monitor %s stdin: %w", id, err)
+		return preOutput, preTruncated, fmt.Errorf("write to monitor %s stdin: %w", id, err)
 	}
 
 	// Wait briefly for output or process exit.
@@ -278,8 +278,12 @@ func (mm *MonitorManager) WriteStdin(id, text string) (string, bool, error) {
 	case <-timer.C:
 	}
 
-	output, truncated := mon.output.Drain()
-	return output, truncated, nil
+	postOutput, postTruncated := mon.output.Drain()
+
+	// Combine pre-write and post-write output.
+	combined := preOutput + postOutput
+	truncated := preTruncated || postTruncated
+	return combined, truncated, nil
 }
 
 // MonitorInfo describes a running monitor for listing.

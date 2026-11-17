@@ -503,8 +503,10 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 
 	case AuthStoredMsg:
 		if msg.Err != nil {
+			text := fmt.Sprintf("OpenRouter auth failed: %v", msg.Err)
+			c.app.warnings.Add("auth", text)
 			model, cmd := c.app.Update(ToastMsg{
-				Text:    fmt.Sprintf("OpenRouter auth failed: %v", msg.Err),
+				Text:    text,
 				IsError: true,
 			})
 			c.updateApp(model)

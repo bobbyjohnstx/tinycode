@@ -63,6 +63,14 @@ func (s *SafeReadFiles) Has(path string) bool {
 	return s.files[path]
 }
 
+// Clear removes all entries from the set. Used to reset the image dedup
+// cache after compaction drops image parts from the message window.
+func (s *SafeReadFiles) Clear() {
+	s.mu.Lock()
+	s.files = make(map[string]bool)
+	s.mu.Unlock()
+}
+
 // SafeNotepad is a mutex-protected key-value store for session scratch notes.
 // Safe for concurrent access across Context copies.
 type SafeNotepad struct {
@@ -686,6 +694,14 @@ func (r *Registry) Snapshot() *Registry {
 		ctx:            r.ctx,
 		activated:      r.activated,
 		deferralActive: r.deferralActive,
+	}
+}
+
+// ClearImageCache resets the image dedup set so images dropped during
+// compaction can be re-attached in subsequent turns.
+func (r *Registry) ClearImageCache() {
+	if r.ctx != nil && r.ctx.ReadImages != nil {
+		r.ctx.ReadImages.Clear()
 	}
 }
 

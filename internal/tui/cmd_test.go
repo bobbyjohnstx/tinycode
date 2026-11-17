@@ -819,6 +819,96 @@ func TestMapSSEToMsg_QuestionAsked(t *testing.T) {
 	}
 }
 
+func TestMapSSEToMsg_QuestionAsked_MultipleQuestions(t *testing.T) {
+	evt := api.ServerEvent{
+		Type: "question.asked",
+		Properties: map[string]any{
+			"id":        "q_multi",
+			"sessionID": "ses_q",
+			"questions": []any{
+				map[string]any{
+					"id":       "scope",
+					"header":   "Scope",
+					"question": "How much to refactor?",
+					"options": []any{
+						map[string]any{"label": "Minimal", "description": "Only the bug"},
+						map[string]any{"label": "Moderate", "description": "Bug plus neighbors"},
+					},
+				},
+				map[string]any{
+					"id":       "tests",
+					"header":   "Tests",
+					"question": "Add new tests?",
+					"options": []any{
+						map[string]any{"label": "Yes"},
+						map[string]any{"label": "No"},
+					},
+				},
+				map[string]any{
+					"id":       "style",
+					"question": "Which style guide?",
+					"options": []any{
+						map[string]any{"label": "Standard", "description": "Go conventions"},
+						map[string]any{"label": "Project", "description": "Local rules"},
+					},
+				},
+			},
+		},
+	}
+
+	msg := mapSSEToMsg(evt)
+	asked, ok := msg.(QuestionAskedMsg)
+	if !ok {
+		t.Fatalf("expected QuestionAskedMsg, got %T", msg)
+	}
+	if asked.ID != "q_multi" {
+		t.Errorf("ID = %q, want %q", asked.ID, "q_multi")
+	}
+
+	// Multi-question mode uses free-text (nil options).
+	if asked.Options != nil {
+		t.Errorf("Options should be nil for multi-question, got %v", asked.Options)
+	}
+
+	// All three questions must appear in the concatenated text.
+	if !strings.Contains(asked.Question, "How much to refactor?") {
+		t.Errorf("missing question 1 text in %q", asked.Question)
+	}
+	if !strings.Contains(asked.Question, "Add new tests?") {
+		t.Errorf("missing question 2 text in %q", asked.Question)
+	}
+	if !strings.Contains(asked.Question, "Which style guide?") {
+		t.Errorf("missing question 3 text in %q", asked.Question)
+	}
+
+	// Headers should be rendered for questions that have them.
+	if !strings.Contains(asked.Question, "[Scope]") {
+		t.Errorf("missing header [Scope] in %q", asked.Question)
+	}
+	if !strings.Contains(asked.Question, "[Tests]") {
+		t.Errorf("missing header [Tests] in %q", asked.Question)
+	}
+
+	// Option labels and descriptions must appear.
+	if !strings.Contains(asked.Question, "Minimal") {
+		t.Errorf("missing option label 'Minimal' in %q", asked.Question)
+	}
+	if !strings.Contains(asked.Question, "Only the bug") {
+		t.Errorf("missing option description in %q", asked.Question)
+	}
+	if !strings.Contains(asked.Question, "Standard") {
+		t.Errorf("missing option label 'Standard' in %q", asked.Question)
+	}
+	if !strings.Contains(asked.Question, "Go conventions") {
+		t.Errorf("missing option description 'Go conventions' in %q", asked.Question)
+	}
+
+	// Question 3 has no header — should still have numbering.
+	if !strings.Contains(asked.Question, "3. Which style guide?") {
+		t.Errorf("question 3 should have plain numbering without header, got %q", asked.Question)
+	}
+}
+
 func TestMapSSEToMsg_MessagePartDelta(t *testing.T) {
 	evt := api.ServerEvent{
 		Type: "message.part.delta",

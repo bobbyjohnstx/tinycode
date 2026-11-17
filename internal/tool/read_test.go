@@ -259,6 +259,70 @@ func TestExecuteRead_ImageNilReadImages(t *testing.T) {
 	}
 }
 
+func TestExecuteRead_ImageClearAfterCompaction(t *testing.T) {
+	dir := t.TempDir()
+	imgPath := filepath.Join(dir, "test.png")
+	if err := os.WriteFile(imgPath, []byte("fake-png-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:  dir,
+		ReadFiles:  NewSafeReadFiles(),
+		ReadImages: NewSafeReadFiles(),
+	}
+	raw, _ := json.Marshal(readArgs{FilePath: imgPath})
+
+	// First read returns base64 data.
+	result1, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result1.IsError {
+		t.Fatalf("unexpected error: %v / %s", err, result1.Output)
+	}
+	if !strings.HasPrefix(result1.Output, "data:image/png;base64,") {
+		t.Fatalf("expected data URI, got %q", result1.Output)
+	}
+
+	// Second read returns "already attached".
+	result2, err := executeRead(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result2.Output != "Image already attached" {
+		t.Errorf("expected duplicate before clear, got %q", result2.Output)
+	}
+
+	// Simulate compaction clearing the image cache.
+	tc.ReadImages.Clear()
+
+	// Third read after clear should return base64 data again.
+	result3, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result3.IsError {
+		t.Fatalf("unexpected error after clear: %v / %s", err, result3.Output)
+	}
+	if !strings.HasPrefix(result3.Output, "data:image/png;base64,") {
+		t.Fatalf("expected data URI after clear, got %q", result3.Output)
+	}
+}
+
+func TestSafeReadFiles_ClearResetsAllEntries(t *testing.T) {
+	s := NewSafeReadFiles()
+	s.Mark("/img/a.png")
+	s.Mark("/img/b.jpg")
+
+	if !s.Has("/img/a.png") || !s.Has("/img/b.jpg") {
+		t.Fatal("expected both entries to be present before clear")
+	}
+
+	s.Clear()
+
+	if s.Has("/img/a.png") {
+		t.Error("expected /img/a.png to be absent after clear")
+	}
+	if s.Has("/img/b.jpg") {
+		t.Error("expected /img/b.jpg to be absent after clear")
+	}
+}
+
 func makeBinaryData(size int, binaryRatio float64) []byte {
 	data := make([]byte, size)
 	binaryCount := int(float64(size) * binaryRatio)

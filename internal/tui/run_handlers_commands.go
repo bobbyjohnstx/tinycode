@@ -171,9 +171,12 @@ func (c *connectedApp) handleMarkdownStyleCommand(trimmed string) (tea.Model, te
 	return c, cmd
 }
 
-// showErrorToast sends a ToastMsg to the app and returns any resulting cmds.
+// showErrorToast sends a ToastMsg to the app and records the message in the
+// persistent warning list so /warnings can display it later.
 func (c *connectedApp) showErrorToast(format string, args ...any) []tea.Cmd {
-	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf(format, args...), IsError: true})
+	text := fmt.Sprintf(format, args...)
+	c.app.warnings.Add("error", text)
+	model, cmd := c.app.Update(ToastMsg{Text: text, IsError: true})
 	c.updateApp(model)
 	if cmd != nil {
 		return []tea.Cmd{cmd}
@@ -825,4 +828,80 @@ func deleteScratchSession(client *api.Client, sessionID string) tea.Cmd {
 		err := client.DeleteSession(sessionID)
 		return ScratchClosedMsg{Kept: false, Err: err}
 	}
+}
+
+// handleWorktreeRequest creates a git worktree asynchronously and then creates
+// a child session in the new worktree directory.
+func (c *connectedApp) handleWorktreeRequest() (tea.Model, tea.Cmd) {
+	parentID := c.app.state.ActiveSession
+	if parentID == "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "No active session for worktree", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	dir := c.app.status.Cwd()
+	agent := c.app.state.CurrentAgent
+
+	var modelRef *session.ModelRef
+	if c.app.state.CurrentModel.ModelID != "" {
+		modelRef = &session.ModelRef{
+			ProviderID: c.app.state.CurrentModel.ProviderID,
+			ModelID:    c.app.state.CurrentModel.ModelID,
+		}
+	}
+
+	cmd := c.app.toast.Show("Creating worktree...", false)
+	return c, tea.Batch(cmd, createWorktreeSession(c.client, dir, parentID, agent, modelRef))
+}
+
+// createWorktreeSession runs worktree creation and session creation in a tea.Cmd.
+func createWorktreeSession(client *api.Client, dir, parentID, agent string, modelRef *session.ModelRef) tea.Cmd {
+	return func() tea.Msg {
+		result, err := session.CreateWorktree(dir, true)
+		if err != nil {
+			return WorktreeCreatedMsg{Err: err}
+		}
+
+		input := api.SessionCreateInput{
+			ParentID: parentID,
+			Title:    "worktree: " + result.BranchName,
+			Agent:    agent,
+			Model:    modelRef,
+		}
+		info, err := client.CreateSession(input)
+		if err != nil {
+			return WorktreeCreatedMsg{Err: fmt.Errorf("session: %w", err)}
+		}
+
+		// Update the session's directory to the worktree path.
+		if err := client.UpdateSessionDirectory(info.ID, result.WorktreePath); err != nil {
+			slog.Error("failed to set worktree session directory", "error", err)
+		}
+
+		si := sessionInfoFromAPI(*info)
+		return WorktreeCreatedMsg{Session: &si}
+	}
+}
+
+// handleWorktreeCreated processes a WorktreeCreatedMsg: adds the session to the
+// list and switches to it.
+func (c *connectedApp) handleWorktreeCreated(msg WorktreeCreatedMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		slog.Error("worktree creation failed", "error", msg.Err)
+		model, cmd := c.app.Update(ToastMsg{Text: "Worktree: " + msg.Err.Error(), IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	var cmds []tea.Cmd
+	if msg.Session != nil {
+		c.app.state.Sessions = append([]SessionInfo{*msg.Session}, c.app.state.Sessions...)
+		c.app.sidebar.SetSessions(c.app.state.Sessions)
+		cmds = append(cmds, func() tea.Msg {
+			return SessionSwitchedMsg{SessionID: msg.Session.ID}
+		})
+		cmds = append(cmds, c.app.reflowChrome())
+	}
+	return c, tea.Batch(cmds...)
 }

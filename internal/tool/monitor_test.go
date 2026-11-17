@@ -488,6 +488,34 @@ func TestMonitorManager_WriteStdin_MultipleWrites(t *testing.T) {
 	}
 }
 
+func TestMonitorManager_WriteStdin_PreservesPreWriteOutput(t *testing.T) {
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	// Use a shell that emits initial output, then echoes stdin.
+	id, err := mm.Start(context.Background(), "sh -c 'echo preexisting; cat'", "pre-write test", t.TempDir(), 5*time.Second)
+	if err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	// Wait for initial output to accumulate.
+	time.Sleep(300 * time.Millisecond)
+
+	output, _, err := mm.WriteStdin(id, "new_input\n")
+	if err != nil {
+		t.Fatalf("write stdin failed: %v", err)
+	}
+
+	// Pre-write output ("preexisting") must not be discarded.
+	if !strings.Contains(output, "preexisting") {
+		t.Errorf("expected pre-write output 'preexisting' in result, got %q", output)
+	}
+	// Post-write output ("new_input" echoed by cat) should also be present.
+	if !strings.Contains(output, "new_input") {
+		t.Errorf("expected post-write output 'new_input' in result, got %q", output)
+	}
+}
+
 func TestMonitorManager_WriteStdin_StoppedProcess(t *testing.T) {
 	mm := NewMonitorManager()
 	defer mm.Shutdown()

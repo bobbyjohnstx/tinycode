@@ -77,6 +77,39 @@ func TestHandleClientCommand_WarningsOpensDialog(t *testing.T) {
 	}
 }
 
+func TestShowErrorToast_PopulatesWarnings(t *testing.T) {
+	app := NewApp("")
+	ca := &connectedApp{app: app}
+
+	ca.showErrorToast("Compact failed: %v", "timeout")
+
+	if ca.app.warnings.Len() != 1 {
+		t.Fatalf("expected 1 warning, got %d", ca.app.warnings.Len())
+	}
+	all := ca.app.warnings.All()
+	if all[0].Source != "error" {
+		t.Errorf("expected source 'error', got %q", all[0].Source)
+	}
+	if all[0].Text != "Compact failed: timeout" {
+		t.Errorf("expected warning text 'Compact failed: timeout', got %q", all[0].Text)
+	}
+}
+
+func TestShowErrorToast_WarningsRendersNonEmpty(t *testing.T) {
+	app := NewApp("")
+	ca := &connectedApp{app: app}
+
+	ca.showErrorToast("Connection lost")
+
+	rendered := ca.app.warnings.Render()
+	if rendered == "No warnings." {
+		t.Fatal("expected non-empty warnings render after error toast")
+	}
+	if !strings.Contains(rendered, "Connection lost") {
+		t.Errorf("expected render to contain 'Connection lost', got %q", rendered)
+	}
+}
+
 func TestHandleClientCommand_WarningsClearRemovesAll(t *testing.T) {
 	app := NewApp("")
 	app.warnings.Add("test", "one")

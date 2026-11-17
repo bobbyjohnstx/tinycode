@@ -749,18 +749,75 @@ func intFromAny(v any) (int, bool) {
 }
 
 // parseAskedQuestion reads the SDK question.asked payload:
-// { questions: [{ question, options: [{ label }] }] }.
+// { questions: [{ id, header, question, options: [{ label, description }] }] }.
+// When a single question is present, returns its text and option labels for
+// the existing option-selector UI. When multiple questions are present,
+// concatenates them into one numbered display string with headers, option
+// labels and descriptions, and returns nil options so the prompt uses
+// free-text input mode.
 func parseAskedQuestion(props map[string]any) (string, []string) {
 	raw, ok := props["questions"].([]any)
 	if !ok || len(raw) == 0 {
 		return stringProp(props, "question"), nil
 	}
-	first, ok := raw[0].(map[string]any)
-	if !ok {
-		return stringProp(props, "question"), nil
+
+	// Single question: preserve the existing option-selector behavior.
+	if len(raw) == 1 {
+		return parseSingleQuestion(raw[0])
 	}
-	question, _ := first["question"].(string)
-	optRaw, ok := first["options"].([]any)
+
+	// Multiple questions: build a combined display string.
+	var text string
+	for i, item := range raw {
+		q, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		question, _ := q["question"].(string)
+		header, _ := q["header"].(string)
+
+		if i > 0 {
+			text += "\n"
+		}
+		if header != "" {
+			text += fmt.Sprintf("%d. [%s] %s\n", i+1, header, question)
+		} else {
+			text += fmt.Sprintf("%d. %s\n", i+1, question)
+		}
+
+		optRaw, ok := q["options"].([]any)
+		if !ok {
+			continue
+		}
+		for _, o := range optRaw {
+			om, ok := o.(map[string]any)
+			if !ok {
+				continue
+			}
+			label, _ := om["label"].(string)
+			desc, _ := om["description"].(string)
+			if label == "" {
+				continue
+			}
+			if desc != "" {
+				text += fmt.Sprintf("   - %s: %s\n", label, desc)
+			} else {
+				text += fmt.Sprintf("   - %s\n", label)
+			}
+		}
+	}
+	return text, nil
+}
+
+// parseSingleQuestion extracts question text and option labels from a single
+// question item (map or fallback).
+func parseSingleQuestion(item any) (string, []string) {
+	q, ok := item.(map[string]any)
+	if !ok {
+		return "", nil
+	}
+	question, _ := q["question"].(string)
+	optRaw, ok := q["options"].([]any)
 	if !ok {
 		return question, nil
 	}

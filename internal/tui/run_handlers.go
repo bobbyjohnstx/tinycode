@@ -307,6 +307,7 @@ func (c *connectedApp) handleScratchCreated(msg ScratchCreatedMsg) (tea.Model, t
 	if msg.Err != nil {
 		c.pendingPrompt = ""
 		slog.Error("scratch session creation failed", "error", msg.Err)
+		c.app.warnings.Add("scratch", "Failed to open scratch: "+msg.Err.Error())
 		model, cmd := c.app.Update(ToastMsg{Text: "Failed to open scratch: " + msg.Err.Error(), IsError: true})
 		c.updateApp(model)
 		return c, cmd

@@ -150,7 +150,9 @@ func runRun() {
 	if !*safeModeFlag {
 		loadConfigPlugins(pluginMgr, toolReg, cfg, dir)
 	}
+	hookTrustStore := plugin.NewHookTrustStore(config.DataDir())
 	shellRunner := plugin.NewShellHookRunner(cfg.Hooks, slog.Default())
+	shellRunner.WithTrust(hookTrustStore, dir)
 	wireToolBeforeHook(toolCtx, pluginMgr, shellRunner)
 	wireToolAfterHook(toolCtx, pluginMgr, builtinMgr, shellRunner)
 	wirePermissionAskHook(permSvc, pluginMgr)
