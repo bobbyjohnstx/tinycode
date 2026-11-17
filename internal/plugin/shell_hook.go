@@ -16,6 +16,8 @@ import (
 
 const maxAdditionalContextLen = 10000
 
+const maxContinueOutputLen = 4096
+
 const defaultShellHookTimeout = 10 * time.Second
 
 // ShellHookRunner executes shell commands configured as hooks in settings.json.
@@ -68,6 +70,10 @@ func (r *ShellHookRunner) shouldRun(command, eventName string) bool {
 // RunBefore executes shell hooks for a "before" event synchronously.
 // Returns collected additionalContext strings and an error if any hook exits
 // non-zero (abort signal). Non-JSON stdout is treated as no context (backward compat).
+//
+// When a hook has Continue set and exits non-zero, the tool call is still
+// skipped but the error includes the hook's stdout (truncated to 4 KiB)
+// so the model can adapt.
 func (r *ShellHookRunner) RunBefore(eventName string, vars map[string]string) ([]string, error) {
 	if r == nil {
 		return nil, nil
@@ -82,27 +88,46 @@ func (r *ShellHookRunner) RunBefore(eventName string, vars map[string]string) ([
 		if !matchesFilter(h.Match, vars) {
 			continue
 		}
-		if !r.shouldRun(h.Command, eventName) {
+		id := hookIdentifier(h)
+		if !r.shouldRun(id, eventName) {
 			continue
 		}
-		cmd := substituteVars(h.Command, vars)
-		timeout := shellHookTimeout(h.Timeout)
 
+		timeout := shellHookTimeout(h.Timeout)
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		out, err := execShellCommand(ctx, cmd)
+		out, err := execHook(ctx, h, vars)
 		cancel()
 
+		displayName := hookDisplayName(h)
+
 		if err != nil {
+			if h.Continue {
+				reason := out
+				if len(reason) > maxContinueOutputLen {
+					reason = reason[:maxContinueOutputLen] + "... [truncated]"
+				}
+				msg := reason
+				if msg != "" {
+					msg += "\n"
+				}
+				msg += fmt.Sprintf("[hook blocked: %s]", displayName)
+				r.logger.Info("shell hook blocked (continue)",
+					"event", eventName,
+					"command", displayName,
+					"output", out,
+				)
+				return nil, fmt.Errorf("%s", msg)
+			}
 			r.logger.Warn("shell hook aborted",
 				"event", eventName,
-				"command", cmd,
+				"command", displayName,
 				"output", out,
 				"error", err,
 			)
-			return nil, fmt.Errorf("shell hook %q aborted: %w", cmd, err)
+			return nil, fmt.Errorf("shell hook %q aborted: %w", displayName, err)
 		}
 		if out != "" {
-			r.logger.Debug("shell hook output", "event", eventName, "command", cmd, "output", out)
+			r.logger.Debug("shell hook output", "event", eventName, "command", displayName, "output", out)
 			if ctx := parseAdditionalContext([]byte(out)); len(ctx) > 0 {
 				collected = append(collected, ctx...)
 			}
@@ -126,10 +151,11 @@ func (r *ShellHookRunner) RunAfter(eventName string, vars map[string]string) {
 		if !matchesFilter(h.Match, vars) {
 			continue
 		}
-		if !r.shouldRun(h.Command, eventName) {
+		id := hookIdentifier(h)
+		if !r.shouldRun(id, eventName) {
 			continue
 		}
-		cmd := substituteVars(h.Command, vars)
+		hook := h
 		timeout := shellHookTimeout(h.Timeout)
 		logger := r.logger
 
@@ -137,16 +163,17 @@ func (r *ShellHookRunner) RunAfter(eventName string, vars map[string]string) {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 
-			out, err := execShellCommand(ctx, cmd)
+			displayName := hookDisplayName(hook)
+			out, err := execHook(ctx, hook, vars)
 			if err != nil {
 				logger.Warn("shell hook failed",
 					"event", eventName,
-					"command", cmd,
+					"command", displayName,
 					"output", out,
 					"error", err,
 				)
 			} else if out != "" {
-				logger.Debug("shell hook output", "event", eventName, "command", cmd, "output", out)
+				logger.Debug("shell hook output", "event", eventName, "command", displayName, "output", out)
 			}
 		})
 	}
@@ -170,26 +197,27 @@ func (r *ShellHookRunner) RunAfterSync(eventName string, vars map[string]string)
 		if !matchesFilter(h.Match, vars) {
 			continue
 		}
-		if !r.shouldRun(h.Command, eventName) {
+		id := hookIdentifier(h)
+		if !r.shouldRun(id, eventName) {
 			continue
 		}
-		cmd := substituteVars(h.Command, vars)
-		timeout := shellHookTimeout(h.Timeout)
 
+		timeout := shellHookTimeout(h.Timeout)
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		out, err := execShellCommand(ctx, cmd)
+		out, err := execHook(ctx, h, vars)
 		cancel()
 
+		displayName := hookDisplayName(h)
 		if err != nil {
 			r.logger.Warn("shell hook failed",
 				"event", eventName,
-				"command", cmd,
+				"command", displayName,
 				"output", out,
 				"error", err,
 			)
 		}
 		if out != "" {
-			r.logger.Debug("shell hook output", "event", eventName, "command", cmd, "output", out)
+			r.logger.Debug("shell hook output", "event", eventName, "command", displayName, "output", out)
 			if ctx := parseAdditionalContext([]byte(out)); len(ctx) > 0 {
 				collected = append(collected, ctx...)
 			}
@@ -271,6 +299,32 @@ func shellHookTimeout(seconds int) time.Duration {
 	return defaultShellHookTimeout
 }
 
+// hookIdentifier returns a stable string key for a hook, used for trust
+// hashing. Command hooks return the command string; args hooks return the
+// arguments joined with null bytes (unambiguous separator).
+func hookIdentifier(h config.HookConfig) string {
+	if h.Command != "" {
+		return h.Command
+	}
+	return strings.Join(h.Args, "\x00")
+}
+
+// hookDisplayName returns a human-readable label for log messages.
+func hookDisplayName(h config.HookConfig) string {
+	if h.Command != "" {
+		return h.Command
+	}
+	return strings.Join(h.Args, " ")
+}
+
+// execHook runs a hook using either the shell (Command) or direct exec (Args).
+func execHook(ctx context.Context, h config.HookConfig, vars map[string]string) (string, error) {
+	if h.Command != "" {
+		return execShellCommand(ctx, substituteVars(h.Command, vars))
+	}
+	return execArgsCommand(ctx, substituteVarsArgs(h.Args, vars))
+}
+
 // execShellCommand runs a command via sh -c and returns combined output.
 func execShellCommand(ctx context.Context, command string) (string, error) {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
@@ -278,4 +332,29 @@ func execShellCommand(ctx context.Context, command string) (string, error) {
 	cmd.WaitDelay = 500 * time.Millisecond
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
+}
+
+// execArgsCommand runs a command directly via exec (no shell) and returns
+// combined output. This preserves arguments with spaces, quotes, and other
+// shell metacharacters.
+func execArgsCommand(ctx context.Context, args []string) (string, error) {
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd.Env = procenv.Child(nil)
+	cmd.WaitDelay = 500 * time.Millisecond
+	out, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(out)), err
+}
+
+// substituteVarsArgs replaces $VAR placeholders in each argument string.
+// Unlike substituteVars, values are NOT shell-quoted because args are passed
+// directly to exec without a shell.
+func substituteVarsArgs(args []string, vars map[string]string) []string {
+	result := make([]string, len(args))
+	for i, arg := range args {
+		result[i] = arg
+		for k, v := range vars {
+			result[i] = strings.ReplaceAll(result[i], "$"+k, v)
+		}
+	}
+	return result
 }

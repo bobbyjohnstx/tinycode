@@ -479,6 +479,7 @@ func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Reg
 	}
 	systemPrompt = session.BuildSystemPrompt(session.SystemPromptInput{
 		AgentPrompt:        agentPrompt,
+		AgentName:          agentName,
 		Instructions:       instructions,
 		Directory:          dir,
 		ToolDefs:           tools.ToolDefs(agentPerms),

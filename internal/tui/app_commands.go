@@ -210,7 +210,7 @@ func (a *App) dispatchLeaderAction(action string) tea.Cmd {
 		a.state.PendingModelDialog = true
 		return func() tea.Msg { return ProvidersRefreshMsg{} }
 	case LeaderActionSessionList:
-		a.dialog.Show(a.state.Sessions)
+		a.dialog.Show(a.state.Sessions, a.state.SessionsHasMore)
 		return nil
 	case LeaderActionNewSession:
 		return func() tea.Msg {

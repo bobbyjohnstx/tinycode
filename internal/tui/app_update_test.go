@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -423,6 +424,65 @@ func TestHandleStateMsg_SessionsLoadedMsg_ErrorLeavesSessionsEmpty(t *testing.T)
 	}
 	if len(result.state.Sessions) != 0 {
 		t.Errorf("expected 0 Sessions on error, got %d", len(result.state.Sessions))
+	}
+}
+
+func TestHandleStateMsg_SessionsLoadedMsg_SetsHasMore(t *testing.T) {
+	app := NewApp("")
+
+	// A full page (sessionPageSize items) means more may exist.
+	sessions := make([]SessionInfo, sessionPageSize)
+	for i := range sessions {
+		sessions[i] = SessionInfo{ID: fmt.Sprintf("s%d", i)}
+	}
+
+	result, _, handled := app.handleStateMsg(SessionsLoadedMsg{Sessions: sessions})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if !result.state.SessionsHasMore {
+		t.Error("expected SessionsHasMore=true for full page")
+	}
+}
+
+func TestHandleStateMsg_SessionsLoadedMsg_AppendOnOffset(t *testing.T) {
+	app := NewApp("")
+	app.state.Sessions = []SessionInfo{
+		{ID: "s1", Title: "First"},
+	}
+
+	result, _, handled := app.handleStateMsg(SessionsLoadedMsg{
+		Sessions: []SessionInfo{{ID: "s2", Title: "Second"}},
+		Offset:   1,
+	})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if len(result.state.Sessions) != 2 {
+		t.Fatalf("expected 2 sessions after append, got %d", len(result.state.Sessions))
+	}
+	if result.state.Sessions[1].ID != "s2" {
+		t.Errorf("expected appended session ID 's2', got %q", result.state.Sessions[1].ID)
+	}
+}
+
+func TestHandleStateMsg_SessionsLoadedMsg_EmptyPageClearsHasMore(t *testing.T) {
+	app := NewApp("")
+	app.state.Sessions = []SessionInfo{{ID: "s1"}}
+	app.state.SessionsHasMore = true
+
+	result, _, handled := app.handleStateMsg(SessionsLoadedMsg{
+		Sessions: []SessionInfo{},
+		Offset:   1,
+	})
+	if !handled {
+		t.Fatal("expected handled")
+	}
+	if result.state.SessionsHasMore {
+		t.Error("expected SessionsHasMore=false after empty page")
+	}
+	if len(result.state.Sessions) != 1 {
+		t.Errorf("expected 1 session (unchanged), got %d", len(result.state.Sessions))
 	}
 }
 
@@ -1499,7 +1559,7 @@ func TestHandleKeyMsg_SessionDialogVisible_EscDismissesWithoutAbort(t *testing.T
 	app.state.ActiveSession = "sess-1"
 	app.state.SessionStatus["sess-1"] = SessionStatus{Working: true}
 	app.dialog.SetSize(100, 30)
-	app.dialog.Show([]SessionInfo{{ID: "sess-1", Title: "Working"}})
+	app.dialog.Show([]SessionInfo{{ID: "sess-1", Title: "Working"}}, false)
 	app.setFocus(FocusDialog)
 
 	result, cmd := app.handleKeyMsg(tea.KeyMsg{Type: tea.KeyEsc})

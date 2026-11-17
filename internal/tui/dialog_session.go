@@ -11,11 +11,14 @@ import (
 
 // SessionDialog displays a selectable list of sessions.
 type SessionDialog struct {
-	sessions []SessionInfo
-	selected int
-	width    int
-	height   int
-	visible  bool
+	sessions  []SessionInfo
+	selected  int
+	scrollTop int
+	width     int
+	height    int
+	visible   bool
+	hasMore   bool
+	loading   bool
 }
 
 // NewSessionDialog creates a SessionDialog.
@@ -24,10 +27,20 @@ func NewSessionDialog() SessionDialog {
 }
 
 // Show makes the dialog visible and resets selection.
-func (d *SessionDialog) Show(sessions []SessionInfo) {
+func (d *SessionDialog) Show(sessions []SessionInfo, hasMore bool) {
 	d.sessions = sessions
 	d.selected = 0
+	d.scrollTop = 0
 	d.visible = true
+	d.hasMore = hasMore
+	d.loading = false
+}
+
+// AppendSessions adds paginated sessions and updates the has-more flag.
+func (d *SessionDialog) AppendSessions(sessions []SessionInfo, hasMore bool) {
+	d.sessions = append(d.sessions, sessions...)
+	d.hasMore = hasMore
+	d.loading = false
 }
 
 // Hide closes the dialog.
@@ -71,6 +84,11 @@ func (d SessionDialog) Update(msg tea.Msg) (SessionDialog, tea.Cmd) {
 	case "down", "j":
 		if d.selected < itemCount-1 {
 			d.selected++
+		} else if d.hasMore && !d.loading {
+			// At the bottom with more sessions available — request next page.
+			d.loading = true
+			d.adjustScroll()
+			return d, func() tea.Msg { return SessionsLoadMoreMsg{} }
 		}
 	case "enter":
 		if d.selected == 0 {
@@ -90,6 +108,7 @@ func (d SessionDialog) Update(msg tea.Msg) (SessionDialog, tea.Cmd) {
 		d.visible = false
 	}
 
+	d.adjustScroll()
 	return d, nil
 }
 
@@ -123,11 +142,17 @@ func (d SessionDialog) View() string {
 		maxVisible = 3
 	}
 
-	for i, sess := range d.sessions {
-		if i >= maxVisible {
-			sb.WriteString(fmt.Sprintf("  ... %d more", len(d.sessions)-maxVisible))
-			break
-		}
+	end := d.scrollTop + maxVisible
+	if end > len(d.sessions) {
+		end = len(d.sessions)
+	}
+
+	if d.scrollTop > 0 {
+		sb.WriteString(fmt.Sprintf("  ... %d above\n", d.scrollTop))
+	}
+
+	for i := d.scrollTop; i < end; i++ {
+		sess := d.sessions[i]
 
 		sb.WriteString("\n")
 
@@ -143,6 +168,14 @@ func (d SessionDialog) View() string {
 		}
 	}
 
+	remaining := len(d.sessions) - end
+	if remaining > 0 {
+		sb.WriteString(fmt.Sprintf("\n  ... %d more", remaining))
+	}
+	if d.loading {
+		sb.WriteString("\n  Loading...")
+	}
+
 	content := sb.String()
 
 	return lipgloss.Place(
@@ -150,6 +183,26 @@ func (d SessionDialog) View() string {
 		lipgloss.Center, lipgloss.Center,
 		styleDialogBorder.Width(dialogWidth).Render(content),
 	)
+}
+
+// adjustScroll keeps the selected item within the visible window.
+func (d *SessionDialog) adjustScroll() {
+	maxVisible := d.height - 6
+	if maxVisible < 3 {
+		maxVisible = 3
+	}
+	// selected 0 = "New Session", 1..N = sessions[0..N-1]
+	sessionIdx := d.selected - 1
+	if sessionIdx < 0 {
+		d.scrollTop = 0
+		return
+	}
+	if sessionIdx < d.scrollTop {
+		d.scrollTop = sessionIdx
+	}
+	if sessionIdx >= d.scrollTop+maxVisible {
+		d.scrollTop = sessionIdx - maxVisible + 1
+	}
 }
 
 // truncate shortens a string to maxLen, adding ellipsis if needed.

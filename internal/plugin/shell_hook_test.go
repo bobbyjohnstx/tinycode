@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -397,6 +398,166 @@ func TestWithTrust_TrustedHookRuns(t *testing.T) {
 	_, err := r.RunBefore("session.start", nil)
 	if err != nil {
 		t.Fatalf("unexpected error for trusted hook: %v", err)
+	}
+}
+
+func TestRunBefore_ArgsExecution(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Args: []string{"echo", "hello world"}}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	_, err := r.RunBefore("session.start", nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestRunBefore_ArgsWithSpaceInPath(t *testing.T) {
+	// A path with spaces should arrive as one argument (no shell splitting).
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.before": {{Args: []string{"echo", "path with spaces/file.txt"}}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	_, err := r.RunBefore("tool.execute.before", map[string]string{"TOOL": "bash"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestRunBefore_ArgsNonZeroExit_Aborts(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.before": {{Args: []string{"sh", "-c", "exit 1"}}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	_, err := r.RunBefore("tool.execute.before", map[string]string{"TOOL": "bash"})
+	if err == nil {
+		t.Fatal("expected error for non-zero exit")
+	}
+}
+
+func TestRunBefore_ContinueTrue_NonZeroExit(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.before": {{
+			Command:  "echo 'file is read-only'; exit 1",
+			Continue: true,
+		}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	_, err := r.RunBefore("tool.execute.before", map[string]string{"TOOL": "write"})
+	if err == nil {
+		t.Fatal("expected error for blocked hook")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "file is read-only") {
+		t.Errorf("expected hook stdout in error, got %q", msg)
+	}
+	if !strings.Contains(msg, "[hook blocked:") {
+		t.Errorf("expected [hook blocked:] in error, got %q", msg)
+	}
+}
+
+func TestRunBefore_ContinueFalse_NonZeroExit_PreservesExistingBehavior(t *testing.T) {
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.before": {{
+			Command:  "exit 1",
+			Continue: false,
+		}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	_, err := r.RunBefore("tool.execute.before", map[string]string{"TOOL": "bash"})
+	if err == nil {
+		t.Fatal("expected error for non-zero exit")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "aborted") {
+		t.Errorf("expected 'aborted' in error message, got %q", msg)
+	}
+}
+
+func TestRunBefore_ContinueTrue_SuccessNoError(t *testing.T) {
+	// continue:true with exit 0 should behave normally (no error).
+	hooks := map[string][]config.HookConfig{
+		"tool.execute.before": {{
+			Command:  "echo ok",
+			Continue: true,
+		}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+
+	_, err := r.RunBefore("tool.execute.before", map[string]string{"TOOL": "bash"})
+	if err != nil {
+		t.Fatalf("expected no error for successful hook, got %v", err)
+	}
+}
+
+func TestSubstituteVarsArgs(t *testing.T) {
+	tests := []struct {
+		args []string
+		vars map[string]string
+		want []string
+	}{
+		{
+			args: []string{"echo", "$TOOL"},
+			vars: map[string]string{"TOOL": "bash"},
+			want: []string{"echo", "bash"},
+		},
+		{
+			args: []string{"run", "--tool=$TOOL", "--session=$SESSION_ID"},
+			vars: map[string]string{"TOOL": "write", "SESSION_ID": "ses_1"},
+			want: []string{"run", "--tool=write", "--session=ses_1"},
+		},
+		{
+			args: []string{"echo", "$MISSING"},
+			vars: map[string]string{},
+			want: []string{"echo", "$MISSING"},
+		},
+	}
+
+	for _, tt := range tests {
+		got := substituteVarsArgs(tt.args, tt.vars)
+		if len(got) != len(tt.want) {
+			t.Errorf("substituteVarsArgs(%v, %v) = %v, want %v", tt.args, tt.vars, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("substituteVarsArgs(%v, %v)[%d] = %q, want %q", tt.args, tt.vars, i, got[i], tt.want[i])
+			}
+		}
+	}
+}
+
+func TestHookIdentifier_Command(t *testing.T) {
+	h := config.HookConfig{Command: "echo hello"}
+	if got := hookIdentifier(h); got != "echo hello" {
+		t.Errorf("hookIdentifier = %q, want %q", got, "echo hello")
+	}
+}
+
+func TestHookIdentifier_Args(t *testing.T) {
+	h := config.HookConfig{Args: []string{"echo", "hello world"}}
+	want := "echo\x00hello world"
+	if got := hookIdentifier(h); got != want {
+		t.Errorf("hookIdentifier = %q, want %q", got, want)
+	}
+}
+
+func TestHookDisplayName_Command(t *testing.T) {
+	h := config.HookConfig{Command: "echo hello"}
+	if got := hookDisplayName(h); got != "echo hello" {
+		t.Errorf("hookDisplayName = %q, want %q", got, "echo hello")
+	}
+}
+
+func TestHookDisplayName_Args(t *testing.T) {
+	h := config.HookConfig{Args: []string{"echo", "hello world"}}
+	if got := hookDisplayName(h); got != "echo hello world" {
+		t.Errorf("hookDisplayName = %q, want %q", got, "echo hello world")
 	}
 }
 

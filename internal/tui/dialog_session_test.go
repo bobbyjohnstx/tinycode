@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -19,7 +20,7 @@ func TestSessionDialog_ShowMakesVisible(t *testing.T) {
 	sessions := []SessionInfo{
 		{ID: "s1", Title: "First session"},
 	}
-	d.Show(sessions)
+	d.Show(sessions, false)
 	if !d.IsVisible() {
 		t.Fatal("expected dialog to be visible after Show")
 	}
@@ -30,7 +31,7 @@ func TestSessionDialog_ShowMakesVisible(t *testing.T) {
 
 func TestSessionDialog_HideMakesInvisible(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1", Title: "Test"}})
+	d.Show([]SessionInfo{{ID: "s1", Title: "Test"}}, false)
 	d.Hide()
 	if d.IsVisible() {
 		t.Fatal("expected dialog to be hidden after Hide")
@@ -39,14 +40,14 @@ func TestSessionDialog_HideMakesInvisible(t *testing.T) {
 
 func TestSessionDialog_ShowResetsSelection(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1"}, {ID: "s2"}})
+	d.Show([]SessionInfo{{ID: "s1"}, {ID: "s2"}}, false)
 	// Move selection down
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	if d.selected != 1 {
 		t.Fatalf("expected selected=1 after j, got %d", d.selected)
 	}
 	// Re-show should reset
-	d.Show([]SessionInfo{{ID: "s3"}})
+	d.Show([]SessionInfo{{ID: "s3"}}, false)
 	if d.selected != 0 {
 		t.Errorf("expected selected=0 after re-Show, got %d", d.selected)
 	}
@@ -55,7 +56,7 @@ func TestSessionDialog_ShowResetsSelection(t *testing.T) {
 func TestSessionDialog_NavigateDown(t *testing.T) {
 	d := NewSessionDialog()
 	// "New Session" at index 0, then two sessions at 1 and 2
-	d.Show([]SessionInfo{{ID: "s1"}, {ID: "s2"}})
+	d.Show([]SessionInfo{{ID: "s1"}, {ID: "s2"}}, false)
 
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	if d.selected != 1 {
@@ -70,7 +71,7 @@ func TestSessionDialog_NavigateDown(t *testing.T) {
 
 func TestSessionDialog_NavigateDownClampsAtBottom(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1"}})
+	d.Show([]SessionInfo{{ID: "s1"}}, false)
 	// itemCount = 2 (New Session + 1 session), max index = 1
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
@@ -81,7 +82,7 @@ func TestSessionDialog_NavigateDownClampsAtBottom(t *testing.T) {
 
 func TestSessionDialog_NavigateUp(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1"}, {ID: "s2"}})
+	d.Show([]SessionInfo{{ID: "s1"}, {ID: "s2"}}, false)
 	// Move down then up
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
@@ -92,7 +93,7 @@ func TestSessionDialog_NavigateUp(t *testing.T) {
 
 func TestSessionDialog_NavigateUpClampsAtTop(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1"}})
+	d.Show([]SessionInfo{{ID: "s1"}}, false)
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
 	if d.selected != 0 {
 		t.Errorf("expected selected to stay at 0, got %d", d.selected)
@@ -101,7 +102,7 @@ func TestSessionDialog_NavigateUpClampsAtTop(t *testing.T) {
 
 func TestSessionDialog_EnterOnNewSessionReturnsEmptyID(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1"}})
+	d.Show([]SessionInfo{{ID: "s1"}}, false)
 	// selected=0 is "New Session"
 	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if d.IsVisible() {
@@ -122,7 +123,7 @@ func TestSessionDialog_EnterOnNewSessionReturnsEmptyID(t *testing.T) {
 
 func TestSessionDialog_EnterOnExistingSessionReturnsID(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1", Title: "First"}, {ID: "s2", Title: "Second"}})
+	d.Show([]SessionInfo{{ID: "s1", Title: "First"}, {ID: "s2", Title: "Second"}}, false)
 	// Move to first session (index 1, after "New Session")
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -144,7 +145,7 @@ func TestSessionDialog_EnterOnExistingSessionReturnsID(t *testing.T) {
 
 func TestSessionDialog_EscapeCloses(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1"}})
+	d.Show([]SessionInfo{{ID: "s1"}}, false)
 	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if d.IsVisible() {
 		t.Fatal("expected dialog to close on esc")
@@ -156,7 +157,7 @@ func TestSessionDialog_EscapeCloses(t *testing.T) {
 
 func TestSessionDialog_QCloses(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1"}})
+	d.Show([]SessionInfo{{ID: "s1"}}, false)
 	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
 	if d.IsVisible() {
 		t.Fatal("expected dialog to close on q")
@@ -176,7 +177,7 @@ func TestSessionDialog_InvisibleIgnoresKeys(t *testing.T) {
 
 func TestSessionDialog_IgnoresNonKeyMessages(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1"}})
+	d.Show([]SessionInfo{{ID: "s1"}}, false)
 	d, cmd := d.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	if cmd != nil {
 		t.Error("non-key message should not produce a command")
@@ -288,7 +289,7 @@ func TestSessionDialog_ViewEmptyWhenHidden(t *testing.T) {
 func TestSessionDialog_ViewNonEmptyWhenVisible(t *testing.T) {
 	d := NewSessionDialog()
 	d.SetSize(80, 24)
-	d.Show([]SessionInfo{{ID: "s1", Title: "Test Session"}})
+	d.Show([]SessionInfo{{ID: "s1", Title: "Test Session"}}, false)
 	view := d.View()
 	if view == "" {
 		t.Fatal("expected non-empty view")
@@ -297,7 +298,7 @@ func TestSessionDialog_ViewNonEmptyWhenVisible(t *testing.T) {
 
 func TestSessionDialog_ArrowKeys(t *testing.T) {
 	d := NewSessionDialog()
-	d.Show([]SessionInfo{{ID: "s1"}, {ID: "s2"}})
+	d.Show([]SessionInfo{{ID: "s1"}, {ID: "s2"}}, false)
 
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyDown})
 	if d.selected != 1 {
@@ -307,5 +308,105 @@ func TestSessionDialog_ArrowKeys(t *testing.T) {
 	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyUp})
 	if d.selected != 0 {
 		t.Errorf("expected selected=0 after up, got %d", d.selected)
+	}
+}
+
+func TestSessionDialog_LoadMore_EmitsMessageAtBottom(t *testing.T) {
+	d := NewSessionDialog()
+	d.SetSize(80, 24)
+	d.Show([]SessionInfo{{ID: "s1"}}, true) // hasMore=true
+	// Move to last session (index 1)
+	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	if d.selected != 1 {
+		t.Fatalf("expected selected=1, got %d", d.selected)
+	}
+	// Press down at the bottom — should emit SessionsLoadMoreMsg
+	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	if cmd == nil {
+		t.Fatal("expected load-more command at bottom")
+	}
+	msg := cmd()
+	if _, ok := msg.(SessionsLoadMoreMsg); !ok {
+		t.Fatalf("expected SessionsLoadMoreMsg, got %T", msg)
+	}
+	if !d.loading {
+		t.Error("expected loading=true after load-more request")
+	}
+}
+
+func TestSessionDialog_LoadMore_NoMessageWhenNotHasMore(t *testing.T) {
+	d := NewSessionDialog()
+	d.SetSize(80, 24)
+	d.Show([]SessionInfo{{ID: "s1"}}, false) // hasMore=false
+	// Move to last session
+	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	// Press down at bottom — should NOT emit
+	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	if cmd != nil {
+		t.Error("expected no command when hasMore=false")
+	}
+	if d.selected != 1 {
+		t.Errorf("expected selected to clamp at 1, got %d", d.selected)
+	}
+}
+
+func TestSessionDialog_LoadMore_NoDoubleRequest(t *testing.T) {
+	d := NewSessionDialog()
+	d.SetSize(80, 24)
+	d.Show([]SessionInfo{{ID: "s1"}}, true)
+	// Move to bottom and trigger load
+	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")}) // triggers load
+	// Try again while loading — should not emit
+	d, cmd := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	if cmd != nil {
+		t.Error("expected no command while already loading")
+	}
+}
+
+func TestSessionDialog_AppendSessions(t *testing.T) {
+	d := NewSessionDialog()
+	d.SetSize(80, 24)
+	d.Show([]SessionInfo{{ID: "s1"}}, true)
+	d.loading = true
+	d.AppendSessions([]SessionInfo{{ID: "s2"}, {ID: "s3"}}, false)
+	if len(d.sessions) != 3 {
+		t.Fatalf("expected 3 sessions after append, got %d", len(d.sessions))
+	}
+	if d.loading {
+		t.Error("expected loading=false after append")
+	}
+	if d.hasMore {
+		t.Error("expected hasMore=false after final page")
+	}
+}
+
+func TestSessionDialog_ScrollAdjustsViewport(t *testing.T) {
+	d := NewSessionDialog()
+	// height=10 -> maxVisible = 10-6 = 4
+	d.SetSize(80, 10)
+	sessions := make([]SessionInfo, 8)
+	for i := range sessions {
+		sessions[i] = SessionInfo{ID: fmt.Sprintf("s%d", i+1), Title: fmt.Sprintf("Session %d", i+1)}
+	}
+	d.Show(sessions, false)
+
+	// Navigate down through all sessions
+	for i := 0; i < 6; i++ {
+		d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	}
+	// selected=6 -> sessions[5], maxVisible=4
+	// scrollTop should be >= 2 so sessions[5] is visible
+	if d.scrollTop < 2 {
+		t.Errorf("expected scrollTop >= 2, got %d", d.scrollTop)
+	}
+
+	// Navigate back up
+	for i := 0; i < 6; i++ {
+		d, _ = d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	}
+	// selected=0 (New Session) -> scrollTop should be 0
+	if d.scrollTop != 0 {
+		t.Errorf("expected scrollTop=0 after scrolling up, got %d", d.scrollTop)
 	}
 }

@@ -194,6 +194,27 @@ func TestShellHookRunner_WithoutTrust_AlwaysRuns(t *testing.T) {
 	}
 }
 
+func TestShellHookRunner_WithTrust_ArgsDisabledSkips(t *testing.T) {
+	argsID := "echo\x00disabled-arg"
+	store := NewHookTrustStore(t.TempDir())
+	if err := store.Disable(argsID, "session.start", "/proj"); err != nil {
+		t.Fatalf("Disable failed: %v", err)
+	}
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Args: []string{"echo", "disabled-arg"}}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+	r.WithTrust(store, "/proj")
+
+	ctx, err := r.RunBefore("session.start", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ctx) > 0 {
+		t.Error("disabled args hook should not produce output")
+	}
+}
+
 func TestShellHookRunner_WithTrust_NilRunner(t *testing.T) {
 	var r *ShellHookRunner
 	got := r.WithTrust(nil, "/proj")

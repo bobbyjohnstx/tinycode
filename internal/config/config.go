@@ -54,10 +54,29 @@ type Info struct {
 }
 
 // HookConfig defines a shell command to execute on a lifecycle event.
+// Set either Command (runs via sh -c) or Args (runs directly via exec, no shell).
+// Setting both is a config error.
 type HookConfig struct {
-	Command string            `json:"command"`
-	Match   map[string]string `json:"match,omitempty"`
-	Timeout int               `json:"timeout,omitempty"`
+	Command  string            `json:"command,omitempty"`
+	Args     []string          `json:"args,omitempty"`
+	Continue bool              `json:"continue,omitempty"`
+	Match    map[string]string `json:"match,omitempty"`
+	Timeout  int               `json:"timeout,omitempty"`
+}
+
+// ValidateHooks checks that each hook has exactly one of Command or Args set.
+func ValidateHooks(hooks map[string][]HookConfig) error {
+	for event, hlist := range hooks {
+		for i, h := range hlist {
+			if h.Command != "" && len(h.Args) > 0 {
+				return fmt.Errorf("hook %s[%d]: cannot set both \"command\" and \"args\"", event, i)
+			}
+			if h.Command == "" && len(h.Args) == 0 {
+				return fmt.Errorf("hook %s[%d]: must set either \"command\" or \"args\"", event, i)
+			}
+		}
+	}
+	return nil
 }
 
 // LSPConfig holds language server protocol client settings.
@@ -356,6 +375,12 @@ func Load(directory string) (*Info, error) {
 			if err := loadAndMerge(result, f, nil); err != nil {
 				return nil, fmt.Errorf("loading project config %s: %w", f, err)
 			}
+		}
+	}
+
+	if len(result.Hooks) > 0 {
+		if err := ValidateHooks(result.Hooks); err != nil {
+			return nil, fmt.Errorf("invalid hooks config: %w", err)
 		}
 	}
 

@@ -229,11 +229,25 @@ func (a App) handleStateMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 		return m, cmd, true
 	case SessionsLoadedMsg:
 		if msg.Err == nil {
-			a.state.Sessions = msg.Sessions
-			a.sidebar.SetSessions(msg.Sessions)
-			a.welcome.MarkDone("sessions")
+			hasMore := len(msg.Sessions) == sessionPageSize
+			if msg.Offset == 0 {
+				a.state.Sessions = msg.Sessions
+				a.welcome.MarkDone("sessions")
+			} else {
+				a.state.Sessions = append(a.state.Sessions, msg.Sessions...)
+			}
+			a.state.SessionsHasMore = hasMore
+			a.sidebar.SetSessions(a.state.Sessions)
+			if a.dialog.IsVisible() && msg.Offset > 0 {
+				a.dialog.AppendSessions(msg.Sessions, hasMore)
+			}
 		} else {
-			a.welcome.MarkFailed("sessions")
+			if msg.Offset == 0 {
+				a.welcome.MarkFailed("sessions")
+			}
+			if a.dialog.IsVisible() {
+				a.dialog.loading = false
+			}
 		}
 		return a, nil, true
 	case SessionUpdatedMsg:

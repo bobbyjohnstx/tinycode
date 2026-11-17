@@ -139,6 +139,7 @@ type AppState struct {
 
 	// Server-synced data
 	Sessions      []SessionInfo
+	SessionsHasMore bool
 	Messages      map[string][]MessageView
 	Providers     []ProviderInfo
 	Agents        []api.AgentInfo

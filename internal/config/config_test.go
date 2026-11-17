@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -452,6 +453,50 @@ func TestMCPConfig_MarshalJSON_IncludesCommandAndArgs(t *testing.T) {
 	args, ok := got["args"].([]any)
 	if !ok || len(args) != 2 {
 		t.Fatalf("args = %#v, want 2 elements", got["args"])
+	}
+}
+
+func TestValidateHooks_CommandOnly(t *testing.T) {
+	hooks := map[string][]HookConfig{
+		"session.start": {{Command: "echo hi"}},
+	}
+	if err := ValidateHooks(hooks); err != nil {
+		t.Fatalf("expected valid, got %v", err)
+	}
+}
+
+func TestValidateHooks_ArgsOnly(t *testing.T) {
+	hooks := map[string][]HookConfig{
+		"session.start": {{Args: []string{"echo", "hi"}}},
+	}
+	if err := ValidateHooks(hooks); err != nil {
+		t.Fatalf("expected valid, got %v", err)
+	}
+}
+
+func TestValidateHooks_BothCommandAndArgs(t *testing.T) {
+	hooks := map[string][]HookConfig{
+		"tool.execute.before": {{Command: "echo hi", Args: []string{"echo", "hi"}}},
+	}
+	err := ValidateHooks(hooks)
+	if err == nil {
+		t.Fatal("expected error for hook with both command and args")
+	}
+	if !strings.Contains(err.Error(), "cannot set both") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestValidateHooks_NeitherCommandNorArgs(t *testing.T) {
+	hooks := map[string][]HookConfig{
+		"session.start": {{Match: map[string]string{"tool": "bash"}}},
+	}
+	err := ValidateHooks(hooks)
+	if err == nil {
+		t.Fatal("expected error for hook with neither command nor args")
+	}
+	if !strings.Contains(err.Error(), "must set either") {
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 

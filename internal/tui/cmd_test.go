@@ -1156,6 +1156,59 @@ func TestFetchSessions_ReturnsErrorOnServerFailure(t *testing.T) {
 	}
 }
 
+func TestFetchSessions_IncludesOffset(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		offset := r.URL.Query().Get("offset")
+		if offset != "50" {
+			t.Errorf("expected offset=50, got %q", offset)
+		}
+		json.NewEncoder(w).Encode([]map[string]any{
+			{"id": "s51", "title": "Session 51", "time": map[string]any{"created": 1000, "updated": 2000}},
+		})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchSessions(client, 50, 50)
+	msg := cmd()
+
+	loaded, ok := msg.(SessionListMsg)
+	if !ok {
+		t.Fatalf("expected SessionListMsg, got %T", msg)
+	}
+	if loaded.Offset != 50 {
+		t.Errorf("expected Offset=50, got %d", loaded.Offset)
+	}
+	if len(loaded.Sessions) != 1 {
+		t.Fatalf("expected 1 session, got %d", len(loaded.Sessions))
+	}
+}
+
+func TestFetchSessions_EmptyPageReturnsZeroSessions(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode([]map[string]any{})
+	}))
+	defer srv.Close()
+
+	client := api.New(srv.URL, "/tmp", "")
+	cmd := fetchSessions(client, 50, 100)
+	msg := cmd()
+
+	loaded, ok := msg.(SessionListMsg)
+	if !ok {
+		t.Fatalf("expected SessionListMsg, got %T", msg)
+	}
+	if loaded.Err != nil {
+		t.Fatalf("unexpected error: %v", loaded.Err)
+	}
+	if len(loaded.Sessions) != 0 {
+		t.Errorf("expected 0 sessions on empty page, got %d", len(loaded.Sessions))
+	}
+	if loaded.Offset != 100 {
+		t.Errorf("expected Offset=100, got %d", loaded.Offset)
+	}
+}
+
 // --- fetchProviders tests ---
 
 func TestFetchProviders_ReturnsProviderList(t *testing.T) {

@@ -297,18 +297,21 @@ func parsePartView(props map[string]any) PartView {
 	return pv
 }
 
+// sessionPageSize is the number of sessions fetched per page.
+const sessionPageSize = 50
+
 // fetchSessions fetches the session list from the server.
 func fetchSessions(client *api.Client, limit, offset int) tea.Cmd {
 	return func() tea.Msg {
 		sessions, err := client.ListSessions(limit, offset)
 		if err != nil {
-			return SessionListMsg{Err: err}
+			return SessionListMsg{Err: err, Offset: offset}
 		}
 		infos := make([]SessionInfo, len(sessions))
 		for i, s := range sessions {
 			infos[i] = sessionInfoFromAPI(s)
 		}
-		return SessionListMsg{Sessions: infos}
+		return SessionListMsg{Sessions: infos, Offset: offset}
 	}
 }
 

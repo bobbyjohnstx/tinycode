@@ -565,6 +565,31 @@ func TestBuildSystemPrompt_LargeFileNotTruncated(t *testing.T) {
 	}
 }
 
+// --- Issue #958: plan-mode reminder survives compaction ---
+
+func TestBuildSystemPrompt_PlanAgentIncludesReminder(t *testing.T) {
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt: "You are Plan.",
+		AgentName:   "plan",
+	})
+
+	expected := "You are in plan mode. Do not modify files outside plans/ and drafts/. If the user asks to implement, tell them to switch agents."
+	if !strings.Contains(result, expected) {
+		t.Errorf("expected plan-mode reminder in prompt, got:\n%s", result)
+	}
+}
+
+func TestBuildSystemPrompt_NonPlanAgentNoReminder(t *testing.T) {
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt: "You are Build.",
+		AgentName:   "build",
+	})
+
+	if strings.Contains(result, "plan mode") {
+		t.Errorf("non-plan agent should not contain plan-mode reminder, got:\n%s", result)
+	}
+}
+
 func TestFormatInstructionInfo(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("project rules"), 0644); err != nil {
@@ -590,5 +615,276 @@ func TestFormatInstructionInfo(t *testing.T) {
 	}
 	if !strings.Contains(info, "bytes") {
 		t.Error("expected byte sizes in listing")
+	}
+}
+
+// --- Issue #967: @path imports in instruction files ---
+
+func TestExpandImports_BasicInclude(t *testing.T) {
+	dir := t.TempDir()
+	main := filepath.Join(dir, "CLAUDE.md")
+	other := filepath.Join(dir, "other.md")
+	if err := os.WriteFile(main, []byte("rules\n@other.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(other, []byte("included content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	if !strings.Contains(result, "rules") {
+		t.Error("expected original content")
+	}
+	if !strings.Contains(result, "included content") {
+		t.Error("expected included file content")
+	}
+	if strings.Contains(result, "@other.md") {
+		t.Error("@other.md directive should be replaced by included content")
+	}
+}
+
+func TestExpandImports_FencedCodeBlock(t *testing.T) {
+	dir := t.TempDir()
+	content := "rules\n```\n@secret.md\n```\n@other.md"
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "secret.md"), []byte("SHOULD NOT APPEAR"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "other.md"), []byte("included"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	if !strings.Contains(result, "@secret.md") {
+		t.Error("@path inside fenced code block should be left as text")
+	}
+	if strings.Contains(result, "SHOULD NOT APPEAR") {
+		t.Error("file inside fenced code block should not be included")
+	}
+	if !strings.Contains(result, "included") {
+		t.Error("@other.md outside code block should be expanded")
+	}
+}
+
+func TestExpandImports_InlineBackticks(t *testing.T) {
+	dir := t.TempDir()
+	content := "Use `@config.md` for settings\n@other.md"
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.md"), []byte("SHOULD NOT APPEAR"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "other.md"), []byte("included"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	if !strings.Contains(result, "`@config.md`") {
+		t.Error("@path inside backticks should be left as text")
+	}
+	if strings.Contains(result, "SHOULD NOT APPEAR") {
+		t.Error("file referenced inside backticks should not be included")
+	}
+	if !strings.Contains(result, "included") {
+		t.Error("@other.md outside backticks should be expanded")
+	}
+}
+
+func TestExpandImports_DepthLimit(t *testing.T) {
+	dir := t.TempDir()
+	// Create a chain: a→b→c→d→e (5 @path directives, depth 0→1→2→3→try 4)
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("@a.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.md"), []byte("level-a\n@b.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.md"), []byte("level-b\n@c.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "c.md"), []byte("level-c\n@d.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "d.md"), []byte("level-d\n@e.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "e.md"), []byte("level-e"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	// Levels a through d should be included (depths 1–3 for the include site)
+	for _, level := range []string{"level-a", "level-b", "level-c"} {
+		if !strings.Contains(result, level) {
+			t.Errorf("expected %q in result", level)
+		}
+	}
+	// d.md is expanded at depth 3; its @e.md directive is at depth 4 → skipped
+	if !strings.Contains(result, "level-d") {
+		t.Error("expected level-d in result")
+	}
+	if strings.Contains(result, "level-e") {
+		t.Error("level-e should be skipped (depth limit)")
+	}
+	if !strings.Contains(result, "[import skipped (depth limit): e.md]") {
+		t.Errorf("expected depth-limit skip message, got:\n%s", result)
+	}
+}
+
+func TestExpandImports_Cycle(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("start\n@a.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.md"), []byte("file-a\n@b.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.md"), []byte("file-b\n@a.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	if !strings.Contains(result, "file-a") {
+		t.Error("expected a.md content")
+	}
+	if !strings.Contains(result, "file-b") {
+		t.Error("expected b.md content")
+	}
+	if !strings.Contains(result, "[import cycle: a.md]") {
+		t.Errorf("expected cycle message, got:\n%s", result)
+	}
+}
+
+func TestExpandImports_RelativeToContainingFile(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// CLAUDE.md at root references sub/rules.md
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("@sub/rules.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// sub/rules.md references sibling.md (relative to sub/, not to dir)
+	if err := os.WriteFile(filepath.Join(sub, "rules.md"), []byte("sub-rules\n@sibling.md"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "sibling.md"), []byte("sibling content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	if !strings.Contains(result, "sub-rules") {
+		t.Error("expected sub/rules.md content")
+	}
+	if !strings.Contains(result, "sibling content") {
+		t.Error("expected sibling.md resolved relative to containing file")
+	}
+}
+
+// --- Issue #967: AGENTS.local.md / CLAUDE.local.md ---
+
+func TestDiscoverInstructionFiles_LocalFiles(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "AGENTS.local.md"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(name+" content"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	files := discoverInstructionFiles(dir)
+
+	// Find indices of each file in the discovery list
+	idxClaude := -1
+	idxClaudeLocal := -1
+	idxAgents := -1
+	idxAgentsLocal := -1
+	for i, f := range files {
+		base := filepath.Base(f)
+		switch base {
+		case "CLAUDE.md":
+			idxClaude = i
+		case "CLAUDE.local.md":
+			idxClaudeLocal = i
+		case "AGENTS.md":
+			idxAgents = i
+		case "AGENTS.local.md":
+			idxAgentsLocal = i
+		}
+	}
+
+	if idxClaude < 0 {
+		t.Fatal("expected CLAUDE.md in results")
+	}
+	if idxClaudeLocal < 0 {
+		t.Fatal("expected CLAUDE.local.md in results")
+	}
+	if idxAgents < 0 {
+		t.Fatal("expected AGENTS.md in results")
+	}
+	if idxAgentsLocal < 0 {
+		t.Fatal("expected AGENTS.local.md in results")
+	}
+
+	// Local files appear AFTER shared files
+	if idxClaudeLocal <= idxClaude {
+		t.Errorf("CLAUDE.local.md (idx %d) should appear after CLAUDE.md (idx %d)", idxClaudeLocal, idxClaude)
+	}
+	if idxAgentsLocal <= idxAgents {
+		t.Errorf("AGENTS.local.md (idx %d) should appear after AGENTS.md (idx %d)", idxAgentsLocal, idxAgents)
+	}
+}
+
+func TestDiscoverInstructionFiles_LocalWithoutShared(t *testing.T) {
+	dir := t.TempDir()
+	// Only local file, no shared file
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.local.md"), []byte("local only"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files := discoverInstructionFiles(dir)
+
+	found := false
+	for _, f := range files {
+		if filepath.Base(f) == "AGENTS.local.md" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("AGENTS.local.md should be discovered even without AGENTS.md")
+	}
+}
+
+func TestBuildSystemPrompt_LocalAfterShared(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("shared agents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "AGENTS.local.md"), []byte("local agents"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{Directory: dir})
+
+	if !strings.Contains(result, "shared agents") {
+		t.Error("shared AGENTS.md content should appear")
+	}
+	if !strings.Contains(result, "local agents") {
+		t.Error("AGENTS.local.md content should appear")
+	}
+	// Local content should come after shared content
+	sharedIdx := strings.Index(result, "shared agents")
+	localIdx := strings.Index(result, "local agents")
+	if localIdx <= sharedIdx {
+		t.Error("local content should appear after shared content")
 	}
 }

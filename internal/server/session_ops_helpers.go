@@ -74,6 +74,7 @@ func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *prov
 
 	systemPrompt = session.BuildSystemPrompt(session.SystemPromptInput{
 		AgentPrompt:        agentPrompt,
+		AgentName:          input.Agent,
 		Instructions:       instructions,
 		Directory:          directory,
 		ToolDefs:           tools.ToolDefs(agentPerms),

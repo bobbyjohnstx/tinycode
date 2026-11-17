@@ -60,8 +60,12 @@ type SSEReconnectMsg struct {
 
 type SessionsLoadedMsg struct {
 	Sessions []SessionInfo
+	Offset   int
 	Err      error
 }
+
+// SessionsLoadMoreMsg requests the next page of sessions.
+type SessionsLoadMoreMsg struct{}
 
 type SessionCreatedLocalMsg struct {
 	Session *SessionInfo

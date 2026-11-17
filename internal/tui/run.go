@@ -148,7 +148,7 @@ func (c *connectedApp) Init() tea.Cmd {
 		c.app.Init(),
 		func() tea.Msg { return SSEConnectedMsg{} },
 		waitForSSE(c.sseEvents),
-		fetchSessions(c.client, 50, 0),
+		fetchSessions(c.client, sessionPageSize, 0),
 		fetchProviders(c.client),
 		fetchAllAgents(c.client),
 		fetchCommands(c.client),
@@ -299,6 +299,12 @@ func (c *connectedApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ChangesDoneMsg:
 		return c.handleChangesDone(msg)
+
+	case SessionsLoadMoreMsg:
+		if c.app.state.SessionsHasMore {
+			return c, fetchSessions(c.client, sessionPageSize, len(c.app.state.Sessions))
+		}
+		return c, nil
 
 	}
 

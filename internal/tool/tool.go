@@ -395,7 +395,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 	}
 
 	truncated := TruncPreview(output)
-	output = truncated.Content
+	output = SpillIfTruncated(sessionID, output, &truncated)
 
 	// Append hook context to tool output so the model sees it.
 	hookCtx := append(beforeContext, afterContext...)
