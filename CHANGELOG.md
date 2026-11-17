@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-11-17
+
+### Features
+- **Persistent shell** (#944): `monitor` tool `stdin` action writes to a running process's stdin pipe; 1 MiB output cap with truncation tracking
+- **Scoped instruction blocks** (#951): instruction files rendered as labeled `[path]` blocks, combined text capped at 32 KiB (outermost dropped first), `AGENTS.override.md` replaces `AGENTS.md` per-directory, `/instructions` command shows block listing
+- **Scratch threads** (#952): `/scratch [prompt]` opens a throwaway side conversation; `/scratch close` discards, `/scratch keep` saves; `Shift+S` toggles; status bar shows "SCRATCH" indicator
+- **Change directory** (#953): `/chdir <path>` changes working directory mid-session — updates status bar, sidebar, prompt completer, and server-side session record
+- **MCP resources** (#950): `mcp_resource` tool with `list`, `templates`, and `read` actions across all three transports (stdio, SSE, streamable HTTP)
+- **Deferred tool schemas** (#940): when MCP/plugin tools exceed 20 or 30 KB, schemas are omitted; `tool_search` builtin discovers them on demand
+- **Command-prefix permissions** (#941): `command-prefix` rule kind matches shell commands by prefix (`git push` without matching `gitk`)
+- **Hook trust** (#942): SHA-256 hash-based approval for shell hooks — ask once per command/event/path, then auto-approved
+- **Session worktree** (#943): `/worktree` creates a git worktree and starts a child session in it
+- **Shell escalation** (#945): `permission` and `justification` fields on bash tool — surfaces the model's reason for requesting elevated access
+- **Prompt presets** (#946): `/preset <name>` runs saved prompt templates from `presets.json`
+- **Warning list** (#947): `/warnings` shows session-scoped warnings; `/warnings clear` resets
+- **Structured questions** (#948): multi-question support in the `question` tool (1–3 questions with id/header/options)
+- **Image duplicate check** (#949): `read` tool returns "Image already attached" on re-read of the same image (symlink-aware)
+
+### Agent
+- Build agent prompt: dirty worktree awareness, no re-read instruction, TODO machine guard, answer length bands, review findings-first, verification policy (#939)
+
+### Session
+- `MaxTokens` defaults to `DefaultStreamTokens` before clamp — prevents HTTP 400 on small-context models
+- Doom loop threshold doubled for read-only tools — models that re-read files aren't killed prematurely
+
+### Fixes
+- Static handler resolves SPA deep-link asset 404s — relative sprite/SVG imports under session slug URLs now retry under `/assets/`
+- Benchmark script: `git add` injected config so code-reviewer doesn't focus on config diff
+
+### Test
+- 6 new e2e tests: `/warnings`, `/instructions`, `/chdir` via API; scratch session lifecycle via fork/delete API
+- Command palette e2e checks web palette entries (session navigation), not TUI slash commands
+- Hello roundtrip handles SPA error boundary gracefully
+- Playwright: home-session-list tolerates redesigned flat layout; model-picker scoped to dialog; context-resize allows frame-1 overlap
+- Coverage gaps filled: secret-shell escalation metadata, image duplicate edge cases (symlink, different extensions, nil tracker), server PATCH directory handler
+
+### Docs
+- Updated cheatsheet, user guide, quickstart, TUI help text, 5 spec files, and README for all new features
+
 ## [2.8.1] - 2026-11-13
 
 ### Security
