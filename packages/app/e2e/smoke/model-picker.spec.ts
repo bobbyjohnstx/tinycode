@@ -197,9 +197,9 @@ test.describe("smoke: model-picker", () => {
     await expect(page.getByText("Claude Sonnet 4.5").nth(1)).toBeVisible({ timeout: 5_000 })
     await expect(page.getByText("Claude Opus 4.6").first()).toBeVisible()
 
-    // Verify provider group label is visible — use exact text to avoid matching
-    // "Free models provided by tinycode" which also contains "tinycode"
-    await expect(page.getByText("tinycode", { exact: true })).toBeVisible()
+    // Verify provider group label is visible inside the dialog
+    const dialog = page.getByRole("dialog", { name: "Select model" })
+    await expect(dialog.getByText("tinycode", { exact: true })).toBeVisible()
 
     // Verify no console errors
     expect(errors).toEqual([])
