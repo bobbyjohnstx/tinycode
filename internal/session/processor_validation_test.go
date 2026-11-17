@@ -36,12 +36,16 @@ func TestCanonicalToolArgs_WhitespaceAndKeyOrder(t *testing.T) {
 	if a != b {
 		t.Fatalf("canonical mismatch: %q vs %q", a, b)
 	}
+	// read is a read-only tool so it needs 2x threshold (6 calls for threshold 3).
 	if !isDoomLoop([]ToolCallSignature{
 		{Name: "read", Args: a},
 		{Name: "read", Args: b},
 		{Name: "read", Args: a},
+		{Name: "read", Args: b},
+		{Name: "read", Args: a},
+		{Name: "read", Args: b},
 	}, 3) {
-		t.Fatal("expected doom after canonical compare")
+		t.Fatal("expected doom after canonical compare with read-only double threshold")
 	}
 }
 

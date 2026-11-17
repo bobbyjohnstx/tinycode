@@ -237,28 +237,37 @@ func TestBuildRequest_VLLMStreamCap_ClampedByModelOutputLimit(t *testing.T) {
 }
 
 // No budget (omitted via -1 or disabled) means no stream-cap sizing.
-func TestBuildRequest_VLLMStreamCap_NoBudgetNoMaxTokens(t *testing.T) {
+func TestBuildRequest_VLLMStreamCap_NoBudgetDefaultsToStreamTokens(t *testing.T) {
 	p := newBudgetProc(ProcessorConfig{
 		SessionID:               "ses-vllm-streamcap-nobudget",
 		Model:                   vllmModel("qwen3-32b"),
 		VLLMThinkingTokenBudget: intPtr(-1),
 	})
 	req := p.buildRequest()
-	if req.MaxTokens != nil {
-		t.Errorf("MaxTokens = %v, want nil when no budget", req.MaxTokens)
+	// MaxTokens defaults to DefaultStreamTokens before clamp, even with no budget.
+	if req.MaxTokens == nil || *req.MaxTokens != llm.DefaultStreamTokens {
+		got := 0
+		if req.MaxTokens != nil {
+			got = *req.MaxTokens
+		}
+		t.Errorf("MaxTokens = %d, want %d (DefaultStreamTokens)", got, llm.DefaultStreamTokens)
 	}
 }
 
-// Non-vLLM models never get the stream cap sized.
-func TestBuildRequest_NonVLLMStreamCap_Unchanged(t *testing.T) {
+// Non-vLLM models get DefaultStreamTokens as MaxTokens (the default before clamp).
+func TestBuildRequest_NonVLLMStreamCap_DefaultsToStreamTokens(t *testing.T) {
 	p := newBudgetProc(ProcessorConfig{
 		SessionID:      "ses-openai-streamcap",
 		Model:          &provider.Model{ID: "gpt-4", ProviderID: "openai"},
 		ThinkingBudget: intPtr(16384),
 	})
 	req := p.buildRequest()
-	if req.MaxTokens != nil {
-		t.Errorf("MaxTokens = %v, want nil for non-vLLM", req.MaxTokens)
+	if req.MaxTokens == nil || *req.MaxTokens != llm.DefaultStreamTokens {
+		got := 0
+		if req.MaxTokens != nil {
+			got = *req.MaxTokens
+		}
+		t.Errorf("MaxTokens = %d, want %d (DefaultStreamTokens)", got, llm.DefaultStreamTokens)
 	}
 }
 
