@@ -68,15 +68,15 @@ declare -a BUG_PATTERNS=(
     "20:hardcoded.*port|port.*8080|port.*hardcoded|configurable.*port"
 )
 
-# MAAS chat models (from models.corp.redhat.com catalog, 2026-11-04).
-# Excludes embedding, reranking, safety, and auto-routing models.
+# MAAS chat models (from models.corp.redhat.com API, 2026-11-17).
+# Excludes embedding, reranking, safety, parse, and auto-routing models.
 MAAS_MODELS=(
     "claude-haiku-4-5"
     "claude-haiku-5-5"
     "claude-sonnet-4-6"
     "claude-sonnet-5-5"
     "deepseek-4-1-flash"
-    "diffusiongemma-26b-a4b-it-fp8"
+    "diffusiongemma-26b-a4b-it-fp8-dynamic"
     "gemini-2-5-flash"
     "gemini-2-5-pro"
     "gemini-3-1-flash-lite"
@@ -87,7 +87,6 @@ MAAS_MODELS=(
     "glm-5-3"
     "gpt-oss-120b"
     "gpt-oss-20b"
-    "granite-3-1-8b-instruct"
     "granite-3-2-8b-instruct"
     "granite-3-3-8b-instruct"
     "granite-4-0-h-small"
@@ -95,15 +94,14 @@ MAAS_MODELS=(
     "granite-4-0-micro"
     "granite-4-1-30b"
     "granite-4-1-8b"
-    "granite-switch-4-1-8b"
+    "granite-5-0-230b-preview-r261008a"
     "llama-3-3-70b-instruct"
     "mistral-7b-instruct-v0-3"
     "mistral-small-3-2-24b-instruct-2506"
-    "nemotron-nano-30b-a3b-fp8"
-    "nemotron-super-120b-bf16-ga"
-    "nemotron-super-fp8-ana-002"
+    "muse-spark-open-816b-a42b-nvfp4"
     "nvidia-nemotron-3-nano-30b-a3b-fp8-ga"
     "nvidia-nemotron-3-ultra-550b-a55b-nvfp4"
+    "qwen3-14b"
     "qwen3-8-27b-fp8"
 )
 
