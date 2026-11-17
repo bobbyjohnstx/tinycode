@@ -218,6 +218,7 @@ func TestShellTool_DestructiveRoutesPermission(t *testing.T) {
 	defer b.Close()
 
 	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
 	defer perms.Close()
 
 	dir := t.TempDir()

@@ -111,6 +111,7 @@ type PermissionReplyMsg struct {
 	SessionID    string
 	PermissionID string
 	Action       string
+	Message      string // optional user note
 }
 
 // PermissionRejectedMsg is an SSE notification that a permission ask was

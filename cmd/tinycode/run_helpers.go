@@ -101,6 +101,7 @@ func collectRunPrompt(positional []string, multiTurn, permsJSON bool) string {
 // routing permission replies (nil when not in JSON mode).
 func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, interactive bool, permsMode string) chan<- permission.ReplyInput {
 	setupRunQuestionReject(b)
+	permSvc.SetHasResponder(true)
 	permSub := b.Subscribe("permission.asked")
 	if permsMode == "json" {
 		permReplyCh := make(chan permission.ReplyInput, 16)

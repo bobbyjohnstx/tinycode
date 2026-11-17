@@ -268,6 +268,14 @@ func TestMaskObservations_PreservesNonToolResultParts(t *testing.T) {
 // buildCompactionPrompt
 // ---------------------------------------------------------------------------
 
+func TestSummaryTemplate_ExcludesStandingInstructions(t *testing.T) {
+	for _, keyword := range []string{"CLAUDE.md", "AGENTS.md", "agent prompt", "tool definitions"} {
+		if !strings.Contains(summaryTemplate, keyword) {
+			t.Errorf("summaryTemplate should mention %q in the exclusion", keyword)
+		}
+	}
+}
+
 func TestBuildCompactionPrompt_IncludesConversationTags(t *testing.T) {
 	messages := []Message{
 		{Role: RoleUser, Parts: []Part{TextPart("hello")}},

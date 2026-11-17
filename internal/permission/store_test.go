@@ -93,7 +93,7 @@ func TestService_SetStore_LoadsFromSQLite(t *testing.T) {
 	svc.SetStore(store, "prj_svc")
 
 	// Ask with matching pattern should allow from loaded rules without UI.
-	err = svc.Ask(t.Context(), AskInput{
+	_, err = svc.Ask(t.Context(), AskInput{
 		SessionID:  "ses_1",
 		Permission: "bash",
 		Patterns:   []string{"echo hi"},

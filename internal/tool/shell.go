@@ -135,7 +135,7 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 				meta["justification"] = args.Justification
 				meta["escalation"] = true
 			}
-			askErr := tc.Perms.Ask(ctx, permission.AskInput{
+			_, askErr := tc.Perms.Ask(ctx, permission.AskInput{
 				SessionID:  tc.SessionID,
 				Permission: "destructive-shell",
 				Patterns:   []string{args.Command},
@@ -243,7 +243,7 @@ func gateSecretAccess(ctx context.Context, tc *Context, command, justification s
 		meta["justification"] = justification
 		meta["escalation"] = true
 	}
-	askErr := tc.Perms.Ask(ctx, permission.AskInput{
+	_, askErr := tc.Perms.Ask(ctx, permission.AskInput{
 		SessionID:  tc.SessionID,
 		Permission: "secret-shell",
 		Patterns:   []string{command},

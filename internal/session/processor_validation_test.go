@@ -2,8 +2,12 @@ package session
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
@@ -177,5 +181,93 @@ func TestCheckExternalDirectory_EmptyDirectory_AllowsEverything(t *testing.T) {
 	result := p.checkExternalDirectory(context.Background(), call)
 	if result != "" {
 		t.Errorf("expected empty string when Directory is empty, got %q", result)
+	}
+}
+
+func respondToNextAsk(t *testing.T, perms *permission.Service, reply permission.Reply) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	for {
+		pending := perms.List()
+		if len(pending) > 0 {
+			if err := perms.RespondToAsk(permission.ReplyInput{
+				RequestID: pending[0].ID,
+				Reply:     reply,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for permission ask")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+}
+
+func TestCheckExternalDirectory_AlwaysCoversDirectory(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
+	defer perms.Close()
+
+	dir := t.TempDir()
+	extDir := t.TempDir()
+	fileA := filepath.Join(extDir, "a.txt")
+	fileB := filepath.Join(extDir, "b.txt")
+	os.WriteFile(fileA, []byte("a"), 0o644)
+	os.WriteFile(fileB, []byte("b"), 0o644)
+
+	p := &Processor{config: ProcessorConfig{SessionID: "ses-dir", Directory: dir, Perms: perms}}
+
+	// First call asks — approve always
+	callA := ToolCallPart("c1", "read", fmt.Sprintf(`{"file_path":%q}`, fileA))
+	done := make(chan string)
+	go func() { done <- p.checkExternalDirectory(context.Background(), callA) }()
+	respondToNextAsk(t, perms, permission.ReplyAlways)
+	if r := <-done; r != "" {
+		t.Fatalf("expected allow, got %q", r)
+	}
+
+	// Second call in same directory should NOT ask (covered by always)
+	callB := ToolCallPart("c2", "read", fmt.Sprintf(`{"file_path":%q}`, fileB))
+	result := p.checkExternalDirectory(context.Background(), callB)
+	if result != "" {
+		t.Fatalf("expected auto-allow for sibling, got %q", result)
+	}
+}
+
+func TestCheckExternalDirectory_AlwaysDoesNotCoverDifferentDirectory(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
+	defer perms.Close()
+
+	dir := t.TempDir()
+	extDir1 := t.TempDir()
+	extDir2 := t.TempDir()
+	file1 := filepath.Join(extDir1, "a.txt")
+	file2 := filepath.Join(extDir2, "c.txt")
+	os.WriteFile(file1, []byte("a"), 0o644)
+	os.WriteFile(file2, []byte("c"), 0o644)
+
+	p := &Processor{config: ProcessorConfig{SessionID: "ses-dir2", Directory: dir, Perms: perms}}
+
+	// Approve always for extDir1
+	call1 := ToolCallPart("c1", "read", fmt.Sprintf(`{"file_path":%q}`, file1))
+	done := make(chan string)
+	go func() { done <- p.checkExternalDirectory(context.Background(), call1) }()
+	respondToNextAsk(t, perms, permission.ReplyAlways)
+	<-done
+
+	// extDir2 should still ask
+	call2 := ToolCallPart("c2", "read", fmt.Sprintf(`{"file_path":%q}`, file2))
+	go func() { done <- p.checkExternalDirectory(context.Background(), call2) }()
+	respondToNextAsk(t, perms, permission.ReplyReject)
+	if r := <-done; r == "" {
+		t.Fatal("expected denial for different directory")
 	}
 }

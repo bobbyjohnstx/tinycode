@@ -496,7 +496,7 @@ func executeMonitor(ctx context.Context, tc *Context, rawArgs json.RawMessage) (
 
 		if IsDestructive(args.Command) {
 			if tc.Perms != nil {
-				askErr := tc.Perms.Ask(ctx, permission.AskInput{
+				_, askErr := tc.Perms.Ask(ctx, permission.AskInput{
 					SessionID:  tc.SessionID,
 					Permission: "destructive-shell",
 					Patterns:   []string{args.Command},
@@ -563,7 +563,7 @@ func executeMonitor(ctx context.Context, tc *Context, rawArgs json.RawMessage) (
 		}
 		if IsDestructive(origCmd) {
 			if tc.Perms != nil {
-				askErr := tc.Perms.Ask(ctx, permission.AskInput{
+				_, askErr := tc.Perms.Ask(ctx, permission.AskInput{
 					SessionID:  tc.SessionID,
 					Permission: "destructive-shell",
 					Patterns:   []string{origCmd},

@@ -528,6 +528,7 @@ func (a App) handleDialogMsg(msg tea.Msg) (App, tea.Cmd, bool) {
 				SessionID:    msg.Request.SessionID,
 				PermissionID: msg.Request.ID,
 				Action:       msg.Action.String(),
+				Message:      msg.Message,
 			}
 		}
 		if a.permPrompt.ShowNext() {

@@ -71,7 +71,7 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 
 	case PermissionReplyMsg:
 		slog.Info("sending permission reply", "sessionID", msg.SessionID, "permissionID", msg.PermissionID, "action", msg.Action)
-		cmds = append(cmds, replyPermission(c.client, msg.SessionID, msg.PermissionID, msg.Action))
+		cmds = append(cmds, replyPermission(c.client, msg.SessionID, msg.PermissionID, msg.Action, msg.Message))
 		return c, tea.Batch(cmds...), true
 
 	case PermissionRepliedMsg:

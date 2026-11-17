@@ -310,8 +310,10 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 	toolCtx := &cp
 
 	// Check permissions if service is available and tool has a permission requirement
+	var permNote string
 	if toolCtx.Perms != nil && def.Permission != "" && !toolCtx.AutoApprove {
-		askErr := toolCtx.Perms.Ask(ctx, permission.AskInput{
+		var askErr error
+		permNote, askErr = toolCtx.Perms.Ask(ctx, permission.AskInput{
 			SessionID:  sessionID,
 			Permission: def.Permission,
 			Patterns:   askPatterns(name, args),
@@ -399,6 +401,11 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 	hookCtx := append(beforeContext, afterContext...)
 	if len(hookCtx) > 0 {
 		output += "\n\n[Hook Context]\n" + strings.Join(hookCtx, "\n")
+	}
+
+	// Append the user's permission note so the model sees it.
+	if permNote != "" {
+		output += "\n\nUser note: " + permNote
 	}
 
 	return output, isError, nil

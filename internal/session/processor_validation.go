@@ -114,14 +114,17 @@ func (p *Processor) checkExternalDirectory(ctx context.Context, call Part) strin
 			if call.ToolCallID != "" {
 				toolRef = &permission.ToolRef{CallID: call.ToolCallID}
 			}
-			err := p.config.Perms.Ask(ctx, permission.AskInput{
+			dir := filepath.Dir(path)
+			_, err := p.config.Perms.Ask(ctx, permission.AskInput{
 				ID:         askID,
 				SessionID:  p.config.SessionID,
 				Permission: "external_directory",
 				Patterns:   []string{path},
+				Always:     []string{dir + "/*"},
 				Metadata: map[string]any{
-					"tool": call.ToolName,
-					"path": path,
+					"tool":      call.ToolName,
+					"path":      path,
+					"directory": dir,
 				},
 				Ruleset: p.config.Ruleset,
 				Tool:    toolRef,

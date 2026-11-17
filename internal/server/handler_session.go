@@ -465,7 +465,7 @@ func (s *Server) handleSessionShell(w http.ResponseWriter, r *http.Request) {
 				agentRules = ai.Permission
 			}
 		}
-		askErr := s.deps.PermService.Ask(r.Context(), permission.AskInput{
+		_, askErr := s.deps.PermService.Ask(r.Context(), permission.AskInput{
 			SessionID:  sessionID,
 			Permission: "shell",
 			Patterns:   []string{command},
@@ -477,7 +477,7 @@ func (s *Server) handleSessionShell(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if tool.CheckSecretAccess(command) != "" {
-			askErr = s.deps.PermService.Ask(r.Context(), permission.AskInput{
+			_, askErr = s.deps.PermService.Ask(r.Context(), permission.AskInput{
 				SessionID:  sessionID,
 				Permission: "secret-shell",
 				Patterns:   []string{command},
@@ -490,7 +490,7 @@ func (s *Server) handleSessionShell(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if tool.IsDestructive(command) {
-			askErr = s.deps.PermService.Ask(r.Context(), permission.AskInput{
+			_, askErr = s.deps.PermService.Ask(r.Context(), permission.AskInput{
 				SessionID:  sessionID,
 				Permission: "destructive-shell",
 				Patterns:   []string{command},

@@ -23,6 +23,8 @@ const (
 	summaryTemplate = `<task>
 Summarize the conversation so far. The summary will be used in place of the original conversation to continue assisting the user.
 
+Omit standing instructions the assistant received (not from the user): AGENTS.md, CLAUDE.md, agent prompt, tool definitions, and environment details (working directory, platform, branch). The next turn receives fresh copies. Keep user preferences that appear only in the conversation.
+
 Pay special attention to:
 1. The user's original request and intent — so we can verify our work truly addresses it, not just technically "works"
 2. Key technical concepts, architectural decisions, and design patterns discussed

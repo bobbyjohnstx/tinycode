@@ -149,8 +149,9 @@ func TestService_AskAllowed(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"/tmp/foo"},
@@ -167,8 +168,9 @@ func TestService_AskDenied(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"/tmp/foo"},
@@ -185,6 +187,8 @@ func TestService_AskBlocksUntilReply(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	var askErr error
 	var wg sync.WaitGroup
@@ -192,7 +196,7 @@ func TestService_AskBlocksUntilReply(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		askErr = svc.Ask(context.Background(), AskInput{
+		_, askErr = svc.Ask(context.Background(), AskInput{
 			SessionID:  "ses_001",
 			Permission: "bash",
 			Patterns:   []string{"/tmp/foo"},
@@ -234,6 +238,7 @@ func TestService_AskInterceptor_Denies(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
 	svc.SetAskInterceptor(func(req Request) error {
 		cmd, _ := req.Metadata["command"].(string)
@@ -243,7 +248,7 @@ func TestService_AskInterceptor_Denies(t *testing.T) {
 		return nil
 	})
 
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "destructive-shell",
 		Patterns:   []string{"rm -rf /"},
@@ -264,6 +269,8 @@ func TestService_AskInterceptor_AllowsContinuesToUI(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	called := false
 	svc.SetAskInterceptor(func(req Request) error {
@@ -276,7 +283,7 @@ func TestService_AskInterceptor_AllowsContinuesToUI(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		askErr = svc.Ask(context.Background(), AskInput{
+		_, askErr = svc.Ask(context.Background(), AskInput{
 			SessionID:  "ses_001",
 			Permission: "bash",
 			Patterns:   []string{"/tmp/foo"},
@@ -314,6 +321,7 @@ func TestService_AskInterceptor_SkippedWhenAllowed(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
 	called := false
 	svc.SetAskInterceptor(func(req Request) error {
@@ -321,7 +329,7 @@ func TestService_AskInterceptor_SkippedWhenAllowed(t *testing.T) {
 		return fmt.Errorf("%w: should not run", ErrRejected)
 	})
 
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"/tmp/foo"},
@@ -339,6 +347,8 @@ func TestService_RejectCascadesSameSession(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	var errs [2]error
 	var wg sync.WaitGroup
@@ -347,7 +357,7 @@ func TestService_RejectCascadesSameSession(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			errs[idx] = svc.Ask(context.Background(), AskInput{
+			_, errs[idx] = svc.Ask(context.Background(), AskInput{
 				SessionID:  "ses_001",
 				Permission: "bash",
 				Patterns:   []string{"/tmp/foo"},
@@ -396,6 +406,8 @@ func TestService_AlwaysAutoApprovesPending(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	var errs [2]error
 	var wg sync.WaitGroup
@@ -404,7 +416,7 @@ func TestService_AlwaysAutoApprovesPending(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			errs[idx] = svc.Ask(context.Background(), AskInput{
+			_, errs[idx] = svc.Ask(context.Background(), AskInput{
 				SessionID:  "ses_001",
 				Permission: "bash",
 				Patterns:   []string{"/tmp/foo"},
@@ -450,6 +462,8 @@ func TestService_AlwaysReleasesWaitingShellAsks(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	var wg sync.WaitGroup
 	errs := make([]error, 2)
@@ -458,7 +472,7 @@ func TestService_AlwaysReleasesWaitingShellAsks(t *testing.T) {
 	for i, cmd := range commands {
 		go func(idx int, command string) {
 			defer wg.Done()
-			errs[idx] = svc.Ask(context.Background(), AskInput{
+			_, errs[idx] = svc.Ask(context.Background(), AskInput{
 				SessionID:  "ses_001",
 				Permission: "shell",
 				Patterns:   []string{command},
@@ -489,12 +503,13 @@ func TestService_AlwaysReleasesWaitingShellAsks(t *testing.T) {
 	defer cancel()
 	blocked := make(chan error, 1)
 	go func() {
-		blocked <- svc.Ask(ctx, AskInput{
+		_, err := svc.Ask(ctx, AskInput{
 			SessionID:  "ses_001",
 			Permission: "shell",
 			Patterns:   []string{"go test ./..."},
 			Always:     []string{"go test ./..."},
 		})
+		blocked <- err
 	}()
 	select {
 	case err := <-blocked:
@@ -509,6 +524,7 @@ func TestService_ReplyNotFound(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
 	err := svc.RespondToAsk(ReplyInput{
 		RequestID: "per_nonexistent",
@@ -523,6 +539,8 @@ func TestService_CorrectedError(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	var askErr error
 	var wg sync.WaitGroup
@@ -530,7 +548,7 @@ func TestService_CorrectedError(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		askErr = svc.Ask(context.Background(), AskInput{
+		_, askErr = svc.Ask(context.Background(), AskInput{
 			SessionID:  "ses_001",
 			Permission: "bash",
 			Patterns:   []string{"/tmp/foo"},
@@ -572,6 +590,8 @@ func TestService_ContextCancellation(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	replied := b.Subscribe("permission.replied")
 	defer replied.Unsubscribe()
@@ -579,7 +599,7 @@ func TestService_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	err := svc.Ask(ctx, AskInput{
+	_, err := svc.Ask(ctx, AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"/tmp/foo"},
@@ -628,6 +648,8 @@ func TestService_Close(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	var askErr error
 	var wg sync.WaitGroup
@@ -635,7 +657,7 @@ func TestService_Close(t *testing.T) {
 
 	go func() {
 		defer wg.Done()
-		askErr = svc.Ask(context.Background(), AskInput{
+		_, askErr = svc.Ask(context.Background(), AskInput{
 			SessionID:  "ses_001",
 			Permission: "bash",
 			Patterns:   []string{"/tmp/foo"},
@@ -912,6 +934,8 @@ func TestService_AlwaysPersistsToStore(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	store := newMockRuleStore()
 	svc.SetStore(store, "proj_test")
@@ -968,6 +992,7 @@ func TestService_SetStoreLoadsExistingRules(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
 	store := newMockRuleStore()
 	store.saved["proj_test"] = Ruleset{
@@ -977,7 +1002,7 @@ func TestService_SetStoreLoadsExistingRules(t *testing.T) {
 	svc.SetStore(store, "proj_test")
 
 	// The loaded rule should auto-allow matching asks
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"/tmp/foo"},
@@ -1012,12 +1037,13 @@ func TestService_SetBaseRules_AllowsWithoutBlocking(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
 	svc.SetBaseRules(Ruleset{
 		{Permission: "bash", Pattern: "*", Action: ActionAllow},
 	})
 
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"/tmp/foo"},
@@ -1032,12 +1058,13 @@ func TestService_SetBaseRules_DeniesWithError(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
 	svc.SetBaseRules(Ruleset{
 		{Permission: "bash", Pattern: "*", Action: ActionDeny},
 	})
 
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"/tmp/foo"},
@@ -1053,6 +1080,7 @@ func TestService_BaseRulesOverriddenByAgentRules(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
 	// Base rules deny bash
 	svc.SetBaseRules(Ruleset{
@@ -1060,7 +1088,7 @@ func TestService_BaseRulesOverriddenByAgentRules(t *testing.T) {
 	})
 
 	// Agent rules (via AskInput.Ruleset) allow bash — should override base
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"/tmp/foo"},
@@ -1076,6 +1104,7 @@ func TestService_BaseRulesOverriddenByAlwaysApproved(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
 	// Base rules deny bash
 	svc.SetBaseRules(Ruleset{
@@ -1090,7 +1119,7 @@ func TestService_BaseRulesOverriddenByAlwaysApproved(t *testing.T) {
 	svc.SetStore(store, "proj_test")
 
 	// "Always" approved rules should override base deny
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"/tmp/foo"},
@@ -1138,8 +1167,9 @@ func TestService_Ask_EmptyPatterns_FailClosed(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "read",
 		Patterns:   nil,
@@ -1154,8 +1184,9 @@ func TestService_Ask_ShellAliasWithBashRule(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
 
-	err := svc.Ask(context.Background(), AskInput{
+	_, err := svc.Ask(context.Background(), AskInput{
 		SessionID:  "ses_001",
 		Permission: "shell",
 		Patterns:   []string{"bash"},
@@ -1173,17 +1204,20 @@ func TestService_Ask_ReadEnvWithDefaultRules(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	done := make(chan error, 1)
 	go func() {
-		done <- svc.Ask(ctx, AskInput{
+		_, e := svc.Ask(ctx, AskInput{
 			SessionID:  "ses_001",
 			Permission: "read",
 			Patterns:   []string{".env"},
 		})
+		done <- e
 	}()
 
 	// DefaultRules mark read .env* as ask — should block, not allow.
@@ -1199,16 +1233,19 @@ func TestService_RespondToAsk_EmptyReplyRejects(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	askDone := make(chan error, 1)
 	go func() {
-		askDone <- svc.Ask(context.Background(), AskInput{
+		_, e := svc.Ask(context.Background(), AskInput{
 			ID:         "perm_empty_reply",
 			SessionID:  "ses_001",
 			Permission: "bash",
 			Patterns:   []string{"echo"},
 			Always:     []string{"echo"},
 		})
+		askDone <- e
 	}()
 
 	deadline := time.Now().Add(2 * time.Second)
@@ -1238,7 +1275,7 @@ func TestService_RespondToAsk_EmptyReplyRejects(t *testing.T) {
 	// Must not have persisted an always-allow from the empty reply.
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	err := svc.Ask(ctx, AskInput{
+	_, err := svc.Ask(ctx, AskInput{
 		SessionID:  "ses_001",
 		Permission: "bash",
 		Patterns:   []string{"echo"},
@@ -1252,16 +1289,19 @@ func TestService_RespondToAsk_UnknownReplyRejects(t *testing.T) {
 	b := newTestBus()
 	defer b.Close()
 	svc := NewService(b)
+	svc.SetHasResponder(true)
+
 
 	askDone := make(chan error, 1)
 	go func() {
-		askDone <- svc.Ask(context.Background(), AskInput{
+		_, e := svc.Ask(context.Background(), AskInput{
 			ID:         "perm_unknown_reply",
 			SessionID:  "ses_001",
 			Permission: "bash",
 			Patterns:   []string{"ls"},
 			Always:     []string{"ls"},
 		})
+		askDone <- e
 	}()
 
 	deadline := time.Now().Add(2 * time.Second)
@@ -1370,5 +1410,277 @@ func TestEvaluate_CommandPrefix_MixedWithGlob(t *testing.T) {
 	result = Evaluate("shell", "npm test", rules)
 	if result.Action != ActionAsk {
 		t.Errorf("expected ask for 'npm test', got %s", result.Action)
+	}
+}
+
+func TestService_AllowOnceWithNote(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+	svc.SetHasResponder(true)
+
+
+	var note string
+	var askErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		note, askErr = svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+			Always:     []string{"/tmp/foo"},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	if len(pending) != 1 {
+		t.Fatalf("expected 1 pending, got %d", len(pending))
+	}
+
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyOnce,
+		Message:   "be careful with this file",
+	})
+	if err != nil {
+		t.Fatalf("reply failed: %v", err)
+	}
+
+	wg.Wait()
+	if askErr != nil {
+		t.Fatalf("expected nil error, got %v", askErr)
+	}
+	if note != "be careful with this file" {
+		t.Errorf("expected note 'be careful with this file', got %q", note)
+	}
+}
+
+func TestService_DenyWithNote(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+	svc.SetHasResponder(true)
+
+
+	var note string
+	var askErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		note, askErr = svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyReject,
+		Message:   "use a safer approach",
+	})
+	if err != nil {
+		t.Fatalf("reject failed: %v", err)
+	}
+
+	wg.Wait()
+
+	var ce *CorrectedError
+	if !errors.As(askErr, &ce) {
+		t.Fatalf("expected CorrectedError, got %v", askErr)
+	}
+	if ce.Feedback != "use a safer approach" {
+		t.Errorf("expected feedback 'use a safer approach', got %q", ce.Feedback)
+	}
+	if note != "use a safer approach" {
+		t.Errorf("expected note 'use a safer approach', got %q", note)
+	}
+}
+
+func TestService_NoNoteReturnsEmpty(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+	svc.SetHasResponder(true)
+
+
+	var note string
+	var askErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		note, askErr = svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+			Always:     []string{"/tmp/foo"},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyOnce,
+	})
+	if err != nil {
+		t.Fatalf("reply failed: %v", err)
+	}
+
+	wg.Wait()
+	if askErr != nil {
+		t.Fatalf("expected nil error, got %v", askErr)
+	}
+	if note != "" {
+		t.Errorf("expected empty note, got %q", note)
+	}
+}
+
+func TestService_NoteTruncatedAt200(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+	svc.SetHasResponder(true)
+
+
+	var note string
+	var askErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		note, askErr = svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+			Always:     []string{"/tmp/foo"},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	longNote := strings.Repeat("x", 300)
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyOnce,
+		Message:   longNote,
+	})
+	if err != nil {
+		t.Fatalf("reply failed: %v", err)
+	}
+
+	wg.Wait()
+	if askErr != nil {
+		t.Fatalf("expected nil error, got %v", askErr)
+	}
+	if len(note) != MaxNoteLen {
+		t.Errorf("expected note length %d, got %d", MaxNoteLen, len(note))
+	}
+}
+
+func TestService_AlwaysWithNote(t *testing.T) {
+	b := newTestBus()
+	defer b.Close()
+	svc := NewService(b)
+	svc.SetHasResponder(true)
+
+
+	var note string
+	var askErr error
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		note, askErr = svc.Ask(context.Background(), AskInput{
+			SessionID:  "ses_001",
+			Permission: "bash",
+			Patterns:   []string{"/tmp/foo"},
+			Metadata:   map[string]any{},
+			Always:     []string{"/tmp/foo"},
+		})
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(svc.List()) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	pending := svc.List()
+	err := svc.RespondToAsk(ReplyInput{
+		RequestID: pending[0].ID,
+		Reply:     ReplyAlways,
+		Message:   "only for temp files",
+	})
+	if err != nil {
+		t.Fatalf("always reply failed: %v", err)
+	}
+
+	wg.Wait()
+	if askErr != nil {
+		t.Fatalf("expected nil after always, got %v", askErr)
+	}
+	if note != "only for temp files" {
+		t.Errorf("expected note 'only for temp files', got %q", note)
+	}
+
+	// A second ask should auto-allow (always rule) but NOT return the note
+	// since the note was only for the original reply.
+	note2, err2 := svc.Ask(context.Background(), AskInput{
+		SessionID:  "ses_001",
+		Permission: "bash",
+		Patterns:   []string{"/tmp/foo"},
+	})
+	if err2 != nil {
+		t.Fatalf("expected auto-allow, got %v", err2)
+	}
+	if note2 != "" {
+		t.Errorf("expected empty note on auto-allow, got %q", note2)
 	}
 }

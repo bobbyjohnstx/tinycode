@@ -272,6 +272,7 @@ func TestExecuteShell_SecretAsksWhenShellIsAllowed(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
 	defer perms.Close()
 
 	dir := t.TempDir()
@@ -325,6 +326,7 @@ func TestExecuteShell_SecretRejectSkipsCommand(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
 	defer perms.Close()
 
 	dir := t.TempDir()
@@ -465,6 +467,7 @@ func TestExecuteShell_WiderPermissionWithJustificationShowsOnAsk(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
 	defer perms.Close()
 
 	dir := t.TempDir()
@@ -518,6 +521,7 @@ func TestExecuteShell_DefaultPermissionStillAsksForDestructive(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
 	defer perms.Close()
 
 	dir := t.TempDir()
@@ -568,6 +572,7 @@ func TestExecuteShell_WiderPermissionOnSecretShowsEscalation(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
 	defer perms.Close()
 
 	dir := t.TempDir()

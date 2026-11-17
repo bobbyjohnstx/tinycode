@@ -74,6 +74,7 @@ func runACP(args []string) {
 	}
 
 	toolReg, permSvc, toolCtx := initTooling(b, dir, db.DB, cfg)
+	permSvc.SetHasResponder(true)
 	applyConfigPermissions(permSvc, toolReg, cfg)
 
 	lspMgr := initLSP(dir, cfg, toolReg)

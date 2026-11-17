@@ -482,12 +482,13 @@ func TestJSONPermissionProtocol_EndToEnd(t *testing.T) {
 	// Ask for permission in a goroutine (it will block until reply)
 	askDone := make(chan error, 1)
 	go func() {
-		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+		_, err := permSvc.Ask(t.Context(), permission.AskInput{
 			ID:         "perm_test_1",
 			SessionID:  "ses_1",
 			Permission: "shell",
 			Patterns:   []string{"ls -la"},
 		})
+		askDone <- err
 	}()
 
 	// Wait for the permission event to be emitted on stdout
@@ -957,12 +958,13 @@ func TestStdinMux_PermissionReplyDuringAsk(t *testing.T) {
 
 	askDone := make(chan error, 1)
 	go func() {
-		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+		_, err := permSvc.Ask(t.Context(), permission.AskInput{
 			ID:         "perm_mux_1",
 			SessionID:  "ses_1",
 			Permission: "shell",
 			Patterns:   []string{"echo hi"},
 		})
+		askDone <- err
 	}()
 
 	time.Sleep(30 * time.Millisecond)
@@ -1136,12 +1138,13 @@ func TestJSONPermissionProtocol_EmptyReplyRejects(t *testing.T) {
 
 	askDone := make(chan error, 1)
 	go func() {
-		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+		_, err := permSvc.Ask(t.Context(), permission.AskInput{
 			ID:         "perm_empty",
 			SessionID:  "ses_1",
 			Permission: "shell",
 			Patterns:   []string{"echo"},
 		})
+		askDone <- err
 	}()
 	time.Sleep(50 * time.Millisecond)
 
@@ -1174,12 +1177,13 @@ func TestJSONPermissionProtocol_RetryExhaustionForceRejects(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	askDone := make(chan error, 1)
 	go func() {
-		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+		_, err := permSvc.Ask(t.Context(), permission.AskInput{
 			ID:         "late_ask",
 			SessionID:  "ses_1",
 			Permission: "shell",
 			Patterns:   []string{"echo"},
 		})
+		askDone <- err
 	}()
 
 	select {
@@ -1202,13 +1206,14 @@ func TestJSONPermissionProtocol_EmitsMetadata(t *testing.T) {
 
 	askDone := make(chan error, 1)
 	go func() {
-		askDone <- permSvc.Ask(t.Context(), permission.AskInput{
+		_, err := permSvc.Ask(t.Context(), permission.AskInput{
 			ID:         "perm_meta",
 			SessionID:  "ses_1",
 			Permission: "shell",
 			Patterns:   []string{"ls"},
 			Metadata:   map[string]any{"command": "ls"},
 		})
+		askDone <- err
 	}()
 	time.Sleep(50 * time.Millisecond)
 	permReplyCh <- permission.ReplyInput{RequestID: "perm_meta", Reply: permission.ReplyReject}

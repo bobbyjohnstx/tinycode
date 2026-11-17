@@ -77,7 +77,9 @@ type CommandInfo struct {
 
 // PermissionReplyInput is the request body for POST /session/{sessionID}/permissions/{permissionID}.
 // Reply is the SDK contract (once|always|reject). Action is kept for older servers.
+// Message is an optional user note (max 200 chars) included in the tool result.
 type PermissionReplyInput struct {
-	Reply  string `json:"reply"`
-	Action string `json:"action,omitempty"`
+	Reply   string `json:"reply"`
+	Action  string `json:"action,omitempty"`
+	Message string `json:"message,omitempty"`
 }

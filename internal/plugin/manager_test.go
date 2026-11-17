@@ -385,6 +385,7 @@ func TestLoad_PluginToolPermissionAsk(t *testing.T) {
 	mgr := newTestManager("with_tools")
 	b := busNewForTest(t)
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 
 	asked := make(chan permission.Request, 1)
 	sub := b.Subscribe("permission.asked")

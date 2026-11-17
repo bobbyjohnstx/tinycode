@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -41,7 +42,11 @@ type PermissionRequestedMsg struct {
 type PermissionDismissedMsg struct {
 	Request PermissionRequest
 	Action  PermissionAction
+	Message string // optional user note (capped at maxNoteLen)
 }
+
+// maxNoteLen is the maximum length of a user note attached to a permission reply.
+const maxNoteLen = 200
 
 // PermissionPrompt shows a tool permission request with Allow/Always/Reject.
 // Requests that arrive while one is visible are queued and shown after it.
@@ -54,12 +59,19 @@ type PermissionPrompt struct {
 	height        int
 	cancelledIDs  map[string]struct{} // remote cancel; late reply toast-once
 	cancelToasted map[string]struct{}
+	noteInput     textinput.Model
+	noteFocused   bool
 }
 
 // NewPermissionPrompt creates a PermissionPrompt.
 func NewPermissionPrompt() PermissionPrompt {
+	ti := textinput.New()
+	ti.Placeholder = "optional note for the model"
+	ti.Prompt = ""
+	ti.CharLimit = maxNoteLen
 	return PermissionPrompt{
-		selected: PermissionAllow,
+		selected:  PermissionAllow,
+		noteInput: ti,
 	}
 }
 
@@ -76,6 +88,9 @@ func (p *PermissionPrompt) Show(req PermissionRequest) {
 	p.request = req
 	p.selected = PermissionAllow
 	p.visible = true
+	p.noteInput.Reset()
+	p.noteInput.Blur()
+	p.noteFocused = false
 }
 
 // ShowNext displays the next queued request. It reports whether one was shown.
@@ -89,6 +104,9 @@ func (p *PermissionPrompt) ShowNext() bool {
 	p.request = next
 	p.selected = PermissionAllow
 	p.visible = true
+	p.noteInput.Reset()
+	p.noteInput.Blur()
+	p.noteFocused = false
 	return true
 }
 
@@ -220,6 +238,11 @@ func (p PermissionPrompt) IsVisible() bool {
 func (p *PermissionPrompt) SetSize(width, height int) {
 	p.width = width
 	p.height = height
+	inputWidth := width - 16
+	if inputWidth < 20 {
+		inputWidth = 20
+	}
+	p.noteInput.Width = inputWidth
 }
 
 // Update handles key events for the permission prompt.
@@ -234,6 +257,26 @@ func (p PermissionPrompt) Update(msg tea.Msg) (PermissionPrompt, tea.Cmd) {
 	}
 
 	switch keyMsg.String() {
+	case "enter":
+		return p.dismiss(p.selected)
+	case "esc":
+		return p.dismiss(PermissionReject)
+	case "tab":
+		p.noteFocused = !p.noteFocused
+		if p.noteFocused {
+			return p, p.noteInput.Focus()
+		}
+		p.noteInput.Blur()
+		return p, nil
+	}
+
+	if p.noteFocused {
+		var cmd tea.Cmd
+		p.noteInput, cmd = p.noteInput.Update(msg)
+		return p, cmd
+	}
+
+	switch keyMsg.String() {
 	case "left", "h":
 		if p.selected > PermissionAllow {
 			p.selected--
@@ -242,10 +285,6 @@ func (p PermissionPrompt) Update(msg tea.Msg) (PermissionPrompt, tea.Cmd) {
 		if p.selected < PermissionReject {
 			p.selected++
 		}
-	case "enter":
-		return p.dismiss(p.selected)
-	case "esc":
-		return p.dismiss(PermissionReject)
 	}
 
 	return p, nil
@@ -254,9 +293,12 @@ func (p PermissionPrompt) Update(msg tea.Msg) (PermissionPrompt, tea.Cmd) {
 // dismiss hides the prompt and replies with action.
 func (p PermissionPrompt) dismiss(action PermissionAction) (PermissionPrompt, tea.Cmd) {
 	req := p.request
+	note := strings.TrimSpace(p.noteInput.Value())
 	p.visible = false
+	p.noteInput.Blur()
+	p.noteFocused = false
 	return p, func() tea.Msg {
-		return PermissionDismissedMsg{Request: req, Action: action}
+		return PermissionDismissedMsg{Request: req, Action: action, Message: note}
 	}
 }
 
@@ -328,7 +370,9 @@ func (p PermissionPrompt) View() string {
 		sb.WriteString(dimStyle.Render("  Always also releases other waiting shell asks this turn (command text not stored)."))
 		sb.WriteString("\n")
 	}
-	sb.WriteString("    " + dimStyle.Render("⇆ select  enter confirm  esc reject"))
+	sb.WriteString("\n")
+	sb.WriteString(dimStyle.Render("  note: ") + p.noteInput.View() + "\n")
+	sb.WriteString("    " + dimStyle.Render("⇆ select  tab note  enter confirm  esc reject"))
 
 	content := sb.String()
 

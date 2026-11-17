@@ -198,7 +198,7 @@ func TestInitTooling_WiresDBAndRuleStore(t *testing.T) {
 	_ = permSvc // wired; load path covered by SetStore on a new service
 	svc2 := permission.NewService(b)
 	svc2.SetStore(store, proj.ID)
-	if err := svc2.Ask(t.Context(), permission.AskInput{
+	if _, err := svc2.Ask(t.Context(), permission.AskInput{
 		SessionID: "s", Permission: "bash", Patterns: []string{"true"},
 	}); err != nil {
 		t.Fatalf("Ask after SetStore reload: %v", err)
@@ -267,7 +267,7 @@ func TestWirePermissionAskHook_DeniesDangerousCommand(t *testing.T) {
 		return nil
 	})
 
-	err := permSvc.Ask(t.Context(), permission.AskInput{
+	_, err := permSvc.Ask(t.Context(), permission.AskInput{
 		SessionID:  "ses_test",
 		Permission: "destructive-shell",
 		Patterns:   []string{"rm -rf /"},

@@ -1723,7 +1723,7 @@ func TestEventRelay_PermissionAskedNilTransportRejects(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		askErr = permSvc.Ask(context.Background(), permission.AskInput{
+		_, askErr = permSvc.Ask(context.Background(), permission.AskInput{
 			ID:         "perm_nil_transport",
 			SessionID:  "ses_1",
 			Permission: "bash",
@@ -1839,7 +1839,7 @@ func TestEventRelay_SessionAbort_CancelsOutboundPermission(t *testing.T) {
 	askDone := make(chan struct{})
 	safego.Go(func() {
 		defer close(askDone)
-		askErr = permSvc.Ask(context.Background(), permission.AskInput{
+		_, askErr = permSvc.Ask(context.Background(), permission.AskInput{
 			ID:         "perm_abort",
 			SessionID:  "ses_abort",
 			Permission: "bash",

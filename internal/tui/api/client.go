@@ -319,8 +319,9 @@ func (c *Client) UnrevertSession(id string) error {
 
 // ReplyPermission replies to a permission prompt via POST /session/{sessionID}/permissions/{permissionID}.
 // reply should be once|always|reject (SDK contract). Action is also sent for older servers.
-func (c *Client) ReplyPermission(sessionID, permissionID, reply string) error {
-	body := PermissionReplyInput{Reply: reply, Action: reply}
+// message is an optional user note included in the tool result.
+func (c *Client) ReplyPermission(sessionID, permissionID, reply, message string) error {
+	body := PermissionReplyInput{Reply: reply, Action: reply, Message: message}
 	return c.postNoResp("/session/"+sessionID+"/permissions/"+permissionID, body)
 }
 

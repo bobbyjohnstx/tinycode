@@ -370,7 +370,7 @@ func TestReplyPermission(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "/tmp", "")
-	err := c.ReplyPermission("ses_1", "perm_42", "once")
+	err := c.ReplyPermission("ses_1", "perm_42", "once", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

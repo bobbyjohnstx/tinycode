@@ -661,6 +661,7 @@ func TestAutoApprove_SkipsPermissionCheck(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 	// Set a deny-all rule so permission would be denied without auto-approve.
 	permSvc.SetBaseRules(permission.Ruleset{
 		{Permission: "shell", Pattern: "*", Action: permission.ActionDeny},
@@ -888,6 +889,7 @@ func TestExecute_ReadEnvHitsAsk(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	permSvc := permission.NewService(b)
+	permSvc.SetHasResponder(true)
 
 	asked := make(chan permission.Request, 1)
 	sub := b.Subscribe("permission.asked")
@@ -940,6 +942,7 @@ func TestRegistryExecute_AskNotBoundedByBodyTimeout(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
 	defer perms.Close()
 
 	r := NewRegistry(&Context{

@@ -382,6 +382,7 @@ func TestMonitorTool_SecretAsksWhenShellIsAllowed(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 	perms := permission.NewService(b)
+	perms.SetHasResponder(true)
 	defer perms.Close()
 
 	r := NewRegistry(&Context{

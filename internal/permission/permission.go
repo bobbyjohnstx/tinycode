@@ -118,8 +118,12 @@ type pendingEntry struct {
 	replyCh chan replyResult
 }
 
+// MaxNoteLen is the maximum length of a user note attached to a permission reply.
+const MaxNoteLen = 200
+
 type replyResult struct {
-	err error
+	err  error
+	note string
 }
 
 // RuleStore persists approved permission rules so they survive restarts.
@@ -139,9 +143,19 @@ type Service struct {
 	baseRules      Ruleset
 	approved       Ruleset
 	closed         bool
+	hasResponder   bool
 	store          RuleStore
 	projectID      string
 	askInterceptor AskInterceptor
+}
+
+// SetHasResponder marks whether an interactive responder (TUI, web UI)
+// is available to answer permission prompts. When false, Ask returns
+// an immediate denial instead of blocking.
+func (s *Service) SetHasResponder(v bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hasResponder = v
 }
 
 func NewService(b *bus.Bus) *Service {
@@ -182,20 +196,20 @@ func (s *Service) SetAskInterceptor(fn AskInterceptor) {
 }
 
 // Ask evaluates rules and either allows, denies, or blocks waiting for user reply.
-// Returns nil if allowed, an error if denied or rejected.
+// Returns the user's note (if any) and nil if allowed, or an error if denied or rejected.
 // The ctx controls cancellation of the blocking wait.
-func (s *Service) Ask(ctx context.Context, input AskInput) error {
+func (s *Service) Ask(ctx context.Context, input AskInput) (string, error) {
 	s.mu.Lock()
 
 	if s.closed {
 		s.mu.Unlock()
-		return ErrClosed
+		return "", ErrClosed
 	}
 
 	// Fail closed: empty Patterns would otherwise skip evaluation and allow.
 	if len(input.Patterns) == 0 {
 		s.mu.Unlock()
-		return fmt.Errorf("%w: empty patterns", ErrDenied)
+		return "", fmt.Errorf("%w: empty patterns", ErrDenied)
 	}
 
 	needsAsk := false
@@ -204,7 +218,7 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 		if rule.Action == ActionDeny {
 			matching := filterMatching(input.Permission, input.Ruleset)
 			s.mu.Unlock()
-			return &DeniedError{Ruleset: matching}
+			return "", &DeniedError{Ruleset: matching}
 		}
 		if rule.Action == ActionAsk {
 			needsAsk = true
@@ -213,7 +227,7 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 
 	if !needsAsk {
 		s.mu.Unlock()
-		return nil
+		return "", nil
 	}
 
 	reqID := input.ID
@@ -222,7 +236,7 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 		reqID, err = id.Ascending("permission")
 		if err != nil {
 			s.mu.Unlock()
-			return fmt.Errorf("generating permission ID: %w", err)
+			return "", fmt.Errorf("generating permission ID: %w", err)
 		}
 	}
 
@@ -247,14 +261,20 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 	// Plugin hooks (e.g. safety-net) can deny synchronously before the UI ask.
 	if interceptor != nil {
 		if err := interceptor(info); err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return ErrClosed
+		return "", ErrClosed
+	}
+
+	if !s.hasResponder {
+		s.mu.Unlock()
+		return "", fmt.Errorf("%w: no interactive session available to approve %q for %v",
+			ErrRejected, input.Permission, input.Patterns)
 	}
 
 	entry := &pendingEntry{
@@ -272,24 +292,24 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 
 	select {
 	case result := <-entry.replyCh:
-		return result.err
+		return result.note, result.err
 	case <-askCtx.Done():
 		// Resolve-or-reject: never leave the ask pending or the UI overlay stuck.
 		_ = s.RespondToAsk(ReplyInput{RequestID: reqID, Reply: ReplyReject})
 		select {
 		case result := <-entry.replyCh:
 			if err := ctx.Err(); err != nil {
-				return err
+				return "", err
 			}
 			if result.err != nil {
-				return result.err
+				return result.note, result.err
 			}
-			return ErrRejected
+			return "", ErrRejected
 		default:
 			if err := ctx.Err(); err != nil {
-				return err
+				return "", err
 			}
-			return ErrRejected
+			return "", ErrRejected
 		}
 	}
 }
@@ -298,10 +318,16 @@ func (s *Service) Ask(ctx context.Context, input AskInput) error {
 // Bus publishes happen after Service.mu is released to avoid holding the
 // mutex across potentially blocking subscriber delivery.
 func (s *Service) RespondToAsk(input ReplyInput) error {
+	// Cap note length.
+	if len(input.Message) > MaxNoteLen {
+		input.Message = input.Message[:MaxNoteLen]
+	}
+
 	type replyPublish struct {
 		sessionID string
 		requestID string
 		reply     string
+		note      string
 		entry     *pendingEntry
 		err       error
 	}
@@ -330,6 +356,7 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 			err = ErrRejected
 		}
 		publishes[0].err = err
+		publishes[0].note = input.Message
 
 		// Cascade: reject all other pending asks for the same session family
 		for id, other := range s.pending {
@@ -353,12 +380,13 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 				"requestID": p.requestID,
 				"reply":     p.reply,
 			})
-			p.entry.replyCh <- replyResult{err: p.err}
+			p.entry.replyCh <- replyResult{err: p.err, note: p.note}
 		}
 		return nil
 	}
 
 	publishes[0].err = nil
+	publishes[0].note = input.Message
 
 	if input.Reply == ReplyOnce {
 		s.mu.Unlock()
@@ -368,7 +396,7 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 			"requestID": p.requestID,
 			"reply":     p.reply,
 		})
-		p.entry.replyCh <- replyResult{err: nil}
+		p.entry.replyCh <- replyResult{err: nil, note: p.note}
 		return nil
 	}
 
@@ -389,7 +417,7 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 			"requestID": p.requestID,
 			"reply":     p.reply,
 		})
-		p.entry.replyCh <- replyResult{err: p.err}
+		p.entry.replyCh <- replyResult{err: p.err, note: p.note}
 		return nil
 	}
 
@@ -449,7 +477,7 @@ func (s *Service) RespondToAsk(input ReplyInput) error {
 			"requestID": p.requestID,
 			"reply":     p.reply,
 		})
-		p.entry.replyCh <- replyResult{err: p.err}
+		p.entry.replyCh <- replyResult{err: p.err, note: p.note}
 	}
 
 	return nil

@@ -645,9 +645,9 @@ func unrevertSession(client *api.Client, sessionID string) tea.Cmd {
 }
 
 // replyPermission sends a permission reply to the server.
-func replyPermission(client *api.Client, sessionID, permissionID, action string) tea.Cmd {
+func replyPermission(client *api.Client, sessionID, permissionID, action, message string) tea.Cmd {
 	return func() tea.Msg {
-		err := client.ReplyPermission(sessionID, permissionID, action)
+		err := client.ReplyPermission(sessionID, permissionID, action, message)
 		return PermissionRepliedMsg{PermissionID: permissionID, Err: err}
 	}
 }

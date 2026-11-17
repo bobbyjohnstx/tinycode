@@ -2369,7 +2369,7 @@ func TestReplyPermission_Success(t *testing.T) {
 	defer srv.Close()
 
 	client := api.New(srv.URL, "/tmp", "")
-	cmd := replyPermission(client, "ses-1", "perm-1", "once")
+	cmd := replyPermission(client, "ses-1", "perm-1", "once", "")
 	msg := cmd()
 
 	done, ok := msg.(PermissionRepliedMsg)
@@ -2389,7 +2389,7 @@ func TestReplyPermission_ReturnsErrorOnServerFailure(t *testing.T) {
 	defer srv.Close()
 
 	client := api.New(srv.URL, "/tmp", "")
-	cmd := replyPermission(client, "ses-1", "perm-1", "reject")
+	cmd := replyPermission(client, "ses-1", "perm-1", "reject", "")
 	msg := cmd()
 
 	done, ok := msg.(PermissionRepliedMsg)
