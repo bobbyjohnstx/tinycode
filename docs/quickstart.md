@@ -244,6 +244,7 @@ This creates a self-contained HTML file you can open in any browser.
 | `/chdir <path>` | Change working directory mid-session |
 | `/instructions` | Show loaded instruction blocks with paths and sizes |
 | `/warnings` | Show session warnings (`/warnings clear` to reset) |
+| `/roots add <path>` | Add a writable root directory for this session |
 
 ### Bundled skills
 

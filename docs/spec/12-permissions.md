@@ -324,14 +324,22 @@ Rule{Permission: "shell", Pattern: "git", Action: ActionAllow, Kind: "command-pr
 
 This is useful for allowing a family of subcommands without writing a glob that might match unrelated commands.
 
-## 12.11 Bus Events
+## 12.11 Unattended Denial
+
+In headless mode (`tinycode run` without `-i` or `--permissions json`), residual permission asks that are not covered by allow rules are automatically denied. This includes `--dangerously-skip-permissions`, which auto-approves asks rather than hanging. The denial is logged so operators can audit which tool calls were blocked during unattended runs.
+
+## 12.12 User Note on Permission Reply
+
+When responding to a permission prompt (Allow once, Allow always, or Reject), the user can attach a short note (up to 200 characters). The note is stored alongside the reply and logged for audit purposes. In JSON permission mode (`--permissions json`), the note is included in the reply object as `"message"`.
+
+## 12.13 Bus Events
 
 | Event | Publisher | Payload | Description |
 |-------|-----------|---------|-------------|
 | `permission.asked` | `Service.Ask()` | `Request` struct | Permission request created, waiting for reply |
 | `permission.replied` | `Service.RespondToAsk()` | `{sessionID, requestID, reply}` | Permission request answered |
 
-## 12.12 Service Lifecycle
+## 12.14 Service Lifecycle
 
 ### Construction
 

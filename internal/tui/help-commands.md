@@ -37,6 +37,7 @@ Type `/` in the prompt to see available commands. Type `/help` to open this refe
 | `/warnings` | Show session warnings. Use `/warnings clear` to reset. | Reviewing accumulated warnings during a session. |
 | `/worktree` | Create a git worktree and start a child session in it. | Isolating experimental work in a separate working copy. |
 | `/preset <name>` | Run a saved prompt preset from `presets.json`. | Reusing frequently-used prompts without retyping them. |
+| `/roots add <path>` | Add a writable root directory for this session. Tool access is denied outside roots even with auto-approve. | When you need to grant the model write access to a directory outside the project. |
 | `/changes` | Show a diff of only the files tinycode modified in this session (excludes pre-existing uncommitted changes). | Before committing — see exactly what tinycode changed, not your other uncommitted work. |
 | `/diff` | Show all uncommitted changes in the working directory (full git diff). | Quick look at everything that's changed, regardless of source. |
 | `/copy [N]` | Copy the last assistant response to clipboard. Pass N for the Nth-latest. Shows a code-block picker if the response contains fenced blocks. | Grabbing code or output to paste elsewhere. `/copy 2` for the second-to-last response. |
@@ -87,6 +88,7 @@ These are not slash commands — they are tools the model can invoke during a co
 
 | Tool | What it does | When the model uses it |
 |------|-------------|----------------------|
+| `bash` | Shell command execution. Supports `background: true` for long-running commands; background commands promote from 2min to 10min timeout. | Running shell commands, build steps, or background processes. |
 | `notepad` | Session-scoped scratch storage (read/write/list/delete, 50 entries max). Survives compaction. | To remember intermediate results, plans, or checklists across a long session. |
 | `question` | Ask the user a question. Shows a full-screen overlay with text input or option selection. Blocks until answered. | When the model needs clarification or a decision before continuing. |
 | `monitor` | Background process watcher with buffered event delivery (ring buffer, concurrent cap). Supports a `stdin` action for sending input to interactive processes. | To watch a running process (e.g., build, test suite) and report output at turn boundaries. |
@@ -94,6 +96,7 @@ These are not slash commands — they are tools the model can invoke during a co
 | `notify` | Desktop notification with urgency levels. Supports WSL. Auto-fires on goal/subagent completion. | To alert you when a long-running task finishes or needs attention. |
 | `tool_search` | Discover deferred tool schemas by keyword when MCP/plugin tools exceed threshold. | When the model needs to find and load a tool schema before calling it. |
 | `mcp_resource` | List and read MCP resources. Actions: `list`, `templates`, `read` (by URI). | To access read-only resources exposed by MCP servers. |
+| `notes` | Read, write, and list model notes (MEMORY.md) across sessions. Per-repo, 200-line cap, disabled for subagents. | To persist findings, decisions, or context that should survive across sessions. |
 
 ## Keyboard Shortcuts
 

@@ -497,7 +497,37 @@ These are applied by `cmd/tinycode` (discovery, serve bind, logger, auth), **not
 }
 ```
 
-## 13.10 Prompt Presets
+## 13.10 Path-Scoped Rules
+
+Source: `.tinycode/rules/`
+
+Path-scoped rules are instruction files in `.tinycode/rules/` that apply only when the model is working on files matching a frontmatter glob pattern. Each rule file uses YAML frontmatter with a `globs` field:
+
+```yaml
+---
+globs: "*.go"
+---
+
+Always run `go vet` after editing Go files.
+```
+
+The `globs` field accepts a single pattern or an array of patterns. Rules are loaded at startup and matched against file paths during tool execution. Only rules whose globs match the current file are injected into the model context.
+
+## 13.11 Notes Configuration
+
+The `notes` tool (session memory via MEMORY.md) is enabled by default. Disable it in config:
+
+```json
+{
+  "notes": {
+    "enabled": false
+  }
+}
+```
+
+When disabled, the `notes` tool is not registered and the model cannot read or write MEMORY.md.
+
+## 13.12 Prompt Presets
 
 Source: `presets.json`
 

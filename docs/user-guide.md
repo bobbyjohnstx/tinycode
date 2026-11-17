@@ -121,6 +121,7 @@ These are processed by the model. They show up in autocomplete alongside client 
 | `/ask <agent> <message>` | Route a prompt to a specific agent (e.g., `/ask architect design the auth flow`) |
 | `/swarm <task>` | Split a task into subtasks and dispatch parallel subagents (see [Swarm Mode](#subagents-and-swarm-mode)) |
 | `/goal <task>` | Iterate on a task autonomously until complete or blocked (`/work-loop` is an alias) |
+| `/roots add <path>` | Add a writable root directory for this session (tool access denied outside roots even with auto-approve) |
 | `/scratch [prompt]` | Open a throwaway side conversation (close/keep lifecycle). `S` key toggles when prompt is empty |
 | `/chdir <path>` | Change the working directory for the current session |
 | `/instructions` | Show all loaded instruction blocks with their source paths and sizes |
@@ -346,6 +347,10 @@ Agents are specialized personas that share the same tools but have different sys
 Hidden utility agents (compaction, title, summary) handle internal tasks and are not selectable.
 
 Some agents (code-simplifier, qa-tester, scientist) are disabled by default but can be enabled in config.
+
+#### Agent Frontmatter Hooks and Skills
+
+Agent `.md` files support `hooks` and `skills` fields in YAML frontmatter. Agent hooks run after config-level hooks on the same events. Skills listed in the frontmatter are preloaded into child subagents spawned by that agent (capped at 5 skills / 16 KiB total).
 
 #### AGENTS.override.md
 
@@ -776,6 +781,14 @@ Each `permission.allow` or `permission.deny` entry is a permission name, or a na
 
 Deny entries are applied after allow entries, so a deny wins over an allow for the same match inside this list. The last matching rule wins overall, including later rules from the agent.
 
+#### Unattended Denial
+
+In headless mode (`tinycode run` without `-i` or `--permissions json`), residual permission asks that are not covered by allow rules are automatically denied rather than hanging. This enables fully unattended runs where only pre-approved operations execute.
+
+#### User Note on Permission Reply
+
+When responding to a permission prompt, the user can attach a short note (up to 200 characters) explaining why the request was allowed or denied. The note is logged for audit purposes.
+
 #### Command-Prefix Rules
 
 A `command-prefix` rule matches the shell command text by prefix instead of glob. The command is trimmed, then matched if it equals the prefix or continues with a space (`git` matches `git status` but not `gitk`). List more specific prefixes after general ones (last-match ordering). `bash` and `shell` are the same permission. `read .env*` , `webfetch *`, paths outside the project, destructive shell commands, and shell commands that name a secret file ask even when a broad allow exists, unless a later rule allows them. Destructive shell includes recursive `rm`, force-push, cluster mutations (`oc delete`, `kubectl apply`, `helm upgrade`), and host mutations (`systemctl restart`, firewall edits, account changes, route changes), including the same command over `ssh`. `oc get` and `systemctl status` do not ask.
@@ -812,6 +825,10 @@ Plain text on stdout is ignored. A JSON object with `hookSpecificOutput.addition
 #### Hook Trust
 
 Shell hooks are gated by a SHA-256 trust hash of (command + event + project path). The first time a hook runs, tinycode asks for approval and stores the hash. Subsequent runs with the same command/event/path auto-approve. Changing the command or moving the project invalidates trust.
+
+### Session Memory (MEMORY.md)
+
+The model can persist notes across sessions via the `notes` tool, which reads and writes a `MEMORY.md` file scoped to the current git repository. Notes are capped at 200 lines / 25 KiB. The `notes` tool supports `read`, `write`, and `list` actions. Session memory is disabled for subagents to prevent noisy writes from child tasks.
 
 ### Other config that is easy to miss
 

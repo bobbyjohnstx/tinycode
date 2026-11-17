@@ -83,13 +83,14 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `/markdown-style` | Change markdown rendering: auto, dark, light, muted, colorful, notty |
 | `/thinking <level>` | Set reasoning depth: off, low, medium, high, max (all providers) |
 | `/effort <level>` | Set work intensity: low, medium, high, max |
-| `/goal <condition>` | Autonomous loop until condition met (e.g. "tests pass") |
+| `/goal <objective>` | Autonomous loop with LLM-as-judge (no shell command needed) |
 | `/scratch [prompt]` | Throwaway side conversation (close/keep lifecycle) |
 | `/chdir <path>` | Change working directory mid-session |
 | `/instructions` | Show loaded instruction blocks with paths and sizes |
 | `/warnings` | Show session warnings (`/warnings clear` to reset) |
 | `/worktree` | Create git worktree and start child session |
 | `/preset <name>` | Run a saved prompt preset |
+| `/roots add <path>` | Add a writable root directory for this session |
 | `/swarm <task>` | Parallel subagent dispatch with specialist agents |
 
 **CLI commands:**
@@ -119,6 +120,16 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `tinycode attach <url>` | Connect TUI to a remote `tinycode serve` (no local server) |
 | `tinycode import <file>` | Import a session from JSON export |
 | `tinycode export --sanitize <id>` | Export with paths, secrets, and tool args redacted |
+
+## Session Memory & Instructions
+
+- **MEMORY.md** -- Model-written notes per git repo, persisted across sessions. 200-line cap. Disabled for subagents. Use the `notes` tool (read/write/list) to manage.
+- **AGENTS.local.md / CLAUDE.local.md** -- Per-user instruction files (not committed to the repo).
+- **@path imports** -- Depth 4, fence-aware. Reference files or directories in your prompt.
+- **.tinycode/rules/** -- Path-scoped rules with frontmatter globs. Rules apply only to matching file paths.
+- **Writable roots** -- `/roots add <path>` grants write access to a directory. Tool access is denied outside roots even with auto-approve.
+- **Bash background** -- `background: true` parameter runs commands in the background with timeout promotion (2min to 10min).
+- **Spill output** -- Tool output exceeding 2,000 lines or 50 KiB is saved to a file and a reference is returned.
 
 ## Common Workflows
 

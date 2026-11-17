@@ -154,6 +154,7 @@ Shell command execution. Tool ID is `bash` (not `shell`). Source: `shell.go`
 |-----------|------|----------|---------|-------------|
 | `command` | string | yes | — | Shell command |
 | `timeout` | integer | no | 120,000 ms | Timeout in milliseconds (max 600,000) |
+| `background` | boolean | no | false | Run in background; promotes default timeout from 2min to 10min |
 | `description` | string | no | — | Human-readable description |
 | `permission` | string | no | — | Permission category override for this invocation |
 | `justification` | string | no | — | Explanation for why the command is needed (shown in permission prompt) |
@@ -407,13 +408,28 @@ Resources are read-only and do not go through `CallTool`. They provide access to
 
 ---
 
-## 8.8 monitor (stdin action)
+## 8.8 notes
+
+Read, write, and list model notes (MEMORY.md) across sessions. Source: `notes.go`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | enum | yes | `read`, `write`, or `list` |
+| `content` | string | no | Note content (required for `write`) |
+
+Notes are stored in a `MEMORY.md` file scoped to the current git repository. The file is capped at 200 lines / 25 KiB. The `list` action returns all note entries. Disabled for subagents to prevent noisy writes from child tasks.
+
+**Permission:** `edit`
+
+---
+
+## 8.9 monitor (stdin action)
 
 The `monitor` tool supports a `stdin` action for sending input to interactive background processes. When a monitored process expects input (e.g., a REPL or interactive prompt), use the `stdin` action with the process ID and the text to send.
 
 ---
 
-## 8.9 Malformed Tool-Call Repair
+## 8.10 Malformed Tool-Call Repair
 
 Source: `internal/llm/openai.go`
 
@@ -424,7 +440,7 @@ When the LLM generates invalid JSON for tool call arguments:
 
 ---
 
-## 8.10 Known Limitations
+## 8.11 Known Limitations
 
 ### Shell mutation heuristic
 `ClassifyMutation` detects `>`, `>>`, `tee`, `find -delete`, `sed -i`, and `sort -o`. It does not detect `cp`, `mv`, `install`, `rsync`, Python/Ruby one-liners, or `xargs rm`. It is a **best-effort heuristic**, not a security boundary. Commands it misses are recorded as "unknown shell changes" in rewind warnings.
@@ -438,6 +454,9 @@ When the LLM generates invalid JSON for tool call arguments:
 - The reviewer uses the session's configured model (or `small_model` when available). There is no structural separation between worker and reviewer.
 - Each tool result in the transcript is capped at 2,000 characters. Evidence at the end of large output may be truncated.
 - The goal judge endpoint is available only in TUI mode. `tinycode run`, `serve`, and ACP do not expose it.
+
+### Spill output
+- Tool output exceeding 2,000 lines or 50 KiB is saved to a file on disk and a reference path is returned to the model instead of the full output. This prevents large tool results from consuming the context window.
 
 ### Agent-scoped hooks
 - The hook runner is one object per process. Two sessions on different agents overwrite each other's hooks.

@@ -102,6 +102,11 @@ Requires Go 1.27.1+. Other modes: `tinycode web` (browser UI), `tinycode serve` 
 - **Hook trust** --- shell hooks are gated by a SHA-256 trust hash of (command + event + project path); changing the command invalidates trust
 - **Command-prefix permissions** --- `command-prefix` rules match shell commands by prefix instead of glob, so `git` matches `git status` but not `gitk`
 - **MCP resources** --- `mcp_resource` tool lists and reads read-only resources exposed by MCP servers alongside tools
+- **Session memory (MEMORY.md)** --- `notes` tool persists model findings across sessions in a per-repo MEMORY.md (200-line cap, disabled for subagents)
+- **Bash background** --- `background: true` parameter runs shell commands in the background with timeout promotion (2min to 10min)
+- **Writable roots** --- `/roots add <path>` grants write access to directories; tool access denied outside roots even with auto-approve
+- **Goal LLM-as-judge** --- `/goal` uses an LLM reviewer to assess completion without requiring a shell command
+- **Path-scoped rules** --- `.tinycode/rules/` files with frontmatter globs inject instructions only when working on matching file paths
 
 ### Interfaces
 

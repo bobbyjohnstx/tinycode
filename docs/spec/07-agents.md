@@ -25,6 +25,8 @@ type Info struct {
     Options     map[string]any     // agent-specific options
     Model       *ModelRef          // preferred model override
     Variant     string             // model variant
+    Hooks       map[string][]HookEntry // agent-scoped hooks (run after config hooks)
+    Skills      []string           // skills preloaded into child subagents (5 / 16KiB cap)
 }
 ```
 
