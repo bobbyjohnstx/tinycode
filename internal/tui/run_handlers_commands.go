@@ -880,7 +880,8 @@ func createWorktreeSession(client *api.Client, dir, parentID, agent string, mode
 		}
 
 		si := sessionInfoFromAPI(*info)
-		return WorktreeCreatedMsg{Session: &si}
+		si.Directory = result.WorktreePath
+		return WorktreeCreatedMsg{Session: &si, WorktreePath: result.WorktreePath}
 	}
 }
 
@@ -898,6 +899,14 @@ func (c *connectedApp) handleWorktreeCreated(msg WorktreeCreatedMsg) (tea.Model,
 	if msg.Session != nil {
 		c.app.state.Sessions = append([]SessionInfo{*msg.Session}, c.app.state.Sessions...)
 		c.app.sidebar.SetSessions(c.app.state.Sessions)
+
+		// Update TUI cwd to the worktree path before switching sessions.
+		if msg.WorktreePath != "" {
+			c.app.status.SetCwd(msg.WorktreePath)
+			c.app.sidebar.SetCwd(msg.WorktreePath)
+			c.app.prompt.SetCwd(msg.WorktreePath)
+		}
+
 		cmds = append(cmds, func() tea.Msg {
 			return SessionSwitchedMsg{SessionID: msg.Session.ID}
 		})

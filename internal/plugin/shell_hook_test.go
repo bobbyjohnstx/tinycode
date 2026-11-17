@@ -345,7 +345,7 @@ func TestWithTrust_NilRunnerReturnsNil(t *testing.T) {
 	}
 }
 
-func TestWithTrust_UntrustedHookSkipped(t *testing.T) {
+func TestWithTrust_UntrustedHookStillRuns(t *testing.T) {
 	store := NewHookTrustStore(t.TempDir())
 	hooks := map[string][]config.HookConfig{
 		"session.start": {{Command: "echo hi"}},
@@ -353,13 +353,31 @@ func TestWithTrust_UntrustedHookSkipped(t *testing.T) {
 	r := NewShellHookRunner(hooks, slog.Default())
 	r.WithTrust(store, "/tmp/project")
 
-	// Hook is untrusted by default, so RunBefore should skip it (no output, no error).
+	// Untrusted hooks run until the approval prompt UI is implemented.
+	// Only explicitly disabled hooks are skipped.
+	_, err := r.RunBefore("session.start", nil)
+	if err != nil {
+		t.Fatalf("untrusted hook should still run: %v", err)
+	}
+}
+
+func TestWithTrust_DisabledHookSkipped(t *testing.T) {
+	store := NewHookTrustStore(t.TempDir())
+	if err := store.Disable("echo bad", "session.start", "/tmp/project"); err != nil {
+		t.Fatalf("Disable failed: %v", err)
+	}
+	hooks := map[string][]config.HookConfig{
+		"session.start": {{Command: "echo bad"}},
+	}
+	r := NewShellHookRunner(hooks, slog.Default())
+	r.WithTrust(store, "/tmp/project")
+
 	ctx, err := r.RunBefore("session.start", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(ctx) != 0 {
-		t.Errorf("expected no context from skipped hook, got %v", ctx)
+		t.Errorf("expected no context from disabled hook, got %v", ctx)
 	}
 }
 

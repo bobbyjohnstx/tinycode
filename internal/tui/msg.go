@@ -405,8 +405,9 @@ type WorktreeRequestMsg struct{}
 
 // WorktreeCreatedMsg carries the result of creating a git worktree and its child session.
 type WorktreeCreatedMsg struct {
-	Session *SessionInfo
-	Err     error
+	Session      *SessionInfo
+	WorktreePath string
+	Err          error
 }
 
 // RewindDoneMsg carries the result of a /rewind command.

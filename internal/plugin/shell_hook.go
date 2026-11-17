@@ -50,8 +50,11 @@ func (r *ShellHookRunner) WithTrust(store *HookTrustStore, projectDir string) *S
 	return r
 }
 
-// shouldRun checks whether a hook is allowed to execute based on trust state.
-// Returns true if no trust store is configured (user-config hooks).
+// shouldRun checks whether a hook is explicitly disabled in the trust store.
+// Untrusted hooks are allowed to run — the trust prompt UI is not yet
+// implemented, so blocking untrusted hooks would silently break all
+// existing project hooks. Once the approval prompt lands, this will
+// also return false for hooks that are neither trusted nor disabled.
 func (r *ShellHookRunner) shouldRun(command, eventName string) bool {
 	if r.trustStore == nil || r.projectDir == "" {
 		return true
@@ -59,11 +62,7 @@ func (r *ShellHookRunner) shouldRun(command, eventName string) bool {
 	if r.trustStore.IsDisabled(command, eventName, r.projectDir) {
 		return false
 	}
-	if r.trustStore.IsTrusted(command, eventName, r.projectDir) {
-		return true
-	}
-	r.trustStore.WarnOnce(command, eventName, r.projectDir, r.logger)
-	return false
+	return true
 }
 
 // RunBefore executes shell hooks for a "before" event synchronously.

@@ -129,20 +129,18 @@ func TestHookTrustStore_WarnOnce(t *testing.T) {
 	store.WarnOnce("echo hi", "session.start", "/proj", nil) // nil logger
 }
 
-func TestShellHookRunner_WithTrust_UntrustedSkips(t *testing.T) {
+func TestShellHookRunner_WithTrust_UntrustedStillRuns(t *testing.T) {
 	hooks := map[string][]config.HookConfig{
-		"session.start": {{Command: "echo should-not-run"}},
+		"session.start": {{Command: "echo untrusted-but-runs"}},
 	}
 	store := NewHookTrustStore(t.TempDir())
 	r := NewShellHookRunner(hooks, slog.Default())
 	r.WithTrust(store, "/proj")
 
-	ctx, err := r.RunBefore("session.start", nil)
+	// Untrusted hooks run until the approval prompt UI is implemented.
+	_, err := r.RunBefore("session.start", nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(ctx) > 0 {
-		t.Error("untrusted hook should not produce output")
+		t.Fatalf("untrusted hook should still run: %v", err)
 	}
 }
 
