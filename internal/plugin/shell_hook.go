@@ -20,8 +20,10 @@ const defaultShellHookTimeout = 10 * time.Second
 
 // ShellHookRunner executes shell commands configured as hooks in settings.json.
 type ShellHookRunner struct {
-	hooks  map[string][]config.HookConfig
-	logger *slog.Logger
+	hooks      map[string][]config.HookConfig
+	logger     *slog.Logger
+	trustStore *HookTrustStore
+	projectDir string
 }
 
 // NewShellHookRunner creates a runner from the hooks config map.
@@ -34,6 +36,34 @@ func NewShellHookRunner(hooks map[string][]config.HookConfig, logger *slog.Logge
 		logger = slog.Default()
 	}
 	return &ShellHookRunner{hooks: hooks, logger: logger}
+}
+
+// WithTrust attaches a trust store and project directory to the runner.
+// Project hooks are checked against the store before execution.
+// User-config hooks (no trust store) always run.
+func (r *ShellHookRunner) WithTrust(store *HookTrustStore, projectDir string) *ShellHookRunner {
+	if r == nil {
+		return nil
+	}
+	r.trustStore = store
+	r.projectDir = projectDir
+	return r
+}
+
+// shouldRun checks whether a hook is allowed to execute based on trust state.
+// Returns true if no trust store is configured (user-config hooks).
+func (r *ShellHookRunner) shouldRun(command, eventName string) bool {
+	if r.trustStore == nil || r.projectDir == "" {
+		return true
+	}
+	if r.trustStore.IsDisabled(command, eventName, r.projectDir) {
+		return false
+	}
+	if r.trustStore.IsTrusted(command, eventName, r.projectDir) {
+		return true
+	}
+	r.trustStore.WarnOnce(command, eventName, r.projectDir, r.logger)
+	return false
 }
 
 // RunBefore executes shell hooks for a "before" event synchronously.
@@ -51,6 +81,9 @@ func (r *ShellHookRunner) RunBefore(eventName string, vars map[string]string) ([
 	var collected []string
 	for _, h := range hooks {
 		if !matchesFilter(h.Match, vars) {
+			continue
+		}
+		if !r.shouldRun(h.Command, eventName) {
 			continue
 		}
 		cmd := substituteVars(h.Command, vars)
@@ -94,6 +127,9 @@ func (r *ShellHookRunner) RunAfter(eventName string, vars map[string]string) {
 		if !matchesFilter(h.Match, vars) {
 			continue
 		}
+		if !r.shouldRun(h.Command, eventName) {
+			continue
+		}
 		cmd := substituteVars(h.Command, vars)
 		timeout := shellHookTimeout(h.Timeout)
 		logger := r.logger
@@ -133,6 +169,9 @@ func (r *ShellHookRunner) RunAfterSync(eventName string, vars map[string]string)
 	var collected []string
 	for _, h := range hooks {
 		if !matchesFilter(h.Match, vars) {
+			continue
+		}
+		if !r.shouldRun(h.Command, eventName) {
 			continue
 		}
 		cmd := substituteVars(h.Command, vars)

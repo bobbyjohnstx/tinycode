@@ -14,6 +14,7 @@ import (
 
 	authpkg "github.com/bobbyjohnstx/tinycode/internal/auth"
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/project"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
@@ -957,6 +958,35 @@ func runInit() {
 	fmt.Printf("Plugins enabled: %d installed, %d skipped\n", len(installed), len(failed))
 	if len(failed) > 0 {
 		fmt.Println("Skipped plugins were not written to config. Fix install errors and re-run init or plugin install.")
+	}
+}
+
+func runCheckPermission() {
+	setupLogger()
+	args := os.Args[2:]
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: tinycode check-permission <command>\n")
+		fmt.Fprintf(os.Stderr, "Prints which permission rule fires for the given command.\n")
+		os.Exit(1)
+	}
+	command := strings.Join(args, " ")
+	dir, _ := os.Getwd()
+	cfg, err := config.Load(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading config: %v\n", err)
+		os.Exit(1)
+	}
+	var rules permission.Ruleset
+	if cfg.Permission != nil {
+		rules = permission.FromConfig(cfg.Permission.Allow, cfg.Permission.Deny)
+	}
+	result := permission.Evaluate("shell", command, rules)
+	fmt.Printf("Command:    %s\n", command)
+	fmt.Printf("Permission: %s\n", result.Permission)
+	fmt.Printf("Action:     %s\n", result.Action)
+	fmt.Printf("Pattern:    %s\n", result.Pattern)
+	if result.Kind != "" {
+		fmt.Printf("Kind:       %s\n", result.Kind)
 	}
 }
 

@@ -139,3 +139,146 @@ func TestExecuteQuestion_NilBusFailClosed(t *testing.T) {
 		t.Fatalf("output = %q, want fail-closed message (not fake success)", result.Output)
 	}
 }
+
+func TestExecuteQuestion_LegacyShapeStillWorks(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	asked := b.Subscribe("question.asked")
+	defer asked.Unsubscribe()
+
+	tc := &Context{SessionID: "ses-q-legacy", Bus: b}
+	done := make(chan struct{})
+	var result *ExecuteResult
+	go func() {
+		result, _ = executeQuestion(context.Background(), tc,
+			json.RawMessage(`{"question":"Pick a color","options":["red","blue"]}`))
+		close(done)
+	}()
+
+	var questionID string
+	select {
+	case evt := <-asked.C:
+		props := evt.Properties.(map[string]any)
+		questionID, _ = props["id"].(string)
+		questions, _ := props["questions"].([]map[string]any)
+		if len(questions) != 1 {
+			t.Fatalf("expected 1 question, got %d", len(questions))
+		}
+		if questions[0]["question"] != "Pick a color" {
+			t.Errorf("question = %v", questions[0]["question"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for question.asked")
+	}
+
+	b.Publish("question.replied", map[string]any{
+		"requestID": questionID,
+		"answer":    "red",
+	})
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out")
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	if result.Output != "red" {
+		t.Errorf("answer = %q, want red", result.Output)
+	}
+}
+
+func TestExecuteQuestion_StructuredThreeQuestions(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	asked := b.Subscribe("question.asked")
+	defer asked.Unsubscribe()
+
+	tc := &Context{SessionID: "ses-q-struct", Bus: b}
+	done := make(chan struct{})
+	var result *ExecuteResult
+	go func() {
+		result, _ = executeQuestion(context.Background(), tc, json.RawMessage(`{
+			"questions": [
+				{"id":"q1","header":"Style","question":"Pick a style","options":[{"label":"A","description":"Option A"},{"label":"B"}]},
+				{"id":"q2","header":"Color","question":"Pick a color","options":[{"label":"Red"},{"label":"Blue"}]},
+				{"id":"q3","header":"Size","question":"Pick size","options":[{"label":"S"},{"label":"L"}]}
+			]
+		}`))
+		close(done)
+	}()
+
+	var questionID string
+	select {
+	case evt := <-asked.C:
+		props := evt.Properties.(map[string]any)
+		questionID, _ = props["id"].(string)
+		questions, _ := props["questions"].([]map[string]any)
+		if len(questions) != 3 {
+			t.Fatalf("expected 3 questions, got %d", len(questions))
+		}
+		if questions[0]["id"] != "q1" {
+			t.Errorf("first question id = %v", questions[0]["id"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out")
+	}
+
+	b.Publish("question.replied", map[string]any{
+		"requestID": questionID,
+		"answer":    `{"q1":"A","q2":"Red","q3":"S"}`,
+	})
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out")
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	if result.Output != `{"q1":"A","q2":"Red","q3":"S"}` {
+		t.Errorf("answer = %q", result.Output)
+	}
+}
+
+func TestExecuteQuestion_FourthQuestionRejected(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	tc := &Context{SessionID: "ses-q-4", Bus: b}
+	result, err := executeQuestion(context.Background(), tc, json.RawMessage(`{
+		"questions": [
+			{"id":"q1","question":"Q1","options":[{"label":"A"}]},
+			{"id":"q2","question":"Q2","options":[{"label":"A"}]},
+			{"id":"q3","question":"Q3","options":[{"label":"A"}]},
+			{"id":"q4","question":"Q4","options":[{"label":"A"}]}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error for 4 questions")
+	}
+	if result.Output != "Too many questions: 4 (max 3)" {
+		t.Errorf("output = %q", result.Output)
+	}
+}
+
+func TestExecuteQuestion_HeadlessRejects(t *testing.T) {
+	// Bus is nil = headless mode.
+	tc := &Context{SessionID: "ses-q-headless", Bus: nil}
+	result, err := executeQuestion(context.Background(), tc, json.RawMessage(`{
+		"questions": [
+			{"id":"q1","question":"Q1","options":[{"label":"A"},{"label":"B"}]}
+		]
+	}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected rejection in headless mode")
+	}
+}

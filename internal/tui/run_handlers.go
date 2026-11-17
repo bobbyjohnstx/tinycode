@@ -56,6 +56,16 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c.handleEditorRequest(EditorRequestMsg{Content: content})
 	}
 
+	if trimmed == "/warnings clear" {
+		teaCmd, handled := c.app.handleClientCommand("warnings-clear")
+		if handled && teaCmd != nil {
+			model, cmd := c.app.Update(teaCmd())
+			c.updateApp(model)
+			return c, cmd
+		}
+		return c, nil
+	}
+
 	if strings.HasPrefix(trimmed, "/thinking") {
 		return c.handleThinkingCommand(trimmed)
 	}

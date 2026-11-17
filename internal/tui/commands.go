@@ -45,4 +45,6 @@ var clientCommandDefs = []clientCommandDef{
 	{Name: "thinking", Description: "Set reasoning level (off/low/medium/high/max)", InPalette: true},
 	{Name: "undo", Description: "Revert last AI file changes", InPalette: false},
 	{Name: "verbose", Description: "Toggle tool output between collapsed and expanded", InPalette: true},
+	{Name: "warnings", Description: "Show session warnings (/warnings clear to reset)", InPalette: true},
+	{Name: "worktree", Description: "Create git worktree and start child session", InPalette: true},
 }

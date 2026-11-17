@@ -62,6 +62,79 @@ func TestExecuteRead_TruncatesLargeFile(t *testing.T) {
 	}
 }
 
+func TestExecuteRead_ImageDuplicateCheck(t *testing.T) {
+	dir := t.TempDir()
+	imgPath := filepath.Join(dir, "test.png")
+	// Write a minimal valid PNG-ish file (content doesn't matter for this test).
+	if err := os.WriteFile(imgPath, []byte("fake-png-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:  dir,
+		ReadFiles:  NewSafeReadFiles(),
+		ReadImages: NewSafeReadFiles(),
+	}
+	raw, _ := json.Marshal(readArgs{FilePath: imgPath})
+
+	// First read: should return base64 data.
+	result1, err := executeRead(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result1.IsError {
+		t.Fatalf("unexpected tool error: %s", result1.Output)
+	}
+	if !strings.HasPrefix(result1.Output, "data:image/png;base64,") {
+		t.Fatalf("expected data URI, got %q", result1.Output)
+	}
+
+	// Second read of the same image: should return short note.
+	result2, err := executeRead(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result2.IsError {
+		t.Fatal("duplicate image read should not be an error")
+	}
+	if result2.Output != "Image already attached" {
+		t.Errorf("expected 'Image already attached', got %q", result2.Output)
+	}
+}
+
+func TestExecuteRead_NonImageUnchanged(t *testing.T) {
+	dir := t.TempDir()
+	txtPath := filepath.Join(dir, "test.txt")
+	if err := os.WriteFile(txtPath, []byte("hello\nworld\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:  dir,
+		ReadFiles:  NewSafeReadFiles(),
+		ReadImages: NewSafeReadFiles(),
+	}
+	raw, _ := json.Marshal(readArgs{FilePath: txtPath})
+
+	// First read.
+	result1, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result1.IsError {
+		t.Fatalf("unexpected error on first read: %v / %s", err, result1.Output)
+	}
+	if !strings.Contains(result1.Output, "hello") {
+		t.Fatalf("expected file content, got %q", result1.Output)
+	}
+
+	// Second read of same text file: should still return content (no duplicate check for non-images).
+	result2, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result2.IsError {
+		t.Fatalf("unexpected error on second read: %v / %s", err, result2.Output)
+	}
+	if !strings.Contains(result2.Output, "hello") {
+		t.Fatalf("expected file content on re-read, got %q", result2.Output)
+	}
+}
+
 func makeBinaryData(size int, binaryRatio float64) []byte {
 	data := make([]byte, size)
 	binaryCount := int(float64(size) * binaryRatio)

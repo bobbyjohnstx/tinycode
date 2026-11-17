@@ -2,6 +2,7 @@ package tui
 
 import (
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/plugin"
 	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
@@ -147,7 +148,9 @@ type AppState struct {
 	SessionStatus map[string]SessionStatus
 
 	// Config-sourced data
-	ShellHooks map[string][]config.HookConfig
+	ShellHooks     map[string][]config.HookConfig
+	HookTrustStore *plugin.HookTrustStore
+	ProjectDir     string
 
 	// Local UI state
 	CurrentAgent           string

@@ -87,6 +87,8 @@ func main() {
 		runDoctor()
 	case "mcp":
 		runMCP()
+	case "check-permission":
+		runCheckPermission()
 	case "debug":
 		runDebug()
 	case "version", "--version", "-v":
@@ -130,6 +132,7 @@ func printUsage() {
 	fmt.Println("  agent      List available agents")
 	fmt.Println("  doctor     Run diagnostics and check system health")
 	fmt.Println("  mcp        Manage MCP servers (list, add, auth, logout, debug)")
+	fmt.Println("  check-permission  Check which permission rule fires for a command")
 	fmt.Println("  debug      Debug info (config, paths)")
 	fmt.Println("  version    Print version information")
 	fmt.Println("  help       Show this help message")

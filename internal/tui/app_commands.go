@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/bobbyjohnstx/tinycode/internal/config"
+	"github.com/bobbyjohnstx/tinycode/internal/session"
 	"github.com/bobbyjohnstx/tinycode/internal/storage"
 )
 
@@ -168,6 +169,24 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 			label = "expanded"
 		}
 		return a.toast.Show("Tool output: "+label, false), true
+	case "warnings":
+		text := a.warnings.Render()
+		a.debugDlg.Show("Warnings", text)
+		a.setFocus(FocusDialog)
+		return nil, true
+	case "warnings-clear":
+		a.warnings.Clear()
+		return a.toast.Show("Warnings cleared", false), true
+	case "worktree":
+		if a.state.ActiveSession == "" {
+			return a.toast.Show("No active session", true), true
+		}
+		dir := a.status.Cwd()
+		result, err := session.CreateWorktree(dir, false)
+		if err != nil {
+			return a.toast.Show("Worktree: "+err.Error(), true), true
+		}
+		return a.toast.Show(fmt.Sprintf("Worktree created at %s (branch %s)", result.WorktreePath, result.BranchName), false), true
 	}
 	return nil, false
 }
@@ -338,6 +357,10 @@ func (a *App) buildHooksInfo() string {
 				}
 				if h.Timeout > 0 {
 					fmt.Fprintf(&sb, " [%ds]", h.Timeout)
+				}
+				if a.state.HookTrustStore != nil && a.state.ProjectDir != "" {
+					status := a.state.HookTrustStore.Status(h.Command, event, a.state.ProjectDir)
+					fmt.Fprintf(&sb, " [%s]", status)
 				}
 				sb.WriteString("\n")
 			}

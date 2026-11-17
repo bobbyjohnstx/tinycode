@@ -37,6 +37,7 @@ type App struct {
 	permPrompt     PermissionPrompt
 	questionPrompt QuestionPrompt
 	toast          Toast
+	warnings       *WarningList
 	sidebar        Sidebar
 	whichKey       WhichKeyPanel
 	leader         LeaderState
@@ -81,6 +82,7 @@ func NewApp(serverURL string) App {
 		permPrompt:     NewPermissionPrompt(),
 		questionPrompt: NewQuestionPrompt(),
 		toast:          NewToast(DefaultTheme()),
+		warnings:       NewWarningList(),
 		sidebar:        NewSidebar(),
 		leader:         NewLeaderState(keys),
 		themes:         themes,

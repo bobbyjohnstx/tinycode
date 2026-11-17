@@ -1285,3 +1285,90 @@ func TestService_RespondToAsk_UnknownReplyRejects(t *testing.T) {
 		t.Fatal("Ask did not resolve")
 	}
 }
+
+func TestCommandPrefixMatch(t *testing.T) {
+	tests := []struct {
+		command string
+		prefix  string
+		want    bool
+	}{
+		{"git status", "git", true},
+		{"git", "git", true},
+		{"gitk", "git", false},
+		{"git push origin main", "git push", true},
+		{"git push", "git push", true},
+		{"git pull", "git push", false},
+		{"  git status  ", "git", true},
+		{"", "git", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.command+"_"+tt.prefix, func(t *testing.T) {
+			got := commandPrefixMatch(tt.command, tt.prefix)
+			if got != tt.want {
+				t.Errorf("commandPrefixMatch(%q, %q) = %v, want %v", tt.command, tt.prefix, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEvaluate_CommandPrefix_GitDoesNotMatchGitk(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "shell", Pattern: "git", Action: ActionAllow, Kind: "command-prefix"},
+	}
+	result := Evaluate("shell", "git status", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected allow for 'git status', got %s", result.Action)
+	}
+	result = Evaluate("shell", "git", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected allow for 'git', got %s", result.Action)
+	}
+	result = Evaluate("shell", "gitk", rules)
+	if result.Action == ActionAllow {
+		t.Error("'gitk' should NOT match prefix 'git'")
+	}
+}
+
+func TestEvaluate_CommandPrefix_LongerPrefixWins(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "shell", Pattern: "git", Action: ActionAllow, Kind: "command-prefix"},
+		{Permission: "shell", Pattern: "git push", Action: ActionDeny, Kind: "command-prefix"},
+	}
+	result := Evaluate("shell", "git status", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected allow for 'git status', got %s", result.Action)
+	}
+	result = Evaluate("shell", "git push origin main", rules)
+	if result.Action != ActionDeny {
+		t.Errorf("expected deny for 'git push origin main', got %s", result.Action)
+	}
+}
+
+func TestEvaluate_CommandPrefix_SecretShellStillAsks(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "shell", Pattern: "cat", Action: ActionAllow, Kind: "command-prefix"},
+	}
+	result := Evaluate("shell", "cat .env", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected allow for shell 'cat .env', got %s", result.Action)
+	}
+	result = Evaluate("secret-shell", "cat .env", rules)
+	if result.Action != ActionAsk {
+		t.Errorf("expected ask for secret-shell 'cat .env' (no matching rule), got %s", result.Action)
+	}
+}
+
+func TestEvaluate_CommandPrefix_MixedWithGlob(t *testing.T) {
+	rules := Ruleset{
+		{Permission: "shell", Pattern: "*", Action: ActionAsk},
+		{Permission: "shell", Pattern: "go", Action: ActionAllow, Kind: "command-prefix"},
+	}
+	result := Evaluate("shell", "go test ./...", rules)
+	if result.Action != ActionAllow {
+		t.Errorf("expected allow for 'go test', got %s", result.Action)
+	}
+	result = Evaluate("shell", "npm test", rules)
+	if result.Action != ActionAsk {
+		t.Errorf("expected ask for 'npm test', got %s", result.Action)
+	}
+}

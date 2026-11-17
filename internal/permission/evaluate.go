@@ -1,5 +1,7 @@
 package permission
 
+import "strings"
+
 type Action string
 
 const (
@@ -12,6 +14,7 @@ type Rule struct {
 	Permission string `json:"permission"`
 	Pattern    string `json:"pattern"`
 	Action     Action `json:"action"`
+	Kind       string `json:"kind,omitempty"` // empty = default (glob), "command-prefix" = prefix match
 }
 
 type Ruleset []Rule
@@ -34,7 +37,16 @@ func Evaluate(permission, pattern string, rulesets ...Ruleset) Rule {
 	flat := Merge(all...)
 	for i := len(flat) - 1; i >= 0; i-- {
 		rule := flat[i]
-		if permissionsMatch(permission, rule.Permission) && WildcardMatch(pattern, rule.Pattern) {
+		if !permissionsMatch(permission, rule.Permission) {
+			continue
+		}
+		var matched bool
+		if rule.Kind == "command-prefix" {
+			matched = commandPrefixMatch(pattern, rule.Pattern)
+		} else {
+			matched = WildcardMatch(pattern, rule.Pattern)
+		}
+		if matched {
 			return rule
 		}
 	}
@@ -52,6 +64,17 @@ func Merge(rulesets ...Ruleset) Ruleset {
 		result = append(result, rs...)
 	}
 	return result
+}
+
+// commandPrefixMatch reports whether command matches the given prefix.
+// The command matches if it equals the prefix exactly, or if it starts
+// with the prefix followed by a space. This prevents "git" from matching "gitk".
+func commandPrefixMatch(command, prefix string) bool {
+	command = strings.TrimSpace(command)
+	if command == prefix {
+		return true
+	}
+	return strings.HasPrefix(command, prefix+" ")
 }
 
 // permissionAliases returns equivalent permission names for matching.

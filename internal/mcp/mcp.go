@@ -544,6 +544,7 @@ func convertMCPTool(serverName string, t MCPTool, transport Transport) *tool.Def
 		Description: t.Description,
 		Parameters:  params,
 		Permission:  "mcp",
+		Deferred:    true,
 		Execute: func(ctx context.Context, tc *tool.Context, args json.RawMessage) (*tool.ExecuteResult, error) {
 			result, err := transport.CallTool(ctx, mcpToolName, args)
 			if err != nil {

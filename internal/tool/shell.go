@@ -56,9 +56,11 @@ var destructivePatterns = []*regexp.Regexp{
 }
 
 type shellArgs struct {
-	Command     string `json:"command"`
-	Timeout     *int   `json:"timeout,omitempty"`
-	Description string `json:"description,omitempty"`
+	Command       string `json:"command"`
+	Timeout       *int   `json:"timeout,omitempty"`
+	Description   string `json:"description,omitempty"`
+	Permission    string `json:"permission,omitempty"`
+	Justification string `json:"justification,omitempty"`
 }
 
 func ShellTool() *Def {
@@ -81,6 +83,15 @@ func ShellTool() *Def {
 					"type":        "string",
 					"description": "Description of what this command does",
 				},
+				"permission": map[string]any{
+					"type":        "string",
+					"enum":        []string{"default", "wider"},
+					"description": "Permission level: default (normal checks) or wider (escalation with justification)",
+				},
+				"justification": map[string]any{
+					"type":        "string",
+					"description": "One-sentence justification required when permission is wider",
+				},
 			},
 			"required": []string{"command"},
 		},
@@ -98,6 +109,10 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		return &ExecuteResult{Output: "Command cannot be empty", IsError: true}, nil
 	}
 
+	if args.Permission == "wider" && args.Justification == "" {
+		return &ExecuteResult{Output: "justification is required when permission is wider", IsError: true}, nil
+	}
+
 	timeout := defaultShellTimeout
 	if args.Timeout != nil {
 		t := time.Duration(*args.Timeout) * time.Millisecond
@@ -109,17 +124,22 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		}
 	}
 
-	if blocked := gateSecretAccess(ctx, tc, args.Command); blocked != nil {
+	if blocked := gateSecretAccess(ctx, tc, args.Command, args.Justification); blocked != nil {
 		return blocked, nil
 	}
 
 	if IsDestructive(args.Command) {
 		if tc.Perms != nil {
+			meta := map[string]any{"command": args.Command}
+			if args.Permission == "wider" && args.Justification != "" {
+				meta["justification"] = args.Justification
+				meta["escalation"] = true
+			}
 			askErr := tc.Perms.Ask(ctx, permission.AskInput{
 				SessionID:  tc.SessionID,
 				Permission: "destructive-shell",
 				Patterns:   []string{args.Command},
-				Metadata:   map[string]any{"command": args.Command},
+				Metadata:   meta,
 				Ruleset:    tc.Ruleset,
 				Tool:       askToolRef(tc),
 			})
@@ -206,7 +226,7 @@ func IsDestructive(command string) bool {
 // gateSecretAccess asks before a command that names a secret file.
 // A nil result means the command may run. With no permission service the
 // command stays blocked, because nothing can approve it.
-func gateSecretAccess(ctx context.Context, tc *Context, command string) *ExecuteResult {
+func gateSecretAccess(ctx context.Context, tc *Context, command, justification string) *ExecuteResult {
 	warning := CheckSecretAccess(command)
 	if warning == "" {
 		return nil
@@ -218,11 +238,16 @@ func gateSecretAccess(ctx context.Context, tc *Context, command string) *Execute
 			IsError: true,
 		}
 	}
+	meta := map[string]any{"command": command}
+	if justification != "" {
+		meta["justification"] = justification
+		meta["escalation"] = true
+	}
 	askErr := tc.Perms.Ask(ctx, permission.AskInput{
 		SessionID:  tc.SessionID,
 		Permission: "secret-shell",
 		Patterns:   []string{command},
-		Metadata:   map[string]any{"command": command},
+		Metadata:   meta,
 		Ruleset:    tc.Ruleset,
 		Tool:       askToolRef(tc),
 	})

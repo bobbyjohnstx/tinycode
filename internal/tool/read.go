@@ -87,9 +87,15 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 	// Image files: return base64-encoded content.
 	ext := strings.ToLower(filepath.Ext(path))
 	if mime, ok := imageExtensions[ext]; ok {
+		if tc.ReadImages != nil && tc.ReadImages.Has(path) {
+			return &ExecuteResult{Output: "Image already attached"}, nil
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return &ExecuteResult{Output: fmt.Sprintf("Error reading file: %v", err), IsError: true}, nil
+		}
+		if tc.ReadImages != nil {
+			tc.ReadImages.Mark(path)
 		}
 		encoded := base64.StdEncoding.EncodeToString(data)
 		return &ExecuteResult{

@@ -386,7 +386,7 @@ func executeMonitor(ctx context.Context, tc *Context, rawArgs json.RawMessage) (
 			return &ExecuteResult{Output: "command is required to start a monitor", IsError: true}, nil
 		}
 
-		if blocked := gateSecretAccess(ctx, tc, args.Command); blocked != nil {
+		if blocked := gateSecretAccess(ctx, tc, args.Command, ""); blocked != nil {
 			return blocked, nil
 		}
 

@@ -445,3 +445,121 @@ func TestExecuteShell_TruncatesLargeOutput(t *testing.T) {
 		t.Errorf("output size %d exceeds expected cap %d", len(result.Output), maxExpected)
 	}
 }
+
+func TestExecuteShell_WiderPermissionRequiresJustification(t *testing.T) {
+	tc := &Context{Directory: t.TempDir(), ReadFiles: NewSafeReadFiles()}
+	raw := json.RawMessage(`{"command":"echo hi","permission":"wider"}`)
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected tool error when wider permission has no justification")
+	}
+	if !strings.Contains(result.Output, "justification is required") {
+		t.Errorf("expected justification error, got %q", result.Output)
+	}
+}
+
+func TestExecuteShell_WiderPermissionWithJustificationShowsOnAsk(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	perms := permission.NewService(b)
+	defer perms.Close()
+
+	dir := t.TempDir()
+	r := NewRegistry(&Context{
+		Directory: dir,
+		Bus:       b,
+		Perms:     perms,
+		Ruleset: permission.Ruleset{
+			{Permission: "shell", Pattern: "*", Action: permission.ActionAllow},
+		},
+	})
+	RegisterBuiltins(r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		r.Execute(ctx, "bash", json.RawMessage(`{
+			"command":"rm -rf /tmp/testdir",
+			"permission":"wider",
+			"justification":"Need to clean build artifacts"
+		}`), "sess-wider")
+		close(done)
+	}()
+
+	req := waitForPermission(t, perms, 2*time.Second)
+	if req.Permission != "destructive-shell" {
+		t.Fatalf("permission %q, want destructive-shell", req.Permission)
+	}
+	if req.Metadata["justification"] != "Need to clean build artifacts" {
+		t.Errorf("justification = %v, want 'Need to clean build artifacts'", req.Metadata["justification"])
+	}
+	if req.Metadata["escalation"] != true {
+		t.Errorf("escalation = %v, want true", req.Metadata["escalation"])
+	}
+	if err := perms.RespondToAsk(permission.ReplyInput{
+		RequestID: req.ID,
+		Reply:     permission.ReplyReject,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("timed out")
+	}
+}
+
+func TestExecuteShell_DefaultPermissionStillAsksForDestructive(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	perms := permission.NewService(b)
+	defer perms.Close()
+
+	dir := t.TempDir()
+	r := NewRegistry(&Context{
+		Directory: dir,
+		Bus:       b,
+		Perms:     perms,
+		Ruleset: permission.Ruleset{
+			{Permission: "shell", Pattern: "*", Action: permission.ActionAllow},
+		},
+	})
+	RegisterBuiltins(r)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		r.Execute(ctx, "bash", json.RawMessage(`{
+			"command":"rm -rf /tmp/testdir",
+			"permission":"default"
+		}`), "sess-default")
+		close(done)
+	}()
+
+	req := waitForPermission(t, perms, 2*time.Second)
+	if req.Permission != "destructive-shell" {
+		t.Fatalf("permission %q, want destructive-shell", req.Permission)
+	}
+	// Default permission should not carry justification or escalation
+	if _, ok := req.Metadata["justification"]; ok {
+		t.Error("default permission should not carry justification")
+	}
+	if err := perms.RespondToAsk(permission.ReplyInput{
+		RequestID: req.ID,
+		Reply:     permission.ReplyReject,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("timed out")
+	}
+}

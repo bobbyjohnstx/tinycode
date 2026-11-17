@@ -158,6 +158,7 @@ type Context struct {
 	TaskRoundDone  *atomic.Bool     // set after first foreground task batch completes (shared across copies)
 	AutoApprove    bool             // skip permission checks when true
 	ReadFiles      *SafeReadFiles   // tracks files the model has read or edited (shared across copies)
+	ReadImages     *SafeReadFiles   // tracks image paths already attached (shared across copies)
 	Findings       *SafeFindings    // accumulated code review findings (shared across copies)
 	Notepad        *SafeNotepad     // session scratch notes (shared across copies)
 	MonitorManager *MonitorManager  // background process watcher (shared across copies)
@@ -188,6 +189,7 @@ type Def struct {
 	Description string
 	Parameters  map[string]any
 	Permission  string
+	Deferred    bool // true for tools whose schema is omitted until searched
 	Execute     func(ctx context.Context, tc *Context, args json.RawMessage) (*ExecuteResult, error)
 }
 
@@ -203,16 +205,21 @@ func (d *Def) ToLLMTool() llm.Tool {
 }
 
 type Registry struct {
-	mu       sync.RWMutex
-	tools    map[string]*Def
-	order    []string
-	disabled map[string]bool
-	ctx      *Context
+	mu             sync.RWMutex
+	tools          map[string]*Def
+	order          []string
+	disabled       map[string]bool
+	ctx            *Context
+	activated      *SafeReadFiles // deferred tools activated by tool_search
+	deferralActive *atomic.Bool   // true when deferral thresholds are met
 }
 
 func NewRegistry(toolCtx *Context) *Registry {
 	if toolCtx.ReadFiles == nil {
 		toolCtx.ReadFiles = NewSafeReadFiles()
+	}
+	if toolCtx.ReadImages == nil {
+		toolCtx.ReadImages = NewSafeReadFiles()
 	}
 	if toolCtx.Findings == nil {
 		toolCtx.Findings = NewSafeFindings()
@@ -227,9 +234,11 @@ func NewRegistry(toolCtx *Context) *Registry {
 		toolCtx.AgentSwitch = NewSafeAgentSwitch()
 	}
 	return &Registry{
-		tools:    make(map[string]*Def),
-		disabled: make(map[string]bool),
-		ctx:      toolCtx,
+		tools:          make(map[string]*Def),
+		disabled:       make(map[string]bool),
+		ctx:            toolCtx,
+		activated:      NewSafeReadFiles(),
+		deferralActive: &atomic.Bool{},
 	}
 }
 
@@ -279,6 +288,10 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 	if disabled {
 		slog.Warn("tool disabled", "tool", name, "sessionID", sessionID)
 		return fmt.Sprintf("Tool %s is disabled", name), true, nil
+	}
+
+	if def.Deferred && r.deferralActive != nil && r.deferralActive.Load() && !r.activated.Has(name) {
+		return fmt.Sprintf("Tool %s is deferred. Use tool_search to find and activate it first.", name), true, nil
 	}
 
 	cp := r.ctx.clone()
@@ -389,7 +402,9 @@ func (r *Registry) ToolDefs(agentPerms []string) []llm.Tool {
 
 	permSet := expandPermAliases(agentPerms)
 
-	var tools []llm.Tool
+	var nonDeferred []llm.Tool
+	var deferred []llm.Tool
+
 	for _, name := range r.order {
 		def := r.tools[name]
 		if r.disabled[name] {
@@ -399,12 +414,45 @@ func (r *Registry) ToolDefs(agentPerms []string) []llm.Tool {
 		if name == "invalid" {
 			continue
 		}
+		// tool_search is handled separately below.
+		if name == "tool_search" {
+			continue
+		}
 		if len(agentPerms) > 0 && !permSet[def.Permission] && !permSet[name] && !permSet["*"] {
 			continue
 		}
-		tools = append(tools, def.ToLLMTool())
+		lt := def.ToLLMTool()
+		if def.Deferred {
+			deferred = append(deferred, lt)
+		} else {
+			nonDeferred = append(nonDeferred, lt)
+		}
 	}
-	return tools
+
+	// Check if deferral should be active.
+	active := len(deferred) >= DeferredToolCountThreshold || deferredSchemaSize(deferred) >= DeferredSchemaSizeBytes
+	if r.deferralActive != nil {
+		r.deferralActive.Store(active)
+	}
+
+	if active {
+		result := make([]llm.Tool, 0, len(nonDeferred)+1)
+		result = append(result, nonDeferred...)
+		// Include only activated deferred tools.
+		for _, lt := range deferred {
+			if r.activated != nil && r.activated.Has(lt.Function.Name) {
+				result = append(result, lt)
+			}
+		}
+		// Add tool_search when deferral is active.
+		if searchDef, ok := r.tools["tool_search"]; ok && !r.disabled["tool_search"] {
+			result = append(result, searchDef.ToLLMTool())
+		}
+		return result
+	}
+
+	// No deferral — return all tools normally.
+	return append(nonDeferred, deferred...)
 }
 
 // expandPermAliases builds a permission set that treats bash↔shell and
@@ -466,10 +514,12 @@ func (r *Registry) WithDirectory(dir string) *Registry {
 	}
 
 	return &Registry{
-		tools:    tools,
-		order:    order,
-		disabled: disabled,
-		ctx:      newCtx,
+		tools:          tools,
+		order:          order,
+		disabled:       disabled,
+		ctx:            newCtx,
+		activated:      r.activated,
+		deferralActive: r.deferralActive,
 	}
 }
 
@@ -496,10 +546,12 @@ func (r *Registry) WithDepth(depth int) *Registry {
 	}
 
 	return &Registry{
-		tools:    tools,
-		order:    order,
-		disabled: disabled,
-		ctx:      newCtx,
+		tools:          tools,
+		order:          order,
+		disabled:       disabled,
+		ctx:            newCtx,
+		activated:      r.activated,
+		deferralActive: r.deferralActive,
 	}
 }
 
@@ -526,10 +578,12 @@ func (r *Registry) WithAutoApprove() *Registry {
 	}
 
 	return &Registry{
-		tools:    tools,
-		order:    order,
-		disabled: disabled,
-		ctx:      newCtx,
+		tools:          tools,
+		order:          order,
+		disabled:       disabled,
+		ctx:            newCtx,
+		activated:      r.activated,
+		deferralActive: r.deferralActive,
 	}
 }
 
@@ -561,10 +615,12 @@ func (r *Registry) WithAgentRules(ruleset permission.Ruleset) *Registry {
 	}
 
 	return &Registry{
-		tools:    tools,
-		order:    order,
-		disabled: disabled,
-		ctx:      newCtx,
+		tools:          tools,
+		order:          order,
+		disabled:       disabled,
+		ctx:            newCtx,
+		activated:      r.activated,
+		deferralActive: r.deferralActive,
 	}
 }
 
@@ -596,10 +652,12 @@ func (r *Registry) WithOnlyTools(names ...string) *Registry {
 	}
 
 	return &Registry{
-		tools:    tools,
-		order:    order,
-		disabled: disabled,
-		ctx:      r.ctx,
+		tools:          tools,
+		order:          order,
+		disabled:       disabled,
+		ctx:            r.ctx,
+		activated:      r.activated,
+		deferralActive: r.deferralActive,
 	}
 }
 
@@ -622,10 +680,12 @@ func (r *Registry) Snapshot() *Registry {
 	}
 
 	return &Registry{
-		tools:    tools,
-		order:    order,
-		disabled: disabled,
-		ctx:      r.ctx,
+		tools:          tools,
+		order:          order,
+		disabled:       disabled,
+		ctx:            r.ctx,
+		activated:      r.activated,
+		deferralActive: r.deferralActive,
 	}
 }
 

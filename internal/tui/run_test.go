@@ -964,8 +964,10 @@ func TestBuildPromptInput_ThinkingOff(t *testing.T) {
 
 	input := ca.buildPromptInput("Hello")
 
-	if input.ThinkingBudget != nil {
-		t.Errorf("expected ThinkingBudget to be nil when level is off, got %d", *input.ThinkingBudget)
+	if input.ThinkingBudget == nil {
+		t.Error("expected ThinkingBudget to be non-nil when level is off (sends 0 to disable)")
+	} else if *input.ThinkingBudget != 0 {
+		t.Errorf("expected ThinkingBudget = 0 when level is off, got %d", *input.ThinkingBudget)
 	}
 }
 

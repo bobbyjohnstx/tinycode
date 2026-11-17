@@ -1,6 +1,7 @@
 package command
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/bobbyjohnstx/tinycode/internal/skill"
@@ -195,8 +196,23 @@ func ExpandSlashCommand(text, configDir, projectDir string, skillPaths ...string
 					DisplayText: trimmed,
 				}
 			}
+			// Check prompt presets.
+			presetPath := presetFilePath(configDir)
+			if body, ok := ExpandPreset(name, args, presetPath); ok {
+				return ExpandResult{
+					Text:        body,
+					DisplayText: trimmed,
+				}
+			}
 		}
 	}
 
 	return ExpandResult{Text: text}
+}
+
+func presetFilePath(configDir string) string {
+	if configDir == "" {
+		return ""
+	}
+	return filepath.Join(configDir, "presets.json")
 }
