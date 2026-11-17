@@ -61,7 +61,16 @@ func (p *Processor) autoContinueLimit() int {
 	return defaultAutoContinueMax
 }
 
+// readOnlyTools are tools that cannot mutate state. Repeated calls are
+// wasteful but not destructive, so they get a higher doom threshold.
+var readOnlyTools = map[string]bool{
+	"read": true, "glob": true, "grep": true, "list_files": true,
+	"lsp_diagnostics": true, "diagnostics": true,
+}
+
 // isDoomLoop checks if the last N tool call signatures are all identical.
+// Read-only tools get double the threshold since re-reads are wasteful
+// but not dangerous — killing the session is too aggressive.
 func isDoomLoop(recent []ToolCallSignature, threshold int) bool {
 	if len(recent) < threshold {
 		return false
@@ -71,6 +80,19 @@ func isDoomLoop(recent []ToolCallSignature, threshold int) bool {
 	for _, sig := range tail[1:] {
 		if sig.Name != first.Name || sig.Args != first.Args {
 			return false
+		}
+	}
+	if readOnlyTools[first.Name] {
+		// Require double the threshold for read-only tools
+		doubled := threshold * 2
+		if len(recent) < doubled {
+			return false
+		}
+		doubleTail := recent[len(recent)-doubled:]
+		for _, sig := range doubleTail[1:] {
+			if sig.Name != first.Name || sig.Args != first.Args {
+				return false
+			}
 		}
 	}
 	return true

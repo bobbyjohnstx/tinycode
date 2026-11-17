@@ -201,13 +201,22 @@ func (p *Processor) buildRequest() llm.Request {
 
 	tools := p.tools.ToolDefs(p.config.AgentPerms)
 
+	// Default MaxTokens so clampMaxTokens can see and cap it for
+	// small-context models. Without this, the LLM client fills in
+	// DefaultStreamTokens on the wire after the session-layer clamp.
+	maxTokens := p.config.MaxTokens
+	if maxTokens == nil {
+		d := llm.DefaultStreamTokens
+		maxTokens = &d
+	}
+
 	req := llm.Request{
 		Model:          effectiveModelID(p.config.Model),
 		Messages:       llmMessages,
 		Tools:          tools,
 		Temperature:    p.config.Temperature,
 		TopP:           p.config.TopP,
-		MaxTokens:      p.config.MaxTokens,
+		MaxTokens:      maxTokens,
 		ThinkingBudget: p.config.ThinkingBudget,
 	}
 	if p.config.Model != nil {

@@ -65,7 +65,7 @@ func TestNewProcessor_SeedsCompactionFailures(t *testing.T) {
 
 func TestCheckDoomLoop_DefaultStopsAtThree(t *testing.T) {
 	p := &Processor{}
-	call := ToolCallPart("call", "read", `{"path":"a.go"}`)
+	call := ToolCallPart("call", "bash", `{"command":"ls"}`)
 	for i := 1; i <= 2; i++ {
 		if res := p.checkDoomLoop([]Part{call}, TokenUsage{}); res != nil {
 			t.Fatalf("call %d stopped early: %v", i, res.Error)
@@ -79,7 +79,7 @@ func TestCheckDoomLoop_DefaultStopsAtThree(t *testing.T) {
 
 func TestCheckDoomLoop_ConfiguredThreshold(t *testing.T) {
 	p := &Processor{config: ProcessorConfig{DoomThreshold: 5}}
-	call := ToolCallPart("call", "read", `{"path":"a.go"}`)
+	call := ToolCallPart("call", "bash", `{"command":"ls"}`)
 	for i := 1; i <= 4; i++ {
 		if res := p.checkDoomLoop([]Part{call}, TokenUsage{}); res != nil {
 			t.Fatalf("call %d stopped early: %v", i, res.Error)

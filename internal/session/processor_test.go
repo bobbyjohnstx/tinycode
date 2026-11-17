@@ -399,12 +399,36 @@ func TestBuildRequest_TemperatureTopPMaxTokens(t *testing.T) {
 
 func TestIsDoomLoop_Detected(t *testing.T) {
 	sigs := []ToolCallSignature{
+		{Name: "bash", Args: `{"command":"ls"}`},
+		{Name: "bash", Args: `{"command":"ls"}`},
+		{Name: "bash", Args: `{"command":"ls"}`},
+	}
+	if !isDoomLoop(sigs, 3) {
+		t.Error("expected doom loop to be detected")
+	}
+}
+
+func TestIsDoomLoop_ReadOnlyNeedsDoubleThreshold(t *testing.T) {
+	// 3 identical reads should NOT trigger at threshold 3 (needs 6)
+	sigs3 := []ToolCallSignature{
 		{Name: "read", Args: `{"path":"a.go"}`},
 		{Name: "read", Args: `{"path":"a.go"}`},
 		{Name: "read", Args: `{"path":"a.go"}`},
 	}
-	if !isDoomLoop(sigs, 3) {
-		t.Error("expected doom loop to be detected")
+	if isDoomLoop(sigs3, 3) {
+		t.Error("3 identical reads should not trigger doom at threshold 3")
+	}
+	// 6 identical reads SHOULD trigger at threshold 3
+	sigs6 := []ToolCallSignature{
+		{Name: "read", Args: `{"path":"a.go"}`},
+		{Name: "read", Args: `{"path":"a.go"}`},
+		{Name: "read", Args: `{"path":"a.go"}`},
+		{Name: "read", Args: `{"path":"a.go"}`},
+		{Name: "read", Args: `{"path":"a.go"}`},
+		{Name: "read", Args: `{"path":"a.go"}`},
+	}
+	if !isDoomLoop(sigs6, 3) {
+		t.Error("6 identical reads should trigger doom at threshold 3 (double)")
 	}
 }
 
