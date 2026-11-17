@@ -218,7 +218,7 @@ func TestTaskTool_DepthExceeded(t *testing.T) {
 
 func TestTaskTool_StatusLookup(t *testing.T) {
 	jm := session.NewJobManager()
-	jobID := jm.Start(context.Background(), func(ctx context.Context) (string, error) {
+	jobID := jm.Start(context.Background(), "", func(ctx context.Context) (string, error) {
 		return "done", nil
 	})
 	// Wait for it to complete
@@ -525,7 +525,7 @@ func TestTaskTool_TaskRoundDone_StatusLookupNotBlocked(t *testing.T) {
 	roundDone := &atomic.Bool{}
 	roundDone.Store(true) // simulate done round
 	jm := session.NewJobManager()
-	jobID := jm.Start(context.Background(), func(ctx context.Context) (string, error) {
+	jobID := jm.Start(context.Background(), "", func(ctx context.Context) (string, error) {
 		return "done", nil
 	})
 	time.Sleep(50 * time.Millisecond)
@@ -543,6 +543,58 @@ func TestTaskTool_TaskRoundDone_StatusLookupNotBlocked(t *testing.T) {
 	if isErr {
 		t.Fatalf("expected status lookup to succeed even with TaskRoundDone=true, got: %s", output)
 	}
+}
+
+func TestTaskTool_FollowUpRunningChild_NoDuplicate(t *testing.T) {
+	blocker := make(chan struct{})
+	callCount := 0
+	jm := session.NewJobManager()
+	r := NewRegistry(&Context{
+		Directory:  t.TempDir(),
+		JobManager: jm,
+		SubagentRunner: func(ctx context.Context, parentSessionID string, parentDepth int, prompt, agent, directory string, autoApprove bool) (string, error) {
+			callCount++
+			<-blocker
+			return "bg done", nil
+		},
+	})
+	RegisterBuiltins(r)
+
+	// Start a background task.
+	args := json.RawMessage(`{"description":"bg","prompt":"work","background":true}`)
+	output, isErr, _ := r.Execute(context.Background(), "task", args, "ses-dup")
+	if isErr {
+		t.Fatalf("expected no error, got: %s", output)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("parse output: %v", err)
+	}
+	jobID, _ := parsed["job_id"].(string)
+
+	// Follow-up with same task_id and a prompt while still running.
+	args2 := json.RawMessage(fmt.Sprintf(`{"description":"follow-up","task_id":"%s","prompt":"more work"}`, jobID))
+	output2, isErr2, _ := r.Execute(context.Background(), "task", args2, "ses-dup")
+	if isErr2 {
+		t.Fatalf("expected no error on follow-up, got: %s", output2)
+	}
+	var result2 map[string]any
+	if err := json.Unmarshal([]byte(output2), &result2); err != nil {
+		t.Fatalf("parse follow-up: %v", err)
+	}
+	if result2["status"] != "running" {
+		t.Errorf("expected status 'running', got %v", result2["status"])
+	}
+	if result2["message"] == nil || result2["message"] == "" {
+		t.Error("expected message about job still running")
+	}
+
+	// Only one runner call should have been made.
+	if callCount != 1 {
+		t.Errorf("expected runner called once, got %d", callCount)
+	}
+	close(blocker)
+	jm.Wait(jobID)
 }
 
 func TestTaskTool_BudgetDecrement(t *testing.T) {

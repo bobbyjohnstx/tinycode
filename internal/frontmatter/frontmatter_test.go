@@ -133,3 +133,66 @@ func TestParse_EmptyLinesInFrontmatterSkipped(t *testing.T) {
 		t.Errorf("len(fm) = %d, want 2", len(fm))
 	}
 }
+
+func TestParse_YAMLListItems(t *testing.T) {
+	content := "---\npaths:\n  - \"*_test.go\"\n  - \"*.spec.ts\"\nname: test\n---\nbody"
+	fm, body := Parse(content)
+
+	if fm == nil {
+		t.Fatal("expected non-nil frontmatter map")
+	}
+	paths, ok := fm["paths"].([]string)
+	if !ok {
+		t.Fatalf("paths should be []string, got %T", fm["paths"])
+	}
+	if len(paths) != 2 {
+		t.Fatalf("len(paths) = %d, want 2", len(paths))
+	}
+	if paths[0] != "*_test.go" {
+		t.Errorf("paths[0] = %q, want %q", paths[0], "*_test.go")
+	}
+	if paths[1] != "*.spec.ts" {
+		t.Errorf("paths[1] = %q, want %q", paths[1], "*.spec.ts")
+	}
+	if fm["name"] != "test" {
+		t.Errorf("name = %q, want %q", fm["name"], "test")
+	}
+	if body != "\nbody" {
+		t.Errorf("body = %q, want %q", body, "\nbody")
+	}
+}
+
+func TestParse_YAMLListSingleItem(t *testing.T) {
+	content := "---\npaths:\n  - \"*.go\"\n---\nbody"
+	fm, _ := Parse(content)
+
+	if fm == nil {
+		t.Fatal("expected non-nil frontmatter map")
+	}
+	paths, ok := fm["paths"].([]string)
+	if !ok {
+		t.Fatalf("paths should be []string, got %T", fm["paths"])
+	}
+	if len(paths) != 1 {
+		t.Fatalf("len(paths) = %d, want 1", len(paths))
+	}
+	if paths[0] != "*.go" {
+		t.Errorf("paths[0] = %q, want %q", paths[0], "*.go")
+	}
+}
+
+func TestParse_KeyWithEmptyValueNoList(t *testing.T) {
+	content := "---\npaths:\nname: test\n---\nbody"
+	fm, _ := Parse(content)
+
+	if fm == nil {
+		t.Fatal("expected non-nil frontmatter map")
+	}
+	// "paths" has empty value, no list items follow
+	if fm["paths"] != "" {
+		t.Errorf("paths = %q, want empty string", fm["paths"])
+	}
+	if fm["name"] != "test" {
+		t.Errorf("name = %q, want %q", fm["name"], "test")
+	}
+}

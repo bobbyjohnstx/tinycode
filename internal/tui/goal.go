@@ -11,15 +11,17 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/procenv"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/tui/api"
 )
 
 // goalTracker manages the goal evaluation loop on the TUI side.
 // It tracks the condition, command, iteration count, and recent outputs
 // for stuck detection.
 type goalTracker struct {
-	state         *session.GoalState
-	recentOutputs []string // last N evaluation outputs for stuck detection
-	generation    uint64
+	state           *session.GoalState
+	recentOutputs   []string // last N evaluation outputs for stuck detection (command goals)
+	recentNextSteps []string // last N next_step values for stuck detection (judge goals)
+	generation      uint64
 }
 
 const goalStuckThreshold = 3
@@ -96,6 +98,56 @@ func (g *goalTracker) isStuck(output string) bool {
 		}
 	}
 	return true
+}
+
+// isNextStepStuck checks if the last N judge next_step values are identical,
+// indicating the judge is returning the same guidance repeatedly.
+func (g *goalTracker) isNextStepStuck(nextStep string) bool {
+	g.recentNextSteps = append(g.recentNextSteps, nextStep)
+	if len(g.recentNextSteps) > goalStuckThreshold {
+		g.recentNextSteps = g.recentNextSteps[len(g.recentNextSteps)-goalStuckThreshold:]
+	}
+	if len(g.recentNextSteps) < goalStuckThreshold {
+		return false
+	}
+	first := g.recentNextSteps[0]
+	for _, s := range g.recentNextSteps[1:] {
+		if s != first {
+			return false
+		}
+	}
+	return true
+}
+
+// GoalJudgeMsg carries the result of an LLM-as-judge goal evaluation.
+type GoalJudgeMsg struct {
+	Verdict    string // "done", "continue", "blocked", "paused"
+	Reason     string
+	NextStep   string
+	Err        error
+	Generation uint64
+}
+
+// judgeGoal makes an LLM-as-judge call to evaluate whether a goal objective is met.
+func judgeGoal(client *api.Client, sessionID, objective string, generation uint64) tea.Cmd {
+	return func() tea.Msg {
+		result, err := client.GoalJudge(sessionID, objective)
+		if err != nil {
+			return GoalJudgeMsg{
+				Verdict:    "continue",
+				Reason:     "Judge call failed: " + err.Error(),
+				NextStep:   "Continue working on the objective.",
+				Err:        err,
+				Generation: generation,
+			}
+		}
+		return GoalJudgeMsg{
+			Verdict:    result.Verdict,
+			Reason:     result.Reason,
+			NextStep:   result.NextStep,
+			Generation: generation,
+		}
+	}
 }
 
 // statusText returns a short status string for the status bar.

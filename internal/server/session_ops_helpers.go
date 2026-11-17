@@ -6,9 +6,11 @@ import (
 	"strings"
 
 	"github.com/bobbyjohnstx/tinycode/internal/agent"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
+	"github.com/bobbyjohnstx/tinycode/internal/skill"
 )
 
 // sessionErrorPayload builds a structured error object matching the SDK contract:
@@ -78,6 +80,7 @@ func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *prov
 		AgentName:          input.Agent,
 		Instructions:       instructions,
 		Directory:          directory,
+		ConfigDir:          config.ConfigDir(),
 		ToolDefs:           tools.ToolDefs(agentPerms),
 		AppendSystemPrompt: sm.appendSystemPrompt,
 	}
@@ -216,6 +219,65 @@ func autoTitle(text string) string {
 		title = title[:cut] + "..."
 	}
 	return title
+}
+
+const (
+	maxAgentSkills    = 5
+	maxAgentSkillSize = 16 * 1024 // 16 KiB combined
+)
+
+// loadAgentSkills resolves agent-scoped skill names to their content and
+// returns a combined string to append to the system prompt. Missing skills
+// produce a one-line note; they don't fail the task. At most 5 skills and
+// 16 KiB total content are loaded.
+func (sm *SessionManager) loadAgentSkills(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+
+	var skillPaths []string
+	if sm.cfg != nil && sm.cfg.Skills != nil {
+		skillPaths = sm.cfg.Skills.Paths
+	}
+	discovered := skill.DiscoverWithPaths(config.ConfigDir(), sm.dir, skillPaths)
+	byName := make(map[string]skill.Skill, len(discovered))
+	for _, s := range discovered {
+		byName[s.Name] = s
+	}
+
+	var parts []string
+	var totalSize int
+	loaded := 0
+	for _, name := range names {
+		if loaded >= maxAgentSkills {
+			break
+		}
+		s, ok := byName[name]
+		if !ok {
+			parts = append(parts, fmt.Sprintf("[skill %q not found]", name))
+			continue
+		}
+		body, err := skill.LoadContent(s)
+		if err != nil {
+			parts = append(parts, fmt.Sprintf("[skill %q: load error: %v]", name, err))
+			continue
+		}
+		body = strings.TrimSpace(body)
+		if body == "" {
+			continue
+		}
+		if totalSize+len(body) > maxAgentSkillSize {
+			parts = append(parts, fmt.Sprintf("[skill %q: skipped, would exceed 16 KiB cap]", name))
+			break
+		}
+		parts = append(parts, fmt.Sprintf("<skill name=%q>\n%s\n</skill>", name, body))
+		totalSize += len(body)
+		loaded++
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "[Agent Skills]\n" + strings.Join(parts, "\n\n")
 }
 
 // isDefaultTitle returns true if the title is an auto-generated default.

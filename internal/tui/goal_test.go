@@ -234,3 +234,53 @@ func TestEvaluateGoal_DropsCredentialEnv(t *testing.T) {
 		t.Fatalf("goal output = %q", got.Output)
 	}
 }
+
+func TestGoalTracker_IsNextStepStuck_NotEnoughSamples(t *testing.T) {
+	g := newGoalTracker("fix the bug", "")
+	if g.isNextStepStuck("Run tests") {
+		t.Error("expected not stuck with 1 sample")
+	}
+	if g.isNextStepStuck("Run tests") {
+		t.Error("expected not stuck with 2 samples")
+	}
+}
+
+func TestGoalTracker_IsNextStepStuck_SameStepTriggersStuck(t *testing.T) {
+	g := newGoalTracker("fix the bug", "")
+	g.isNextStepStuck("Run tests")
+	g.isNextStepStuck("Run tests")
+	if !g.isNextStepStuck("Run tests") {
+		t.Error("expected stuck after 3 identical next_step values")
+	}
+}
+
+func TestGoalTracker_IsNextStepStuck_DifferentStepsNotStuck(t *testing.T) {
+	g := newGoalTracker("fix the bug", "")
+	g.isNextStepStuck("Step 1")
+	g.isNextStepStuck("Step 2")
+	if g.isNextStepStuck("Step 3") {
+		t.Error("expected not stuck with different next_step values")
+	}
+}
+
+func TestGoalTracker_IsNextStepStuck_ResetAfterDifferent(t *testing.T) {
+	g := newGoalTracker("fix the bug", "")
+	g.isNextStepStuck("same")
+	g.isNextStepStuck("same")
+	g.isNextStepStuck("different") // breaks the streak
+	if g.isNextStepStuck("same") {
+		t.Error("expected not stuck after streak broken")
+	}
+}
+
+func TestGoalJudgeMsg_Type(t *testing.T) {
+	// Verify GoalJudgeMsg can be used as a tea.Msg (compile-time check).
+	var msg GoalJudgeMsg
+	msg.Verdict = "done"
+	msg.Reason = "tests pass"
+	msg.NextStep = ""
+	msg.Generation = 42
+	if msg.Verdict != "done" {
+		t.Error("unexpected verdict")
+	}
+}

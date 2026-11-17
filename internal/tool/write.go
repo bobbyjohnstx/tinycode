@@ -82,6 +82,11 @@ func executeWrite(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		output = "WARNING: You have not read this file. The write may be based on incorrect assumptions about the file's contents.\n\n" + output
 	}
 
+	// Attach scoped rules whose globs match this file path.
+	if ruleText := tc.ScopedRules.MatchAndAttach(path, tc.Directory); ruleText != "" {
+		output = ruleText + output
+	}
+
 	return &ExecuteResult{Output: output}, nil
 }
 

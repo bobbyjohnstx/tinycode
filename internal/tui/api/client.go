@@ -389,6 +389,22 @@ func (c *Client) Btw(sessionID, question string) (string, error) {
 	return resp.Answer, nil
 }
 
+// GoalJudgeResult is the response from the goal-judge endpoint.
+type GoalJudgeResult struct {
+	Verdict  string `json:"verdict"`
+	Reason   string `json:"reason"`
+	NextStep string `json:"next_step"`
+}
+
+// GoalJudge sends a goal objective for LLM-as-judge evaluation via POST /session/{id}/goal-judge.
+func (c *Client) GoalJudge(sessionID, objective string) (*GoalJudgeResult, error) {
+	var resp GoalJudgeResult
+	if err := c.postJSON("/session/"+sessionID+"/goal-judge", map[string]string{"objective": objective}, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // AddWritableRoot adds a directory to the writable-root list via POST /roots.
 func (c *Client) AddWritableRoot(path string) error {
 	return c.postNoResp("/roots", map[string]string{"path": path})

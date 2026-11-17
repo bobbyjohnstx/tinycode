@@ -1279,3 +1279,68 @@ func TestBuildAgent_WildcardIncludesMCPAndPlugin(t *testing.T) {
 		t.Errorf("general Visible() should include \"*\", got %v", generalVisible)
 	}
 }
+
+func TestApplyFrontmatter_SkillsParsed(t *testing.T) {
+	info := &Info{Name: "test", Mode: ModeSubagent, Options: make(map[string]any)}
+	applyFrontmatter(info, map[string]any{
+		"skills": "demo, review, lint",
+	})
+	if len(info.Skills) != 3 {
+		t.Fatalf("expected 3 skills, got %d: %v", len(info.Skills), info.Skills)
+	}
+	want := []string{"demo", "review", "lint"}
+	for i, s := range info.Skills {
+		if s != want[i] {
+			t.Errorf("skill[%d]: expected %q, got %q", i, want[i], s)
+		}
+	}
+}
+
+func TestApplyFrontmatter_HooksParsed(t *testing.T) {
+	info := &Info{Name: "test", Mode: ModeSubagent, Options: make(map[string]any)}
+	applyFrontmatter(info, map[string]any{
+		"hooks": map[string]any{
+			"tool.execute.before": map[string]any{
+				"command":  "echo blocked",
+				"continue": true,
+			},
+		},
+	})
+	if info.Hooks == nil {
+		t.Fatal("expected non-nil hooks")
+	}
+	hooks, ok := info.Hooks["tool.execute.before"]
+	if !ok || len(hooks) != 1 {
+		t.Fatalf("expected 1 hook for tool.execute.before, got %v", info.Hooks)
+	}
+	if hooks[0].Command != "echo blocked" {
+		t.Errorf("expected command 'echo blocked', got %q", hooks[0].Command)
+	}
+	if !hooks[0].Continue {
+		t.Error("expected continue=true")
+	}
+}
+
+func TestApplyFrontmatter_EmptySkillsIgnored(t *testing.T) {
+	info := &Info{Name: "test", Mode: ModeSubagent, Options: make(map[string]any)}
+	applyFrontmatter(info, map[string]any{
+		"skills": "",
+	})
+	if len(info.Skills) != 0 {
+		t.Errorf("expected no skills for empty string, got %v", info.Skills)
+	}
+}
+
+func TestApplyFrontmatter_HooksNilForMissingCommand(t *testing.T) {
+	info := &Info{Name: "test", Mode: ModeSubagent, Options: make(map[string]any)}
+	applyFrontmatter(info, map[string]any{
+		"hooks": map[string]any{
+			"tool.execute.before": map[string]any{
+				"timeout": 5,
+			},
+		},
+	})
+	if info.Hooks != nil {
+		t.Errorf("expected nil hooks when no command set, got %v", info.Hooks)
+	}
+}

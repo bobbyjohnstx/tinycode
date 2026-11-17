@@ -177,7 +177,17 @@ func executeApplyPatch(ctx context.Context, tc *Context, rawArgs json.RawMessage
 		}
 		summary.WriteString(r.note)
 	}
-	return &ExecuteResult{Output: summary.String()}, nil
+
+	output := summary.String()
+
+	// Attach scoped rules whose globs match any of the patched file paths.
+	for _, r := range results {
+		if ruleText := tc.ScopedRules.MatchAndAttach(r.path, tc.Directory); ruleText != "" {
+			output = ruleText + output
+		}
+	}
+
+	return &ExecuteResult{Output: output}, nil
 }
 
 // patchTargetPath determines the absolute filesystem path for a filePatch.

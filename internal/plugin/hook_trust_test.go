@@ -222,3 +222,46 @@ func TestShellHookRunner_WithTrust_NilRunner(t *testing.T) {
 		t.Error("WithTrust on nil runner should return nil")
 	}
 }
+
+func TestAgentHookHash_IncludesAgentName(t *testing.T) {
+	base := AgentHookHash("echo hello", "session.start", "/tmp/proj", "guard")
+	diffAgent := AgentHookHash("echo hello", "session.start", "/tmp/proj", "other")
+	sameAgent := AgentHookHash("echo hello", "session.start", "/tmp/proj", "guard")
+
+	if base != sameAgent {
+		t.Error("same inputs should produce same hash")
+	}
+	if base == diffAgent {
+		t.Error("different agent names should produce different hashes")
+	}
+	// Verify agent hash differs from non-agent hash.
+	nonAgent := HookHash("echo hello", "session.start", "/tmp/proj")
+	if base == nonAgent {
+		t.Error("agent hash should differ from non-agent hash")
+	}
+}
+
+func TestAgentHookHash_ChangedCommandInvalidatesTrust(t *testing.T) {
+	h1 := AgentHookHash("echo v1", "tool.execute.before", "/proj", "agent-a")
+	h2 := AgentHookHash("echo v2", "tool.execute.before", "/proj", "agent-a")
+	if h1 == h2 {
+		t.Error("changed command should produce different agent hash")
+	}
+}
+
+func TestIsDisabledAgent(t *testing.T) {
+	store := NewHookTrustStore(t.TempDir())
+	hash := AgentHookHash("echo hi", "session.start", "/proj", "my-agent")
+
+	// Manually disable via the hash to test IsDisabledAgent.
+	store.mu.Lock()
+	store.entries[hash] = TrustEntry{Disabled: true, Command: "echo hi", Event: "session.start"}
+	store.mu.Unlock()
+
+	if !store.IsDisabledAgent("echo hi", "session.start", "/proj", "my-agent") {
+		t.Error("hook should be disabled for agent")
+	}
+	if store.IsDisabledAgent("echo hi", "session.start", "/proj", "other-agent") {
+		t.Error("hook should not be disabled for different agent")
+	}
+}

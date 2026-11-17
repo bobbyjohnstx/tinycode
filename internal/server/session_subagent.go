@@ -72,6 +72,14 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 	}
 	agentPerms, agentRuleset, systemPrompt := sm.buildPromptSystemPrompt(input, model, directory, false)
 
+	// Preload agent-scoped skills into the child prompt.
+	agentInfo := sm.agentRegistry.Get(agent, model.SizeB())
+	if agentInfo != nil && len(agentInfo.Skills) > 0 {
+		if extra := sm.loadAgentSkills(agentInfo.Skills); extra != "" {
+			systemPrompt += "\n\n" + extra
+		}
+	}
+
 	client := sm.clientFactory(model)
 	childTools := sm.tools
 	if sm.toolSnapshot != nil {
@@ -100,7 +108,9 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 
 	// Use agent Steps frontmatter if set, otherwise fall back to default.
 	maxIter := subagentMaxIterations
-	agentInfo := sm.agentRegistry.Get(agent, model.SizeB())
+	if agentInfo == nil {
+		agentInfo = sm.agentRegistry.Get(agent, model.SizeB())
+	}
 	if agentInfo != nil && agentInfo.Steps != nil && *agentInfo.Steps > 0 {
 		maxIter = *agentInfo.Steps
 	}

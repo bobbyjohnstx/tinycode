@@ -69,7 +69,7 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		return &ExecuteResult{Output: fmt.Sprintf("Invalid arguments: %v", err), IsError: true}, nil
 	}
 
-	// Status lookup first — doesn't need a prompt.
+	// Status/follow-up lookup — doesn't need a prompt for status checks.
 	if args.TaskID != "" {
 		if tc.JobManager == nil {
 			return &ExecuteResult{Output: "Job manager not available", IsError: true}, nil
@@ -77,6 +77,16 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		job := tc.JobManager.Get(args.TaskID)
 		if job == nil {
 			return &ExecuteResult{Output: fmt.Sprintf("Job %s not found", args.TaskID), IsError: true}, nil
+		}
+		// If the caller provided a prompt AND the job is still running,
+		// report that instead of spawning a duplicate.
+		if args.Prompt != "" && job.Status == "running" {
+			result, _ := json.Marshal(map[string]any{
+				"id":      job.ID,
+				"status":  job.Status,
+				"message": "Job is still running. Result will be delivered when it completes.",
+			})
+			return &ExecuteResult{Output: string(result)}, nil
 		}
 		result, _ := json.Marshal(map[string]any{
 			"id":     job.ID,
@@ -155,7 +165,7 @@ func executeTask(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		// Detach from the tool-call body deadline so background work can outlive
 		// Execute, while still inheriting context values (like monitor).
 		jobParent := context.WithoutCancel(ctx)
-		jobID := tc.JobManager.Start(jobParent, func(jobCtx context.Context) (string, error) {
+		jobID := tc.JobManager.Start(jobParent, sessionID, func(jobCtx context.Context) (string, error) {
 			defer func() {
 				if count != nil {
 					count.Add(-1)

@@ -272,10 +272,26 @@ func initTooling(b *bus.Bus, directory string, db *sql.DB, cfg ...*config.Info) 
 		proj := project.FromDirectory(directory)
 		permSvc.SetStore(permission.NewSQLiteRuleStore(db), proj.ID)
 	}
+	// Discover path-scoped rules and store on the tool context.
+	configDir := config.ConfigDir()
+	var scopedRules []tool.ScopedRule
+	for _, r := range session.DiscoverRules(directory, configDir) {
+		if len(r.Globs) > 0 {
+			scopedRules = append(scopedRules, tool.ScopedRule{
+				Path:    r.Path,
+				Content: r.Content,
+				Globs:   r.Globs,
+			})
+		}
+	}
+	if len(scopedRules) > 0 {
+		toolCtx.ScopedRules = tool.NewSafeScopedRules(scopedRules)
+	}
+
 	toolReg := tool.NewRegistry(toolCtx)
 	tool.RegisterBuiltins(toolReg)
 	bc := tool.BuiltinConfig{
-		ConfigDir:  config.ConfigDir(),
+		ConfigDir:  configDir,
 		ProjectDir: directory,
 	}
 	if len(cfg) > 0 && cfg[0] != nil && cfg[0].Skills != nil {

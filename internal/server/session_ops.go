@@ -173,6 +173,7 @@ func (sm *SessionManager) Abort(sessionID string) {
 		sm.mu.Unlock()
 		return
 	}
+	sm.abortedSessions[sessionID] = true
 	cancel := active.cancel
 	proc := active.processor
 	sm.mu.Unlock()
@@ -231,6 +232,12 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		"sessionID": sessionID,
 		"status":    map[string]any{"type": "busy"},
 	})
+
+	// Clear the aborted flag so pending job notifications can be delivered
+	// at the end of this turn.
+	sm.mu.Lock()
+	delete(sm.abortedSessions, sessionID)
+	sm.mu.Unlock()
 
 	// Create a per-prompt snapshot so concurrent sessions don't race on
 	// shared tool registry state (ResetTaskRound / ResetBudget mutations).
@@ -414,6 +421,23 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	if agentMaxTokens != nil {
 		procCfg.MaxTokens = agentMaxTokens
 	}
+
+	// Set agent-scoped hooks on the shell hook runner.
+	if sm.shellHookRunner != nil && agentInfo != nil && len(agentInfo.Hooks) > 0 {
+		sm.shellHookRunner.SetAgentHooks(agentInfo.Hooks, agentInfo.Name)
+	}
+	// Wire the agent-switch callback to update hooks when the active agent changes.
+	if sm.shellHookRunner != nil {
+		procCfg.OnAgentSwitch = func(newAgent string) {
+			newInfo := sm.agentRegistry.Get(newAgent, model.SizeB())
+			if newInfo != nil && len(newInfo.Hooks) > 0 {
+				sm.shellHookRunner.SetAgentHooks(newInfo.Hooks, newInfo.Name)
+			} else {
+				sm.shellHookRunner.SetAgentHooks(nil, "")
+			}
+		}
+	}
+
 	proc := session.NewProcessor(procCfg, client, sessionTools, sm.bus)
 	proc.SetMessages(existingMsgs)
 	proc.SetRecentToolCalls(recentDoom)
@@ -502,6 +526,17 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 				"content":   "Background monitor output:\n\n" + monitorOutput,
 			})
 		}
+	}
+
+	// Drain pending background-task notifications that arrived while this
+	// turn was active. Published on the bus so the normal prompt subscriber
+	// picks them up after this processPrompt returns.
+	if jobNotify := sm.drainJobNotifications(sessionID); jobNotify != "" {
+		slog.Info("injecting background task notification at turn boundary", "sessionID", sessionID)
+		sm.bus.Publish("session.prompt", map[string]any{
+			"sessionID": sessionID,
+			"content":   jobNotify,
+		})
 	}
 
 	if result != nil && result.Error != nil {

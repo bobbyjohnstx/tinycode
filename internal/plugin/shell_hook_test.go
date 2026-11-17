@@ -574,3 +574,64 @@ func TestRunAfterSync_NonZeroExit_NoAbort(t *testing.T) {
 		t.Errorf("expected [ctx despite error], got %v", ctx)
 	}
 }
+
+func TestAgentHook_RunBefore_BlocksTool(t *testing.T) {
+	// Config hooks: none. Agent hooks: block tool.execute.before.
+	r := NewShellHookRunner(
+		map[string][]config.HookConfig{"session.start": {{Command: "true"}}},
+		slog.Default(),
+	)
+	r.SetAgentHooks(map[string][]config.HookConfig{
+		"tool.execute.before": {{Command: "exit 1"}},
+	}, "safety-agent")
+
+	_, err := r.RunBefore("tool.execute.before", map[string]string{"TOOL": "bash"})
+	if err == nil {
+		t.Fatal("expected agent hook to block tool")
+	}
+}
+
+func TestAgentHook_ClearedOnSwitch(t *testing.T) {
+	r := NewShellHookRunner(
+		map[string][]config.HookConfig{"session.start": {{Command: "true"}}},
+		slog.Default(),
+	)
+	// Set agent hook that blocks.
+	r.SetAgentHooks(map[string][]config.HookConfig{
+		"tool.execute.before": {{Command: "exit 1"}},
+	}, "safety-agent")
+
+	// Clear agent hooks (simulates switch to agent without hooks).
+	r.SetAgentHooks(nil, "")
+
+	_, err := r.RunBefore("tool.execute.before", map[string]string{"TOOL": "bash"})
+	if err != nil {
+		t.Fatalf("expected no error after clearing agent hooks, got %v", err)
+	}
+}
+
+func TestAgentHook_RunsAfterConfigHooks(t *testing.T) {
+	// Config hook succeeds, agent hook blocks.
+	r := NewShellHookRunner(
+		map[string][]config.HookConfig{
+			"tool.execute.before": {{Command: "true"}},
+		},
+		slog.Default(),
+	)
+	r.SetAgentHooks(map[string][]config.HookConfig{
+		"tool.execute.before": {{Command: "exit 1"}},
+	}, "guard")
+
+	_, err := r.RunBefore("tool.execute.before", map[string]string{"TOOL": "bash"})
+	if err == nil {
+		t.Fatal("expected agent hook to block even though config hook passed")
+	}
+}
+
+func TestSetAgentHooks_NilRunner(t *testing.T) {
+	var r *ShellHookRunner
+	// Should not panic.
+	r.SetAgentHooks(map[string][]config.HookConfig{
+		"tool.execute.before": {{Command: "exit 1"}},
+	}, "agent")
+}

@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -96,6 +98,12 @@ func (b *deltaBatcher) doFlush() {
 	}
 }
 
+// ShellHookSetter allows setting agent-scoped hooks on a shell hook runner
+// without importing the plugin package.
+type ShellHookSetter interface {
+	SetAgentHooks(hooks map[string][]config.HookConfig, agentName string)
+}
+
 // SessionStatus represents the processing state of a session.
 // The SPA expects a discriminated union: {"type": "idle"} or {"type": "busy"}.
 type SessionStatus struct {
@@ -125,29 +133,34 @@ type SessionManager struct {
 	tokenBudget        int
 	sessionStartHook   func(sessionID string) []string
 	modelWarmup        func(context.Context, *provider.Model)
-	subagentStreams    map[string]*activeSession // streaming state for subagent synthetic IDs
-	ctx                context.Context
-	ctxCancel          context.CancelFunc
+	shellHookRunner    ShellHookSetter
+	subagentStreams        map[string]*activeSession // streaming state for subagent synthetic IDs
+	pendingJobNotify      map[string][]string       // sessionID → pending background-task notifications
+	abortedSessions       map[string]bool           // sessions the user interrupted (cleared on next prompt)
+	ctx                   context.Context
+	ctxCancel             context.CancelFunc
 }
 
 func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service, cfg *config.Info, jm *session.JobManager) *SessionManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	sm := &SessionManager{
-		sessions:        make(map[string]*activeSession),
-		subagentStreams: make(map[string]*activeSession),
-		bus:             b,
-		registry:        reg,
-		db:              db,
-		dir:             dir,
-		tools:           tools,
-		perms:           perms,
-		agentRegistry:   agents,
-		mcpSvc:          mcpSvc,
-		cfg:             cfg,
-		revertState:     NewRevertState(),
-		jobManager:      jm,
-		ctx:             ctx,
-		ctxCancel:       cancel,
+		sessions:         make(map[string]*activeSession),
+		subagentStreams:  make(map[string]*activeSession),
+		pendingJobNotify: make(map[string][]string),
+		abortedSessions:  make(map[string]bool),
+		bus:              b,
+		registry:         reg,
+		db:               db,
+		dir:              dir,
+		tools:            tools,
+		perms:            perms,
+		agentRegistry:    agents,
+		mcpSvc:           mcpSvc,
+		cfg:              cfg,
+		revertState:      NewRevertState(),
+		jobManager:       jm,
+		ctx:              ctx,
+		ctxCancel:        cancel,
 	}
 	sm.clientFactory = func(m *provider.Model) llm.Client {
 		sm.warmupModel(m)
@@ -195,6 +208,7 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 	sm.subscribeRevert()
 	sm.subscribeUnrevert()
 	sm.subscribeSummarize()
+	sm.subscribeJobCompleted()
 
 	// Take a baseline snapshot of the tool registry before any MCP tools are
 	// registered. Session processing should use ToolSnapshot() to get a
@@ -212,6 +226,14 @@ func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir strin
 func (sm *SessionManager) SetModelWarmup(fn func(context.Context, *provider.Model)) {
 	sm.mu.Lock()
 	sm.modelWarmup = fn
+	sm.mu.Unlock()
+}
+
+// SetShellHookRunner stores a reference to the shell hook runner for
+// setting agent-scoped hooks on agent switches.
+func (sm *SessionManager) SetShellHookRunner(r ShellHookSetter) {
+	sm.mu.Lock()
+	sm.shellHookRunner = r
 	sm.mu.Unlock()
 }
 
@@ -337,4 +359,77 @@ func (sm *SessionManager) sessionDir(sessionID string) string {
 		return info.Directory
 	}
 	return sm.dir
+}
+
+// subscribeJobCompleted listens for background job completions and either
+// wakes the parent session immediately (if idle and not user-interrupted)
+// or queues the notification for delivery at the next turn boundary.
+func (sm *SessionManager) subscribeJobCompleted() {
+	sub := sm.trackSub(sm.bus.Subscribe("job.completed"))
+	safego.Go(func() {
+		for evt := range sub.C {
+			props, ok := evt.Properties.(map[string]any)
+			if !ok {
+				continue
+			}
+			parentID, _ := props["parentSessionID"].(string)
+			if parentID == "" {
+				continue
+			}
+			jobID, _ := props["jobID"].(string)
+			status, _ := props["status"].(string)
+			result, _ := props["result"].(string)
+			jobErr, _ := props["error"].(string)
+
+			notification := formatJobNotification(jobID, status, result, jobErr)
+
+			sm.mu.Lock()
+			_, busy := sm.sessions[parentID]
+			aborted := sm.abortedSessions[parentID]
+			if busy || aborted {
+				// Parent is processing or was interrupted — queue for later.
+				sm.pendingJobNotify[parentID] = append(sm.pendingJobNotify[parentID], notification)
+				sm.mu.Unlock()
+				slog.Info("queued background task notification", "jobID", jobID, "parentSession", parentID, "reason", map[bool]string{true: "busy", false: "aborted"}[busy])
+				continue
+			}
+			sm.mu.Unlock()
+
+			// Parent is idle and not interrupted — wake it.
+			slog.Info("waking parent session for background task", "jobID", jobID, "parentSession", parentID)
+			sm.bus.Publish("session.prompt", map[string]any{
+				"sessionID": parentID,
+				"content":   notification,
+			})
+		}
+	})
+}
+
+// drainJobNotifications returns any queued background-task notifications for
+// the given session and clears the queue. Returns empty string if none.
+func (sm *SessionManager) drainJobNotifications(sessionID string) string {
+	sm.mu.Lock()
+	pending := sm.pendingJobNotify[sessionID]
+	delete(sm.pendingJobNotify, sessionID)
+	sm.mu.Unlock()
+
+	if len(pending) == 0 {
+		return ""
+	}
+	return strings.Join(pending, "\n\n---\n\n")
+}
+
+// formatJobNotification builds a human-readable notification string for a
+// completed background task.
+func formatJobNotification(jobID, status, result, jobErr string) string {
+	switch status {
+	case "completed":
+		return fmt.Sprintf("Background task %s completed (success):\n\n%s", jobID, result)
+	case "failed":
+		return fmt.Sprintf("Background task %s failed:\n\n%s", jobID, jobErr)
+	case "cancelled":
+		return fmt.Sprintf("Background task %s was cancelled.", jobID)
+	default:
+		return fmt.Sprintf("Background task %s finished (status: %s).", jobID, status)
+	}
 }

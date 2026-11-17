@@ -106,7 +106,14 @@ func executeGrep(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		sb.WriteString(fmt.Sprintf("\n... (%d more matches not shown)\n", total-maxMatches))
 	}
 
-	return &ExecuteResult{Output: sb.String()}, nil
+	output := sb.String()
+
+	// Attach scoped rules whose globs match the grep search path.
+	if ruleText := tc.ScopedRules.MatchAndAttach(searchPath, tc.Directory); ruleText != "" {
+		output = ruleText + output
+	}
+
+	return &ExecuteResult{Output: output}, nil
 }
 
 type grepFileResult struct {

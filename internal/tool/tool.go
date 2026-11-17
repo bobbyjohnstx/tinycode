@@ -262,6 +262,7 @@ type Context struct {
 	MonitorManager *MonitorManager  // background process watcher (shared across copies)
 	AgentSwitch    *SafeAgentSwitch  // pending plan_enter/plan_exit agent switch (shared across copies)
 	WritableRoots  *SafeWritableRoots // directories the model may write into (shared across copies)
+	ScopedRules    *SafeScopedRules   // path-scoped rules pending attachment (shared across copies)
 	// ToolCallID is the in-flight LLM tool call id (ACP session/request_permission toolCallId).
 	ToolCallID string
 	// FormatFile runs after a successful write or edit. name is the formatter

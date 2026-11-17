@@ -184,6 +184,11 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 		output = instructions + output
 	}
 
+	// Attach scoped rules whose globs match this file path.
+	if ruleText := tc.ScopedRules.MatchAndAttach(path, tc.Directory); ruleText != "" {
+		output = ruleText + output
+	}
+
 	return &ExecuteResult{Output: output}, nil
 }
 

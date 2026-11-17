@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -184,6 +185,182 @@ func TestSetModelWarmup_OverridesPreviousCallback(t *testing.T) {
 	}
 	if !secondCalled {
 		t.Error("second callback should be called")
+	}
+}
+
+func TestJobNotification_IdleParent_WakesSession(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	_ = newMinimalSM(t, b) // SM must be alive to subscribe to job.completed
+
+	// Subscribe to session.prompt to verify the wake-up.
+	promptSub := b.Subscribe("session.prompt")
+	defer promptSub.Unsubscribe()
+
+	// Simulate a job.completed event for an idle parent (not in sm.sessions).
+	b.Publish("job.completed", map[string]any{
+		"jobID":           "job_1",
+		"parentSessionID": "ses-idle-parent",
+		"status":          "completed",
+		"result":          "task output here",
+		"error":           "",
+	})
+
+	select {
+	case evt := <-promptSub.C:
+		props, ok := evt.Properties.(map[string]any)
+		if !ok {
+			t.Fatalf("expected map properties, got %T", evt.Properties)
+		}
+		if props["sessionID"] != "ses-idle-parent" {
+			t.Errorf("expected sessionID 'ses-idle-parent', got %v", props["sessionID"])
+		}
+		content, _ := props["content"].(string)
+		if content == "" {
+			t.Fatal("expected non-empty notification content")
+		}
+		if !strings.Contains(content, "job_1") {
+			t.Errorf("expected content to include job ID, got %q", content)
+		}
+		if !strings.Contains(content, "task output here") {
+			t.Errorf("expected content to include result, got %q", content)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session.prompt from job notification")
+	}
+}
+
+func TestJobNotification_BusyParent_QueuedForLater(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	// Register the parent as busy.
+	registerActiveSession(sm, "ses-busy-parent", nil, "build", "/tmp")
+
+	// Publish a job.completed event.
+	b.Publish("job.completed", map[string]any{
+		"jobID":           "job_2",
+		"parentSessionID": "ses-busy-parent",
+		"status":          "completed",
+		"result":          "queued result",
+		"error":           "",
+	})
+
+	// Allow async processing.
+	time.Sleep(100 * time.Millisecond)
+
+	// Drain should return the queued notification.
+	notification := sm.drainJobNotifications("ses-busy-parent")
+	if notification == "" {
+		t.Fatal("expected pending notification for busy parent")
+	}
+	if !strings.Contains(notification, "job_2") {
+		t.Errorf("expected notification to include job ID, got %q", notification)
+	}
+	if !strings.Contains(notification, "queued result") {
+		t.Errorf("expected notification to include result, got %q", notification)
+	}
+
+	// Second drain should be empty.
+	if second := sm.drainJobNotifications("ses-busy-parent"); second != "" {
+		t.Errorf("expected empty second drain, got %q", second)
+	}
+}
+
+func TestJobNotification_AbortedParent_QueuedNotWoken(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	// Mark the session as aborted.
+	sm.mu.Lock()
+	sm.abortedSessions["ses-aborted"] = true
+	sm.mu.Unlock()
+
+	// Subscribe to session.prompt to verify no wake-up occurs.
+	promptSub := b.Subscribe("session.prompt")
+	defer promptSub.Unsubscribe()
+
+	// Publish a job.completed event for the aborted session.
+	b.Publish("job.completed", map[string]any{
+		"jobID":           "job_3",
+		"parentSessionID": "ses-aborted",
+		"status":          "completed",
+		"result":          "aborted result",
+		"error":           "",
+	})
+
+	// No session.prompt should be published.
+	select {
+	case evt := <-promptSub.C:
+		props, _ := evt.Properties.(map[string]any)
+		if props["sessionID"] == "ses-aborted" {
+			t.Fatal("expected no session.prompt for aborted parent")
+		}
+	case <-time.After(200 * time.Millisecond):
+		// Good — no wake-up.
+	}
+
+	// But the notification should be queued.
+	notification := sm.drainJobNotifications("ses-aborted")
+	if notification == "" {
+		t.Fatal("expected pending notification for aborted parent")
+	}
+}
+
+func TestJobNotification_ErrorChild_NotifiesParent(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	_ = newMinimalSM(t, b) // SM must be alive to subscribe to job.completed
+
+	promptSub := b.Subscribe("session.prompt")
+	defer promptSub.Unsubscribe()
+
+	// Publish a failed job.completed event (parent is idle).
+	b.Publish("job.completed", map[string]any{
+		"jobID":           "job_4",
+		"parentSessionID": "ses-err-parent",
+		"status":          "failed",
+		"result":          "",
+		"error":           "something went wrong",
+	})
+
+	select {
+	case evt := <-promptSub.C:
+		props, _ := evt.Properties.(map[string]any)
+		content, _ := props["content"].(string)
+		if !strings.Contains(content, "failed") {
+			t.Errorf("expected content to mention failure, got %q", content)
+		}
+		if !strings.Contains(content, "something went wrong") {
+			t.Errorf("expected content to include error text, got %q", content)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for error notification")
+	}
+}
+
+func TestFormatJobNotification_Success(t *testing.T) {
+	msg := formatJobNotification("job_42", "completed", "all done", "")
+	if !strings.Contains(msg, "job_42") {
+		t.Errorf("expected job ID in message, got %q", msg)
+	}
+	if !strings.Contains(msg, "success") {
+		t.Errorf("expected 'success' in message, got %q", msg)
+	}
+	if !strings.Contains(msg, "all done") {
+		t.Errorf("expected result in message, got %q", msg)
+	}
+}
+
+func TestFormatJobNotification_Failure(t *testing.T) {
+	msg := formatJobNotification("job_43", "failed", "", "boom")
+	if !strings.Contains(msg, "failed") {
+		t.Errorf("expected 'failed' in message, got %q", msg)
+	}
+	if !strings.Contains(msg, "boom") {
+		t.Errorf("expected error text in message, got %q", msg)
 	}
 }
 

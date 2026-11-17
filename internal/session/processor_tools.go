@@ -69,6 +69,9 @@ func (p *Processor) applyPendingAgentSwitch() string {
 		"sessionID": p.config.SessionID,
 		"agent":     target,
 	})
+	if p.config.OnAgentSwitch != nil {
+		p.config.OnAgentSwitch(target)
+	}
 	return target
 }
 

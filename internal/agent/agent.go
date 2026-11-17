@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
@@ -72,9 +73,11 @@ type Info struct {
 	Compact         bool               `json:"compact,omitempty"`
 	Steps           *int               `json:"steps,omitempty"`
 	MaxOutputTokens *int               `json:"maxOutputTokens,omitempty"`
-	Options         map[string]any     `json:"options"`
-	Model           *session.ModelRef  `json:"model,omitempty"`
-	Variant         string             `json:"variant,omitempty"`
+	Options         map[string]any                 `json:"options"`
+	Model           *session.ModelRef              `json:"model,omitempty"`
+	Variant         string                         `json:"variant,omitempty"`
+	Hooks           map[string][]config.HookConfig `json:"hooks,omitempty"`
+	Skills          []string                       `json:"skills,omitempty"`
 }
 
 type ConfigOverride struct {
@@ -598,6 +601,61 @@ func applyFrontmatter(info *Info, frontmatter map[string]any) {
 	if model, ok := frontmatter["model"].(string); ok && model != "" {
 		info.Model = ParseModel(model)
 	}
+	if skills, ok := frontmatter["skills"].(string); ok && skills != "" {
+		info.Skills = parseCSVList(skills)
+	}
+	if hooksMap, ok := frontmatter["hooks"].(map[string]any); ok {
+		info.Hooks = parseHooksFromFrontmatter(hooksMap)
+	}
+}
+
+// parseCSVList splits a comma-separated string into a trimmed list,
+// filtering blanks. Used for frontmatter fields like "skills: a, b, c".
+func parseCSVList(s string) []string {
+	parts := strings.Split(s, ",")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// parseHooksFromFrontmatter converts frontmatter nested map into a hooks map.
+// Expected format:
+//
+//	hooks:
+//	  tool.execute.before:
+//	    command: echo blocked
+//
+// Each event maps to a single HookConfig with the "command" field.
+func parseHooksFromFrontmatter(m map[string]any) map[string][]config.HookConfig {
+	hooks := make(map[string][]config.HookConfig)
+	for event, val := range m {
+		nested, ok := val.(map[string]any)
+		if !ok {
+			continue
+		}
+		h := config.HookConfig{}
+		if cmd, ok := nested["command"].(string); ok {
+			h.Command = cmd
+		}
+		if cont, ok := nested["continue"].(bool); ok {
+			h.Continue = cont
+		}
+		if timeout, ok := nested["timeout"].(int); ok {
+			h.Timeout = timeout
+		}
+		if h.Command != "" {
+			hooks[event] = append(hooks[event], h)
+		}
+	}
+	if len(hooks) == 0 {
+		return nil
+	}
+	return hooks
 }
 
 func asFloat64(v any) (float64, bool) {

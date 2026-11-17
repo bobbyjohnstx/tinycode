@@ -22,11 +22,12 @@ const (
 
 // Job holds the state and result of a background task.
 type Job struct {
-	ID        string    `json:"id"`
-	Status    JobStatus `json:"status"`
-	Result    string    `json:"result,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID              string    `json:"id"`
+	Status          JobStatus `json:"status"`
+	Result          string    `json:"result,omitempty"`
+	Error           string    `json:"error,omitempty"`
+	ParentSessionID string    `json:"parentSessionID,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -67,22 +68,25 @@ func (jm *JobManager) pruneCompleted() {
 }
 
 // Start launches fn as a background goroutine and returns the job ID.
+// parentSessionID identifies the session that spawned this job, so that
+// completion events can wake the parent.
 // The context is derived from parentCtx so that cancelling the parent
 // (e.g. on session abort or server shutdown) also cancels running jobs.
 // Callers that need the job to outlive a tool body deadline should pass
 // context.WithoutCancel(toolCtx) as parentCtx (see background task / monitor).
-func (jm *JobManager) Start(parentCtx context.Context, fn func(ctx context.Context) (string, error)) string {
+func (jm *JobManager) Start(parentCtx context.Context, parentSessionID string, fn func(ctx context.Context) (string, error)) string {
 	jm.mu.Lock()
 	jm.pruneCompleted()
 	jm.seq++
 	jobID := fmt.Sprintf("job_%d", jm.seq)
 	ctx, cancel := context.WithCancel(parentCtx)
 	job := &Job{
-		ID:        jobID,
-		Status:    JobRunning,
-		CreatedAt: time.Now(),
-		cancel:    cancel,
-		done:      make(chan struct{}),
+		ID:              jobID,
+		Status:          JobRunning,
+		ParentSessionID: parentSessionID,
+		CreatedAt:       time.Now(),
+		cancel:          cancel,
+		done:            make(chan struct{}),
 	}
 	jm.jobs[jobID] = job
 	jm.mu.Unlock()
@@ -109,10 +113,11 @@ func (jm *JobManager) Start(parentCtx context.Context, fn func(ctx context.Conte
 
 		if eventBus != nil {
 			eventBus.Publish("job.completed", map[string]any{
-				"jobID":  jobID,
-				"status": string(status),
-				"result": jobResult,
-				"error":  jobError,
+				"jobID":            jobID,
+				"parentSessionID":  parentSessionID,
+				"status":           string(status),
+				"result":           jobResult,
+				"error":            jobError,
 			})
 		}
 	})

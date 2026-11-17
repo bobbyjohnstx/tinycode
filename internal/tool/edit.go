@@ -125,9 +125,14 @@ func executeEdit(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 
 	tc.ReadFiles.Mark(path)
 
-	return &ExecuteResult{
-		Output: fmt.Sprintf("Replaced in %s", path) + note,
-	}, nil
+	output := fmt.Sprintf("Replaced in %s", path) + note
+
+	// Attach scoped rules whose globs match this file path.
+	if ruleText := tc.ScopedRules.MatchAndAttach(path, tc.Directory); ruleText != "" {
+		output = ruleText + output
+	}
+
+	return &ExecuteResult{Output: output}, nil
 }
 
 func getFileMutex(path string) *sync.Mutex {

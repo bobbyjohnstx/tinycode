@@ -50,6 +50,17 @@ func HookHash(command, eventName, projectDir string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// AgentHookHash returns the SHA-256 hex digest of (command + event + projectDir + agentName).
+// Including the agent name ensures that editing the agent file invalidates trust.
+func AgentHookHash(command, eventName, projectDir, agentName string) string {
+	h := sha256.New()
+	h.Write([]byte(command))
+	h.Write([]byte(eventName))
+	h.Write([]byte(projectDir))
+	h.Write([]byte(agentName))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 // IsTrusted reports whether the hook identified by (command, event, projectDir)
 // has been explicitly trusted by the user.
 func (s *HookTrustStore) IsTrusted(command, eventName, projectDir string) bool {
@@ -63,6 +74,15 @@ func (s *HookTrustStore) IsTrusted(command, eventName, projectDir string) bool {
 // IsDisabled reports whether the hook has been explicitly disabled.
 func (s *HookTrustStore) IsDisabled(command, eventName, projectDir string) bool {
 	hash := HookHash(command, eventName, projectDir)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	entry, ok := s.entries[hash]
+	return ok && entry.Disabled
+}
+
+// IsDisabledAgent reports whether an agent-scoped hook has been explicitly disabled.
+func (s *HookTrustStore) IsDisabledAgent(command, eventName, projectDir, agentName string) bool {
+	hash := AgentHookHash(command, eventName, projectDir, agentName)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	entry, ok := s.entries[hash]

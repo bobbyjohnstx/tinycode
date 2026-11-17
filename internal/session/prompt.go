@@ -36,6 +36,7 @@ type SystemPromptInput struct {
 	AgentName          string
 	Instructions       string
 	Directory          string
+	ConfigDir          string // ~/.config/tinycode (for user-level rules)
 	ToolDefs           []llm.Tool
 	GitBranch          string
 	Platform           string
@@ -59,6 +60,14 @@ func BuildSystemPrompt(input SystemPromptInput) string {
 	if input.Directory != "" {
 		instrFiles := discoverInstructionFiles(input.Directory)
 		blocks := readInstructionBlocks(input.Directory, instrFiles)
+
+		// Discover unscoped rules and append them as instruction blocks.
+		for _, r := range DiscoverRules(input.Directory, input.ConfigDir) {
+			if len(r.Globs) == 0 {
+				blocks = append(blocks, instructionBlock{Path: r.Path, Content: r.Content})
+			}
+		}
+
 		instrSection := formatInstructionBlocks(blocks, len(input.AppendSystemPrompt))
 		if instrSection != "" {
 			sections = append(sections, instrSection)

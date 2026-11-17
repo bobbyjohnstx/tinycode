@@ -132,6 +132,9 @@ func New(cfg Config, deps Dependencies) *Server {
 			disc.Warmup(ctx, m)
 		})
 	}
+	if deps.ShellHookRunner != nil {
+		s.sessionManager.SetShellHookRunner(deps.ShellHookRunner)
+	}
 	s.wireSessionStartHook()
 	s.wirePendingStores()
 

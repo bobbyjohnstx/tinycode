@@ -21,8 +21,11 @@ const maxContinueOutputLen = 4096
 const defaultShellHookTimeout = 10 * time.Second
 
 // ShellHookRunner executes shell commands configured as hooks in settings.json.
+// When agent hooks are set via SetAgentHooks, they run after config hooks.
 type ShellHookRunner struct {
 	hooks      map[string][]config.HookConfig
+	agentHooks map[string][]config.HookConfig
+	agentName  string
 	logger     *slog.Logger
 	trustStore *HookTrustStore
 	projectDir string
@@ -52,6 +55,16 @@ func (r *ShellHookRunner) WithTrust(store *HookTrustStore, projectDir string) *S
 	return r
 }
 
+// SetAgentHooks installs agent-scoped hooks that run after config hooks.
+// Pass nil hooks and empty agentName to clear agent hooks (e.g. on agent switch).
+func (r *ShellHookRunner) SetAgentHooks(hooks map[string][]config.HookConfig, agentName string) {
+	if r == nil {
+		return
+	}
+	r.agentHooks = hooks
+	r.agentName = agentName
+}
+
 // shouldRun checks whether a hook is explicitly disabled in the trust store.
 // Untrusted hooks are allowed to run — the trust prompt UI is not yet
 // implemented, so blocking untrusted hooks would silently break all
@@ -62,6 +75,17 @@ func (r *ShellHookRunner) shouldRun(command, eventName string) bool {
 		return true
 	}
 	if r.trustStore.IsDisabled(command, eventName, r.projectDir) {
+		return false
+	}
+	return true
+}
+
+// shouldRunAgent checks whether an agent hook is disabled using an agent-aware hash.
+func (r *ShellHookRunner) shouldRunAgent(command, eventName string) bool {
+	if r.trustStore == nil || r.projectDir == "" {
+		return true
+	}
+	if r.trustStore.IsDisabledAgent(command, eventName, r.projectDir, r.agentName) {
 		return false
 	}
 	return true
@@ -78,8 +102,27 @@ func (r *ShellHookRunner) RunBefore(eventName string, vars map[string]string) ([
 	if r == nil {
 		return nil, nil
 	}
-	hooks, ok := r.hooks[eventName]
-	if !ok || len(hooks) == 0 {
+
+	// Run config hooks first.
+	collected, err := r.runBeforeHooks(r.hooks[eventName], eventName, vars, false)
+	if err != nil {
+		return nil, err
+	}
+
+	// Run agent hooks after config hooks.
+	agentCtx, err := r.runBeforeHooks(r.agentHooks[eventName], eventName, vars, true)
+	if err != nil {
+		return nil, err
+	}
+	collected = append(collected, agentCtx...)
+
+	return collected, nil
+}
+
+// runBeforeHooks runs a slice of hooks for a before event. When isAgent is
+// true, the agent-aware trust check is used.
+func (r *ShellHookRunner) runBeforeHooks(hooks []config.HookConfig, eventName string, vars map[string]string, isAgent bool) ([]string, error) {
+	if len(hooks) == 0 {
 		return nil, nil
 	}
 
@@ -89,8 +132,14 @@ func (r *ShellHookRunner) RunBefore(eventName string, vars map[string]string) ([
 			continue
 		}
 		id := hookIdentifier(h)
-		if !r.shouldRun(id, eventName) {
-			continue
+		if isAgent {
+			if !r.shouldRunAgent(id, eventName) {
+				continue
+			}
+		} else {
+			if !r.shouldRun(id, eventName) {
+				continue
+			}
 		}
 
 		timeout := shellHookTimeout(h.Timeout)
@@ -142,18 +191,25 @@ func (r *ShellHookRunner) RunAfter(eventName string, vars map[string]string) {
 	if r == nil {
 		return
 	}
-	hooks, ok := r.hooks[eventName]
-	if !ok || len(hooks) == 0 {
-		return
-	}
+	r.runAfterHooks(r.hooks[eventName], eventName, vars, false)
+	r.runAfterHooks(r.agentHooks[eventName], eventName, vars, true)
+}
 
+// runAfterHooks fires a slice of hooks asynchronously.
+func (r *ShellHookRunner) runAfterHooks(hooks []config.HookConfig, eventName string, vars map[string]string, isAgent bool) {
 	for _, h := range hooks {
 		if !matchesFilter(h.Match, vars) {
 			continue
 		}
 		id := hookIdentifier(h)
-		if !r.shouldRun(id, eventName) {
-			continue
+		if isAgent {
+			if !r.shouldRunAgent(id, eventName) {
+				continue
+			}
+		} else {
+			if !r.shouldRun(id, eventName) {
+				continue
+			}
 		}
 		hook := h
 		timeout := shellHookTimeout(h.Timeout)
@@ -187,8 +243,15 @@ func (r *ShellHookRunner) RunAfterSync(eventName string, vars map[string]string)
 	if r == nil {
 		return nil
 	}
-	hooks, ok := r.hooks[eventName]
-	if !ok || len(hooks) == 0 {
+
+	collected := r.runAfterSyncHooks(r.hooks[eventName], eventName, vars, false)
+	agentCtx := r.runAfterSyncHooks(r.agentHooks[eventName], eventName, vars, true)
+	return append(collected, agentCtx...)
+}
+
+// runAfterSyncHooks runs a slice of hooks synchronously, collecting context.
+func (r *ShellHookRunner) runAfterSyncHooks(hooks []config.HookConfig, eventName string, vars map[string]string, isAgent bool) []string {
+	if len(hooks) == 0 {
 		return nil
 	}
 
@@ -198,8 +261,14 @@ func (r *ShellHookRunner) RunAfterSync(eventName string, vars map[string]string)
 			continue
 		}
 		id := hookIdentifier(h)
-		if !r.shouldRun(id, eventName) {
-			continue
+		if isAgent {
+			if !r.shouldRunAgent(id, eventName) {
+				continue
+			}
+		} else {
+			if !r.shouldRun(id, eventName) {
+				continue
+			}
 		}
 
 		timeout := shellHookTimeout(h.Timeout)

@@ -49,6 +49,9 @@ type ProcessorConfig struct {
 	Perms                  *permission.Service
 	Ruleset                permission.Ruleset
 	UserDisplayText        string
+	// OnAgentSwitch is called when the active agent changes (e.g. plan_enter/plan_exit).
+	// The callback receives the new agent name. Used to update agent-scoped hooks.
+	OnAgentSwitch func(newAgent string)
 }
 
 type Processor struct {

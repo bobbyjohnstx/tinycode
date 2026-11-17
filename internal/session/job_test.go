@@ -12,7 +12,7 @@ import (
 
 func TestJobManager_StartAndGet(t *testing.T) {
 	jm := NewJobManager()
-	id := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+	id := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 		return "done", nil
 	})
 
@@ -35,7 +35,7 @@ func TestJobManager_StartAndGet(t *testing.T) {
 
 func TestJobManager_FailedJob(t *testing.T) {
 	jm := NewJobManager()
-	id := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+	id := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 		return "", fmt.Errorf("something broke")
 	})
 
@@ -54,7 +54,7 @@ func TestJobManager_FailedJob(t *testing.T) {
 func TestJobManager_Cancel(t *testing.T) {
 	jm := NewJobManager()
 	started := make(chan struct{})
-	id := jm.Start(context.Background(), func(ctx context.Context) (string, error) {
+	id := jm.Start(context.Background(), "", func(ctx context.Context) (string, error) {
 		close(started)
 		<-ctx.Done()
 		return "", ctx.Err()
@@ -78,11 +78,11 @@ func TestJobManager_List(t *testing.T) {
 	jm := NewJobManager()
 	blocker := make(chan struct{})
 
-	id1 := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+	id1 := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 		<-blocker
 		return "a", nil
 	})
-	id2 := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+	id2 := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 		<-blocker
 		return "b", nil
 	})
@@ -125,7 +125,7 @@ func TestJobManager_WaitNotFound(t *testing.T) {
 
 func TestJobManager_CancelNotRunning(t *testing.T) {
 	jm := NewJobManager()
-	id := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+	id := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 		return "ok", nil
 	})
 	jm.Wait(id)
@@ -144,7 +144,7 @@ func TestJobManager_ConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			id := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+			id := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 				time.Sleep(time.Millisecond)
 				return fmt.Sprintf("result-%d", n), nil
 			})
@@ -167,7 +167,7 @@ func TestJobManager_ParentContextCancel(t *testing.T) {
 	parentCtx, parentCancel := context.WithCancel(context.Background())
 
 	started := make(chan struct{})
-	id := jm.Start(parentCtx, func(ctx context.Context) (string, error) {
+	id := jm.Start(parentCtx, "", func(ctx context.Context) (string, error) {
 		close(started)
 		<-ctx.Done()
 		return "", ctx.Err()
@@ -194,7 +194,7 @@ func TestJobManager_Shutdown(t *testing.T) {
 	for i := 0; i < n; i++ {
 		started[i] = make(chan struct{})
 		ch := started[i]
-		ids[i] = jm.Start(context.Background(), func(ctx context.Context) (string, error) {
+		ids[i] = jm.Start(context.Background(), "", func(ctx context.Context) (string, error) {
 			close(ch)
 			<-ctx.Done()
 			return "", ctx.Err()
@@ -222,7 +222,7 @@ func TestJobManager_PruneCompleted(t *testing.T) {
 	jm := NewJobManager()
 
 	// Start a job and wait for completion.
-	id1 := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+	id1 := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 		return "old", nil
 	})
 	jm.Wait(id1)
@@ -233,7 +233,7 @@ func TestJobManager_PruneCompleted(t *testing.T) {
 	jm.mu.Unlock()
 
 	// Start a new job — this triggers pruneCompleted.
-	id2 := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+	id2 := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 		return "new", nil
 	})
 	jm.Wait(id2)
@@ -255,7 +255,7 @@ func TestJobManager_CompletionEvent(t *testing.T) {
 	sub := b.Subscribe("job.completed")
 	defer sub.Unsubscribe()
 
-	id := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+	id := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 		return "hello", nil
 	})
 	jm.Wait(id)
@@ -280,6 +280,32 @@ func TestJobManager_CompletionEvent(t *testing.T) {
 	}
 }
 
+func TestJobManager_CompletionEvent_IncludesParentSessionID(t *testing.T) {
+	b := bus.New()
+	jm := NewJobManager(b)
+
+	sub := b.Subscribe("job.completed")
+	defer sub.Unsubscribe()
+
+	id := jm.Start(context.Background(), "ses-parent-123", func(_ context.Context) (string, error) {
+		return "done", nil
+	})
+	jm.Wait(id)
+
+	select {
+	case evt := <-sub.C:
+		props, ok := evt.Properties.(map[string]any)
+		if !ok {
+			t.Fatalf("expected map properties, got %T", evt.Properties)
+		}
+		if props["parentSessionID"] != "ses-parent-123" {
+			t.Errorf("expected parentSessionID 'ses-parent-123', got %v", props["parentSessionID"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for job.completed event")
+	}
+}
+
 func TestJobManager_FailedCompletionEvent(t *testing.T) {
 	b := bus.New()
 	jm := NewJobManager(b)
@@ -287,7 +313,7 @@ func TestJobManager_FailedCompletionEvent(t *testing.T) {
 	sub := b.Subscribe("job.completed")
 	defer sub.Unsubscribe()
 
-	id := jm.Start(context.Background(), func(_ context.Context) (string, error) {
+	id := jm.Start(context.Background(), "", func(_ context.Context) (string, error) {
 		return "", fmt.Errorf("boom")
 	})
 	jm.Wait(id)
