@@ -9,15 +9,17 @@ import (
 	"github.com/bobbyjohnstx/tinycode/internal/config"
 )
 
-func TestNewShellHookRunner_NilForEmpty(t *testing.T) {
+func TestNewShellHookRunner_AlwaysNonNil(t *testing.T) {
+	// Runner is always created so agent hooks can be set later,
+	// even when no config-level hooks are defined.
 	r := NewShellHookRunner(nil, nil)
-	if r != nil {
-		t.Fatal("expected nil runner for nil hooks")
+	if r == nil {
+		t.Fatal("expected non-nil runner even for nil hooks")
 	}
 
 	r = NewShellHookRunner(map[string][]config.HookConfig{}, nil)
-	if r != nil {
-		t.Fatal("expected nil runner for empty hooks")
+	if r == nil {
+		t.Fatal("expected non-nil runner for empty hooks")
 	}
 }
 

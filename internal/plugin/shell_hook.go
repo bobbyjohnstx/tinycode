@@ -32,10 +32,11 @@ type ShellHookRunner struct {
 }
 
 // NewShellHookRunner creates a runner from the hooks config map.
-// Returns nil if hooks is empty.
+// Always returns a non-nil runner so agent hooks can be set later
+// even when no config-level hooks are defined.
 func NewShellHookRunner(hooks map[string][]config.HookConfig, logger *slog.Logger) *ShellHookRunner {
-	if len(hooks) == 0 {
-		return nil
+	if hooks == nil {
+		hooks = make(map[string][]config.HookConfig)
 	}
 	if logger == nil {
 		logger = slog.Default()

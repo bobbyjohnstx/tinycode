@@ -647,6 +647,9 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	if clearer, ok := p.tools.(interface{ ClearDiscoveredInstructions() }); ok {
 		clearer.ClearDiscoveredInstructions()
 	}
+	if clearer, ok := p.tools.(interface{ ClearScopedRules() }); ok {
+		clearer.ClearScopedRules()
+	}
 
 	p.bus.Publish("session.compacted", map[string]any{
 		"sessionID":     p.config.SessionID,

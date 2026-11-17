@@ -149,6 +149,14 @@ func parseGoalJudgeResponse(raw string) GoalJudgeResult {
 	cleaned = strings.TrimSuffix(cleaned, "```")
 	cleaned = strings.TrimSpace(cleaned)
 
+	// Extract JSON object from response text — models often prepend a sentence.
+	if idx := strings.Index(cleaned, "{"); idx > 0 {
+		cleaned = cleaned[idx:]
+	}
+	if idx := strings.LastIndex(cleaned, "}"); idx >= 0 && idx < len(cleaned)-1 {
+		cleaned = cleaned[:idx+1]
+	}
+
 	var result GoalJudgeResult
 	if err := json.Unmarshal([]byte(cleaned), &result); err != nil {
 		return GoalJudgeResult{

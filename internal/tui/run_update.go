@@ -367,22 +367,12 @@ func (c *connectedApp) handleSessionMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) 
 				dir := c.app.status.Cwd()
 				cmds = append(cmds, evaluateGoal(c.goal.state.Command, dir, c.goal.state.Iteration, c.goal.generation))
 			} else {
-				// LLM-as-judge goal (no command): check max iterations first,
-				// then ask the judge to evaluate the transcript.
-				if c.goal.state.Iteration >= c.goal.state.MaxIterations {
-					text := fmt.Sprintf("Goal not met after %d iterations: %s", c.goal.state.MaxIterations, c.goal.state.Text)
-					c.goal = nil
-					c.app.status.SetGoal("")
-					cmds = append(cmds, c.app.reflowChrome())
-					toastCmd := c.app.toast.Show(text, true)
-					if toastCmd != nil {
-						cmds = append(cmds, toastCmd)
-					}
-				} else {
-					sessionID := c.app.state.ActiveSession
-					if sessionID != "" {
-						cmds = append(cmds, judgeGoal(c.client, sessionID, c.goal.state.Text, c.goal.generation))
-					}
+				// LLM-as-judge goal (no command): always ask the judge first
+				// so the last iteration's work gets evaluated. The cap is
+				// checked in handleGoalJudge when the judge returns "continue".
+				sessionID := c.app.state.ActiveSession
+				if sessionID != "" {
+					cmds = append(cmds, judgeGoal(c.client, sessionID, c.goal.state.Text, c.goal.generation))
 				}
 			}
 		}

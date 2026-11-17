@@ -31,6 +31,17 @@ func NewSafeScopedRules(rules []ScopedRule) *SafeScopedRules {
 	}
 }
 
+// ClearAttached resets the attached set so rules can be re-discovered
+// after compaction drops the tool results that contained them.
+func (s *SafeScopedRules) ClearAttached() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.attached = make(map[string]bool)
+}
+
 // MatchAndAttach checks if the given absolute file path matches any pending
 // scoped rule's globs. projectDir is the session root used to compute the
 // relative path for glob matching. Returns the formatted rule text to prepend

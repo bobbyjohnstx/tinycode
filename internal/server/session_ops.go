@@ -529,14 +529,18 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 	}
 
 	// Drain pending background-task notifications that arrived while this
-	// turn was active. Published on the bus so the normal prompt subscriber
-	// picks them up after this processPrompt returns.
-	if jobNotify := sm.drainJobNotifications(sessionID); jobNotify != "" {
-		slog.Info("injecting background task notification at turn boundary", "sessionID", sessionID)
-		sm.bus.Publish("session.prompt", map[string]any{
-			"sessionID": sessionID,
-			"content":   jobNotify,
-		})
+	// turn was active. Skip if the user aborted — they don't want auto-resume.
+	sm.mu.Lock()
+	aborted := sm.abortedSessions[sessionID]
+	sm.mu.Unlock()
+	if !aborted {
+		if jobNotify := sm.drainJobNotifications(sessionID); jobNotify != "" {
+			slog.Info("injecting background task notification at turn boundary", "sessionID", sessionID)
+			sm.bus.Publish("session.prompt", map[string]any{
+				"sessionID": sessionID,
+				"content":   jobNotify,
+			})
+		}
 	}
 
 	if result != nil && result.Error != nil {

@@ -833,6 +833,14 @@ func (r *Registry) ClearDiscoveredInstructions() {
 	}
 }
 
+// ClearScopedRules resets the scoped rules attached set so rules dropped
+// during compaction can be re-attached on subsequent tool calls.
+func (r *Registry) ClearScopedRules() {
+	if r.ctx != nil && r.ctx.ScopedRules != nil {
+		r.ctx.ScopedRules.ClearAttached()
+	}
+}
+
 // ResetTaskRound clears the TaskRoundDone flag so new task calls are allowed.
 // Called at the start of each user prompt to allow a fresh round of tasks.
 func (r *Registry) ResetTaskRound() {

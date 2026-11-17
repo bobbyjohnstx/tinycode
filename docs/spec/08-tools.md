@@ -421,3 +421,24 @@ When the LLM generates invalid JSON for tool call arguments:
 1. Strip markdown fences (`` ```json ... ``` ``)
 2. Remove trailing commas
 3. Route to `invalid` tool if repair fails
+
+---
+
+## 8.10 Known Limitations
+
+### Shell mutation heuristic
+`ClassifyMutation` detects `>`, `>>`, `tee`, `find -delete`, `sed -i`, and `sort -o`. It does not detect `cp`, `mv`, `install`, `rsync`, Python/Ruby one-liners, or `xargs rm`. It is a **best-effort heuristic**, not a security boundary. Commands it misses are recorded as "unknown shell changes" in rewind warnings.
+
+### Path-scoped rules
+- `filepath.Match` globs do not support `**` (recursive directory matching). Use `*_test.go` to match test files, not `internal/**/*.go`.
+- `grep` matches the search directory path, not individual result files. A `*.go` rule does not fire when `grep` searches a Go file.
+- Scoped rule marks are process-wide. A second session in the same process does not re-attach rules already seen.
+
+### Goal LLM-as-judge
+- The reviewer uses the session's configured model (or `small_model` when available). There is no structural separation between worker and reviewer.
+- Each tool result in the transcript is capped at 2,000 characters. Evidence at the end of large output may be truncated.
+- The goal judge endpoint is available only in TUI mode. `tinycode run`, `serve`, and ACP do not expose it.
+
+### Agent-scoped hooks
+- The hook runner is one object per process. Two sessions on different agents overwrite each other's hooks.
+- A background child subagent does not install its own agent hooks.
