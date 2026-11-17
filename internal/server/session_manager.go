@@ -121,6 +121,7 @@ type SessionManager struct {
 	credentialLookup   func(providerID string) string
 	jobManager         *session.JobManager
 	appendSystemPrompt string
+	notesDir           string
 	tokenBudget        int
 	sessionStartHook   func(sessionID string) []string
 	modelWarmup        func(context.Context, *provider.Model)

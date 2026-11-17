@@ -568,6 +568,149 @@ func TestExecuteShell_DefaultPermissionStillAsksForDestructive(t *testing.T) {
 	}
 }
 
+func TestExecuteShell_BackgroundReturnsMonitorID(t *testing.T) {
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	tc := &Context{
+		Directory:      t.TempDir(),
+		ReadFiles:      NewSafeReadFiles(),
+		MonitorManager: mm,
+	}
+
+	raw := json.RawMessage(`{"command":"sleep 10","background":true}`)
+	start := time.Now()
+	result, err := executeShell(context.Background(), tc, raw)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Output)
+	}
+	if elapsed > 2*time.Second {
+		t.Errorf("background command blocked for %v, expected immediate return", elapsed)
+	}
+	if !strings.Contains(result.Output, "background") {
+		t.Errorf("expected 'background' in output, got %q", result.Output)
+	}
+	if !strings.Contains(result.Output, "mon_") {
+		t.Errorf("expected monitor ID in output, got %q", result.Output)
+	}
+
+	monitors := mm.List()
+	if len(monitors) != 1 {
+		t.Fatalf("expected 1 monitor, got %d", len(monitors))
+	}
+	if !monitors[0].Running {
+		t.Error("expected monitor to be running")
+	}
+}
+
+func TestExecuteShell_BackgroundNoMonitorManagerFails(t *testing.T) {
+	tc := &Context{
+		Directory: t.TempDir(),
+		ReadFiles: NewSafeReadFiles(),
+	}
+
+	raw := json.RawMessage(`{"command":"echo hi","background":true}`)
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error when no monitor manager")
+	}
+	if !strings.Contains(result.Output, "not available") {
+		t.Errorf("expected 'not available' in output, got %q", result.Output)
+	}
+}
+
+func TestExecuteShell_TimeoutPromotesToBackground(t *testing.T) {
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	tc := &Context{
+		Directory:      t.TempDir(),
+		ReadFiles:      NewSafeReadFiles(),
+		MonitorManager: mm,
+	}
+
+	// Use a very short timeout (500ms) so the sleep command triggers promotion.
+	timeoutMS := 500
+	raw, _ := json.Marshal(shellArgs{Command: "sleep 30", Timeout: &timeoutMS})
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected successful promotion, got error: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "promoted to background") {
+		t.Errorf("expected 'promoted to background' in output, got %q", result.Output)
+	}
+	if !strings.Contains(result.Output, "mon_") {
+		t.Errorf("expected monitor ID in output, got %q", result.Output)
+	}
+
+	// Verify the process is still running in the monitor.
+	monitors := mm.List()
+	if len(monitors) != 1 {
+		t.Fatalf("expected 1 monitor after promotion, got %d", len(monitors))
+	}
+	if !monitors[0].Running {
+		t.Error("expected promoted process to still be running")
+	}
+}
+
+func TestExecuteShell_TimeoutWithoutMonitorKills(t *testing.T) {
+	tc := &Context{
+		Directory: t.TempDir(),
+		ReadFiles: NewSafeReadFiles(),
+		// No MonitorManager — promotion should fail, process killed.
+	}
+
+	timeoutMS := 500
+	raw, _ := json.Marshal(shellArgs{Command: "sleep 30", Timeout: &timeoutMS})
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected timeout error when no monitor manager")
+	}
+	if !strings.Contains(result.Output, "timed out") {
+		t.Errorf("expected 'timed out' in output, got %q", result.Output)
+	}
+}
+
+func TestExecuteShell_ForegroundStillWorks(t *testing.T) {
+	tc := &Context{
+		Directory:      t.TempDir(),
+		ReadFiles:      NewSafeReadFiles(),
+		MonitorManager: NewMonitorManager(),
+	}
+	defer tc.MonitorManager.Shutdown()
+
+	raw := json.RawMessage(`{"command":"echo hello_world"}`)
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Output)
+	}
+	if got := strings.TrimSpace(result.Output); got != "hello_world" {
+		t.Errorf("expected 'hello_world', got %q", got)
+	}
+
+	// No monitors should have been created.
+	monitors := tc.MonitorManager.List()
+	if len(monitors) != 0 {
+		t.Errorf("expected 0 monitors for foreground command, got %d", len(monitors))
+	}
+}
+
 func TestExecuteShell_WiderPermissionOnSecretShowsEscalation(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

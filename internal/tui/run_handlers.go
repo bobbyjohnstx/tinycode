@@ -82,6 +82,10 @@ func (c *connectedApp) handlePromptSubmission(msg PromptSubmittedMsg) (tea.Model
 		return c.handleChdirCommand(trimmed)
 	}
 
+	if strings.HasPrefix(trimmed, "/roots ") {
+		return c.handleRootsCommand(trimmed)
+	}
+
 	if trimmed == "/branch" || strings.HasPrefix(trimmed, "/branch ") {
 		return c.handleBranchCommand(trimmed)
 	}

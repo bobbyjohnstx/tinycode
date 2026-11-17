@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os/exec"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
 	"github.com/bobbyjohnstx/tinycode/internal/procenv"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 const (
@@ -61,6 +63,7 @@ type shellArgs struct {
 	Description   string `json:"description,omitempty"`
 	Permission    string `json:"permission,omitempty"`
 	Justification string `json:"justification,omitempty"`
+	Background    bool   `json:"background,omitempty"`
 }
 
 func ShellTool() *Def {
@@ -91,6 +94,10 @@ func ShellTool() *Def {
 				"justification": map[string]any{
 					"type":        "string",
 					"description": "One-sentence justification required when permission is wider",
+				},
+				"background": map[string]any{
+					"type":        "boolean",
+					"description": "Run in background and return a monitor ID immediately. Output delivered at next turn via monitor drain.",
 				},
 			},
 			"required": []string{"command"},
@@ -154,10 +161,18 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		}
 	}
 
-	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	// Background mode: delegate to MonitorManager immediately.
+	if args.Background {
+		return executeShellBackground(ctx, tc, args, timeout)
+	}
+
+	// Foreground mode with timeout-to-background promotion.
+	// Use a cancel-only context so the process is not killed by the timeout;
+	// the timer below handles the timeout and promotes the process instead.
+	cmdCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 
 	cmd := exec.CommandContext(cmdCtx, "sh", "-c", args.Command)
+	cmd.WaitDelay = 500 * time.Millisecond
 	cmd.Dir = tc.Directory
 	env := environToMap(procenv.Child(nil))
 	if tc != nil && tc.ShellEnvHook != nil {
@@ -169,14 +184,122 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 
 	stdout := NewLimitedWriter(MaxOutputSize)
 	stderr := NewLimitedWriter(MaxOutputSize)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
+
+	// Also tee output into a ring buffer for potential monitor handoff.
+	rb := newRingBuffer(ringBufferSize)
+	rbStdout := &ringBufferLineWriter{rb: rb}
+	rbStderr := &ringBufferLineWriter{rb: rb, prefix: "STDERR: "}
+	cmd.Stdout = io.MultiWriter(stdout, rbStdout)
+	cmd.Stderr = io.MultiWriter(stderr, rbStderr)
+
+	stdinPipe, pipeErr := cmd.StdinPipe()
+	if pipeErr != nil {
+		cancel()
+		return &ExecuteResult{Output: fmt.Sprintf("stdin pipe: %v", pipeErr), IsError: true}, nil
+	}
 
 	slog.Info("shell exec", "command", args.Command, "dir", tc.Directory, "timeout", timeout)
 	start := time.Now()
-	err := cmd.Run()
-	elapsed := time.Since(start)
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return &ExecuteResult{Output: fmt.Sprintf("start command: %v", err), IsError: true}, nil
+	}
 
+	done := make(chan struct{})
+	safego.Go(func() {
+		_ = cmd.Wait()
+		rbStdout.Flush()
+		rbStderr.Flush()
+		close(done)
+	})
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-done:
+		// Process finished within timeout — normal path.
+		cancel()
+		elapsed := time.Since(start)
+		return formatShellOutput(args.Command, cmd, stdout, stderr, elapsed)
+
+	case <-timer.C:
+		// Timeout — try to promote to background monitor.
+		elapsed := time.Since(start)
+		return promoteToBackground(tc, cmd, cancel, stdinPipe, rb, done, args.Command, stdout, stderr, timeout, elapsed)
+
+	case <-ctx.Done():
+		// Outer context cancelled (e.g. deadline from bodyTimeout).
+		elapsed := time.Since(start)
+		if ctx.Err() == context.DeadlineExceeded {
+			return promoteToBackground(tc, cmd, cancel, stdinPipe, rb, done, args.Command, stdout, stderr, timeout, elapsed)
+		}
+		cancel()
+		<-done
+		return &ExecuteResult{
+			Output:  fmt.Sprintf("Command cancelled after %v", elapsed),
+			IsError: true,
+		}, nil
+	}
+}
+
+// executeShellBackground starts a command via MonitorManager and returns the
+// monitor ID immediately.
+func executeShellBackground(ctx context.Context, tc *Context, args shellArgs, timeout time.Duration) (*ExecuteResult, error) {
+	if tc.MonitorManager == nil {
+		return &ExecuteResult{Output: "Monitor manager not available for background execution", IsError: true}, nil
+	}
+
+	desc := args.Description
+	if desc == "" {
+		desc = args.Command
+		if len(desc) > 60 {
+			desc = desc[:60] + "..."
+		}
+	}
+
+	monCtx := context.WithoutCancel(ctx)
+	monID, err := tc.MonitorManager.Start(monCtx, args.Command, desc, tc.Directory, timeout)
+	if err != nil {
+		return &ExecuteResult{Output: fmt.Sprintf("Failed to start background command: %v", err), IsError: true}, nil
+	}
+
+	return &ExecuteResult{
+		Output: fmt.Sprintf("Command started in background (ID: %s)\nOutput will be delivered at the next turn boundary.", monID),
+	}, nil
+}
+
+// promoteToBackground attempts to transfer a timed-out foreground command to
+// MonitorManager. If promotion fails, it kills the process and returns the
+// timeout error.
+func promoteToBackground(tc *Context, cmd *exec.Cmd, cancel context.CancelFunc, stdinPipe io.WriteCloser, rb *ringBuffer, done chan struct{}, command string, stdout, stderr *LimitedWriter, timeout, elapsed time.Duration) (*ExecuteResult, error) {
+	partial := collectPartialOutput(stdout, stderr)
+
+	if tc.MonitorManager != nil {
+		monID, err := tc.MonitorManager.Adopt(cmd, cancel, stdinPipe, rb, done, command)
+		if err == nil {
+			slog.Info("shell promoted to background", "command", command, "timeout", timeout, "monitorID", monID)
+			msg := fmt.Sprintf("Command promoted to background after %v (ID: %s)\nOutput will be delivered at the next turn boundary.", timeout, monID)
+			if partial != "" {
+				msg += "\nPartial output:\n" + partial
+			}
+			return &ExecuteResult{Output: msg}, nil
+		}
+		slog.Warn("shell promote failed, killing process", "command", command, "error", err)
+	}
+
+	// Promotion failed — fall back to killing the process.
+	cancel()
+	<-done
+	slog.Warn("shell timeout", "command", command, "timeout", timeout, "elapsed", elapsed)
+	return &ExecuteResult{
+		Output:  fmt.Sprintf("Command timed out after %v\n%s", timeout, partial),
+		IsError: true,
+	}, nil
+}
+
+// formatShellOutput builds the result for a completed foreground shell command.
+func formatShellOutput(command string, cmd *exec.Cmd, stdout, stderr *LimitedWriter, elapsed time.Duration) (*ExecuteResult, error) {
 	var output strings.Builder
 	if stdout.Len() > 0 {
 		output.Write(stdout.Bytes())
@@ -195,21 +318,37 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		}
 	}
 
-	if err != nil {
-		if cmdCtx.Err() == context.DeadlineExceeded {
-			slog.Warn("shell timeout", "command", args.Command, "timeout", timeout, "elapsed", elapsed)
-			return &ExecuteResult{
-				Output:  fmt.Sprintf("Command timed out after %v\n%s", timeout, output.String()),
-				IsError: true,
-			}, nil
-		}
-		slog.Warn("shell error", "command", args.Command, "elapsed", elapsed, "error", err, "stderrLen", stderr.Len())
-		exitMsg := fmt.Sprintf("Command exited with error: %v\n%s", err, output.String())
+	if cmd.ProcessState != nil && !cmd.ProcessState.Success() {
+		exitErr := fmt.Sprintf("exit status %d", cmd.ProcessState.ExitCode())
+		slog.Warn("shell error", "command", command, "elapsed", elapsed, "error", exitErr, "stderrLen", stderr.Len())
+		exitMsg := fmt.Sprintf("Command exited with error: %s\n%s", exitErr, output.String())
 		return &ExecuteResult{Output: exitMsg, IsError: true}, nil
 	}
 
-	slog.Info("shell done", "command", args.Command, "elapsed", elapsed, "stdoutLen", stdout.Len(), "stderrLen", stderr.Len())
+	slog.Info("shell done", "command", command, "elapsed", elapsed, "stdoutLen", stdout.Len(), "stderrLen", stderr.Len())
 	return &ExecuteResult{Output: output.String()}, nil
+}
+
+// collectPartialOutput formats whatever stdout/stderr has been captured so far.
+func collectPartialOutput(stdout, stderr *LimitedWriter) string {
+	var output strings.Builder
+	if stdout.Len() > 0 {
+		output.Write(stdout.Bytes())
+		if stdout.Overflow {
+			output.WriteString("\n[output truncated at 10MB]")
+		}
+	}
+	if stderr.Len() > 0 {
+		if output.Len() > 0 {
+			output.WriteString("\n")
+		}
+		output.WriteString("STDERR:\n")
+		output.Write(stderr.Bytes())
+		if stderr.Overflow {
+			output.WriteString("\n[stderr truncated at 10MB]")
+		}
+	}
+	return output.String()
 }
 
 // IsDestructive returns true if the command matches known destructive patterns

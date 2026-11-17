@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -886,5 +887,109 @@ func TestBuildSystemPrompt_LocalAfterShared(t *testing.T) {
 	localIdx := strings.Index(result, "local agents")
 	if localIdx <= sharedIdx {
 		t.Error("local content should appear after shared content")
+	}
+}
+
+// --- Issue #968: model-written notes ---
+
+func TestBuildSystemPrompt_NotesPresent(t *testing.T) {
+	notesDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(notesDir, "MEMORY.md"), []byte("- remember this\n- and this"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt:  "Agent.",
+		NotesDir:     notesDir,
+		NotesEnabled: true,
+	})
+
+	if !strings.Contains(result, "Notes from earlier sessions") {
+		t.Error("expected notes heading in prompt")
+	}
+	if !strings.Contains(result, "remember this") {
+		t.Error("expected notes content in prompt")
+	}
+}
+
+func TestBuildSystemPrompt_NotesDisabled(t *testing.T) {
+	notesDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(notesDir, "MEMORY.md"), []byte("- secret note"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt:  "Agent.",
+		NotesDir:     notesDir,
+		NotesEnabled: false,
+	})
+
+	if strings.Contains(result, "secret note") {
+		t.Error("notes should not appear when disabled")
+	}
+	if strings.Contains(result, "Notes from earlier sessions") {
+		t.Error("notes heading should not appear when disabled")
+	}
+}
+
+func TestBuildSystemPrompt_NotesMissing(t *testing.T) {
+	notesDir := t.TempDir()
+	// No MEMORY.md written
+
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt:  "Agent.",
+		NotesDir:     notesDir,
+		NotesEnabled: true,
+	})
+
+	if strings.Contains(result, "Notes from earlier sessions") {
+		t.Error("notes heading should not appear when MEMORY.md doesn't exist")
+	}
+}
+
+func TestBuildSystemPrompt_NotesLineCap(t *testing.T) {
+	notesDir := t.TempDir()
+
+	// Write 250 lines; only first 200 should appear
+	var lines []string
+	for i := 1; i <= 250; i++ {
+		lines = append(lines, fmt.Sprintf("line-%03d", i))
+	}
+	if err := os.WriteFile(filepath.Join(notesDir, "MEMORY.md"), []byte(strings.Join(lines, "\n")), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt:  "Agent.",
+		NotesDir:     notesDir,
+		NotesEnabled: true,
+	})
+
+	if !strings.Contains(result, "line-001") {
+		t.Error("expected first line in prompt")
+	}
+	if !strings.Contains(result, "line-200") {
+		t.Error("expected line 200 in prompt")
+	}
+	if strings.Contains(result, "line-201") {
+		t.Error("line 201 should be absent (line cap)")
+	}
+}
+
+func TestBuildSystemPrompt_SubagentNoNotes(t *testing.T) {
+	notesDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(notesDir, "MEMORY.md"), []byte("- parent note"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Subagent prompt: NotesEnabled is false
+	result := BuildSystemPrompt(SystemPromptInput{
+		AgentPrompt:  "Agent.",
+		NotesDir:     notesDir,
+		NotesEnabled: false,
+	})
+
+	if strings.Contains(result, "parent note") {
+		t.Error("subagent should not receive notes")
 	}
 }

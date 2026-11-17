@@ -477,6 +477,57 @@ func (c *connectedApp) handleChdirCommand(trimmed string) (tea.Model, tea.Cmd) {
 	return c, tea.Batch(cmd, reflowCmd)
 }
 
+// handleRootsCommand processes a /roots add <path> command.
+// It validates the path, resolves symlinks, and adds it to the writable-root list.
+func (c *connectedApp) handleRootsCommand(trimmed string) (tea.Model, tea.Cmd) {
+	rest := strings.TrimSpace(strings.TrimPrefix(trimmed, "/roots"))
+	if !strings.HasPrefix(rest, "add ") {
+		model, cmd := c.app.Update(ToastMsg{Text: "Usage: /roots add <path>", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+	arg := strings.TrimSpace(strings.TrimPrefix(rest, "add"))
+	if arg == "" {
+		model, cmd := c.app.Update(ToastMsg{Text: "Usage: /roots add <path>", IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	dir := arg
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(c.app.status.Cwd(), dir)
+	}
+
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Invalid path: %v", err), IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	info, err := os.Stat(resolved)
+	if err != nil {
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Path not found: %s", arg), IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+	if !info.IsDir() {
+		model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Not a directory: %s", arg), IsError: true})
+		c.updateApp(model)
+		return c, cmd
+	}
+
+	safego.Go(func() {
+		if err := c.client.AddWritableRoot(resolved); err != nil {
+			slog.Error("failed to add writable root", "path", resolved, "error", err)
+		}
+	})
+
+	model, cmd := c.app.Update(ToastMsg{Text: fmt.Sprintf("Writable root added: %s", resolved)})
+	c.updateApp(model)
+	return c, cmd
+}
+
 // handleInitCommand generates a root AGENTS.md (if missing) then submits an
 // improved setup prompt to the LLM.
 func (c *connectedApp) handleInitCommand() (tea.Model, tea.Cmd) {

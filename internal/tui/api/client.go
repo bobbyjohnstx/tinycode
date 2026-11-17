@@ -377,6 +377,11 @@ func (c *Client) Btw(sessionID, question string) (string, error) {
 	return resp.Answer, nil
 }
 
+// AddWritableRoot adds a directory to the writable-root list via POST /roots.
+func (c *Client) AddWritableRoot(path string) error {
+	return c.postNoResp("/roots", map[string]string{"path": path})
+}
+
 // getJSON performs a GET and decodes the JSON response into dest.
 func (c *Client) getJSON(path string, dest any) error {
 	body, err := c.doRequest(http.MethodGet, path, nil)

@@ -30,6 +30,7 @@ type BuiltinConfig struct {
 	ConfigDir  string
 	ProjectDir string
 	SkillPaths []string
+	NotesDir   string
 }
 
 // RegisterConditional registers tools that depend on external configuration
@@ -40,5 +41,8 @@ func RegisterConditional(r *Registry, cfg BuiltinConfig) {
 	}
 	if os.Getenv("EXA_API_KEY") != "" {
 		r.Register(WebSearchTool())
+	}
+	if cfg.NotesDir != "" {
+		r.Register(NotesTool(cfg.NotesDir))
 	}
 }

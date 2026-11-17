@@ -51,6 +51,12 @@ type Info struct {
 	AutoApprove       *bool                      `json:"autoApprove,omitempty"`
 	ScopedModels      []string                   `json:"scopedModels,omitempty"`
 	Hooks             map[string][]HookConfig    `json:"hooks,omitempty"`
+	Notes             *NotesConfig               `json:"notes,omitempty"`
+}
+
+// NotesConfig controls model-written notes that persist across sessions.
+type NotesConfig struct {
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // HookConfig defines a shell command to execute on a lifecycle event.
@@ -563,6 +569,9 @@ func mergeScalarFields(result, src *Info) {
 	}
 	if len(src.ScopedModels) > 0 {
 		result.ScopedModels = src.ScopedModels
+	}
+	if src.Notes != nil {
+		result.Notes = deepMergePtr(result.Notes, src.Notes)
 	}
 }
 

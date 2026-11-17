@@ -323,6 +323,176 @@ func TestSafeReadFiles_ClearResetsAllEntries(t *testing.T) {
 	}
 }
 
+func TestDiscoverInstructions_AgentsMD(t *testing.T) {
+	root := t.TempDir()
+	nested := filepath.Join(root, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "AGENTS.md"), []byte("nested instructions"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	filePath := filepath.Join(nested, "code.go")
+	if err := os.WriteFile(filePath, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:              root,
+		ReadFiles:              NewSafeReadFiles(),
+		DiscoveredInstructions: NewSafeReadFiles(),
+	}
+	raw, _ := json.Marshal(readArgs{FilePath: filePath})
+
+	result, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result.IsError {
+		t.Fatalf("unexpected error: %v / %s", err, result.Output)
+	}
+
+	if !strings.Contains(result.Output, "[Discovered instructions from nested/AGENTS.md]") {
+		t.Errorf("expected discovered instructions header, got:\n%s", result.Output)
+	}
+	if !strings.Contains(result.Output, "nested instructions") {
+		t.Errorf("expected instruction content, got:\n%s", result.Output)
+	}
+	if !strings.Contains(result.Output, "package main") {
+		t.Errorf("expected file content after instructions, got:\n%s", result.Output)
+	}
+}
+
+func TestDiscoverInstructions_SecondReadNotReattached(t *testing.T) {
+	root := t.TempDir()
+	nested := filepath.Join(root, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "AGENTS.md"), []byte("nested instructions"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	filePath := filepath.Join(nested, "code.go")
+	if err := os.WriteFile(filePath, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:              root,
+		ReadFiles:              NewSafeReadFiles(),
+		DiscoveredInstructions: NewSafeReadFiles(),
+	}
+	raw, _ := json.Marshal(readArgs{FilePath: filePath})
+
+	// First read: instructions attached.
+	result1, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result1.IsError {
+		t.Fatalf("unexpected error: %v / %s", err, result1.Output)
+	}
+	if !strings.Contains(result1.Output, "nested instructions") {
+		t.Fatalf("expected instructions on first read")
+	}
+
+	// Second read in same directory: instructions NOT re-attached.
+	result2, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result2.IsError {
+		t.Fatalf("unexpected error: %v / %s", err, result2.Output)
+	}
+	if strings.Contains(result2.Output, "Discovered instructions") {
+		t.Errorf("instructions should not be re-attached on second read")
+	}
+}
+
+func TestDiscoverInstructions_OutsideSessionRoot(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "AGENTS.md"), []byte("should not appear"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	filePath := filepath.Join(outside, "code.go")
+	if err := os.WriteFile(filePath, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:              root,
+		ReadFiles:              NewSafeReadFiles(),
+		DiscoveredInstructions: NewSafeReadFiles(),
+	}
+	raw, _ := json.Marshal(readArgs{FilePath: filePath})
+
+	result, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result.IsError {
+		t.Fatalf("unexpected error: %v / %s", err, result.Output)
+	}
+	if strings.Contains(result.Output, "Discovered instructions") {
+		t.Errorf("should not discover instructions outside session root")
+	}
+}
+
+func TestDiscoverInstructions_AgentsMDWinsOverClaudeMD(t *testing.T) {
+	root := t.TempDir()
+	nested := filepath.Join(root, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "AGENTS.md"), []byte("agents wins"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "CLAUDE.md"), []byte("claude loses"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	filePath := filepath.Join(nested, "code.go")
+	if err := os.WriteFile(filePath, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:              root,
+		ReadFiles:              NewSafeReadFiles(),
+		DiscoveredInstructions: NewSafeReadFiles(),
+	}
+	raw, _ := json.Marshal(readArgs{FilePath: filePath})
+
+	result, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result.IsError {
+		t.Fatalf("unexpected error: %v / %s", err, result.Output)
+	}
+	if !strings.Contains(result.Output, "agents wins") {
+		t.Errorf("AGENTS.md content should be present")
+	}
+	if strings.Contains(result.Output, "claude loses") {
+		t.Errorf("CLAUDE.md content should NOT be present when AGENTS.md exists")
+	}
+}
+
+func TestDiscoverInstructions_FallbackToClaudeMD(t *testing.T) {
+	root := t.TempDir()
+	nested := filepath.Join(root, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "CLAUDE.md"), []byte("claude instructions"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	filePath := filepath.Join(nested, "code.go")
+	if err := os.WriteFile(filePath, []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{
+		Directory:              root,
+		ReadFiles:              NewSafeReadFiles(),
+		DiscoveredInstructions: NewSafeReadFiles(),
+	}
+	raw, _ := json.Marshal(readArgs{FilePath: filePath})
+
+	result, err := executeRead(context.Background(), tc, raw)
+	if err != nil || result.IsError {
+		t.Fatalf("unexpected error: %v / %s", err, result.Output)
+	}
+	if !strings.Contains(result.Output, "claude instructions") {
+		t.Errorf("CLAUDE.md content should be present as fallback")
+	}
+}
+
 func makeBinaryData(size int, binaryRatio float64) []byte {
 	data := make([]byte, size)
 	binaryCount := int(float64(size) * binaryRatio)

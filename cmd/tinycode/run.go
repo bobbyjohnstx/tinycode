@@ -125,6 +125,14 @@ func runRun() {
 	} else {
 		agentReg = initAgentRegistry(cfg, dir)
 	}
+	// Notes default to disabled for headless runs (tinycode run).
+	if cfg.Notes == nil {
+		f := false
+		cfg.Notes = &config.NotesConfig{Enabled: &f}
+	} else if cfg.Notes.Enabled == nil {
+		f := false
+		cfg.Notes.Enabled = &f
+	}
 	toolReg, permSvc, toolCtx := initTooling(b, dir, db.DB, cfg)
 	lspMgr := initLSP(dir, cfg, toolReg)
 	defer lspMgr.Close()

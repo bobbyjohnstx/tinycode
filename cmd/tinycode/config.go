@@ -281,8 +281,24 @@ func initTooling(b *bus.Bus, directory string, db *sql.DB, cfg ...*config.Info) 
 	if len(cfg) > 0 && cfg[0] != nil && cfg[0].Skills != nil {
 		bc.SkillPaths = cfg[0].Skills.Paths
 	}
+	if notesEnabledFromConfig(cfg...) {
+		bc.NotesDir = config.NotesDir(directory)
+	}
 	tool.RegisterConditional(toolReg, bc)
 	return toolReg, permSvc, toolCtx
+}
+
+// notesEnabledFromConfig returns true when model notes are enabled.
+// Default is true (feature is on unless explicitly disabled).
+func notesEnabledFromConfig(cfg ...*config.Info) bool {
+	if len(cfg) == 0 || cfg[0] == nil {
+		return true
+	}
+	c := cfg[0]
+	if c.Notes == nil || c.Notes.Enabled == nil {
+		return true
+	}
+	return *c.Notes.Enabled
 }
 
 // applyConfigPermissions wires config allow/deny into the permission service

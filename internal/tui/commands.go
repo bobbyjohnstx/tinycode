@@ -40,6 +40,7 @@ var clientCommandDefs = []clientCommandDef{
 	{Name: "privacy", Description: "Show what data is stored and where", InPalette: false},
 	{Name: "redo", Description: "Restore previously reverted changes", InPalette: false},
 	{Name: "rename", Description: "Rename current session", InPalette: true},
+	{Name: "roots", Description: "Manage writable roots (/roots add <path>)", InPalette: true},
 	{Name: "rewind", Description: "Rewind conversation to a previous turn", InPalette: true},
 	{Name: "scratch", Description: "Open throwaway side conversation", InPalette: true},
 	{Name: "scoped-models", Description: "Toggle model scoping (favorites)", InPalette: true},

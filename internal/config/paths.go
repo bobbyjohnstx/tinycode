@@ -1,8 +1,12 @@
 package config
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func ConfigDir() string {
@@ -73,6 +77,25 @@ func ProjectConfigFiles(name, directory string) []string {
 		files[i], files[j] = files[j], files[i]
 	}
 	return files
+}
+
+// NotesDir returns the notes directory for the git repo containing directory.
+// The path is DataDir()/notes/<sha256-prefix-of-repo-root>/ so worktrees of the
+// same repo share notes. Returns empty string when directory is not inside a
+// git repository.
+func NotesDir(directory string) string {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Dir = directory
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	root := strings.TrimSpace(string(out))
+	if root == "" {
+		return ""
+	}
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(root)))
+	return filepath.Join(DataDir(), "notes", hash[:16])
 }
 
 func ProjectDotDirs(directory string) []string {

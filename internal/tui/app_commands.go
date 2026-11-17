@@ -126,6 +126,8 @@ func (a *App) handleClientCommand(name string) (tea.Cmd, bool) {
 		return a.toast.Show(fmt.Sprintf("Effort level: %s (use /effort low|medium|high|max)", current), false), true
 	case "rename":
 		return a.toast.Show("Usage: /rename <title> — rename current session", false), true
+	case "roots":
+		return a.toast.Show("Usage: /roots add <path> — add a writable root directory", false), true
 	case "thinking":
 		current := a.state.ThinkingLevel
 		if current == "" {

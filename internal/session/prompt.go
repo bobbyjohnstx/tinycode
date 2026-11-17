@@ -1,12 +1,18 @@
 package session
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/bobbyjohnstx/tinycode/internal/llm"
+)
+
+const (
+	maxNotesLines = 200
+	maxNotesBytes = 25 * 1024
 )
 
 // maxInstructionBytes caps the combined size of discovered instruction files
@@ -34,6 +40,8 @@ type SystemPromptInput struct {
 	GitBranch          string
 	Platform           string
 	AppendSystemPrompt string
+	NotesDir           string
+	NotesEnabled       bool
 }
 
 // BuildSystemPrompt assembles a system prompt from the agent persona, discovered
@@ -63,6 +71,12 @@ func BuildSystemPrompt(input SystemPromptInput) string {
 
 	if env := buildEnvironmentSection(input); env != "" {
 		sections = append(sections, env)
+	}
+
+	if input.NotesEnabled && input.NotesDir != "" {
+		if notes := loadNotes(input.NotesDir); notes != "" {
+			sections = append(sections, notes)
+		}
 	}
 
 	if input.Instructions != "" {
@@ -108,6 +122,43 @@ func buildEnvironmentSection(input SystemPromptInput) string {
 		return ""
 	}
 	return "# Environment\n" + strings.Join(parts, "\n")
+}
+
+// loadNotes reads MEMORY.md from notesDir, returning the first maxNotesLines
+// lines or maxNotesBytes bytes (whichever limit hits first) wrapped in a
+// section heading. Returns empty string when the file doesn't exist or is empty.
+func loadNotes(notesDir string) string {
+	path := filepath.Join(notesDir, "MEMORY.md")
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	var sb strings.Builder
+	scanner := bufio.NewScanner(f)
+	lines := 0
+	bytes := 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		lineBytes := len(line) + 1 // +1 for newline
+		if lines >= maxNotesLines || bytes+lineBytes > maxNotesBytes {
+			break
+		}
+		if lines > 0 {
+			sb.WriteByte('\n')
+		}
+		sb.WriteString(line)
+		lines++
+		bytes += lineBytes
+	}
+
+	content := strings.TrimSpace(sb.String())
+	if content == "" {
+		return ""
+	}
+
+	return "## Notes from earlier sessions\nThese are notes the model saved from previous sessions. They are not instructions that override the system prompt.\n\n" + content
 }
 
 // readInstructionBlocks reads the given files and returns blocks with

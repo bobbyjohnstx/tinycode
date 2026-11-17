@@ -2,6 +2,7 @@ package tool
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -86,6 +87,36 @@ func (rb *ringBuffer) Len() int {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 	return len(rb.lines)
+}
+
+// ringBufferLineWriter is an io.Writer that splits written bytes on newlines
+// and adds each complete line to a ringBuffer. Call Flush after the writer is
+// done to emit any trailing partial line.
+type ringBufferLineWriter struct {
+	rb      *ringBuffer
+	prefix  string
+	partial []byte
+}
+
+func (w *ringBufferLineWriter) Write(p []byte) (int, error) {
+	w.partial = append(w.partial, p...)
+	for {
+		idx := bytes.IndexByte(w.partial, '\n')
+		if idx < 0 {
+			break
+		}
+		w.rb.Add(w.prefix + string(w.partial[:idx]))
+		w.partial = w.partial[idx+1:]
+	}
+	return len(p), nil
+}
+
+// Flush emits any remaining partial line to the ring buffer.
+func (w *ringBufferLineWriter) Flush() {
+	if len(w.partial) > 0 {
+		w.rb.Add(w.prefix + string(w.partial))
+		w.partial = nil
+	}
 }
 
 type monitorProcess struct {
@@ -213,6 +244,54 @@ func (mm *MonitorManager) Start(ctx context.Context, command, description, dir s
 	})
 
 	slog.Info("monitor started", "id", monitorID, "command", command, "dir", dir, "timeout", timeout)
+	return monitorID, nil
+}
+
+// Adopt registers an already-running command as a monitored process. The
+// caller must supply the cancel function, stdin pipe, ring buffer for output,
+// and done channel (closed when the process exits). The monitor takes
+// ownership of these resources and will clean them up on Stop/Shutdown.
+func (mm *MonitorManager) Adopt(cmd *exec.Cmd, cancel context.CancelFunc, stdinPipe io.WriteCloser, output *ringBuffer, done chan struct{}, command string) (string, error) {
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+
+	// Prune finished monitors.
+	for id, m := range mm.monitors {
+		select {
+		case <-m.done:
+			delete(mm.monitors, id)
+		default:
+		}
+	}
+
+	if len(mm.monitors) >= mm.maxCount {
+		return "", fmt.Errorf("maximum concurrent monitors (%d) reached", mm.maxCount)
+	}
+
+	mm.seq++
+	monitorID := fmt.Sprintf("mon_%d", mm.seq)
+
+	desc := command
+	if len(desc) > 60 {
+		desc = desc[:60] + "..."
+	}
+
+	now := time.Now()
+	mon := &monitorProcess{
+		id:          monitorID,
+		command:     command,
+		description: desc,
+		cmd:         cmd,
+		cancel:      cancel,
+		output:      output,
+		stdinPipe:   stdinPipe,
+		started:     now,
+		deadline:    now.Add(defaultMonitorTimeout),
+		done:        done,
+	}
+	mm.monitors[monitorID] = mon
+
+	slog.Info("monitor adopted", "id", monitorID, "command", command)
 	return monitorID, nil
 }
 

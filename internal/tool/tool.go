@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -148,6 +149,74 @@ func (s *SafeFindings) Len() int {
 	return len(s.findings)
 }
 
+// SafeWritableRoots is a mutex-protected list of directory paths the model
+// is allowed to write into. Safe for concurrent access across Context copies.
+type SafeWritableRoots struct {
+	mu    sync.Mutex
+	roots []string
+}
+
+func NewSafeWritableRoots(initial ...string) *SafeWritableRoots {
+	roots := make([]string, len(initial))
+	copy(roots, initial)
+	return &SafeWritableRoots{roots: roots}
+}
+
+func (s *SafeWritableRoots) Add(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, r := range s.roots {
+		if r == path {
+			return
+		}
+	}
+	s.roots = append(s.roots, path)
+}
+
+// Contains reports whether path is inside any writable root.
+// It resolves the directory portion of path so that symlink aliases
+// (e.g. /var vs /private/var on macOS) are handled correctly.
+func (s *SafeWritableRoots) Contains(path string) bool {
+	resolved := path
+	if r, err := filepath.EvalSymlinks(path); err == nil {
+		resolved = r
+	} else if dir := filepath.Dir(path); dir != path {
+		// File may not exist yet — resolve its parent directory.
+		if rdir, err2 := filepath.EvalSymlinks(dir); err2 == nil {
+			resolved = filepath.Join(rdir, filepath.Base(path))
+		}
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, root := range s.roots {
+		if isUnderDir(resolved, root) {
+			return true
+		}
+	}
+	return false
+}
+
+// isUnderDir reports whether path equals root or is a descendant of root.
+func isUnderDir(path, root string) bool {
+	if path == root {
+		return true
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return !strings.HasPrefix(rel, "..")
+}
+
+func (s *SafeWritableRoots) List() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := make([]string, len(s.roots))
+	copy(cp, s.roots)
+	return cp
+}
+
 type Context struct {
 	SessionID      string
 	Directory      string
@@ -165,17 +234,21 @@ type Context struct {
 	SubagentBudget *atomic.Int32    // per-session spawn budget (shared across copies)
 	TaskRoundDone  *atomic.Bool     // set after first foreground task batch completes (shared across copies)
 	AutoApprove    bool             // skip permission checks when true
-	ReadFiles      *SafeReadFiles   // tracks files the model has read or edited (shared across copies)
-	ReadImages     *SafeReadFiles   // tracks image paths already attached (shared across copies)
+	ReadFiles               *SafeReadFiles   // tracks files the model has read or edited (shared across copies)
+	ReadImages              *SafeReadFiles   // tracks image paths already attached (shared across copies)
+	DiscoveredInstructions  *SafeReadFiles   // tracks directories already checked for AGENTS.md/CLAUDE.md (shared across copies)
 	Findings       *SafeFindings    // accumulated code review findings (shared across copies)
 	Notepad        *SafeNotepad     // session scratch notes (shared across copies)
 	MonitorManager *MonitorManager  // background process watcher (shared across copies)
-	AgentSwitch    *SafeAgentSwitch // pending plan_enter/plan_exit agent switch (shared across copies)
+	AgentSwitch    *SafeAgentSwitch  // pending plan_enter/plan_exit agent switch (shared across copies)
+	WritableRoots  *SafeWritableRoots // directories the model may write into (shared across copies)
 	// ToolCallID is the in-flight LLM tool call id (ACP session/request_permission toolCallId).
 	ToolCallID string
 	// FormatFile runs after a successful write or edit. name is the formatter
 	// that matched the file. changed is true when the file bytes differ.
 	FormatFile func(ctx context.Context, path string) (name string, changed bool, err error)
+	// NotesDir is the per-repo persistent notes directory. Empty when notes are disabled.
+	NotesDir string
 }
 
 func askToolRef(tc *Context) *permission.ToolRef {
@@ -229,6 +302,9 @@ func NewRegistry(toolCtx *Context) *Registry {
 	if toolCtx.ReadImages == nil {
 		toolCtx.ReadImages = NewSafeReadFiles()
 	}
+	if toolCtx.DiscoveredInstructions == nil {
+		toolCtx.DiscoveredInstructions = NewSafeReadFiles()
+	}
 	if toolCtx.Findings == nil {
 		toolCtx.Findings = NewSafeFindings()
 	}
@@ -240,6 +316,13 @@ func NewRegistry(toolCtx *Context) *Registry {
 	}
 	if toolCtx.AgentSwitch == nil {
 		toolCtx.AgentSwitch = NewSafeAgentSwitch()
+	}
+	if toolCtx.WritableRoots == nil {
+		initDir := toolCtx.Directory
+		if resolved, err := filepath.EvalSymlinks(initDir); err == nil {
+			initDir = resolved
+		}
+		toolCtx.WritableRoots = NewSafeWritableRoots(initDir)
 	}
 	return &Registry{
 		tools:          make(map[string]*Def),
@@ -308,6 +391,15 @@ func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessag
 		cp.ToolCallID = id
 	}
 	toolCtx := &cp
+
+	// Writable-root enforcement: deny writes outside allowed directories.
+	// Runs before permission checks so AutoApprove cannot bypass it.
+	if toolCtx.WritableRoots != nil {
+		if denied, msg := checkWritableRoots(name, args, toolCtx); denied {
+			slog.Warn("write denied by writable roots", "tool", name, "sessionID", sessionID, "detail", msg)
+			return msg, true, nil
+		}
+	}
 
 	// Check permissions if service is available and tool has a permission requirement
 	var permNote string
@@ -743,6 +835,72 @@ func (r *Registry) ResetBudget(value int32) {
 	if r.ctx != nil && r.ctx.SubagentBudget != nil {
 		r.ctx.SubagentBudget.Store(value)
 	}
+}
+
+// AddWritableRoot adds a directory path to the writable-root list.
+// Symlinks are resolved before storing so that alias paths match correctly.
+func (r *Registry) AddWritableRoot(path string) {
+	if r.ctx != nil && r.ctx.WritableRoots != nil {
+		if resolved, err := filepath.EvalSymlinks(path); err == nil {
+			path = resolved
+		}
+		r.ctx.WritableRoots.Add(path)
+	}
+}
+
+// WritableRootsList returns a copy of the current writable roots.
+func (r *Registry) WritableRootsList() []string {
+	if r.ctx != nil && r.ctx.WritableRoots != nil {
+		return r.ctx.WritableRoots.List()
+	}
+	return nil
+}
+
+// checkWritableRoots enforces that file-modifying tools only write inside
+// allowed directories. Returns (true, message) if the write is denied.
+func checkWritableRoots(toolName string, args json.RawMessage, tc *Context) (bool, string) {
+	paths := extractWritePaths(toolName, args, tc.Directory)
+	if len(paths) == 0 {
+		return false, ""
+	}
+	for _, p := range paths {
+		if !tc.WritableRoots.Contains(p) {
+			return true, fmt.Sprintf("Write denied: %s is outside writable roots", p)
+		}
+	}
+	return false, ""
+}
+
+// extractWritePaths returns the absolute file paths a tool will modify.
+func extractWritePaths(toolName string, args json.RawMessage, dir string) []string {
+	switch toolName {
+	case "write", "edit":
+		var m struct {
+			FilePath string `json:"file_path"`
+		}
+		if err := json.Unmarshal(args, &m); err != nil || m.FilePath == "" {
+			return nil
+		}
+		return []string{resolvePath(m.FilePath, dir)}
+
+	case "apply_patch":
+		var m struct {
+			Patch string `json:"patch"`
+		}
+		if err := json.Unmarshal(args, &m); err != nil || m.Patch == "" {
+			return nil
+		}
+		patches, err := parsePatch(m.Patch)
+		if err != nil {
+			return nil
+		}
+		var paths []string
+		for _, fp := range patches {
+			paths = append(paths, patchTargetPath(fp, dir))
+		}
+		return paths
+	}
+	return nil
 }
 
 // askPatterns extracts path or command strings from tool args for permission

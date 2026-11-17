@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -176,7 +177,14 @@ func executeRead(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*Ex
 
 	tc.ReadFiles.Mark(path)
 
-	return &ExecuteResult{Output: sb.String()}, nil
+	output := sb.String()
+
+	// Discover instruction files (AGENTS.md / CLAUDE.md) walking up to session root.
+	if instructions := discoverInstructions(path, tc); instructions != "" {
+		output = instructions + output
+	}
+
+	return &ExecuteResult{Output: output}, nil
 }
 
 func resolvePath(path, dir string) string {
@@ -227,6 +235,79 @@ func commonPrefixLen(a, b string) int {
 		}
 	}
 	return n
+}
+
+// discoverInstructions walks from the read file's directory up to the session
+// root, looking for AGENTS.md (preferred) or CLAUDE.md in each directory.
+// New instruction files are returned as a prefixed string and the directory
+// is marked so it is only discovered once per session. Returns "" when nothing
+// new is found or the path is outside the session root.
+func discoverInstructions(path string, tc *Context) string {
+	if tc.DiscoveredInstructions == nil {
+		return ""
+	}
+
+	sessionRoot := filepath.Clean(tc.Directory)
+	if resolved, err := filepath.EvalSymlinks(sessionRoot); err == nil {
+		sessionRoot = resolved
+	}
+	dir := filepath.Dir(path)
+
+	// Only discover for files inside the session root.
+	if !strings.HasPrefix(dir, sessionRoot) {
+		return ""
+	}
+
+	var parts []string
+	for d := dir; ; d = filepath.Dir(d) {
+		if !tc.DiscoveredInstructions.Has(d) {
+			tc.DiscoveredInstructions.Mark(d)
+
+			var instrPath string
+			agents := filepath.Join(d, "AGENTS.md")
+			claude := filepath.Join(d, "CLAUDE.md")
+
+			if _, err := os.Stat(agents); err == nil {
+				instrPath = agents
+			} else if _, err := os.Stat(claude); err == nil {
+				instrPath = claude
+			}
+
+			if instrPath != "" {
+				content, err := os.ReadFile(instrPath)
+				if err != nil {
+					slog.Warn("failed to read instruction file", "path", instrPath, "error", err)
+				} else if len(content) > 0 {
+					rel, _ := filepath.Rel(sessionRoot, instrPath)
+					if rel == "" {
+						rel = instrPath
+					}
+					parts = append(parts, fmt.Sprintf("[Discovered instructions from %s]\n%s", rel, strings.TrimRight(string(content), "\n")))
+				}
+			}
+		}
+
+		// Stop after processing the session root directory.
+		if d == sessionRoot {
+			break
+		}
+		// Safety: stop if we've reached the filesystem root.
+		parent := filepath.Dir(d)
+		if parent == d {
+			break
+		}
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	// Return outermost directories first (reverse since we walked inward-out).
+	for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
+		parts[i], parts[j] = parts[j], parts[i]
+	}
+
+	return strings.Join(parts, "\n\n") + "\n\n---\n\n"
 }
 
 // isBinaryData checks the first 8KB of data for non-text bytes.

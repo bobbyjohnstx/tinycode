@@ -281,7 +281,7 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		}
 	}
 
-	agentPerms, agentRuleset, systemPrompt := sm.buildPromptSystemPrompt(input, model, sessionDir)
+	agentPerms, agentRuleset, systemPrompt := sm.buildPromptSystemPrompt(input, model, sessionDir, true)
 
 	// Prepend effort-level system prefix if provided.
 	if input.SystemPrefix != "" {

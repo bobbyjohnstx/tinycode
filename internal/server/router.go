@@ -9,6 +9,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("PATCH /global/config", s.handleConfigUpdate)
 	s.mux.HandleFunc("POST /global/dispose", s.handleGlobalDispose)
 
+	// Writable roots
+	s.mux.HandleFunc("POST /roots", s.handleRootsAdd)
+	s.mux.HandleFunc("GET /roots", s.handleRootsList)
+
 	// Instance-scoped event stream
 	s.mux.HandleFunc("GET /event", s.handleEventStream)
 

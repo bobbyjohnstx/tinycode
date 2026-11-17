@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
 	"github.com/bobbyjohnstx/tinycode/internal/permission"
+	"github.com/bobbyjohnstx/tinycode/internal/safego"
 )
 
 func TestRingBuffer_AddAndDrain(t *testing.T) {
@@ -616,6 +619,135 @@ func TestMonitorTool_StdinAction_MissingFields(t *testing.T) {
 	}
 	if !strings.Contains(output, "input is required") {
 		t.Errorf("expected 'input is required', got %q", output)
+	}
+}
+
+func TestMonitorManager_Adopt(t *testing.T) {
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "sh", "-c", "sleep 10")
+	cmd.WaitDelay = 500 * time.Millisecond
+	cmd.Dir = t.TempDir()
+
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatalf("stdin pipe: %v", err)
+	}
+
+	rb := newRingBuffer(ringBufferSize)
+	if err := cmd.Start(); err != nil {
+		cancel()
+		t.Fatalf("start: %v", err)
+	}
+
+	done := make(chan struct{})
+	safego.Go(func() {
+		_ = cmd.Wait()
+		close(done)
+	})
+
+	monID, err := mm.Adopt(cmd, cancel, stdinPipe, rb, done, "sleep 10")
+	if err != nil {
+		cancel()
+		t.Fatalf("adopt: %v", err)
+	}
+	if monID == "" {
+		t.Fatal("expected non-empty monitor ID")
+	}
+
+	monitors := mm.List()
+	if len(monitors) != 1 {
+		t.Fatalf("expected 1 monitor, got %d", len(monitors))
+	}
+	if !monitors[0].Running {
+		t.Error("expected adopted monitor to be running")
+	}
+	if monitors[0].ID != monID {
+		t.Errorf("expected ID %s, got %s", monID, monitors[0].ID)
+	}
+
+	// Stop via monitor — should kill the process.
+	if err := mm.Stop(monID); err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	monitors = mm.List()
+	if len(monitors) != 0 {
+		t.Errorf("expected 0 monitors after stop, got %d", len(monitors))
+	}
+}
+
+func TestMonitorManager_Adopt_OutputDelivered(t *testing.T) {
+	mm := NewMonitorManager()
+	defer mm.Shutdown()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "sh", "-c", "echo adopted_output; sleep 10")
+	cmd.WaitDelay = 500 * time.Millisecond
+	cmd.Dir = t.TempDir()
+
+	stdinPipe, _ := cmd.StdinPipe()
+	rb := newRingBuffer(ringBufferSize)
+	rbWriter := &ringBufferLineWriter{rb: rb}
+	cmd.Stdout = rbWriter
+
+	if err := cmd.Start(); err != nil {
+		cancel()
+		t.Fatalf("start: %v", err)
+	}
+
+	done := make(chan struct{})
+	safego.Go(func() {
+		_ = cmd.Wait()
+		rbWriter.Flush()
+		close(done)
+	})
+
+	monID, err := mm.Adopt(cmd, cancel, stdinPipe, rb, done, "echo adopted_output; sleep 10")
+	if err != nil {
+		cancel()
+		t.Fatalf("adopt: %v", err)
+	}
+
+	// Wait for output to arrive.
+	deadline := time.Now().Add(2 * time.Second)
+	var output string
+	for time.Now().Before(deadline) {
+		output = mm.DrainAll()
+		if strings.Contains(output, "adopted_output") {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !strings.Contains(output, "adopted_output") {
+		t.Errorf("expected 'adopted_output' in drain, got %q", output)
+	}
+	_ = monID
+}
+
+func TestRingBufferLineWriter_SplitsLines(t *testing.T) {
+	rb := newRingBuffer(10)
+	w := &ringBufferLineWriter{rb: rb, prefix: "PFX: "}
+
+	// Write a multi-line payload in one call.
+	_, _ = io.WriteString(w, "line1\nline2\npartial")
+	if rb.Len() != 2 {
+		t.Fatalf("expected 2 complete lines, got %d", rb.Len())
+	}
+
+	// Flush the remaining partial line.
+	w.Flush()
+	if rb.Len() != 3 {
+		t.Fatalf("expected 3 lines after flush, got %d", rb.Len())
+	}
+
+	result, _ := rb.Drain()
+	if !strings.Contains(result, "PFX: line1") {
+		t.Errorf("expected prefixed line1, got %q", result)
+	}
+	if !strings.Contains(result, "PFX: partial") {
+		t.Errorf("expected prefixed partial, got %q", result)
 	}
 }
 

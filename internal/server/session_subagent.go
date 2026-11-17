@@ -70,7 +70,7 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		SessionID: parentSessionID,
 		Agent:     agent,
 	}
-	agentPerms, agentRuleset, systemPrompt := sm.buildPromptSystemPrompt(input, model, directory)
+	agentPerms, agentRuleset, systemPrompt := sm.buildPromptSystemPrompt(input, model, directory, false)
 
 	client := sm.clientFactory(model)
 	childTools := sm.tools

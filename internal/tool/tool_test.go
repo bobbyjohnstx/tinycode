@@ -518,17 +518,17 @@ func TestShellTool_DestructiveBlocked(t *testing.T) {
 	}
 }
 
-func TestShellTool_Timeout(t *testing.T) {
+func TestShellTool_Timeout_PromotesToBackground(t *testing.T) {
 	dir := t.TempDir()
 	r := NewRegistry(&Context{Directory: dir})
 	RegisterBuiltins(r)
 
 	output, isErr, _ := r.Execute(context.Background(), "bash", json.RawMessage(`{"command": "sleep 30", "timeout": 100}`), "s1")
-	if !isErr {
-		t.Error("expected timeout error")
+	if isErr {
+		t.Error("promoted command should not be an error")
 	}
-	if !strings.Contains(output, "timed out") {
-		t.Errorf("expected timeout message, got %q", output)
+	if !strings.Contains(output, "promoted to background") {
+		t.Errorf("expected promotion message, got %q", output)
 	}
 }
 
@@ -1020,5 +1020,184 @@ func TestRegistryExecute_BodyTimeoutCancelsHungTool(t *testing.T) {
 	}
 	if elapsed > 2*time.Second {
 		t.Fatalf("Execute took %v; expected body timeout (~80ms)", elapsed)
+	}
+}
+
+func TestWritableRoots_WriteInsideRootSucceeds(t *testing.T) {
+	dir := t.TempDir()
+	r := NewRegistry(&Context{Directory: dir, AutoApprove: true})
+	RegisterBuiltins(r)
+
+	path := filepath.Join(dir, "hello.txt")
+	args := json.RawMessage(`{"file_path":"` + path + `","content":"hi"}`)
+	output, isErr, err := r.Execute(context.Background(), "write", args, "s1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if isErr {
+		t.Fatalf("expected success, got error: %s", output)
+	}
+	if !strings.Contains(output, "Successfully wrote") {
+		t.Errorf("unexpected output: %s", output)
+	}
+}
+
+func TestWritableRoots_WriteOutsideRootDenied(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	r := NewRegistry(&Context{Directory: dir, AutoApprove: true})
+	RegisterBuiltins(r)
+
+	path := filepath.Join(outside, "nope.txt")
+	args := json.RawMessage(`{"file_path":"` + path + `","content":"hi"}`)
+	output, isErr, err := r.Execute(context.Background(), "write", args, "s1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !isErr {
+		t.Fatal("expected write to be denied")
+	}
+	if !strings.Contains(output, "Write denied") {
+		t.Errorf("expected 'Write denied' message, got %q", output)
+	}
+}
+
+func TestWritableRoots_SecondRootAllowsWrite(t *testing.T) {
+	dir := t.TempDir()
+	second := t.TempDir()
+	third := t.TempDir()
+	r := NewRegistry(&Context{Directory: dir, AutoApprove: true})
+	RegisterBuiltins(r)
+
+	r.AddWritableRoot(second)
+
+	// Write to second root — should succeed.
+	path := filepath.Join(second, "ok.txt")
+	args := json.RawMessage(`{"file_path":"` + path + `","content":"ok"}`)
+	output, isErr, err := r.Execute(context.Background(), "write", args, "s1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if isErr {
+		t.Fatalf("expected success for second root, got error: %s", output)
+	}
+
+	// Write to third place — should be denied.
+	path = filepath.Join(third, "no.txt")
+	args = json.RawMessage(`{"file_path":"` + path + `","content":"no"}`)
+	output, isErr, err = r.Execute(context.Background(), "write", args, "s1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !isErr {
+		t.Fatal("expected write to third dir to be denied")
+	}
+	if !strings.Contains(output, "Write denied") {
+		t.Errorf("expected 'Write denied', got %q", output)
+	}
+}
+
+func TestWritableRoots_ReadOutsideRootsAllowed(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	r := NewRegistry(&Context{Directory: dir, AutoApprove: true})
+	RegisterBuiltins(r)
+
+	// Create a file outside the root and read it.
+	path := filepath.Join(outside, "readable.txt")
+	os.WriteFile(path, []byte("readable content\n"), 0644)
+
+	args := json.RawMessage(`{"file_path":"` + path + `"}`)
+	output, isErr, err := r.Execute(context.Background(), "read", args, "s1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if isErr {
+		t.Fatalf("expected read outside root to succeed, got error: %s", output)
+	}
+	if !strings.Contains(output, "readable content") {
+		t.Errorf("expected file content, got: %s", output)
+	}
+}
+
+func TestWritableRoots_EditOutsideRootDenied(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	r := NewRegistry(&Context{Directory: dir, AutoApprove: true})
+	RegisterBuiltins(r)
+
+	path := filepath.Join(outside, "target.txt")
+	os.WriteFile(path, []byte("old content\n"), 0644)
+
+	args := json.RawMessage(`{"file_path":"` + path + `","old_string":"old","new_string":"new"}`)
+	output, isErr, err := r.Execute(context.Background(), "edit", args, "s1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !isErr {
+		t.Fatal("expected edit outside root to be denied")
+	}
+	if !strings.Contains(output, "Write denied") {
+		t.Errorf("expected 'Write denied', got %q", output)
+	}
+}
+
+func TestWritableRoots_ApplyPatchOutsideRootDenied(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	r := NewRegistry(&Context{Directory: dir, AutoApprove: true})
+	RegisterBuiltins(r)
+
+	path := filepath.Join(outside, "patched.txt")
+	os.WriteFile(path, []byte("line1\n"), 0644)
+
+	// apply_patch resolves relative paths against the directory, but here use absolute path
+	absPatch := `--- ` + path + `
++++ ` + path + `
+@@ -1 +1 @@
+-line1
++line2
+`
+	args := json.RawMessage(`{"patch":` + string(mustMarshal(absPatch)) + `}`)
+	output, isErr, err := r.Execute(context.Background(), "apply_patch", args, "s1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !isErr {
+		t.Fatal("expected apply_patch outside root to be denied")
+	}
+	if !strings.Contains(output, "Write denied") {
+		t.Errorf("expected 'Write denied', got %q", output)
+	}
+}
+
+func mustMarshal(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}
+
+func TestSafeWritableRoots_ContainsSubdirectory(t *testing.T) {
+	dir := t.TempDir()
+	roots := NewSafeWritableRoots(dir)
+
+	sub := filepath.Join(dir, "sub", "deep")
+	if !roots.Contains(sub) {
+		t.Error("expected subdirectory to be inside root")
+	}
+}
+
+func TestSafeWritableRoots_RejectsSibling(t *testing.T) {
+	roots := NewSafeWritableRoots("/a/b")
+	if roots.Contains("/a/c") {
+		t.Error("expected /a/c to be outside /a/b")
+	}
+}
+
+func TestSafeWritableRoots_AddDeduplicate(t *testing.T) {
+	roots := NewSafeWritableRoots("/a")
+	roots.Add("/a")
+	roots.Add("/a")
+	if len(roots.List()) != 1 {
+		t.Errorf("expected 1 root after dedup, got %d", len(roots.List()))
 	}
 }

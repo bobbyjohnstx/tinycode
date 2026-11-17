@@ -48,8 +48,9 @@ func (sm *SessionManager) resolvePromptModel(sessionID string, input PromptInput
 
 // buildPromptSystemPrompt resolves the agent, wires instructions, and builds
 // the system prompt for a prompt request. directory is the session working
-// directory; when empty, sm.dir is used.
-func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *provider.Model, directory string) (agentPerms []string, ruleset permission.Ruleset, systemPrompt string) {
+// directory; when empty, sm.dir is used. When withNotes is true, model-written
+// notes from prior sessions are loaded into the prompt.
+func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *provider.Model, directory string, withNotes bool) (agentPerms []string, ruleset permission.Ruleset, systemPrompt string) {
 	agentInfo := sm.agentRegistry.Get(input.Agent, model.SizeB())
 	var agentPrompt string
 	tools := sm.tools
@@ -72,14 +73,21 @@ func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *prov
 		directory = sm.dir
 	}
 
-	systemPrompt = session.BuildSystemPrompt(session.SystemPromptInput{
+	spi := session.SystemPromptInput{
 		AgentPrompt:        agentPrompt,
 		AgentName:          input.Agent,
 		Instructions:       instructions,
 		Directory:          directory,
 		ToolDefs:           tools.ToolDefs(agentPerms),
 		AppendSystemPrompt: sm.appendSystemPrompt,
-	})
+	}
+
+	if withNotes && sm.notesDir != "" {
+		spi.NotesDir = sm.notesDir
+		spi.NotesEnabled = true
+	}
+
+	systemPrompt = session.BuildSystemPrompt(spi)
 
 	slog.Info("system prompt built", "sessionID", input.SessionID, "agent", input.Agent, "promptLen", len(systemPrompt))
 	return agentPerms, ruleset, systemPrompt

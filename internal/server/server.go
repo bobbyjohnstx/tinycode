@@ -119,6 +119,9 @@ func New(cfg Config, deps Dependencies) *Server {
 
 	s.sessionManager.appendSystemPrompt = cfg.AppendSystemPrompt
 	s.sessionManager.tokenBudget = cfg.TokenBudget
+	if notesEnabled(deps.Config) {
+		s.sessionManager.notesDir = config.NotesDir(cfg.Directory)
+	}
 	s.sessionManager.SetCredentialLookup(func(providerID string) string {
 		return s.credentials.APIKey(providerID)
 	})
@@ -597,4 +600,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	s.pluginSubs = nil
 	return s.httpServer.Shutdown(ctx)
+}
+
+// notesEnabled returns true when model notes are enabled in config.
+// Default is true (feature is on unless explicitly disabled).
+func notesEnabled(cfg *config.Info) bool {
+	if cfg == nil || cfg.Notes == nil || cfg.Notes.Enabled == nil {
+		return true
+	}
+	return *cfg.Notes.Enabled
 }
