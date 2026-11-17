@@ -207,6 +207,10 @@ cfg.setdefault('provider', {}).setdefault('vllm', {}).setdefault('options', {})[
 with open(cfg_path, 'w') as f:
     json.dump(cfg, f, indent=2)
 " "$demo_config" "$vllm_host" 2>/dev/null || true
+    # Stage the config so git diff HEAD is clean — agent prompts that check
+    # git diff first would otherwise focus only on the config change and
+    # skip reviewing the actual source files.
+    git -C "$DEMO_DIR" add tinycode.jsonc 2>/dev/null || true
 }
 
 run_model() {
