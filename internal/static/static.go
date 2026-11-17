@@ -4,6 +4,7 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +48,25 @@ func Handler(devDir string) http.Handler {
 			if strings.HasPrefix(path, "/assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			}
+
+			// SPA deep-link asset fix: when a file with extension isn't found
+			// (e.g. /session-slug/sprite-ABC.svg from a relative import),
+			// retry under /assets/ by basename.
+			if _, err := fileSystem.Open(path); err != nil {
+				base := filepath.Base(path)
+				retryPath := "/assets/" + base
+				if _, retryErr := fileSystem.Open(retryPath); retryErr == nil {
+					r2 := new(http.Request)
+					*r2 = *r
+					r2.URL = new(url.URL)
+					*r2.URL = *r.URL
+					r2.URL.Path = retryPath
+					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+					fileServer.ServeHTTP(w, r2)
+					return
+				}
+			}
+
 			fileServer.ServeHTTP(w, r)
 			return
 		}

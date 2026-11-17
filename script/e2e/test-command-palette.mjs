@@ -1,7 +1,8 @@
 // E2E: Web command palette opens and is interactive.
 //
-// Validates that Mod+Shift+P (or Mod+K) opens the command palette overlay
-// and that it contains actionable entries. No LLM needed — pure UI check.
+// Validates that Mod+Shift+P opens the command palette overlay
+// and that it contains the expected web-UI entries (session navigation).
+// No LLM needed — pure UI check.
 
 import {
   getConfig,
@@ -27,7 +28,6 @@ await runTest('WEB-E08  Command palette opens with Mod+Shift+P', async () => {
   try {
     await navigateToSession(page, config, session.slug);
 
-    // Trigger command palette via keyboard shortcut
     const isMac = process.platform === 'darwin';
     const mod = isMac ? 'Meta' : 'Control';
     await page.keyboard.press(`${mod}+Shift+p`);
@@ -35,31 +35,23 @@ await runTest('WEB-E08  Command palette opens with Mod+Shift+P', async () => {
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/e2e-e08-palette.png` });
 
-    // Look for the palette overlay — typically a search input + command list
     const body = await page.locator('body').innerText();
 
-    // Command palette should show command names or a search input
-    const hasPaletteContent =
-      body.includes('compact') ||
-      body.includes('connect') ||
-      body.includes('theme') ||
-      body.includes('help') ||
-      body.includes('archive');
+    // Web palette shows session navigation entries, not TUI slash commands.
+    const expected = ['New session', 'Previous session', 'Next session'];
+    const found = expected.filter((cmd) => body.includes(cmd));
 
-    if (!hasPaletteContent) {
-      // Try Mod+K as alternative
+    if (found.length === 0) {
+      // Try Mod+K as alternative shortcut
       await page.keyboard.press('Escape');
       await page.waitForTimeout(300);
       await page.keyboard.press(`${mod}+k`);
       await page.waitForTimeout(1000);
 
       const body2 = await page.locator('body').innerText();
-      const hasAlt =
-        body2.includes('compact') ||
-        body2.includes('connect') ||
-        body2.includes('theme');
+      const found2 = expected.filter((cmd) => body2.includes(cmd));
 
-      if (!hasAlt) {
+      if (found2.length === 0) {
         throw new Error(
           'Command palette not found after Mod+Shift+P or Mod+K. Page: ' +
             body2.substring(0, 500),
@@ -67,7 +59,13 @@ await runTest('WEB-E08  Command palette opens with Mod+Shift+P', async () => {
       }
     }
 
-    // Dismiss
+    // Also verify the search input is present
+    const hasSearch =
+      body.includes('Search') || body.includes('search') || body.includes('⌘K');
+    if (!hasSearch) {
+      throw new Error('Command palette search input not found');
+    }
+
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
   } finally {

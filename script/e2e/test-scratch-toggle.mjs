@@ -1,84 +1,62 @@
-// E2E: Scratch thread toggle via /scratch command.
+// E2E: Scratch session lifecycle via API.
 //
-// Validates that /scratch opens a scratch session and /scratch close
-// returns to the parent. No LLM needed — tests session lifecycle only.
-//
-// Requires a working session page in the web SPA. If the SPA crashes
-// on session load, these tests fail with "Input not found".
+// Tests creating and deleting scratch sessions through the API.
+// /scratch is a TUI-side command — the web SPA doesn't support it
+// directly, so this exercises the API surface instead.
 
-import {
-  getConfig,
-  createSession,
-  launchBrowser,
-  navigateToSession,
-  findInput,
-  typeAndSend,
-  runTest,
-  printSummary,
-} from './helpers.mjs';
+import { getConfig, api, createSession, runTest, printSummary } from './helpers.mjs';
 
 const DIRECTORY = process.env.E2E_PROJECT_DIR || process.cwd();
-const SCREENSHOT_DIR = process.env.E2E_SCREENSHOT_DIR || '/tmp';
 
 const config = getConfig();
 
-await runTest('WEB-E15  /scratch opens scratch thread', async () => {
-  const session = await createSession(config, DIRECTORY);
-  const { browser, page } = await launchBrowser();
-  try {
-    await navigateToSession(page, config, session.slug);
-    const input = await findInput(page);
-    if (!input) throw new Error('Input not found');
+await runTest('WEB-E15  Create and get scratch session via API', async () => {
+  // Create a parent session
+  const parent = await createSession(config, DIRECTORY);
 
-    await typeAndSend(page, input, '/scratch');
-    await page.waitForTimeout(2000);
+  // Fork it to simulate a scratch thread (scratch uses fork with parent_id)
+  const forkResp = await api(config, 'POST', `/session/${parent.id}/fork`, {});
+  if (forkResp.status !== 200 && forkResp.status !== 201) {
+    throw new Error(`Fork returned ${forkResp.status}: ${JSON.stringify(forkResp.data)}`);
+  }
 
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/e2e-e15-scratch-open.png` });
+  const childID = forkResp.data.id;
+  if (!childID) {
+    throw new Error('Fork response missing id');
+  }
 
-    const body = await page.locator('body').innerText();
-    const hasScratch =
-      body.includes('SCRATCH') ||
-      body.includes('scratch') ||
-      body.includes('Scratch');
-    if (!hasScratch) {
-      throw new Error(
-        'Expected SCRATCH indicator or scratch state after /scratch, got: ' +
-          body.substring(0, 300),
-      );
-    }
-  } finally {
-    await browser.close();
+  // Verify the child session exists and references parent
+  const getResp = await api(config, 'GET', `/session/${childID}`);
+  if (getResp.status !== 200) {
+    throw new Error(`GET child returned ${getResp.status}`);
+  }
+
+  if (getResp.data.parentID !== parent.id) {
+    throw new Error(
+      `Expected parentId=${parent.id}, got ${getResp.data.parentID}`,
+    );
   }
 });
 
-await runTest('WEB-E16  /scratch close returns to parent', async () => {
-  const session = await createSession(config, DIRECTORY);
-  const { browser, page } = await launchBrowser();
-  try {
-    await navigateToSession(page, config, session.slug);
-    const input = await findInput(page);
-    if (!input) throw new Error('Input not found');
+await runTest('WEB-E16  Delete scratch session via API', async () => {
+  const parent = await createSession(config, DIRECTORY);
+  const forkResp = await api(config, 'POST', `/session/${parent.id}/fork`, {});
+  if (forkResp.status !== 200 && forkResp.status !== 201) {
+    throw new Error(`Fork returned ${forkResp.status}`);
+  }
 
-    // Open scratch
-    await typeAndSend(page, input, '/scratch');
-    await page.waitForTimeout(2000);
+  const childID = forkResp.data.id;
 
-    // Close scratch
-    const input2 = await findInput(page);
-    if (!input2) throw new Error('Input not found after scratch open');
-    await typeAndSend(page, input2, '/scratch close');
-    await page.waitForTimeout(1500);
+  // Delete the child (simulates /scratch close discard)
+  const delResp = await api(config, 'DELETE', `/session/${childID}`);
+  if (delResp.status !== 204) {
+    throw new Error(`DELETE returned ${delResp.status}`);
+  }
 
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/e2e-e16-scratch-close.png` });
-
-    const body = await page.locator('body').innerText();
-    // After closing, SCRATCH indicator should be gone
-    const stillScratch = body.includes('SCRATCH');
-    if (stillScratch) {
-      throw new Error('SCRATCH indicator still visible after /scratch close');
-    }
-  } finally {
-    await browser.close();
+  // Verify it's gone
+  const getResp = await api(config, 'GET', `/session/${childID}`);
+  if (getResp.status !== 404) {
+    throw new Error(`Expected 404 after delete, got ${getResp.status}`);
   }
 });
 
