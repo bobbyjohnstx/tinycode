@@ -2,6 +2,59 @@
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-11-17
+
+### Features (Wave 1 — quick wins)
+- Build agent prompt: prefer file tools over bash; don't delete/overwrite unread files (#954)
+- Compaction template: omit standing instructions (AGENTS.md, CLAUDE.md, agent prompt, environment) since they're rebuilt next turn (#955)
+- External-directory "always" approval covers parent directory, not exact file path (#956)
+- Unattended permission ask returns immediate denial in headless mode (#964)
+- User note (200 char) on allow/deny included in tool result (#965)
+
+### Features (Wave 2 — high-value)
+- Spill oversized tool output to retained file with preview + path hint; 7-day TTL + 100-file cap (#957)
+- Plan-mode reminder in system prompt survives compaction (#958)
+- Hooks support `args` list (direct exec, no shell) and `continue: true` for advisory before-hooks (#966)
+- `@path` imports in instruction files (depth 4, cycle detection, fence-aware) and AGENTS.local.md / CLAUDE.local.md discovery (#967)
+- TUI session list paginates beyond 50 with scroll-to-load (#902)
+
+### Features (Wave 3 — medium)
+- Model-written notes (MEMORY.md) persisted per git repo root; notes tool for read/write/list; disabled for subagents (#968)
+- Bash `background: true` and timeout-to-background promotion via MonitorManager.Adopt (#959)
+- Instruction files discovered on `read` — walks from file dir to session root, attaches AGENTS.md once per session (#960)
+- Extra writable roots with `/roots add`; write/edit/apply_patch denied outside all roots even with auto-approve (#969)
+
+### Features (Wave 4 — hardened tooling)
+- Shell write classification: best-effort mutation heuristic for `>`, `>>`, `tee`, `find -delete`, `sed -i`, `sort -o` (#970)
+- Rewind shows unrestored shell-written paths with "may be incomplete" warning (#971)
+- Incremental chat rendering: caches per-message renders, O(1) re-render during streaming (#903)
+- ACP mode supports image content parts and `@file` references in prompts (#900)
+
+### Features (Wave 5 — advanced)
+- `/goal` without verification command: LLM-as-judge evaluates transcript evidence (#961)
+- Background task completion wakes parent session; queued if busy or aborted (#962)
+- Path-scoped rules in `.tinycode/rules/` with frontmatter `paths` globs (#972)
+- Agent-scoped hooks and skill preloading in child subagent prompts (#974)
+
+### Fixes
+- `--dangerously-skip-permissions` works with unattended denial (auto-approve loop is a responder)
+- Shell mutation no longer double-asks permission
+- ACP `@file` restricted to session directory (prevents path traversal)
+- Rewind paths sorted for deterministic output
+- Goal judge evaluates last iteration; extracts JSON from response preamble
+- Abort flag checked in background-task drain (no auto-resume after abort)
+- Agent hook runner always created (works without config hooks)
+- Scoped rule marks cleared on compaction
+- Writable roots symlink-resolved; `/chdir` and `/worktree` add new dir as root
+- Instruction discovery uses separator suffix (no `/tmp/proj` matching `/tmp/proj-other`)
+- Instruction discovery and image dedup cleared on compaction
+
+### Known Limitations (documented in spec 8.10)
+- Shell mutation heuristic does not detect `cp`, `mv`, `rsync`, etc.
+- Path-scoped rules: `filepath.Match` does not support `**`; grep matches directory, not files
+- Goal LLM-judge uses session model; evidence truncated at 2000 chars; TUI-only loop
+- Agent hook runner is process-wide; background children don't install agent hooks
+
 ## [2.9.1] - 2026-11-17
 
 ### Fixes

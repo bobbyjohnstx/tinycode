@@ -101,9 +101,10 @@ func collectRunPrompt(positional []string, multiTurn, permsJSON bool) string {
 // routing permission replies (nil when not in JSON mode).
 func setupRunPermissions(b *bus.Bus, permSvc *permission.Service, skipPerms, interactive bool, permsMode string) chan<- permission.ReplyInput {
 	setupRunQuestionReject(b)
-	// Only set hasResponder when someone can actually answer permission prompts.
-	// Interactive TTY or JSON mode have responders; headless pipe does not.
-	if interactive || permsMode == "json" {
+	// Set hasResponder when someone (or something) can answer permission prompts:
+	// interactive TTY, JSON mode, or skip-permissions (auto-approve event loop).
+	// A headless pipe with no skip flag has no responder → immediate denial.
+	if interactive || permsMode == "json" || skipPerms {
 		permSvc.SetHasResponder(true)
 	}
 	permSub := b.Subscribe("permission.asked")
