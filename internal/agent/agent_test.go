@@ -1157,6 +1157,68 @@ func TestAgentPromptsAvoidMissingHandoffs(t *testing.T) {
 	}
 }
 
+func TestBuildPrompt_ContainsRules(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(defaultPerms(), nil); err != nil {
+		t.Fatalf("LoadDefaults failed: %v", err)
+	}
+
+	build := r.Get("build", nil)
+	if build == nil {
+		t.Fatal("build agent not found")
+	}
+	prompt := build.Prompt
+
+	// Rule 1: Dirty worktree
+	for _, want := range []string{"dirty working tree", "Do not revert edits you did not make"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("build prompt missing dirty-worktree phrase: %q", want)
+		}
+	}
+
+	// Rule 2: Do not re-read after successful edit
+	for _, want := range []string{"do not re-read the file to confirm", "successful edit"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("build prompt missing no-re-read phrase: %q", want)
+		}
+	}
+
+	// Rule 3: Todo status machine
+	for _, want := range []string{"todowrite", "in_progress"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("build prompt missing todo phrase: %q", want)
+		}
+	}
+
+	// Rule 4: Answer length follows the change
+	for _, want := range []string{"Match response length", "one or two bullets"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("build prompt missing answer-length phrase: %q", want)
+		}
+	}
+	if strings.Contains(prompt, "1-4 sentences") {
+		t.Error("build prompt still contains old '1-4 sentences' rule")
+	}
+
+	// Rule 5: Review on the default agent
+	for _, want := range []string{"review without naming an agent", "findings ordered by severity"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("build prompt missing review phrase: %q", want)
+		}
+	}
+
+	// Rule 6: When to run tests
+	if !strings.Contains(prompt, "narrowest relevant check") && !strings.Contains(prompt, "narrowest check") {
+		t.Error("build prompt missing verification phrase: 'narrowest relevant check' or 'narrowest check'")
+	}
+	if !strings.Contains(prompt, "Do not start a long test") && !strings.Contains(prompt, "Do not widen to the whole suite") {
+		t.Error("build prompt missing test-restraint phrase")
+	}
+	if strings.Contains(prompt, "Always verify") {
+		t.Error("build prompt still contains contradictory 'Always verify' line")
+	}
+}
+
 func TestBuildAgent_WildcardIncludesMCPAndPlugin(t *testing.T) {
 	r := NewRegistry()
 	if err := r.LoadDefaults(DefaultPerms, nil); err != nil {
