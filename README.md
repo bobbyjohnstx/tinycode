@@ -97,6 +97,11 @@ Requires Go 1.27.1+. Other modes: `tinycode web` (browser UI), `tinycode serve` 
 - **Token budget ceiling** --- `--max-tokens` sets a cumulative token limit; session aborts when exceeded
 - **External editor** --- `/editor` opens `$EDITOR`; `/editor @file` edits a file directly
 - **Interactive shell** --- `/shell` drops into a shell session
+- **Deferred tool schemas** --- when MCP/plugin tools exceed a threshold, schemas are loaded on demand via `tool_search` to keep context lean
+- **Scratch threads** --- `/scratch` opens a throwaway side conversation that stays out of the parent transcript; `S` key toggles
+- **Hook trust** --- shell hooks are gated by a SHA-256 trust hash of (command + event + project path); changing the command invalidates trust
+- **Command-prefix permissions** --- `command-prefix` rules match shell commands by prefix instead of glob, so `git` matches `git status` but not `gitk`
+- **MCP resources** --- `mcp_resource` tool lists and reads read-only resources exposed by MCP servers alongside tools
 
 ### Interfaces
 

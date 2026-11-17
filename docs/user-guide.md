@@ -121,6 +121,12 @@ These are processed by the model. They show up in autocomplete alongside client 
 | `/ask <agent> <message>` | Route a prompt to a specific agent (e.g., `/ask architect design the auth flow`) |
 | `/swarm <task>` | Split a task into subtasks and dispatch parallel subagents (see [Swarm Mode](#subagents-and-swarm-mode)) |
 | `/goal <task>` | Iterate on a task autonomously until complete or blocked (`/work-loop` is an alias) |
+| `/scratch [prompt]` | Open a throwaway side conversation (close/keep lifecycle). `S` key toggles when prompt is empty |
+| `/chdir <path>` | Change the working directory for the current session |
+| `/instructions` | Show all loaded instruction blocks with their source paths and sizes |
+| `/warnings` | Show session warnings (`/warnings clear` to reset) |
+| `/worktree` | Create a git worktree and start a child session in it |
+| `/preset <name>` | Run a saved prompt preset from `presets.json` |
 | `/review [target]` | Ask code-reviewer to review a change |
 | `/init` | Generate root `AGENTS.md` from repo signals (ecosystem detection) and guided project setup |
 
@@ -340,6 +346,10 @@ Agents are specialized personas that share the same tools but have different sys
 Hidden utility agents (compaction, title, summary) handle internal tasks and are not selectable.
 
 Some agents (code-simplifier, qa-tester, scientist) are disabled by default but can be enabled in config.
+
+#### AGENTS.override.md
+
+Place `AGENTS.override.md` in any directory to replace that directory's `AGENTS.md`. The override applies only to that directory -- parent directories still load their own `AGENTS.md`.
 
 How to add an agent or a skill is in [authoring.md](authoring.md).
 
@@ -764,7 +774,11 @@ Each `permission.allow` or `permission.deny` entry is a permission name, or a na
 }
 ```
 
-Deny entries are applied after allow entries, so a deny wins over an allow for the same match inside this list. The last matching rule wins overall, including later rules from the agent. `bash` and `shell` are the same permission. `read .env*` , `webfetch *`, paths outside the project, destructive shell commands, and shell commands that name a secret file ask even when a broad allow exists, unless a later rule allows them. Destructive shell includes recursive `rm`, force-push, cluster mutations (`oc delete`, `kubectl apply`, `helm upgrade`), and host mutations (`systemctl restart`, firewall edits, account changes, route changes), including the same command over `ssh`. `oc get` and `systemctl status` do not ask.
+Deny entries are applied after allow entries, so a deny wins over an allow for the same match inside this list. The last matching rule wins overall, including later rules from the agent.
+
+#### Command-Prefix Rules
+
+A `command-prefix` rule matches the shell command text by prefix instead of glob. The command is trimmed, then matched if it equals the prefix or continues with a space (`git` matches `git status` but not `gitk`). List more specific prefixes after general ones (last-match ordering). `bash` and `shell` are the same permission. `read .env*` , `webfetch *`, paths outside the project, destructive shell commands, and shell commands that name a secret file ask even when a broad allow exists, unless a later rule allows them. Destructive shell includes recursive `rm`, force-push, cluster mutations (`oc delete`, `kubectl apply`, `helm upgrade`), and host mutations (`systemctl restart`, firewall edits, account changes, route changes), including the same command over `ssh`. `oc get` and `systemctl status` do not ask.
 
 ### Shell hooks
 
@@ -794,6 +808,10 @@ Deny entries are applied after allow entries, so a deny wins over an allow for t
 ```
 
 Plain text on stdout is ignored. A JSON object with `hookSpecificOutput.additionalContext` is added to the model context. Each string is capped at 10,000 characters.
+
+#### Hook Trust
+
+Shell hooks are gated by a SHA-256 trust hash of (command + event + project path). The first time a hook runs, tinycode asks for approval and stores the hash. Subsequent runs with the same command/event/path auto-approve. Changing the command or moving the project invalidates trust.
 
 ### Other config that is easy to miss
 
@@ -943,6 +961,15 @@ Interactive MCP OAuth (browser login) is **parked / unsupported**. Prefer:
 - `tinycode mcp auth NAME --token …` or `--env VAR` (writes an `Authorization` header)
 - Static headers in config, e.g. `"Authorization": "Bearer {env:TOKEN}"`
 - Optional `oauth.access_token` in config (library helpers only; no product OAuth flow)
+
+### MCP Resources
+
+MCP servers may expose resources alongside tools. The `mcp_resource` tool provides access:
+- `list` -- list resources from all connected servers
+- `templates` -- list resource templates
+- `read` -- read a specific resource by URI
+
+Resources are read-only and do not go through CallTool.
 
 ### Managing MCP servers
 

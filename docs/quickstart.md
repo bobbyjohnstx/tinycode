@@ -240,6 +240,10 @@ This creates a self-contained HTML file you can open in any browser.
 | `/editor @file` | Open a file in `$EDITOR` for direct editing |
 | `/auto-approve` | Toggle auto-approve for tool permissions this session |
 | `/diagnostics` | Show diagnostics (config, providers, agents, system info) |
+| `/scratch [prompt]` | Open a throwaway side conversation (close/keep lifecycle) |
+| `/chdir <path>` | Change working directory mid-session |
+| `/instructions` | Show loaded instruction blocks with paths and sizes |
+| `/warnings` | Show session warnings (`/warnings clear` to reset) |
 
 ### Bundled skills
 

@@ -88,6 +88,7 @@ Read files with line numbers. Source: `read.go`
 **Behaviors:**
 - Output format: `N\tcontent\n` (numbered lines)
 - Image support: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp` returned as base64 data URIs
+- Image deduplication: consecutive reads of the same image file return a text stub referencing the earlier read instead of re-encoding the image, reducing context consumption
 - Binary detection: checks first 8,192 bytes; null bytes count as 10 non-text bytes
 - On file-not-found: `suggestSimilar()` finds files with >= 3 common prefix characters
 
@@ -154,6 +155,8 @@ Shell command execution. Tool ID is `bash` (not `shell`). Source: `shell.go`
 | `command` | string | yes | — | Shell command |
 | `timeout` | integer | no | 120,000 ms | Timeout in milliseconds (max 600,000) |
 | `description` | string | no | — | Human-readable description |
+| `permission` | string | no | — | Permission category override for this invocation |
+| `justification` | string | no | — | Explanation for why the command is needed (shown in permission prompt) |
 
 | Constant | Value |
 |----------|-------|
@@ -171,6 +174,8 @@ Shell command execution. Tool ID is `bash` (not `shell`). Source: `shell.go`
 - Host changes: `systemctl` start/stop/restart/reload/enable/disable/mask, account commands (`useradd`, `passwd`, `visudo`), `setenforce` / `setsebool`, firewall edits, and address or route changes. The same verbs ask when they appear after `ssh`. `systemctl status` and firewall listings stay read-only
 
 **Secret file detection** (asks with `secret-shell` when a permission service is present; blocked when it is not): `.env`, `.env.*`, `credentials`, `*.key`, `*.pem`
+
+**Shell escalation metadata:** When `permission` or `justification` are provided, they are passed through to the permission service as request metadata, allowing hooks and UI to display richer context for approval decisions.
 
 Executes via `sh -c <command>` in `tc.Directory`. Combines stdout/stderr (stderr prefixed with `"STDERR:\n"`).
 
@@ -366,7 +371,49 @@ var skipDirs = map[string]bool{
 
 ---
 
-## 8.6 Malformed Tool-Call Repair
+## 8.6 tool_search
+
+Discover deferred tool schemas by keyword. Source: `tool_search.go`
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `query` | string | yes | — | Keyword or tool name to search for |
+| `max_results` | integer | no | 5 | Maximum number of results to return |
+
+When MCP/plugin tools exceed the deferred threshold, their schemas are not loaded into the LLM context upfront. The model uses `tool_search` to find and load specific tool schemas by keyword before calling them. Returns matching tool definitions with full parameter schemas.
+
+**Permission:** `read`
+
+---
+
+## 8.7 mcp_resource
+
+List and read MCP resources. Source: `mcp_resource.go`
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | enum | yes | `list`, `templates`, or `read` |
+| `uri` | string | no | Resource URI (required for `read` action) |
+| `server` | string | no | Filter to a specific MCP server name |
+
+Actions:
+- `list` -- list resources from all connected MCP servers (or a specific server)
+- `templates` -- list resource templates from connected servers
+- `read` -- read a specific resource by URI
+
+Resources are read-only and do not go through `CallTool`. They provide access to data exposed by MCP servers (e.g., configuration, documentation, datasets).
+
+**Permission:** `read`
+
+---
+
+## 8.8 monitor (stdin action)
+
+The `monitor` tool supports a `stdin` action for sending input to interactive background processes. When a monitored process expects input (e.g., a REPL or interactive prompt), use the `stdin` action with the process ID and the text to send.
+
+---
+
+## 8.9 Malformed Tool-Call Repair
 
 Source: `internal/llm/openai.go`
 

@@ -84,6 +84,12 @@ Type `/` to autocomplete. Use before or after your prompt.
 | `/thinking <level>` | Set reasoning depth: off, low, medium, high, max (all providers) |
 | `/effort <level>` | Set work intensity: low, medium, high, max |
 | `/goal <condition>` | Autonomous loop until condition met (e.g. "tests pass") |
+| `/scratch [prompt]` | Throwaway side conversation (close/keep lifecycle) |
+| `/chdir <path>` | Change working directory mid-session |
+| `/instructions` | Show loaded instruction blocks with paths and sizes |
+| `/warnings` | Show session warnings (`/warnings clear` to reset) |
+| `/worktree` | Create git worktree and start child session |
+| `/preset <name>` | Run a saved prompt preset |
 | `/swarm <task>` | Parallel subagent dispatch with specialist agents |
 
 **CLI commands:**

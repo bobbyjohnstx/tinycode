@@ -497,6 +497,21 @@ These are applied by `cmd/tinycode` (discovery, serve bind, logger, auth), **not
 }
 ```
 
+## 13.10 Prompt Presets
+
+Source: `presets.json`
+
+Prompt presets are saved prompt templates stored in `~/.config/tinycode/presets.json` (or under a project `.tinycode/` directory). Each preset is a named entry containing a prompt string that can be invoked via the `/preset <name>` slash command.
+
+```json
+{
+  "review-pr": "Review the current PR for correctness, security, and style issues",
+  "explain": "Explain what this code does in plain language"
+}
+```
+
+Presets are simple string substitutions -- the preset name is replaced by the stored prompt text and submitted as if the user typed it. No argument interpolation or templating is supported.
+
 ---
 
 Prev: [12-permissions.md](12-permissions.md) | Next: [14-storage.md](14-storage.md)

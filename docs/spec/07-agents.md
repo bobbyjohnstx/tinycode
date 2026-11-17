@@ -21,6 +21,7 @@ type Info struct {
     Prompt      string             // system prompt text
     Compact     bool               // true when compact variant is active
     Steps       *int               // max steps for this agent
+    MaxOutputTokens *int           // cap output tokens for this agent
     Options     map[string]any     // agent-specific options
     Model       *ModelRef          // preferred model override
     Variant     string             // model variant
@@ -233,7 +234,11 @@ type ModelRef struct {
 
 When an agent has a `Model` set, the session manager uses that model instead of the session's default.
 
-## 7.9 User Agent Loading
+## 7.9 AGENTS.override.md
+
+Place `AGENTS.override.md` in any directory to replace that directory's `AGENTS.md` entirely. When `AGENTS.override.md` is present, `AGENTS.md` in the same directory is ignored. The override applies only to that directory -- parent directories still load their own `AGENTS.md` normally. This is useful for projects that want to fully replace upstream agent instructions without merging.
+
+## 7.10 User Agent Loading
 
 Source: `internal/agent/loader.go`
 
@@ -247,7 +252,7 @@ Files are parsed identically to bundled agents (frontmatter + body via `applyFro
 
 Compact variants (`*.compact.md`) are loaded alongside their full counterparts.
 
-## 7.10 `/ask` Command Integration
+## 7.11 `/ask` Command Integration
 
 The `/ask <agent> <prompt>` command delegates a prompt to a specific agent:
 

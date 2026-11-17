@@ -57,6 +57,20 @@ type MCPTool struct {
     Description string          `json:"description,omitempty"`
     InputSchema json.RawMessage `json:"inputSchema,omitempty"`
 }
+
+type MCPResource struct {
+    URI         string `json:"uri"`
+    Name        string `json:"name"`
+    Description string `json:"description,omitempty"`
+    MimeType    string `json:"mimeType,omitempty"`
+}
+
+type MCPResourceTemplate struct {
+    URITemplate string `json:"uriTemplate"`
+    Name        string `json:"name"`
+    Description string `json:"description,omitempty"`
+    MimeType    string `json:"mimeType,omitempty"`
+}
 ```
 
 ## 11.2 Configuration
@@ -127,6 +141,9 @@ type Transport interface {
     Connect(ctx context.Context) error
     ListTools(ctx context.Context) ([]MCPTool, error)
     CallTool(ctx context.Context, name string, args json.RawMessage) (string, error)
+    ListResources(ctx context.Context) ([]MCPResource, error)
+    ListResourceTemplates(ctx context.Context) ([]MCPResourceTemplate, error)
+    ReadResource(ctx context.Context, uri string) (string, error)
     Close() error
 }
 ```
@@ -439,6 +456,16 @@ Three bus events are published for MCP status changes:
 | `POST` | `/mcp/{name}/reconnect` | Calls `Restart`; response `{"status":"reconnecting"}` |
 
 OpenAPI MCP auth routes (`/mcp/{name}/auth`, …) are **not** implemented in Go; see [16-not-implemented.md](16-not-implemented.md) §16.28.
+
+## 11.13 Resource Access
+
+MCP servers may expose read-only resources alongside tools. The `mcp_resource` tool (see [08-tools.md](08-tools.md)) provides access via three actions:
+
+- **`list`** -- calls `ListResources` on each connected transport and returns all available resources with their URIs, names, and MIME types
+- **`templates`** -- calls `ListResourceTemplates` to discover parameterized resource URI patterns
+- **`read`** -- calls `ReadResource` with a specific URI and returns the resource content
+
+Resource access does not go through `CallTool`. Transports implement `ListResources`, `ListResourceTemplates`, and `ReadResource` using the MCP `resources/list`, `resources/templates/list`, and `resources/read` JSON-RPC methods respectively.
 
 ---
 

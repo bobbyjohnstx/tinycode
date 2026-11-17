@@ -309,14 +309,29 @@ Patterns support home directory expansion:
 
 `FromConfig()` output is passed to `Service.SetBaseRules()`, placing config rules between DefaultRules and agent/approved rulesets in the evaluation chain.
 
-## 12.10 Bus Events
+## 12.10 Command-Prefix Rules
+
+A rule may use `Kind: "command-prefix"` instead of the default glob matching. When the `Kind` field is set to `"command-prefix"`, the pattern is matched as a command prefix rather than a glob:
+
+1. The shell command text is trimmed
+2. The command matches if it equals the prefix exactly, or continues with a space character
+
+For example, a prefix rule `git` matches `git status` and `git commit` but does not match `gitk`. More specific prefixes should be listed after general ones (last-match ordering applies as usual).
+
+```go
+Rule{Permission: "shell", Pattern: "git", Action: ActionAllow, Kind: "command-prefix"}
+```
+
+This is useful for allowing a family of subcommands without writing a glob that might match unrelated commands.
+
+## 12.11 Bus Events
 
 | Event | Publisher | Payload | Description |
 |-------|-----------|---------|-------------|
 | `permission.asked` | `Service.Ask()` | `Request` struct | Permission request created, waiting for reply |
 | `permission.replied` | `Service.RespondToAsk()` | `{sessionID, requestID, reply}` | Permission request answered |
 
-## 12.11 Service Lifecycle
+## 12.12 Service Lifecycle
 
 ### Construction
 
