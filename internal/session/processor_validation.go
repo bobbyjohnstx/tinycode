@@ -144,7 +144,7 @@ func extractPathsFromArgs(argsJSON string) []string {
 	if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
 		return nil
 	}
-	for _, key := range []string{"file_path", "path", "file", "directory", "dir", "folder", "target", "destination", "source", "src", "dest", "location", "root", "base_path", "working_directory", "cwd"} {
+	for _, key := range []string{"file_path", "path", "file", "directory", "dir", "folder", "target", "destination", "source", "src", "dest", "location", "root", "base_path", "working_directory", "cwd", "workdir"} {
 		raw, ok := args[key]
 		if !ok {
 			continue

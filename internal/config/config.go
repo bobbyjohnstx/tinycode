@@ -283,6 +283,7 @@ type ToolOutputConfig struct {
 
 type CompactionConfig struct {
 	Auto                 *bool `json:"auto,omitempty"`
+	Idle                 *bool `json:"idle,omitempty"`
 	Prune                *bool `json:"prune,omitempty"`
 	TailTurns            *int  `json:"tail_turns,omitempty"`
 	PreserveRecentTokens *int  `json:"preserve_recent_tokens,omitempty"`
@@ -295,6 +296,14 @@ type CompactionConfig struct {
 type ExperimentalConfig struct {
 	DoomLoopThreshold int `json:"doom_loop_threshold,omitempty"`
 	AutoContinue      int `json:"auto_continue,omitempty"`
+}
+
+// IdleCompactionEnabled returns whether idle compaction is enabled (default true).
+func IdleCompactionEnabled(cfg *Info) bool {
+	if cfg == nil || cfg.Compaction == nil || cfg.Compaction.Idle == nil {
+		return true
+	}
+	return *cfg.Compaction.Idle
 }
 
 // DoomLoopThreshold returns the configured stop count for identical tool calls.

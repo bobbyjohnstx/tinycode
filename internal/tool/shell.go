@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -155,6 +157,7 @@ type shellArgs struct {
 	Permission    string `json:"permission,omitempty"`
 	Justification string `json:"justification,omitempty"`
 	Background    bool   `json:"background,omitempty"`
+	Workdir       string `json:"workdir,omitempty"`
 }
 
 func ShellTool() *Def {
@@ -190,6 +193,10 @@ func ShellTool() *Def {
 					"type":        "boolean",
 					"description": "Run in background and return a monitor ID immediately. Output delivered at next turn via monitor drain.",
 				},
+				"workdir": map[string]any{
+					"type":        "string",
+					"description": "Set workdir instead of cd when the command should run in another directory.",
+				},
 			},
 			"required": []string{"command"},
 		},
@@ -220,6 +227,23 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		if t > 0 {
 			timeout = t
 		}
+	}
+
+	// Resolve workdir: defaults to tc.Directory, validates existence and type.
+	workdir := tc.Directory
+	if args.Workdir != "" {
+		w := args.Workdir
+		if !filepath.IsAbs(w) {
+			w = filepath.Join(tc.Directory, w)
+		}
+		info, statErr := os.Stat(w)
+		if statErr != nil {
+			return &ExecuteResult{Output: fmt.Sprintf("workdir %q does not exist: %v", args.Workdir, statErr), IsError: true}, nil
+		}
+		if !info.IsDir() {
+			return &ExecuteResult{Output: fmt.Sprintf("workdir %q is not a directory", args.Workdir), IsError: true}, nil
+		}
+		workdir = w
 	}
 
 	if blocked := gateSecretAccess(ctx, tc, args.Command, args.Justification); blocked != nil {
@@ -262,7 +286,7 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 
 	// Background mode: delegate to MonitorManager immediately.
 	if args.Background {
-		return executeShellBackground(ctx, tc, args, timeout)
+		return executeShellBackground(ctx, tc, args, workdir, timeout)
 	}
 
 	// Foreground mode with timeout-to-background promotion.
@@ -272,7 +296,7 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 
 	cmd := exec.CommandContext(cmdCtx, "sh", "-c", args.Command)
 	cmd.WaitDelay = 500 * time.Millisecond
-	cmd.Dir = tc.Directory
+	cmd.Dir = workdir
 	env := environToMap(procenv.Child(nil))
 	if tc != nil && tc.ShellEnvHook != nil {
 		if merged := tc.ShellEnvHook(tc.SessionID, tc.Directory, env); merged != nil {
@@ -297,7 +321,7 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		return &ExecuteResult{Output: fmt.Sprintf("stdin pipe: %v", pipeErr), IsError: true}, nil
 	}
 
-	slog.Info("shell exec", "command", args.Command, "dir", tc.Directory, "timeout", timeout)
+	slog.Info("shell exec", "command", args.Command, "dir", workdir, "timeout", timeout)
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
 		cancel()
@@ -367,7 +391,7 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 
 // executeShellBackground starts a command via MonitorManager and returns the
 // monitor ID immediately.
-func executeShellBackground(ctx context.Context, tc *Context, args shellArgs, timeout time.Duration) (*ExecuteResult, error) {
+func executeShellBackground(ctx context.Context, tc *Context, args shellArgs, workdir string, timeout time.Duration) (*ExecuteResult, error) {
 	if tc.MonitorManager == nil {
 		return &ExecuteResult{Output: "Monitor manager not available for background execution", IsError: true}, nil
 	}
@@ -381,7 +405,7 @@ func executeShellBackground(ctx context.Context, tc *Context, args shellArgs, ti
 	}
 
 	monCtx := context.WithoutCancel(ctx)
-	monID, err := tc.MonitorManager.Start(monCtx, args.Command, desc, tc.Directory, timeout)
+	monID, err := tc.MonitorManager.Start(monCtx, args.Command, desc, workdir, timeout)
 	if err != nil {
 		return &ExecuteResult{Output: fmt.Sprintf("Failed to start background command: %v", err), IsError: true}, nil
 	}

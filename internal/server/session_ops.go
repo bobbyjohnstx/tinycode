@@ -187,6 +187,9 @@ func (sm *SessionManager) Abort(sessionID string) {
 }
 
 func (sm *SessionManager) StartPrompt(ctx context.Context, input PromptInput) {
+	// Cancel any pending or running idle compaction for this session.
+	sm.cancelIdleCompaction(input.SessionID)
+
 	sm.mu.Lock()
 	var oldDone chan struct{}
 	if active, ok := sm.sessions[input.SessionID]; ok {
@@ -549,6 +552,12 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 			"sessionID": sessionID,
 			"error":     sessionErrorPayload("UnknownError", result.Error.Error()),
 		})
+	}
+
+	// Schedule idle compaction if the session's input tokens are high.
+	// Skip when the turn already compacted (no need to compact again).
+	if result != nil && !result.Compacted && !aborted {
+		sm.startIdleCompactionTimer(sessionID, result.Usage.Input, model)
 	}
 }
 

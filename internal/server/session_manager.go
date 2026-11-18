@@ -49,6 +49,12 @@ type activeSession struct {
 	thinkingBudgetDisabled bool
 }
 
+// idleCompactState tracks a pending or running idle compaction for a session.
+type idleCompactState struct {
+	timer  *time.Timer
+	cancel context.CancelFunc // cancels the running Compact goroutine (nil until timer fires)
+}
+
 const deltaBatchInterval = 16 * time.Millisecond
 
 type deltaBatcher struct {
@@ -137,6 +143,7 @@ type SessionManager struct {
 	subagentStreams        map[string]*activeSession // streaming state for subagent synthetic IDs
 	pendingJobNotify      map[string][]string       // sessionID → pending background-task notifications
 	abortedSessions       map[string]bool           // sessions the user interrupted (cleared on next prompt)
+	idleCompactTimers     map[string]*idleCompactState // sessionID → pending idle compaction
 	ctx                   context.Context
 	ctxCancel             context.CancelFunc
 }
@@ -144,10 +151,11 @@ type SessionManager struct {
 func NewSessionManager(b *bus.Bus, reg *provider.Registry, db *sql.DB, dir string, tools *tool.Registry, perms *permission.Service, agents *agent.Registry, mcpSvc *mcp.Service, cfg *config.Info, jm *session.JobManager) *SessionManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	sm := &SessionManager{
-		sessions:         make(map[string]*activeSession),
-		subagentStreams:  make(map[string]*activeSession),
-		pendingJobNotify: make(map[string][]string),
-		abortedSessions:  make(map[string]bool),
+		sessions:          make(map[string]*activeSession),
+		subagentStreams:    make(map[string]*activeSession),
+		pendingJobNotify:  make(map[string][]string),
+		abortedSessions:   make(map[string]bool),
+		idleCompactTimers: make(map[string]*idleCompactState),
 		bus:              b,
 		registry:         reg,
 		db:               db,
@@ -250,6 +258,105 @@ func (sm *SessionManager) warmupModel(m *provider.Model) {
 	fn(sm.ctx, m)
 }
 
+// idleCompactDelay is how long the session must be idle before background
+// compaction starts. Exported as a variable so tests can shorten it.
+var idleCompactDelay = 5 * time.Minute
+
+// cancelIdleCompaction stops any pending or running idle compaction for the session.
+// Must be called with sm.mu NOT held.
+func (sm *SessionManager) cancelIdleCompaction(sessionID string) {
+	sm.mu.Lock()
+	state, ok := sm.idleCompactTimers[sessionID]
+	if ok {
+		delete(sm.idleCompactTimers, sessionID)
+	}
+	sm.mu.Unlock()
+
+	if !ok {
+		return
+	}
+	state.timer.Stop()
+	if state.cancel != nil {
+		state.cancel()
+	}
+}
+
+// startIdleCompactionTimer schedules background compaction for a session that
+// just went idle, if estimated input tokens exceed 80% of the context window.
+func (sm *SessionManager) startIdleCompactionTimer(sessionID string, lastInputTokens int, model *provider.Model) {
+	if !config.IdleCompactionEnabled(sm.cfg) {
+		return
+	}
+	if model == nil || model.Limit.Context <= 0 {
+		return
+	}
+
+	threshold := int(float64(model.Limit.Context) * 0.8)
+	if lastInputTokens < threshold {
+		return
+	}
+
+	slog.Info("scheduling idle compaction", "sessionID", sessionID,
+		"inputTokens", lastInputTokens, "threshold", threshold,
+		"delay", idleCompactDelay)
+
+	timer := time.AfterFunc(idleCompactDelay, func() {
+		sm.runIdleCompaction(sessionID)
+	})
+
+	sm.mu.Lock()
+	sm.idleCompactTimers[sessionID] = &idleCompactState{timer: timer}
+	sm.mu.Unlock()
+}
+
+// runIdleCompaction executes background compaction when the idle timer fires.
+func (sm *SessionManager) runIdleCompaction(sessionID string) {
+	ctx, cancel := context.WithCancel(sm.ctx)
+
+	sm.mu.Lock()
+	state, ok := sm.idleCompactTimers[sessionID]
+	if !ok {
+		// Timer was cancelled between firing and this goroutine starting.
+		sm.mu.Unlock()
+		cancel()
+		return
+	}
+	state.cancel = cancel
+	// If the session became busy in the meantime, bail out.
+	if _, busy := sm.sessions[sessionID]; busy {
+		delete(sm.idleCompactTimers, sessionID)
+		sm.mu.Unlock()
+		cancel()
+		return
+	}
+	sm.mu.Unlock()
+
+	slog.Info("starting idle compaction", "sessionID", sessionID)
+
+	compacted, err := sm.Summarize(ctx, sessionID)
+
+	sm.mu.Lock()
+	delete(sm.idleCompactTimers, sessionID)
+	sm.mu.Unlock()
+	cancel()
+
+	if err != nil {
+		slog.Warn("idle compaction failed", "sessionID", sessionID, "error", err)
+		return
+	}
+	if !compacted {
+		slog.Info("idle compaction: nothing to compact", "sessionID", sessionID)
+		return
+	}
+
+	slog.Info("idle compaction completed", "sessionID", sessionID)
+	sm.bus.Publish("toast", map[string]any{
+		"sessionID": sessionID,
+		"type":      "info",
+		"message":   "Session compacted while idle",
+	})
+}
+
 func (sm *SessionManager) trackSub(sub *bus.Subscription) *bus.Subscription {
 	sm.busSubs = append(sm.busSubs, sub)
 	return sub
@@ -312,6 +419,14 @@ func (sm *SessionManager) Shutdown() {
 			doneChans = append(doneChans, active.done)
 		}
 		delete(sm.sessions, sid)
+	}
+	// Stop all idle compaction timers and running goroutines.
+	for sid, state := range sm.idleCompactTimers {
+		state.timer.Stop()
+		if state.cancel != nil {
+			state.cancel()
+		}
+		delete(sm.idleCompactTimers, sid)
 	}
 	sm.mu.Unlock()
 

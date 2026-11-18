@@ -938,3 +938,82 @@ func TestExecuteShell_WiderPermissionOnSecretShowsEscalation(t *testing.T) {
 		t.Fatal("timed out")
 	}
 }
+
+func TestExecuteShell_WorkdirSubdirectory(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "subdir")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Resolve symlinks (macOS /var -> /private/var) so pwd output matches.
+	subResolved, _ := filepath.EvalSymlinks(sub)
+
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
+	raw := json.RawMessage(`{"command":"pwd","workdir":"subdir"}`)
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Output)
+	}
+	got := strings.TrimSpace(result.Output)
+	if got != subResolved {
+		t.Errorf("pwd = %q, want %q", got, subResolved)
+	}
+}
+
+func TestExecuteShell_WorkdirMissing(t *testing.T) {
+	dir := t.TempDir()
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
+	raw := json.RawMessage(`{"command":"pwd","workdir":"nonexistent"}`)
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error for missing workdir")
+	}
+	if !strings.Contains(result.Output, "does not exist") {
+		t.Errorf("expected 'does not exist' in output, got %q", result.Output)
+	}
+}
+
+func TestExecuteShell_NoWorkdirUsesSessionDir(t *testing.T) {
+	dir := t.TempDir()
+	dirResolved, _ := filepath.EvalSymlinks(dir)
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
+	raw := json.RawMessage(`{"command":"pwd"}`)
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected tool error: %s", result.Output)
+	}
+	got := strings.TrimSpace(result.Output)
+	if got != dirResolved {
+		t.Errorf("pwd = %q, want %q", got, dirResolved)
+	}
+}
+
+func TestExecuteShell_WorkdirIsFile(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "afile.txt")
+	if err := os.WriteFile(f, []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tc := &Context{Directory: dir, ReadFiles: NewSafeReadFiles()}
+	raw, _ := json.Marshal(map[string]string{"command": "pwd", "workdir": f})
+	result, err := executeShell(context.Background(), tc, raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("expected error when workdir is a file")
+	}
+	if !strings.Contains(result.Output, "is not a directory") {
+		t.Errorf("expected 'is not a directory' in output, got %q", result.Output)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bobbyjohnstx/tinycode/internal/bus"
+	"github.com/bobbyjohnstx/tinycode/internal/config"
 	"github.com/bobbyjohnstx/tinycode/internal/provider"
 	"github.com/bobbyjohnstx/tinycode/internal/session"
 )
@@ -399,4 +400,236 @@ func TestSubscribeProcessorEvents_WiresMessageBridging(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for bridged message.updated event")
 	}
+}
+
+// --- Idle compaction tests ---
+
+func TestIdleCompaction_AboveThreshold_TimerStarts(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	model := &provider.Model{
+		ID:         "test-model",
+		ProviderID: "test-provider",
+		Limit:      provider.ModelLimit{Context: 100000, Output: 4096},
+	}
+
+	// 85000 input tokens > 80% of 100000 = 80000 → timer should start.
+	sm.startIdleCompactionTimer("ses_idle_1", 85000, model)
+
+	sm.mu.Lock()
+	_, ok := sm.idleCompactTimers["ses_idle_1"]
+	sm.mu.Unlock()
+
+	if !ok {
+		t.Fatal("expected idle compaction timer to be started")
+	}
+
+	// Clean up.
+	sm.cancelIdleCompaction("ses_idle_1")
+}
+
+func TestIdleCompaction_BelowThreshold_NoTimer(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	model := &provider.Model{
+		ID:         "test-model",
+		ProviderID: "test-provider",
+		Limit:      provider.ModelLimit{Context: 100000, Output: 4096},
+	}
+
+	// 50000 input tokens < 80% of 100000 = 80000 → no timer.
+	sm.startIdleCompactionTimer("ses_idle_2", 50000, model)
+
+	sm.mu.Lock()
+	_, ok := sm.idleCompactTimers["ses_idle_2"]
+	sm.mu.Unlock()
+
+	if ok {
+		t.Fatal("expected no idle compaction timer for below-threshold usage")
+	}
+}
+
+func TestIdleCompaction_ConfigDisabled_NoTimer(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+	disabled := false
+	sm.cfg = &config.Info{
+		Compaction: &config.CompactionConfig{Idle: &disabled},
+	}
+
+	model := &provider.Model{
+		ID:         "test-model",
+		ProviderID: "test-provider",
+		Limit:      provider.ModelLimit{Context: 100000, Output: 4096},
+	}
+
+	sm.startIdleCompactionTimer("ses_idle_3", 85000, model)
+
+	sm.mu.Lock()
+	_, ok := sm.idleCompactTimers["ses_idle_3"]
+	sm.mu.Unlock()
+
+	if ok {
+		t.Fatal("expected no idle compaction timer when config disabled")
+	}
+}
+
+func TestIdleCompaction_CancelStopsTimer(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	model := &provider.Model{
+		ID:         "test-model",
+		ProviderID: "test-provider",
+		Limit:      provider.ModelLimit{Context: 100000, Output: 4096},
+	}
+
+	sm.startIdleCompactionTimer("ses_idle_4", 85000, model)
+
+	sm.mu.Lock()
+	_, ok := sm.idleCompactTimers["ses_idle_4"]
+	sm.mu.Unlock()
+	if !ok {
+		t.Fatal("expected timer to exist before cancel")
+	}
+
+	sm.cancelIdleCompaction("ses_idle_4")
+
+	sm.mu.Lock()
+	_, ok = sm.idleCompactTimers["ses_idle_4"]
+	sm.mu.Unlock()
+	if ok {
+		t.Fatal("expected timer to be removed after cancel")
+	}
+}
+
+func TestIdleCompaction_NilModel_NoTimer(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	sm.startIdleCompactionTimer("ses_idle_5", 85000, nil)
+
+	sm.mu.Lock()
+	_, ok := sm.idleCompactTimers["ses_idle_5"]
+	sm.mu.Unlock()
+
+	if ok {
+		t.Fatal("expected no timer when model is nil")
+	}
+}
+
+func TestIdleCompaction_ZeroContextWindow_NoTimer(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	model := &provider.Model{
+		ID:         "test-model",
+		ProviderID: "test-provider",
+		Limit:      provider.ModelLimit{Context: 0, Output: 0},
+	}
+
+	sm.startIdleCompactionTimer("ses_idle_6", 85000, model)
+
+	sm.mu.Lock()
+	_, ok := sm.idleCompactTimers["ses_idle_6"]
+	sm.mu.Unlock()
+
+	if ok {
+		t.Fatal("expected no timer when context window is zero")
+	}
+}
+
+func TestIdleCompaction_BusySession_SkipsCompaction(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	// Register a busy session.
+	registerActiveSession(sm, "ses_idle_7", nil, "build", "/tmp")
+
+	// Directly call runIdleCompaction — it should detect the session is busy
+	// and bail out without error.
+	sm.mu.Lock()
+	sm.idleCompactTimers["ses_idle_7"] = &idleCompactState{
+		timer: time.NewTimer(time.Hour),
+	}
+	sm.mu.Unlock()
+
+	sm.runIdleCompaction("ses_idle_7")
+
+	// Timer entry should be cleaned up.
+	sm.mu.Lock()
+	_, ok := sm.idleCompactTimers["ses_idle_7"]
+	sm.mu.Unlock()
+
+	if ok {
+		t.Fatal("expected idle compaction state to be cleaned up after busy check")
+	}
+}
+
+func TestIdleCompaction_ShutdownCleansTimers(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	model := &provider.Model{
+		ID:         "test-model",
+		ProviderID: "test-provider",
+		Limit:      provider.ModelLimit{Context: 100000, Output: 4096},
+	}
+
+	sm.startIdleCompactionTimer("ses_idle_8", 85000, model)
+	sm.startIdleCompactionTimer("ses_idle_9", 90000, model)
+
+	sm.Shutdown()
+
+	sm.mu.Lock()
+	count := len(sm.idleCompactTimers)
+	sm.mu.Unlock()
+
+	if count != 0 {
+		t.Fatalf("expected all idle timers cleared after shutdown, got %d", count)
+	}
+}
+
+func TestIdleCompaction_ExactThreshold_TimerStarts(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	model := &provider.Model{
+		ID:         "test-model",
+		ProviderID: "test-provider",
+		Limit:      provider.ModelLimit{Context: 100000, Output: 4096},
+	}
+
+	// Exactly at 80% threshold → timer starts (at the limit).
+	sm.startIdleCompactionTimer("ses_idle_10", 80000, model)
+
+	sm.mu.Lock()
+	_, ok := sm.idleCompactTimers["ses_idle_10"]
+	sm.mu.Unlock()
+
+	if !ok {
+		t.Fatal("expected timer to start at exactly the threshold boundary")
+	}
+
+	sm.cancelIdleCompaction("ses_idle_10")
+}
+
+func TestIdleCompaction_CancelNonexistent_NoPanic(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+	sm := newMinimalSM(t, b)
+
+	// Should not panic.
+	sm.cancelIdleCompaction("nonexistent")
 }
