@@ -164,7 +164,10 @@ func runDoctor() {
 		failed = true
 	}
 
-	printDoctorNextSteps(append(pluginHints, lspHints...))
+	// Permission noise check: suggest external_directory allow rules
+	permHints := checkPermissionNoise(cfg)
+
+	printDoctorNextSteps(append(append(pluginHints, lspHints...), permHints...))
 
 	if failed {
 		os.Exit(1)
@@ -643,6 +646,65 @@ func reportOrphanPluginBinaries(inConfig map[string]bool) []string {
 // checkConfiguredPlugins is kept for unit tests; prefer reportPlugins in runDoctor.
 func checkConfiguredPlugins(cfg *config.Info) {
 	_ = reportPlugins(cfg, config.DataDir())
+}
+
+// checkPermissionNoise detects when the user has no external_directory allow
+// rules and suggests common directories to pre-approve for read access.
+func checkPermissionNoise(cfg *config.Info) []string {
+	if cfg.Permission == nil || len(cfg.Permission.Allow) == 0 {
+		// No permission rules at all — suggest adding external_directory allows
+		home, _ := os.UserHomeDir()
+		if home == "" {
+			return nil
+		}
+
+		candidates := []string{
+			filepath.Join(home, "projects", "*"),
+			filepath.Join(home, "Documents", "*"),
+			"/tmp/*",
+		}
+
+		// Check which candidates actually have directories
+		var suggest []string
+		for _, c := range candidates {
+			dir := strings.TrimSuffix(c, "/*")
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				suggest = append(suggest, "external_directory:"+c)
+			}
+		}
+
+		if len(suggest) == 0 {
+			return nil
+		}
+
+		fmt.Printf("%s Permissions: no external_directory allow rules — the model will prompt for every file outside the project\n", checkWarn)
+		fmt.Println("    To reduce permission prompts, add to ~/.config/tinycode/tinycode.jsonc:")
+		fmt.Println(`    "permission": { "allow": [`)
+		for i, s := range suggest {
+			comma := ","
+			if i == len(suggest)-1 {
+				comma = ""
+			}
+			fmt.Printf("      %q%s\n", s, comma)
+		}
+		fmt.Println("    ] }")
+		return []string{"add external_directory allow rules to config (see above)"}
+	}
+
+	// Check if external_directory rules exist
+	hasExtDir := false
+	for _, rule := range cfg.Permission.Allow {
+		if strings.HasPrefix(rule, "external_directory:") {
+			hasExtDir = true
+			break
+		}
+	}
+	if hasExtDir {
+		fmt.Printf("%s Permissions: external_directory allow rules configured\n", checkPass)
+	} else {
+		fmt.Printf("%s Permissions: permission rules exist but no external_directory allows — reads outside the project will prompt\n", checkWarn)
+	}
+	return nil
 }
 
 func printDoctorNextSteps(hints []string) {
