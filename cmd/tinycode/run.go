@@ -209,6 +209,10 @@ func runRun() {
 		Discovery:       disc,
 	})
 	wireRunSubagentRunner(toolCtx, srv)
+	// Also set on the registry's cloned context (WithAgentRules copies it).
+	if toolReg != nil {
+		wireRunSubagentRunner(toolReg.ToolContext(), srv)
+	}
 
 	sessionID, existingMsgs, ms, err := resolveRunSession(db, *sessionFlag, *resumeFlag, *continueFlag, *titleFlag, dir, agentName, modelID, providerID)
 	if err != nil {

@@ -243,6 +243,14 @@ func executeShell(ctx context.Context, tc *Context, rawArgs json.RawMessage) (*E
 		if !info.IsDir() {
 			return &ExecuteResult{Output: fmt.Sprintf("workdir %q is not a directory", args.Workdir), IsError: true}, nil
 		}
+		// Resolve symlinks and verify the workdir is within the session root
+		// or writable roots, to prevent escape via relative paths like "..".
+		if resolved, err := filepath.EvalSymlinks(w); err == nil {
+			w = resolved
+		}
+		if tc.WritableRoots != nil && !tc.WritableRoots.Contains(w) {
+			return &ExecuteResult{Output: fmt.Sprintf("workdir %q is outside writable roots", args.Workdir), IsError: true}, nil
+		}
 		workdir = w
 	}
 

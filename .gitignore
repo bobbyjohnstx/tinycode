@@ -57,3 +57,6 @@ docs/wiki-and-self-improvement.md
 notes/
 .fresh-env-results/
 mock-llm
+script/benchmark-pass2.sh
+script/benchmark-simple-prompt.sh
+script/benchmark-combined.sh

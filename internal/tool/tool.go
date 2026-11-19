@@ -316,6 +316,9 @@ type Registry struct {
 	deferralActive *atomic.Bool   // true when deferral thresholds are met
 }
 
+// ToolContext returns the registry's shared tool context.
+func (r *Registry) ToolContext() *Context { return r.ctx }
+
 func NewRegistry(toolCtx *Context) *Registry {
 	if toolCtx.ReadFiles == nil {
 		toolCtx.ReadFiles = NewSafeReadFiles()

@@ -60,7 +60,8 @@ func (p *Processor) callLLM(ctx context.Context) (*Message, *TokenUsage, error) 
 
 		ch, err := p.client.Stream(ctx, req, opts...)
 		if err != nil {
-			if p.isVLLM() && req.ThinkingTokenBudget != nil && statusFromError(err) == 400 &&
+			status := statusFromError(err)
+			if p.isVLLM() && req.ThinkingTokenBudget != nil && (status == 400 || status == 500) &&
 				strings.Contains(strings.ToLower(err.Error()), "thinking_token_budget") {
 				errLower := strings.ToLower(err.Error())
 				permanent := strings.Contains(errLower, "not configured") ||
