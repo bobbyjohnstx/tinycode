@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	subagentMaxIterations = 5
+	subagentMaxIterations = 25
 	subagentTimeout       = 10 * time.Minute
 	// subagentNoTextResponse is returned when the assistant produced no text.
 	// A nil error keeps the task tool from marking the turn as a failure.
