@@ -26,6 +26,9 @@
 
 set -euo pipefail
 
+# WARNING: Do not run a TUI session alongside this benchmark — the shared
+# tinycode.log file causes metric cross-contamination between sessions.
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TINYCODE="${TINYCODE:-${PROJECT_DIR}/dist/tinycode}"
@@ -365,6 +368,7 @@ JSONEOF
 
     # Reset demo
     make -C "$DEMO_DIR" reset -s 2>/dev/null || true
+    sleep 1  # cooldown between model swaps
 }
 
 print_summary() {

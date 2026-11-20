@@ -38,12 +38,15 @@ func lmStudioContextLen(m lmStudioNativeModel) int {
 }
 
 func lmStudioOutputLen(contextLen int) int {
-	outputLen := 4096
-	if outputLen >= contextLen {
-		outputLen = contextLen / 2
-		if outputLen < 1 {
-			outputLen = contextLen
-		}
+	if contextLen <= 0 {
+		return 4096
+	}
+	outputLen := contextLen / 2
+	if outputLen > 16384 {
+		outputLen = 16384
+	}
+	if outputLen < 1 {
+		outputLen = 1
 	}
 	return outputLen
 }

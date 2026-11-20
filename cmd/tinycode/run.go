@@ -173,9 +173,19 @@ func runRun() {
 	providerID, modelID, model := resolveRunModel(reg, modelStr, isJSONEarly)
 	disc.Warmup(ctx, model)
 
-	agentName, agentPerms, agentRuleset, systemPrompt := buildRunAgentPrompt(*agentFlag, cfg, agentReg, model, dir, toolReg, appendSP)
+	agentName, agentPerms, agentRuleset, systemPrompt, prefetchPaths, agentTemp, agentTopP, agentMaxTokens := buildRunAgentPrompt(*agentFlag, cfg, agentReg, model, dir, toolReg, appendSP)
 	if agentRuleset != nil {
 		toolReg = toolReg.WithAgentRules(agentRuleset)
+	}
+
+	// Mark prefetched files as already read so the model doesn't re-read them.
+	if len(prefetchPaths) > 0 && toolReg != nil {
+		tc := toolReg.ToolContext()
+		if tc != nil && tc.ReadFiles != nil {
+			for _, p := range prefetchPaths {
+				tc.ReadFiles.Mark(p)
+			}
+		}
 	}
 
 	// Sync MCP tools — wait for async connections to settle first.
@@ -242,7 +252,7 @@ func runRun() {
 	}
 
 	compactionCfg := session.DefaultCompactionConfig()
-	proc := session.NewProcessor(session.ProcessorConfig{
+	procCfg := session.ProcessorConfig{
 		SessionID:               sessionID,
 		Agent:                   agentName,
 		Model:                   model,
@@ -258,7 +268,13 @@ func runRun() {
 		DoomThreshold:           config.DoomLoopThreshold(cfg),
 		VLLMThinkingTokenBudget: config.VLLMThinkingTokenBudget(cfg),
 		SmallModel:              cfg.SmallModel,
-	}, client, toolReg, b)
+		Temperature:             agentTemp,
+		TopP:                    agentTopP,
+	}
+	if agentMaxTokens != nil {
+		procCfg.MaxTokens = agentMaxTokens
+	}
+	proc := session.NewProcessor(procCfg, client, toolReg, b)
 	proc.SetMessages(existingMsgs)
 
 	isJSON := *formatFlag == "json"

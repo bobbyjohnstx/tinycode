@@ -455,7 +455,7 @@ func resolveRunModel(reg *provider.Registry, modelStr string, isJSON bool) (stri
 // buildRunAgentPrompt resolves the agent and builds the system prompt.
 // appendSystemPrompt is appended to the end of the system prompt if non-empty.
 // The caller should apply agentRuleset via toolReg.WithAgentRules before Execute.
-func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Registry, model *provider.Model, dir string, toolReg *tool.Registry, appendSystemPrompt ...string) (agentName string, agentPerms []string, agentRuleset permission.Ruleset, systemPrompt string) {
+func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Registry, model *provider.Model, dir string, toolReg *tool.Registry, appendSystemPrompt ...string) (agentName string, agentPerms []string, agentRuleset permission.Ruleset, systemPrompt string, prefetchPaths []string, agentTemp *float64, agentTopP *float64, agentMaxTokens *int) {
 	agentName = agentFlag
 	if agentName == "" {
 		agentName = cfg.DefaultAgent
@@ -491,7 +491,31 @@ func buildRunAgentPrompt(agentFlag string, cfg *config.Info, agentReg *agent.Reg
 		AppendSystemPrompt: appendSP,
 	})
 
-	return agentName, agentPerms, agentRuleset, systemPrompt
+	// Prefetch project files when the agent requests it.
+	if agentInfo != nil && agentInfo.Prefetch != "" {
+		prefetchText, paths := session.PrefetchFiles(dir, agentInfo.Prefetch, agentInfo.PrefetchMaxBytes)
+		if prefetchText != "" {
+			systemPrompt += "\n\n---\n\n" + prefetchText
+			prefetchPaths = paths
+		}
+	}
+
+	// Resolve agent LLM params (agent frontmatter overrides global config).
+	agentTemp = cfg.Temperature
+	agentTopP = cfg.TopP
+	if agentInfo != nil {
+		if agentInfo.Temperature != nil {
+			agentTemp = agentInfo.Temperature
+		}
+		if agentInfo.TopP != nil {
+			agentTopP = agentInfo.TopP
+		}
+		if agentInfo.MaxOutputTokens != nil {
+			agentMaxTokens = agentInfo.MaxOutputTokens
+		}
+	}
+
+	return agentName, agentPerms, agentRuleset, systemPrompt, prefetchPaths, agentTemp, agentTopP, agentMaxTokens
 }
 
 // resolveRunSession creates or continues a session. Returns session ID,

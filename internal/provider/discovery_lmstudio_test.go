@@ -103,8 +103,8 @@ func TestDiscoverLMStudio_UsesMaxModelLen(t *testing.T) {
 	if m.Limit.Context != 32768 {
 		t.Errorf("expected context 32768 from max_model_len, got %d", m.Limit.Context)
 	}
-	if m.Limit.Output != 4096 {
-		t.Errorf("expected output 4096, got %d", m.Limit.Output)
+	if m.Limit.Output != 16384 {
+		t.Errorf("expected output 16384, got %d", m.Limit.Output)
 	}
 }
 
@@ -288,6 +288,29 @@ func TestDiscoverLMStudio_HandlesInvalidJSON(t *testing.T) {
 	}
 	if reg.Failures("lm-studio") != 1 {
 		t.Errorf("expected 1 failure recorded, got %d", reg.Failures("lm-studio"))
+	}
+}
+
+func TestLmStudioOutputLen(t *testing.T) {
+	tests := []struct {
+		name       string
+		contextLen int
+		want       int
+	}{
+		{"zero context returns fallback", 0, 4096},
+		{"8192 context returns half", 8192, 4096},
+		{"32768 context returns half", 32768, 16384},
+		{"65536 context capped at 16384", 65536, 16384},
+		{"262144 context capped at 16384", 262144, 16384},
+		{"tiny context returns 1", 1, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := lmStudioOutputLen(tt.contextLen)
+			if got != tt.want {
+				t.Errorf("lmStudioOutputLen(%d) = %d, want %d", tt.contextLen, got, tt.want)
+			}
+		})
 	}
 }
 
