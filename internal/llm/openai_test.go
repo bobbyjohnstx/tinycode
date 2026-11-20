@@ -1072,3 +1072,68 @@ func TestLoopTail_MultiByteRuneBoundaries(t *testing.T) {
 		})
 	}
 }
+
+func TestThinkSplitter(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		wantText      string
+		wantReasoning string
+	}{
+		{
+			name:     "no thinking tags",
+			input:    "hello world",
+			wantText: "hello world",
+		},
+		{
+			name:          "think tags",
+			input:         "<think>reasoning here</think>visible text",
+			wantText:      "visible text",
+			wantReasoning: "reasoning here",
+		},
+		{
+			name:          "gemma channel thought tags",
+			input:         "<|channel>thought\nI am thinking\n<channel|>visible answer",
+			wantText:      "visible answer",
+			wantReasoning: "\nI am thinking\n",
+		},
+		{
+			name:     "think tags with text before",
+			input:    "before<think>middle</think>after",
+			wantText: "beforeafter", wantReasoning: "middle",
+		},
+		{
+			name:     "gemma channel with text before",
+			input:    "before<|channel>thought stuff<channel|>after",
+			wantText: "beforeafter", wantReasoning: " stuff",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ch := make(chan Event, 100)
+			var s thinkSplitter
+			s.push(tt.input, ch)
+			s.flush(ch)
+			close(ch)
+
+			events := collectEvents(t, ch, time.Second)
+			var gotText, gotReasoning string
+			for _, ev := range events {
+				switch ev.Type {
+				case EventTextDelta:
+					gotText += ev.Text
+				case EventReasoningDelta:
+					gotReasoning += ev.Text
+				}
+			}
+
+			if gotText != tt.wantText {
+				t.Errorf("text = %q, want %q", gotText, tt.wantText)
+			}
+			if gotReasoning != tt.wantReasoning {
+				t.Errorf("reasoning = %q, want %q", gotReasoning, tt.wantReasoning)
+			}
+		})
+	}
+}

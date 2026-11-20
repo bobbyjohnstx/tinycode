@@ -322,20 +322,25 @@ func (c *OpenAIClient) processOpenAIChunk(chunk chatCompletionChunk, toolCalls m
 	return tokens, false
 }
 
-const (
-	thinkOpen  = "<think>"
-	thinkClose = "</think>"
-)
+// thinkPair defines an open/close tag pair for reasoning block detection.
+type thinkPair struct {
+	open  string
+	close string
+}
 
-// thinkSplitter splits one well-formed <think>...</think> pair out of OpenAI
-// content deltas. Text outside the pair stays EventTextDelta. The interior of
-// a pair that closes without another <think> is EventReasoningDelta. A second
-// <think> before the close, or a missing close at flush, stays text with the
-// tags included. A partial "<think" or "</think" prefix is held until the next
-// content chunk or flush.
+var thinkPairs = []thinkPair{
+	{"<think>", "</think>"},
+	{"<|channel>thought", "<channel|>"},
+}
+
+// thinkSplitter splits reasoning blocks out of OpenAI content deltas.
+// Text outside reasoning tags stays EventTextDelta. The interior of a pair
+// that closes is EventReasoningDelta. Supports multiple tag formats:
+// <think>...</think> and <|channel>thought...<channel|>.
 type thinkSplitter struct {
-	inside  bool
-	pending string
+	inside    bool
+	pending   string
+	activePair *thinkPair
 }
 
 func (s *thinkSplitter) push(chunk string, ch chan<- Event) {
@@ -353,6 +358,7 @@ func (s *thinkSplitter) flush(ch chan<- Event) {
 	ch <- Event{Type: EventTextDelta, Text: s.pending}
 	s.pending = ""
 	s.inside = false
+	s.activePair = nil
 }
 
 func (s *thinkSplitter) drain(ch chan<- Event) {
@@ -371,8 +377,16 @@ func (s *thinkSplitter) drain(ch chan<- Event) {
 
 func (s *thinkSplitter) drainOutside(ch chan<- Event) bool {
 	data := s.pending
-	idx := strings.Index(data, thinkOpen)
-	if idx < 0 {
+	bestIdx := -1
+	var bestPair *thinkPair
+	for i := range thinkPairs {
+		idx := strings.Index(data, thinkPairs[i].open)
+		if idx >= 0 && (bestIdx < 0 || idx < bestIdx) {
+			bestIdx = idx
+			bestPair = &thinkPairs[i]
+		}
+	}
+	if bestIdx < 0 {
 		hold := thinkOpenHold(data)
 		if n := len(data) - len(hold); n > 0 {
 			ch <- Event{Type: EventTextDelta, Text: data[:n]}
@@ -380,48 +394,61 @@ func (s *thinkSplitter) drainOutside(ch chan<- Event) bool {
 		s.pending = hold
 		return false
 	}
-	if idx > 0 {
-		ch <- Event{Type: EventTextDelta, Text: data[:idx]}
+	if bestIdx > 0 {
+		ch <- Event{Type: EventTextDelta, Text: data[:bestIdx]}
 	}
 	s.inside = true
-	s.pending = data[idx:]
+	s.activePair = bestPair
+	s.pending = data[bestIdx:]
 	return true
 }
 
 func (s *thinkSplitter) drainInside(ch chan<- Event) bool {
-	body := s.pending[len(thinkOpen):]
-	openIdx := strings.Index(body, thinkOpen)
-	closeIdx := strings.Index(body, thinkClose)
+	open := s.activePair.open
+	close := s.activePair.close
+	body := s.pending[len(open):]
+	openIdx := strings.Index(body, open)
+	closeIdx := strings.Index(body, close)
 	if openIdx >= 0 && (closeIdx < 0 || openIdx < closeIdx) {
-		end := len(thinkOpen) + openIdx + len(thinkOpen)
+		end := len(open) + openIdx + len(open)
 		ch <- Event{Type: EventTextDelta, Text: s.pending[:end]}
 		s.pending = s.pending[end:]
 		s.inside = false
+		s.activePair = nil
 		return s.pending != ""
 	}
 	if closeIdx >= 0 {
 		if interior := body[:closeIdx]; interior != "" {
 			ch <- Event{Type: EventReasoningDelta, Text: interior}
 		}
-		s.pending = body[closeIdx+len(thinkClose):]
+		s.pending = body[closeIdx+len(close):]
 		s.inside = false
+		s.activePair = nil
 		return s.pending != ""
 	}
 	return false
 }
 
-// thinkOpenHold is the longest suffix of s that is a strict prefix of "<think>".
+// thinkOpenHold is the longest suffix of s that is a strict prefix of any
+// thinking open tag (e.g. "<think>" or "<|channel>thought").
 func thinkOpenHold(s string) string {
-	max := len(thinkOpen) - 1
-	if len(s) < max {
-		max = len(s)
-	}
-	for n := max; n > 0; n-- {
-		if strings.HasPrefix(thinkOpen, s[len(s)-n:]) {
-			return s[len(s)-n:]
+	var best string
+	for _, pair := range thinkPairs {
+		maxN := len(pair.open) - 1
+		if len(s) < maxN {
+			maxN = len(s)
+		}
+		for n := maxN; n > 0; n-- {
+			suffix := s[len(s)-n:]
+			if strings.HasPrefix(pair.open, suffix) {
+				if len(suffix) > len(best) {
+					best = suffix
+				}
+				break
+			}
 		}
 	}
-	return ""
+	return best
 }
 
 // finalizeOpenAIToolCalls emits EventToolCallEnd for each accumulated tool call,
