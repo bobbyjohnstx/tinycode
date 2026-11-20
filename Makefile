@@ -27,7 +27,7 @@ PLUGIN_PLATFORMS := \
   darwin/amd64 \
   darwin/arm64
 
-.PHONY: build build-all build-plugins build-full clean test vet lint fmt check build-webapp embed-webapp package package-plugins image image-full
+.PHONY: build build-all build-plugins build-full clean test vet lint fmt check build-webapp embed-webapp package package-plugins image image-full release release-check release-dry-run
 
 ## build: Build tinycode for the current platform
 build:
@@ -194,6 +194,20 @@ image-full:
 clean:
 	rm -rf dist/
 	go clean
+
+## release: Full release pipeline (tag, build, publish, homebrew) — usage: make release VERSION=v2.11.0
+release:
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make release VERSION=v2.11.0"; exit 1; fi
+	./script/release.sh $(VERSION)
+
+## release-dry-run: Build and verify without publishing — usage: make release-dry-run VERSION=v2.11.0
+release-dry-run:
+	@if [ -z "$(VERSION)" ]; then echo "Usage: make release-dry-run VERSION=v2.11.0"; exit 1; fi
+	./script/release.sh $(VERSION) --dry-run
+
+## release-check: Pre-flight checks only (tests, lint, changelog, tokens)
+release-check:
+	./script/release.sh --check
 
 ## help: Show this help
 help:

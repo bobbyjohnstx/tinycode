@@ -218,9 +218,10 @@ run_model() {
     local provider="${2:-vllm}"
     local model_index="${3:-?}"
     local model_total="${4:-?}"
-    local output_file="${RESULTS_DIR}/${model}.txt"
-    local json_file="${RESULTS_DIR}/${model}.json"
-    local log_out="${RESULTS_DIR}/${model}.log"
+    local file_model="${model//\//_}"
+    local output_file="${RESULTS_DIR}/${file_model}.txt"
+    local json_file="${RESULTS_DIR}/${file_model}.json"
+    local log_out="${RESULTS_DIR}/${file_model}.log"
     local safe_model="${provider}/${model}"
 
     # Skip if already completed (supports resume)
@@ -266,7 +267,7 @@ run_model() {
         -no-fail-on-tool-error \
         -title "benchmark-${model}" \
         "$REVIEW_PROMPT" \
-        2>"${RESULTS_DIR}/${model}.stderr" \
+        2>"${RESULTS_DIR}/${file_model}.stderr" \
         >"$output_file"; then
         status="completed"
     else
@@ -432,11 +433,6 @@ while [ $# -gt 0 ]; do
         --provider)
             provider="$2"
             shift 2
-            mapfile -t models < <("$TINYCODE" models 2>/dev/null | grep "^$provider/" | sed "s|$provider/||" || true)
-            if [ ${#models[@]} -eq 0 ]; then
-                echo "No models found for provider: $provider"
-                exit 1
-            fi
             ;;
         --skip)
             shift
@@ -453,7 +449,15 @@ while [ $# -gt 0 ]; do
 done
 
 if [ ${#models[@]} -eq 0 ]; then
-    models=("${MAAS_MODELS[@]}")
+    if [ "$provider" != "vllm" ]; then
+        mapfile -t models < <("$TINYCODE" models 2>/dev/null | grep "^$provider " | awk '{print $2}' || true)
+        if [ ${#models[@]} -eq 0 ]; then
+            echo "No models found for provider: $provider"
+            exit 1
+        fi
+    else
+        models=("${MAAS_MODELS[@]}")
+    fi
 fi
 
 # Filter out skipped models
