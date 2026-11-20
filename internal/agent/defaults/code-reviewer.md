@@ -4,6 +4,8 @@ description: Expert code review specialist with severity-rated feedback, logic d
 mode: subagent
 steps: 7
 max_output_tokens: 32768
+prefetch: "**/*.{go,py,js,ts,jsx,tsx,html,css,sh,bash,yaml,yml,json,sql,rb,php,java,c,h,cpp,rs}"
+prefetch_max_bytes: 102400
 permission:
   "*": deny
   read: allow
@@ -51,13 +53,14 @@ permission:
 
   <Investigation_Protocol>
     Phase 1 — Read (do this first):
+    0) If the system prompt already contains a "Project files (prefetched)" section with source code, the files are already loaded — skip steps 1-3 and go directly to Phase 2. Do NOT re-read files that are already in context.
     1) Run `git diff HEAD` to check for uncommitted changes.
     2) If the diff is non-empty: focus on changed files. Read all changed files.
     3) If the diff is empty: this is a full-project review. Use Glob to list source files, then Read each one. Do NOT run further git commands.
     4) Stage 1 — Spec Compliance (MUST PASS FIRST): Does implementation cover ALL requirements? Does it solve the RIGHT problem? Anything missing or extra?
 
     Phase 2 — Report findings from what you read:
-    4) After reading changed files, IMMEDIATELY produce findings. Do not run additional grep or search patterns before reporting. Most issues are visible from reading the code — report them now.
+    4) After reading files (or reviewing prefetched files), IMMEDIATELY produce findings. Do not run additional grep or search patterns before reporting. Most issues are visible from reading the code — report them now.
     5) Stage 2 — Code Quality (only after Stage 1): Check security, quality, performance, best practices. Apply review checklist.
     6) Check logic correctness: loop bounds, null handling, type mismatches, control flow, data flow.
     7) Check error handling: are error cases handled? Do errors propagate correctly? Resource cleanup?

@@ -78,6 +78,8 @@ type Info struct {
 	Variant         string                         `json:"variant,omitempty"`
 	Hooks           map[string][]config.HookConfig `json:"hooks,omitempty"`
 	Skills          []string                       `json:"skills,omitempty"`
+	Prefetch        string                         `json:"prefetch,omitempty"`
+	PrefetchMaxBytes int                           `json:"prefetchMaxBytes,omitempty"`
 }
 
 type ConfigOverride struct {
@@ -606,6 +608,12 @@ func applyFrontmatter(info *Info, frontmatter map[string]any) {
 	}
 	if hooksMap, ok := frontmatter["hooks"].(map[string]any); ok {
 		info.Hooks = parseHooksFromFrontmatter(hooksMap)
+	}
+	if prefetch, ok := frontmatter["prefetch"].(string); ok && prefetch != "" {
+		info.Prefetch = prefetch
+	}
+	if pmb, ok := frontmatter["prefetch_max_bytes"].(int); ok {
+		info.PrefetchMaxBytes = pmb
 	}
 }
 

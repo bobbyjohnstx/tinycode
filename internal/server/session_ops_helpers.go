@@ -48,13 +48,23 @@ func (sm *SessionManager) resolvePromptModel(sessionID string, input PromptInput
 	return nil, fmt.Errorf("%s", errMsg)
 }
 
+// promptResult holds the outputs of buildPromptSystemPrompt.
+type promptResult struct {
+	AgentPerms    []string
+	Ruleset       permission.Ruleset
+	SystemPrompt  string
+	PrefetchPaths []string // absolute paths of prefetched files to mark as read
+}
+
 // buildPromptSystemPrompt resolves the agent, wires instructions, and builds
 // the system prompt for a prompt request. directory is the session working
 // directory; when empty, sm.dir is used. When withNotes is true, model-written
 // notes from prior sessions are loaded into the prompt.
-func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *provider.Model, directory string, withNotes bool) (agentPerms []string, ruleset permission.Ruleset, systemPrompt string) {
+func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *provider.Model, directory string, withNotes bool) promptResult {
 	agentInfo := sm.agentRegistry.Get(input.Agent, model.SizeB())
 	var agentPrompt string
+	var ruleset permission.Ruleset
+	var agentPerms []string
 	tools := sm.tools
 	if agentInfo != nil {
 		agentPrompt = agentInfo.Prompt
@@ -90,10 +100,27 @@ func (sm *SessionManager) buildPromptSystemPrompt(input PromptInput, model *prov
 		spi.NotesEnabled = true
 	}
 
-	systemPrompt = session.BuildSystemPrompt(spi)
+	systemPrompt := session.BuildSystemPrompt(spi)
+
+	// Prefetch project files when the agent requests it.
+	var prefetchPaths []string
+	if agentInfo != nil && agentInfo.Prefetch != "" {
+		maxBytes := agentInfo.PrefetchMaxBytes
+		prefetchText, paths := session.PrefetchFiles(directory, agentInfo.Prefetch, maxBytes)
+		if prefetchText != "" {
+			systemPrompt += "\n\n---\n\n" + prefetchText
+			prefetchPaths = paths
+			slog.Info("prefetch injected", "agent", input.Agent, "files", len(paths))
+		}
+	}
 
 	slog.Info("system prompt built", "sessionID", input.SessionID, "agent", input.Agent, "promptLen", len(systemPrompt))
-	return agentPerms, ruleset, systemPrompt
+	return promptResult{
+		AgentPerms:    agentPerms,
+		Ruleset:       ruleset,
+		SystemPrompt:  systemPrompt,
+		PrefetchPaths: prefetchPaths,
+	}
 }
 
 // persistPromptResult saves new messages and token usage to the database.

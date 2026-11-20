@@ -1344,3 +1344,78 @@ func TestApplyFrontmatter_HooksNilForMissingCommand(t *testing.T) {
 		t.Errorf("expected nil hooks when no command set, got %v", info.Hooks)
 	}
 }
+
+func TestApplyFrontmatter_PrefetchFields(t *testing.T) {
+	info := &Info{Name: "test", Mode: ModeSubagent, Options: make(map[string]any)}
+	applyFrontmatter(info, map[string]any{
+		"prefetch":           "**/*.{go,py}",
+		"prefetch_max_bytes": 51200,
+	})
+	if info.Prefetch != "**/*.{go,py}" {
+		t.Errorf("expected Prefetch '**/*.{go,py}', got %q", info.Prefetch)
+	}
+	if info.PrefetchMaxBytes != 51200 {
+		t.Errorf("expected PrefetchMaxBytes 51200, got %d", info.PrefetchMaxBytes)
+	}
+}
+
+func TestApplyFrontmatter_NoPrefetchFieldsUnchanged(t *testing.T) {
+	info := &Info{Name: "test", Mode: ModeSubagent, Options: make(map[string]any)}
+	applyFrontmatter(info, map[string]any{
+		"description": "no prefetch here",
+	})
+	if info.Prefetch != "" {
+		t.Errorf("expected empty Prefetch, got %q", info.Prefetch)
+	}
+	if info.PrefetchMaxBytes != 0 {
+		t.Errorf("expected zero PrefetchMaxBytes, got %d", info.PrefetchMaxBytes)
+	}
+}
+
+func TestCodeReviewerAgent_HasPrefetch(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	cr := r.Get("code-reviewer", nil)
+	if cr == nil {
+		t.Fatal("code-reviewer agent not found")
+	}
+	if cr.Prefetch == "" {
+		t.Error("expected code-reviewer to have Prefetch set")
+	}
+	if cr.PrefetchMaxBytes != 102400 {
+		t.Errorf("expected PrefetchMaxBytes 102400, got %d", cr.PrefetchMaxBytes)
+	}
+}
+
+func TestSecurityReviewerAgent_HasPrefetch(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	sr := r.Get("security-reviewer", nil)
+	if sr == nil {
+		t.Fatal("security-reviewer agent not found")
+	}
+	if sr.Prefetch == "" {
+		t.Error("expected security-reviewer to have Prefetch set")
+	}
+	if sr.PrefetchMaxBytes != 102400 {
+		t.Errorf("expected PrefetchMaxBytes 102400, got %d", sr.PrefetchMaxBytes)
+	}
+}
+
+func TestBuildAgent_NoPrefetch(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadDefaults(nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	build := r.Get("build", nil)
+	if build == nil {
+		t.Fatal("build agent not found")
+	}
+	if build.Prefetch != "" {
+		t.Errorf("expected build agent to have no Prefetch, got %q", build.Prefetch)
+	}
+}

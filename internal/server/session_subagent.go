@@ -70,7 +70,8 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 		SessionID: parentSessionID,
 		Agent:     agent,
 	}
-	agentPerms, agentRuleset, systemPrompt := sm.buildPromptSystemPrompt(input, model, directory, false)
+	pr := sm.buildPromptSystemPrompt(input, model, directory, false)
+	agentPerms, agentRuleset, systemPrompt := pr.AgentPerms, pr.Ruleset, pr.SystemPrompt
 
 	// Preload agent-scoped skills into the child prompt.
 	agentInfo := sm.agentRegistry.Get(agent, model.SizeB())
@@ -91,6 +92,16 @@ func (sm *SessionManager) RunSubagent(ctx context.Context, parentSessionID strin
 	childTools = childTools.WithDepth(parentDepth + 1)
 	if autoApprove {
 		childTools = childTools.WithAutoApprove()
+	}
+
+	// Mark prefetched files as already read so the subagent doesn't re-read them.
+	if len(pr.PrefetchPaths) > 0 {
+		tc := childTools.ToolContext()
+		if tc != nil && tc.ReadFiles != nil {
+			for _, p := range pr.PrefetchPaths {
+				tc.ReadFiles.Mark(p)
+			}
+		}
 	}
 
 	// #230: Register MCP tools on the subagent's tool registry copy.

@@ -319,7 +319,18 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		}
 	}
 
-	agentPerms, agentRuleset, systemPrompt := sm.buildPromptSystemPrompt(input, model, sessionDir, true)
+	pr := sm.buildPromptSystemPrompt(input, model, sessionDir, true)
+	agentPerms, agentRuleset, systemPrompt := pr.AgentPerms, pr.Ruleset, pr.SystemPrompt
+
+	// Mark prefetched files as already read so the model doesn't re-read them.
+	if len(pr.PrefetchPaths) > 0 && promptTools != nil {
+		tc := promptTools.ToolContext()
+		if tc != nil && tc.ReadFiles != nil {
+			for _, p := range pr.PrefetchPaths {
+				tc.ReadFiles.Mark(p)
+			}
+		}
+	}
 
 	// Prepend effort-level system prefix if provided.
 	if input.SystemPrefix != "" {
