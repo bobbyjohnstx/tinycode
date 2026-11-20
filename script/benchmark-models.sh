@@ -260,15 +260,10 @@ run_model() {
     local start_time
     start_time=$(date +%s)
 
-    # Wait for LM Studio to finish loading the model (pre-warm with a tiny request).
-    # Without this, the previous model's eviction + new model load can race with
-    # the benchmark request, causing empty responses.
-    if [ "$provider" = "lm-studio" ]; then
-        curl -s -X POST "http://127.0.0.1:1234/v1/chat/completions" \
-            -H "Content-Type: application/json" \
-            -d "{\"model\": \"$model\", \"messages\": [{\"role\": \"user\", \"content\": \"hi\"}], \"max_tokens\": 1}" \
-            > /dev/null 2>&1 || true
-    fi
+    # Kill any lingering tinycode processes from the previous run and let
+    # LM Studio settle before starting the next model.
+    pkill -f "tinycode run" 2>/dev/null || true
+    sleep 3
 
     # Run tinycode in headless mode
     local status
