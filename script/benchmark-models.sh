@@ -55,7 +55,7 @@ declare -a BUG_PATTERNS=(
     "4:missing.*return|no.*return.*after.*error|http\.Error.*return|execution.*continues|continues.*after.*error|return.*after.*http"
     "5:mutex|concurrent.*access|race.*condition|sync\.Mutex|data.*race|serial.*write|concurrent.*write"
     "6:priority.*int.*string|priority.*type|string.*comparison.*int|%d.*string|wrong.*format.*verb|%d.*Title"
-    "7:hardcoded.*key|hardcoded.*secret|api.*key.*source|sk-demo-secret|secret.*key.*embed|key.*hard.coded"
+    "7:hard.?coded.*key|hard.?coded.*secret|api.*key.*source|sk-demo-secret|secret.*key.*embed|key.*hard.?coded|secret.*exposed"
     "8:off.by.one|rows\[2\]|skip.*first.*row|import.*skip|data.loss|rows\[2:\]|first.*data.*row"
     "9:POST.*PUT|update.*POST|should.*PUT|always.*POST|create.*duplicate|uses.*POST.*exist"
     "10:bare.*except|except:|catch.*everything|KeyboardInterrupt|SystemExit|swallow.*exception|except.*Exception"
@@ -68,7 +68,7 @@ declare -a BUG_PATTERNS=(
     "17:shebang|missing.*shebang|no.*shebang|#!/bin/bash|#!/usr/bin/env"
     "18:set.*-e|pipefail|set.*-u|error.*handling.*bash|set -euo|silent.*fail"
     "19:due_date.*dueDate|dueDate.*due_date|field.*mismatch|camelCase.*snake|field.*name.*mismatch|dueDate.*due.date|Incorrect.*field.*dueDate|dueDate.*expects|rename.*due_date"
-    "20:hardcoded.*port|port.*8080|port.*hardcoded|configurable.*port|always.*listen.*8080|deployment.*flex"
+    "20:hard.?coded.*port|port.*8080|port.*hard.?coded|configurable.*port|always.*listen.*8080|deployment.*flex|fixed.*port"
 )
 
 # MAAS chat models (from models.corp.redhat.com portal, 2026-11-17).
