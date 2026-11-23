@@ -381,8 +381,12 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		maxIter = *input.MaxIterations
 	}
 	smallModel := ""
+	var autoContinueMax int
 	if sm.cfg != nil {
 		smallModel = sm.cfg.SmallModel
+		if sm.cfg.Experimental != nil {
+			autoContinueMax = sm.cfg.Experimental.AutoContinue
+		}
 	}
 	var agentInfo *agent.Info
 	if sm.agentRegistry != nil {
@@ -431,9 +435,13 @@ func (sm *SessionManager) processPrompt(ctx context.Context, input PromptInput, 
 		CompactionFailures:      compactFails,
 		Temperature:             temp,
 		TopP:                    topP,
+		AutoContinueMax:         autoContinueMax,
 	}
 	if agentMaxTokens != nil {
 		procCfg.MaxTokens = agentMaxTokens
+	}
+	if agentInfo != nil && agentInfo.Steps != nil && *agentInfo.Steps > procCfg.AutoContinueMax {
+		procCfg.AutoContinueMax = *agentInfo.Steps
 	}
 
 	// Set agent-scoped hooks on the shell hook runner.

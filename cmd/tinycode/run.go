@@ -271,6 +271,11 @@ func runRun() {
 		Temperature:             agentTemp,
 		TopP:                    agentTopP,
 	}
+	if agentReg != nil {
+		if ai := agentReg.Get(agentName, model.SizeB()); ai != nil && ai.Steps != nil && *ai.Steps > procCfg.AutoContinueMax {
+			procCfg.AutoContinueMax = *ai.Steps
+		}
+	}
 	if agentMaxTokens != nil {
 		procCfg.MaxTokens = agentMaxTokens
 	}
