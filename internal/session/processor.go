@@ -264,7 +264,13 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 		p.logLLMResponse(assistantMsg, toolCalls, usage, iteration)
 
 		if len(toolCalls) == 0 {
-			if p.tryAutoContinue(hadPriorToolCalls) {
+			lastTextLen := 0
+			for _, part := range assistantMsg.Parts {
+				if part.Type == PartText {
+					lastTextLen += len(part.Text)
+				}
+			}
+			if p.tryAutoContinue(hadPriorToolCalls, lastTextLen) {
 				continue
 			}
 			// Detect model describing tool actions in text without calling tools.

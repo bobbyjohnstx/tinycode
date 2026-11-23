@@ -204,8 +204,13 @@ func (p *Processor) compactOrStop(ctx context.Context, kind string) error {
 
 // tryAutoContinue checks if the processor should auto-continue after the LLM
 // returned no tool calls. Returns true if a nudge was injected and the loop
-// should continue.
-func (p *Processor) tryAutoContinue(hadPriorToolCalls bool) bool {
+// should continue. Skips the nudge when the model already produced a
+// substantial text response (>500 chars) — that's the final report, not an
+// interim stop.
+func (p *Processor) tryAutoContinue(hadPriorToolCalls bool, lastTextLen int) bool {
+	if lastTextLen > 500 {
+		return false
+	}
 	if hadPriorToolCalls && p.autoContinueCount < p.autoContinueLimit() {
 		p.autoContinueCount++
 		nudgeID, _ := id.Ascending("message")
