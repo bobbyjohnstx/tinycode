@@ -241,8 +241,8 @@ func TestCompact_ForceWithSmallMessageSet(t *testing.T) {
 	if len(result) == 0 {
 		t.Fatal("expected at least one message after compaction")
 	}
-	if result[0].Role != RoleUser {
-		t.Errorf("first message after compact should be user (summary), got %s", result[0].Role)
+	if result[0].Role != RoleAssistant {
+		t.Errorf("first message after compact should be assistant (summary), got %s", result[0].Role)
 	}
 	if !strings.Contains(result[0].Parts[0].Text, "Forced summary") {
 		t.Errorf("expected summary text, got %q", result[0].Parts[0].Text)

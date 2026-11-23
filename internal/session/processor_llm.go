@@ -200,6 +200,26 @@ func (p *Processor) buildRequest() llm.Request {
 		llmMessages = append(llmMessages, llmMsg)
 	}
 
+	// Merge consecutive same-role plain-text messages to satisfy strict
+	// providers that reject adjacent messages with the same role (e.g. LM
+	// Studio with Jinja2 templates). Skip system/tool messages and messages
+	// with tool calls or image content parts.
+	merged := llmMessages[:0:0]
+	for _, m := range llmMessages {
+		prev := len(merged) - 1
+		if prev >= 0 &&
+			merged[prev].Role == m.Role &&
+			m.Role != "system" &&
+			m.Role != "tool" &&
+			len(merged[prev].ToolCalls) == 0 && len(m.ToolCalls) == 0 &&
+			len(merged[prev].ContentParts) == 0 && len(m.ContentParts) == 0 {
+			merged[prev].Content = merged[prev].Content.(string) + "\n\n" + m.Content.(string)
+		} else {
+			merged = append(merged, m)
+		}
+	}
+	llmMessages = merged
+
 	tools := p.tools.ToolDefs(p.config.AgentPerms)
 
 	// Default MaxTokens so clampMaxTokens can see and cap it for
@@ -628,7 +648,7 @@ func (p *Processor) compact(ctx context.Context, force bool) (bool, error) {
 	summaryMsg := Message{
 		ID:        summaryMsgID,
 		SessionID: p.config.SessionID,
-		Role:      RoleUser,
+		Role:      RoleAssistant,
 		Parts:     []Part{TextPart(summary)},
 		CreatedAt: time.Now(),
 	}

@@ -1187,9 +1187,9 @@ func TestRecoverStreamBudget_AccumulatesTokenUsage(t *testing.T) {
 
 // --- Issue #728: Compaction summary must use user role ---
 
-func TestProcessor_Compact_SummaryIsUserRole(t *testing.T) {
-	// The compaction summary message must have RoleUser so providers
-	// that require a user-role first message don't reject it.
+func TestProcessor_Compact_SummaryIsAssistantRole(t *testing.T) {
+	// The compaction summary must be RoleAssistant to avoid consecutive
+	// user messages when preserved[0] is also a user message (#984).
 	client := &mockLLMClient{
 		responses: []mockResponse{
 			{events: []llm.Event{
@@ -1239,8 +1239,8 @@ func TestProcessor_Compact_SummaryIsUserRole(t *testing.T) {
 	if len(result) == 0 {
 		t.Fatal("expected at least 1 message after compaction")
 	}
-	if result[0].Role != RoleUser {
-		t.Errorf("compaction summary role = %q, want %q", result[0].Role, RoleUser)
+	if result[0].Role != RoleAssistant {
+		t.Errorf("compaction summary role = %q, want %q", result[0].Role, RoleAssistant)
 	}
 }
 
@@ -1385,7 +1385,7 @@ func TestCheckCompaction_ForcesWhenEstimatorKeepsHistory(t *testing.T) {
 	if len(got) >= 6 {
 		t.Fatalf("message count = %d, want history shrunk", len(got))
 	}
-	if got[0].Role != RoleUser || !strings.Contains(got[0].Parts[0].Text, "summary of earlier reads") {
+	if got[0].Role != RoleAssistant || !strings.Contains(got[0].Parts[0].Text, "summary of earlier reads") {
 		t.Fatalf("summary = %+v", got[0])
 	}
 	if p.compactionCount != 0 {
@@ -1598,4 +1598,190 @@ func TestRecoverStreamBudget_NilUsageOnRecoveryFailure(t *testing.T) {
 	if got != nil && messageHasVisibleAnswer(got) {
 		t.Fatalf("unexpected answer: %#v", got)
 	}
+}
+
+// --- Issue #984: Consecutive same-role merge in buildRequest ---
+
+func TestBuildRequest_MergesConsecutiveSameRole(t *testing.T) {
+	tests := []struct {
+		name      string
+		messages  []Message
+		sysprompt string
+		wantRoles []string
+	}{
+		{
+			name: "two consecutive user messages merged",
+			messages: []Message{
+				{ID: "m1", Role: RoleUser, Parts: []Part{TextPart("first")}},
+				{ID: "m2", Role: RoleUser, Parts: []Part{TextPart("second")}},
+			},
+			wantRoles: []string{"user"},
+		},
+		{
+			name: "user then assistant kept separate",
+			messages: []Message{
+				{ID: "m1", Role: RoleUser, Parts: []Part{TextPart("question")}},
+				{ID: "m2", Role: RoleAssistant, Parts: []Part{TextPart("answer")}},
+			},
+			wantRoles: []string{"user", "assistant"},
+		},
+		{
+			name: "assistant with tool calls not merged with assistant text",
+			messages: []Message{
+				{ID: "m1", Role: RoleAssistant, Parts: []Part{ToolCallPart("tc1", "read", `{"path":"a"}`)}},
+				{ID: "m2", Role: RoleAssistant, Parts: []Part{TextPart("done")}},
+			},
+			wantRoles: []string{"assistant", "assistant"},
+		},
+		{
+			name: "post-compaction: system, assistant summary, user prompt",
+			messages: []Message{
+				{ID: "m1", Role: RoleAssistant, Parts: []Part{TextPart("summary")}},
+				{ID: "m2", Role: RoleUser, Parts: []Part{TextPart("new prompt")}},
+			},
+			sysprompt: "sys",
+			wantRoles: []string{"system", "assistant", "user"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Processor{
+				config: ProcessorConfig{
+					SessionID:    "ses-merge",
+					SystemPrompt: tt.sysprompt,
+					Model:        &provider.Model{ID: "test-model"},
+				},
+				tools: &stubToolExecutor{},
+				bus:   bus.New(),
+			}
+			p.messages = tt.messages
+
+			req := p.buildRequest()
+
+			if len(req.Messages) != len(tt.wantRoles) {
+				t.Fatalf("expected %d messages, got %d", len(tt.wantRoles), len(req.Messages))
+			}
+			for i, wantRole := range tt.wantRoles {
+				if req.Messages[i].Role != wantRole {
+					t.Errorf("message[%d].Role = %q, want %q", i, req.Messages[i].Role, wantRole)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildRequest_MergedContentJoined(t *testing.T) {
+	p := &Processor{
+		config: ProcessorConfig{
+			SessionID: "ses-merge-content",
+			Model:     &provider.Model{ID: "test-model"},
+		},
+		tools: &stubToolExecutor{},
+		bus:   bus.New(),
+	}
+	p.messages = []Message{
+		{ID: "m1", Role: RoleUser, Parts: []Part{TextPart("alpha")}},
+		{ID: "m2", Role: RoleUser, Parts: []Part{TextPart("beta")}},
+	}
+
+	req := p.buildRequest()
+	if len(req.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(req.Messages))
+	}
+	content, ok := req.Messages[0].Content.(string)
+	if !ok {
+		t.Fatalf("expected string content, got %T", req.Messages[0].Content)
+	}
+	if content != "alpha\n\nbeta" {
+		t.Errorf("merged content = %q, want %q", content, "alpha\n\nbeta")
+	}
+}
+
+// --- Issue #985: Empty LLM response detection ---
+
+func TestProcessorLoop_EmptyResponse_ReturnsError(t *testing.T) {
+	t.Run("no prior tool calls returns error", func(t *testing.T) {
+		// Model returns empty response (no text, no tool calls).
+		client := &mockLLMClient{
+			responses: []mockResponse{
+				{events: []llm.Event{
+					{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 10, CompletionTokens: 0}},
+				}},
+			},
+		}
+
+		b := bus.New()
+		defer b.Close()
+
+		sub := b.Subscribe("session.warning")
+		defer sub.Unsubscribe()
+
+		p := NewProcessor(ProcessorConfig{
+			SessionID:       "ses_empty",
+			Model:           &provider.Model{ID: "test-model"},
+			Compaction:      DefaultCompactionConfig(),
+			AutoContinueMax: -1,
+		}, client, &stubToolExecutor{}, b)
+
+		result := p.Process(context.Background(), "hello")
+		if result.Error == nil {
+			t.Fatal("expected error for empty response")
+		}
+		if !strings.Contains(result.Error.Error(), "empty response") {
+			t.Errorf("error = %q, want it to contain 'empty response'", result.Error)
+		}
+
+		// Verify bus received a warning event.
+		select {
+		case evt := <-sub.C:
+			m, ok := evt.Properties.(map[string]any)
+			if !ok {
+				t.Fatalf("expected map properties, got %T", evt.Properties)
+			}
+			if _, ok := m["message"]; !ok {
+				t.Error("expected 'message' key in warning event")
+			}
+		default:
+			t.Error("expected session.warning event for empty response")
+		}
+	})
+
+	t.Run("with prior tool calls returns normally", func(t *testing.T) {
+		// Model does a tool call, gets result, then returns empty text.
+		// Since hadPriorToolCalls is true, this should NOT error.
+		client := &mockLLMClient{
+			responses: []mockResponse{
+				// First response: tool call
+				{events: []llm.Event{
+					{Type: llm.EventToolCallBegin, ToolCallID: "call_1", ToolName: "read"},
+					{Type: llm.EventToolCallEnd, ToolCallID: "call_1", ToolName: "read", ToolCallArgs: `{"path":"a.go"}`},
+					{Type: llm.EventFinish, FinishReason: "tool_calls"},
+				}},
+				// Second response: empty (no text, no tool calls)
+				{events: []llm.Event{
+					{Type: llm.EventFinish, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 10, CompletionTokens: 0}},
+				}},
+			},
+		}
+
+		tools := &mockToolExecutor{
+			results: map[string]string{"read": "file contents"},
+		}
+
+		b := bus.New()
+		defer b.Close()
+
+		p := NewProcessor(ProcessorConfig{
+			SessionID:       "ses_empty_with_tools",
+			Model:           &provider.Model{ID: "test-model"},
+			Compaction:      DefaultCompactionConfig(),
+			AutoContinueMax: -1,
+		}, client, tools, b)
+
+		result := p.Process(context.Background(), "read file")
+		if result.Error != nil {
+			t.Fatalf("unexpected error: %v", result.Error)
+		}
+	})
 }

@@ -289,6 +289,18 @@ func (p *Processor) ProcessWithID(ctx context.Context, userMessage, messageID st
 					continue
 				}
 			}
+			if !messageHasVisibleAnswer(assistantMsg) && !hadPriorToolCalls {
+				slog.Warn("empty LLM response", "sessionID", p.config.SessionID, "iteration", iteration)
+				p.bus.Publish("session.warning", map[string]any{
+					"sessionID": p.config.SessionID,
+					"message":   "Model returned an empty response — try rephrasing, starting a new session, or switching models.",
+				})
+				return &ProcessResult{
+					Messages: p.Messages(),
+					Usage:    totalUsage,
+					Error:    fmt.Errorf("model returned empty response"),
+				}
+			}
 			slog.Info("processor done (no tool calls)", "sessionID", p.config.SessionID, "iteration", iteration)
 			return &ProcessResult{
 				Messages: p.Messages(),
